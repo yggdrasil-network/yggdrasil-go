@@ -1,0 +1,4 @@
+#!/bin/bash
+export GOPATH=$PWD
+go get -d yggdrasil
+go run misc/sim/treesim.go

@@ -1,0 +1,69 @@
+#!/bin/bash
+
+# Connects nodes in a network resembling an s-channel feynmann diagram.
+
+# 1      5
+#  \    /
+#   3--4
+#  /    \
+# 2      6
+
+# Bandwidth constraints are applied to 4<->5 and 4<->6.
+# The idea is to make sure that bottlenecks on one link don't affect the other.
+
+ip netns add node1
+ip netns add node2
+ip netns add node3
+ip netns add node4
+ip netns add node5
+ip netns add node6
+
+ip link add veth13 type veth peer name veth31
+ip link set veth13 netns node1 up
+ip link set veth31 netns node3 up
+
+ip link add veth23 type veth peer name veth32
+ip link set veth23 netns node2 up
+ip link set veth32 netns node3 up
+
+ip link add veth34 type veth peer name veth43
+ip link set veth34 netns node3 up
+ip link set veth43 netns node4 up
+
+ip link add veth45 type veth peer name veth54
+ip link set veth45 netns node4 up
+ip link set veth54 netns node5 up
+
+ip link add veth46 type veth peer name veth64
+ip link set veth46 netns node4 up
+ip link set veth64 netns node6 up
+
+ip netns exec node4 tc qdisc add dev veth45 root tbf rate 100mbit burst 8192 latency 1ms
+ip netns exec node5 tc qdisc add dev veth54 root tbf rate 100mbit burst 8192 latency 1ms
+
+ip netns exec node4 tc qdisc add dev veth46 root tbf rate 10mbit burst 8192 latency 1ms
+ip netns exec node6 tc qdisc add dev veth64 root tbf rate 10mbit burst 8192 latency 1ms
+
+ip netns exec node1 ./run --autoconf --pprof &> /dev/null &
+ip netns exec node2 ./run --autoconf --pprof &> /dev/null &
+ip netns exec node3 ./run --autoconf --pprof &> /dev/null &
+ip netns exec node4 ./run --autoconf --pprof &> /dev/null &
+ip netns exec node5 ./run --autoconf --pprof &> /dev/null &
+ip netns exec node6 ./run --autoconf --pprof &> /dev/null &
+
+echo "Started, to continue you should (possibly w/ sudo):"
+echo "kill" $(jobs -p)
+wait
+
+ip netns delete node1
+ip netns delete node2
+ip netns delete node3
+ip netns delete node4
+ip netns delete node5
+ip netns delete node6
+
+ip link delete veth13
+ip link delete veth23
+ip link delete veth34
+ip link delete veth45
+ip link delete veth46

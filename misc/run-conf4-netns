@@ -1,0 +1,28 @@
+#!/bin/sh
+
+ip netns add peerns4
+ip link add veth34 type veth peer name veth43
+ip link set veth34 netns peerns3
+ip netns exec peerns3 ifconfig veth34 192.168.4.3/24 up
+#ip netns exec peerns tc qdisc add dev veth23 root tbf rate 8mbit burst 8192 latency 1ms
+#ip netns exec peerns tc qdisc add dev veth23 root netem delay 50ms 5ms distribution normal
+ip link set veth43 netns peerns4
+ip netns exec peerns4 ifconfig veth43 192.168.4.4/24 up
+#ip netns exec peerns3 tc qdisc add dev veth32 root tbf rate 8mbit burst 8192 latency 1ms
+#ip netns exec peerns3 tc qdisc add dev veth32 root netem delay 50ms 5ms distribution normal
+#ip netns exec peerns4 ip route add 192.168.3.0/24 via 192.168.4.3
+
+#ip link add veth13 type veth peer name veth31
+#ifconfig veth13 192.168.4.1/24 up
+#ip netns exec peerns tc qdisc add dev veth23 root tbf rate 8mbit burst 8192 latency 1ms
+#ip netns exec peerns tc qdisc add dev veth23 root netem delay 50ms 5ms distribution normal
+#ip link set veth31 netns peerns3
+#ip netns exec peerns3 ifconfig veth32 192.168.4.3/24 up
+#ip netns exec peerns3 tc qdisc add dev veth32 root tbf rate 8mbit burst 8192 latency 1ms
+#ip netns exec peerns3 tc qdisc add dev veth32 root netem delay 50ms 5ms distribution normal
+#ip netns exec peerns3 ip route add 192.168.2.0/24 via 192.168.3.1
+
+ip netns exec peerns4 ip addr list
+#ip netns exec peerns3 ./run -useconf=conf3.json
+ip netns exec peerns4 ./run -autoconf
+#ip netns delete peerns3
