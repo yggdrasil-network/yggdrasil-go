@@ -6,6 +6,7 @@ This is a toy implementation of an encrypted IPv6 network, with many good ideas 
 It's notably not a shortest path routing scheme, with the goal of scalable name-independent routing on dynamic networks with an internet-like topology.
 It's named Yggdrasil after the world tree from Norse mythology, because that seemed like the obvious name given how it works.
 For a longer, rambling version of this readme with more information, see: [doc](doc/README.md).
+A very early incomplete draft of a [whitepaper](doc/Whitepaper.md) describing the protocol is also available.
 
 This is a toy / proof-of-principle, so it's not even alpha quality software--any nontrivial update is likely to break backwards compatibility with no possibility for a clean upgrade path.
 You're encouraged to play with it, but I strongly advise against using it for anything mission critical.
@@ -78,9 +79,8 @@ This is enough to give unsupported devices on my LAN access to the network, with
 
 ## How does it work?
 
-I'd rather not try to explain in the readme, but I describe it further in the [doc](doc/README.md) file, so you can check there if you're interested.
+I'd rather not try to explain in the readme, but I describe it further in the [doc](doc/README.md) file or the very draft of a [whitepaper](doc/Whitepaper.md), so you can check there if you're interested.
 Be warned that it's still not a very good explanation, but it at least gives a high-level overview and links to some relevant work by other people.
-I may try to write another document at some point, to thoroughly explain how everything works, if the need arises.
 
 ## License
 
