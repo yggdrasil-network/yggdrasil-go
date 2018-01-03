@@ -50,6 +50,8 @@ In practice, you probably want to run this instead:
 This keeps a persistent set of keys (and by extension, IP address) and gives you the option of editing the configuration file.
 If you want to use it as an overlay network on top of e.g. the internet, then you can do so by adding the remote devices domain/address and port (as a string, e.g. `"1.2.3.4:5678"`) to the list of `Peers` in the configuration file.
 
+A [Vyatta-based](https://github.com/neilalexander/vyatta-yggdrasil) router configuration is also available.
+
 ## Optional: advertise a prefix locally
 
 Suppose a node has generated the address: `fd00:1111:2222:3333:4444:5555:6666:7777`

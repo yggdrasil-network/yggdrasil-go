@@ -42,7 +42,7 @@ func (tun *tunDevice) read() error {
     if buf[0] & 0xf0 != 0x60 ||
        n != 256*int(buf[4]) + int(buf[5]) + IPv6_HEADER_LENGTH {
       // Either not an IPv6 packet or not the complete packet for some reason
-      panic("Should not happen in testing")
+      //panic("Should not happen in testing")
       continue
     }
     packet := append(util_getBytes(), buf[:n]...)
