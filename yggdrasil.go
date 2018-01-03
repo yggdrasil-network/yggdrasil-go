@@ -60,9 +60,10 @@ func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
     if len(cfg.Peers) == 0 { return }
     for {
       for _, p := range cfg.Peers {
-        n.core.DEBUG_sendUDPKeys(p)
+        n.core.DEBUG_maybeSendUDPKeys(p)
         time.Sleep(time.Second)
       }
+      time.Sleep(time.Minute)
     }
   }()
 }
@@ -112,7 +113,7 @@ func (n *node) listen() {
     saddr := addr.String()
     //if _, isIn := n.peers[saddr]; isIn { continue }
     //n.peers[saddr] = struct{}{}
-    n.core.DEBUG_sendUDPKeys(saddr)
+    n.core.DEBUG_maybeSendUDPKeys(saddr)
     //fmt.Println("DEBUG:", "added multicast peer:", saddr)
   }
 }

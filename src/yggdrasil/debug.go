@@ -262,9 +262,12 @@ func (c *Core) DEBUG_getGlobalUDPAddr() net.Addr {
   return c.udp.sock.LocalAddr()
 }
 
-func (c *Core) DEBUG_sendUDPKeys(saddr string) {
+func (c *Core) DEBUG_maybeSendUDPKeys(saddr string) {
   addr := connAddr(saddr)
-  c.udp.sendKeys(addr)
+  c.udp.mutex.RLock()
+  _, isIn := c.udp.conns[connAddr(addr)]
+  c.udp.mutex.RUnlock()
+  if !isIn { c.udp.sendKeys(addr) }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
