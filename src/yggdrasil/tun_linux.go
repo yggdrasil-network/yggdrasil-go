@@ -7,6 +7,20 @@ import "fmt"
 import "os/exec"
 import "strings"
 
+import water "github.com/songgao/water"
+
+func (tun *tunDevice) setup(ifname string, addr string, mtu int) error {
+        config := water.Config{ DeviceType: water.TUN }
+        if ifname != "" && ifname != "auto" {
+          config.Name = ifname
+        }
+	iface, err := water.New(config)
+	if err != nil { panic(err) }
+  tun.iface = iface
+  tun.mtu = mtu //1280 // Lets default to the smallest thing allowed for now
+  return tun.setupAddress(addr)
+}
+
 func (tun *tunDevice) setupAddress(addr string) error {
   // Set address
   cmd := exec.Command("ip", "-f", "inet6",
@@ -33,4 +47,3 @@ func (tun *tunDevice) setupAddress(addr string) error {
   }
   return nil
 }
-
