@@ -35,6 +35,7 @@ type nodeConfig struct {
   SigPub string
   SigPriv string
   Multicast bool
+  IfName string
 }
 
 type node struct {
@@ -80,6 +81,7 @@ func generateConfig() *nodeConfig {
   cfg.SigPriv = hex.EncodeToString(spriv[:])
   cfg.Peers = []string{}
   cfg.Multicast = true
+  cfg.IfName = "auto"
   return &cfg
 }
 
@@ -182,8 +184,8 @@ func main() {
   n := node{}
   n.init(cfg, logger)
   logger.Println("Starting tun...")
-  n.core.DEBUG_startTun() // 1280, the smallest supported MTU
-  //n.core.DEBUG_startTunWithMTU(65535) // Largest supported MTU
+  n.core.DEBUG_startTun(cfg.IfName) // 1280, the smallest supported MTU
+  //n.core.DEBUG_startTunWithMTU(cfg.IfName, 65535) // Largest supported MTU
   defer func() { 
     logger.Println("Closing...")
     n.core.DEBUG_stopTun()

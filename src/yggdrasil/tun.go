@@ -18,8 +18,10 @@ func (tun *tunDevice) init(core *Core) {
   tun.core = core
 }
 
-func (tun *tunDevice) setup(addr string, mtu int) error {
-	iface, err := water.New(water.Config{ DeviceType: water.TUN })
+func (tun *tunDevice) setup(ifname string, addr string, mtu int) error {
+        config := water.Config{ DeviceType: water.TUN }
+        if ifname != "" && ifname != "auto" { config.Name = ifname }
+	iface, err := water.New(config)
 	if err != nil { panic(err) }
   tun.iface = iface
   tun.mtu = mtu //1280 // Lets default to the smallest thing allowed for now
