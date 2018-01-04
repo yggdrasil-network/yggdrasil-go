@@ -17,152 +17,162 @@ package yggdrasil
 //  This hides bugs, which I don't want to do right now
 
 import "time"
+
 //import "fmt"
 
 type searchInfo struct {
-  dest *NodeID
-  mask *NodeID
-  time time.Time
-  packet []byte
+	dest   *NodeID
+	mask   *NodeID
+	time   time.Time
+	packet []byte
 }
 
 type searches struct {
-  core *Core
-  searches map[NodeID]*searchInfo
+	core     *Core
+	searches map[NodeID]*searchInfo
 }
 
 func (s *searches) init(core *Core) {
-  s.core = core
-  s.searches = make(map[NodeID]*searchInfo)
+	s.core = core
+	s.searches = make(map[NodeID]*searchInfo)
 }
 
 func (s *searches) createSearch(dest *NodeID, mask *NodeID) *searchInfo {
-  now := time.Now()
-  for dest, sinfo := range s.searches {
-    if now.Sub(sinfo.time) > time.Minute {
-      delete(s.searches, dest)
-    }
-  }
-  info := searchInfo{
-    dest: dest,
-    mask: mask,
-    time: now.Add(-time.Second),
-  }
-  s.searches[*dest] = &info
-  return &info
+	now := time.Now()
+	for dest, sinfo := range s.searches {
+		if now.Sub(sinfo.time) > time.Minute {
+			delete(s.searches, dest)
+		}
+	}
+	info := searchInfo{
+		dest: dest,
+		mask: mask,
+		time: now.Add(-time.Second),
+	}
+	s.searches[*dest] = &info
+	return &info
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 type searchReq struct {
-  key boxPubKey // Who I am 
-  coords []byte // Where I am
-  dest NodeID // Who I'm trying to connect to
+	key    boxPubKey // Who I am
+	coords []byte    // Where I am
+	dest   NodeID    // Who I'm trying to connect to
 }
 
 type searchRes struct {
-  key boxPubKey // Who I am
-  coords []byte // Where I am
-  dest NodeID // Who I was asked about
+	key    boxPubKey // Who I am
+	coords []byte    // Where I am
+	dest   NodeID    // Who I was asked about
 }
 
 func (s *searches) sendSearch(info *searchInfo) {
-  now := time.Now()
-  if now.Sub(info.time) < time.Second { return }
-  loc := s.core.switchTable.getLocator()
-  coords := loc.getCoords()
-  req := searchReq{
-    key: s.core.boxPub,
-    coords: coords,
-    dest: *info.dest,
-  }
-  info.time = time.Now()
-  s.handleSearchReq(&req)
+	now := time.Now()
+	if now.Sub(info.time) < time.Second {
+		return
+	}
+	loc := s.core.switchTable.getLocator()
+	coords := loc.getCoords()
+	req := searchReq{
+		key:    s.core.boxPub,
+		coords: coords,
+		dest:   *info.dest,
+	}
+	info.time = time.Now()
+	s.handleSearchReq(&req)
 }
 
 func (s *searches) handleSearchReq(req *searchReq) {
-  lookup := s.core.dht.lookup(&req.dest)
-  sent := false
-  //fmt.Println("DEBUG len:", len(lookup))
-  for _, info := range lookup {
-    //fmt.Println("DEBUG lup:", info.getNodeID())
-    if dht_firstCloserThanThird(info.getNodeID(),
-                                &req.dest,
-                                &s.core.dht.nodeID) {
-      s.forwardSearch(req, info)
-      sent = true
-      break
-    }
-  }
-  if !sent { s.sendSearchRes(req) }
+	lookup := s.core.dht.lookup(&req.dest)
+	sent := false
+	//fmt.Println("DEBUG len:", len(lookup))
+	for _, info := range lookup {
+		//fmt.Println("DEBUG lup:", info.getNodeID())
+		if dht_firstCloserThanThird(info.getNodeID(),
+			&req.dest,
+			&s.core.dht.nodeID) {
+			s.forwardSearch(req, info)
+			sent = true
+			break
+		}
+	}
+	if !sent {
+		s.sendSearchRes(req)
+	}
 }
 
 func (s *searches) forwardSearch(req *searchReq, next *dhtInfo) {
-  //fmt.Println("DEBUG fwd:", req.dest, next.getNodeID())
-  bs := req.encode()
-  shared := s.core.sessions.getSharedKey(&s.core.boxPriv, &next.key)
-  payload, nonce := boxSeal(shared, bs, nil)
-  p := wire_protoTrafficPacket{
-    ttl: ^uint64(0),
-    coords: next.coords,
-    toKey: next.key,
-    fromKey: s.core.boxPub,
-    nonce: *nonce,
-    payload: payload,
-  }
-  packet := p.encode()
-  s.core.router.out(packet)
+	//fmt.Println("DEBUG fwd:", req.dest, next.getNodeID())
+	bs := req.encode()
+	shared := s.core.sessions.getSharedKey(&s.core.boxPriv, &next.key)
+	payload, nonce := boxSeal(shared, bs, nil)
+	p := wire_protoTrafficPacket{
+		ttl:     ^uint64(0),
+		coords:  next.coords,
+		toKey:   next.key,
+		fromKey: s.core.boxPub,
+		nonce:   *nonce,
+		payload: payload,
+	}
+	packet := p.encode()
+	s.core.router.out(packet)
 }
 
 func (s *searches) sendSearchRes(req *searchReq) {
-  //fmt.Println("DEBUG res:", req.dest, s.core.dht.nodeID)
-  loc := s.core.switchTable.getLocator()
-  coords := loc.getCoords()
-  res := searchRes{
-    key: s.core.boxPub,
-    coords: coords,
-    dest: req.dest,
-  }
-  bs := res.encode()
-  shared := s.core.sessions.getSharedKey(&s.core.boxPriv, &req.key)
-  payload, nonce := boxSeal(shared, bs, nil)
-  p := wire_protoTrafficPacket{
-    ttl: ^uint64(0),
-    coords: req.coords,
-    toKey: req.key,
-    fromKey: s.core.boxPub,
-    nonce: *nonce,
-    payload: payload,
-  }
-  packet := p.encode()
-  s.core.router.out(packet)
+	//fmt.Println("DEBUG res:", req.dest, s.core.dht.nodeID)
+	loc := s.core.switchTable.getLocator()
+	coords := loc.getCoords()
+	res := searchRes{
+		key:    s.core.boxPub,
+		coords: coords,
+		dest:   req.dest,
+	}
+	bs := res.encode()
+	shared := s.core.sessions.getSharedKey(&s.core.boxPriv, &req.key)
+	payload, nonce := boxSeal(shared, bs, nil)
+	p := wire_protoTrafficPacket{
+		ttl:     ^uint64(0),
+		coords:  req.coords,
+		toKey:   req.key,
+		fromKey: s.core.boxPub,
+		nonce:   *nonce,
+		payload: payload,
+	}
+	packet := p.encode()
+	s.core.router.out(packet)
 }
 
 func (s *searches) handleSearchRes(res *searchRes) {
-  info, isIn := s.searches[res.dest]
-  if !isIn { return }
-  them := getNodeID(&res.key)
-  var destMasked NodeID
-  var themMasked NodeID
-  for idx := 0 ; idx < NodeIDLen ; idx++ {
-    destMasked[idx] = info.dest[idx] & info.mask[idx]
-    themMasked[idx] = them[idx] & info.mask[idx]
-  }
-  //fmt.Println("DEBUG search res1:", themMasked, destMasked)
-  //fmt.Println("DEBUG search res2:", *them, *info.dest, *info.mask)
-  if themMasked != destMasked { return }
-  // They match, so create a session and send a sessionRequest
-  sinfo, isIn := s.core.sessions.getByTheirPerm(&res.key)
-  if !isIn {
-    sinfo = s.core.sessions.createSession(&res.key)
-    _, isIn := s.core.sessions.getByTheirPerm(&res.key)
-    if !isIn { panic("This should never happen") }
-  }
-  // FIXME replay attacks could mess with coords?
-  sinfo.coords = res.coords
-  sinfo.packet = info.packet
-  s.core.sessions.ping(sinfo)
-  // Cleanup
-  delete(s.searches, res.dest)
+	info, isIn := s.searches[res.dest]
+	if !isIn {
+		return
+	}
+	them := getNodeID(&res.key)
+	var destMasked NodeID
+	var themMasked NodeID
+	for idx := 0; idx < NodeIDLen; idx++ {
+		destMasked[idx] = info.dest[idx] & info.mask[idx]
+		themMasked[idx] = them[idx] & info.mask[idx]
+	}
+	//fmt.Println("DEBUG search res1:", themMasked, destMasked)
+	//fmt.Println("DEBUG search res2:", *them, *info.dest, *info.mask)
+	if themMasked != destMasked {
+		return
+	}
+	// They match, so create a session and send a sessionRequest
+	sinfo, isIn := s.core.sessions.getByTheirPerm(&res.key)
+	if !isIn {
+		sinfo = s.core.sessions.createSession(&res.key)
+		_, isIn := s.core.sessions.getByTheirPerm(&res.key)
+		if !isIn {
+			panic("This should never happen")
+		}
+	}
+	// FIXME replay attacks could mess with coords?
+	sinfo.coords = res.coords
+	sinfo.packet = info.packet
+	s.core.sessions.ping(sinfo)
+	// Cleanup
+	delete(s.searches, res.dest)
 }
-

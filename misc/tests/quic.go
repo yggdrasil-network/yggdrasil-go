@@ -1,64 +1,76 @@
 package main
 
 import (
-  "fmt"
-  "time"
-  "bytes"
-  "sync"
-  "crypto/rand"
-  "crypto/rsa"
-  "crypto/tls"
-  "crypto/x509"
-  "encoding/pem"
-  "math/big"
-  quic "github.com/lucas-clemente/quic-go"
+	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/pem"
+	"fmt"
+	quic "github.com/lucas-clemente/quic-go"
+	"math/big"
+	"sync"
+	"time"
 )
 
 const addr = "[::1]:9001"
 
-func main () {
-  go run_server()
-  run_client()
+func main() {
+	go run_server()
+	run_client()
 }
 
 func run_server() {
-  listener, err := quic.ListenAddr(addr, generateTLSConfig(), nil)
-  if err != nil { panic(err) }
-  ses, err := listener.Accept()
-  if err != nil { panic(err) }
-  for {
-    stream, err := ses.AcceptStream()
-    if err != nil { panic(err) }
-    go func() {
-      defer stream.Close()
-      bs := bytes.Buffer{}
-      _, err := bs.ReadFrom(stream)
-      if err != nil { panic(err) } //<-- TooManyOpenStreams
-    }()
-  }
+	listener, err := quic.ListenAddr(addr, generateTLSConfig(), nil)
+	if err != nil {
+		panic(err)
+	}
+	ses, err := listener.Accept()
+	if err != nil {
+		panic(err)
+	}
+	for {
+		stream, err := ses.AcceptStream()
+		if err != nil {
+			panic(err)
+		}
+		go func() {
+			defer stream.Close()
+			bs := bytes.Buffer{}
+			_, err := bs.ReadFrom(stream)
+			if err != nil {
+				panic(err)
+			} //<-- TooManyOpenStreams
+		}()
+	}
 }
 
 func run_client() {
-  msgSize := 1048576
-  msgCount := 128
-  ses, err := quic.DialAddr(addr, &tls.Config{InsecureSkipVerify: true}, nil)
-  if err != nil { panic(err) }
-  bs := make([]byte, msgSize)
-  wg := sync.WaitGroup{}
-  start := time.Now()
-  for idx := 0 ; idx < msgCount ; idx++ {
-    wg.Add(1)
-    go func() {
-      defer wg.Done()
-      stream, err := ses.OpenStreamSync()
-      if err != nil { panic(err) }
-      defer stream.Close()
-      stream.Write(bs)
-    }() // "go" this later
-  }
-  wg.Wait()
-  timed := time.Since(start)
-  fmt.Println("Client finished", timed, fmt.Sprintf("%f Bits/sec", 8*float64(msgSize*msgCount)/timed.Seconds()))  
+	msgSize := 1048576
+	msgCount := 128
+	ses, err := quic.DialAddr(addr, &tls.Config{InsecureSkipVerify: true}, nil)
+	if err != nil {
+		panic(err)
+	}
+	bs := make([]byte, msgSize)
+	wg := sync.WaitGroup{}
+	start := time.Now()
+	for idx := 0; idx < msgCount; idx++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			stream, err := ses.OpenStreamSync()
+			if err != nil {
+				panic(err)
+			}
+			defer stream.Close()
+			stream.Write(bs)
+		}() // "go" this later
+	}
+	wg.Wait()
+	timed := time.Since(start)
+	fmt.Println("Client finished", timed, fmt.Sprintf("%f Bits/sec", 8*float64(msgSize*msgCount)/timed.Seconds()))
 }
 
 // Setup a bare-bones TLS config for the server
@@ -81,4 +93,3 @@ func generateTLSConfig() *tls.Config {
 	}
 	return &tls.Config{Certificates: []tls.Certificate{tlsCert}}
 }
-

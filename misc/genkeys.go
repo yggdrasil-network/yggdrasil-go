@@ -20,58 +20,67 @@ import . "yggdrasil"
 var doSig = flag.Bool("sig", false, "generate new signing keys instead")
 
 func main() {
-  flag.Parse()
-  switch {
-    case *doSig: doSigKeys()
-    default: doBoxKeys()
-  }
+	flag.Parse()
+	switch {
+	case *doSig:
+		doSigKeys()
+	default:
+		doBoxKeys()
+	}
 }
 
 func isBetter(oldID, newID []byte) bool {
-  for idx := range oldID {
-    if newID[idx] > oldID[idx] { return true }
-    if newID[idx] < oldID[idx] { return false }
-  }
-  return false
+	for idx := range oldID {
+		if newID[idx] > oldID[idx] {
+			return true
+		}
+		if newID[idx] < oldID[idx] {
+			return false
+		}
+	}
+	return false
 }
 
 func doBoxKeys() {
-  c := Core{}
-  pub, _ := c.DEBUG_newBoxKeys()
-  bestID := c.DEBUG_getNodeID(pub)
-  for idx := range bestID {
-    bestID[idx] = 0
-  }
-  for {
-    pub, priv := c.DEBUG_newBoxKeys()
-    id := c.DEBUG_getNodeID(pub)
-    if !isBetter(bestID[:], id[:]) { continue }
-    bestID = id
-    ip := c.DEBUG_addrForNodeID(id)
-    fmt.Println("--------------------------------------------------------------------------------")
-    fmt.Println("boxPriv:", hex.EncodeToString(priv[:]))
-    fmt.Println("boxPub:", hex.EncodeToString(pub[:]))
-    fmt.Println("NodeID:", hex.EncodeToString(id[:]))
-    fmt.Println("IP:", ip)
-  }
+	c := Core{}
+	pub, _ := c.DEBUG_newBoxKeys()
+	bestID := c.DEBUG_getNodeID(pub)
+	for idx := range bestID {
+		bestID[idx] = 0
+	}
+	for {
+		pub, priv := c.DEBUG_newBoxKeys()
+		id := c.DEBUG_getNodeID(pub)
+		if !isBetter(bestID[:], id[:]) {
+			continue
+		}
+		bestID = id
+		ip := c.DEBUG_addrForNodeID(id)
+		fmt.Println("--------------------------------------------------------------------------------")
+		fmt.Println("boxPriv:", hex.EncodeToString(priv[:]))
+		fmt.Println("boxPub:", hex.EncodeToString(pub[:]))
+		fmt.Println("NodeID:", hex.EncodeToString(id[:]))
+		fmt.Println("IP:", ip)
+	}
 }
 
 func doSigKeys() {
-  c := Core{}
-  pub, _ := c.DEBUG_newSigKeys()
-  bestID := c.DEBUG_getTreeID(pub)
-  for idx := range bestID {
-    bestID[idx] = 0
-  }
-  for {
-    pub, priv := c.DEBUG_newSigKeys()
-    id := c.DEBUG_getTreeID(pub)
-    if !isBetter(bestID[:], id[:]) { continue }
-    bestID = id
-    fmt.Println("--------------------------------------------------------------------------------")
-    fmt.Println("sigPriv:", hex.EncodeToString(priv[:]))
-    fmt.Println("sigPub:", hex.EncodeToString(pub[:]))
-    fmt.Println("TreeID:", hex.EncodeToString(id[:]))
-  }
+	c := Core{}
+	pub, _ := c.DEBUG_newSigKeys()
+	bestID := c.DEBUG_getTreeID(pub)
+	for idx := range bestID {
+		bestID[idx] = 0
+	}
+	for {
+		pub, priv := c.DEBUG_newSigKeys()
+		id := c.DEBUG_getTreeID(pub)
+		if !isBetter(bestID[:], id[:]) {
+			continue
+		}
+		bestID = id
+		fmt.Println("--------------------------------------------------------------------------------")
+		fmt.Println("sigPriv:", hex.EncodeToString(priv[:]))
+		fmt.Println("sigPub:", hex.EncodeToString(pub[:]))
+		fmt.Println("TreeID:", hex.EncodeToString(id[:]))
+	}
 }
-
