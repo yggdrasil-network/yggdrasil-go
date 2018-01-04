@@ -27,14 +27,18 @@ func main() {
 		}
 	}()
 
-  address := net.ParseIP("fc00::1")
+	address := net.ParseIP("fc00::1")
 	tuntap, err := tun.OpenTun(address)
-	if err != nil { panic(err) }
+	if err != nil {
+		panic(err)
+	}
 	defer tuntap.Close()
 	// read data from tun into rCh channel.
 	wg.Add(1)
 	go func() {
-		if err := tuntap.Read(rCh); err != nil { panic(err) }
+		if err := tuntap.Read(rCh); err != nil {
+			panic(err)
+		}
 		wg.Done()
 	}()
 	wg.Wait()

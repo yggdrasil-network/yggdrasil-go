@@ -4,41 +4,42 @@ package yggdrasil
 
 import "fmt"
 import "runtime"
+
 //import "sync"
 
 func Util_testAddrIDMask() {
-  for idx := 0 ; idx < 16 ; idx++ {
-    var orig NodeID
-    orig[8] = 42
-    for bidx := 0 ; bidx < idx ; bidx++ {
-      orig[bidx/8] |= (0x80 >> uint8(bidx % 8))
-    }
-    addr := address_addrForNodeID(&orig)
-    nid, mask := addr.getNodeIDandMask()
-    for b := 0 ; b < len(mask) ; b++ {
-      nid[b] &= mask[b]
-      orig[b] &= mask[b]
-    }
-    if *nid != orig {
-      fmt.Println(orig)
-      fmt.Println(*addr)
-      fmt.Println(*nid)
-      fmt.Println(*mask)
-      panic(idx)
-    }
-  }
+	for idx := 0; idx < 16; idx++ {
+		var orig NodeID
+		orig[8] = 42
+		for bidx := 0; bidx < idx; bidx++ {
+			orig[bidx/8] |= (0x80 >> uint8(bidx%8))
+		}
+		addr := address_addrForNodeID(&orig)
+		nid, mask := addr.getNodeIDandMask()
+		for b := 0; b < len(mask); b++ {
+			nid[b] &= mask[b]
+			orig[b] &= mask[b]
+		}
+		if *nid != orig {
+			fmt.Println(orig)
+			fmt.Println(*addr)
+			fmt.Println(*nid)
+			fmt.Println(*mask)
+			panic(idx)
+		}
+	}
 }
 
 func util_yield() {
-  runtime.Gosched()
+	runtime.Gosched()
 }
 
 func util_lockthread() {
-  runtime.LockOSThread()
+	runtime.LockOSThread()
 }
 
 func util_unlockthread() {
-  runtime.UnlockOSThread()
+	runtime.UnlockOSThread()
 }
 
 /*
@@ -58,22 +59,23 @@ func util_putBytes(bs []byte) {
 var byteStore chan []byte
 
 func util_initByteStore() {
-  if byteStore == nil {
-    byteStore = make(chan []byte, 32)
-  }
+	if byteStore == nil {
+		byteStore = make(chan []byte, 32)
+	}
 }
 
 func util_getBytes() []byte {
-  select {
-    case bs := <-byteStore: return bs[:0]
-    default: return nil
-  }
+	select {
+	case bs := <-byteStore:
+		return bs[:0]
+	default:
+		return nil
+	}
 }
 
 func util_putBytes(bs []byte) {
-  select {
-    case byteStore<-bs:
-    default:
-  }
+	select {
+	case byteStore <- bs:
+	default:
+	}
 }
-
