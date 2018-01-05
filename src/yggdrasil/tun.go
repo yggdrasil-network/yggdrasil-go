@@ -2,16 +2,25 @@ package yggdrasil
 
 // This manages the tun driver to send/recv packets to/from applications
 
-import water "github.com/songgao/water"
+// import water "github.com/songgao/water"
 
 const IPv6_HEADER_LENGTH = 40
+
+type tunInterface interface {
+	IsTUN() bool
+	IsTAP() bool
+	Name() string
+	Read(to []byte) (int, error)
+	Write(from []byte) (int, error)
+	Close() error
+}
 
 type tunDevice struct {
 	core  *Core
 	send  chan<- []byte
 	recv  <-chan []byte
 	mtu   int
-	iface *water.Interface
+	iface tunInterface
 }
 
 func (tun *tunDevice) init(core *Core) {
