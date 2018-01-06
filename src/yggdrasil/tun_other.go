@@ -1,4 +1,5 @@
 // +build !linux
+// +build !darwin
 
 package yggdrasil
 
