@@ -281,6 +281,15 @@ func (iface *udpInterface) reader() {
 		msg := bs[:n]
 		addr := connAddr(udpAddr.String())
 		if udp_isKeys(msg) {
+			var them address
+			copy(them[:], udpAddr.IP.To16())
+			if them.isValid() {
+				continue
+			}
+			if udpAddr.IP.IsLinkLocalUnicast() &&
+				!iface.core.ifceExpr.MatchString(udpAddr.Zone) {
+				continue
+			}
 			iface.handleKeys(msg, addr)
 		} else {
 			iface.handlePacket(msg, addr)

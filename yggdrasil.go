@@ -10,6 +10,7 @@ import "net"
 import "os"
 import "os/signal"
 import "time"
+import "regexp"
 
 import _ "net/http/pprof"
 import "net/http"
@@ -35,6 +36,7 @@ type nodeConfig struct {
 	SigPub    string
 	SigPriv   string
 	Multicast bool
+	LinkLocal string
 	IfName    string
 }
 
@@ -62,6 +64,11 @@ func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
 	}
 	n.core.DEBUG_init(boxPub, boxPriv, sigPub, sigPriv)
 	n.core.DEBUG_setLogger(logger)
+	ifceExpr, err := regexp.Compile(cfg.LinkLocal)
+	if err != nil {
+		panic(err)
+	}
+	n.core.DEBUG_setIfceExpr(ifceExpr)
 	logger.Println("Starting interface...")
 	n.core.DEBUG_setupAndStartGlobalUDPInterface(cfg.Listen)
 	logger.Println("Started interface")
@@ -91,6 +98,7 @@ func generateConfig() *nodeConfig {
 	cfg.SigPriv = hex.EncodeToString(spriv[:])
 	cfg.Peers = []string{}
 	cfg.Multicast = true
+	cfg.LinkLocal = ""
 	cfg.IfName = "auto"
 	return &cfg
 }
@@ -210,7 +218,8 @@ func main() {
 			panic(err)
 		}
 		decoder := json.NewDecoder(bytes.NewReader(config))
-		err = decoder.Decode(&cfg)
+		cfg = generateConfig()
+		err = decoder.Decode(cfg)
 		if err != nil {
 			panic(err)
 		}

@@ -2,6 +2,7 @@ package yggdrasil
 
 import "io/ioutil"
 import "log"
+import "regexp"
 
 type Core struct {
 	// This is the main data structure that holds everything else for a node
@@ -23,6 +24,7 @@ type Core struct {
 	tcp         *tcpInterface
 	udp         *udpInterface
 	log         *log.Logger
+	ifceExpr    *regexp.Regexp // the zone of link-local IPv6 peers must match this
 }
 
 func (c *Core) Init() {

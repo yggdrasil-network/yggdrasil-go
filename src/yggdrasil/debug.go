@@ -11,6 +11,7 @@ import _ "golang.org/x/net/ipv6" // TODO put this somewhere better
 import "fmt"
 import "net"
 import "log"
+import "regexp"
 
 // Core
 
@@ -332,6 +333,10 @@ func (c *Core) DEBUG_addKCPConn(saddr string) {
 
 func (c *Core) DEBUG_setLogger(log *log.Logger) {
 	c.log = log
+}
+
+func (c *Core) DEBUG_setIfceExpr(expr *regexp.Regexp) {
+	c.ifceExpr = expr
 }
 
 ////////////////////////////////////////////////////////////////////////////////
