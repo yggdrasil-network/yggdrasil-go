@@ -44,6 +44,14 @@ func wire_put_uint64(elem uint64, out []byte) []byte {
 	return append(out, bs...)
 }
 
+func wire_uint64_len(elem uint64) int {
+	l := 1
+	for e := elem >> 7; e > 0; e >>= 7 {
+		l++
+	}
+	return l
+}
+
 // Decode uint64 from a []byte slice
 // Returns the decoded uint64 and the number of bytes used
 func wire_decode_uint64(bs []byte) (uint64, int) {

@@ -171,10 +171,10 @@ func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
 	if to == nil {
 		return
 	}
-	newTTLSlice := wire_encode_uint64(newTTL)
+	newTTLLen := wire_uint64_len(newTTL)
 	// This mutates the packet in-place if the length of the TTL changes!
-	shift := ttlLen - len(newTTLSlice)
-	copy(packet[ttlBegin+shift:], newTTLSlice)
+	shift := ttlLen - newTTLLen
+	wire_put_uint64(newTTL, packet[ttlBegin+shift:])
 	copy(packet[shift:], packet[:pTypeLen])
 	packet = packet[shift:]
 	to.sendPacket(packet)

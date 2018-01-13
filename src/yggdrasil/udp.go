@@ -21,8 +21,31 @@ type udpInterface struct {
 	conns map[connAddr]*connInfo
 }
 
-type connAddr string // TODO something more efficient, but still a valid map key
+//type connAddr string // TODO something more efficient, but still a valid map key
+
+type connAddr struct {
+	ip   [16]byte
+	port int
+	zone string
+}
+
+func (c *connAddr) fromUDPAddr(u *net.UDPAddr) {
+	copy(c.ip[:], u.IP.To16())
+	c.port = u.Port
+	c.zone = u.Zone
+}
+
+func (c *connAddr) toUDPAddr() *net.UDPAddr {
+	var u net.UDPAddr
+	u.IP = make([]byte, 16)
+	copy(u.IP, c.ip[:])
+	u.Port = c.port
+	u.Zone = c.zone
+	return &u
+}
+
 type connInfo struct {
+	name     string
 	addr     connAddr
 	peer     *peer
 	linkIn   chan []byte
@@ -54,10 +77,7 @@ func (iface *udpInterface) init(core *Core, addr string) {
 }
 
 func (iface *udpInterface) sendKeys(addr connAddr) {
-	udpAddr, err := net.ResolveUDPAddr("udp", string(addr))
-	if err != nil {
-		panic(err)
-	}
+	udpAddr := addr.toUDPAddr()
 	msg := []byte{}
 	msg = udp_encode(msg, 0, 0, 0, nil)
 	msg = append(msg, iface.core.boxPub[:]...)
@@ -91,7 +111,7 @@ func (iface *udpInterface) startConn(info *connInfo) {
 		close(info.linkIn)
 		close(info.keysIn)
 		close(info.out)
-		iface.core.log.Println("Removing peer:", info.addr)
+		iface.core.log.Println("Removing peer:", info.name)
 	}()
 	for {
 		select {
@@ -135,11 +155,13 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 	conn, isIn := iface.conns[addr]
 	iface.mutex.RUnlock() // TODO? keep the lock longer?...
 	if !isIn {
-		udpAddr, err := net.ResolveUDPAddr("udp", string(addr))
-		if err != nil {
-			panic(err)
-		}
+		udpAddr := addr.toUDPAddr()
+		themNodeID := getNodeID(&ks.box)
+		themAddr := address_addrForNodeID(themNodeID)
+		themAddrString := net.IP(themAddr[:]).String()
+		themString := fmt.Sprintf("%s@%s", themAddrString, udpAddr.String())
 		conn = &connInfo{
+			name:   themString,
 			addr:   connAddr(addr),
 			peer:   iface.core.peers.newPeer(&ks.box, &ks.sig),
 			linkIn: make(chan []byte, 1),
@@ -208,10 +230,10 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 			}
 		}
 		go func() {
-			//var chunks [][]byte
 			var out []byte
+			var chunks [][]byte
 			for msg := range conn.out {
-				var chunks [][]byte
+				chunks = chunks[:0]
 				bs := msg
 				for len(bs) > udp_chunkSize {
 					chunks, bs = append(chunks, bs[:udp_chunkSize]), bs[udp_chunkSize:]
@@ -238,11 +260,7 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 		iface.mutex.Lock()
 		iface.conns[addr] = conn
 		iface.mutex.Unlock()
-		themNodeID := getNodeID(&ks.box)
-		themAddr := address_addrForNodeID(themNodeID)
-		themAddrString := net.IP(themAddr[:]).String()
-		themString := fmt.Sprintf("%s@%s", themAddrString, addr)
-		iface.core.log.Println("Adding peer:", themString)
+		iface.core.log.Println("Adding peer:", conn.name)
 		go iface.startConn(conn)
 		go conn.peer.linkLoop(conn.linkIn)
 		iface.sendKeys(conn.addr)
@@ -279,7 +297,8 @@ func (iface *udpInterface) reader() {
 		}
 		//msg := append(util_getBytes(), bs[:n]...)
 		msg := bs[:n]
-		addr := connAddr(udpAddr.String())
+		var addr connAddr
+		addr.fromUDPAddr(udpAddr)
 		if udp_isKeys(msg) {
 			var them address
 			copy(them[:], udpAddr.IP.To16())

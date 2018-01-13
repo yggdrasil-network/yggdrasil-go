@@ -274,9 +274,14 @@ func (c *Core) DEBUG_getGlobalUDPAddr() net.Addr {
 }
 
 func (c *Core) DEBUG_maybeSendUDPKeys(saddr string) {
-	addr := connAddr(saddr)
+	udpAddr, err := net.ResolveUDPAddr("udp", saddr)
+	if err != nil {
+		panic(err)
+	}
+	var addr connAddr
+	addr.fromUDPAddr(udpAddr)
 	c.udp.mutex.RLock()
-	_, isIn := c.udp.conns[connAddr(addr)]
+	_, isIn := c.udp.conns[addr]
 	c.udp.mutex.RUnlock()
 	if !isIn {
 		c.udp.sendKeys(addr)
