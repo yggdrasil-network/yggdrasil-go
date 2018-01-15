@@ -83,7 +83,7 @@ func (tun *tunDevice) setupAddress(addr string) error {
 
 	var ir ifreq
 	copy(ir.ifr_name[:], tun.iface.Name())
-	ir.ifru_mtu = 1280
+	ir.ifru_mtu = uint32(tun.mtu)
 
 	tun.core.log.Printf("Interface name: %s", ar.ifra_name)
 	tun.core.log.Printf("Interface IPv6: %s", addr)
