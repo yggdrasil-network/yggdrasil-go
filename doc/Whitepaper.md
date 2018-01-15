@@ -60,30 +60,32 @@ Other than these differences, the DHT is more-or-less what you might expect from
 ## Name-dependent routing
 
 A spanning tree is constructed and used for name-dependent routing.
-Each node generates a set of Ed25519 keys for signing routing messages, with a `TreeID` defined as the sha512sum of a node's public signing key.
+The basic idea is to use the distance between nodes *on the tree* as a distance metric, and then perform greedy routing in that metric space.
+As the tree is constructed from a subset of the real links in the network, this distance metric (unlike the DHT's xor metric) has some relationship with the underlying physical network.
+In the worst case, greedy routing with this metric reduces to routing on the spanning tree, which should be comparable to ethernet.
+However, greedy routing can use any link, provided that the node on the other end of the link is closer to the destination, so this allows the use of off-tree shortcuts, with the possibility and effectiveness of this being topology dependent.
+The main assumption that Yggdrasil's performance hinges on, is that this distance metric is close to real network distance, on average, in realistic networks.
 
-The nodes use what is essentially a version of the spanning tree protocol, but with each node advertising the full path from the root of the tree to the neighbor that the node is sending an advertisement to.
-These messages are accompanied by a set of signatures, each of which includes the intended next-hop information as part of the data being signed, which are checked for validity and consistency before an advertisement is accepted.
-This prevents the forgery of arbitrary routing information, along with the various bugs and route poisoning attacks that such incorrect information can lead it.
-The root of the spanning tree is selected as the node with the highest `TreeID`, subject to the constrain that the node is regularly triggering updates by increasing a sequence number (taken from a unix timestamp for convenience), signing them, and sending them to each of their one-hop neighbors.
-If a node fails to receive an updated route with a new timestamp from their current root, then after some period of time, the node considers the root to have timed out.
-The node is blacklisted as a root until it begins sending newer timestamps, and the next highest `TreeID` that the node becomes aware of is used instead.
-Through this protocol, each node of the network eventually selects the same node as root, and thereby joins the same spanning tree of the network.
-The choice of which node is root appears to have only a minor effect on the performance of the routing scheme, with the only strict requirement being that all nodes select the same root, so using highest `TreeID` seems like an acceptable approach.
-I dislike that it adds some semblance of a proof-of-work arms-race to become root, but as there is neither significant benefit nor obvious potential for abuse from being the root, I'm not overly concerned with it at this time.
+The name dependent scheme is implemented in roughly the following way:
 
-When selecting which node to use as a parent in the tree, the only strict requirement, other than the choice of root, is that path from the root to the node does not loop.
-The current implementation favors long lived short paths to the root, at equal weight.
-I.e. it takes the time that the same path has been advertised and divides by the number of hops to reach the root, and selects the one-hop neighbor for which this value is largest, conditional on the path not looping.
+1. Each node generates a set of Ed25519 keys for signing routing messages, with a `TreeID` defined as the sha512sum of a node's public signing key.
+2. If a node doesn't know a better (higher `TreeID`) root for the tree, then it makes itself the root of its own tree.
+3. Nodes periodically send announcement messages to neighbors, which specify a sequence number for that node's current locator in the tree.
+4. When a node A sees an unrecognized sequence number from a neighbor B, then A asks B to send them a locator.
+5. This locator is sent in the form of a path from the root, through B, and ending at A.
+6. Each hop in the path includes the public signing key of the next hop, and a signature for the full path from the root to the next hop, to prevent forgery of path information (similar to S-BGP).
+7. The first hop, from the root, includes a signed sequence number which must increase (implemented as a unix timestamp, for convenience), which is used to detect root timeouts and prevent replays.
 
-When forwarding traffic, the only strict requirement is that the distance to the destination, as estimated by the distance on the tree between the current location and the destination, must always decrease.
-This is implemented by having each sender set the value of a TTL field to match the node's distance from the destination listed on a packet, and having each receiver check that they are in fact closer to the destination than this TTL (before changing it to their own distance and sending it to the next hop).
-This ensures loop-free routing.
-The current implementation prioritizes a combination of estimated bandwidth to a one-hop neighbor, and the estimated total length of the path from the current node, to that one-hop neighbor (1), and then to the destination (tree distance from the neighbor to the dest).
-Specifically, the current implementation forwards to the one-hop neighbor for which estimated bandwidth divided by expected path length is maximized, subject to the TTL constraints.
-The current implementation's bandwidth estimates are terrible, but there seems to be enough correlation to actual bandwidth that e.g. it eventually prefers to use a fast wired link over a slow wifi link if there's multiple connections to a neighbor in a multi-home setup.
+The highest `TreeID` approach to root selection is just to ensure that nodes select the same root, otherwise distance calculations wouldn't work.
+Root selection has a minor effect on the stretch of the paths selected by the network, but this effect was seen to be small compared to the minimum stretch, for nearly all choices of root, so it seems like an OK approach to me, or at least better than any alternatives I could come up with.
 
-Note that this forwarding procedure generalizes to nodes that are not one-hop neighbors, but the current implementation omits the use of more distant neighbors, as this is expected to be a minor optimization (and may not even be worth the increased overhead).
+The current implementation tracks how long a neighbor has been advertising a locator for the same path, and it prefers to select a parent with a stable locator and a short distance to the root (maximize uptime/distance).
+When forwarding traffic, the next hop is selected taking bandwidth to the next hop and distance to the destination into account (maximize bandwidth/distance), subject to the requirement that distance must always decrease.
+The bandwidth estimation isn't very good, but it correlates well enough that e.g. when I have a slow wifi and a fast ethernet link to the same node, it typically uses the ethernet link.
+However, if the ethernet link comes up while the wifi link is under heavy use, then it tends to keep using the wifi link until things settle down, and only switches to ethernet after the wireless link is no longer overloaded.
+A better approach to bandwidth estimation could probably switch to the new link faster.
+
+Note that this forwarding procedure generalizes to nodes that are not one-hop neighbors, but the current implementation omits the use of more distant neighbors, as this is expected to be a minor optimization (it would add per-link control traffic to pass path-vector-like information about a subset of the network, which is a lot of overhead compared to the current setup).
 
 ## Other implementation details
 
@@ -95,12 +97,12 @@ Aside from that, I also tried to write each part of it to be as "bad" (i.e. frag
 That's a decision made for debugging purposes: I want my bugs to be obvious, so I can more easily find them and fix them.
 
 This implementation runs as an overlay network on top of regular IPv4 or IPv6 traffic.
-It tries to auto-detect and peer with one-hop neighbors using link-local IPv6 multicast, but it can also be fed a list of address:port pairs to connect to.
-This allows you to connect to devices that aren't on the same network, if you know their address an have a working route to them.
+It uses link-local IPv6 multicast traffic to automatically connect to devices on the same network, but it can also be fed a list of address:port pairs to connect to.
+This can be used to e.g. set up two local networks and bridge them over the internet.
 
 ## Performance
 
-This seconds compares Yggdrasil with the results in [arxiv:0708.2309](https://arxiv.org/abs/0708.2309) (specifically table 1) from tests on the 9204-node [skitter](https://www.caida.org/tools/measurement/skitter/) network maps from [caida](https://www.caida.org/).
+This section compares Yggdrasil with the results in [arxiv:0708.2309](https://arxiv.org/abs/0708.2309) (specifically table 1) from tests on the 9204-node [skitter](https://www.caida.org/tools/measurement/skitter/) network maps from [caida](https://www.caida.org/).
 
 A [simplified version](misc/sim/treesim-forward.py) of this routing scheme was written (long before the Yggdrasil implementation was started), and tested for comparison with the results from the above paper.
 This version includes only the name-dependent part of the routing scheme, but the overhead of the name-independent portion is easy enough to check with the full implementation.
@@ -110,6 +112,9 @@ In summary:
 2. A modified version can get this as low as 1.01, but it depends on knowing the degree of each one-hop neighbor, which I can think of no way to cryptographically secure, and it requires using source routing to find a path from A to B and from B to A, and then have both nodes use whichever path was observed to be shorter.
 3. In either case, approximately 6 routing table entries are needed, on average, for the name-dependent routing scheme, where each node needs one routing table entry per one-hop neighbor.
 4. Approximately 30 DHT entries are needed to facilitate name-independent routing.
+This requires a lookup and caches the results, so old information needs to time out to work on dynamic networks.
+The schemes it's being compared to only work on static networks, where a similar approach would be fine, so I think it's not a terrible comparison.
+The stretch of that initial lookup can be *very* high, but it's only for a couple of round trips to look up keys and then do the ephemeral key exchange, so I don't think it's likely to be a major issue (but probably still a little more expensive than a DNS lookup).
 5. Both the name-dependent and name-independent routing table entries are of a size proportional to the length of the path between the root and the node, which is at most the diameter of the network after things have fully converged, but name-dependent routing table entries tend to be much larger in practice due to the size of cryptographic signatures (64 bytes for a signature + 32 for the signing key).
 6. The name-dependent routing scheme only sends messages about one-hop neighbors on the link between those neighbors, so if you measure things by per *link* overhead instead of per *node*, then this doesn't seem so bad to me.
 7. The name-independent routing scheme scales like a DHT running as an overlay on top of the router-level topology, so the per-link and per-node overhead are going to be topology dependent.
