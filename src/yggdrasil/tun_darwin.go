@@ -7,6 +7,7 @@ import "unsafe"
 import "strings"
 import "strconv"
 import "encoding/binary"
+// import "fmt"
 
 import water "github.com/songgao/water"
 
@@ -23,7 +24,7 @@ func (tun *tunDevice) setup(ifname string, addr string, mtu int) error {
 
 const AF_INET6 = 30
 const IN6_IFF_NODAD = 0x0020
-const SIOCAIFADDR_IN6 = (0x80000000) | ((4 & 0x1fff) << 16) | uint32(byte('i'))<<8 | 26
+const SIOCAIFADDR_IN6 = 2155899162
 
 type in6_addrlifetime struct {
 	ia6t_expire    float64
@@ -81,7 +82,7 @@ func (tun *tunDevice) setupAddress(addr string) error {
 	tun.core.log.Printf("Interface name: %s", ar.ifra_name)
 	tun.core.log.Printf("Interface IPv6: %s", addr)
 
-	/*
+  /*
 		var bytes *[unsafe.Sizeof(ar)]byte = (*[unsafe.Sizeof(ar)]byte)(unsafe.Pointer(&ar));
 		var out string;
 		for i := 0; i < int(unsafe.Sizeof(ar)); i ++ {
