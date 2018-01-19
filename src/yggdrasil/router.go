@@ -149,21 +149,22 @@ func (r *router) sendPacket(bs []byte) {
 	}
 }
 
-func (r *router) recvPacket(bs []byte, theirAddr *address) {
-	// TODO pass their NodeID, check *that* instead
-	//  Or store their address in the session?...
+func (r *router) recvPacket(bs []byte, theirAddr *address, theirSubnet *subnet) {
+  // TODO? move this into the session?
 	//fmt.Println("Recv packet")
-	if theirAddr == nil {
-		panic("Should not happen ever")
-	}
 	if len(bs) < 24 {
+		util_putBytes(bs)
 		return
 	}
 	var source address
 	copy(source[:], bs[8:])
 	var snet subnet
 	copy(snet[:], bs[8:])
-	if !source.isValid() && !snet.isValid() {
+	switch {
+	case source.isValid() && source == *theirAddr:
+	case snet.isValid() && snet == *theirSubnet:
+	default:
+		util_putBytes(bs)
 		return
 	}
 	//go func() { r.recv<-bs }()

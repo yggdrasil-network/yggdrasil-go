@@ -373,5 +373,5 @@ func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
 	}
 	sinfo.updateNonce(&p.nonce)
 	sinfo.time = time.Now()
-	sinfo.core.router.recvPacket(bs, &sinfo.theirAddr)
+	sinfo.core.router.recvPacket(bs, &sinfo.theirAddr, &sinfo.theirSubnet)
 }
