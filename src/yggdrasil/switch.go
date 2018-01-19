@@ -125,13 +125,14 @@ type switchMessage struct {
 
 type switchPort uint64
 type tableElem struct {
-	locator   switchLocator
+	port      switchPort
 	firstSeen time.Time
+	locator   switchLocator
 }
 
 type lookupTable struct {
 	self  switchLocator
-	elems map[switchPort]tableElem
+	elems []tableElem
 }
 
 type switchData struct {
@@ -163,7 +164,7 @@ func (t *switchTable) init(core *Core, key sigPubKey) {
 	peers := make(map[switchPort]peerInfo)
 	t.data = switchData{locator: locator, peers: peers}
 	t.updater.Store(&sync.Once{})
-	t.table.Store(lookupTable{elems: make(map[switchPort]tableElem)})
+	t.table.Store(lookupTable{})
 	t.drop = make(map[sigPubKey]int64)
 	doTicker := func() {
 		ticker := time.NewTicker(time.Second)
@@ -380,18 +381,19 @@ func (t *switchTable) updateTable() {
 	defer t.mutex.RUnlock()
 	newTable := lookupTable{
 		self:  t.data.locator.clone(),
-		elems: make(map[switchPort]tableElem),
+		elems: make([]tableElem, 0, len(t.data.peers)),
 	}
 	for _, pinfo := range t.data.peers {
 		//if !pinfo.forward { continue }
 		loc := pinfo.locator.clone()
 		loc.coords = loc.coords[:len(loc.coords)-1] // Remove the them->self link
-		newTable.elems[pinfo.port] = tableElem{
+		newTable.elems = append(newTable.elems, tableElem{
 			locator: loc,
 			//degree: pinfo.degree,
 			firstSeen: pinfo.firstSeen,
 			//forward: pinfo.forward,
-		}
+			port: pinfo.port,
+		})
 	}
 	t.table.Store(newTable)
 }
@@ -414,7 +416,7 @@ func (t *switchTable) lookup(dest []byte, ttl uint64) (switchPort, uint64) {
 	}
 	// score is in units of bandwidth / distance
 	bestScore := float64(-1)
-	for port, info := range table.elems {
+	for _, info := range table.elems {
 		if info.locator.root != table.self.root {
 			continue
 		}
@@ -422,10 +424,10 @@ func (t *switchTable) lookup(dest []byte, ttl uint64) (switchPort, uint64) {
 		if !(dist < myDist) {
 			continue
 		}
-		score := getBandwidth(port)
+		score := getBandwidth(info.port)
 		score /= float64(1 + dist)
 		if score > bestScore {
-			best = port
+			best = info.port
 			bestScore = score
 		}
 	}
