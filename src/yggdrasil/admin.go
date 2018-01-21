@@ -54,10 +54,10 @@ func (a *admin) handleRequest(conn net.Conn) {
 
 		// Add my own entry
 		peerID := address_addrForNodeID(getNodeID(&peers[0].box))
-		addr := net.IP(peerID[:]).String()
+		myAddr := net.IP(peerID[:]).String()
 		var index [mDepth]switchPort
 		copy(index[:mDepth], table.self.coords[:])
-		m[index] = addr
+		m[index] = myAddr
 
 		// Connect switch table entries to peer entries
 		for _, tableentry := range table.elems {
@@ -157,7 +157,11 @@ func (a *admin) handleRequest(conn net.Conn) {
 		conn.Write([]byte(fmt.Sprintf("digraph {\n")))
 		// First set the labels
 		for _, info := range infos {
-			conn.Write([]byte(fmt.Sprintf("\"%v\" [ label = \"%v\" ];\n", info.key, info.name)))
+			if info.name == myAddr {
+				conn.Write([]byte(fmt.Sprintf("\"%v\" [ style = \"filled\", label = \"%v\" ];\n", info.key, info.name)))
+			} else {
+				conn.Write([]byte(fmt.Sprintf("\"%v\" [ label = \"%v\" ];\n", info.key, info.name)))
+			}
 		}
 		// Then print the tree structure
 		for _, info := range infos {
