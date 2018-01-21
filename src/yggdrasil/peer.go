@@ -37,7 +37,7 @@ func (ps *peers) putPorts(ports map[switchPort]*peer) {
 }
 
 type peer struct {
-	// Rolling approximation of bandwidth, in bps, used by switch, updated by tcp
+	// Rolling approximation of bandwidth, in bps, used by switch, updated by packet sends
 	// use get/update methods only! (atomic accessors as float64)
 	bandwidth uint64
 	// BUG: sync/atomic, 32 bit platforms need the above to be the first element

@@ -35,6 +35,7 @@ type router struct {
 	recv  chan<- []byte // place where the tun pulls received packets from
 	send  <-chan []byte // place where the tun puts outgoing packets
 	reset chan struct{} // signal that coords changed (re-init sessions/dht)
+	admin chan func()   // pass a lambda for the admin socket to query stuff
 }
 
 func (r *router) init(core *Core) {
@@ -57,6 +58,7 @@ func (r *router) init(core *Core) {
 	r.core.tun.recv = recv
 	r.core.tun.send = send
 	r.reset = make(chan struct{}, 1)
+	r.admin = make(chan func())
 	go r.mainLoop()
 }
 
@@ -79,6 +81,8 @@ func (r *router) mainLoop() {
 				r.core.dht.doMaintenance()
 				util_getBytes() // To slowly drain things
 			}
+		case f := <-r.admin:
+			f()
 		}
 	}
 }
@@ -301,4 +305,16 @@ func (r *router) handleSearchRes(bs []byte) {
 		return
 	}
 	r.core.searches.handleSearchRes(&res)
+}
+
+func (r *router) doAdmin(f func()) {
+	// Pass this a function that needs to be run by the router's main goroutine
+	// It will pass the function to the router and wait for the router to finish
+	done := make(chan struct{})
+	newF := func() {
+		f()
+		close(done)
+	}
+	r.admin <- newF
+	<-done
 }

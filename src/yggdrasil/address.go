@@ -96,7 +96,7 @@ func (a *address) getNodeIDandMask() (*NodeID, *NodeID) {
 }
 
 func (s *subnet) getNodeIDandMask() (*NodeID, *NodeID) {
-	// As witht he address version, but visible parts of the subnet prefix instead
+	// As with the address version, but visible parts of the subnet prefix instead
 	var nid NodeID
 	var mask NodeID
 	ones := int(s[len(address_prefix)] & 0x7f)

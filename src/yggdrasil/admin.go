@@ -66,31 +66,50 @@ func (a *admin) handleRequest(conn net.Conn) {
 					peerID := address_addrForNodeID(getNodeID(&peerentry.box))
 					addr := net.IP(peerID[:]).String()
 					var index [mDepth]switchPort
-					copy(index[:mDepth], tableentry.locator.coords[:])
+					copy(index[:], tableentry.locator.coords)
 					m[index] = addr
 				}
 			}
 		}
 
-		// Look up everything we know from DHT
-		for i := 0; i < a.core.dht.nBuckets(); i++ {
-			b := a.core.dht.getBucket(i)
-			for _, v := range b.infos {
-				var destPorts []switchPort
-				for offset := 0; ; {
-					coord, length := wire_decode_uint64(v.coords[offset:])
-					if length == 0 {
-						break
-					}
-					destPorts = append(destPorts, switchPort(coord))
-					offset += length
+		getPorts := func(coords []byte) []switchPort {
+			var ports []switchPort
+			for offset := 0; ; {
+				coord, length := wire_decode_uint64(coords[offset:])
+				if length == 0 {
+					break
 				}
-				addr := net.IP(address_addrForNodeID(v.nodeID_hidden)[:]).String()
-				var index [mDepth]switchPort
-				copy(index[:mDepth], destPorts[:])
-				m[index] = addr
+				ports = append(ports, switchPort(coord))
+				offset += length
+			}
+			return ports
+		}
+
+		// Look up everything we know from DHT
+		getDHT := func() {
+			for i := 0; i < a.core.dht.nBuckets(); i++ {
+				b := a.core.dht.getBucket(i)
+				for _, v := range b.infos {
+					destPorts := getPorts(v.coords)
+					addr := net.IP(address_addrForNodeID(v.nodeID_hidden)[:]).String()
+					var index [mDepth]switchPort
+					copy(index[:], destPorts)
+					m[index] = addr
+				}
 			}
 		}
+		a.core.router.doAdmin(getDHT)
+
+		// Look up everything we know from active sessions
+		getSessions := func() {
+			for _, sinfo := range a.core.sessions.sinfos {
+				destPorts := getPorts(sinfo.coords)
+				var index [mDepth]switchPort
+				copy(index[:], destPorts)
+				m[index] = net.IP(sinfo.theirAddr[:]).String()
+			}
+		}
+		a.core.router.doAdmin(getSessions)
 
 		// Now print it all out
 		conn.Write([]byte(fmt.Sprintf("graph {\n")))
