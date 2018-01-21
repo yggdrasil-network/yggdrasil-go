@@ -46,35 +46,70 @@ func (a *admin) handleRequest(conn net.Conn) {
 	}
 	buf = bytes.Trim(buf, "\x00\r\n\t")
 	switch string(buf) {
-	case "switch table":
+	case "dot":
+		const mDepth = 1024
+		m := make(map[[mDepth]switchPort]string)
 		table := a.core.switchTable.table.Load().(lookupTable)
-		conn.Write([]byte(fmt.Sprintf(
-      "port 0 -> %+v\n",
-      table.self.coords)))
-		for _, v := range table.elems {
-			conn.Write([]byte(fmt.Sprintf(
-        "port %d -> %+v\n",
-				v.port,
-				v.locator.coords)))
-		}
-		break
+		peers := a.core.peers.ports.Load().(map[switchPort]*peer)
 
-	case "dht":
-		n := a.core.dht.nBuckets()
-		for i := 0; i < n; i++ {
+		// Add my own entry
+		peerID := address_addrForNodeID(getNodeID(&peers[0].box))
+		addr := net.IP(peerID[:]).String()
+		var index [mDepth]switchPort
+		copy(index[:mDepth], table.self.coords[:])
+		m[index] = addr
+
+		// Connect switch table entries to peer entries
+		for _, tableentry := range table.elems {
+			for _, peerentry := range peers {
+				if peerentry.port == tableentry.port {
+					peerID := address_addrForNodeID(getNodeID(&peerentry.box))
+					addr := net.IP(peerID[:]).String()
+					var index [mDepth]switchPort
+					copy(index[:mDepth], tableentry.locator.coords[:])
+					m[index] = addr
+				}
+			}
+		}
+
+		// Look up everything we know from DHT
+    for i := 0; i < a.core.dht.nBuckets(); i++ {
 			b := a.core.dht.getBucket(i)
-			if len(b.infos) == 0 {
-				continue
-			}
 			for _, v := range b.infos {
-				addr := address_addrForNodeID(v.nodeID_hidden)
-				ip := net.IP(addr[:]).String()
-
-				conn.Write([]byte(fmt.Sprintf("%+v -> %+v\n",
-					ip,
-					v.coords)))
+        var destPorts []switchPort
+        for offset := 0 ; ; {
+          coord, length := wire_decode_uint64(v.coords[offset:])
+          if length == 0 { break }
+          destPorts = append(destPorts, switchPort(coord))
+          offset += length
+        }
+        addr := net.IP(address_addrForNodeID(v.nodeID_hidden)[:]).String()
+        var index [mDepth]switchPort
+        copy(index[:mDepth], destPorts[:])
+        m[index] = addr
 			}
 		}
+
+		// Now print it all out
+		conn.Write([]byte(fmt.Sprintf("graph {\n")))
+		for k := range m {
+			var mask [mDepth]switchPort
+			copy(mask[:mDepth], k[:])
+			for mk := range mask {
+				mask[len(mask)-1-mk] = 0
+        if len(m[k]) == 0 {
+          m[k] = fmt.Sprintf("%+v (missing)", k)
+        }
+        if len(m[mask]) == 0 {
+          m[mask] = fmt.Sprintf("%+v (missing)", mask)
+        }
+				if len(m[mask]) > 0 && m[mask] != m[k] {
+					conn.Write([]byte(fmt.Sprintf("  \"%+v\" -- \"%+v\";\n", m[k], m[mask])))
+          break
+				}
+			}
+		}
+		conn.Write([]byte(fmt.Sprintf("}\n")))
 		break
 
 	default:
