@@ -150,7 +150,7 @@ func (r *router) sendPacket(bs []byte) {
 }
 
 func (r *router) recvPacket(bs []byte, theirAddr *address, theirSubnet *subnet) {
-  // TODO? move this into the session?
+	// TODO? move this into the session?
 	//fmt.Println("Recv packet")
 	if len(bs) < 24 {
 		util_putBytes(bs)

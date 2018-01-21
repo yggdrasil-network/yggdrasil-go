@@ -20,6 +20,7 @@ type Core struct {
 	router      router
 	dht         dht
 	tun         tunDevice
+	admin       admin
 	searches    searches
 	tcp         *tcpInterface
 	udp         *udpInterface
