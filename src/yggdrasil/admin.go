@@ -111,24 +111,60 @@ func (a *admin) handleRequest(conn net.Conn) {
 		}
 		a.core.router.doAdmin(getSessions)
 
-		// Now print it all out
-		conn.Write([]byte(fmt.Sprintf("graph {\n")))
-		for k := range m {
-			var mask [mDepth]switchPort
-			copy(mask[:mDepth], k[:])
-			for mk := range mask {
-				mask[len(mask)-1-mk] = 0
-				if len(m[k]) == 0 {
-					m[k] = fmt.Sprintf("%+v (missing)", k)
+		// Start building a tree from all known nodes
+		type nodeInfo struct {
+			name   string
+			key    [mDepth]switchPort
+			parent [mDepth]switchPort
+		}
+		infos := make(map[[mDepth]switchPort]nodeInfo)
+		// First fill the tree with all known nodes, no parents
+		for k, n := range m {
+			infos[k] = nodeInfo{
+				name: n,
+				key:  k,
+			}
+		}
+		// Now go through and create placeholders for any missing nodes
+		for _, info := range infos {
+			for idx, port := range info.key {
+				if port == 0 {
+					break
 				}
-				if len(m[mask]) == 0 {
-					m[mask] = fmt.Sprintf("%+v (missing)", mask)
+				var key [mDepth]switchPort
+				copy(key[:idx], info.key[:])
+				newInfo, isIn := infos[key]
+				if isIn {
+					continue
 				}
-				if len(m[mask]) > 0 && m[mask] != m[k] {
-					conn.Write([]byte(fmt.Sprintf("  \"%+v\" -- \"%+v\";\n", m[k], m[mask])))
+				newInfo.name = "missing"
+				newInfo.key = key
+				infos[key] = newInfo
+			}
+		}
+		// Now go through and attach parents
+		for _, info := range infos {
+			info.parent = info.key
+			for idx := len(info.parent) - 1; idx >= 0; idx-- {
+				if info.parent[idx] != 0 {
+					info.parent[idx] = 0
 					break
 				}
 			}
+			infos[info.key] = info
+		}
+		// Now print it all out
+		conn.Write([]byte(fmt.Sprintf("digraph {\n")))
+		// First set the labels
+		for _, info := range infos {
+			conn.Write([]byte(fmt.Sprintf("\"%v\" [ label = \"%v\" ];\n", info.key, info.name)))
+		}
+		// Then print the tree structure
+		for _, info := range infos {
+			if info.key == info.parent {
+				continue
+			} // happens for the root, skip it
+			conn.Write([]byte(fmt.Sprintf("  \"%+v\" -> \"%+v\";\n", info.key, info.parent)))
 		}
 		conn.Write([]byte(fmt.Sprintf("}\n")))
 		break

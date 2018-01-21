@@ -377,6 +377,14 @@ func dumpDHTSize(store map[[32]byte]*Node) {
 	fmt.Printf("DHT min %d / avg %f / max %d\n", min, avg, max)
 }
 
+func (n *Node) startUDP(listen string) {
+	n.core.DEBUG_setupAndStartGlobalUDPInterface(listen)
+}
+
+func (n *Node) connectUDP(remoteAddr string) {
+	n.core.DEBUG_maybeSendUDPKeys(remoteAddr)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile `file`")
@@ -416,6 +424,22 @@ func main() {
 	  }
 	*/
 	startNetwork(kstore)
+	if true {
+		for _, node := range kstore {
+			node.startUDP("localhost:0")
+			node.connectUDP("localhost:12345")
+			break // just 1
+		}
+		for _, node := range kstore {
+			go func() {
+				// Just dump any packets sent to this node
+				for range node.recv {
+				}
+			}()
+		}
+		var block chan struct{}
+		<-block
+	}
 	//time.Sleep(10*time.Second)
 	// Note that testPaths only works if pressure is turend off
 	//  Otherwise congestion can lead to routing loops?
