@@ -4,6 +4,7 @@ import "net"
 import "os"
 import "bytes"
 import "fmt"
+import "sort"
 
 // TODO: Make all of this JSON
 // TODO: Add authentication
@@ -153,10 +154,28 @@ func (a *admin) handleRequest(conn net.Conn) {
 			}
 			infos[info.key] = info
 		}
+		// Finally, get a sorted list of keys, which we use to organize the output
+		var keys [][mDepth]switchPort
+		for _, info := range infos {
+			keys = append(keys, info.key)
+		}
+		less := func(i, j int) bool {
+			for idx := range keys[i] {
+				if keys[i][idx] < keys[j][idx] {
+					return true
+				}
+				if keys[i][idx] > keys[j][idx] {
+					return false
+				}
+			}
+			return false
+		}
+		sort.Slice(keys, less)
 		// Now print it all out
 		conn.Write([]byte(fmt.Sprintf("digraph {\n")))
 		// First set the labels
-		for _, info := range infos {
+		for _, key := range keys {
+			info := infos[key]
 			if info.name == myAddr {
 				conn.Write([]byte(fmt.Sprintf("\"%v\" [ style = \"filled\", label = \"%v\" ];\n", info.key, info.name)))
 			} else {
@@ -164,11 +183,19 @@ func (a *admin) handleRequest(conn net.Conn) {
 			}
 		}
 		// Then print the tree structure
-		for _, info := range infos {
+		for _, key := range keys {
+			info := infos[key]
 			if info.key == info.parent {
 				continue
 			} // happens for the root, skip it
-			conn.Write([]byte(fmt.Sprintf("  \"%+v\" -> \"%+v\";\n", info.key, info.parent)))
+			for idx := len(info.key) - 1; idx >= 0; idx-- {
+				port := info.key[idx]
+				if port == 0 {
+					continue
+				}
+				conn.Write([]byte(fmt.Sprintf("  \"%+v\" -> \"%+v\" [ label = \"%v\" ];\n", info.parent, info.key, port)))
+				break
+			}
 		}
 		conn.Write([]byte(fmt.Sprintf("}\n")))
 		break
