@@ -44,13 +44,13 @@ type in6_aliasreq struct {
 	ifra_addr       sockaddr_in6
 	ifra_dstaddr    sockaddr_in6
 	ifra_prefixmask sockaddr_in6
-	ifra_flags			uint32
+	ifra_flags      uint32
 	ifra_lifetime   in6_addrlifetime
 }
 
 type ifreq struct {
-	ifr_name				[16]byte
-	ifru_mtu				uint32
+	ifr_name [16]byte
+	ifru_mtu uint32
 }
 
 func (tun *tunDevice) setupAddress(addr string) error {
@@ -66,7 +66,8 @@ func (tun *tunDevice) setupAddress(addr string) error {
 	copy(ar.ifra_name[:], tun.iface.Name())
 
 	ar.ifra_prefixmask.sin6_len = uint8(unsafe.Sizeof(ar.ifra_prefixmask))
-	b := make([]byte, 16); binary.LittleEndian.PutUint16(b, uint16(0xFF00))
+	b := make([]byte, 16)
+	binary.LittleEndian.PutUint16(b, uint16(0xFF00))
 	ar.ifra_prefixmask.sin6_addr[0] = uint16(binary.BigEndian.Uint16(b))
 
 	ar.ifra_addr.sin6_len = uint8(unsafe.Sizeof(ar.ifra_addr))
@@ -74,7 +75,8 @@ func (tun *tunDevice) setupAddress(addr string) error {
 	parts := strings.Split(strings.TrimRight(addr, "/8"), ":")
 	for i := 0; i < 8; i++ {
 		addr, _ := strconv.ParseUint(parts[i], 16, 16)
-		b := make([]byte, 16); binary.LittleEndian.PutUint16(b, uint16(addr))
+		b := make([]byte, 16)
+		binary.LittleEndian.PutUint16(b, uint16(addr))
 		ar.ifra_addr.sin6_addr[i] = uint16(binary.BigEndian.Uint16(b))
 	}
 

@@ -29,15 +29,16 @@ import . "yggdrasil"
  */
 
 type nodeConfig struct {
-	Listen    string
-	Peers     []string
-	BoxPub    string
-	BoxPriv   string
-	SigPub    string
-	SigPriv   string
-	Multicast bool
-	LinkLocal string
-	IfName    string
+	Listen      string
+	AdminListen string
+	Peers       []string
+	BoxPub      string
+	BoxPriv     string
+	SigPub      string
+	SigPriv     string
+	Multicast   bool
+	LinkLocal   string
+	IfName      string
 }
 
 type node struct {
@@ -72,6 +73,9 @@ func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
 	logger.Println("Starting interface...")
 	n.core.DEBUG_setupAndStartGlobalUDPInterface(cfg.Listen)
 	logger.Println("Started interface")
+	logger.Println("Starting admin socket...")
+	n.core.DEBUG_setupAndStartAdminInterface(cfg.AdminListen)
+	logger.Println("Started admin socket")
 	go func() {
 		if len(cfg.Peers) == 0 {
 			return
@@ -92,6 +96,7 @@ func generateConfig() *nodeConfig {
 	spub, spriv := core.DEBUG_newSigKeys()
 	cfg := nodeConfig{}
 	cfg.Listen = "[::]:0"
+	cfg.AdminListen = "[::1]:9001"
 	cfg.BoxPub = hex.EncodeToString(bpub[:])
 	cfg.BoxPriv = hex.EncodeToString(bpriv[:])
 	cfg.SigPub = hex.EncodeToString(spub[:])

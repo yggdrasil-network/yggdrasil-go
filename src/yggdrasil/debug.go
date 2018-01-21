@@ -336,6 +336,14 @@ func (c *Core) DEBUG_addKCPConn(saddr string) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+func (c *Core) DEBUG_setupAndStartAdminInterface(addrport string) {
+	a := admin{}
+	a.init(c, addrport)
+	c.admin = a
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 func (c *Core) DEBUG_setLogger(log *log.Logger) {
 	c.log = log
 }
