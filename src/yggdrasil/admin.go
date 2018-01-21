@@ -6,6 +6,8 @@ import "bytes"
 import "fmt"
 
 // TODO: Make all of this JSON
+// TODO: Add authentication
+// TODO: Is any of this thread safe?
 
 type admin struct {
 	core       *Core
@@ -44,10 +46,34 @@ func (a *admin) handleRequest(conn net.Conn) {
 	}
 	buf = bytes.Trim(buf, "\x00\r\n\t")
 	switch string(buf) {
-	case "ports":
-		ports := a.core.peers.getPorts()
-		for _, v := range ports {
-			conn.Write([]byte(fmt.Sprintf("Found switch port %d\n", v.port)))
+	case "switch table":
+		table := a.core.switchTable.table.Load().(lookupTable)
+		conn.Write([]byte(fmt.Sprintf(
+      "port 0 -> %+v\n",
+      table.self.coords)))
+		for _, v := range table.elems {
+			conn.Write([]byte(fmt.Sprintf(
+        "port %d -> %+v\n",
+				v.port,
+				v.locator.coords)))
+		}
+		break
+
+	case "dht":
+		n := a.core.dht.nBuckets()
+		for i := 0; i < n; i++ {
+			b := a.core.dht.getBucket(i)
+			if len(b.infos) == 0 {
+				continue
+			}
+			for _, v := range b.infos {
+				addr := address_addrForNodeID(v.nodeID_hidden)
+				ip := net.IP(addr[:]).String()
+
+				conn.Write([]byte(fmt.Sprintf("%+v -> %+v\n",
+					ip,
+					v.coords)))
+			}
 		}
 		break
 

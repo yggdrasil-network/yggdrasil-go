@@ -96,7 +96,7 @@ func generateConfig() *nodeConfig {
 	spub, spriv := core.DEBUG_newSigKeys()
 	cfg := nodeConfig{}
 	cfg.Listen = "[::]:0"
-	cfg.AdminListen = "[::]:0"
+	cfg.AdminListen = "[::1]:9001"
 	cfg.BoxPub = hex.EncodeToString(bpub[:])
 	cfg.BoxPriv = hex.EncodeToString(bpriv[:])
 	cfg.SigPub = hex.EncodeToString(spub[:])
