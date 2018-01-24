@@ -132,11 +132,16 @@ func (n *node) listen() {
 		}
 		//if rcm == nil { continue } // wat
 		//fmt.Println("DEBUG:", "packet from:", fromAddr.String())
-		if !rcm.Dst.IsLinkLocalMulticast() {
-			continue
-		}
-		if !rcm.Dst.Equal(groupAddr.IP) {
-			continue
+		if rcm != nil {
+			// Windows can't set the flag needed to return a non-nil value here
+			// So only make these checks if we get something useful back
+			// TODO? Skip them always, I'm not sure if they're really needed...
+			if !rcm.Dst.IsLinkLocalMulticast() {
+				continue
+			}
+			if !rcm.Dst.Equal(groupAddr.IP) {
+				continue
+			}
 		}
 		anAddr := string(bs[:nBytes])
 		addr, err := net.ResolveUDPAddr("udp6", anAddr)
@@ -163,11 +168,7 @@ func (n *node) announce() {
 	if err != nil {
 		panic(err)
 	}
-	udpaddr := n.core.DEBUG_getGlobalUDPAddr()
-	anAddr, err := net.ResolveUDPAddr("udp6", udpaddr.String())
-	if err != nil {
-		panic(err)
-	}
+	var anAddr net.UDPAddr
 	destAddr, err := net.ResolveUDPAddr("udp6", multicastAddr)
 	if err != nil {
 		panic(err)
@@ -266,7 +267,8 @@ func main() {
 		//defer conn.Close() // Let it close on its own when the application exits
 		n.sock = ipv6.NewPacketConn(conn)
 		if err = n.sock.SetControlMessage(ipv6.FlagDst, true); err != nil {
-			panic(err)
+			// Windows can't set this flag, so we need to handle it in other ways
+			//panic(err)
 		}
 		go n.listen()
 		go n.announce()
