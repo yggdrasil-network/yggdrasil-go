@@ -17,8 +17,11 @@ You're encouraged to play with it, but I strongly advise against using it for an
 2. Clone this repository.
 2. `./build`
 
+Note that you can cross compile by specifying the `$GOOS` and `$GOARCH` environment variables.
 The build script sets its own `$GOPATH`, so the build environment is self-contained.
 This code should work on Linux and macOS, but see the optional example below for a way to share connectivity with the rest of a network.
+
+It should also work on Windows 7 or later, but you will first need to install the OpenVPN NDIS 6 TAP driver.
 
 ## Running
 
