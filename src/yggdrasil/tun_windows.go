@@ -24,8 +24,8 @@ func (tun *tunDevice) setupAddress(addr string) error {
 	// Set address
 	// addr = strings.TrimRight(addr, "/8")
 	cmd := exec.Command("netsh", "interface", "ipv6", "set", "address",
-		fmt.Sprintf("interface=\"%s\"", tun.iface.Name()),
-		fmt.Sprintf("addr=\"%s\"", addr))
+		fmt.Sprintf("interface=%s", tun.iface.Name()),
+		fmt.Sprintf("addr=%s", addr))
 	tun.core.log.Printf("netsh command: %v", strings.Join(cmd.Args, " "))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
