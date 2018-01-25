@@ -269,8 +269,8 @@ func (c *Core) DEBUG_setupAndStartGlobalUDPInterface(addrport string) {
 	c.udp = &iface
 }
 
-func (c *Core) DEBUG_getGlobalUDPAddr() net.Addr {
-	return c.udp.sock.LocalAddr()
+func (c *Core) DEBUG_getGlobalUDPAddr() *net.UDPAddr {
+	return c.udp.sock.LocalAddr().(*net.UDPAddr)
 }
 
 func (c *Core) DEBUG_maybeSendUDPKeys(saddr string) {

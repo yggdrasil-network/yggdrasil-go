@@ -169,6 +169,8 @@ func (n *node) announce() {
 		panic(err)
 	}
 	var anAddr net.UDPAddr
+	udpAddr := n.core.DEBUG_getGlobalUDPAddr()
+	anAddr.Port = udpAddr.Port
 	destAddr, err := net.ResolveUDPAddr("udp6", multicastAddr)
 	if err != nil {
 		panic(err)
