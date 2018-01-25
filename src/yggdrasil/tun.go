@@ -5,6 +5,7 @@ package yggdrasil
 import ethernet "github.com/songgao/packets/ethernet"
 
 const IPv6_HEADER_LENGTH = 40
+const ETHER_HEADER_LENGTH = 14
 
 type tunInterface interface {
 	IsTUN() bool
@@ -40,13 +41,13 @@ func (tun *tunDevice) write() error {
 				ethernet.NotTagged,  // VLAN tagging
 				ethernet.IPv6,       // Ethertype
 				len(data))           // Payload length
-			copy(frame[14:], data[:])
+			copy(frame[ETHER_HEADER_LENGTH:], data[:])
 			if _, err := tun.iface.Write(frame); err != nil {
-				return err
+				panic(err)
 			}
 		} else {
 			if _, err := tun.iface.Write(data); err != nil {
-				return err
+				panic(err)
 			}
 		}
 		util_putBytes(data)
@@ -54,15 +55,19 @@ func (tun *tunDevice) write() error {
 }
 
 func (tun *tunDevice) read() error {
-	buf := make([]byte, tun.mtu)
+	mtu := tun.mtu
+	if tun.iface.IsTAP() {
+		mtu += ETHER_HEADER_LENGTH
+	}
+	buf := make([]byte, mtu)
 	for {
 		n, err := tun.iface.Read(buf)
 		if err != nil {
-			return err
+			panic(err)
 		}
 		o := 0
 		if tun.iface.IsTAP() {
-			o = 14
+			o = ETHER_HEADER_LENGTH
 			b := make([]byte, n)
 			copy(b, buf)
 			tun.ndp.recv <- b
