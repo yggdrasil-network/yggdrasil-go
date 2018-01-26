@@ -277,7 +277,7 @@ func main() {
 	}
 	// Catch interrupt to exit gracefully
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
+	signal.Notify(c, os.Interrupt, os.Kill)
 	<-c
 	logger.Println("Stopping...")
 }
