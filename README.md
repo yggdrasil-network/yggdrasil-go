@@ -20,13 +20,6 @@ You're encouraged to play with it, but I strongly advise against using it for an
 Note that you can cross compile by specifying the `$GOOS` and `$GOARCH` environment variables.
 The build script sets its own `$GOPATH`, so the build environment is self-contained.
 
-This code should work out-of-the-box on most Linux distributions and macOS.
-It should also work on recent versions of Windows, but it depends on the OpenVPN NDIS 5 TAP driver (tested with `tap-windows-9.9.2_3`, not that there issues when using NDIS 6 driver as of `tap-windows-9.21.2`).
-Be aware that connectivity issues can occur on Windows if multiple IPv6 addresses from the `fd00::/8` prefix are assigned to the TAP interface.
-If this happens, then you may need to manually remove the old/unused addresses from the interface (though the code has a workaround in place to do this automatically in some cases).
-
-You can also advertise a route on your LAN, enabling other devices to access the `fd00::/8` network, as shown in the optional example below.
-
 ## Running
 
 To run the program, you'll need permission to create a `tun` device and configure it using `ip`.
@@ -49,6 +42,13 @@ This keeps a persistent set of keys (and by extension, IP address) and gives you
 If you want to use it as an overlay network on top of e.g. the internet, then you can do so by adding the remote devices domain/address and port (as a string, e.g. `"1.2.3.4:5678"`) to the list of `Peers` in the configuration file.
 
 A [Vyatta-based](https://github.com/neilalexander/vyatta-yggdrasil) router configuration is also available.
+
+The code should work out-of-the-box on most Linux distributions (with `iproute2` installed) and macOS.
+It should also work on recent versions of Windows, but it depends on the OpenVPN NDIS 5 TAP driver (tested with `tap-windows-9.9.2_3`, not that there issues when using NDIS 6 driver as of `tap-windows-9.21.2`).
+Be aware that connectivity issues can occur on Windows if multiple IPv6 addresses from the `fd00::/8` prefix are assigned to the TAP interface.
+If this happens, then you may need to manually remove the old/unused addresses from the interface (though the code has a workaround in place to do this automatically in some cases).
+
+You can also advertise a route on your LAN, enabling other devices to access the `fd00::/8` network, as shown in the optional example below.
 
 ## Optional: advertise a prefix locally
 
