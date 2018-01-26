@@ -44,7 +44,7 @@ func address_addrForNodeID(nid *NodeID) *address {
 		}
 		if !done && bit == 0 {
 			done = true
-			continue // FIXME this assumes that ones <= 127
+			continue // FIXME? this assumes that ones <= 127, probably only worth changing by using a variable length uint64, but that would require changes to the addressing scheme, and I'm not sure ones > 127 is realistic
 		}
 		bits = (bits << 1) | bit
 		nBits++

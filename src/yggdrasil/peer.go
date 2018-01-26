@@ -1,11 +1,26 @@
 package yggdrasil
 
 // TODO cleanup, this file is kind of a mess
+//  Commented code should be removed
+//  Live code should be better commented
 
-// FIXME? this part may be at least sligtly vulnerable to replay attacks
+// FIXME (!) this part may be at least sligtly vulnerable to replay attacks
 //  The switch message part should catch / drop old tstamps
 //  So the damage is limited
 //  But you could still mess up msgAnc / msgHops and break some things there
+//  It needs to ignore messages with a lower seq
+//  Probably best to start setting seq to a timestamp in that case...
+
+// FIXME (!?) if it takes too long to communicate all the msgHops, then things hit a horizon
+//  That could happen with a peer over a high-latency link, with many msgHops
+//  Possible workarounds:
+//    1. Pre-emptively send all hops when one is requested, or after any change
+//      Maybe requires changing how the throttle works and msgHops are saved
+//      In case some arrive out of order or are dropped
+//      This is relatively easy to implement, but could be wasteful
+//    2. Save your old locator, sigs, etc, so you can respond to older ancs
+//      And finish requesting an old anc before updating to a new one
+//      But that may lead to other issues if not done carefully...
 
 import "time"
 import "sync"
@@ -166,7 +181,7 @@ func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
 	toPort, newTTL := p.core.switchTable.lookup(coords, ttl)
 	if toPort == p.port {
 		return
-	} // FIXME? shouldn't happen, does it? would loop
+	}
 	to := p.core.peers.getPorts()[toPort]
 	if to == nil {
 		return
@@ -200,7 +215,6 @@ func (p *peer) sendLinkPacket(packet []byte) {
 
 func (p *peer) handleLinkTraffic(bs []byte) {
 	packet := wire_linkProtoTrafficPacket{}
-	// TODO throttle on returns?
 	if !packet.decode(bs) {
 		return
 	}

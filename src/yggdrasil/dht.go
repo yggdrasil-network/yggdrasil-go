@@ -18,10 +18,6 @@ Slight changes *do* make it blackhole hard, bootstrapping isn't an easy problem
 
 */
 
-// TODO handle the case where we try to look ourself up
-//  Ends up at bucket index NodeIDLen
-//  That's 1 too many
-
 import "sort"
 import "time"
 
@@ -34,7 +30,6 @@ const dht_lookup_size = 2               // This should be at least 1, below 2 is
 const dht_bucket_number = 8 * NodeIDLen // This shouldn't be changed
 
 type dhtInfo struct {
-	// TODO save their nodeID so we don't need to rehash if we need it again
 	nodeID_hidden *NodeID
 	key           boxPubKey
 	coords        []byte
@@ -115,7 +110,7 @@ func (t *dht) handleRes(res *dhtRes) {
 	rinfo := dhtInfo{
 		key:    res.key,
 		coords: res.coords,
-		send:   time.Now(), // Technically wrong but should be OK... FIXME or not
+		send:   time.Now(), // Technically wrong but should be OK...
 		recv:   time.Now(),
 	}
 	// If they're already in the table, then keep the correct send time

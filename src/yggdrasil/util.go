@@ -42,7 +42,7 @@ func util_unlockthread() {
 	runtime.UnlockOSThread()
 }
 
-/*
+/* Used previously, but removed because casting to an interface{} allocates...
 var byteStore sync.Pool = sync.Pool{
   New: func () interface{} { return []byte(nil) },
 }
@@ -52,7 +52,7 @@ func util_getBytes() []byte {
 }
 
 func util_putBytes(bs []byte) {
-  byteStore.Put(bs) // FIXME? The cast to interface{} allocates...
+  byteStore.Put(bs) // This is the part that allocates
 }
 */
 

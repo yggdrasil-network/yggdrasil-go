@@ -169,7 +169,7 @@ func (s *searches) handleSearchRes(res *searchRes) {
 			panic("This should never happen")
 		}
 	}
-	// FIXME replay attacks could mess with coords?
+	// FIXME (!) replay attacks could mess with coords? Give it a handle (tstamp)?
 	sinfo.coords = res.coords
 	sinfo.packet = info.packet
 	s.core.sessions.ping(sinfo)

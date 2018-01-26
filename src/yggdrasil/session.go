@@ -29,7 +29,6 @@ type sessionInfo struct {
 	tstamp       int64 // tstamp from their last session ping, replay attack mitigation
 }
 
-// FIXME replay attacks (include nonce or some sequence number)
 type sessionPing struct {
 	sendPermPub boxPubKey // Sender's permanent key
 	handle      handle    // Random number to ID session
@@ -42,15 +41,15 @@ type sessionPing struct {
 // Returns true if the session was updated, false otherwise
 func (s *sessionInfo) update(p *sessionPing) bool {
 	if !(p.tstamp > s.tstamp) {
+		// To protect against replay attacks
 		return false
 	}
 	if p.sendPermPub != s.theirPermPub {
+		// Should only happen if two sessions got the same handle
+		// That shouldn't be allowed anyway, but if it happens then let one time out
 		return false
-	} // Shouldn't happen
+	}
 	if p.sendSesPub != s.theirSesPub {
-		// FIXME need to protect against replay attacks
-		//  Put a sequence number or a timestamp or something in the pings?
-		// Or just return false, make the session time out?
 		s.theirSesPub = p.sendSesPub
 		s.theirHandle = p.handle
 		s.sharedSesKey = *getSharedKey(&s.mySesPriv, &s.theirSesPub)
@@ -144,7 +143,7 @@ func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
 	pub, priv := newBoxKeys()
 	sinfo.mySesPub = *pub
 	sinfo.mySesPriv = *priv
-	sinfo.myNonce = *newBoxNonce() // TODO make sure nonceIsOK tolerates this
+	sinfo.myNonce = *newBoxNonce()
 	higher := false
 	for idx := range ss.core.boxPub {
 		if ss.core.boxPub[idx] > sinfo.theirPermPub[idx] {

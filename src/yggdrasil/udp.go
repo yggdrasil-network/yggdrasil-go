@@ -5,9 +5,12 @@ package yggdrasil
 // It's intended to use UDP, so debugging/optimzing this is a high priority
 // TODO? use golang.org/x/net/ipv6.PacketConn's ReadBatch and WriteBatch?
 //  To send all chunks of a message / recv all available chunks in one syscall
+//  That might be faster on supported platforms, but it needs investigation
 // Chunks are currently murged, but outgoing messages aren't chunked
 // This is just to support chunking in the future, if it's needed and debugged
 //  Basically, right now we might send UDP packets that are too large
+
+// TODO remove old/unused code and better document live code
 
 import "net"
 import "time"
@@ -20,8 +23,6 @@ type udpInterface struct {
 	mutex sync.RWMutex // each conn has an owner goroutine
 	conns map[connAddr]*connInfo
 }
-
-//type connAddr string // TODO something more efficient, but still a valid map key
 
 type connAddr struct {
 	ip   [16]byte
@@ -153,7 +154,7 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 	}
 	iface.mutex.RLock()
 	conn, isIn := iface.conns[addr]
-	iface.mutex.RUnlock() // TODO? keep the lock longer?...
+	iface.mutex.RUnlock()
 	if !isIn {
 		udpAddr := addr.toUDPAddr()
 		themNodeID := getNodeID(&ks.box)

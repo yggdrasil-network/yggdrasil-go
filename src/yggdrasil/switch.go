@@ -11,6 +11,11 @@ package yggdrasil
 // TODO? use a pre-computed lookup table (python version had this)
 //  A little annoying to do with constant changes from bandwidth estimates
 
+// FIXME (!) throttle how often root updates are accepted
+//  If the root starts spaming with new timestamps, it should only affect their neighbors
+//  The rest of the network should see announcements at a somewhat reasonable rate
+//  Maybe no faster than 2x the usual update interval
+
 import "time"
 import "sync"
 import "sync/atomic"
@@ -250,7 +255,7 @@ func (t *switchTable) cleanPeers() {
 }
 
 func (t *switchTable) cleanDropped() {
-	// TODO only call this after root changes, not periodically
+	// TODO? only call this after root changes, not periodically
 	for root := range t.drop {
 		if !firstIsBetter(&root, &t.data.locator.root) {
 			delete(t.drop, root)

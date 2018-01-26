@@ -2,7 +2,7 @@ package yggdrasil
 
 // This part does most of the work to handle packets to/from yourself
 // It also manages crypto and dht info
-// TODO? move dht stuff into another goroutine?
+// TODO clean up old/unused code, maybe improve comments on whatever is left
 
 // Send:
 //  Receive a packet from the tun
@@ -43,14 +43,19 @@ func (r *router) init(core *Core) {
 	r.addr = *address_addrForNodeID(&r.core.dht.nodeID)
 	in := make(chan []byte, 1024)                             // TODO something better than this...
 	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub) //, out, in)
-	// TODO set in/out functions on the new peer...
-	p.out = func(packet []byte) { in <- packet } // FIXME in theory it blocks...
+	p.out = func(packet []byte) {
+		// This is to make very sure it never blocks
+		for {
+			select {
+			case in <- packet:
+				return
+			default:
+				util_putBytes(<-in)
+			}
+		}
+	}
 	r.in = in
-	// TODO? make caller responsible for go-ing if it needs to not block
-	r.out = func(packet []byte) { p.handlePacket(packet, nil) }
-	// TODO attach these to the tun
-	//  Maybe that's the core's job...
-	//  It creates tun, creates the router, creates channels, sets them?
+	r.out = func(packet []byte) { p.handlePacket(packet, nil) } // The caller is responsible for go-ing if it needs to not block
 	recv := make(chan []byte, 1024)
 	send := make(chan []byte, 1024)
 	r.recv = recv
@@ -154,7 +159,7 @@ func (r *router) sendPacket(bs []byte) {
 }
 
 func (r *router) recvPacket(bs []byte, theirAddr *address, theirSubnet *subnet) {
-	// TODO? move this into the session?
+	// Note: called directly by the session worker, not the router goroutine
 	//fmt.Println("Recv packet")
 	if len(bs) < 24 {
 		util_putBytes(bs)

@@ -6,9 +6,6 @@ import "regexp"
 
 type Core struct {
 	// This is the main data structure that holds everything else for a node
-	// TODO? move keys out of core and into something more appropriate
-	//  e.g. box keys live in sessions
-	//  sig keys live in peers or sigs (or wherever signing/validating logic is)
 	boxPub      boxPubKey
 	boxPriv     boxPrivKey
 	sigPub      sigPubKey
@@ -42,7 +39,7 @@ func (c *Core) init(bpub *boxPubKey,
 	// TODO separate init and start functions
 	//  Init sets up structs
 	//  Start launches goroutines that depend on structs being set up
-	// This is pretty much required to avoid race conditions
+	// This is pretty much required to completely avoid race conditions
 	util_initByteStore()
 	c.log = log.New(ioutil.Discard, "", 0)
 	c.boxPub, c.boxPriv = *bpub, *bpriv

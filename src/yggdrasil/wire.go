@@ -3,6 +3,8 @@ package yggdrasil
 // Wire formatting tools
 // These are all ugly and probably not very secure
 
+// TODO clean up unused/commented code, and add better comments to whatever is left
+
 // Packet types, as an Encode_uint64 at the start of each packet
 // TODO? make things still work after reordering (after things stabilize more?)
 //  Type safety would also be nice, `type wire_type uint64`, rewrite as needed?
@@ -10,9 +12,9 @@ const (
 	wire_Traffic             = iota // data being routed somewhere, handle for crypto
 	wire_ProtocolTraffic            // protocol traffic, pub keys for crypto
 	wire_LinkProtocolTraffic        // link proto traffic, pub keys for crypto
-	wire_SwitchAnnounce             // TODO put inside protocol traffic header
-	wire_SwitchHopRequest           // TODO put inside protocol traffic header
-	wire_SwitchHop                  // TODO put inside protocol traffic header
+	wire_SwitchAnnounce             // inside protocol traffic header
+	wire_SwitchHopRequest           // inside protocol traffic header
+	wire_SwitchHop                  // inside protocol traffic header
 	wire_SessionPing                // inside protocol traffic header
 	wire_SessionPong                // inside protocol traffic header
 	wire_DHTLookupRequest           // inside protocol traffic header
@@ -119,7 +121,6 @@ func wire_decode_coords(packet []byte) ([]byte, int) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// TODO move this msg stuff somewhere else, use encode() and decode() methods
 
 // Announces that we can send parts of a Message with a particular seq
 type msgAnnounce struct {
@@ -295,7 +296,7 @@ func wire_chop_uint64(toUInt64 *uint64, fromSlice *[]byte) bool {
 // Wire traffic packets
 
 type wire_trafficPacket struct {
-	ttl     uint64 // TODO? hide this as a wire format detail, not set by user
+	ttl     uint64
 	coords  []byte
 	handle  handle
 	nonce   boxNonce
@@ -336,7 +337,7 @@ func (p *wire_trafficPacket) decode(bs []byte) bool {
 }
 
 type wire_protoTrafficPacket struct {
-	ttl     uint64 // TODO? hide this as a wire format detail, not set by user
+	ttl     uint64
 	coords  []byte
 	toKey   boxPubKey
 	fromKey boxPubKey

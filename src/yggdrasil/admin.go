@@ -6,9 +6,8 @@ import "bytes"
 import "fmt"
 import "sort"
 
-// TODO: Make all of this JSON
+// TODO? Make all of this JSON
 // TODO: Add authentication
-// TODO: Is any of this thread safe?
 
 type admin struct {
 	core       *Core
@@ -138,7 +137,7 @@ func (a *admin) handleRequest(conn net.Conn) {
 				if isIn {
 					continue
 				}
-				newInfo.name = "missing"
+				newInfo.name = "?"
 				newInfo.key = key
 				infos[key] = newInfo
 			}

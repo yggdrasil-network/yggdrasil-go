@@ -6,7 +6,7 @@ package yggdrasil
 
 import "golang.org/x/net/icmp"
 import "encoding/binary"
-import "unsafe"
+import "unsafe" // TODO investigate if this can be done without resorting to unsafe
 
 type macAddress [6]byte
 type ipv6Address [16]byte
