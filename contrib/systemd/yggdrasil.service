@@ -1,0 +1,20 @@
+[Unit]
+Description=yggdrasil
+Wants=network.target
+After=network.target
+
+[Service]
+ProtectHome=true
+ProtectSystem=true
+SyslogIdentifier=yggdrasil
+ExecStartPre=/bin/sh -ec "if ! test -s /etc/yggdrasil.conf; \
+                then umask 077; \
+                yggdrasil -genconf > /etc/yggdrasil.conf; \
+                echo 'WARNING: A new /etc/yggdrasil.conf file has been generated.'; \
+            fi"
+ExecStart=/bin/sh -c "exec yggdrasil -useconf < /etc/yggdrasil.conf"
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+Also=yggdrasil-resume.service

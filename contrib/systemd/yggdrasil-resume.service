@@ -1,0 +1,10 @@
+[Unit]
+Description=Restart yggdrasil on resume from sleep
+After=sleep.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/systemctl restart yggdrasil
+
+[Install]
+WantedBy=sleep.target
