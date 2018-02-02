@@ -1,0 +1,16 @@
+language: go
+
+go:
+  - 1.9.x
+
+os:
+  - linux
+  - osx
+
+install:
+  - export GOPATH="$TRAVIS_BUILD_DIR:$GOPATH"
+  - go get -d -v yggdrasil
+  - for file in *.go ; do go build -v $file; done
+
+script:
+  - ./yggdrasil -genconf
