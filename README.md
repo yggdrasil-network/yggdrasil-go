@@ -1,5 +1,7 @@
 # Yggdrasil
 
+[![Build Status](https://api.travis-ci.org/Arceliar/yggdrasil-go.svg?branch=master)](https://travis-ci.org/Arceliar/yggdrasil-go)
+
 ## What is it?
 
 This is a toy implementation of an encrypted IPv6 network, with many good ideas stolen from [cjdns](https://github.com/cjdelisle/cjdns), which was written to test a particular routing scheme that I cobbled together one random Wednesday afternoon.
