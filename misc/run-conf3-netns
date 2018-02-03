@@ -24,5 +24,6 @@ ip netns exec peerns3 ip route add 192.168.2.0/24 via 192.168.3.1
 
 ip netns exec peerns3 ip addr list
 #ip netns exec peerns3 ./run -useconf=conf3.json
+ip netns exec peerns3 ifconfig lo up
 ip netns exec peerns3 ./run -autoconf
 #ip netns delete peerns3
