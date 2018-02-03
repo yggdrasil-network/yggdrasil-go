@@ -80,7 +80,8 @@ class Node:
       # Update timestamp at least once every 1/4 timeout period
       # This should probably be randomized in a real implementation
       self.info.tstamp = self.info.time
-      self.info.degree = 0# TODO decide if degree should be used, len(self.peers)
+      self.info.degree = len(self.peers)
+      self.info.degree = 0# TODO decide if degree should be used
     changed = False # Used to track when the network has converged
     changed |= self.cleanRoot()
     self.cleanDropped()
@@ -179,12 +180,15 @@ class Node:
     # The person looking up the route is responsible for checking for loops
     best = None
     bestDist = 0
+    bestDeg = 0
     for node in self.peers.itervalues():
       # dist = distance to node + dist (on tree) from node to dest
       dist = len(node.path)-1 + treeDist(node.coords, dest.coords)
-      if not best or dist < bestDist:
+      deg = node.degree
+      if not best or dist < bestDist or (best == bestDist and deg > bestDeg):
         best = node
         bestDist = dist
+        bestDeg = deg
     if best:
       next = best.path[-2]
       assert next in self.peers
@@ -509,7 +513,7 @@ def testPaths(store, dists):
       eHops = dists[distIdx]
       if not eHops: continue # The network is split, no path exists
       hops = 0
-      for pair in ((sourceIdx, destIdx),):
+      for pair in ((sourceIdx, destIdx), (destIdx, sourceIdx)): # Either direction because source routing
         nHops = 0
         locIdx = pair[0]
         dIdx = pair[1]

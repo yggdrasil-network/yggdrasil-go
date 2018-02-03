@@ -1,5 +1,6 @@
 import glob
-inputDirPath = "fc00"
+import sys
+inputDirPath =  sys.argv[1]
 
 inputFilePaths = glob.glob(inputDirPath+"/*")
 inputFilePaths.sort()
