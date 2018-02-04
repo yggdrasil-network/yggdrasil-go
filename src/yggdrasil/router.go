@@ -41,7 +41,7 @@ type router struct {
 func (r *router) init(core *Core) {
 	r.core = core
 	r.addr = *address_addrForNodeID(&r.core.dht.nodeID)
-	in := make(chan []byte, 1024)                             // TODO something better than this...
+	in := make(chan []byte, 32)                             // TODO something better than this...
 	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub) //, out, in)
 	p.out = func(packet []byte) {
 		// This is to make very sure it never blocks
@@ -56,8 +56,8 @@ func (r *router) init(core *Core) {
 	}
 	r.in = in
 	r.out = func(packet []byte) { p.handlePacket(packet, nil) } // The caller is responsible for go-ing if it needs to not block
-	recv := make(chan []byte, 1024)
-	send := make(chan []byte, 1024)
+	recv := make(chan []byte, 32)
+	send := make(chan []byte, 32)
 	r.recv = recv
 	r.send = send
 	r.core.tun.recv = recv

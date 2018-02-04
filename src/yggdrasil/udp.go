@@ -167,7 +167,7 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 			peer:   iface.core.peers.newPeer(&ks.box, &ks.sig),
 			linkIn: make(chan []byte, 1),
 			keysIn: make(chan *udpKeys, 1),
-			out:    make(chan []byte, 1024),
+			out:    make(chan []byte, 32),
 		}
 		/*
 		   conn.in = func (msg []byte) { conn.peer.handlePacket(msg, conn.linkIn) }

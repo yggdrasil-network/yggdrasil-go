@@ -128,13 +128,13 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 	in := func(bs []byte) {
 		p.handlePacket(bs, linkIn)
 	}
-	out := make(chan []byte, 1024) // TODO? what size makes sense
+	out := make(chan []byte, 32) // TODO? what size makes sense
 	defer close(out)
 	go func() {
 		var stack [][]byte
 		put := func(msg []byte) {
 			stack = append(stack, msg)
-			for len(stack) > 1024 {
+			for len(stack) > 32 {
 				util_putBytes(stack[0])
 				stack = stack[1:]
 			}

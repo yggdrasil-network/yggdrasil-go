@@ -163,8 +163,8 @@ func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
 	sinfo.myHandle = *newHandle()
 	sinfo.theirAddr = *address_addrForNodeID(getNodeID(&sinfo.theirPermPub))
 	sinfo.theirSubnet = *address_subnetForNodeID(getNodeID(&sinfo.theirPermPub))
-	sinfo.send = make(chan []byte, 1024)
-	sinfo.recv = make(chan *wire_trafficPacket, 1024)
+	sinfo.send = make(chan []byte, 32)
+	sinfo.recv = make(chan *wire_trafficPacket, 32)
 	go sinfo.doWorker()
 	sinfo.time = time.Now()
 	// Do some cleanup
