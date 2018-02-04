@@ -322,7 +322,7 @@ func (iface *udpInterface) reader() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const udp_chunkSize = 65535
+const udp_chunkSize = 1024
 
 func udp_decode(bs []byte) (chunks, chunk, count uint8, payload []byte) {
 	if len(bs) >= 3 {

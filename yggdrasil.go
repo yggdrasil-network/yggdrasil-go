@@ -249,8 +249,8 @@ func main() {
 	n := node{}
 	n.init(cfg, logger)
 	logger.Println("Starting tun...")
-	n.core.DEBUG_startTun(cfg.IfName) // 1280, the smallest supported MTU
-	//n.core.DEBUG_startTunWithMTU(cfg.IfName, 65535) // Largest supported MTU
+	//n.core.DEBUG_startTun(cfg.IfName) // 1280, the smallest supported MTU
+	n.core.DEBUG_startTunWithMTU(cfg.IfName, 65535) // Largest supported MTU
 	defer func() {
 		logger.Println("Closing...")
 		n.core.DEBUG_stopTun()
