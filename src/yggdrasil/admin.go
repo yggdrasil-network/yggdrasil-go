@@ -41,10 +41,13 @@ func (a *admin) init(c *Core, listenaddr string) {
 		*out = a.getResponse_dot()
 	})
 	a.addHandler("getSelf", nil, func(out *[]byte, _ ...string) {
-		*out = []byte(a.printInfos(a.getData_getPeers()))
+		*out = []byte(a.printInfos([]admin_nodeInfo{*a.getData_getSelf()}))
 	})
 	a.addHandler("getPeers", nil, func(out *[]byte, _ ...string) {
 		*out = []byte(a.printInfos(a.getData_getPeers()))
+	})
+	a.addHandler("getSwitchPeers", nil, func(out *[]byte, _ ...string) {
+		*out = []byte(a.printInfos(a.getData_getSwitchPeers()))
 	})
 	a.addHandler("getDHT", nil, func(out *[]byte, _ ...string) {
 		*out = []byte(a.printInfos(a.getData_getDHT()))
@@ -152,6 +155,26 @@ func (a *admin) getData_getSelf() *admin_nodeInfo {
 }
 
 func (a *admin) getData_getPeers() []admin_nodeInfo {
+	ports := a.core.peers.ports.Load().(map[switchPort]*peer)
+	var peerInfos []admin_nodeInfo
+	var ps []switchPort
+	for port := range ports {
+		ps = append(ps, port)
+	}
+	sort.Slice(ps, func(i, j int) bool { return ps[i] < ps[j] })
+	for _, port := range ps {
+		p := ports[port]
+		addr := *address_addrForNodeID(getNodeID(&p.box))
+		info := admin_nodeInfo{
+			{"IP", net.IP(addr[:]).String()},
+			{"port", fmt.Sprint(port)},
+		}
+		peerInfos = append(peerInfos, info)
+	}
+	return peerInfos
+}
+
+func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 	var peerInfos []admin_nodeInfo
 	table := a.core.switchTable.table.Load().(lookupTable)
 	peers := a.core.peers.ports.Load().(map[switchPort]*peer)
@@ -211,7 +234,7 @@ func (a *admin) getData_getSessions() []admin_nodeInfo {
 func (a *admin) getResponse_dot() []byte {
 	self := a.getData_getSelf().asMap()
 	myAddr := self["IP"]
-	peers := a.getData_getPeers()
+	peers := a.getData_getSwitchPeers()
 	dht := a.getData_getDHT()
 	sessions := a.getData_getSessions()
 	// Map of coords onto IP

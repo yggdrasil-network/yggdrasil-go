@@ -176,13 +176,10 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 	}()
 	p.out = func(msg []byte) {
 		defer func() { recover() }()
-		for {
-			select {
-			case out <- msg:
-				return
-			default:
-				util_putBytes(<-out)
-			}
+		select {
+		case out <- msg:
+		default:
+			util_putBytes(msg)
 		}
 	}
 	sock.SetNoDelay(true)
