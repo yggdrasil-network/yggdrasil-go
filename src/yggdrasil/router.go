@@ -41,17 +41,15 @@ type router struct {
 func (r *router) init(core *Core) {
 	r.core = core
 	r.addr = *address_addrForNodeID(&r.core.dht.nodeID)
-	in := make(chan []byte, 32)                             // TODO something better than this...
+	in := make(chan []byte, 32)                               // TODO something better than this...
 	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub) //, out, in)
 	p.out = func(packet []byte) {
 		// This is to make very sure it never blocks
-		for {
-			select {
-			case in <- packet:
-				return
-			default:
-				util_putBytes(<-in)
-			}
+		select {
+		case in <- packet:
+			return
+		default:
+			util_putBytes(packet)
 		}
 	}
 	r.in = in
@@ -147,13 +145,10 @@ func (r *router) sendPacket(bs []byte) {
 		fallthrough
 	//default: go func() { sinfo.send<-bs }()
 	default:
-		for {
-			select {
-			case sinfo.send <- bs:
-				return
-			default:
-				util_putBytes(<-sinfo.send)
-			}
+		select {
+		case sinfo.send <- bs:
+		default:
+			util_putBytes(bs)
 		}
 	}
 }
@@ -191,7 +186,6 @@ func (r *router) handleIn(packet []byte) {
 	case wire_ProtocolTraffic:
 		r.handleProto(packet)
 	default: /*panic("Should not happen in testing") ;*/
-		return
 	}
 }
 
@@ -206,13 +200,10 @@ func (r *router) handleTraffic(packet []byte) {
 		return
 	}
 	//go func () { sinfo.recv<-&p }()
-	for {
-		select {
-		case sinfo.recv <- &p:
-			return
-		default:
-			util_putBytes((<-sinfo.recv).payload)
-		}
+	select {
+	case sinfo.recv <- &p:
+	default:
+		util_putBytes(p.payload)
 	}
 }
 

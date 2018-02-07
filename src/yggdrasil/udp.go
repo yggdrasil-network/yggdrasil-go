@@ -224,13 +224,10 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 		}
 		conn.peer.out = func(msg []byte) {
 			defer func() { recover() }()
-			for {
-				select {
-				case conn.out <- msg:
-					return
-				default:
-					util_putBytes(<-conn.out)
-				}
+			select {
+			case conn.out <- msg:
+			default:
+				util_putBytes(msg)
 			}
 		}
 		go func() {
