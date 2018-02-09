@@ -71,7 +71,8 @@ func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
 	}
 	n.core.DEBUG_setIfceExpr(ifceExpr)
 	logger.Println("Starting interface...")
-	n.core.DEBUG_setupAndStartGlobalUDPInterface(cfg.Listen)
+	n.core.DEBUG_setupAndStartGlobalTCPInterface(cfg.Listen) // Listen for peers on TCP
+  n.core.DEBUG_setupAndStartGlobalUDPInterface(cfg.Listen) // Also listen on UDP, TODO allow separate configuration for ip/port to listen on each of these
 	logger.Println("Started interface")
 	logger.Println("Starting admin socket...")
 	n.core.DEBUG_setupAndStartAdminInterface(cfg.AdminListen)
@@ -82,7 +83,11 @@ func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
 		}
 		for {
 			for _, p := range cfg.Peers {
-				n.core.DEBUG_maybeSendUDPKeys(p)
+        switch {
+          case len(p) >= 4 && p[:4] == "udp:": n.core.DEBUG_maybeSendUDPKeys(p[4:])
+          case len(p) >= 4 && p[:4] == "tcp:": n.core.DEBUG_addTCPConn(p[4:])
+          default: n.core.DEBUG_addTCPConn(p)
+        }
 				time.Sleep(time.Second)
 			}
 			time.Sleep(time.Minute)
@@ -144,7 +149,7 @@ func (n *node) listen() {
 			}
 		}
 		anAddr := string(bs[:nBytes])
-		addr, err := net.ResolveUDPAddr("udp6", anAddr)
+		addr, err := net.ResolveTCPAddr("tcp6", anAddr)
 		if err != nil {
 			panic(err)
 			continue
@@ -158,7 +163,7 @@ func (n *node) listen() {
 		saddr := addr.String()
 		//if _, isIn := n.peers[saddr]; isIn { continue }
 		//n.peers[saddr] = struct{}{}
-		n.core.DEBUG_maybeSendUDPKeys(saddr)
+		n.core.DEBUG_addTCPConn(saddr) // FIXME? can result in 2 connections per peer
 		//fmt.Println("DEBUG:", "added multicast peer:", saddr)
 	}
 }
@@ -168,9 +173,9 @@ func (n *node) announce() {
 	if err != nil {
 		panic(err)
 	}
-	var anAddr net.UDPAddr
-	udpAddr := n.core.DEBUG_getGlobalUDPAddr()
-	anAddr.Port = udpAddr.Port
+	var anAddr net.TCPAddr
+	tcpAddr := n.core.DEBUG_getGlobalTCPAddr()
+	anAddr.Port = tcpAddr.Port
 	destAddr, err := net.ResolveUDPAddr("udp6", multicastAddr)
 	if err != nil {
 		panic(err)
