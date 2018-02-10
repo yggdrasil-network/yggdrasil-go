@@ -72,7 +72,7 @@ func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
 	n.core.DEBUG_setIfceExpr(ifceExpr)
 	logger.Println("Starting interface...")
 	n.core.DEBUG_setupAndStartGlobalTCPInterface(cfg.Listen) // Listen for peers on TCP
-  n.core.DEBUG_setupAndStartGlobalUDPInterface(cfg.Listen) // Also listen on UDP, TODO allow separate configuration for ip/port to listen on each of these
+	n.core.DEBUG_setupAndStartGlobalUDPInterface(cfg.Listen) // Also listen on UDP, TODO allow separate configuration for ip/port to listen on each of these
 	logger.Println("Started interface")
 	logger.Println("Starting admin socket...")
 	n.core.DEBUG_setupAndStartAdminInterface(cfg.AdminListen)
@@ -83,11 +83,14 @@ func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
 		}
 		for {
 			for _, p := range cfg.Peers {
-        switch {
-          case len(p) >= 4 && p[:4] == "udp:": n.core.DEBUG_maybeSendUDPKeys(p[4:])
-          case len(p) >= 4 && p[:4] == "tcp:": n.core.DEBUG_addTCPConn(p[4:])
-          default: n.core.DEBUG_addTCPConn(p)
-        }
+				switch {
+				case len(p) >= 4 && p[:4] == "udp:":
+					n.core.DEBUG_maybeSendUDPKeys(p[4:])
+				case len(p) >= 4 && p[:4] == "tcp:":
+					n.core.DEBUG_addTCPConn(p[4:])
+				default:
+					n.core.DEBUG_addTCPConn(p)
+				}
 				time.Sleep(time.Second)
 			}
 			time.Sleep(time.Minute)
