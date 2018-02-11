@@ -5,6 +5,7 @@ package yggdrasil
 // The session information consists of crypto keys and coords
 
 import "time"
+import "net"
 
 type sessionInfo struct {
 	core         *Core
@@ -19,6 +20,8 @@ type sessionInfo struct {
 	myHandle     handle
 	theirNonce   boxNonce
 	myNonce      boxNonce
+	theirMTU     uint16
+	myMTU        uint16
 	time         time.Time // Time we last received a packet
 	coords       []byte    // coords of destination
 	packet       []byte    // a buffered packet, sent immediately on ping/pong
@@ -36,6 +39,7 @@ type sessionPing struct {
 	coords      []byte
 	tstamp      int64 // unix time, but the only real requirement is that it increases
 	isPong      bool
+	mtu         uint16
 }
 
 // Returns true if the session was updated, false otherwise
@@ -55,6 +59,10 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 		s.sharedSesKey = *getSharedKey(&s.mySesPriv, &s.theirSesPub)
 		s.theirNonce = boxNonce{}
 		s.nonceMask = 0
+	}
+	s.core.log.Printf("Received MTU %d from %s", p.mtu, net.IP(s.theirAddr[:]).String())
+	if p.mtu >= 1280 {
+		s.theirMTU = p.mtu
 	}
 	s.coords = append([]byte{}, p.coords...)
 	s.time = time.Now()
@@ -144,6 +152,8 @@ func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
 	sinfo.mySesPub = *pub
 	sinfo.mySesPriv = *priv
 	sinfo.myNonce = *newBoxNonce()
+	sinfo.theirMTU = 1280
+	sinfo.myMTU = uint16(ss.core.tun.mtu)
 	higher := false
 	for idx := range ss.core.boxPub {
 		if ss.core.boxPub[idx] > sinfo.theirPermPub[idx] {
@@ -195,12 +205,14 @@ func (sinfo *sessionInfo) close() {
 func (ss *sessions) getPing(sinfo *sessionInfo) sessionPing {
 	loc := ss.core.switchTable.getLocator()
 	coords := loc.getCoords()
+	sinfo.core.log.Printf("Sending MTU %d to %s", sinfo.myMTU, net.IP(sinfo.theirAddr[:]).String())
 	ref := sessionPing{
 		sendPermPub: ss.core.boxPub,
 		handle:      sinfo.myHandle,
 		sendSesPub:  sinfo.mySesPub,
 		tstamp:      time.Now().Unix(),
 		coords:      coords,
+		mtu:         sinfo.myMTU,
 	}
 	sinfo.myNonce.update()
 	return ref
@@ -287,6 +299,13 @@ func (n *boxNonce) minus(m *boxNonce) int64 {
 		}
 	}
 	return diff
+}
+
+func (sinfo *sessionInfo) getMTU() uint16 {
+	if sinfo.theirMTU < sinfo.myMTU {
+		return sinfo.theirMTU
+	}
+	return sinfo.myMTU
 }
 
 func (sinfo *sessionInfo) nonceIsOK(theirNonce *boxNonce) bool {
