@@ -7,7 +7,10 @@ import "fmt"
 
 // This is to catch Windows platforms
 
-func (tun *tunDevice) setup(ifname string, addr string, mtu int) error {
+func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
+	if !iftapmode {
+		tun.core.log.Printf("TUN mode is not supported on this platform, defaulting to TAP")
+	}
 	config := water.Config{DeviceType: water.TAP}
 	config.PlatformSpecificParams.ComponentID = "tap0901"
 	config.PlatformSpecificParams.Network = "169.254.0.1/32"
