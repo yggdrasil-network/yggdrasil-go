@@ -39,6 +39,7 @@ type nodeConfig struct {
 	Multicast   bool
 	LinkLocal   string
 	IfName      string
+	IfTAPMode   bool
 }
 
 type node struct {
@@ -104,7 +105,7 @@ func generateConfig() *nodeConfig {
 	spub, spriv := core.DEBUG_newSigKeys()
 	cfg := nodeConfig{}
 	cfg.Listen = "[::]:0"
-	cfg.AdminListen = "localhost:9001"
+	cfg.AdminListen = "[::1]:9001"
 	cfg.BoxPub = hex.EncodeToString(bpub[:])
 	cfg.BoxPriv = hex.EncodeToString(bpriv[:])
 	cfg.SigPub = hex.EncodeToString(spub[:])
@@ -113,6 +114,11 @@ func generateConfig() *nodeConfig {
 	cfg.Multicast = true
 	cfg.LinkLocal = ""
 	cfg.IfName = "auto"
+	if runtime.GOOS == "windows" {
+		cfg.IfTAPMode = true
+	} else {
+		cfg.IfTAPMode = false
+	}
 	return &cfg
 }
 
@@ -258,7 +264,7 @@ func main() {
 	n.init(cfg, logger)
 	logger.Println("Starting tun...")
 	//n.core.DEBUG_startTun(cfg.IfName) // 1280, the smallest supported MTU
-	n.core.DEBUG_startTunWithMTU(cfg.IfName, 65535) // Largest supported MTU
+	n.core.DEBUG_startTunWithMTU(cfg.IfName, cfg.IfTAPMode, 65535) // Largest supported MTU
 	defer func() {
 		logger.Println("Closing...")
 		n.core.DEBUG_stopTun()

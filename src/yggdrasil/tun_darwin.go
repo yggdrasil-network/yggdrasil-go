@@ -10,7 +10,10 @@ import "golang.org/x/sys/unix"
 
 import water "github.com/songgao/water"
 
-func (tun *tunDevice) setup(ifname string, addr string, mtu int) error {
+func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
+	if iftapmode {
+		tun.core.log.Printf("TAP mode is not supported on this platform, defaulting to TUN")
+	}
 	config := water.Config{DeviceType: water.TUN}
 	iface, err := water.New(config)
 	if err != nil {

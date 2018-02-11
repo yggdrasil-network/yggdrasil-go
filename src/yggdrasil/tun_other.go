@@ -9,8 +9,13 @@ import water "github.com/songgao/water"
 // This is to catch unsupported platforms
 // If your platform supports tun devices, you could try configuring it manually
 
-func (tun *tunDevice) setup(ifname string, addr string, mtu int) error {
-	config := water.Config{DeviceType: water.TUN}
+func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
+	var config water.Config
+	if iftapmode {
+		config = water.Config{DeviceType: water.TAP}
+	} else {
+		config = water.Config{DeviceType: water.TUN}
+	}
 	iface, err := water.New(config)
 	if err != nil {
 		panic(err)

@@ -205,14 +205,14 @@ func (c *Core) DEBUG_getAddr() *address {
 	return address_addrForNodeID(&c.dht.nodeID)
 }
 
-func (c *Core) DEBUG_startTun(ifname string) {
-	c.DEBUG_startTunWithMTU(ifname, 1280)
+func (c *Core) DEBUG_startTun(ifname string, iftapmode bool) {
+	c.DEBUG_startTunWithMTU(ifname, iftapmode, 1280)
 }
 
-func (c *Core) DEBUG_startTunWithMTU(ifname string, mtu int) {
+func (c *Core) DEBUG_startTunWithMTU(ifname string, iftapmode bool, mtu int) {
 	addr := c.DEBUG_getAddr()
 	straddr := fmt.Sprintf("%s/%v", net.IP(addr[:]).String(), 8*len(address_prefix))
-	err := c.tun.setup(ifname, straddr, mtu)
+	err := c.tun.setup(ifname, iftapmode, straddr, mtu)
 	if err != nil {
 		panic(err)
 	}

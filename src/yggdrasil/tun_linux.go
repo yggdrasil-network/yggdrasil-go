@@ -9,8 +9,13 @@ import "strings"
 
 import water "github.com/songgao/water"
 
-func (tun *tunDevice) setup(ifname string, addr string, mtu int) error {
-	config := water.Config{DeviceType: water.TUN}
+func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
+	var config water.Config
+	if iftapmode {
+		config = water.Config{DeviceType: water.TAP}
+	} else {
+		config = water.Config{DeviceType: water.TUN}
+	}
 	if ifname != "" && ifname != "auto" {
 		config.Name = ifname
 	}
