@@ -319,7 +319,7 @@ func (iface *udpInterface) reader() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const udp_chunkSize = 65535
+const udp_chunkSize = 508 // Apparently the maximum guaranteed safe IPv4 size
 
 func udp_decode(bs []byte) (chunks, chunk, count uint8, payload []byte) {
 	if len(bs) >= 3 {
