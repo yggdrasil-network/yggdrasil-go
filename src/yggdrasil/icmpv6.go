@@ -6,6 +6,7 @@ package yggdrasil
 
 import "golang.org/x/net/icmp"
 import "encoding/binary"
+import "errors"
 import "unsafe" // TODO investigate if this can be done without resorting to unsafe
 
 type macAddress [6]byte
@@ -89,54 +90,77 @@ func (i *icmpv6) listen() {
 
 		if i.tun.iface.IsTAP() {
 			// TAP mode
-			dataout := make([]byte, ETHER+IPV6+32)
-			i.read_tap(datain, dataout)
-			i.tun.iface.Write(dataout)
+			response, err := i.parse_packet_tap(datain)
+			if err != nil {
+				i.tun.core.log.Printf("Error from icmpv6.parse_packet_tap: %v", err)
+				continue
+			}
+			if response != nil {
+				i.tun.iface.Write(response)
+			}
 		} else {
 			// TUN mode
-			dataout := make([]byte, IPV6+32)
-			i.read_tun(datain, dataout)
-			i.tun.iface.Write(dataout)
+			response, err := i.parse_packet_tun(datain)
+			if err != nil {
+				i.tun.core.log.Printf("Error from icmpv6.parse_packet_tun: %v", err)
+				continue
+			}
+			if response != nil {
+				i.tun.iface.Write(response)
+			}
 		}
 	}
 }
 
-func (i *icmpv6) read_tap(datain []byte, dataout []byte) {
+func (i *icmpv6) parse_packet_tap(datain []byte) ([]byte, error) {
 	// Set up
 	in := (*icmpv6Frame)(unsafe.Pointer(&datain[0]))
-	out := (*icmpv6Frame)(unsafe.Pointer(&dataout[0]))
 
 	// Store the peer MAC address
 	copy(i.peermac[:6], in.ether.source[:6])
 
 	// Ignore non-IPv6 frames
 	if binary.BigEndian.Uint16(in.ether.ethertype[:]) != uint16(0x86DD) {
-		return
+		return nil, nil
 	}
 
-	// Populate the out ethernet headers
+	// Create the response buffer
+	dataout := make([]byte, ETHER+IPV6+32)
+	out := (*icmpv6Frame)(unsafe.Pointer(&dataout[0]))
+
+	// Populate the response ethernet headers
 	copy(out.ether.destination[:], in.ether.destination[:])
 	copy(out.ether.source[:], i.mymac[:])
 	binary.BigEndian.PutUint16(out.ether.ethertype[:], uint16(0x86DD))
 
-	// And for now just copy the rest of the packet we were sent
-	copy(dataout[ETHER:ETHER+IPV6], datain[ETHER:ETHER+IPV6])
+	// Hand over to parse_packet_tun to interpret the IPv6 packet
+	ipv6packet, err := i.parse_packet_tun(datain)
+	if err != nil {
+		return nil, nil
+	}
 
-	// Then pass the IP packet onto the next function
-	i.read_tun(datain[ETHER:], dataout[ETHER:])
+	// Copy the returned packet to our response ethernet frame
+	if ipv6packet != nil {
+		copy(dataout[ETHER:ETHER+IPV6], ipv6packet)
+		return dataout, nil
+	}
+
+	// At this point there is no response to send back
+	return nil, nil
 }
 
-func (i *icmpv6) read_tun(datain []byte, dataout []byte) {
+func (i *icmpv6) parse_packet_tun(datain []byte) ([]byte, error) {
 	// Set up
-	in := (*icmpv6Packet)(unsafe.Pointer(&datain[0]))
+	dataout := make([]byte, IPV6+32)
 	out := (*icmpv6Packet)(unsafe.Pointer(&dataout[0]))
+	in := (*icmpv6Packet)(unsafe.Pointer(&datain[0]))
 
 	// Store the peer link-local address
 	copy(i.peerlladdr[:16], in.ipv6.source[:16])
 
 	// Ignore non-ICMPv6 packets
 	if in.ipv6.nextheader != uint8(0x3A) {
-		return
+		return nil, nil
 	}
 
 	// What is the ICMPv6 message type?
@@ -155,10 +179,16 @@ func (i *icmpv6) read_tun(datain []byte, dataout []byte) {
 	copy(dataout[IPV6:], datain[IPV6:])
 
 	// Calculate the checksum
-	i.calculate_checksum(dataout)
+	err := i.calculate_checksum(dataout)
+	if err != nil {
+		return nil, err
+	}
+
+	// Return the response packet
+	return dataout, nil
 }
 
-func (i *icmpv6) calculate_checksum(dataout []byte) {
+func (i *icmpv6) calculate_checksum(dataout []byte) (error) {
 	// Set up
 	out := (*icmpv6Packet)(unsafe.Pointer(&dataout[0]))
 
@@ -173,15 +203,18 @@ func (i *icmpv6) calculate_checksum(dataout []byte) {
 	// Lazy-man's checksum using the icmp library
 	icmpv6, err := icmp.ParseMessage(0x3A, dataout[IPV6:])
 	if err != nil {
-		return
+		return err
 	}
 
 	// And copy the payload
 	payload, err := icmpv6.Marshal(ps)
 	if err != nil {
-		return
+		return err
 	}
 	copy(dataout[IPV6:], payload)
+
+	// Return nil if successful
+	return nil
 }
 
 func (i *icmpv6) handle_ndp(in *icmpv6Payload, out *icmpv6Payload) {
