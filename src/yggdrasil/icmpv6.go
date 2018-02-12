@@ -6,7 +6,6 @@ package yggdrasil
 
 import "golang.org/x/net/icmp"
 import "encoding/binary"
-import "errors"
 import "unsafe" // TODO investigate if this can be done without resorting to unsafe
 
 type macAddress [6]byte
@@ -21,7 +20,6 @@ type icmpv6 struct {
 	peerlladdr ipv6Address
 	mymac      macAddress
 	mylladdr   ipv6Address
-	recv       chan []byte
 }
 
 type etherHeader struct {
@@ -76,39 +74,27 @@ type icmpv6Frame struct {
 
 func (i *icmpv6) init(t *tunDevice) {
 	i.tun = t
-	i.recv = make(chan []byte)
 	copy(i.mymac[:], []byte{0x02, 0x00, 0x00, 0x00, 0x00, 0x02})
 	copy(i.mylladdr[:], []byte{
 		0xFE, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xFE})
-	go i.listen()
 }
 
-func (i *icmpv6) listen() {
-	for {
-		datain := <-i.recv
+func (i *icmpv6) parse_packet(datain []byte) {
+	var response []byte
+	var err error
 
-		if i.tun.iface.IsTAP() {
-			// TAP mode
-			response, err := i.parse_packet_tap(datain)
-			if err != nil {
-				i.tun.core.log.Printf("Error from icmpv6.parse_packet_tap: %v", err)
-				continue
-			}
-			if response != nil {
-				i.tun.iface.Write(response)
-			}
-		} else {
-			// TUN mode
-			response, err := i.parse_packet_tun(datain)
-			if err != nil {
-				i.tun.core.log.Printf("Error from icmpv6.parse_packet_tun: %v", err)
-				continue
-			}
-			if response != nil {
-				i.tun.iface.Write(response)
-			}
-		}
+	if i.tun.iface.IsTAP() {
+		response, err = i.parse_packet_tap(datain)
+	} else {
+		response, err = i.parse_packet_tun(datain)
+	}
+	if err != nil {
+		i.tun.core.log.Printf("ICMPv6 error: %v", err)
+		return
+	}
+	if response != nil {
+		i.tun.iface.Write(response)
 	}
 }
 
