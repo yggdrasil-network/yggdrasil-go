@@ -5,7 +5,6 @@ package yggdrasil
 // The session information consists of crypto keys and coords
 
 import "time"
-import "net"
 
 type sessionInfo struct {
 	core         *Core
@@ -60,7 +59,6 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 		s.theirNonce = boxNonce{}
 		s.nonceMask = 0
 	}
-	s.core.log.Printf("Received MTU %d from %s", p.mtu, net.IP(s.theirAddr[:]).String())
 	if p.mtu >= 1280 {
 		s.theirMTU = p.mtu
 	}
@@ -205,7 +203,6 @@ func (sinfo *sessionInfo) close() {
 func (ss *sessions) getPing(sinfo *sessionInfo) sessionPing {
 	loc := ss.core.switchTable.getLocator()
 	coords := loc.getCoords()
-	sinfo.core.log.Printf("Sending MTU %d to %s", sinfo.myMTU, net.IP(sinfo.theirAddr[:]).String())
 	ref := sessionPing{
 		sendPermPub: ss.core.boxPub,
 		handle:      sinfo.myHandle,
