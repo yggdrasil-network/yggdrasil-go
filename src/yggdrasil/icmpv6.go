@@ -129,7 +129,8 @@ func (i *icmpv6) parse_packet_tun(datain []byte) ([]byte, error) {
 			response, err := i.handle_ndp(datain[ipv6.HeaderLen:])
 			if err == nil {
 				// Create our ICMPv6 response
-				responsePacket, err := i.create_icmpv6_tun(ipv6Header.Src, ipv6.ICMPTypeNeighborAdvertisement, 0, response)
+				responsePacket, err := i.create_icmpv6_tun(ipv6Header.Src, ipv6.ICMPTypeNeighborAdvertisement, 0,
+					&icmp.DefaultMessageBody{ Data: response })
 				if err != nil {
 					return nil, err
 				}
@@ -148,7 +149,7 @@ func (i *icmpv6) parse_packet_tun(datain []byte) ([]byte, error) {
 	return nil, nil
 }
 
-func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, mtype ipv6.ICMPType, mcode int, mbody []byte) ([]byte, error) {
+func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
 	// Pass through to create_icmpv6_tun
 	ipv6packet, err := i.create_icmpv6_tun(dst, mtype, mcode, mbody)
 	if err != nil {
@@ -156,7 +157,7 @@ func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, mtype ipv6.ICM
 	}
 
 	// Create the response buffer
-	dataout := make([]byte, ETHER+ipv6.HeaderLen+len(mbody))
+	dataout := make([]byte, ETHER+ipv6.HeaderLen+mbody.Len(0))
 
 	// Populate the response ethernet headers
 	copy(dataout[:6], dstmac[:6])
@@ -168,12 +169,12 @@ func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, mtype ipv6.ICM
 	return dataout, nil
 }
 
-func (i *icmpv6) create_icmpv6_tun(dst net.IP, mtype ipv6.ICMPType, mcode int, mbody []byte) ([]byte, error) {
+func (i *icmpv6) create_icmpv6_tun(dst net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
 	// Create the IPv6 header
 	ipv6Header := ipv6.Header{
 		Version:    ipv6.Version,
 		NextHeader: 58,
-		PayloadLen: len(mbody),
+		PayloadLen: mbody.Len(0),
 		HopLimit:   255,
 		Src:        i.mylladdr,
 		Dst:        dst,
@@ -183,7 +184,7 @@ func (i *icmpv6) create_icmpv6_tun(dst net.IP, mtype ipv6.ICMPType, mcode int, m
 	icmpMessage := icmp.Message{
 		Type: mtype,
 		Code: mcode,
-		Body: &icmp.DefaultMessageBody{Data: mbody},
+		Body: mbody,
 	}
 
 	// Convert the IPv6 header into []byte

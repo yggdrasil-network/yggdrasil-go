@@ -23,6 +23,8 @@ package yggdrasil
 //  The router then runs some sanity checks before passing it to the tun
 
 import "time"
+import "golang.org/x/net/icmp"
+import "golang.org/x/net/ipv6"
 
 //import "fmt"
 //import "net"
@@ -145,9 +147,31 @@ func (r *router) sendPacket(bs []byte) {
 		fallthrough
 	//default: go func() { sinfo.send<-bs }()
 	default:
+		// Generate an ICMPv6 Packet Too Big for packets larger than session MTU
 		if len(bs) > int(sinfo.getMTU()) {
-			// TODO: Send ICMPv6 Packet Too Big back to the TUN/TAP adapter
 			sinfo.core.log.Printf("Packet length %d exceeds session MTU %d", len(bs), sinfo.getMTU())
+
+			// Get the size of the oversized payload, up to a max of 900 bytes
+			window := 900
+			if int(sinfo.getMTU()) < window {
+				window = int(sinfo.getMTU())
+			}
+
+			// Create the Packet Too Big response
+			ptb := &icmp.PacketTooBig{
+				MTU: int(sinfo.getMTU()),
+				Data: bs[:window],
+			}
+
+			// Create the ICMPv6 response from it
+			icmpv6Buf, err := r.core.tun.icmpv6.create_icmpv6_tun(bs[8:24], ipv6.ICMPTypePacketTooBig, 0, ptb)
+			if err == nil {
+				sinfo.core.log.Printf("Sending ICMPv6 Message Too Big")
+				r.recv <- icmpv6Buf
+			}
+
+			// Don't continue - drop the packet
+			return
 		}
 		select {
 		case sinfo.send <- bs:
