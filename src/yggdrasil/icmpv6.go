@@ -155,17 +155,17 @@ func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, mtype ipv6.ICM
 		return nil, err
 	}
 
-        // Create the response buffer
-        dataout := make([]byte, ETHER+ipv6.HeaderLen+len(mbody))
+	// Create the response buffer
+	dataout := make([]byte, ETHER+ipv6.HeaderLen+len(mbody))
 
-        // Populate the response ethernet headers
-        copy(dataout[:6], dstmac[:6])
-        copy(dataout[6:12], i.mymac[:])
-        binary.BigEndian.PutUint16(dataout[12:14], uint16(0x86DD))
+	// Populate the response ethernet headers
+	copy(dataout[:6], dstmac[:6])
+	copy(dataout[6:12], i.mymac[:])
+	binary.BigEndian.PutUint16(dataout[12:14], uint16(0x86DD))
 
-        // Copy the returned packet to our response ethernet frame
-        copy(dataout[ETHER:], ipv6packet)
-        return dataout, nil
+	// Copy the returned packet to our response ethernet frame
+	copy(dataout[ETHER:], ipv6packet)
+	return dataout, nil
 }
 
 func (i *icmpv6) create_icmpv6_tun(dst net.IP, mtype ipv6.ICMPType, mcode int, mbody []byte) ([]byte, error) {
@@ -206,8 +206,6 @@ func (i *icmpv6) create_icmpv6_tun(dst net.IP, mtype ipv6.ICMPType, mcode int, m
 	// Send it back
 	return responsePacket, nil
 }
-
-
 
 func (i *icmpv6) handle_ndp(in []byte) ([]byte, error) {
 	// Ignore NDP requests for anything outside of fd00::/8
