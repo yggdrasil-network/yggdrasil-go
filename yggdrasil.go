@@ -40,6 +40,7 @@ type nodeConfig struct {
 	LinkLocal   string
 	IfName      string
 	IfTAPMode   bool
+	IfMTU       int
 }
 
 type node struct {
@@ -114,6 +115,7 @@ func generateConfig() *nodeConfig {
 	cfg.Multicast = true
 	cfg.LinkLocal = ""
 	cfg.IfName = "auto"
+	cfg.IfMTU = 65535
 	if runtime.GOOS == "windows" {
 		cfg.IfTAPMode = true
 	} else {
@@ -264,7 +266,7 @@ func main() {
 	n.init(cfg, logger)
 	logger.Println("Starting tun...")
 	//n.core.DEBUG_startTun(cfg.IfName) // 1280, the smallest supported MTU
-	n.core.DEBUG_startTunWithMTU(cfg.IfName, cfg.IfTAPMode, 65535) // Largest supported MTU
+	n.core.DEBUG_startTunWithMTU(cfg.IfName, cfg.IfTAPMode, cfg.IfMTU) // Largest supported MTU
 	defer func() {
 		logger.Println("Closing...")
 		n.core.DEBUG_stopTun()

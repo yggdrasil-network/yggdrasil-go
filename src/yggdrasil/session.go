@@ -19,6 +19,8 @@ type sessionInfo struct {
 	myHandle     handle
 	theirNonce   boxNonce
 	myNonce      boxNonce
+	theirMTU     uint16
+	myMTU        uint16
 	time         time.Time // Time we last received a packet
 	coords       []byte    // coords of destination
 	packet       []byte    // a buffered packet, sent immediately on ping/pong
@@ -36,6 +38,7 @@ type sessionPing struct {
 	coords      []byte
 	tstamp      int64 // unix time, but the only real requirement is that it increases
 	isPong      bool
+	mtu         uint16
 }
 
 // Returns true if the session was updated, false otherwise
@@ -55,6 +58,9 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 		s.sharedSesKey = *getSharedKey(&s.mySesPriv, &s.theirSesPub)
 		s.theirNonce = boxNonce{}
 		s.nonceMask = 0
+	}
+	if p.mtu >= 1280 {
+		s.theirMTU = p.mtu
 	}
 	s.coords = append([]byte{}, p.coords...)
 	s.time = time.Now()
@@ -144,6 +150,8 @@ func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
 	sinfo.mySesPub = *pub
 	sinfo.mySesPriv = *priv
 	sinfo.myNonce = *newBoxNonce()
+	sinfo.theirMTU = 1280
+	sinfo.myMTU = uint16(ss.core.tun.mtu)
 	higher := false
 	for idx := range ss.core.boxPub {
 		if ss.core.boxPub[idx] > sinfo.theirPermPub[idx] {
@@ -201,6 +209,7 @@ func (ss *sessions) getPing(sinfo *sessionInfo) sessionPing {
 		sendSesPub:  sinfo.mySesPub,
 		tstamp:      time.Now().Unix(),
 		coords:      coords,
+		mtu:         sinfo.myMTU,
 	}
 	sinfo.myNonce.update()
 	return ref
@@ -287,6 +296,13 @@ func (n *boxNonce) minus(m *boxNonce) int64 {
 		}
 	}
 	return diff
+}
+
+func (sinfo *sessionInfo) getMTU() uint16 {
+	if sinfo.theirMTU < sinfo.myMTU {
+		return sinfo.theirMTU
+	}
+	return sinfo.myMTU
 }
 
 func (sinfo *sessionInfo) nonceIsOK(theirNonce *boxNonce) bool {

@@ -145,6 +145,10 @@ func (r *router) sendPacket(bs []byte) {
 		fallthrough
 	//default: go func() { sinfo.send<-bs }()
 	default:
+		if len(bs) > int(sinfo.getMTU()) {
+			// TODO: Send ICMPv6 Packet Too Big back to the TUN/TAP adapter
+			sinfo.core.log.Printf("Packet length %d exceeds session MTU %d", len(bs), sinfo.getMTU())
+		}
 		select {
 		case sinfo.send <- bs:
 		default:

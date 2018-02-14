@@ -429,12 +429,14 @@ func (p *sessionPing) encode() []byte {
 	bs = append(bs, wire_encode_uint64(wire_intToUint(p.tstamp))...)
 	coords := wire_encode_coords(p.coords)
 	bs = append(bs, coords...)
+	bs = append(bs, wire_encode_uint64(uint64(p.mtu))...)
 	return bs
 }
 
 func (p *sessionPing) decode(bs []byte) bool {
 	var pType uint64
 	var tstamp uint64
+	var mtu uint64
 	switch {
 	case !wire_chop_uint64(&pType, &bs):
 		return false
@@ -449,11 +451,14 @@ func (p *sessionPing) decode(bs []byte) bool {
 		return false
 	case !wire_chop_coords(&p.coords, &bs):
 		return false
+	case !wire_chop_uint64(&mtu, &bs):
+		mtu = 1280
 	}
 	p.tstamp = wire_intFromUint(tstamp)
 	if pType == wire_SessionPong {
 		p.isPong = true
 	}
+	p.mtu = uint16(mtu)
 	return true
 }
 
