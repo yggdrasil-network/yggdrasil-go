@@ -80,11 +80,7 @@ func (tun *tunDevice) read() error {
 			b := make([]byte, n)
 			copy(b, buf)
 			// tun.icmpv6.recv <- b
-			if tun.iface.IsTAP() {
-				go tun.icmpv6.parse_packet_tap(b)
-			} else {
-				go tun.icmpv6.parse_packet_tun(b)
-			}
+			go tun.icmpv6.parse_packet(b)
 		}
 		packet := append(util_getBytes(), buf[o:n]...)
 		tun.send <- packet
