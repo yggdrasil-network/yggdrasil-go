@@ -279,7 +279,7 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 		// send
 		var bs []byte
 		bs, sinfo.packet = sinfo.packet, nil
-		go func() { sinfo.send <- bs }()
+		ss.core.router.sendPacket(bs)
 	}
 }
 
