@@ -149,8 +149,6 @@ func (r *router) sendPacket(bs []byte) {
 	default:
 		// Generate an ICMPv6 Packet Too Big for packets larger than session MTU
 		if len(bs) > int(sinfo.getMTU()) {
-			sinfo.core.log.Printf("Packet length %d exceeds session MTU %d", len(bs), sinfo.getMTU())
-
 			// Get the size of the oversized payload, up to a max of 900 bytes
 			window := 900
 			if int(sinfo.getMTU()) < window {
@@ -159,14 +157,13 @@ func (r *router) sendPacket(bs []byte) {
 
 			// Create the Packet Too Big response
 			ptb := &icmp.PacketTooBig{
-				MTU: int(sinfo.getMTU()),
+				MTU:  int(sinfo.getMTU()),
 				Data: bs[:window],
 			}
 
 			// Create the ICMPv6 response from it
 			icmpv6Buf, err := r.core.tun.icmpv6.create_icmpv6_tun(bs[8:24], ipv6.ICMPTypePacketTooBig, 0, ptb)
 			if err == nil {
-				sinfo.core.log.Printf("Sending ICMPv6 Message Too Big")
 				r.recv <- icmpv6Buf
 			}
 
