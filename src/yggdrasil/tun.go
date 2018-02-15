@@ -33,6 +33,9 @@ func (tun *tunDevice) init(core *Core) {
 func (tun *tunDevice) write() error {
 	for {
 		data := <-tun.recv
+		if tun.iface == nil {
+			continue
+		}
 		if tun.iface.IsTAP() {
 			var frame ethernet.Frame
 			frame.Prepare(
@@ -88,5 +91,8 @@ func (tun *tunDevice) read() error {
 }
 
 func (tun *tunDevice) close() error {
+	if tun.iface == nil {
+		return nil
+	}
 	return tun.iface.Close()
 }

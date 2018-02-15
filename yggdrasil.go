@@ -264,7 +264,11 @@ func main() {
 	logger.Println("Initializing...")
 	n := node{}
 	n.init(cfg, logger)
-	logger.Println("Starting tun...")
+	if cfg.IfName != "none" {
+		logger.Println("Starting TUN/TAP...")
+	} else {
+		logger.Println("Not starting TUN/TAP")
+	}
 	//n.core.DEBUG_startTun(cfg.IfName) // 1280, the smallest supported MTU
 	n.core.DEBUG_startTunWithMTU(cfg.IfName, cfg.IfTAPMode, cfg.IfMTU) // Largest supported MTU
 	defer func() {
