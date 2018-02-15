@@ -8,6 +8,7 @@ import "net"
 import "golang.org/x/net/ipv6"
 import "golang.org/x/net/icmp"
 import "encoding/binary"
+import "errors"
 
 type macAddress [6]byte
 
@@ -129,13 +130,11 @@ func (i *icmpv6) parse_packet_tun(datain []byte) ([]byte, error) {
 			response, err := i.handle_ndp(datain[ipv6.HeaderLen:])
 			if err == nil {
 				// Create our ICMPv6 response
-				responsePacket, err := i.create_icmpv6_tun(ipv6Header.Src, ipv6.ICMPTypeNeighborAdvertisement, 0, response)
+				responsePacket, err := i.create_icmpv6_tun(ipv6Header.Src, ipv6.ICMPTypeNeighborAdvertisement, 0,
+					&icmp.DefaultMessageBody{Data: response})
 				if err != nil {
 					return nil, err
 				}
-
-				// Fix the checksum because I don't even know why, net/icmp is stupid
-				responsePacket[17] ^= 0x4
 
 				// Send it back
 				return responsePacket, nil
@@ -145,10 +144,10 @@ func (i *icmpv6) parse_packet_tun(datain []byte) ([]byte, error) {
 		}
 	}
 
-	return nil, nil
+	return nil, errors.New("ICMPv6 type not matched")
 }
 
-func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, mtype ipv6.ICMPType, mcode int, mbody []byte) ([]byte, error) {
+func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
 	// Pass through to create_icmpv6_tun
 	ipv6packet, err := i.create_icmpv6_tun(dst, mtype, mcode, mbody)
 	if err != nil {
@@ -156,7 +155,7 @@ func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, mtype ipv6.ICM
 	}
 
 	// Create the response buffer
-	dataout := make([]byte, ETHER+ipv6.HeaderLen+len(mbody))
+	dataout := make([]byte, ETHER+len(ipv6packet))
 
 	// Populate the response ethernet headers
 	copy(dataout[:6], dstmac[:6])
@@ -168,32 +167,32 @@ func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, mtype ipv6.ICM
 	return dataout, nil
 }
 
-func (i *icmpv6) create_icmpv6_tun(dst net.IP, mtype ipv6.ICMPType, mcode int, mbody []byte) ([]byte, error) {
+func (i *icmpv6) create_icmpv6_tun(dst net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
+	// Create the ICMPv6 message
+	icmpMessage := icmp.Message{
+		Type: mtype,
+		Code: mcode,
+		Body: mbody,
+	}
+
+	// Convert the ICMPv6 message into []byte
+	icmpMessageBuf, err := icmpMessage.Marshal(icmp.IPv6PseudoHeader(i.mylladdr, dst))
+	if err != nil {
+		return nil, err
+	}
+
 	// Create the IPv6 header
 	ipv6Header := ipv6.Header{
 		Version:    ipv6.Version,
 		NextHeader: 58,
-		PayloadLen: len(mbody),
+		PayloadLen: len(icmpMessageBuf),
 		HopLimit:   255,
 		Src:        i.mylladdr,
 		Dst:        dst,
 	}
 
-	// Create the ICMPv6 message
-	icmpMessage := icmp.Message{
-		Type: mtype,
-		Code: mcode,
-		Body: &icmp.DefaultMessageBody{Data: mbody},
-	}
-
 	// Convert the IPv6 header into []byte
 	ipv6HeaderBuf, err := ipv6Header_Marshal(&ipv6Header)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert the ICMPv6 message into []byte
-	icmpMessageBuf, err := icmpMessage.Marshal(icmp.IPv6PseudoHeader(ipv6Header.Dst, ipv6Header.Src))
 	if err != nil {
 		return nil, err
 	}
@@ -210,11 +209,11 @@ func (i *icmpv6) create_icmpv6_tun(dst net.IP, mtype ipv6.ICMPType, mcode int, m
 func (i *icmpv6) handle_ndp(in []byte) ([]byte, error) {
 	// Ignore NDP requests for anything outside of fd00::/8
 	if in[8] != 0xFD {
-		return nil, nil
+		return nil, errors.New("Not an NDP for fd00::/8")
 	}
 
 	// Create our NDP message body response
-	body := make([]byte, 32)
+	body := make([]byte, 28)
 	binary.BigEndian.PutUint32(body[:4], uint32(0x20000000))
 	copy(body[4:20], in[8:24]) // Target address
 	body[20] = uint8(2)
