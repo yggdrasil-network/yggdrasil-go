@@ -9,6 +9,7 @@ os:
 
 install:
   - export GOPATH="$TRAVIS_BUILD_DIR:$GOPATH"
+  - go get -d -v
   - go get -d -v yggdrasil
   - for file in *.go ; do go build -v $file; done
 
