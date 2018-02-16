@@ -52,15 +52,12 @@ In the interest of testing the TCP machinery, it's set to create TCP connections
 #### Linux
 
 - Should work out of the box on most Linux distributions with `iproute2` installed.
-- systemd service scripts are included in the `contrib/systemd/` folder so that it runs automatically in the background (using `/etc/yggdrasil.conf` for configuration):
-  - Copy the service files into `/etc/systemd/system`
-  - Copy `yggdrasil` into your `$PATH`, i.e. `/usr/bin`
-  - Enable the service:
+- systemd service scripts are included in the `contrib/systemd/` folder so that it runs automatically in the background (using `/etc/yggdrasil.conf` for configuration), copy the service files into `/etc/systemd/system`, copy `yggdrasil` into your `$PATH`, i.e. `/usr/bin`, and then enable the service:
 ```
 systemctl enable yggdrasil
 systemctl start yggdrasil
 ```
-  - Read the `yggdrasil` output:
+- Once installed as a systemd service, you can read the `yggdrasil` output:
 ```
 systemctl status yggdrasil
 journalctl -u yggdrasil
