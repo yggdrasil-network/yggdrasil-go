@@ -212,11 +212,13 @@ func (c *Core) DEBUG_startTun(ifname string, iftapmode bool) {
 func (c *Core) DEBUG_startTunWithMTU(ifname string, iftapmode bool, mtu int) {
 	addr := c.DEBUG_getAddr()
 	straddr := fmt.Sprintf("%s/%v", net.IP(addr[:]).String(), 8*len(address_prefix))
-	err := c.tun.setup(ifname, iftapmode, straddr, mtu)
-	if err != nil {
-		panic(err)
+	if ifname != "none" {
+		err := c.tun.setup(ifname, iftapmode, straddr, mtu)
+		if err != nil {
+			panic(err)
+		}
+		go c.tun.read()
 	}
-	go c.tun.read()
 	go c.tun.write()
 }
 
