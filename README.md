@@ -19,7 +19,7 @@ You're encouraged to play with it, but I strongly advise against using it for an
 2. Clone this repository.
 2. `./build`
 
-Note that you can cross-compile for other platforms and architectures by specifying the `$GOOS` and `$GOARCH` environment variables, for example, `GOOS=windows ./build` or `GOOS=linux GOARCH=mipsle ./build`. 
+Note that you can cross-compile for other platforms and architectures by specifying the `$GOOS` and `$GOARCH` environment variables, for example, `GOOS=windows ./build` or `GOOS=linux GOARCH=mipsle ./build`.
 
 The build script sets its own `$GOPATH`, so the build environment is self-contained.
 
@@ -52,6 +52,19 @@ In the interest of testing the TCP machinery, it's set to create TCP connections
 #### Linux
 
 - Should work out of the box on most Linux distributions with `iproute2` installed.
+- systemd service scripts are included in the `contrib/systemd/` folder so that it runs automatically in the background (using `/etc/yggdrasil.conf` for configuration):
+  - Copy the service files into `/etc/systemd/system`
+  - Copy `yggdrasil` into your `$PATH`, i.e. `/usr/bin`
+  - Enable the service:
+```
+systemctl enable yggdrasil
+systemctl start yggdrasil
+```
+  - Read the `yggdrasil` output:
+```
+systemctl status yggdrasil
+journalctl -u yggdrasil
+```
 
 #### macOS
 
@@ -63,6 +76,17 @@ In the interest of testing the TCP machinery, it's set to create TCP connections
 - Tested and working on Windows 7 and Windows 10, and should work on any recent versions of Windows, but it depends on the [OpenVPN TAP driver](https://openvpn.net/index.php/open-source/downloads.html) being installed first.
 - Has been proven to work with both the [NDIS 5](https://swupdate.openvpn.org/community/releases/tap-windows-9.9.2_3.exe) (`tap-windows-9.9.2_3`) driver and the [NDIS 6](https://swupdate.openvpn.org/community/releases/tap-windows-9.21.2.exe) (`tap-windows-9.21.2`) driver, however there are substantial performance issues with the NDIS 6 driver therefore it is recommended to use the NDIS 5 driver instead.
 - Be aware that connectivity issues can occur on Windows if multiple IPv6 addresses from the `fd00::/8` prefix are assigned to the TAP interface. If this happens, then you may need to manually remove the old/unused addresses from the interface (though the code has a workaround in place to do this automatically in some cases).
+- Yggdrasil can be installed as a Windows service so that it runs automatically in the background. From an Administrator Command Prompt:
+```
+sc create yggdrasil binpath= "\"C:\path\to\yggdrasil.exe\" -useconffile \"C:\path\to\yggdrasil.conf\""
+sc config yggdrasil displayname= "Yggdrasil Service"
+sc config yggdrasil start= "auto"
+sc start yggdrasil
+```
+- Alternatively, if you want the service to autoconfigure instead of using an `yggdrasil.conf`, replace the `sc create` line from above with:
+```
+sc create yggdrasil binpath= "\"C:\path\to\yggdrasil.exe\" -autoconf"
+```
 
 #### EdgeRouter
 
@@ -114,4 +138,3 @@ Both of these optimizations are not present in the current implementation, as th
 This code is released under the terms of the LGPLv3, but with an added exception that was shamelessly taken from [godeb](https://github.com/niemeyer/godeb).
 Under certain circumstances, this exception permits distribution of binaries that are (statically or dynamically) linked with this code, without requiring the distribution of Minimal Corresponding Source or Minimal Application Code.
 For more details, see: [LICENSE](LICENSE).
-

@@ -1,6 +1,7 @@
 #!/bin/bash
 export GOPATH=$PWD
 echo "Downloading..."
+go get -d -v
 go get -d -v yggdrasil
 for file in *.go ; do
   echo "Building: $file"
