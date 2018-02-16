@@ -21,6 +21,8 @@ import "golang.org/x/net/ipv6"
 
 import . "yggdrasil"
 
+import _ "github.com/kardianos/minwinsvc"
+
 /**
 * This is a very crude wrapper around src/yggdrasil
 * It can generate a new config (--genconf)
@@ -228,6 +230,7 @@ func (n *node) announce() {
 var pprof = flag.Bool("pprof", false, "Run pprof, see http://localhost:6060/debug/pprof/")
 var genconf = flag.Bool("genconf", false, "print a new config to stdout")
 var useconf = flag.Bool("useconf", false, "read config from stdin")
+var useconffile = flag.String("useconffile", "", "read config from specified file path")
 var autoconf = flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
 
 func main() {
@@ -236,8 +239,14 @@ func main() {
 	switch {
 	case *autoconf:
 		cfg = generateConfig()
-	case *useconf:
-		config, err := ioutil.ReadAll(os.Stdin)
+	case *useconffile != "" || *useconf:
+		var config []byte
+		var err error
+		if *useconffile != "" {
+			config, err = ioutil.ReadFile(*useconffile)
+		} else {
+			config, err = ioutil.ReadAll(os.Stdin)
+		}
 		if err != nil {
 			panic(err)
 		}
