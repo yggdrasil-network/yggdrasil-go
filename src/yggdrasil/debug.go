@@ -369,3 +369,7 @@ func DEBUG_simLinkPeers(p, q *peer) {
 	go p.linkLoop(plinkIn)
 	go q.linkLoop(qlinkIn)
 }
+
+func (c *Core) DEBUG_simFixMTU() {
+	c.tun.mtu = 65535
+}

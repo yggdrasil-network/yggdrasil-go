@@ -26,6 +26,7 @@ func (n *Node) init(index int) {
 	n.core.Init()
 	n.send = n.core.DEBUG_getSend()
 	n.recv = n.core.DEBUG_getRecv()
+	n.core.DEBUG_simFixMTU()
 }
 
 func (n *Node) printTraffic() {
@@ -424,7 +425,19 @@ func main() {
 	  }
 	*/
 	startNetwork(kstore)
-	if true {
+	//time.Sleep(10*time.Second)
+	// Note that testPaths only works if pressure is turend off
+	//  Otherwise congestion can lead to routing loops?
+	for finished := false; !finished; {
+		finished = testPaths(kstore)
+	}
+	pingNodes(kstore)
+	//pingBench(kstore) // Only after disabling debug output
+	//stressTest(kstore)
+	//time.Sleep(120*time.Second)
+	dumpDHTSize(kstore) // note that this uses racey functions to read things...
+	if false {
+		// This connects the sim to the local network
 		for _, node := range kstore {
 			node.startUDP("localhost:0")
 			node.connectUDP("localhost:12345")
@@ -440,15 +453,4 @@ func main() {
 		var block chan struct{}
 		<-block
 	}
-	//time.Sleep(10*time.Second)
-	// Note that testPaths only works if pressure is turend off
-	//  Otherwise congestion can lead to routing loops?
-	for finished := false; !finished; {
-		finished = testPaths(kstore)
-	}
-	pingNodes(kstore)
-	//pingBench(kstore) // Only after disabling debug output
-	//stressTest(kstore)
-	//time.Sleep(120*time.Second)
-	dumpDHTSize(kstore) // note that this uses racey functions to read things...
 }
