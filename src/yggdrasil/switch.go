@@ -390,6 +390,9 @@ func (t *switchTable) updateTable() {
 	}
 	for _, pinfo := range t.data.peers {
 		//if !pinfo.forward { continue }
+		if pinfo.locator.root != newTable.self.root {
+			continue
+		}
 		loc := pinfo.locator.clone()
 		loc.coords = loc.coords[:len(loc.coords)-1] // Remove the them->self link
 		newTable.elems = append(newTable.elems, tableElem{
@@ -422,9 +425,6 @@ func (t *switchTable) lookup(dest []byte, ttl uint64) (switchPort, uint64) {
 	// score is in units of bandwidth / distance
 	bestScore := float64(-1)
 	for _, info := range table.elems {
-		if info.locator.root != table.self.root {
-			continue
-		}
 		dist := info.locator.dist(dest) //getDist(info.locator.coords)
 		if !(dist < myDist) {
 			continue
