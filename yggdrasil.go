@@ -310,8 +310,8 @@ func main() {
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	// Create a function to capture the service being stopped on Windows
 	winTerminate := func() {
-  	c <- os.Interrupt
-  }
+		c <- os.Interrupt
+	}
 	minwinsvc.SetOnExit(winTerminate)
 	// Wait for the terminate/interrupt signal
 	<-c
