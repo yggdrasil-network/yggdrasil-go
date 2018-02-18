@@ -73,6 +73,7 @@ type peer struct {
 	//  Specifically, processing switch messages, signing, and verifying sigs
 	//  Resets at the start of each tick
 	throttle uint8
+	lastSend time.Time // To throttle sends, use only from linkLoop goroutine
 }
 
 const peer_Throttle = 1
@@ -126,6 +127,8 @@ func (ps *peers) newPeer(box *boxPubKey,
 func (p *peer) linkLoop(in <-chan []byte) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+	p.lastSend = time.Now()
+	var lastRSeq uint64
 	for {
 		select {
 		case packet, ok := <-in:
@@ -139,9 +142,25 @@ func (p *peer) linkLoop(in <-chan []byte) {
 				if p.port == 0 {
 					continue
 				} // Don't send announces on selfInterface
-				// Maybe we shouldn't time out, and instead wait for a kill signal?
 				p.myMsg, p.mySigs = p.core.switchTable.createMessage(p.port)
-				p.sendSwitchAnnounce()
+				var update bool
+				switch {
+				case p.msgAnc == nil:
+					update = true
+				case lastRSeq != p.msgAnc.seq:
+					update = true
+				case p.msgAnc.rseq != p.myMsg.seq:
+					update = true
+				case time.Since(p.lastSend) > 3*time.Second:
+					update = true
+				}
+				if update {
+					if p.msgAnc != nil {
+						lastRSeq = p.msgAnc.seq
+					}
+					p.lastSend = time.Now()
+					p.sendSwitchAnnounce()
+				}
 			}
 		}
 	}
@@ -186,11 +205,12 @@ func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
 	if to == nil {
 		return
 	}
-	newTTLLen := wire_uint64_len(newTTL)
 	// This mutates the packet in-place if the length of the TTL changes!
+	ttlSlice := wire_encode_uint64(newTTL)
+	newTTLLen := len(ttlSlice)
 	shift := ttlLen - newTTLLen
-	wire_put_uint64(newTTL, packet[ttlBegin+shift:])
 	copy(packet[shift:], packet[:pTypeLen])
+	copy(packet[ttlBegin+shift:], ttlSlice)
 	packet = packet[shift:]
 	to.sendPacket(packet)
 }
@@ -418,7 +438,9 @@ func (p *peer) sendSwitchAnnounce() {
 	anc.seq = p.myMsg.seq
 	anc.len = uint64(len(p.myMsg.locator.coords))
 	//anc.Deg = p.myMsg.Degree
-	//anc.RSeq = p.myMsg.RSeq
+	if p.msgAnc != nil {
+		anc.rseq = p.msgAnc.seq
+	}
 	packet := anc.encode()
 	p.sendLinkPacket(packet)
 }

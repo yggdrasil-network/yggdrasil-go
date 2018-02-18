@@ -129,7 +129,7 @@ type msgAnnounce struct {
 	seq    uint64
 	len    uint64
 	//Deg uint64
-	//RSeq uint64
+	rseq uint64
 }
 
 func (m *msgAnnounce) encode() []byte {
@@ -139,7 +139,7 @@ func (m *msgAnnounce) encode() []byte {
 	bs = append(bs, wire_encode_uint64(m.seq)...)
 	bs = append(bs, wire_encode_uint64(m.len)...)
 	//bs = append(bs, wire_encode_uint64(m.Deg)...)
-	//bs = append(bs, wire_encode_uint64(m.RSeq)...)
+	bs = append(bs, wire_encode_uint64(m.rseq)...)
 	return bs
 }
 
@@ -159,8 +159,9 @@ func (m *msgAnnounce) decode(bs []byte) bool {
 		return false
 	case !wire_chop_uint64(&m.len, &bs):
 		return false
-		//case !wire_chop_uint64(&m.Deg, &bs): return false
-		//case !wire_chop_uint64(&m.RSeq, &bs): return false
+	//case !wire_chop_uint64(&m.Deg, &bs): return false
+	case !wire_chop_uint64(&m.rseq, &bs):
+		return false
 	}
 	m.tstamp = wire_intFromUint(tstamp)
 	return true
@@ -467,7 +468,7 @@ func (p *sessionPing) decode(bs []byte) bool {
 func (r *dhtReq) encode() []byte {
 	coords := wire_encode_coords(r.coords)
 	bs := wire_encode_uint64(wire_DHTLookupRequest)
-	bs = append(bs, r.key[:]...)
+	//bs = append(bs, r.key[:]...)
 	bs = append(bs, coords...)
 	bs = append(bs, r.dest[:]...)
 	return bs
@@ -480,8 +481,8 @@ func (r *dhtReq) decode(bs []byte) bool {
 		return false
 	case pType != wire_DHTLookupRequest:
 		return false
-	case !wire_chop_slice(r.key[:], &bs):
-		return false
+	//case !wire_chop_slice(r.key[:], &bs):
+	//	return false
 	case !wire_chop_coords(&r.coords, &bs):
 		return false
 	case !wire_chop_slice(r.dest[:], &bs):
@@ -494,7 +495,7 @@ func (r *dhtReq) decode(bs []byte) bool {
 func (r *dhtRes) encode() []byte {
 	coords := wire_encode_coords(r.coords)
 	bs := wire_encode_uint64(wire_DHTLookupResponse)
-	bs = append(bs, r.key[:]...)
+	//bs = append(bs, r.key[:]...)
 	bs = append(bs, coords...)
 	bs = append(bs, r.dest[:]...)
 	for _, info := range r.infos {
@@ -512,8 +513,8 @@ func (r *dhtRes) decode(bs []byte) bool {
 		return false
 	case pType != wire_DHTLookupResponse:
 		return false
-	case !wire_chop_slice(r.key[:], &bs):
-		return false
+	//case !wire_chop_slice(r.key[:], &bs):
+	//	return false
 	case !wire_chop_coords(&r.coords, &bs):
 		return false
 	case !wire_chop_slice(r.dest[:], &bs):
