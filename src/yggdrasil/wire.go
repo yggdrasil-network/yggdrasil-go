@@ -380,16 +380,16 @@ func (p *wire_protoTrafficPacket) decode(bs []byte) bool {
 }
 
 type wire_linkProtoTrafficPacket struct {
-	toKey   boxPubKey
-	fromKey boxPubKey
+	//toKey   boxPubKey
+	//fromKey boxPubKey
 	nonce   boxNonce
 	payload []byte
 }
 
 func (p *wire_linkProtoTrafficPacket) encode() []byte {
 	bs := wire_encode_uint64(wire_LinkProtocolTraffic)
-	bs = append(bs, p.toKey[:]...)
-	bs = append(bs, p.fromKey[:]...)
+	//bs = append(bs, p.toKey[:]...)
+	//bs = append(bs, p.fromKey[:]...)
 	bs = append(bs, p.nonce[:]...)
 	bs = append(bs, p.payload...)
 	return bs
@@ -402,10 +402,10 @@ func (p *wire_linkProtoTrafficPacket) decode(bs []byte) bool {
 		return false
 	case pType != wire_LinkProtocolTraffic:
 		return false
-	case !wire_chop_slice(p.toKey[:], &bs):
-		return false
-	case !wire_chop_slice(p.fromKey[:], &bs):
-		return false
+	//case !wire_chop_slice(p.toKey[:], &bs):
+	//	return false
+	//case !wire_chop_slice(p.fromKey[:], &bs):
+	//	return false
 	case !wire_chop_slice(p.nonce[:], &bs):
 		return false
 	}

@@ -204,8 +204,8 @@ func (p *peer) sendPacket(packet []byte) {
 func (p *peer) sendLinkPacket(packet []byte) {
 	bs, nonce := boxSeal(&p.shared, packet, nil)
 	linkPacket := wire_linkProtoTrafficPacket{
-		toKey:   p.box,
-		fromKey: p.core.boxPub,
+		//toKey:   p.box,
+		//fromKey: p.core.boxPub,
 		nonce:   *nonce,
 		payload: bs,
 	}
@@ -218,12 +218,12 @@ func (p *peer) handleLinkTraffic(bs []byte) {
 	if !packet.decode(bs) {
 		return
 	}
-	if packet.toKey != p.core.boxPub {
-		return
-	}
-	if packet.fromKey != p.box {
-		return
-	}
+	//if packet.toKey != p.core.boxPub {
+	//	return
+	//}
+	//if packet.fromKey != p.box {
+	//	return
+	//}
 	payload, isOK := boxOpen(&p.shared, packet.payload, &packet.nonce)
 	if !isOK {
 		return
