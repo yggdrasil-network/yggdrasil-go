@@ -9,6 +9,7 @@ import "io/ioutil"
 import "net"
 import "os"
 import "os/signal"
+import "syscall"
 import "time"
 import "regexp"
 
@@ -21,7 +22,7 @@ import "golang.org/x/net/ipv6"
 
 import . "yggdrasil"
 
-import _ "github.com/kardianos/minwinsvc"
+import "github.com/kardianos/minwinsvc"
 
 /**
 * This is a very crude wrapper around src/yggdrasil
@@ -306,7 +307,13 @@ func main() {
 	}
 	// Catch interrupt to exit gracefully
 	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, os.Kill)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	// Create a function to capture the service being stopped on Windows
+	winTerminate := func() {
+		c <- os.Interrupt
+	}
+	minwinsvc.SetOnExit(winTerminate)
+	// Wait for the terminate/interrupt signal
 	<-c
 	logger.Println("Stopping...")
 }
