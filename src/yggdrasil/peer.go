@@ -127,7 +127,7 @@ func (ps *peers) newPeer(box *boxPubKey,
 func (p *peer) linkLoop(in <-chan []byte) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
-	p.lastSend = time.Now()
+	var counter uint8
 	var lastRSeq uint64
 	for {
 		select {
@@ -151,7 +151,7 @@ func (p *peer) linkLoop(in <-chan []byte) {
 					update = true
 				case p.msgAnc.rseq != p.myMsg.seq:
 					update = true
-				case time.Since(p.lastSend) > 3*time.Second:
+				case counter%4 == 0:
 					update = true
 				}
 				if update {
@@ -161,6 +161,7 @@ func (p *peer) linkLoop(in <-chan []byte) {
 					p.lastSend = time.Now()
 					p.sendSwitchAnnounce()
 				}
+				counter = (counter + 1) % 4
 			}
 		}
 	}
