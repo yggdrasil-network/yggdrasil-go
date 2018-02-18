@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 export GOPATH=$PWD
 echo "Downloading..."
 go get -d -v
