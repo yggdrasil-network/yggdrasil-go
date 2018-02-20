@@ -164,7 +164,7 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 	}
 	out := make(chan []byte, 32) // TODO? what size makes sense
 	defer close(out)
-	buf := bufio.NewWriterSize(sock, 65535)
+	buf := bufio.NewWriterSize(sock, tcp_msgSize)
 	send := func(msg []byte) {
 		msgLen := wire_encode_uint64(uint64(len(msg)))
 		before := buf.Buffered()

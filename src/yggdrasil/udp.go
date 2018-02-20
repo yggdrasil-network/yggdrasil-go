@@ -171,10 +171,14 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 			linkIn:    make(chan []byte, 1),
 			keysIn:    make(chan *udpKeys, 1),
 			out:       make(chan []byte, 32),
-			chunkSize: 576 - 60 - 8 - 3, // max save - max ip - udp header - chunk overhead
+			chunkSize: 576 - 60 - 8 - 3, // max safe - max ip - udp header - chunk overhead
 		}
 		if udpAddr.IP.IsLinkLocalUnicast() {
-			conn.chunkSize = 65535 - 8 - 3
+			ifce, err := net.InterfaceByName(udpAddr.Zone)
+			if ifce != nil && err == nil {
+				conn.chunkSize = uint16(ifce.MTU) - 60 - 8 - 3
+			}
+			//conn.chunkSize = 65535 - 8 - 3
 		}
 		/*
 		   conn.in = func (msg []byte) { conn.peer.handlePacket(msg, conn.linkIn) }
@@ -262,6 +266,7 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 				conn.countOut += 1
 				conn.peer.updateBandwidth(len(msg), timed)
 				util_putBytes(msg)
+				//iface.core.log.Println("DEBUG: sent:", len(msg))
 			}
 		}()
 		//*/
@@ -296,6 +301,7 @@ func (iface *udpInterface) reader() {
 		//iface.core.log.Println("Starting read")
 		n, udpAddr, err := iface.sock.ReadFromUDP(bs)
 		//iface.core.log.Println("Read", n, udpAddr.String(), err)
+		//iface.core.log.Println("DEBUG: read:", bs[0], bs[1], bs[2], n)
 		if err != nil {
 			panic(err)
 			break
