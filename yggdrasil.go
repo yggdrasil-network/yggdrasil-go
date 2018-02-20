@@ -177,7 +177,7 @@ func (n *node) listen() {
 		saddr := addr.String()
 		//if _, isIn := n.peers[saddr]; isIn { continue }
 		//n.peers[saddr] = struct{}{}
-		n.core.DEBUG_addTCPConn(saddr) // FIXME? can result in 2 connections per peer
+		n.core.DEBUG_maybeSendUDPKeys(saddr) // FIXME? can result in 2 connections per peer
 		//fmt.Println("DEBUG:", "added multicast peer:", saddr)
 	}
 }
@@ -188,8 +188,8 @@ func (n *node) announce() {
 		panic(err)
 	}
 	var anAddr net.TCPAddr
-	tcpAddr := n.core.DEBUG_getGlobalTCPAddr()
-	anAddr.Port = tcpAddr.Port
+	myAddr := n.core.DEBUG_getGlobalUDPAddr()
+	anAddr.Port = myAddr.Port
 	destAddr, err := net.ResolveUDPAddr("udp6", multicastAddr)
 	if err != nil {
 		panic(err)

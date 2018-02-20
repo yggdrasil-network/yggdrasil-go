@@ -158,6 +158,23 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 	}
 	out := make(chan []byte, 32) // TODO? what size makes sense
 	defer close(out)
+	send := func(msg []byte) {
+		buf := net.Buffers{tcp_msg[:],
+			wire_encode_uint64(uint64(len(msg))),
+			msg}
+		size := 0
+		for _, bs := range buf {
+			size += len(bs)
+		}
+		start := time.Now()
+		buf.WriteTo(sock)
+		timed := time.Since(start)
+		pType, _ := wire_decode_uint64(msg)
+		if pType == wire_LinkProtocolTraffic {
+			p.updateBandwidth(size, timed)
+		}
+		util_putBytes(msg)
+	}
 	go func() {
 		var stack [][]byte
 		put := func(msg []byte) {
@@ -166,25 +183,6 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 				util_putBytes(stack[0])
 				stack = stack[1:]
 			}
-		}
-		send := func() {
-			msg := stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
-			buf := net.Buffers{tcp_msg[:],
-				wire_encode_uint64(uint64(len(msg))),
-				msg}
-			size := 0
-			for _, bs := range buf {
-				size += len(bs)
-			}
-			start := time.Now()
-			buf.WriteTo(sock)
-			timed := time.Since(start)
-			pType, _ := wire_decode_uint64(msg)
-			if pType == wire_LinkProtocolTraffic {
-				p.updateBandwidth(size, timed)
-			}
-			util_putBytes(msg)
 		}
 		for msg := range out {
 			put(msg)
@@ -197,7 +195,9 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 					}
 					put(msg)
 				default:
-					send()
+					msg := stack[len(stack)-1]
+					stack = stack[:len(stack)-1]
+					send(msg)
 				}
 			}
 		}

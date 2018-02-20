@@ -21,7 +21,7 @@ const (
 	wire_DHTLookupResponse          // inside protocol traffic header
 	wire_SearchRequest              // inside protocol traffic header
 	wire_SearchResponse             // inside protocol traffic header
-	//wire_Keys                 // udp key packet (boxPub, sigPub)
+	wire_Keys                       // udp key packet (boxPub, sigPub)
 )
 
 // Encode uint64 using a variable length scheme
