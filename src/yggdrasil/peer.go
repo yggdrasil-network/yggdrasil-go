@@ -73,7 +73,6 @@ type peer struct {
 	//  Specifically, processing switch messages, signing, and verifying sigs
 	//  Resets at the start of each tick
 	throttle uint8
-	lastSend time.Time // To throttle sends, use only from linkLoop goroutine
 }
 
 const peer_Throttle = 1
@@ -158,7 +157,6 @@ func (p *peer) linkLoop(in <-chan []byte) {
 					if p.msgAnc != nil {
 						lastRSeq = p.msgAnc.seq
 					}
-					p.lastSend = time.Now()
 					p.sendSwitchAnnounce()
 				}
 				counter = (counter + 1) % 4
