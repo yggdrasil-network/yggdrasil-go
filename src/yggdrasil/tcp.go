@@ -15,6 +15,7 @@ import "time"
 import "errors"
 import "sync"
 import "fmt"
+import "bufio"
 
 const tcp_msgSize = 2048 + 65535 // TODO figure out what makes sense
 
@@ -148,7 +149,12 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 	blockChan := make(chan struct{})
 	iface.conns[info] = blockChan
 	iface.mutex.Unlock()
-	defer close(blockChan)
+	defer func() {
+		iface.mutex.Lock()
+		delete(iface.conns, info)
+		iface.mutex.Unlock()
+		close(blockChan)
+	}()
 	// Note that multiple connections to the same node are allowed
 	//  E.g. over different interfaces
 	linkIn := make(chan []byte, 1)
@@ -158,22 +164,28 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 	}
 	out := make(chan []byte, 32) // TODO? what size makes sense
 	defer close(out)
+	buf := bufio.NewWriterSize(sock, 65535)
 	send := func(msg []byte) {
-		buf := net.Buffers{tcp_msg[:],
-			wire_encode_uint64(uint64(len(msg))),
-			msg}
-		size := 0
-		for _, bs := range buf {
-			size += len(bs)
-		}
+		msgLen := wire_encode_uint64(uint64(len(msg)))
+		before := buf.Buffered()
 		start := time.Now()
-		buf.WriteTo(sock)
+		buf.Write(tcp_msg[:])
+		buf.Write(msgLen)
+		buf.Write(msg)
 		timed := time.Since(start)
-		pType, _ := wire_decode_uint64(msg)
-		if pType == wire_LinkProtocolTraffic {
-			p.updateBandwidth(size, timed)
+		after := buf.Buffered()
+		written := (before + len(tcp_msg) + len(msgLen) + len(msg)) - after
+		if written > 0 {
+			p.updateBandwidth(written, timed)
 		}
 		util_putBytes(msg)
+	}
+	flush := func() {
+		size := buf.Buffered()
+		start := time.Now()
+		buf.Flush()
+		timed := time.Since(start)
+		p.updateBandwidth(size, timed)
 	}
 	go func() {
 		var stack [][]byte
@@ -191,6 +203,7 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 				select {
 				case msg, ok := <-out:
 					if !ok {
+						flush()
 						return
 					}
 					put(msg)
@@ -200,6 +213,7 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 					send(msg)
 				}
 			}
+			flush()
 		}
 	}()
 	p.out = func(msg []byte) {
