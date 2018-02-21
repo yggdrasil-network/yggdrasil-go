@@ -15,17 +15,57 @@ package main
 import "encoding/hex"
 import "flag"
 import "fmt"
+import "runtime"
 import . "yggdrasil"
 
 var doSig = flag.Bool("sig", false, "generate new signing keys instead")
 
+type keySet struct {
+	priv []byte
+	pub  []byte
+	id   []byte
+	ip   string
+}
+
 func main() {
+	threads := runtime.GOMAXPROCS(0)
+	var threadChannels []chan []byte
+	var currentBest []byte
+	newKeys := make(chan keySet, threads)
 	flag.Parse()
-	switch {
-	case *doSig:
-		doSigKeys()
-	default:
-		doBoxKeys()
+
+	for i := 0; i < threads; i++ {
+		threadChannels = append(threadChannels, make(chan []byte, threads))
+		switch {
+		case *doSig:
+			go doSigKeys(newKeys, threadChannels[i])
+		default:
+			go doBoxKeys(newKeys, threadChannels[i])
+		}
+	}
+
+	for {
+		newKey := <-newKeys
+		if isBetter(currentBest[:], newKey.id[:]) || len(currentBest) == 0 {
+			currentBest = newKey.id
+			for _, channel := range threadChannels {
+				select {
+				case channel <- newKey.id:
+				}
+			}
+			fmt.Println("--------------------------------------------------------------------------------")
+			switch {
+			case *doSig:
+				fmt.Println("sigPriv:", hex.EncodeToString(newKey.priv[:]))
+				fmt.Println("sigPub:", hex.EncodeToString(newKey.pub[:]))
+				fmt.Println("TreeID:", hex.EncodeToString(newKey.id[:]))
+			default:
+				fmt.Println("boxPriv:", hex.EncodeToString(newKey.priv[:]))
+				fmt.Println("boxPub:", hex.EncodeToString(newKey.pub[:]))
+				fmt.Println("NodeID:", hex.EncodeToString(newKey.id[:]))
+				fmt.Println("IP:", newKey.ip)
+			}
+		}
 	}
 }
 
@@ -41,7 +81,7 @@ func isBetter(oldID, newID []byte) bool {
 	return false
 }
 
-func doBoxKeys() {
+func doBoxKeys(out chan<- keySet, in <-chan []byte) {
 	c := Core{}
 	pub, _ := c.DEBUG_newBoxKeys()
 	bestID := c.DEBUG_getNodeID(pub)
@@ -49,22 +89,25 @@ func doBoxKeys() {
 		bestID[idx] = 0
 	}
 	for {
-		pub, priv := c.DEBUG_newBoxKeys()
-		id := c.DEBUG_getNodeID(pub)
-		if !isBetter(bestID[:], id[:]) {
-			continue
+		select {
+		case newBestID := <-in:
+			if isBetter(bestID[:], newBestID) {
+				copy(bestID[:], newBestID)
+			}
+		default:
+			pub, priv := c.DEBUG_newBoxKeys()
+			id := c.DEBUG_getNodeID(pub)
+			if !isBetter(bestID[:], id[:]) {
+				continue
+			}
+			bestID = id
+			ip := c.DEBUG_addrForNodeID(id)
+			out <- keySet{priv[:], pub[:], id[:], ip}
 		}
-		bestID = id
-		ip := c.DEBUG_addrForNodeID(id)
-		fmt.Println("--------------------------------------------------------------------------------")
-		fmt.Println("boxPriv:", hex.EncodeToString(priv[:]))
-		fmt.Println("boxPub:", hex.EncodeToString(pub[:]))
-		fmt.Println("NodeID:", hex.EncodeToString(id[:]))
-		fmt.Println("IP:", ip)
 	}
 }
 
-func doSigKeys() {
+func doSigKeys(out chan<- keySet, in <-chan []byte) {
 	c := Core{}
 	pub, _ := c.DEBUG_newSigKeys()
 	bestID := c.DEBUG_getTreeID(pub)
@@ -72,15 +115,19 @@ func doSigKeys() {
 		bestID[idx] = 0
 	}
 	for {
+		select {
+		case newBestID := <-in:
+			if isBetter(bestID[:], newBestID) {
+				copy(bestID[:], newBestID)
+			}
+		default:
+		}
 		pub, priv := c.DEBUG_newSigKeys()
 		id := c.DEBUG_getTreeID(pub)
 		if !isBetter(bestID[:], id[:]) {
 			continue
 		}
 		bestID = id
-		fmt.Println("--------------------------------------------------------------------------------")
-		fmt.Println("sigPriv:", hex.EncodeToString(priv[:]))
-		fmt.Println("sigPub:", hex.EncodeToString(pub[:]))
-		fmt.Println("TreeID:", hex.EncodeToString(id[:]))
+		out <- keySet{priv[:], pub[:], id[:], ""}
 	}
 }
