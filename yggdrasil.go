@@ -118,7 +118,7 @@ func generateConfig() *nodeConfig {
 	cfg.Multicast = true
 	cfg.LinkLocal = ""
 	cfg.IfName = "auto"
-	cfg.IfMTU = 65535
+	cfg.IfMTU = 1280
 	if runtime.GOOS == "windows" {
 		cfg.IfTAPMode = true
 	} else {
@@ -188,8 +188,8 @@ func (n *node) announce() {
 		panic(err)
 	}
 	var anAddr net.TCPAddr
-	tcpAddr := n.core.DEBUG_getGlobalTCPAddr()
-	anAddr.Port = tcpAddr.Port
+	myAddr := n.core.DEBUG_getGlobalTCPAddr()
+	anAddr.Port = myAddr.Port
 	destAddr, err := net.ResolveUDPAddr("udp6", multicastAddr)
 	if err != nil {
 		panic(err)

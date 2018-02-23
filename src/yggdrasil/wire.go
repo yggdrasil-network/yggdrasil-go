@@ -21,7 +21,6 @@ const (
 	wire_DHTLookupResponse          // inside protocol traffic header
 	wire_SearchRequest              // inside protocol traffic header
 	wire_SearchResponse             // inside protocol traffic header
-	//wire_Keys                 // udp key packet (boxPub, sigPub)
 )
 
 // Encode uint64 using a variable length scheme
@@ -112,8 +111,6 @@ func wire_put_coords(coords []byte, bs []byte) []byte {
 func wire_decode_coords(packet []byte) ([]byte, int) {
 	coordLen, coordBegin := wire_decode_uint64(packet)
 	coordEnd := coordBegin + int(coordLen)
-	//if coordBegin == 0 { panic("No coords found") } // Testing
-	//if coordEnd > len(packet) { panic("Packet too short") } // Testing
 	if coordBegin == 0 || coordEnd > len(packet) {
 		return nil, 0
 	}
@@ -129,7 +126,7 @@ type msgAnnounce struct {
 	seq    uint64
 	len    uint64
 	//Deg uint64
-	//RSeq uint64
+	rseq uint64
 }
 
 func (m *msgAnnounce) encode() []byte {
@@ -138,8 +135,7 @@ func (m *msgAnnounce) encode() []byte {
 	bs = append(bs, wire_encode_uint64(wire_intToUint(m.tstamp))...)
 	bs = append(bs, wire_encode_uint64(m.seq)...)
 	bs = append(bs, wire_encode_uint64(m.len)...)
-	//bs = append(bs, wire_encode_uint64(m.Deg)...)
-	//bs = append(bs, wire_encode_uint64(m.RSeq)...)
+	bs = append(bs, wire_encode_uint64(m.rseq)...)
 	return bs
 }
 
@@ -159,8 +155,8 @@ func (m *msgAnnounce) decode(bs []byte) bool {
 		return false
 	case !wire_chop_uint64(&m.len, &bs):
 		return false
-		//case !wire_chop_uint64(&m.Deg, &bs): return false
-		//case !wire_chop_uint64(&m.RSeq, &bs): return false
+	case !wire_chop_uint64(&m.rseq, &bs):
+		return false
 	}
 	m.tstamp = wire_intFromUint(tstamp)
 	return true
@@ -380,16 +376,12 @@ func (p *wire_protoTrafficPacket) decode(bs []byte) bool {
 }
 
 type wire_linkProtoTrafficPacket struct {
-	toKey   boxPubKey
-	fromKey boxPubKey
 	nonce   boxNonce
 	payload []byte
 }
 
 func (p *wire_linkProtoTrafficPacket) encode() []byte {
 	bs := wire_encode_uint64(wire_LinkProtocolTraffic)
-	bs = append(bs, p.toKey[:]...)
-	bs = append(bs, p.fromKey[:]...)
 	bs = append(bs, p.nonce[:]...)
 	bs = append(bs, p.payload...)
 	return bs
@@ -401,10 +393,6 @@ func (p *wire_linkProtoTrafficPacket) decode(bs []byte) bool {
 	case !wire_chop_uint64(&pType, &bs):
 		return false
 	case pType != wire_LinkProtocolTraffic:
-		return false
-	case !wire_chop_slice(p.toKey[:], &bs):
-		return false
-	case !wire_chop_slice(p.fromKey[:], &bs):
 		return false
 	case !wire_chop_slice(p.nonce[:], &bs):
 		return false
@@ -467,7 +455,6 @@ func (p *sessionPing) decode(bs []byte) bool {
 func (r *dhtReq) encode() []byte {
 	coords := wire_encode_coords(r.coords)
 	bs := wire_encode_uint64(wire_DHTLookupRequest)
-	bs = append(bs, r.key[:]...)
 	bs = append(bs, coords...)
 	bs = append(bs, r.dest[:]...)
 	return bs
@@ -479,8 +466,6 @@ func (r *dhtReq) decode(bs []byte) bool {
 	case !wire_chop_uint64(&pType, &bs):
 		return false
 	case pType != wire_DHTLookupRequest:
-		return false
-	case !wire_chop_slice(r.key[:], &bs):
 		return false
 	case !wire_chop_coords(&r.coords, &bs):
 		return false
@@ -494,7 +479,6 @@ func (r *dhtReq) decode(bs []byte) bool {
 func (r *dhtRes) encode() []byte {
 	coords := wire_encode_coords(r.coords)
 	bs := wire_encode_uint64(wire_DHTLookupResponse)
-	bs = append(bs, r.key[:]...)
 	bs = append(bs, coords...)
 	bs = append(bs, r.dest[:]...)
 	for _, info := range r.infos {
@@ -511,8 +495,6 @@ func (r *dhtRes) decode(bs []byte) bool {
 	case !wire_chop_uint64(&pType, &bs):
 		return false
 	case pType != wire_DHTLookupResponse:
-		return false
-	case !wire_chop_slice(r.key[:], &bs):
 		return false
 	case !wire_chop_coords(&r.coords, &bs):
 		return false

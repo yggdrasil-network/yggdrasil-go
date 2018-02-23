@@ -11,11 +11,6 @@ package yggdrasil
 // TODO? use a pre-computed lookup table (python version had this)
 //  A little annoying to do with constant changes from bandwidth estimates
 
-// FIXME (!) throttle how often root updates are accepted
-//  If the root starts spaming with new timestamps, it should only affect their neighbors
-//  The rest of the network should see announcements at a somewhat reasonable rate
-//  Maybe no faster than 2x the usual update interval
-
 import "time"
 import "sync"
 import "sync/atomic"
@@ -23,6 +18,8 @@ import "sync/atomic"
 //import "fmt"
 
 const switch_timeout = time.Minute
+const switch_updateInterval = switch_timeout / 2
+const switch_throttle = switch_updateInterval / 2
 
 // You should be able to provide crypto signatures for this
 // 1 signature per coord, from the *sender* to that coord
@@ -219,7 +216,7 @@ func (t *switchTable) cleanRoot() {
 	}
 	// Or, if we are the root, possibly update our timestamp
 	if t.data.locator.root == t.key &&
-		now.Sub(t.time) > switch_timeout/2 {
+		now.Sub(t.time) > switch_updateInterval {
 		//fmt.Println("root is self and old, updating", t.data.locator.Root)
 		doUpdate = true
 	}
@@ -343,9 +340,11 @@ func (t *switchTable) handleMessage(msg *switchMessage, fromPort switchPort, sig
 		updateRoot = true
 	case cost < pCost:
 		updateRoot = true
-	case sender.port == t.parent &&
-		(msg.locator.tstamp > t.data.locator.tstamp ||
-			!equiv(&msg.locator, &t.data.locator)):
+	case sender.port != t.parent: // do nothing
+	case !equiv(&msg.locator, &t.data.locator):
+		updateRoot = true
+	case now.Sub(t.time) < switch_throttle: // do nothing
+	case msg.locator.tstamp > t.data.locator.tstamp:
 		updateRoot = true
 	}
 	if updateRoot {
@@ -390,6 +389,9 @@ func (t *switchTable) updateTable() {
 	}
 	for _, pinfo := range t.data.peers {
 		//if !pinfo.forward { continue }
+		if pinfo.locator.root != newTable.self.root {
+			continue
+		}
 		loc := pinfo.locator.clone()
 		loc.coords = loc.coords[:len(loc.coords)-1] // Remove the them->self link
 		newTable.elems = append(newTable.elems, tableElem{
@@ -422,9 +424,6 @@ func (t *switchTable) lookup(dest []byte, ttl uint64) (switchPort, uint64) {
 	// score is in units of bandwidth / distance
 	bestScore := float64(-1)
 	for _, info := range table.elems {
-		if info.locator.root != table.self.root {
-			continue
-		}
 		dist := info.locator.dist(dest) //getDist(info.locator.coords)
 		if !(dist < myDist) {
 			continue

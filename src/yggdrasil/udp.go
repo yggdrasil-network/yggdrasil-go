@@ -46,16 +46,17 @@ func (c *connAddr) toUDPAddr() *net.UDPAddr {
 }
 
 type connInfo struct {
-	name     string
-	addr     connAddr
-	peer     *peer
-	linkIn   chan []byte
-	keysIn   chan *udpKeys
-	timeout  int // count of how many heartbeats have been missed
-	in       func([]byte)
-	out      chan []byte
-	countIn  uint8
-	countOut uint8
+	name      string
+	addr      connAddr
+	peer      *peer
+	linkIn    chan []byte
+	keysIn    chan *udpKeys
+	timeout   int // count of how many heartbeats have been missed
+	in        func([]byte)
+	out       chan []byte
+	countIn   uint8
+	countOut  uint8
+	chunkSize uint16
 }
 
 type udpKeys struct {
@@ -96,7 +97,6 @@ func (iface *udpInterface) startConn(info *connInfo) {
 	defer ticker.Stop()
 	defer func() {
 		// Cleanup
-		// FIXME this still leaks a peer struct
 		iface.mutex.Lock()
 		delete(iface.conns, info.addr)
 		iface.mutex.Unlock()
@@ -162,56 +162,31 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 		themAddrString := net.IP(themAddr[:]).String()
 		themString := fmt.Sprintf("%s@%s", themAddrString, udpAddr.String())
 		conn = &connInfo{
-			name:   themString,
-			addr:   connAddr(addr),
-			peer:   iface.core.peers.newPeer(&ks.box, &ks.sig),
-			linkIn: make(chan []byte, 1),
-			keysIn: make(chan *udpKeys, 1),
-			out:    make(chan []byte, 32),
+			name:      themString,
+			addr:      connAddr(addr),
+			peer:      iface.core.peers.newPeer(&ks.box, &ks.sig),
+			linkIn:    make(chan []byte, 1),
+			keysIn:    make(chan *udpKeys, 1),
+			out:       make(chan []byte, 32),
+			chunkSize: 576 - 60 - 8 - 3, // max safe - max ip - udp header - chunk overhead
 		}
-		/*
-		   conn.in = func (msg []byte) { conn.peer.handlePacket(msg, conn.linkIn) }
-		   conn.peer.out = func (msg []byte) {
-		     start := time.Now()
-		     iface.sock.WriteToUDP(msg, udpAddr)
-		     timed := time.Since(start)
-		     conn.peer.updateBandwidth(len(msg), timed)
-		     util_putBytes(msg)
-		   } // Old version, always one syscall per packet
-		   //*/
-		/*
-		   conn.peer.out = func (msg []byte) {
-		     defer func() { recover() }()
-		     select {
-		       case conn.out<-msg:
-		       default: util_putBytes(msg)
-		     }
-		   }
-		   go func () {
-		     for msg := range conn.out {
-		       start := time.Now()
-		       iface.sock.WriteToUDP(msg, udpAddr)
-		       timed := time.Since(start)
-		       conn.peer.updateBandwidth(len(msg), timed)
-		       util_putBytes(msg)
-		     }
-		   }()
-		   //*/
-		//*
+		if udpAddr.IP.IsLinkLocalUnicast() {
+			ifce, err := net.InterfaceByName(udpAddr.Zone)
+			if ifce != nil && err == nil {
+				conn.chunkSize = uint16(ifce.MTU) - 60 - 8 - 3
+			}
+		}
 		var inChunks uint8
 		var inBuf []byte
 		conn.in = func(bs []byte) {
 			//defer util_putBytes(bs)
 			chunks, chunk, count, payload := udp_decode(bs)
-			//iface.core.log.Println("DEBUG:", addr, chunks, chunk, count, len(payload))
-			//iface.core.log.Println("DEBUG: payload:", payload)
 			if count != conn.countIn {
 				inChunks = 0
 				inBuf = inBuf[:0]
 				conn.countIn = count
 			}
 			if chunk <= chunks && chunk == inChunks+1 {
-				//iface.core.log.Println("GOING:", addr, chunks, chunk, count, len(payload))
 				inChunks += 1
 				inBuf = append(inBuf, payload...)
 				if chunks != chunk {
@@ -219,7 +194,6 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 				}
 				msg := append(util_getBytes(), inBuf...)
 				conn.peer.handlePacket(msg, conn.linkIn)
-				//iface.core.log.Println("DONE:", addr, chunks, chunk, count, len(payload))
 			}
 		}
 		conn.peer.out = func(msg []byte) {
@@ -236,11 +210,10 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 			for msg := range conn.out {
 				chunks = chunks[:0]
 				bs := msg
-				for len(bs) > udp_chunkSize {
-					chunks, bs = append(chunks, bs[:udp_chunkSize]), bs[udp_chunkSize:]
+				for len(bs) > int(conn.chunkSize) {
+					chunks, bs = append(chunks, bs[:conn.chunkSize]), bs[conn.chunkSize:]
 				}
 				chunks = append(chunks, bs)
-				//iface.core.log.Println("DEBUG: out chunks:", len(chunks), len(msg))
 				if len(chunks) > 255 {
 					continue
 				}
@@ -284,19 +257,14 @@ func (iface *udpInterface) handlePacket(msg []byte, addr connAddr) {
 }
 
 func (iface *udpInterface) reader() {
-	bs := make([]byte, 2048) // This needs to be large enough for everything...
+	bs := make([]byte, 65536) // This needs to be large enough for everything...
 	for {
-		//iface.core.log.Println("Starting read")
 		n, udpAddr, err := iface.sock.ReadFromUDP(bs)
-		//iface.core.log.Println("Read", n, udpAddr.String(), err)
+		//iface.core.log.Println("DEBUG: read:", bs[0], bs[1], bs[2], n)
 		if err != nil {
 			panic(err)
 			break
 		}
-		if n > 1500 {
-			panic(n)
-		}
-		//msg := append(util_getBytes(), bs[:n]...)
 		msg := bs[:n]
 		var addr connAddr
 		addr.fromUDPAddr(udpAddr)
@@ -318,8 +286,6 @@ func (iface *udpInterface) reader() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-const udp_chunkSize = 508 // Apparently the maximum guaranteed safe IPv4 size
 
 func udp_decode(bs []byte) (chunks, chunk, count uint8, payload []byte) {
 	if len(bs) >= 3 {

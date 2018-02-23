@@ -126,6 +126,8 @@ func (ps *peers) newPeer(box *boxPubKey,
 func (p *peer) linkLoop(in <-chan []byte) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+	var counter uint8
+	var lastRSeq uint64
 	for {
 		select {
 		case packet, ok := <-in:
@@ -139,9 +141,25 @@ func (p *peer) linkLoop(in <-chan []byte) {
 				if p.port == 0 {
 					continue
 				} // Don't send announces on selfInterface
-				// Maybe we shouldn't time out, and instead wait for a kill signal?
 				p.myMsg, p.mySigs = p.core.switchTable.createMessage(p.port)
-				p.sendSwitchAnnounce()
+				var update bool
+				switch {
+				case p.msgAnc == nil:
+					update = true
+				case lastRSeq != p.msgAnc.seq:
+					update = true
+				case p.msgAnc.rseq != p.myMsg.seq:
+					update = true
+				case counter%4 == 0:
+					update = true
+				}
+				if update {
+					if p.msgAnc != nil {
+						lastRSeq = p.msgAnc.seq
+					}
+					p.sendSwitchAnnounce()
+				}
+				counter = (counter + 1) % 4
 			}
 		}
 	}
@@ -186,11 +204,12 @@ func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
 	if to == nil {
 		return
 	}
-	newTTLLen := wire_uint64_len(newTTL)
 	// This mutates the packet in-place if the length of the TTL changes!
+	ttlSlice := wire_encode_uint64(newTTL)
+	newTTLLen := len(ttlSlice)
 	shift := ttlLen - newTTLLen
-	wire_put_uint64(newTTL, packet[ttlBegin+shift:])
 	copy(packet[shift:], packet[:pTypeLen])
+	copy(packet[ttlBegin+shift:], ttlSlice)
 	packet = packet[shift:]
 	to.sendPacket(packet)
 }
@@ -204,8 +223,6 @@ func (p *peer) sendPacket(packet []byte) {
 func (p *peer) sendLinkPacket(packet []byte) {
 	bs, nonce := boxSeal(&p.shared, packet, nil)
 	linkPacket := wire_linkProtoTrafficPacket{
-		toKey:   p.box,
-		fromKey: p.core.boxPub,
 		nonce:   *nonce,
 		payload: bs,
 	}
@@ -216,12 +233,6 @@ func (p *peer) sendLinkPacket(packet []byte) {
 func (p *peer) handleLinkTraffic(bs []byte) {
 	packet := wire_linkProtoTrafficPacket{}
 	if !packet.decode(bs) {
-		return
-	}
-	if packet.toKey != p.core.boxPub {
-		return
-	}
-	if packet.fromKey != p.box {
 		return
 	}
 	payload, isOK := boxOpen(&p.shared, packet.payload, &packet.nonce)
@@ -418,7 +429,9 @@ func (p *peer) sendSwitchAnnounce() {
 	anc.seq = p.myMsg.seq
 	anc.len = uint64(len(p.myMsg.locator.coords))
 	//anc.Deg = p.myMsg.Degree
-	//anc.RSeq = p.myMsg.RSeq
+	if p.msgAnc != nil {
+		anc.rseq = p.msgAnc.seq
+	}
 	packet := anc.encode()
 	p.sendLinkPacket(packet)
 }

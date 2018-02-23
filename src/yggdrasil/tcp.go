@@ -15,6 +15,7 @@ import "time"
 import "errors"
 import "sync"
 import "fmt"
+import "bufio"
 
 const tcp_msgSize = 2048 + 65535 // TODO figure out what makes sense
 
@@ -23,11 +24,14 @@ type tcpInterface struct {
 	serv  *net.TCPListener
 	mutex sync.Mutex // Protecting the below
 	calls map[string]struct{}
+	conns map[tcpInfo](chan struct{})
 }
 
-type tcpKeys struct {
-	box boxPubKey
-	sig sigPubKey
+type tcpInfo struct {
+	box        boxPubKey
+	sig        sigPubKey
+	localAddr  string // net.IPAddr.String(), not TCPAddr, don't care about port
+	remoteAddr string
 }
 
 func (iface *tcpInterface) init(core *Core, addr string) {
@@ -41,6 +45,7 @@ func (iface *tcpInterface) init(core *Core, addr string) {
 		panic(err)
 	}
 	iface.calls = make(map[string]struct{})
+	iface.conns = make(map[tcpInfo](chan struct{}))
 	go iface.listener()
 }
 
@@ -102,8 +107,8 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 	if n < len(keys) { /*panic("Partial key packet?") ;*/
 		return
 	}
-	ks := tcpKeys{}
-	if !tcp_chop_keys(&ks.box, &ks.sig, &keys) { /*panic("Invalid key packet?") ;*/
+	info := tcpInfo{}
+	if !tcp_chop_keys(&info.box, &info.sig, &keys) { /*panic("Invalid key packet?") ;*/
 		return
 	}
 	// Quit the parent call if this is a connection to ourself
@@ -115,21 +120,73 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 		}
 		return true
 	}
-	if equiv(ks.box[:], iface.core.boxPub[:]) {
+	if equiv(info.box[:], iface.core.boxPub[:]) {
 		return
 	} // testing
-	if equiv(ks.sig[:], iface.core.sigPub[:]) {
+	if equiv(info.sig[:], iface.core.sigPub[:]) {
 		return
 	}
+	// Check if we already have a connection to this node, close and block if yes
+	local := sock.LocalAddr().(*net.TCPAddr)
+	laddr := net.IPAddr{
+		IP:   local.IP,
+		Zone: local.Zone,
+	}
+	info.localAddr = laddr.String()
+	remote := sock.RemoteAddr().(*net.TCPAddr)
+	raddr := net.IPAddr{
+		IP:   remote.IP,
+		Zone: remote.Zone,
+	}
+	info.remoteAddr = raddr.String()
+	iface.mutex.Lock()
+	if blockChan, isIn := iface.conns[info]; isIn {
+		iface.mutex.Unlock()
+		sock.Close()
+		<-blockChan
+		return
+	}
+	blockChan := make(chan struct{})
+	iface.conns[info] = blockChan
+	iface.mutex.Unlock()
+	defer func() {
+		iface.mutex.Lock()
+		delete(iface.conns, info)
+		iface.mutex.Unlock()
+		close(blockChan)
+	}()
 	// Note that multiple connections to the same node are allowed
 	//  E.g. over different interfaces
 	linkIn := make(chan []byte, 1)
-	p := iface.core.peers.newPeer(&ks.box, &ks.sig) //, in, out)
+	p := iface.core.peers.newPeer(&info.box, &info.sig) //, in, out)
 	in := func(bs []byte) {
 		p.handlePacket(bs, linkIn)
 	}
 	out := make(chan []byte, 32) // TODO? what size makes sense
 	defer close(out)
+	buf := bufio.NewWriterSize(sock, tcp_msgSize)
+	send := func(msg []byte) {
+		msgLen := wire_encode_uint64(uint64(len(msg)))
+		before := buf.Buffered()
+		start := time.Now()
+		buf.Write(tcp_msg[:])
+		buf.Write(msgLen)
+		buf.Write(msg)
+		timed := time.Since(start)
+		after := buf.Buffered()
+		written := (before + len(tcp_msg) + len(msgLen) + len(msg)) - after
+		if written > 0 {
+			p.updateBandwidth(written, timed)
+		}
+		util_putBytes(msg)
+	}
+	flush := func() {
+		size := buf.Buffered()
+		start := time.Now()
+		buf.Flush()
+		timed := time.Since(start)
+		p.updateBandwidth(size, timed)
+	}
 	go func() {
 		var stack [][]byte
 		put := func(msg []byte) {
@@ -139,25 +196,6 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 				stack = stack[1:]
 			}
 		}
-		send := func() {
-			msg := stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
-			buf := net.Buffers{tcp_msg[:],
-				wire_encode_uint64(uint64(len(msg))),
-				msg}
-			size := 0
-			for _, bs := range buf {
-				size += len(bs)
-			}
-			start := time.Now()
-			buf.WriteTo(sock)
-			timed := time.Since(start)
-			pType, _ := wire_decode_uint64(msg)
-			if pType == wire_LinkProtocolTraffic {
-				p.updateBandwidth(size, timed)
-			}
-			util_putBytes(msg)
-		}
 		for msg := range out {
 			put(msg)
 			for len(stack) > 0 {
@@ -165,13 +203,17 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 				select {
 				case msg, ok := <-out:
 					if !ok {
+						flush()
 						return
 					}
 					put(msg)
 				default:
-					send()
+					msg := stack[len(stack)-1]
+					stack = stack[:len(stack)-1]
+					send(msg)
 				}
 			}
+			flush()
 		}
 	}()
 	p.out = func(msg []byte) {
@@ -197,8 +239,8 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 		p.core.peers.mutex.Unlock()
 		close(linkIn)
 	}()
-	them := sock.RemoteAddr()
-	themNodeID := getNodeID(&ks.box)
+	them := sock.RemoteAddr().(*net.TCPAddr)
+	themNodeID := getNodeID(&info.box)
 	themAddr := address_addrForNodeID(themNodeID)
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, them)

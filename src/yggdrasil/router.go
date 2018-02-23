@@ -295,9 +295,7 @@ func (r *router) handleDHTReq(bs []byte, fromKey *boxPubKey) {
 	if !req.decode(bs) {
 		return
 	}
-	if req.key != *fromKey {
-		return
-	}
+	req.key = *fromKey
 	r.core.dht.handleReq(&req)
 }
 
@@ -306,9 +304,7 @@ func (r *router) handleDHTRes(bs []byte, fromKey *boxPubKey) {
 	if !res.decode(bs) {
 		return
 	}
-	if res.key != *fromKey {
-		return
-	}
+	res.key = *fromKey
 	r.core.dht.handleRes(&res)
 }
 

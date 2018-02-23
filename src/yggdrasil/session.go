@@ -152,6 +152,15 @@ func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
 	sinfo.myNonce = *newBoxNonce()
 	sinfo.theirMTU = 1280
 	sinfo.myMTU = uint16(ss.core.tun.mtu)
+	if sinfo.myMTU > 2048 {
+		// FIXME this is a temporary workaround to an issue with UDP peers
+		// UDP links need to fragment packets (within ygg) to get them over the wire
+		// For some reason, TCP streams over UDP peers can get stuck in a bad state
+		// When this happens, TCP throttles back, and each TCP retransmission loses fragments
+		// On my wifi network, it seems to happen around the 22nd-23rd fragment of a large packet
+		// By setting the path MTU to something small, this should (hopefully) mitigate the issue
+		sinfo.myMTU = 2048
+	}
 	higher := false
 	for idx := range ss.core.boxPub {
 		if ss.core.boxPub[idx] > sinfo.theirPermPub[idx] {
