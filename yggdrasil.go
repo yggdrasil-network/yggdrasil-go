@@ -118,7 +118,7 @@ func generateConfig() *nodeConfig {
 	cfg.Multicast = true
 	cfg.LinkLocal = ""
 	cfg.IfName = "auto"
-	cfg.IfMTU = 1280 //65535
+	cfg.IfMTU = 1280
 	if runtime.GOOS == "windows" {
 		cfg.IfTAPMode = true
 	} else {
