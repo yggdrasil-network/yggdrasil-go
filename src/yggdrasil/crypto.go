@@ -91,6 +91,7 @@ const boxPubKeyLen = 32
 const boxPrivKeyLen = 32
 const boxSharedKeyLen = 32
 const boxNonceLen = 24
+const boxOverhead = box.Overhead
 
 type boxPubKey [boxPubKeyLen]byte
 type boxPrivKey [boxPrivKeyLen]byte
