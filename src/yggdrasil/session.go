@@ -28,7 +28,8 @@ type sessionInfo struct {
 	send         chan []byte
 	recv         chan *wire_trafficPacket
 	nonceMask    uint64
-	tstamp       int64 // tstamp from their last session ping, replay attack mitigation
+	tstamp       int64     // tstamp from their last session ping, replay attack mitigation
+	mtuTime      time.Time // time myMTU was last changed
 }
 
 type sessionPing struct {
@@ -152,15 +153,7 @@ func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
 	sinfo.myNonce = *newBoxNonce()
 	sinfo.theirMTU = 1280
 	sinfo.myMTU = uint16(ss.core.tun.mtu)
-	if sinfo.myMTU > 2048 {
-		// FIXME this is a temporary workaround to an issue with UDP peers
-		// UDP links need to fragment packets (within ygg) to get them over the wire
-		// For some reason, TCP streams over UDP peers can get stuck in a bad state
-		// When this happens, TCP throttles back, and each TCP retransmission loses fragments
-		// On my wifi network, it seems to happen around the 22nd-23rd fragment of a large packet
-		// By setting the path MTU to something small, this should (hopefully) mitigate the issue
-		sinfo.myMTU = 2048
-	}
+	sinfo.mtuTime = time.Now()
 	higher := false
 	for idx := range ss.core.boxPub {
 		if ss.core.boxPub[idx] > sinfo.theirPermPub[idx] {
@@ -387,14 +380,42 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 
 func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
 	defer util_putBytes(p.payload)
+	payloadSize := uint16(len(p.payload))
 	if !sinfo.nonceIsOK(&p.nonce) {
 		return
 	}
 	bs, isOK := boxOpen(&sinfo.sharedSesKey, p.payload, &p.nonce)
 	if !isOK {
+		// We're going to guess that the session MTU is too large
+		// Set myMTU to the largest value we think we can receive
+		fixSessionMTU := func() {
+			// This clamps down to 1280 almost immediately over ipv4
+			// Over link-local ipv6, it seems to approach link MTU
+			// So maybe it's doing the right thing?...
+			//sinfo.core.log.Println("DEBUG got bad packet:", payloadSize)
+			newMTU := payloadSize - boxOverhead
+			if newMTU < 1280 {
+				newMTU = 1280
+			}
+			if newMTU < sinfo.myMTU {
+				sinfo.myMTU = newMTU
+				//sinfo.core.log.Println("DEBUG set MTU to:", sinfo.myMTU)
+				sinfo.core.sessions.sendPingPong(sinfo, false)
+				sinfo.mtuTime = time.Now()
+			}
+		}
+		go func() { sinfo.core.router.admin <- fixSessionMTU }()
 		util_putBytes(bs)
 		return
 	}
+	fixSessionMTU := func() {
+		if time.Since(sinfo.mtuTime) > time.Minute {
+			sinfo.myMTU = uint16(sinfo.core.tun.mtu)
+			sinfo.mtuTime = time.Now()
+			//sinfo.core.log.Println("DEBUG: Reset MTU to:", sinfo.myMTU)
+		}
+	}
+	go func() { sinfo.core.router.admin <- fixSessionMTU }()
 	sinfo.updateNonce(&p.nonce)
 	sinfo.time = time.Now()
 	sinfo.core.router.recvPacket(bs, &sinfo.theirAddr, &sinfo.theirSubnet)

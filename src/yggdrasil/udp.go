@@ -182,6 +182,13 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 			//defer util_putBytes(bs)
 			chunks, chunk, count, payload := udp_decode(bs)
 			if count != conn.countIn {
+				if len(inBuf) > 0 {
+					// Something went wrong
+					// Forward whatever we have
+					// Maybe the destination can do something about it
+					msg := append(util_getBytes(), inBuf...)
+					conn.peer.handlePacket(msg, conn.linkIn)
+				}
 				inChunks = 0
 				inBuf = inBuf[:0]
 				conn.countIn = count
@@ -194,6 +201,7 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 				}
 				msg := append(util_getBytes(), inBuf...)
 				conn.peer.handlePacket(msg, conn.linkIn)
+				inBuf = inBuf[:0]
 			}
 		}
 		conn.peer.out = func(msg []byte) {
