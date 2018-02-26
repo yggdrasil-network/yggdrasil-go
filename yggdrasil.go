@@ -118,7 +118,7 @@ func generateConfig() *nodeConfig {
 	cfg.Multicast = true
 	cfg.LinkLocal = ""
 	cfg.IfName = "auto"
-	cfg.IfMTU = 1280
+	cfg.IfMTU = 65535
 	if runtime.GOOS == "windows" {
 		cfg.IfTAPMode = true
 	} else {
@@ -177,7 +177,7 @@ func (n *node) listen() {
 		saddr := addr.String()
 		//if _, isIn := n.peers[saddr]; isIn { continue }
 		//n.peers[saddr] = struct{}{}
-		n.core.DEBUG_addTCPConn(saddr) // FIXME? can result in 2 connections per peer
+		n.core.DEBUG_addTCPConn(saddr)
 		//fmt.Println("DEBUG:", "added multicast peer:", saddr)
 	}
 }
