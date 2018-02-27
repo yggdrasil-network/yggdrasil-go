@@ -170,11 +170,7 @@ func (r *router) sendPacket(bs []byte) {
 			// Don't continue - drop the packet
 			return
 		}
-		select {
-		case sinfo.send <- bs:
-		default:
-			util_putBytes(bs)
-		}
+		sinfo.send <- bs
 	}
 }
 
@@ -225,11 +221,7 @@ func (r *router) handleTraffic(packet []byte) {
 		return
 	}
 	//go func () { sinfo.recv<-&p }()
-	select {
-	case sinfo.recv <- &p:
-	default:
-		util_putBytes(p.payload)
-	}
+	sinfo.recv <- &p
 }
 
 func (r *router) handleProto(packet []byte) {
