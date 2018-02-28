@@ -55,6 +55,13 @@ func (a *admin) init(c *Core, listenaddr string) {
 	a.addHandler("getSessions", nil, func(out *[]byte, _ ...string) {
 		*out = []byte(a.printInfos(a.getData_getSessions()))
 	})
+	a.addHandler("addPeer", nil, func(out *[]byte, saddr ...string) {
+		if a.addPeer(saddr[0]) == nil {
+			*out = []byte("Adding peer: " + saddr[0] + "\n")
+		} else {
+			*out = []byte("Failed to add peer: " + saddr[0] + "\n")
+		}
+	})
 	go a.listen()
 }
 
@@ -141,6 +148,39 @@ func (a *admin) printInfos(infos []admin_nodeInfo) string {
 	}
 	out = append(out, "") // To add a trailing "\n" in the join
 	return strings.Join(out, "\n")
+}
+
+func (a *admin) addPeer(p string) error {
+	pAddr := p
+	if p[:4] == "tcp:" || p[:4] == "udp:" {
+		pAddr = p[4:]
+	}
+	switch {
+	case len(p) >= 4 && p[:4] == "udp:":
+		// Connect to peer over UDP
+		udpAddr, err := net.ResolveUDPAddr("udp", pAddr)
+		if err != nil {
+			return err
+		}
+		var addr connAddr
+		addr.fromUDPAddr(udpAddr)
+		a.core.udp.mutex.RLock()
+		_, isIn := a.core.udp.conns[addr]
+		a.core.udp.mutex.RUnlock()
+		if !isIn {
+			a.core.udp.sendKeys(addr)
+		}
+		return nil
+	case len(p) >= 4 && p[:4] == "tcp:":
+	default:
+		// Connect to peer over TCP
+		_, err := net.ResolveTCPAddr("tcp", pAddr)
+		if err != nil {
+			return err
+		}
+		a.core.tcp.call(p)
+	}
+	return nil
 }
 
 func (a *admin) getData_getSelf() *admin_nodeInfo {
