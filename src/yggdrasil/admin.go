@@ -6,6 +6,7 @@ import "bytes"
 import "fmt"
 import "sort"
 import "strings"
+import "strconv"
 
 // TODO? Make all of this JSON
 // TODO: Add authentication
@@ -55,11 +56,45 @@ func (a *admin) init(c *Core, listenaddr string) {
 	a.addHandler("getSessions", nil, func(out *[]byte, _ ...string) {
 		*out = []byte(a.printInfos(a.getData_getSessions()))
 	})
-	a.addHandler("addPeer", nil, func(out *[]byte, saddr ...string) {
+	a.addHandler("addPeer", []string{"<peer>"}, func(out *[]byte, saddr ...string) {
 		if a.addPeer(saddr[0]) == nil {
 			*out = []byte("Adding peer: " + saddr[0] + "\n")
 		} else {
 			*out = []byte("Failed to add peer: " + saddr[0] + "\n")
+		}
+	})
+	a.addHandler("setTunTap", []string{"<ifname|auto|none>", "[<tun|tap>]", "[<mtu>]"}, func(out *[]byte, ifparams ...string) {
+		// Check parameters
+		if (ifparams[0] != "none" && len(ifparams) != 3) ||
+			(ifparams[0] == "none" && len(ifparams) != 1) {
+			*out = []byte("Invalid number of parameters given\n")
+			return
+		}
+		// Set sane defaults
+		iftapmode := false
+		ifmtu := 1280
+		var err error
+		if len(ifparams) > 1 {
+			// Is it a TAP adapter?
+			if ifparams[1] == "tap" {
+				iftapmode = true
+			}
+			// Make sure the MTU is sane
+			ifmtu, err = strconv.Atoi(ifparams[2])
+			if err != nil || ifmtu < 1280 || ifmtu > 65535 {
+				ifmtu = 1280
+			}
+		}
+		// Start the TUN adapter
+		if err := a.startTunWithMTU(ifparams[0], iftapmode, ifmtu); err != nil {
+			*out = []byte(fmt.Sprintf("Failed to set TUN: %v\n", err))
+		} else {
+			info := admin_nodeInfo{
+				{"Interface name", ifparams[0]},
+				{"TAP mode", strconv.FormatBool(iftapmode)},
+				{"MTU", strconv.Itoa(ifmtu)},
+			}
+			*out = []byte(a.printInfos([]admin_nodeInfo{info}))
 		}
 	})
 	go a.listen()
@@ -180,6 +215,23 @@ func (a *admin) addPeer(p string) error {
 		}
 		a.core.tcp.call(p)
 	}
+	return nil
+}
+
+func (a *admin) startTunWithMTU(ifname string, iftapmode bool, ifmtu int) error {
+	// Close the TUN first if open
+	_ = a.core.tun.close()
+	// Then reconfigure and start it
+	addr := a.core.router.addr
+	straddr := fmt.Sprintf("%s/%v", net.IP(addr[:]).String(), 8*len(address_prefix))
+	if ifname != "none" {
+		err := a.core.tun.setup(ifname, iftapmode, straddr, ifmtu)
+		if err != nil {
+			return err
+		}
+		go a.core.tun.read()
+	}
+	go a.core.tun.write()
 	return nil
 }
 
