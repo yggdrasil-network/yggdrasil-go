@@ -64,21 +64,19 @@ func (a *admin) init(c *Core, listenaddr string) {
 		}
 	})
 	a.addHandler("setTunTap", []string{"<ifname|auto|none>", "[<tun|tap>]", "[<mtu>]"}, func(out *[]byte, ifparams ...string) {
-		// Check parameters
-		if (ifparams[0] != "none" && len(ifparams) != 3) ||
-			(ifparams[0] == "none" && len(ifparams) != 1) {
-			*out = []byte("Invalid number of parameters given\n")
-			return
-		}
 		// Set sane defaults
 		iftapmode := false
 		ifmtu := 1280
 		var err error
+		// Check we have enough params for TAP mode
 		if len(ifparams) > 1 {
 			// Is it a TAP adapter?
 			if ifparams[1] == "tap" {
 				iftapmode = true
 			}
+		}
+		// Check we have enough params for MTU
+		if len(ifparams) > 2 {
 			// Make sure the MTU is sane
 			ifmtu, err = strconv.Atoi(ifparams[2])
 			if err != nil || ifmtu < 1280 || ifmtu > 65535 {
