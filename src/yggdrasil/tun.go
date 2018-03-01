@@ -2,6 +2,7 @@ package yggdrasil
 
 // This manages the tun driver to send/recv packets to/from applications
 
+import "os"
 import ethernet "github.com/songgao/packets/ethernet"
 
 const IPv6_HEADER_LENGTH = 40
@@ -14,6 +15,7 @@ type tunInterface interface {
 	Read(to []byte) (int, error)
 	Write(from []byte) (int, error)
 	Close() error
+	FD() *os.File
 }
 
 type tunDevice struct {
