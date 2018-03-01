@@ -6,7 +6,7 @@ import (
 	"net"
 	"os/exec"
 
-	"github.com/songgao/water"
+	"github.com/neilalexander/water"
 )
 
 const mtu = 65535

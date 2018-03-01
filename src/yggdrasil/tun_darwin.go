@@ -8,7 +8,7 @@ import "strconv"
 import "encoding/binary"
 import "golang.org/x/sys/unix"
 
-import water "github.com/songgao/water"
+import water "github.com/neilalexander/water"
 
 func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	if iftapmode {

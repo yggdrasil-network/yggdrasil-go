@@ -7,7 +7,7 @@ import "fmt"
 import "os/exec"
 import "strings"
 
-import water "github.com/songgao/water"
+import water "github.com/neilalexander/water"
 
 func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	var config water.Config

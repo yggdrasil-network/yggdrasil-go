@@ -1,6 +1,6 @@
 package yggdrasil
 
-import water "github.com/songgao/water"
+import water "github.com/neilalexander/water"
 import "os/exec"
 import "strings"
 import "fmt"

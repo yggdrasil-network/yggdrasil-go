@@ -1,16 +1,10 @@
-// +build !linux
-// +build !darwin
-// +build !windows
-// +build !openbsd
-// +build !freebsd
-// +build !solaris
+// +build openbsd freebsd solaris
 
 package yggdrasil
 
 import water "github.com/neilalexander/water"
 
-// This is to catch unsupported platforms
-// If your platform supports tun devices, you could try configuring it manually
+// This is to catch BSD platforms
 
 func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	var config water.Config
@@ -19,6 +13,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 	} else {
 		config = water.Config{DeviceType: water.TUN}
 	}
+	config.Name = ifname
 	iface, err := water.New(config)
 	if err != nil {
 		panic(err)
