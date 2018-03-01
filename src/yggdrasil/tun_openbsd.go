@@ -12,6 +12,10 @@ import water "github.com/neilalexander/water"
 
 // This is to catch OpenBSD
 
+// TODO: Fix TUN mode for OpenBSD. It turns out that OpenBSD doesn't have a way
+// to disable the PI header when in TUN mode, so we need to modify the read/
+// writes to handle those first four bytes
+
 // Warning! When porting this to other BSDs, the tuninfo struct can appear with
 // the fields in a different order, and the consts below might also have
 // different values
@@ -56,11 +60,18 @@ type in6_aliasreq struct {
 
 func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	var config water.Config
+	if ifname[:4] == "auto" {
+		ifname = "/dev/tap0"
+	}
+	if len(ifname) < 9 {
+		panic("TUN/TAP name must be in format /dev/tunX or /dev/tapX")
+	}
 	switch {
 	case iftapmode || ifname[:8] == "/dev/tap":
 		config = water.Config{DeviceType: water.TAP}
 	case !iftapmode || ifname[:8] == "/dev/tun":
-		config = water.Config{DeviceType: water.TUN}
+		// config = water.Config{DeviceType: water.TUN}
+		panic("TUN mode is not currently supported on OpenBSD, please use TAP instead")
 	default:
 		panic("TUN/TAP name must be in format /dev/tunX or /dev/tapX")
 	}
