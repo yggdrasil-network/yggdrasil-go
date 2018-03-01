@@ -10,10 +10,17 @@ then
   exit -1
 fi
 
-PKGNAME=debian-yggdrasil
+PKGNAME=yggdrasil
 PKGARCH=${PKGARCH-amd64}
 PKGVERSION=0.$(git rev-list HEAD --count 2>/dev/null | xargs printf "%04d")
 PKGFILE=$PKGNAME-$PKGVERSION-$PKGARCH.deb
+
+if [ $PKGARCH = "amd64" ]; then GOARCH=amd64 GOOS=linux ./build
+elif [ $PKGARCH = "i386" ]; then GOARCH=386 GOOS=linux ./build
+else
+  echo "Specify PKGARCH=amd64 or PKGARCH=i386"
+  exit -1
+fi
 
 echo "Building $PKGFILE"
 
@@ -23,7 +30,7 @@ mkdir -p /tmp/$PKGNAME/usr/bin/
 mkdir -p /tmp/$PKGNAME/etc/systemd/system/
 
 cat > /tmp/$PKGNAME/debian/changelog << EOF
-Insert changelog here
+Please see https://github.com/Arceliar/yggdrasil-go/
 EOF
 echo 9 > /tmp/$PKGNAME/debian/compat
 cat > /tmp/$PKGNAME/debian/control << EOF
@@ -32,15 +39,15 @@ Version: $PKGVERSION
 Section: contrib/net
 Priority: extra
 Architecture: $PKGARCH
-Maintainer: Neil Alexander <neilalexander@noreply.users.github.com>
+Maintainer: Neil Alexander <neilalexander@users.noreply.github.com>
 Description: Debian yggdrasil package
  Binary yggdrasil package for Debian and Ubuntu
 EOF
 cat > /tmp/$PKGNAME/debian/copyright << EOF
-Insert copyright notice here
+Please see https://github.com/Arceliar/yggdrasil-go/
 EOF
 cat > /tmp/$PKGNAME/debian/docs << EOF
-Insert docs here
+Please see https://github.com/Arceliar/yggdrasil-go/
 EOF
 cat > /tmp/$PKGNAME/debian/install << EOF
 usr/bin/yggdrasil usr/bin
@@ -56,9 +63,6 @@ cat > /tmp/$PKGNAME/debian/prerm << EOF
 systemctl disable yggdrasil
 systemctl stop yggdrasil
 EOF
-
-if [ $PKGARCH = "amd64" ]; then GOARCH=amd64 GOOS=linux ./build; fi
-if [ $PKGARCH = "i386" ]; then GOARCH=386 GOOS=linux ./build; fi
 
 cp yggdrasil /tmp/$PKGNAME/usr/bin/
 cp contrib/systemd/yggdrasil.service /tmp/$PKGNAME/etc/systemd/system/
