@@ -1,4 +1,4 @@
-// +build openbsd freebsd solaris netbsd dragonfly
+// +build openbsd
 
 package yggdrasil
 
@@ -10,11 +10,24 @@ import "golang.org/x/sys/unix"
 
 import water "github.com/neilalexander/water"
 
-// This is to catch BSD platforms
+// This is to catch OpenBSD
+
+// Warning! When porting this to other BSDs, the tuninfo struct can appear with
+// the fields in a different order, and the consts below might also have
+// different values
+
+type tuninfo struct {
+	tun_mtu     uint16
+	tun_type    uint32
+	tun_flags   uint32
+	tun_dummy   uint16
+}
 
 const TUNSIFINFO = (0x80000000) | ((12 & 0x1fff) << 16) | uint32(byte('t'))<<8 | 91
 const TUNGIFINFO = (0x40000000) | ((12 & 0x1fff) << 16) | uint32(byte('t'))<<8 | 92
 const SIOCAIFADDR_IN6 = (0x80000000) | ((4 & 0x1fff) << 16) | uint32(byte('i'))<<8 | 27
+
+// Below this point seems to be fairly standard at least...
 
 type in6_addrlifetime struct {
 	ia6t_expire    float64
@@ -39,13 +52,6 @@ type in6_aliasreq struct {
 	ifra_prefixmask sockaddr_in6
 	ifra_flags      uint32
 	ifra_lifetime   in6_addrlifetime
-}
-
-type tuninfo struct {
-	tun_mtu     uint16
-	tun_type    uint32
-	tun_flags   uint32
-	tun_dummy   uint16
 }
 
 func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
