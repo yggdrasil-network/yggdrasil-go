@@ -3,7 +3,6 @@
 package yggdrasil
 
 import "os/exec"
-import "strings"
 import "unsafe"
 import "syscall"
 import "golang.org/x/sys/unix"
@@ -90,13 +89,17 @@ func (tun *tunDevice) setupAddress(addr string) error {
 	var err error
 	var ti tuninfo
 
+	tun.core.log.Printf("Interface name: %s", tun.iface.Name())
+	tun.core.log.Printf("Interface IPv6: %s", addr)
+	tun.core.log.Printf("Interface MTU: %d", tun.mtu)
+
 	// Get the existing interface flags
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(TUNGIFINFO), uintptr(unsafe.Pointer(&ti))); errno != 0 {
 		err = errno
 		tun.core.log.Printf("Error in TUNGIFINFO: %v", errno)
 		return err
 	}
-	tun.core.log.Printf("TUNGIFINFO: %+v", ti)
+	//tun.core.log.Printf("TUNGIFINFO: %+v", ti)
 
 	// Set the new MTU
 	ti.tun_mtu = uint16(tun.mtu)
@@ -112,7 +115,7 @@ func (tun *tunDevice) setupAddress(addr string) error {
 	}
 
 	// Set the new interface flags
-	tun.core.log.Printf("TUNSIFINFO: %+v", ti)
+	//tun.core.log.Printf("TUNSIFINFO: %+v", ti)
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(TUNSIFINFO), uintptr(unsafe.Pointer(&ti))); errno != 0 {
 		err = errno
 		tun.core.log.Printf("Error in TUNSIFINFO: %v", errno)
@@ -121,7 +124,7 @@ func (tun *tunDevice) setupAddress(addr string) error {
 
 	// Set address
 	cmd := exec.Command("ifconfig", tun.iface.Name(), "inet6", addr)
-	tun.core.log.Printf("ifconfig command: %v", strings.Join(cmd.Args, " "))
+	//tun.core.log.Printf("ifconfig command: %v", strings.Join(cmd.Args, " "))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		tun.core.log.Printf("ifconfig failed: %v.", err)
