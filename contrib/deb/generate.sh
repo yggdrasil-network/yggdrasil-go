@@ -57,7 +57,8 @@ systemctl disable yggdrasil
 systemctl stop yggdrasil
 EOF
 
-GOOS=linux GOARCH=$PKGARCH ./build
+if [ $PKGARCH = "amd64" ]; then GOARCH=amd64 GOOS=linux ./build; fi
+if [ $PKGARCH = "i386" ]; then GOARCH=386 GOOS=linux ./build; fi
 
 cp yggdrasil /tmp/$PKGNAME/usr/bin/
 cp contrib/systemd/yggdrasil.service /tmp/$PKGNAME/etc/systemd/system/
@@ -76,4 +77,3 @@ ar -r $PKGFILE \
   /tmp/$PKGNAME/data.tar.gz
 
 rm -rf /tmp/$PKGNAME
-
