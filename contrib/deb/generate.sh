@@ -10,15 +10,19 @@ then
   exit -1
 fi
 
-PKGNAME=yggdrasil
+PKGBRANCH=$(basename `git name-rev --name-only HEAD`)
+if [ "$PKGBRANCH" = "master" ]; then PKGNAME=yggdrasil
+else PKGNAME=yggdrasil-${PKGBRANCH}; fi
 PKGARCH=${PKGARCH-amd64}
 PKGVERSION=0.$(git rev-list HEAD --count 2>/dev/null | xargs printf "%04d")
 PKGFILE=$PKGNAME-$PKGVERSION-$PKGARCH.deb
 
 if [ $PKGARCH = "amd64" ]; then GOARCH=amd64 GOOS=linux ./build
 elif [ $PKGARCH = "i386" ]; then GOARCH=386 GOOS=linux ./build
+elif [ $PKGARCH = "mipsel" ]; then GOARCH=mipsle GOOS=linux ./build
+elif [ $PKGARCH = "mips" ]; then GOARCH=mips64 GOOS=linux ./build
 else
-  echo "Specify PKGARCH=amd64 or PKGARCH=i386"
+  echo "Specify PKGARCH=amd64,i386,mips,mipsel"
   exit -1
 fi
 
