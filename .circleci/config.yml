@@ -1,0 +1,56 @@
+# Golang CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/language-go/ for more details
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.9
+
+    working_directory: /go/src/github.com/{{ORG_NAME}}/{{REPO_NAME}}
+
+    steps:
+      - checkout
+      - run:
+          name: Create artifact upload directory
+          command: mkdir /tmp/upload
+
+      - run:
+          name: Build for Linux (including Debian packages)
+          command: |
+              PKGARCH=amd64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/yggdrasil-linux-amd64;
+              PKGARCH=i386 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/yggdrasil-linux-i386;
+              PKGARCH=mipsel sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/yggdrasil-linux-mipsel;
+              PKGARCH=mips sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/yggdrasil-linux-mips;
+              mv *.deb /tmp/upload/
+
+      - run:
+          name: Build for macOS
+          command: |
+              GOOS=darwin GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/yggdrasil-darwin-amd64;
+              GOOS=darwin GOARCH=386 ./build && mv yggdrasil /tmp/upload/yggdrasil-darwin-i386;
+
+      - run:
+          name: Build for OpenBSD
+          command: |
+              GOOS=openbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/yggdrasil-linux-amd64;
+              GOOS=openbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/yggdrasil-linux-i386;
+
+      - run:
+          name: Build for Windows
+          command: |
+              GOOS=windows GOARCH=amd64 ./build && mv yggdrasil.exe /tmp/upload/yggdrasil-windows-amd64.exe;
+              GOOS=windows GOARCH=386 ./build && mv yggdrasil.exe /tmp/upload/yggdrasil-windows-i386.exe;
+
+      - run:
+          name: Build for EdgeRouter
+          command: |
+              git clone https://github.com/neilalexander/vyatta-yggdrasil /tmp/vyatta-yggdrasil;
+              cd /tmp/vyatta-yggdrasil;
+              BUILDDIR_YGG=$CIRCLE_WORKING_DIRECTORY ./build-edgerouter-x $CIRCLE_BRANCH;
+              BUILDDIR_YGG=$CIRCLE_WORKING_DIRECTORY ./build-edgerouter-lite $CIRCLE_BRANCH;
+              mv *.deb /tmp/upload;
+
+      - store_artifacts:
+          path: /tmp/upload
+          destination: /
