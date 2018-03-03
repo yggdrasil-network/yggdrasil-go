@@ -231,9 +231,9 @@ func (c *Core) DEBUG_startTunWithMTU(ifname string, iftapmode bool, mtu int) {
 		if err != nil {
 			panic(err)
 		}
-		go c.tun.read()
+		go func() { panic(c.tun.read()) }()
 	}
-	go c.tun.write()
+	go func() { panic(c.tun.write()) }()
 }
 
 func (c *Core) DEBUG_stopTun() {
