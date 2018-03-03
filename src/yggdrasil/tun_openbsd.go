@@ -18,7 +18,7 @@ import water "github.com/neilalexander/water"
 func getDefaults() tunDefaultParameters {
 	return tunDefaultParameters{
 		maximumIfMTU:     16384,
-		defaultIfMTU:     DEFAULT_MTU,
+		defaultIfMTU:     16384,
 		defaultIfName:    "/dev/tap0",
 		defaultIfTAPMode: true,
 	}

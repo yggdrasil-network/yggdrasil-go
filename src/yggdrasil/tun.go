@@ -5,8 +5,6 @@ package yggdrasil
 import "os"
 import ethernet "github.com/songgao/packets/ethernet"
 
-const DEFAULT_MTU = 65535
-
 const IPv6_HEADER_LENGTH = 40
 const ETHER_HEADER_LENGTH = 14
 

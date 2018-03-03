@@ -10,7 +10,7 @@ import "fmt"
 func getDefaults() tunDefaultParameters {
 	return tunDefaultParameters{
 		maximumIfMTU:     65535,
-		defaultIfMTU:     DEFAULT_MTU,
+		defaultIfMTU:     65535,
 		defaultIfName:    "auto",
 		defaultIfTAPMode: true,
 	}
