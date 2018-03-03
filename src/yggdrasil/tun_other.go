@@ -7,9 +7,12 @@ import water "github.com/neilalexander/water"
 // This is to catch unsupported platforms
 // If your platform supports tun devices, you could try configuring it manually
 
-func defaultTUNParameters() tunDefaultParameters {
+func getDefaults() tunDefaultParameters {
 	return tunDefaultParameters{
-		maxMTU: 65535,
+		maximumIfMTU:     65535,
+		defaultIfMTU:     DEFAULT_MTU,
+		defaultIfName:    "none",
+		defaultIfTAPMode: false,
 	}
 }
 
@@ -25,7 +28,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = getMTUFromMax(mtu)
+	tun.mtu = getSupportedMTU(mtu)
 	return tun.setupAddress(addr)
 }
 

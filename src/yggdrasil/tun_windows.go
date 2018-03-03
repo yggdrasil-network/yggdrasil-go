@@ -7,9 +7,12 @@ import "fmt"
 
 // This is to catch Windows platforms
 
-func defaultTUNParameters() tunDefaultParameters {
+func getDefaults() tunDefaultParameters {
 	return tunDefaultParameters{
-		maxMTU: 65535,
+		maximumIfMTU:     65535,
+		defaultIfMTU:     DEFAULT_MTU,
+		defaultIfName:    "auto",
+		defaultIfTAPMode: true,
 	}
 }
 
@@ -47,7 +50,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = getMTUFromMax(mtu)
+	tun.mtu = getSupportedMTU(mtu)
 	err = tun.setupMTU(tun.mtu)
 	if err != nil {
 		panic(err)

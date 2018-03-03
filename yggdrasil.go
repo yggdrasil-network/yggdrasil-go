@@ -117,13 +117,9 @@ func generateConfig() *nodeConfig {
 	cfg.Peers = []string{}
 	cfg.Multicast = true
 	cfg.LinkLocal = ""
-	cfg.IfName = "auto"
-	cfg.IfMTU = 1280
-	if runtime.GOOS == "windows" {
-		cfg.IfTAPMode = true
-	} else {
-		cfg.IfTAPMode = false
-	}
+	cfg.IfName = core.DEBUG_GetTUNDefaultIfName()
+	cfg.IfMTU = core.DEBUG_GetTUNDefaultIfMTU()
+	cfg.IfTAPMode = core.DEBUG_GetTUNDefaultIfTAPMode()
 	return &cfg
 }
 

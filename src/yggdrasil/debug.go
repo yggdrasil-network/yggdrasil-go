@@ -159,6 +159,20 @@ func (c *Core) DEBUG_getDHTSize() int {
 	return total
 }
 
+// TUN defaults
+
+func (c *Core) DEBUG_GetTUNDefaultIfName() string {
+	return getDefaults().defaultIfName
+}
+
+func (c *Core) DEBUG_GetTUNDefaultIfMTU() int {
+	return getDefaults().defaultIfMTU
+}
+
+func (c *Core) DEBUG_GetTUNDefaultIfTAPMode() bool {
+	return getDefaults().defaultIfTAPMode
+}
+
 // udpInterface
 //  FIXME udpInterface isn't exported
 //  So debug functions need to work differently...

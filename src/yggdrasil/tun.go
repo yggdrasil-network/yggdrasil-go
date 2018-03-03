@@ -5,6 +5,8 @@ package yggdrasil
 import "os"
 import ethernet "github.com/songgao/packets/ethernet"
 
+const DEFAULT_MTU = 65535
+
 const IPv6_HEADER_LENGTH = 40
 const ETHER_HEADER_LENGTH = 14
 
@@ -28,12 +30,15 @@ type tunDevice struct {
 }
 
 type tunDefaultParameters struct {
-	maxMTU	int
+	maximumIfMTU	   int
+	defaultIfMTU     int
+	defaultIfName	   string
+	defaultIfTAPMode bool
 }
 
-func getMTUFromMax(mtu int) int {
-	if mtu > defaultTUNParameters().maxMTU {
-		return defaultTUNParameters().maxMTU
+func getSupportedMTU(mtu int) int {
+	if mtu > getDefaults().maximumIfMTU {
+		return getDefaults().maximumIfMTU
 	}
 	return mtu
 }

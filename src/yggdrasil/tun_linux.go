@@ -9,9 +9,12 @@ import "strings"
 
 import water "github.com/neilalexander/water"
 
-func defaultTUNParameters() tunDefaultParameters {
+func getDefaults() tunDefaultParameters {
 	return tunDefaultParameters{
-		maxMTU: 65535,
+		maximumIfMTU:     65535,
+		defaultIfMTU:     DEFAULT_MTU,
+		defaultIfName:    "auto",
+		defaultIfTAPMode: false,
 	}
 }
 
@@ -30,7 +33,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = getMTUFromMax(mtu)
+	tun.mtu = getSupportedMTU(mtu)
 	return tun.setupAddress(addr)
 }
 

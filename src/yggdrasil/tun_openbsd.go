@@ -15,9 +15,12 @@ import water "github.com/neilalexander/water"
 // to disable the PI header when in TUN mode, so we need to modify the read/
 // writes to handle those first four bytes
 
-func defaultTUNParameters() tunDefaultParameters {
+func getDefaults() tunDefaultParameters {
 	return tunDefaultParameters{
-		maxMTU: 16384,
+		maximumIfMTU:     16384,
+		defaultIfMTU:     DEFAULT_MTU,
+		defaultIfName:    "/dev/tap0",
+		defaultIfTAPMode: true,
 	}
 }
 
@@ -86,7 +89,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = getMTUFromMax(mtu)
+	tun.mtu = getSupportedMTU(mtu)
 	return tun.setupAddress(addr)
 }
 
