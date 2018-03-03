@@ -15,6 +15,12 @@ import water "github.com/neilalexander/water"
 // to disable the PI header when in TUN mode, so we need to modify the read/
 // writes to handle those first four bytes
 
+func defaultTUNParameters() tunDefaultParameters {
+	return tunDefaultParameters{
+		maxMTU: 16384,
+	}
+}
+
 // Warning! When porting this to other BSDs, the tuninfo struct can appear with
 // the fields in a different order, and the consts below might also have
 // different values
@@ -80,7 +86,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = mtu //1280 // Lets default to the smallest thing allowed for now
+	tun.mtu = getMTUFromMax(mtu)
 	return tun.setupAddress(addr)
 }
 

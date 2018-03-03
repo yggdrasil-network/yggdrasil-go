@@ -10,6 +10,12 @@ import "golang.org/x/sys/unix"
 
 import water "github.com/neilalexander/water"
 
+func defaultTUNParameters() tunDefaultParameters {
+	return tunDefaultParameters{
+		maxMTU: 65535,
+	}
+}
+
 func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	if iftapmode {
 		tun.core.log.Printf("TAP mode is not supported on this platform, defaulting to TUN")
@@ -20,7 +26,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = mtu
+	tun.mtu = getMTUFromMax(mtu)
 	return tun.setupAddress(addr)
 }
 

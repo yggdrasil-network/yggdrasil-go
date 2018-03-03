@@ -27,6 +27,17 @@ type tunDevice struct {
 	iface  tunInterface
 }
 
+type tunDefaultParameters struct {
+	maxMTU	int
+}
+
+func getMTUFromMax(mtu int) int {
+	if mtu > defaultTUNParameters().maxMTU {
+		return defaultTUNParameters().maxMTU
+	}
+	return mtu
+}
+
 func (tun *tunDevice) init(core *Core) {
 	tun.core = core
 	tun.icmpv6.init(tun)

@@ -7,6 +7,12 @@ import "fmt"
 
 // This is to catch Windows platforms
 
+func defaultTUNParameters() tunDefaultParameters {
+	return tunDefaultParameters{
+		maxMTU: 65535,
+	}
+}
+
 func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	if !iftapmode {
 		tun.core.log.Printf("TUN mode is not supported on this platform, defaulting to TAP")
@@ -41,7 +47,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = mtu
+	tun.mtu = getMTUFromMax(mtu)
 	err = tun.setupMTU(tun.mtu)
 	if err != nil {
 		panic(err)
