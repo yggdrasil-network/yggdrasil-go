@@ -66,7 +66,8 @@ func (tun *tunDevice) read() error {
 	for {
 		n, err := tun.iface.Read(buf)
 		if err != nil {
-			panic(err)
+			// panic(err)
+			return err
 		}
 		o := 0
 		if tun.iface.IsTAP() {
