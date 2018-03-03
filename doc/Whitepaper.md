@@ -47,11 +47,11 @@ Running `genkeys.go` will do this by default.
 A distributed hash table is used to facilitate the lookup of a node's name-dependent routing `coords` from a `NodeID`.
 A kademlia-like peer structure and xor metric are used in the DHT layout, but only peering info is used--there is no key:value store.
 In contrast with standard kademlia, instead of using iterative parallel lookups, a recursive lookup strategy is used.
-This is an intentional design decision to make the DHT more fragile--I explicitly want DHT inconsistencies to lead to lookup failures, because of concerns that the iterative parallel approach may hide DHT bugs.
+This is an intentional design decision to make the DHT more fragile--the intent is for DHT inconsistencies to lead to lookup failures, because of concerns that the iterative parallel approach may hide DHT bugs.
 
 In particular, the DHT is bootstrapped off of a node's one-hop neighbors, and I've observed that this causes a standard kademlia implementation to diverge in the general case.
 To get around this, buckets are updated more aggressively, and the least recently pinged node from each bucket is flushed to make room for new nodes as soon as a response is heard from them.
-This appears to fix the bootstrapping issues on all networks where I have previously found them, but recursive lookups are kept for the time being to continue monitoring the issue.
+This appears to fix the bootstrapping issues on all networks where they had been observed in testing, but recursive lookups are kept for the time being to continue monitoring the issue.
 However, recursive lookups require fewer round trips, so they are expected to be lower latency.
 As such, even if a switch to iterative parallel lookups was made, the recursive lookup functionality may be kept and used optimistically to minimize handshake time in stable networks.
 
@@ -77,11 +77,11 @@ The name dependent scheme is implemented in roughly the following way:
 7. The first hop, from the root, includes a signed sequence number which must increase (implemented as a unix timestamp, for convenience), which is used to detect root timeouts and prevent replays.
 
 The highest `TreeID` approach to root selection is just to ensure that nodes select the same root, otherwise distance calculations wouldn't work.
-Root selection has a minor effect on the stretch of the paths selected by the network, but this effect was seen to be small compared to the minimum stretch, for nearly all choices of root, so it seems like an OK approach to me, or at least better than any alternatives I could come up with.
+Root selection has a minor effect on the stretch of the paths selected by the network, but this effect was seen to be small compared to the minimum stretch, for nearly all choices of root.
 
 The current implementation tracks how long a neighbor has been advertising a locator for the same path, and it prefers to select a parent with a stable locator and a short distance to the root (maximize uptime/distance).
 When forwarding traffic, the next hop is selected taking bandwidth to the next hop and distance to the destination into account (maximize bandwidth/distance), subject to the requirement that distance must always decrease.
-The bandwidth estimation isn't very good, but it correlates well enough that e.g. when I have a slow wifi and a fast ethernet link to the same node, it typically uses the ethernet link.
+The bandwidth estimation isn't very good, but it correlates well enough that e.g. when a slow wifi and a fast ethernet link to the same node are available, it typically uses the ethernet link.
 However, if the ethernet link comes up while the wifi link is under heavy use, then it tends to keep using the wifi link until things settle down, and only switches to ethernet after the wireless link is no longer overloaded.
 A better approach to bandwidth estimation could probably switch to the new link faster.
 
@@ -90,11 +90,11 @@ Note that this forwarding procedure generalizes to nodes that are not one-hop ne
 ## Other implementation details
 
 In case you hadn't noticed, this implementation is written in Go.
-That decision was made because I felt like learning Go, and the language seemed like an OK choice for prototyping a network application.
+That decision was made because the designer and initial author (@Arceliar) felt like learning a new language when the implementation was started, and the Go language seemed like an OK choice for prototyping a network application.
 While Go's GC pauses are small, they do exist, so this implementation probably isn't suited to applications that require very low latency and jitter.
 
-Aside from that, I also tried to write each part of it to be as "bad" (i.e. fragile) as I could manage while still being technically correct.
-That's a decision made for debugging purposes: I want my bugs to be obvious, so I can more easily find them and fix them.
+Aside from that, an effort was made to write each part of it to be as "bad" (i.e. fragile) as could be managed while still being technically correct.
+That's a decision made for debugging purposes: the intent is to make any bugs as obvious as possible, so they can more easily be found and fixed in a small or simulated network.
 
 This implementation runs as an overlay network on top of regular IPv4 or IPv6 traffic.
 It uses link-local IPv6 multicast traffic to automatically connect to devices on the same network, but it can also be fed a list of address:port pairs to connect to.
@@ -109,22 +109,22 @@ This version includes only the name-dependent part of the routing scheme, but th
 In summary:
 
 1. Multiplicative stretch is approximately 1.08 with Yggdrasil, using unweighted links undirected links, as in the paper.
-2. A modified version can get this as low as 1.01, but it depends on knowing the degree of each one-hop neighbor, which I can think of no way to cryptographically secure, and it requires using source routing to find a path from A to B and from B to A, and then have both nodes use whichever path was observed to be shorter.
+2. A modified version can get this as low as 1.01, but it depends on knowing the degree of each one-hop neighbor, which it is not obviously possible to cryptographically secure, and it requires using source routing to find a path from A to B and from B to A, and then have both nodes use whichever path was observed to be shorter.
 3. In either case, approximately 6 routing table entries are needed, on average, for the name-dependent routing scheme, where each node needs one routing table entry per one-hop neighbor.
 4. Approximately 30 DHT entries are needed to facilitate name-independent routing.
 This requires a lookup and caches the results, so old information needs to time out to work on dynamic networks.
-The schemes it's being compared to only work on static networks, where a similar approach would be fine, so I think it's not a terrible comparison.
-The stretch of that initial lookup can be *very* high, but it's only for a couple of round trips to look up keys and then do the ephemeral key exchange, so I don't think it's likely to be a major issue (but probably still a little more expensive than a DNS lookup).
+The schemes it's being compared to only work on static networks, where a similar approach would be fine, so this seems like a reasonably fair comparison.
+The stretch of that initial lookup can be *very* high, but it's only for a couple of round trips to look up keys and then do the ephemeral key exchange, so this may be an acceptable tradeoff (it's probably more expensive than a DNS lookup, but is similar in principle and effect).
 5. Both the name-dependent and name-independent routing table entries are of a size proportional to the length of the path between the root and the node, which is at most the diameter of the network after things have fully converged, but name-dependent routing table entries tend to be much larger in practice due to the size of cryptographic signatures (64 bytes for a signature + 32 for the signing key).
 6. The name-dependent routing scheme only sends messages about one-hop neighbors on the link between those neighbors, so if you measure things by per *link* overhead instead of per *node*, then this doesn't seem so bad to me.
 7. The name-independent routing scheme scales like a DHT running as an overlay on top of the router-level topology, so the per-link and per-node overhead are going to be topology dependent.
-I haven't studied them in a lot of detail, but for realistic topologies, I don't see an obvious reason to think this is a problem.
+This hasn't been studied in a lot of detail, but for realistic topologies, where yggdrasil routing seems to approximate shortest path routing, academic research has shown that shortest path routing does not lead to congestion.
 
-I think the main reason Yggdrasil performs so well is because it stores information about all one-hop neighbors.
-Consider that, if Yggdrasil did not maintain state about all one-hop neighbors, but the protocol still had the ability to forward to all of them, then I OS still needs a way to forward traffic to them.
-In most cases, I think this would require some form of per-neighbor state to be stored by the OS, either because there's one dedicated interface per peer or because there are entries in an arp/NDP table to reach multiple devices over a shared switch.
-So while compact routing schemes have nice theoretical limits that don't even require one entry per one-hop neighbor, I don't think current real machines can benefit from that property if the routing scheme is used at the router level.
-As such, I don't think keeping one entry per neighbor is a problem, especially if nodes with a high degree have proportionally more resources available to them, but I could be overlooking something.
+The designer (@Arceliar) believes that the main reason Yggdrasil performs so well is because it stores information about all one-hop neighbors.
+Consider that, if Yggdrasil did not maintain state about all one-hop neighbors, but the protocol still had the ability to forward to all of them through some mechanism (i.e. source routing), then the OS still needs a way to forward traffic to them.
+In most cases, this would require some form of per-neighbor state to be stored by the OS, either because there's one dedicated interface per peer or because there are entries in an arp/NDP table to reach multiple devices over a shared switch.
+So while compact routing schemes have nice theoretical limits, which do not require even as much state as one entry per one-hop neighbor, that property does not seem realistic if the implementation is running at the router level (as opposed to the AS level).
+As such, keeping one entry per neighbor may be reasonable, especially if nodes with a high degree have proportionally more resources available to them, but it is possible that something may have been overlooked in the design.
 
 ## Disclaimer
 
