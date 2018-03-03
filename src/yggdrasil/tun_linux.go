@@ -7,7 +7,16 @@ import "fmt"
 import "os/exec"
 import "strings"
 
-import water "github.com/songgao/water"
+import water "github.com/neilalexander/water"
+
+func getDefaults() tunDefaultParameters {
+	return tunDefaultParameters{
+		maximumIfMTU:     65535,
+		defaultIfMTU:     65535,
+		defaultIfName:    "auto",
+		defaultIfTAPMode: false,
+	}
+}
 
 func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	var config water.Config
@@ -24,7 +33,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = mtu //1280 // Lets default to the smallest thing allowed for now
+	tun.mtu = getSupportedMTU(mtu)
 	return tun.setupAddress(addr)
 }
 

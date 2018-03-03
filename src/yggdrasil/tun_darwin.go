@@ -8,7 +8,16 @@ import "strconv"
 import "encoding/binary"
 import "golang.org/x/sys/unix"
 
-import water "github.com/songgao/water"
+import water "github.com/neilalexander/water"
+
+func getDefaults() tunDefaultParameters {
+	return tunDefaultParameters{
+		maximumIfMTU:     65535,
+		defaultIfMTU:     65535,
+		defaultIfName:    "auto",
+		defaultIfTAPMode: false,
+	}
+}
 
 func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	if iftapmode {
@@ -20,7 +29,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = mtu
+	tun.mtu = getSupportedMTU(mtu)
 	return tun.setupAddress(addr)
 }
 

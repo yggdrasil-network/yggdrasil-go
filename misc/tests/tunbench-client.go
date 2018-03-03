@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/songgao/water"
+	"github.com/neilalexander/water"
 )
 
 const mtu = 65535

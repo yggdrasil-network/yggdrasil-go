@@ -1,11 +1,20 @@
 package yggdrasil
 
-import water "github.com/songgao/water"
+import water "github.com/neilalexander/water"
 import "os/exec"
 import "strings"
 import "fmt"
 
 // This is to catch Windows platforms
+
+func getDefaults() tunDefaultParameters {
+	return tunDefaultParameters{
+		maximumIfMTU:     65535,
+		defaultIfMTU:     65535,
+		defaultIfName:    "auto",
+		defaultIfTAPMode: true,
+	}
+}
 
 func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	if !iftapmode {
@@ -41,7 +50,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = mtu
+	tun.mtu = getSupportedMTU(mtu)
 	err = tun.setupMTU(tun.mtu)
 	if err != nil {
 		panic(err)
