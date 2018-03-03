@@ -28,9 +28,9 @@ type tunDevice struct {
 }
 
 type tunDefaultParameters struct {
-	maximumIfMTU	   int
+	maximumIfMTU     int
 	defaultIfMTU     int
-	defaultIfName	   string
+	defaultIfName    string
 	defaultIfTAPMode bool
 }
 

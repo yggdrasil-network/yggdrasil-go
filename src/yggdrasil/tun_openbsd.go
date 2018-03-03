@@ -29,10 +29,10 @@ func getDefaults() tunDefaultParameters {
 // different values
 
 type tuninfo struct {
-	tun_mtu     uint16
-	tun_type    uint32
-	tun_flags   uint32
-	tun_dummy   uint16
+	tun_mtu   uint16
+	tun_type  uint32
+	tun_flags uint32
+	tun_dummy uint16
 }
 
 const TUNSIFINFO = (0x80000000) | ((12 & 0x1fff) << 16) | uint32(byte('t'))<<8 | 91
