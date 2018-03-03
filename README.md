@@ -1,6 +1,6 @@
 # Yggdrasil
 
-[![Build Status](https://api.travis-ci.org/Arceliar/yggdrasil-go.svg?branch=master)](https://travis-ci.org/Arceliar/yggdrasil-go)
+[![Build Status](https://api.travis-ci.org/yggdrasil-network/yggdrasil-go.svg?branch=master)](https://travis-ci.org/yggdrasil-network/yggdrasil-go)
 
 ## What is it?
 
