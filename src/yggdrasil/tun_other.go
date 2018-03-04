@@ -1,4 +1,4 @@
-// +build !linux,!darwin,!windows,!openbsd,!freebsd
+// +build !linux,!darwin,!windows,!openbsd,!freebsd,!netbsd
 
 package yggdrasil
 
