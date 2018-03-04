@@ -48,10 +48,9 @@ func (ti *tuninfo) setInfo(tun *tunDevice) {
 	case tun.iface.IsTUN():
 		ti.tun_flags |= syscall.IFF_POINTOPOINT
 	}
-  ti.tun_mtu = uint32(tun.mtu)
+	ti.tun_mtu = uint32(tun.mtu)
 }
 
 const TUNSIFINFO = (0x80000000) | ((12 & 0x1fff) << 16) | uint32(byte('t'))<<8 | 91
 const TUNGIFINFO = (0x40000000) | ((12 & 0x1fff) << 16) | uint32(byte('t'))<<8 | 92
 const SIOCAIFADDR_IN6 = (0x80000000) | ((4 & 0x1fff) << 16) | uint32(byte('i'))<<8 | 27
-

@@ -2,7 +2,7 @@ package yggdrasil
 
 import "os/exec"
 import "unsafe"
-//import "syscall"
+
 import "golang.org/x/sys/unix"
 
 import water "github.com/yggdrasil-network/water"
@@ -44,7 +44,6 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 	case iftapmode || ifname[:8] == "/dev/tap":
 		config = water.Config{DeviceType: water.TAP}
 	case !iftapmode || ifname[:8] == "/dev/tun":
-		//config = water.Config{DeviceType: water.TUN}
 		panic("TUN mode is not currently supported on this platform, please use TAP instead")
 	default:
 		panic("TUN/TAP name must be in format /dev/tunX or /dev/tapX")
@@ -62,7 +61,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 func (tun *tunDevice) setupAddress(addr string) error {
 	fd := tun.iface.FD().Fd()
 	var err error
-  var ti tuninfo
+	var ti tuninfo
 
 	tun.core.log.Printf("Interface name: %s", tun.iface.Name())
 	tun.core.log.Printf("Interface IPv6: %s", addr)
@@ -75,8 +74,8 @@ func (tun *tunDevice) setupAddress(addr string) error {
 		return err
 	}
 
-  // Update with any OS-specific flags, MTU, etc.
-  ti.setInfo(tun)
+	// Update with any OS-specific flags, MTU, etc.
+	ti.setInfo(tun)
 
 	// Set the new interface flags
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(TUNSIFINFO), uintptr(unsafe.Pointer(&ti))); errno != 0 {

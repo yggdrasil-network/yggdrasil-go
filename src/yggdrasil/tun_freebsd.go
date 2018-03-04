@@ -34,11 +34,10 @@ type tuninfo struct {
 }
 
 func (ti *tuninfo) setInfo(tun *tunDevice) {
-  ti.tun_mtu = int16(tun.mtu)
+	ti.tun_mtu = int16(tun.mtu)
 }
 
 const TUNSIFINFO = (0x80000000) | ((8 & 0x1fff) << 16) | uint32(byte('t'))<<8 | 91
 const TUNGIFINFO = (0x40000000) | ((8 & 0x1fff) << 16) | uint32(byte('t'))<<8 | 92
 const TUNSIFHEAD = (0x80000000) | ((4 & 0x1fff) << 16) | uint32(byte('t'))<<8 | 96
 const SIOCAIFADDR_IN6 = (0x80000000) | ((4 & 0x1fff) << 16) | uint32(byte('i'))<<8 | 27
-
