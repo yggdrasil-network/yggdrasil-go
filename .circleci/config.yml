@@ -15,7 +15,7 @@ jobs:
           name: Create artifact upload directory and set variables
           command: |
               mkdir /tmp/upload
-              echo 'export CIBUILD=0.1.$(git rev-list HEAD --count | xargs printf "%04d")' >> $BASH_ENV
+              echo 'export CIBUILD=$(cat VERSION).$(git rev-list HEAD --count | xargs printf "%04d")' >> $BASH_ENV
               echo 'export CIBRANCH=$(git name-rev --name-only HEAD)' >> $BASH_ENV
               echo '[ "$CIBRANCH" != "master" ] && export CIVERSION=$CIBRANCH-$CIBUILD || export CIVERSION=$CIBUILD' >> $BASH_ENV
 
