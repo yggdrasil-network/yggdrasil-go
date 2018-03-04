@@ -1,8 +1,8 @@
-// +build !linux,!darwin,!windows,!openbsd
+// +build !linux,!darwin,!windows,!openbsd,!freebsd
 
 package yggdrasil
 
-import water "github.com/neilalexander/water"
+import water "github.com/yggdrasil-network/water"
 
 // This is to catch unsupported platforms
 // If your platform supports tun devices, you could try configuring it manually
