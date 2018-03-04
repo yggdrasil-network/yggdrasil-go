@@ -12,35 +12,39 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Create artifact upload directory
-          command: mkdir /tmp/upload
+          name: Create artifact upload directory and set variables
+          command: |
+              mkdir /tmp/upload
+              echo 'export CIBUILD=$(cat VERSION).$(git rev-list HEAD --count | xargs printf "%04d")' >> $BASH_ENV
+              echo 'export CIBRANCH=$(git name-rev --name-only HEAD)' >> $BASH_ENV
+              echo '[ "$CIBRANCH" != "master" ] && export CIVERSION=$CIBRANCH-$CIBUILD || export CIVERSION=$CIBUILD' >> $BASH_ENV
 
       - run:
           name: Build for Linux (including Debian packages)
           command: |
-              PKGARCH=amd64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/yggdrasil-linux-amd64;
-              PKGARCH=i386 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/yggdrasil-linux-i386;
-              PKGARCH=mipsel sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/yggdrasil-linux-mipsel;
-              PKGARCH=mips sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/yggdrasil-linux-mips;
+              PKGARCH=amd64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/yggdrasil-$CIVERSION-linux-amd64;
+              PKGARCH=i386 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/yggdrasil-$CIVERSION-linux-i386;
+              PKGARCH=mipsel sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/yggdrasil-$CIVERSION-linux-mipsel;
+              PKGARCH=mips sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/yggdrasil-$CIVERSION-linux-mips;
               mv *.deb /tmp/upload/
 
       - run:
           name: Build for macOS
           command: |
-              GOOS=darwin GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/yggdrasil-darwin-amd64;
-              GOOS=darwin GOARCH=386 ./build && mv yggdrasil /tmp/upload/yggdrasil-darwin-i386;
+              GOOS=darwin GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/yggdrasil-$CIVERSION-darwin-amd64;
+              GOOS=darwin GOARCH=386 ./build && mv yggdrasil /tmp/upload/yggdrasil-$CIVERSION-darwin-i386;
 
       - run:
           name: Build for OpenBSD
           command: |
-              GOOS=openbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/yggdrasil-linux-amd64;
-              GOOS=openbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/yggdrasil-linux-i386;
+              GOOS=openbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/yggdrasil-$CIVERSION-linux-amd64;
+              GOOS=openbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/yggdrasil-$CIVERSION-linux-i386;
 
       - run:
           name: Build for Windows
           command: |
-              GOOS=windows GOARCH=amd64 ./build && mv yggdrasil.exe /tmp/upload/yggdrasil-windows-amd64.exe;
-              GOOS=windows GOARCH=386 ./build && mv yggdrasil.exe /tmp/upload/yggdrasil-windows-i386.exe;
+              GOOS=windows GOARCH=amd64 ./build && mv yggdrasil.exe /tmp/upload/yggdrasil-$CIVERSION-windows-amd64.exe;
+              GOOS=windows GOARCH=386 ./build && mv yggdrasil.exe /tmp/upload/yggdrasil-$CIVERSION-windows-i386.exe;
 
       - run:
           name: Build for EdgeRouter

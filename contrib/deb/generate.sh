@@ -14,7 +14,7 @@ PKGBRANCH=$(basename `git name-rev --name-only HEAD`)
 if [ "$PKGBRANCH" = "master" ]; then PKGNAME=yggdrasil
 else PKGNAME=yggdrasil-${PKGBRANCH}; fi
 PKGARCH=${PKGARCH-amd64}
-PKGVERSION=0.$(git rev-list HEAD --count 2>/dev/null | xargs printf "%04d")
+PKGVERSION=$(cat VERSION).$(git rev-list HEAD --count 2>/dev/null | xargs printf "%04d")
 PKGFILE=$PKGNAME-$PKGVERSION-$PKGARCH.deb
 
 if [ $PKGARCH = "amd64" ]; then GOARCH=amd64 GOOS=linux ./build
