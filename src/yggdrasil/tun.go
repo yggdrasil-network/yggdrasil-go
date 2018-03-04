@@ -2,21 +2,11 @@ package yggdrasil
 
 // This manages the tun driver to send/recv packets to/from applications
 
-import "os"
-import ethernet "github.com/songgao/packets/ethernet"
+import "github.com/songgao/packets/ethernet"
+import "github.com/yggdrasil-network/water"
 
 const IPv6_HEADER_LENGTH = 40
 const ETHER_HEADER_LENGTH = 14
-
-type tunInterface interface {
-	IsTUN() bool
-	IsTAP() bool
-	Name() string
-	Read(to []byte) (int, error)
-	Write(from []byte) (int, error)
-	Close() error
-	FD() *os.File
-}
 
 type tunDevice struct {
 	core   *Core
@@ -24,7 +14,7 @@ type tunDevice struct {
 	send   chan<- []byte
 	recv   <-chan []byte
 	mtu    int
-	iface  tunInterface
+	iface  *water.Interface
 }
 
 type tunDefaultParameters struct {
