@@ -2,21 +2,17 @@ package yggdrasil
 
 import "os/exec"
 import "unsafe"
-import "syscall"
+//import "syscall"
 import "golang.org/x/sys/unix"
 
 import water "github.com/yggdrasil-network/water"
 
-// This is to catch OpenBSD
-
-// TODO: Fix TUN mode for OpenBSD. It turns out that OpenBSD doesn't have a way
-// to disable the PI header when in TUN mode, so we need to modify the read/
-// writes to handle those first four bytes
+// This is to catch FreeBSD and NetBSD
 
 func getDefaults() tunDefaultParameters {
 	return tunDefaultParameters{
-		maximumIfMTU:     16384,
-		defaultIfMTU:     16384,
+		maximumIfMTU:     32767,
+		defaultIfMTU:     32767,
 		defaultIfName:    "/dev/tap0",
 		defaultIfTAPMode: true,
 	}
@@ -27,25 +23,26 @@ func getDefaults() tunDefaultParameters {
 // different values
 
 /*
-OpenBSD, net/if_tun.h:
+FreeBSD/NetBSD, net/if_tun.h:
 
 struct tuninfo {
-        u_int   mtu;
-        u_short type;
-        u_short flags;
-        u_int   baudrate;
+	int	baudrate;
+	short	mtu;
+	u_char	type;
+	u_char	dummy;
 };
 */
 
 type tuninfo struct {
-	tun_mtu      uint32
-	tun_type     uint16
-	tun_flags    uint16
-	tun_baudrate uint32
+	tun_baudrate int32
+	tun_mtu      int16
+	tun_type     uint8
+	tun_dummy    uint8
 }
 
-const TUNSIFINFO = (0x80000000) | ((12 & 0x1fff) << 16) | uint32(byte('t'))<<8 | 91
-const TUNGIFINFO = (0x40000000) | ((12 & 0x1fff) << 16) | uint32(byte('t'))<<8 | 92
+const TUNSIFINFO = (0x80000000) | ((8 & 0x1fff) << 16) | uint32(byte('t'))<<8 | 91
+const TUNGIFINFO = (0x40000000) | ((8 & 0x1fff) << 16) | uint32(byte('t'))<<8 | 92
+const TUNSIFHEAD = (0x80000000) | ((4 & 0x1fff) << 16) | uint32(byte('t'))<<8 | 96
 const SIOCAIFADDR_IN6 = (0x80000000) | ((4 & 0x1fff) << 16) | uint32(byte('i'))<<8 | 27
 
 // Below this point seems to be fairly standard at least...
@@ -87,7 +84,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 	case iftapmode || ifname[:8] == "/dev/tap":
 		config = water.Config{DeviceType: water.TAP}
 	case !iftapmode || ifname[:8] == "/dev/tun":
-		// config = water.Config{DeviceType: water.TUN}
+		//config = water.Config{DeviceType: water.TUN}
 		panic("TUN mode is not currently supported on this platform, please use TAP instead")
 	default:
 		panic("TUN/TAP name must be in format /dev/tunX or /dev/tapX")
@@ -117,23 +114,11 @@ func (tun *tunDevice) setupAddress(addr string) error {
 		tun.core.log.Printf("Error in TUNGIFINFO: %v", errno)
 		return err
 	}
-	//tun.core.log.Printf("TUNGIFINFO: %+v", ti)
 
 	// Set the new MTU
-	ti.tun_mtu = uint32(tun.mtu)
+	ti.tun_mtu = int16(tun.mtu)
 
 	// Set the new interface flags
-	ti.tun_flags |= syscall.IFF_UP
-	switch {
-	case tun.iface.IsTAP():
-		ti.tun_flags |= syscall.IFF_MULTICAST
-		ti.tun_flags |= syscall.IFF_BROADCAST
-	case tun.iface.IsTUN():
-		ti.tun_flags |= syscall.IFF_POINTOPOINT
-	}
-
-	// Set the new interface flags
-	//tun.core.log.Printf("TUNSIFINFO: %+v", ti)
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(TUNSIFINFO), uintptr(unsafe.Pointer(&ti))); errno != 0 {
 		err = errno
 		tun.core.log.Printf("Error in TUNSIFINFO: %v", errno)

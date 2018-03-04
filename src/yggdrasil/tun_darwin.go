@@ -8,7 +8,7 @@ import "strconv"
 import "encoding/binary"
 import "golang.org/x/sys/unix"
 
-import water "github.com/neilalexander/water"
+import water "github.com/yggdrasil-network/water"
 
 func getDefaults() tunDefaultParameters {
 	return tunDefaultParameters{

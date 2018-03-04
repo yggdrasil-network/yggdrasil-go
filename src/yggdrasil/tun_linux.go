@@ -7,7 +7,7 @@ import "errors"
 import "fmt"
 import "net"
 
-import water "github.com/neilalexander/water"
+import water "github.com/yggdrasil-network/water"
 
 import "github.com/docker/libcontainer/netlink"
 
