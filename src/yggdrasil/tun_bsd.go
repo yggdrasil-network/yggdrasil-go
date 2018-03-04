@@ -2,12 +2,13 @@
 
 package yggdrasil
 
+import "os"
 import "os/exec"
 import "unsafe"
 
 import "golang.org/x/sys/unix"
 
-import water "github.com/yggdrasil-network/water"
+import "github.com/yggdrasil-network/water"
 
 type in6_addrlifetime struct {
 	ia6t_expire    float64
@@ -61,7 +62,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 }
 
 func (tun *tunDevice) setupAddress(addr string) error {
-	fd := tun.iface.FD().Fd()
+	fd := tun.iface.ReadWriteCloser.(*os.File).Fd()
 	var err error
 	var ti tuninfo
 
