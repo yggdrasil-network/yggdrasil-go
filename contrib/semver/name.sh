@@ -3,12 +3,6 @@
 # Get the branch name
 BRANCH=$(git name-rev --name-only HEAD 2>/dev/null)
 
-# Check if the branch name check fails
-if [ $? != 0 ]; then
-  printf "yggdrasil"
-  exit 0
-fi
-
 # Check if the branch name is not master
 if [ "$BRANCH" = "master" ]; then
   printf "yggdrasil"

@@ -16,7 +16,7 @@ jobs:
           command: |
               mkdir /tmp/upload
               echo 'export CINAME=$(sh contrib/semver/name.sh)' >> $BASH_ENV
-              echo 'export CIVERSION=$(sh contrib/semver/version.sh)' >> $BASH_ENV
+              echo 'export CIVERSION=$(sh contrib/semver/version.sh | cut -c 2-)' >> $BASH_ENV
 
       - run:
           name: Build for Linux (including Debian packages)
