@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Get the last tag
-TAG=$(git describe --abbrev=0 --tags 2>/dev/null)
+TAG=$(git describe --abbrev=0 --tags --match=v* 2>/dev/null)
 
 # Get the number of commits from the last tag, or if not, from
 # the first commit
