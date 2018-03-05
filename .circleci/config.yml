@@ -37,8 +37,20 @@ jobs:
       - run:
           name: Build for OpenBSD
           command: |
-              GOOS=openbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/yggdrasil-$CIVERSION-linux-amd64;
-              GOOS=openbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/yggdrasil-$CIVERSION-linux-i386;
+              GOOS=openbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/yggdrasil-$CIVERSION-openbsd-amd64;
+              GOOS=openbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/yggdrasil-$CIVERSION-openbsd-i386;
+
+      - run:
+          name: Build for FreeBSD
+          command: |
+              GOOS=freebsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/yggdrasil-$CIVERSION-freebsd-amd64;
+              GOOS=freebsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/yggdrasil-$CIVERSION-freebsd-i386;
+
+      - run:
+          name: Build for NetBSD
+          command: |
+              GOOS=netbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/yggdrasil-$CIVERSION-netbsd-amd64;
+              GOOS=netbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/yggdrasil-$CIVERSION-netbsd-i386;
 
       - run:
           name: Build for Windows

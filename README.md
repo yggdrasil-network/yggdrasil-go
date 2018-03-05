@@ -71,7 +71,7 @@ journalctl -u yggdrasil
 - May work in theory on any macOS version with `utun` support (which was added in macOS 10.7 Lion), although this is untested at present.
 - TAP mode is not supported on macOS.
 
-#### FreeBSD, OpenBSD
+#### FreeBSD, OpenBSD, NetBSD
 
 - Works in TAP mode, but currently doesn't work in TUN mode.
 - You may need to create the TAP adapter first if it doesn't already exist, i.e. `ifconfig tap0 create`.
