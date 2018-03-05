@@ -1,20 +1,15 @@
 #!/bin/sh
 
 # Get the last tag
-TAG=$(git describe --abbrev=0 --tags --match=v* 2>/dev/null)
+TAG=$(git describe --abbrev=0 --tags --match="v[0-9]*\.[0-9]*\.[0-9]*" 2>/dev/null)
 
-# Get the number of commits from the last tag, or if not, from
-# the first commit
-COUNT=$( \
-  git rev-list v$TAG..HEAD --count 2>/dev/null || \
-  git rev-list HEAD --count 2>/dev/null \
-)
+# Get the number of commits from the last tag
+COUNT=$(git rev-list $TAG..HEAD --count 2>/dev/null)
 
-# Check if it matches the vX.Y.Z format
-grep "v[0-9]*\.[0-9]*\.[0-9]*" <<< $TAG &>/dev/null
+# If it fails then there's no last tag - go from the first commit
+if [ $? != 0 ]; then
+  COUNT=$(git rev-list HEAD --count 2>/dev/null)
 
-# If it doesn't, abort
-if [ $? -ne 0 ]; then
   printf 'v0.0.0-%d' "$COUNT"
   exit -1
 fi
