@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Get the branch name
-BRANCH=$(git name-rev --name-only HEAD 2>/dev/null)
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
 
 # Check if the branch name is not master
 if [ "$BRANCH" = "master" ]; then
