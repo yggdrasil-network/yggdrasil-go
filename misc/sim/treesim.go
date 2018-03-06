@@ -412,10 +412,10 @@ func main() {
 	}
 	fmt.Println("Test")
 	Util_testAddrIDMask()
-	idxstore := makeStoreSquareGrid(4)
+	//idxstore := makeStoreSquareGrid(4)
 	//idxstore := makeStoreStar(256)
 	//idxstore := loadGraph("misc/sim/hype-2016-09-19.list")
-	//idxstore := loadGraph("misc/sim/fc00-2017-08-12.txt")
+	idxstore := loadGraph("misc/sim/fc00-2017-08-12.txt")
 	//idxstore := loadGraph("skitter")
 	kstore := getKeyedStore(idxstore)
 	/*
