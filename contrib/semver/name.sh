@@ -1,7 +1,7 @@
 #!/bin/sh
 
-# Get the branch name
-BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
+# Get the branch name, removing any "/" characters from pull requests
+BRANCH=$(git symbolic-ref --short HEAD | tr -d "/" 2>/dev/null)
 
 # Check if the branch name is not master
 if [ "$BRANCH" = "master" ]; then
@@ -10,5 +10,4 @@ if [ "$BRANCH" = "master" ]; then
 fi
 
 # If it is something other than master, append it
-# Remove any "/" characters from e.g. "pull/N"
-printf "yggdrasil-%s" "${BRANCH/\//}"
+printf "yggdrasil-%s" "$BRANCH"
