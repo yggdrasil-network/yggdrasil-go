@@ -894,9 +894,7 @@ if __name__ == "__main__":
     args = sys.argv
     if len(args) == 2:
       job_number = int(sys.argv[1])
-      #rootNodeASTest("fc00-2017-08-12.txt", "fc00", None, job_number)
-      #rootNodeASTest("skitter", "out-skitter", None, job_number)
-      rootNodeASTest("walk-1517414401.txt.map", "out-walk", None, job_number)
+      rootNodeASTest("fc00-2017-08-12.txt", "fc00", None, job_number)
     else:
       print "Usage: {} job_number".format(args[0])
       print "job_number = which job set to run on this node (1-indexed)"

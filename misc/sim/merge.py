@@ -59,3 +59,4 @@ print "Total paths found: {}".format(total)
 print "Bandwidth usage: {}".format(bandwidthUsage)
 print "Average stretch: {}".format(avgStretch)
 
+
