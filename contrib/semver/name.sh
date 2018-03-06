@@ -10,4 +10,5 @@ if [ "$BRANCH" = "master" ]; then
 fi
 
 # If it is something other than master, append it
-printf "yggdrasil-%s" "$BRANCH"
+# Remove any "/" characters from e.g. "pull/N"
+printf "yggdrasil-%s" "${BRANCH/\//}"
