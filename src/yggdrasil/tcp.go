@@ -51,7 +51,7 @@ func (iface *tcpInterface) init(core *Core, addr string) {
 
 func (iface *tcpInterface) listener() {
 	defer iface.serv.Close()
-	iface.core.log.Println("Listening on:", iface.serv.Addr().String())
+	iface.core.log.Println("Listening for TCP on:", iface.serv.Addr().String())
 	for {
 		sock, err := iface.serv.AcceptTCP()
 		if err != nil {
