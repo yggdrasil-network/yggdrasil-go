@@ -265,6 +265,7 @@ func (iface *udpInterface) handlePacket(msg []byte, addr connAddr) {
 }
 
 func (iface *udpInterface) reader() {
+	iface.core.log.Println("Listening for UDP on:", iface.sock.LocalAddr().String())
 	bs := make([]byte, 65536) // This needs to be large enough for everything...
 	for {
 		n, udpAddr, err := iface.sock.ReadFromUDP(bs)
