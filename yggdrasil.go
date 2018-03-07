@@ -113,7 +113,7 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 		cfg.Listen = "[::]:0"
 	} else {
 		r1 := rand.New(rand.NewSource(time.Now().UnixNano()))
-		cfg.Listen = fmt.Sprintf("[::]:%d", r1.Intn(65534 - 1024) + 1024)
+		cfg.Listen = fmt.Sprintf("[::]:%d", r1.Intn(65534 - 32768) + 32768)
 	}
 	cfg.AdminListen = "[::1]:9001"
 	cfg.BoxPub = hex.EncodeToString(bpub[:])
