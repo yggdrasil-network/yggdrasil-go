@@ -12,6 +12,7 @@ import "os/signal"
 import "syscall"
 import "time"
 import "regexp"
+import "math/rand"
 
 import _ "net/http/pprof"
 import "net/http"
@@ -103,12 +104,17 @@ func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
 	}()
 }
 
-func generateConfig() *nodeConfig {
+func generateConfig(isAutoconf bool) *nodeConfig {
 	core := Core{}
 	bpub, bpriv := core.DEBUG_newBoxKeys()
 	spub, spriv := core.DEBUG_newSigKeys()
 	cfg := nodeConfig{}
-	cfg.Listen = "[::]:0"
+	if isAutoconf {
+		cfg.Listen = "[::]:0"
+	} else {
+		r1 := rand.New(rand.NewSource(time.Now().UnixNano()))
+		cfg.Listen = fmt.Sprintf("[::]:%d", r1.Intn(65534 - 32768) + 32768)
+	}
 	cfg.AdminListen = "[::1]:9001"
 	cfg.BoxPub = hex.EncodeToString(bpub[:])
 	cfg.BoxPriv = hex.EncodeToString(bpriv[:])
@@ -124,7 +130,7 @@ func generateConfig() *nodeConfig {
 }
 
 func doGenconf() string {
-	cfg := generateConfig()
+	cfg := generateConfig(false)
 	bs, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		panic(err)
@@ -235,7 +241,7 @@ func main() {
 	var cfg *nodeConfig
 	switch {
 	case *autoconf:
-		cfg = generateConfig()
+		cfg = generateConfig(true)
 	case *useconffile != "" || *useconf:
 		var config []byte
 		var err error
@@ -248,7 +254,7 @@ func main() {
 			panic(err)
 		}
 		decoder := json.NewDecoder(bytes.NewReader(config))
-		cfg = generateConfig()
+		cfg = generateConfig(false)
 		err = decoder.Decode(cfg)
 		if err != nil {
 			panic(err)
