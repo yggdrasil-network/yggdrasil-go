@@ -163,7 +163,9 @@ func (r *router) sendPacket(bs []byte) {
 			}
 
 			// Create the ICMPv6 response from it
-			icmpv6Buf, err := r.core.tun.icmpv6.create_icmpv6_tun(bs[8:24], ipv6.ICMPTypePacketTooBig, 0, ptb)
+			icmpv6Buf, err := r.core.tun.icmpv6.create_icmpv6_tun(
+				bs[8:24], bs[24:40],
+				ipv6.ICMPTypePacketTooBig, 0, ptb)
 			if err == nil {
 				r.recv <- icmpv6Buf
 			}
