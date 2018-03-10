@@ -130,7 +130,9 @@ func (i *icmpv6) parse_packet_tun(datain []byte) ([]byte, error) {
 			response, err := i.handle_ndp(datain[ipv6.HeaderLen:])
 			if err == nil {
 				// Create our ICMPv6 response
-				responsePacket, err := i.create_icmpv6_tun(ipv6Header.Src, ipv6.ICMPTypeNeighborAdvertisement, 0,
+				responsePacket, err := i.create_icmpv6_tun(
+					ipv6Header.Src, i.mylladdr,
+					ipv6.ICMPTypeNeighborAdvertisement, 0,
 					&icmp.DefaultMessageBody{Data: response})
 				if err != nil {
 					return nil, err
@@ -147,9 +149,9 @@ func (i *icmpv6) parse_packet_tun(datain []byte) ([]byte, error) {
 	return nil, errors.New("ICMPv6 type not matched")
 }
 
-func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
+func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, src net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
 	// Pass through to create_icmpv6_tun
-	ipv6packet, err := i.create_icmpv6_tun(dst, mtype, mcode, mbody)
+	ipv6packet, err := i.create_icmpv6_tun(dst, src, mtype, mcode, mbody)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +169,7 @@ func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, mtype ipv6.ICM
 	return dataout, nil
 }
 
-func (i *icmpv6) create_icmpv6_tun(dst net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
+func (i *icmpv6) create_icmpv6_tun(dst net.IP, src net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
 	// Create the ICMPv6 message
 	icmpMessage := icmp.Message{
 		Type: mtype,
@@ -176,7 +178,7 @@ func (i *icmpv6) create_icmpv6_tun(dst net.IP, mtype ipv6.ICMPType, mcode int, m
 	}
 
 	// Convert the ICMPv6 message into []byte
-	icmpMessageBuf, err := icmpMessage.Marshal(icmp.IPv6PseudoHeader(i.mylladdr, dst))
+	icmpMessageBuf, err := icmpMessage.Marshal(icmp.IPv6PseudoHeader(src, dst))
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +189,7 @@ func (i *icmpv6) create_icmpv6_tun(dst net.IP, mtype ipv6.ICMPType, mcode int, m
 		NextHeader: 58,
 		PayloadLen: len(icmpMessageBuf),
 		HopLimit:   255,
-		Src:        i.mylladdr,
+		Src:        src,
 		Dst:        dst,
 	}
 
