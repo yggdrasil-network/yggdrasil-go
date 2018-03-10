@@ -1,6 +1,5 @@
 # Yggdrasil
 
-[![Travis CI](https://api.travis-ci.org/yggdrasil-network/yggdrasil-go.svg?branch=master)](https://travis-ci.org/yggdrasil-network/yggdrasil-go)
 [![CircleCI](https://circleci.com/gh/yggdrasil-network/yggdrasil-go.svg?style=shield&circle-token=:circle-token
 )](https://circleci.com/gh/yggdrasil-network/yggdrasil-go)
 
