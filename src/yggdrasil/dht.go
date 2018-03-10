@@ -485,3 +485,9 @@ func dht_firstCloserThanThird(first *NodeID,
 	}
 	return false
 }
+
+func (t *dht) resetPeers() {
+	for _, b := range t.buckets_hidden {
+		b.peers = b.peers[:0]
+	}
+}

@@ -80,6 +80,7 @@ func (r *router) mainLoop() {
 			r.core.dht.insertIfNew(info, true)
 		case <-r.reset:
 			r.core.sessions.resetInits()
+			r.core.dht.resetPeers()
 		case <-ticker.C:
 			{
 				// Any periodic maintenance stuff goes here
