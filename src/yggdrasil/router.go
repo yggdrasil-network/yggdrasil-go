@@ -77,7 +77,7 @@ func (r *router) mainLoop() {
 		case p := <-r.send:
 			r.sendPacket(p)
 		case info := <-r.core.dht.peers:
-			r.core.dht.insert(info) //r.core.dht.insertIfNew(info)
+			r.core.dht.insertIfNew(info, true)
 		case <-r.reset:
 			r.core.sessions.resetInits()
 		case <-ticker.C:

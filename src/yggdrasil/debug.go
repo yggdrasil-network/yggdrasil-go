@@ -154,7 +154,8 @@ func (c *Core) DEBUG_getDHTSize() int {
 	total := 0
 	for bidx := 0; bidx < c.dht.nBuckets(); bidx++ {
 		b := c.dht.getBucket(bidx)
-		total += len(b.infos)
+		total += len(b.peers)
+		total += len(b.other)
 	}
 	return total
 }

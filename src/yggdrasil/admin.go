@@ -290,7 +290,16 @@ func (a *admin) getData_getDHT() []admin_nodeInfo {
 	getDHT := func() {
 		for i := 0; i < a.core.dht.nBuckets(); i++ {
 			b := a.core.dht.getBucket(i)
-			for _, v := range b.infos {
+			for _, v := range b.other {
+				addr := *address_addrForNodeID(v.getNodeID())
+				info := admin_nodeInfo{
+					{"IP", net.IP(addr[:]).String()},
+					{"coords", fmt.Sprint(v.coords)},
+					{"bucket", fmt.Sprint(i)},
+				}
+				infos = append(infos, info)
+			}
+			for _, v := range b.peers {
 				addr := *address_addrForNodeID(v.getNodeID())
 				info := admin_nodeInfo{
 					{"IP", net.IP(addr[:]).String()},
