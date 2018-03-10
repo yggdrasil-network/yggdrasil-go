@@ -71,10 +71,17 @@ journalctl -u yggdrasil
 - May work in theory on any macOS version with `utun` support (which was added in macOS 10.7 Lion), although this is untested at present.
 - TAP mode is not supported on macOS.
 
-#### FreeBSD, OpenBSD, NetBSD
+#### FreeBSD, NetBSD
 
 - Works in TAP mode, but currently doesn't work in TUN mode.
 - You may need to create the TAP adapter first if it doesn't already exist, i.e. `ifconfig tap0 create`.
+
+#### OpenBSD
+
+- Works in TAP mode, but currently doesn't work in TUN mode.
+- You may need to create the TAP adapter first if it doesn't already exist, i.e. `ifconfig tap0 create`.
+- OpenBSD is not capable of listening on both IPv4 and IPv6 at the same time on the same socket (unlike FreeBSD and NetBSD). This affects the `Listen` and `AdminListen` configuration options. You will need to set `Listen` and `AdminListen` to use either an IPv4 or an IPv6 address.
+- You may consider using [relayd](https://man.openbsd.org/relayd.8) to allow incoming Yggdrasil connections on both IPv4 and IPv6 simultaneously.
 
 #### Windows
 
