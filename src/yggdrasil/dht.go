@@ -451,7 +451,7 @@ func (t *dht) doMaintenance() {
 				}
 			}
 		}
-		if oldest != nil {
+		if oldest != nil && time.Since(oldest.recv) > time.Minute {
 			t.addToMill(oldest, nil)
 		} // if the DHT isn't empty
 		// Refresh buckets
@@ -460,8 +460,10 @@ func (t *dht) doMaintenance() {
 		}
 		target := t.getTarget(t.offset)
 		for _, info := range t.lookup(target) {
-			t.addToMill(info, target)
-			break
+			if time.Since(info.recv) > time.Minute {
+				t.addToMill(info, target)
+				break
+			}
 		}
 		t.offset++
 	}
