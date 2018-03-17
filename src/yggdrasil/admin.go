@@ -3,6 +3,7 @@ package yggdrasil
 import "net"
 import "os"
 import "bytes"
+import "errors"
 import "fmt"
 import "sort"
 import "strings"
@@ -61,6 +62,13 @@ func (a *admin) init(c *Core, listenaddr string) {
 			*out = []byte("Adding peer: " + saddr[0] + "\n")
 		} else {
 			*out = []byte("Failed to add peer: " + saddr[0] + "\n")
+		}
+	})
+	a.addHandler("removePeer", []string{"<peer>"}, func(out *[]byte, saddr ...string) {
+		if a.removePeer(saddr[0]) == nil {
+			*out = []byte("Removing peer: " + saddr[0] + "\n")
+		} else {
+			*out = []byte("Failed to remove peer: " + saddr[0] + "\n")
 		}
 	})
 	a.addHandler("setTunTap", []string{"<ifname|auto|none>", "[<tun|tap>]", "[<mtu>]"}, func(out *[]byte, ifparams ...string) {
@@ -212,6 +220,30 @@ func (a *admin) addPeer(p string) error {
 			return err
 		}
 		a.core.tcp.call(p)
+	}
+	return nil
+}
+
+func (a *admin) removePeer(p string) error {
+	pAddr := p
+	if p[:4] == "tcp:" || p[:4] == "udp:" {
+		pAddr = p[4:]
+	}
+	switch {
+	case len(p) >= 4 && p[:4] == "udp:":
+		// Connect to peer over UDP
+		udpAddr, err := net.ResolveUDPAddr("udp", pAddr)
+		if err != nil {
+			return err
+		}
+		var addr connAddr
+		addr.fromUDPAddr(udpAddr)
+		a.core.udp.sendClose(addr)
+		return nil
+	case len(p) >= 4 && p[:4] == "tcp:":
+	default:
+		// Connect to peer over TCP
+		return errors.New("Removing TCP peer not yet supported")
 	}
 	return nil
 }

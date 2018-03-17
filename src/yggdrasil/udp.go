@@ -51,6 +51,7 @@ type connInfo struct {
 	peer      *peer
 	linkIn    chan []byte
 	keysIn    chan *udpKeys
+	closeIn   chan *udpKeys
 	timeout   int // count of how many heartbeats have been missed
 	in        func([]byte)
 	out       chan []byte
@@ -87,9 +88,23 @@ func (iface *udpInterface) sendKeys(addr connAddr) {
 	iface.sock.WriteToUDP(msg, udpAddr)
 }
 
+func (iface *udpInterface) sendClose(addr connAddr) {
+	udpAddr := addr.toUDPAddr()
+	msg := []byte{}
+	msg = udp_encode(msg, 0, 1, 0, nil)
+	msg = append(msg, iface.core.boxPub[:]...)
+	msg = append(msg, iface.core.sigPub[:]...)
+	iface.sock.WriteToUDP(msg, udpAddr)
+}
+
 func udp_isKeys(msg []byte) bool {
 	keyLen := 3 + boxPubKeyLen + sigPubKeyLen
-	return len(msg) == keyLen && msg[0] == 0x00
+	return len(msg) == keyLen && msg[0] == 0x00 && msg[1] == 0x00
+}
+
+func udp_isClose(msg []byte) bool {
+	keyLen := 3 + boxPubKeyLen + sigPubKeyLen
+	return len(msg) == keyLen && msg[0] == 0x00 && msg[1] == 0x01
 }
 
 func (iface *udpInterface) startConn(info *connInfo) {
@@ -111,11 +126,21 @@ func (iface *udpInterface) startConn(info *connInfo) {
 		iface.core.peers.mutex.Unlock()
 		close(info.linkIn)
 		close(info.keysIn)
+		close(info.closeIn)
 		close(info.out)
+		iface.sendClose(info.addr)
 		iface.core.log.Println("Removing peer:", info.name)
 	}()
 	for {
 		select {
+		case ks := <-info.closeIn:
+			{
+				if ks.box == info.peer.box && ks.sig == info.peer.sig {
+					// TODO? secure this somehow
+					//  Maybe add a signature and sequence number (timestamp) to close and keys?
+					return
+				}
+			}
 		case ks := <-info.keysIn:
 			{
 				// FIXME? need signatures/sequence-numbers or something
@@ -134,6 +159,37 @@ func (iface *udpInterface) startConn(info *connInfo) {
 			}
 		}
 	}
+}
+
+func (iface *udpInterface) handleClose(msg []byte, addr connAddr) {
+	//defer util_putBytes(msg)
+	var ks udpKeys
+	_, _, _, bs := udp_decode(msg)
+	switch {
+	case !wire_chop_slice(ks.box[:], &bs):
+		return
+	case !wire_chop_slice(ks.sig[:], &bs):
+		return
+	}
+	if ks.box == iface.core.boxPub {
+		return
+	}
+	if ks.sig == iface.core.sigPub {
+		return
+	}
+	iface.mutex.RLock()
+	conn, isIn := iface.conns[addr]
+	iface.mutex.RUnlock()
+	if !isIn {
+		return
+	}
+	func() {
+		defer func() { recover() }()
+		select {
+		case conn.closeIn <- &ks:
+		default:
+		}
+	}()
 }
 
 func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
@@ -167,6 +223,7 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 			peer:      iface.core.peers.newPeer(&ks.box, &ks.sig),
 			linkIn:    make(chan []byte, 1),
 			keysIn:    make(chan *udpKeys, 1),
+			closeIn:   make(chan *udpKeys, 1),
 			out:       make(chan []byte, 32),
 			chunkSize: 576 - 60 - 8 - 3, // max safe - max ip - udp header - chunk overhead
 		}
@@ -277,7 +334,8 @@ func (iface *udpInterface) reader() {
 		msg := bs[:n]
 		var addr connAddr
 		addr.fromUDPAddr(udpAddr)
-		if udp_isKeys(msg) {
+		switch {
+		case udp_isKeys(msg):
 			var them address
 			copy(them[:], udpAddr.IP.To16())
 			if them.isValid() {
@@ -288,7 +346,9 @@ func (iface *udpInterface) reader() {
 				continue
 			}
 			iface.handleKeys(msg, addr)
-		} else {
+		case udp_isClose(msg):
+			iface.handleClose(msg, addr)
+		default:
 			iface.handlePacket(msg, addr)
 		}
 	}
