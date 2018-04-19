@@ -19,9 +19,17 @@ import "bufio"
 
 const tcp_msgSize = 2048 + 65535 // TODO figure out what makes sense
 
+// wrapper function for non tcp/ip connections
+func setNoDelay(c net.Conn, delay bool) {
+	tcp, ok := c.(*net.TCPConn)
+	if ok {
+		tcp.SetNoDelay(delay)
+	}
+}
+
 type tcpInterface struct {
 	core  *Core
-	serv  *net.TCPListener
+	serv  net.Listener
 	mutex sync.Mutex // Protecting the below
 	calls map[string]struct{}
 	conns map[tcpInfo](chan struct{})
@@ -30,30 +38,27 @@ type tcpInterface struct {
 type tcpInfo struct {
 	box        boxPubKey
 	sig        sigPubKey
-	localAddr  string // net.IPAddr.String(), not TCPAddr, don't care about port
-	remoteAddr string
+	localAddr  net.Addr
+	remoteAddr net.Addr
 }
 
-func (iface *tcpInterface) init(core *Core, addr string) {
+func (iface *tcpInterface) init(core *Core, addr string) (err error) {
 	iface.core = core
-	tcpAddr, err := net.ResolveTCPAddr("tcp", addr)
-	if err != nil {
-		panic(err)
+
+	iface.serv, err = net.Listen("tcp", addr)
+	if err == nil {
+		iface.calls = make(map[string]struct{})
+		iface.conns = make(map[tcpInfo](chan struct{}))
+		go iface.listener()
 	}
-	iface.serv, err = net.ListenTCP("tcp", tcpAddr)
-	if err != nil {
-		panic(err)
-	}
-	iface.calls = make(map[string]struct{})
-	iface.conns = make(map[tcpInfo](chan struct{}))
-	go iface.listener()
+	return
 }
 
 func (iface *tcpInterface) listener() {
 	defer iface.serv.Close()
 	iface.core.log.Println("Listening for TCP on:", iface.serv.Addr().String())
 	for {
-		sock, err := iface.serv.AcceptTCP()
+		sock, err := iface.serv.Accept()
 		if err != nil {
 			panic(err)
 		}
@@ -77,17 +82,16 @@ func (iface *tcpInterface) call(saddr string) {
 		}
 		iface.mutex.Unlock()
 		if !quit {
-			conn, err := net.DialTimeout("tcp", saddr, 6*time.Second)
+			conn, err := iface.core.Dialer.Dial("tcp", saddr)
 			if err != nil {
 				return
 			}
-			sock := conn.(*net.TCPConn)
-			iface.handler(sock)
+			iface.handler(conn)
 		}
 	}()
 }
 
-func (iface *tcpInterface) handler(sock *net.TCPConn) {
+func (iface *tcpInterface) handler(sock net.Conn) {
 	defer sock.Close()
 	// Get our keys
 	keys := []byte{}
@@ -127,18 +131,8 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 		return
 	}
 	// Check if we already have a connection to this node, close and block if yes
-	local := sock.LocalAddr().(*net.TCPAddr)
-	laddr := net.IPAddr{
-		IP:   local.IP,
-		Zone: local.Zone,
-	}
-	info.localAddr = laddr.String()
-	remote := sock.RemoteAddr().(*net.TCPAddr)
-	raddr := net.IPAddr{
-		IP:   remote.IP,
-		Zone: remote.Zone,
-	}
-	info.remoteAddr = raddr.String()
+	info.localAddr = sock.LocalAddr()
+	info.remoteAddr = sock.RemoteAddr()
 	iface.mutex.Lock()
 	if blockChan, isIn := iface.conns[info]; isIn {
 		iface.mutex.Unlock()
@@ -224,7 +218,7 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 			util_putBytes(msg)
 		}
 	}
-	sock.SetNoDelay(true)
+	setNoDelay(sock, true)
 	go p.linkLoop(linkIn)
 	defer func() {
 		// Put all of our cleanup here...
@@ -239,7 +233,7 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 		p.core.peers.mutex.Unlock()
 		close(linkIn)
 	}()
-	them := sock.RemoteAddr().(*net.TCPAddr)
+	them := sock.RemoteAddr()
 	themNodeID := getNodeID(&info.box)
 	themAddr := address_addrForNodeID(themNodeID)
 	themAddrString := net.IP(themAddr[:]).String()
@@ -250,7 +244,7 @@ func (iface *tcpInterface) handler(sock *net.TCPConn) {
 	return
 }
 
-func (iface *tcpInterface) reader(sock *net.TCPConn, in func([]byte)) {
+func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) {
 	bs := make([]byte, 2*tcp_msgSize)
 	frag := bs[:0]
 	for {

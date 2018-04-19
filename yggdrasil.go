@@ -21,31 +21,13 @@ import "runtime"
 
 import "golang.org/x/net/ipv6"
 
-import . "yggdrasil"
+import "yggdrasil"
+import "yggdrasil/config"
 
 import "github.com/kardianos/minwinsvc"
 
-/**
-* This is a very crude wrapper around src/yggdrasil
-* It can generate a new config (--genconf)
-* It can read a config from stdin (--useconf)
-* It can run with an automatic config (--autoconf)
- */
-
-type nodeConfig struct {
-	Listen      string
-	AdminListen string
-	Peers       []string
-	BoxPub      string
-	BoxPriv     string
-	SigPub      string
-	SigPriv     string
-	Multicast   bool
-	LinkLocal   string
-	IfName      string
-	IfTAPMode   bool
-	IfMTU       int
-}
+type nodeConfig = config.NodeConfig
+type Core = yggdrasil.Core
 
 type node struct {
 	core Core
@@ -76,6 +58,9 @@ func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
 		panic(err)
 	}
 	n.core.DEBUG_setIfceExpr(ifceExpr)
+
+	n.core.Dialer = yggdrasil.NewDialer(cfg.Net)
+
 	logger.Println("Starting interface...")
 	n.core.DEBUG_setupAndStartGlobalTCPInterface(cfg.Listen) // Listen for peers on TCP
 	n.core.DEBUG_setupAndStartGlobalUDPInterface(cfg.Listen) // Also listen on UDP, TODO allow separate configuration for ip/port to listen on each of these
@@ -126,6 +111,10 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	cfg.IfName = core.DEBUG_GetTUNDefaultIfName()
 	cfg.IfMTU = core.DEBUG_GetTUNDefaultIfMTU()
 	cfg.IfTAPMode = core.DEBUG_GetTUNDefaultIfTAPMode()
+
+	cfg.Net.Tor.SocksAddr = "127.0.0.1:9050"
+	cfg.Net.Tor.UseForAll = false
+	cfg.Net.Tor.Enabled = true
 	return &cfg
 }
 
