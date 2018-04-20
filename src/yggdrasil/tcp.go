@@ -38,8 +38,8 @@ type tcpInterface struct {
 type tcpInfo struct {
 	box        boxPubKey
 	sig        sigPubKey
-	localAddr  net.Addr
-	remoteAddr net.Addr
+	localAddr  string
+	remoteAddr string
 }
 
 func (iface *tcpInterface) init(core *Core, addr string) (err error) {
@@ -131,8 +131,8 @@ func (iface *tcpInterface) handler(sock net.Conn) {
 		return
 	}
 	// Check if we already have a connection to this node, close and block if yes
-	info.localAddr = sock.LocalAddr()
-	info.remoteAddr = sock.RemoteAddr()
+	info.localAddr, _, _ = net.SplitHostPort(sock.LocalAddr().String())
+	info.remoteAddr, _, _ = net.SplitHostPort(sock.RemoteAddr().String())
 	iface.mutex.Lock()
 	if blockChan, isIn := iface.conns[info]; isIn {
 		iface.mutex.Unlock()
@@ -233,7 +233,7 @@ func (iface *tcpInterface) handler(sock net.Conn) {
 		p.core.peers.mutex.Unlock()
 		close(linkIn)
 	}()
-	them := sock.RemoteAddr()
+	them, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
 	themNodeID := getNodeID(&info.box)
 	themAddr := address_addrForNodeID(themNodeID)
 	themAddrString := net.IP(themAddr[:]).String()
