@@ -30,6 +30,8 @@ type sessionInfo struct {
 	nonceMask    uint64
 	tstamp       int64     // tstamp from their last session ping, replay attack mitigation
 	mtuTime      time.Time // time myMTU was last changed
+	pingTime     time.Time // time the first ping was sent since the last received packet
+	pingSend     time.Time // time the last ping was sent
 }
 
 type sessionPing struct {
@@ -64,7 +66,8 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 		s.theirMTU = p.mtu
 	}
 	s.coords = append([]byte{}, p.coords...)
-	s.time = time.Now()
+	now := time.Now()
+	s.time = now
 	s.tstamp = p.tstamp
 	s.init = true
 	return true
@@ -153,7 +156,11 @@ func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
 	sinfo.myNonce = *newBoxNonce()
 	sinfo.theirMTU = 1280
 	sinfo.myMTU = uint16(ss.core.tun.mtu)
-	sinfo.mtuTime = time.Now()
+	now := time.Now()
+	sinfo.time = now
+	sinfo.mtuTime = now
+	sinfo.pingTime = now
+	sinfo.pingSend = now
 	higher := false
 	for idx := range ss.core.boxPub {
 		if ss.core.boxPub[idx] > sinfo.theirPermPub[idx] {
@@ -176,7 +183,6 @@ func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
 	sinfo.send = make(chan []byte, 32)
 	sinfo.recv = make(chan *wire_trafficPacket, 32)
 	go sinfo.doWorker()
-	sinfo.time = time.Now()
 	// Do some cleanup
 	// Time thresholds almost certainly could use some adjusting
 	for _, s := range ss.sinfos {
@@ -255,6 +261,9 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 	}
 	packet := p.encode()
 	ss.core.router.out(packet)
+	if !isPong {
+		sinfo.pingSend = time.Now()
+	}
 }
 
 func (ss *sessions) handlePing(ping *sessionPing) {

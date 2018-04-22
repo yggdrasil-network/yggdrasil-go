@@ -141,12 +141,27 @@ func (r *router) sendPacket(bs []byte) {
 		// No or unintiialized session, so we need to search first
 		doSearch(bs)
 	case time.Since(sinfo.time) > 6*time.Second:
-		// We haven't heard from the dest in a while; they may have changed coords
-		// Maybe the connection is idle, or maybe one of us changed coords
-		// Try searching to either ping them (a little overhead) or fix the coords
-		doSearch(nil)
-		fallthrough
-	//default: go func() { sinfo.send<-bs }()
+		if sinfo.time.Before(sinfo.pingTime) && time.Since(sinfo.pingTime) > 6*time.Second {
+			// We haven't heard from the dest in a while
+			// We tried pinging but didn't get a response
+			// They may have changed coords
+			// Try searching to discover new coords
+			// Note that search spam is throttled internally
+			doSearch(nil)
+		} else {
+			// We haven't heard about the dest in a while
+			now := time.Now()
+			if !sinfo.time.Before(sinfo.pingTime) {
+				// Update pingTime to start the clock for searches (above)
+				sinfo.pingTime = now
+			}
+			if time.Since(sinfo.pingSend) > time.Second {
+				// Send at most 1 ping per second
+				sinfo.pingSend = now
+				r.core.sessions.sendPingPong(sinfo, false)
+			}
+		}
+		fallthrough // Also send the packet
 	default:
 		// Generate an ICMPv6 Packet Too Big for packets larger than session MTU
 		if len(bs) > int(sinfo.getMTU()) {
