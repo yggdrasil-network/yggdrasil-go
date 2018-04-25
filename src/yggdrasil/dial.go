@@ -11,17 +11,20 @@ import (
 
 type Dialer = proxy.Dialer
 
+// muxedDialer implements proxy.Dialer (aka Dialer)
 type muxedDialer struct {
 	conf   config.NetConfig
 	tor    Dialer
 	direct Dialer
 }
 
+// wrappedConn implements net.Conn
 type wrappedConn struct {
 	c     net.Conn
 	raddr net.Addr
 }
 
+// wrappedAddr implements net.Addr
 type wrappedAddr struct {
 	network string
 	addr    string
@@ -89,11 +92,16 @@ func (d *muxedDialer) Dial(network, addr string) (net.Conn, error) {
 	}
 }
 
+// NewDialer creates a Dialer from a NetConfig
 func NewDialer(c config.NetConfig) Dialer {
-	tor, _ := proxy.SOCKS5("tcp", c.Tor.SocksAddr, nil, proxy.Direct)
-	return &muxedDialer{
-		conf:   c,
-		tor:    tor,
-		direct: proxy.Direct,
+	if c.Tor.Enabled {
+		tor, _ := proxy.SOCKS5("tcp", c.Tor.SocksAddr, nil, proxy.Direct)
+		return &muxedDialer{
+			conf:   c,
+			tor:    tor,
+			direct: proxy.Direct,
+		}
+	} else {
+		return proxy.Direct
 	}
 }
