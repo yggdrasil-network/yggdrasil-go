@@ -1,12 +1,6 @@
 package config
 
-/**
-* This is a very crude wrapper around src/yggdrasil
-* It can generate a new config (--genconf)
-* It can read a config from stdin (--useconf)
-* It can run with an automatic config (--autoconf)
- */
-
+// NodeConfig defines all configuration values needed to run a signle yggdrasil node
 type NodeConfig struct {
 	Listen      string
 	AdminListen string
@@ -23,6 +17,7 @@ type NodeConfig struct {
 	Net         NetConfig
 }
 
+// NetConfig defines network/proxy related configuration values
 type NetConfig struct {
 	Tor TorConfig
 	I2P I2PConfig
