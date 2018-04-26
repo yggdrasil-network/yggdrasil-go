@@ -1,22 +1,9 @@
 package yggdrasil
 
 import (
-	"errors"
-	"golang.org/x/net/proxy"
 	"net"
-	"strings"
 	"time"
-	"yggdrasil/config"
 )
-
-type Dialer = proxy.Dialer
-
-// muxedDialer implements proxy.Dialer (aka Dialer)
-type muxedDialer struct {
-	conf   config.NetConfig
-	tor    Dialer
-	direct Dialer
-}
 
 // wrappedConn implements net.Conn
 type wrappedConn struct {
@@ -68,40 +55,4 @@ func (c *wrappedConn) LocalAddr() net.Addr {
 
 func (c *wrappedConn) RemoteAddr() net.Addr {
 	return c.raddr
-}
-
-func (d *muxedDialer) Dial(network, addr string) (net.Conn, error) {
-	host, _, _ := net.SplitHostPort(addr)
-	if d.conf.Tor.UseForAll || strings.HasSuffix(host, ".onion") {
-		if !d.conf.Tor.Enabled {
-			return nil, errors.New("tor not enabled")
-		}
-		c, err := d.tor.Dial(network, addr)
-		if err == nil {
-			c = &wrappedConn{
-				c: c,
-				raddr: &wrappedAddr{
-					network: network,
-					addr:    addr,
-				},
-			}
-		}
-		return c, err
-	} else {
-		return d.direct.Dial(network, addr)
-	}
-}
-
-// NewDialer creates a Dialer from a NetConfig
-func NewDialer(c config.NetConfig) Dialer {
-	if c.Tor.Enabled {
-		tor, _ := proxy.SOCKS5("tcp", c.Tor.SocksAddr, nil, proxy.Direct)
-		return &muxedDialer{
-			conf:   c,
-			tor:    tor,
-			direct: proxy.Direct,
-		}
-	} else {
-		return proxy.Direct
-	}
 }

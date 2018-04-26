@@ -66,6 +66,26 @@ func (iface *tcpInterface) listener() {
 	}
 }
 
+func (iface *tcpInterface) callWithConn(conn net.Conn) {
+	go func() {
+		raddr := conn.RemoteAddr().String()
+		iface.mutex.Lock()
+		_, isIn := iface.calls[raddr]
+		iface.mutex.Unlock()
+		if !isIn {
+			iface.mutex.Lock()
+			iface.calls[raddr] = struct{}{}
+			iface.mutex.Unlock()
+			defer func() {
+				iface.mutex.Lock()
+				delete(iface.calls, raddr)
+				iface.mutex.Unlock()
+			}()
+			iface.handler(conn)
+		}
+	}()
+}
+
 func (iface *tcpInterface) call(saddr string) {
 	go func() {
 		quit := false
@@ -82,7 +102,7 @@ func (iface *tcpInterface) call(saddr string) {
 		}
 		iface.mutex.Unlock()
 		if !quit {
-			conn, err := iface.core.Dialer.Dial("tcp", saddr)
+			conn, err := net.Dial("tcp", saddr)
 			if err != nil {
 				return
 			}

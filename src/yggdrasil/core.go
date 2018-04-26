@@ -19,7 +19,6 @@ type Core struct {
 	tun         tunDevice
 	admin       admin
 	searches    searches
-	Dialer      Dialer
 	tcp         *tcpInterface
 	udp         *udpInterface
 	log         *log.Logger

@@ -8,9 +8,13 @@ package yggdrasil
 
 import _ "golang.org/x/net/ipv6" // TODO put this somewhere better
 
+import "golang.org/x/net/proxy"
+
 import "fmt"
 import "net"
+import "net/url"
 import "log"
+import "strings"
 import "regexp"
 
 // Core
@@ -306,6 +310,54 @@ func (c *Core) DEBUG_maybeSendUDPKeys(saddr string) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+func (c *Core) DEBUG_addPeer(addr string) {
+	u, err := url.Parse(addr)
+	if err != nil {
+		panic(err)
+	}
+	if len(u.Opaque) == 0 {
+		switch strings.ToLower(u.Scheme) {
+		case "tcp":
+			c.DEBUG_addTCPConn(u.Host)
+		case "udp":
+			c.DEBUG_maybeSendUDPKeys(u.Host)
+		case "socks":
+			c.DEBUG_addSOCKSConn(u.Host, u.Path[1:])
+		default:
+			panic("invalid peer: " + addr)
+		}
+	} else {
+		// no url scheme provided
+		addr = strings.ToLower(addr)
+		if strings.HasPrefix(addr, "udp:") {
+			c.DEBUG_maybeSendUDPKeys(addr[4:])
+		} else {
+			if strings.HasPrefix(addr, "tcp:") {
+				addr = addr[4:]
+			}
+			c.DEBUG_addTCPConn(addr)
+		}
+	}
+}
+
+func (c *Core) DEBUG_addSOCKSConn(socksaddr, peeraddr string) {
+	go func() {
+		dialer, err := proxy.SOCKS5("tcp", socksaddr, nil, proxy.Direct)
+		if err == nil {
+			conn, err := dialer.Dial("tcp", peeraddr)
+			if err == nil {
+				c.tcp.callWithConn(&wrappedConn{
+					c: conn,
+					raddr: &wrappedAddr{
+						network: "tcp",
+						addr:    peeraddr,
+					},
+				})
+			}
+		}
+	}()
+}
 
 //*
 func (c *Core) DEBUG_setupAndStartGlobalTCPInterface(addrport string) {
