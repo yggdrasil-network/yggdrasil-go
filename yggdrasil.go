@@ -103,9 +103,6 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	cfg.IfMTU = core.DEBUG_GetTUNDefaultIfMTU()
 	cfg.IfTAPMode = core.DEBUG_GetTUNDefaultIfTAPMode()
 
-	cfg.Net.Tor.SocksAddr = "127.0.0.1:9050"
-	cfg.Net.Tor.UseForAll = false
-	cfg.Net.Tor.Enabled = true
 	return &cfg
 }
 
