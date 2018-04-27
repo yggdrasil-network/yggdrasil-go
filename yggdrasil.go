@@ -21,31 +21,13 @@ import "runtime"
 
 import "golang.org/x/net/ipv6"
 
-import . "yggdrasil"
+import "yggdrasil"
+import "yggdrasil/config"
 
 import "github.com/kardianos/minwinsvc"
 
-/**
-* This is a very crude wrapper around src/yggdrasil
-* It can generate a new config (--genconf)
-* It can read a config from stdin (--useconf)
-* It can run with an automatic config (--autoconf)
- */
-
-type nodeConfig struct {
-	Listen      string
-	AdminListen string
-	Peers       []string
-	BoxPub      string
-	BoxPriv     string
-	SigPub      string
-	SigPriv     string
-	Multicast   bool
-	LinkLocal   string
-	IfName      string
-	IfTAPMode   bool
-	IfMTU       int
-}
+type nodeConfig = config.NodeConfig
+type Core = yggdrasil.Core
 
 type node struct {
 	core Core
@@ -76,6 +58,7 @@ func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
 		panic(err)
 	}
 	n.core.DEBUG_setIfceExpr(ifceExpr)
+
 	logger.Println("Starting interface...")
 	n.core.DEBUG_setupAndStartGlobalTCPInterface(cfg.Listen) // Listen for peers on TCP
 	n.core.DEBUG_setupAndStartGlobalUDPInterface(cfg.Listen) // Also listen on UDP, TODO allow separate configuration for ip/port to listen on each of these
@@ -89,14 +72,7 @@ func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
 		}
 		for {
 			for _, p := range cfg.Peers {
-				switch {
-				case len(p) >= 4 && p[:4] == "udp:":
-					n.core.DEBUG_maybeSendUDPKeys(p[4:])
-				case len(p) >= 4 && p[:4] == "tcp:":
-					n.core.DEBUG_addTCPConn(p[4:])
-				default:
-					n.core.DEBUG_addTCPConn(p)
-				}
+				n.core.DEBUG_addPeer(p)
 				time.Sleep(time.Second)
 			}
 			time.Sleep(time.Minute)
@@ -126,6 +102,7 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	cfg.IfName = core.DEBUG_GetTUNDefaultIfName()
 	cfg.IfMTU = core.DEBUG_GetTUNDefaultIfMTU()
 	cfg.IfTAPMode = core.DEBUG_GetTUNDefaultIfTAPMode()
+
 	return &cfg
 }
 
