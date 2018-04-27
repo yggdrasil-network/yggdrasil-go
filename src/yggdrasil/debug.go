@@ -313,10 +313,7 @@ func (c *Core) DEBUG_maybeSendUDPKeys(saddr string) {
 
 func (c *Core) DEBUG_addPeer(addr string) {
 	u, err := url.Parse(addr)
-	if err != nil {
-		panic(err)
-	}
-	if len(u.Opaque) == 0 {
+	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "tcp":
 			c.DEBUG_addTCPConn(u.Host)
