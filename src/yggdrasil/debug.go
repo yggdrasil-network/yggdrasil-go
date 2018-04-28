@@ -236,6 +236,7 @@ func (c *Core) DEBUG_startTunWithMTU(ifname string, iftapmode bool, mtu int) {
 		if err != nil {
 			panic(err)
 		}
+		c.log.Println("Setup TUN/TAP:", c.tun.iface.Name(), straddr)
 		go func() { panic(c.tun.read()) }()
 	}
 	go func() { panic(c.tun.write()) }()
