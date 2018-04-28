@@ -44,7 +44,8 @@ In practice, you probably want to run this instead:
 
 This keeps a persistent set of keys (and by extension, IP address) and gives you the option of editing the configuration file.
 If you want to use it as an overlay network on top of e.g. the internet, then you can do so by adding the remote devices domain/address and port (as a string, e.g. `"1.2.3.4:5678"`) to the list of `Peers` in the configuration file.
-You can control whether or not it peers over TCP or UDP by adding `tcp:` or `udp:` to the start of the string, i.e. `"udp:1.2.3.4:5678"`.
+You can control whether or not it peers over TCP or UDP by adding `tcp://` or `udp://` to the start of the string, i.e. `"udp://1.2.3.4:5678"`.
+It is also possible to route outgoing TCP connections through a socks proxy using the syntax: `"socks://socksHost:socksPort/destHost:destPort"`.
 It is currently configured to accept incoming TCP and UDP connections.
 In the interest of testing the TCP machinery, it's set to create TCP connections for auto-peering (over link-local IPv6), and to use TCP by default if no transport is specified for a manually configured peer.
 
