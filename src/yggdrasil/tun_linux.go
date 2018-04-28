@@ -48,7 +48,8 @@ func (tun *tunDevice) setupAddress(addr string) error {
 	}
 	for _, ifce := range ifces {
 		if ifce.Name == tun.iface.Name() {
-			netIF = &ifce
+			var newIF = ifce
+			netIF = &newIF // Don't point inside ifces, it's apparently unsafe?...
 		}
 	}
 	if netIF == nil {

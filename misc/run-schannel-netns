@@ -44,6 +44,13 @@ ip netns exec node5 tc qdisc add dev veth54 root tbf rate 100mbit burst 8192 lat
 ip netns exec node4 tc qdisc add dev veth46 root tbf rate 10mbit burst 8192 latency 1ms
 ip netns exec node6 tc qdisc add dev veth64 root tbf rate 10mbit burst 8192 latency 1ms
 
+ip netns exec node1 ip link set lo up
+ip netns exec node2 ip link set lo up
+ip netns exec node3 ip link set lo up
+ip netns exec node4 ip link set lo up
+ip netns exec node5 ip link set lo up
+ip netns exec node6 ip link set lo up
+
 ip netns exec node1 ./run --autoconf --pprof &> /dev/null &
 ip netns exec node2 ./run --autoconf --pprof &> /dev/null &
 ip netns exec node3 ./run --autoconf --pprof &> /dev/null &
