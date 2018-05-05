@@ -12,9 +12,7 @@ import "golang.org/x/net/proxy"
 
 import "fmt"
 import "net"
-import "net/url"
 import "log"
-import "strings"
 import "regexp"
 
 // Core
@@ -313,29 +311,9 @@ func (c *Core) DEBUG_maybeSendUDPKeys(saddr string) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func (c *Core) DEBUG_addPeer(addr string) {
-	u, err := url.Parse(addr)
-	if err == nil {
-		switch strings.ToLower(u.Scheme) {
-		case "tcp":
-			c.DEBUG_addTCPConn(u.Host)
-		case "udp":
-			c.DEBUG_maybeSendUDPKeys(u.Host)
-		case "socks":
-			c.DEBUG_addSOCKSConn(u.Host, u.Path[1:])
-		default:
-			panic("invalid peer: " + addr)
-		}
-	} else {
-		// no url scheme provided
-		addr = strings.ToLower(addr)
-		if strings.HasPrefix(addr, "udp:") {
-			c.DEBUG_maybeSendUDPKeys(addr[4:])
-		} else {
-			if strings.HasPrefix(addr, "tcp:") {
-				addr = addr[4:]
-			}
-			c.DEBUG_addTCPConn(addr)
-		}
+	err := c.admin.addPeer(addr)
+	if err != nil {
+		panic(err)
 	}
 }
 

@@ -73,6 +73,8 @@ type peer struct {
 	//  Specifically, processing switch messages, signing, and verifying sigs
 	//  Resets at the start of each tick
 	throttle uint8
+	// Called when a peer is removed, to close the underlying connection, or via admin api
+	close func()
 }
 
 const peer_Throttle = 1
@@ -121,6 +123,26 @@ func (ps *peers) newPeer(box *boxPubKey,
 	}
 	ps.putPorts(newPorts)
 	return &p
+}
+
+func (ps *peers) removePeer(port switchPort) {
+	// TODO? store linkIn in the peer struct, close it here? (once)
+	if port == 0 {
+		return
+	} // Can't remove self peer
+	ps.mutex.Lock()
+	oldPorts := ps.getPorts()
+	p, isIn := oldPorts[port]
+	newPorts := make(map[switchPort]*peer)
+	for k, v := range oldPorts {
+		newPorts[k] = v
+	}
+	delete(newPorts, port)
+	ps.putPorts(newPorts)
+	ps.mutex.Unlock()
+	if isIn && p.close != nil {
+		p.close()
+	}
 }
 
 func (p *peer) linkLoop(in <-chan []byte) {
