@@ -238,19 +238,12 @@ func (iface *tcpInterface) handler(sock net.Conn) {
 			util_putBytes(msg)
 		}
 	}
+	p.close = func() { sock.Close() }
 	setNoDelay(sock, true)
 	go p.linkLoop(linkIn)
 	defer func() {
 		// Put all of our cleanup here...
-		p.core.peers.mutex.Lock()
-		oldPorts := p.core.peers.getPorts()
-		newPorts := make(map[switchPort]*peer)
-		for k, v := range oldPorts {
-			newPorts[k] = v
-		}
-		delete(newPorts, p.port)
-		p.core.peers.putPorts(newPorts)
-		p.core.peers.mutex.Unlock()
+		p.core.peers.removePeer(p.port)
 		close(linkIn)
 	}()
 	them, _, _ := net.SplitHostPort(sock.RemoteAddr().String())

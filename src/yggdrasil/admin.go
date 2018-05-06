@@ -5,6 +5,7 @@ import "os"
 import "bytes"
 import "errors"
 import "fmt"
+import "net/url"
 import "sort"
 import "strings"
 import "strconv"
@@ -57,18 +58,18 @@ func (a *admin) init(c *Core, listenaddr string) {
 	a.addHandler("getSessions", nil, func(out *[]byte, _ ...string) {
 		*out = []byte(a.printInfos(a.getData_getSessions()))
 	})
-	a.addHandler("addPeer", []string{"<peer>"}, func(out *[]byte, saddr ...string) {
+	a.addHandler("addPeer", []string{"<proto://address:port>"}, func(out *[]byte, saddr ...string) {
 		if a.addPeer(saddr[0]) == nil {
 			*out = []byte("Adding peer: " + saddr[0] + "\n")
 		} else {
 			*out = []byte("Failed to add peer: " + saddr[0] + "\n")
 		}
 	})
-	a.addHandler("removePeer", []string{"<peer>"}, func(out *[]byte, saddr ...string) {
-		if a.removePeer(saddr[0]) == nil {
-			*out = []byte("Removing peer: " + saddr[0] + "\n")
+	a.addHandler("removePeer", []string{"<port>"}, func(out *[]byte, sport ...string) {
+		if a.removePeer(sport[0]) == nil {
+			*out = []byte("Removing peer: " + sport[0] + "\n")
 		} else {
-			*out = []byte("Failed to remove peer: " + saddr[0] + "\n")
+			*out = []byte("Failed to remove peer: " + sport[0] + "\n")
 		}
 	})
 	a.addHandler("setTunTap", []string{"<ifname|auto|none>", "[<tun|tap>]", "[<mtu>]"}, func(out *[]byte, ifparams ...string) {
@@ -191,60 +192,43 @@ func (a *admin) printInfos(infos []admin_nodeInfo) string {
 	return strings.Join(out, "\n")
 }
 
-func (a *admin) addPeer(p string) error {
-	pAddr := p
-	if p[:4] == "tcp:" || p[:4] == "udp:" {
-		pAddr = p[4:]
-	}
-	switch {
-	case len(p) >= 4 && p[:4] == "udp:":
-		// Connect to peer over UDP
-		udpAddr, err := net.ResolveUDPAddr("udp", pAddr)
-		if err != nil {
-			return err
+func (a *admin) addPeer(addr string) error {
+	u, err := url.Parse(addr)
+	if err == nil {
+		switch strings.ToLower(u.Scheme) {
+		case "tcp":
+			a.core.DEBUG_addTCPConn(u.Host)
+		case "udp":
+			a.core.DEBUG_maybeSendUDPKeys(u.Host)
+		case "socks":
+			a.core.DEBUG_addSOCKSConn(u.Host, u.Path[1:])
+		default:
+			return errors.New("invalid peer: " + addr)
 		}
-		var addr connAddr
-		addr.fromUDPAddr(udpAddr)
-		a.core.udp.mutex.RLock()
-		_, isIn := a.core.udp.conns[addr]
-		a.core.udp.mutex.RUnlock()
-		if !isIn {
-			a.core.udp.sendKeys(addr)
+	} else {
+		// no url scheme provided
+		addr = strings.ToLower(addr)
+		if strings.HasPrefix(addr, "udp:") {
+			a.core.DEBUG_maybeSendUDPKeys(addr[4:])
+			return nil
+		} else {
+			if strings.HasPrefix(addr, "tcp:") {
+				addr = addr[4:]
+			}
+			a.core.DEBUG_addTCPConn(addr)
+			return nil
 		}
-		return nil
-	case len(p) >= 4 && p[:4] == "tcp:":
-	default:
-		// Connect to peer over TCP
-		_, err := net.ResolveTCPAddr("tcp", pAddr)
-		if err != nil {
-			return err
-		}
-		a.core.tcp.call(p)
+		return errors.New("invalid peer: " + addr)
 	}
 	return nil
 }
 
 func (a *admin) removePeer(p string) error {
-	pAddr := p
-	if p[:4] == "tcp:" || p[:4] == "udp:" {
-		pAddr = p[4:]
+	iport, err := strconv.Atoi(p)
+	if err != nil {
+		return err
 	}
-	switch {
-	case len(p) >= 4 && p[:4] == "udp:":
-		// Connect to peer over UDP
-		udpAddr, err := net.ResolveUDPAddr("udp", pAddr)
-		if err != nil {
-			return err
-		}
-		var addr connAddr
-		addr.fromUDPAddr(udpAddr)
-		a.core.udp.sendClose(addr)
-		return nil
-	case len(p) >= 4 && p[:4] == "tcp:":
-	default:
-		// Connect to peer over TCP
-		return errors.New("Removing TCP peer not yet supported")
-	}
+	a.core.peers.removePeer(switchPort(iport))
 	return nil
 }
 

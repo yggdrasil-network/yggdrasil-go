@@ -115,20 +115,11 @@ func (iface *udpInterface) startConn(info *connInfo) {
 		iface.mutex.Lock()
 		delete(iface.conns, info.addr)
 		iface.mutex.Unlock()
-		iface.core.peers.mutex.Lock()
-		oldPorts := iface.core.peers.getPorts()
-		newPorts := make(map[switchPort]*peer)
-		for k, v := range oldPorts {
-			newPorts[k] = v
-		}
-		delete(newPorts, info.peer.port)
-		iface.core.peers.putPorts(newPorts)
-		iface.core.peers.mutex.Unlock()
+		iface.core.peers.removePeer(info.peer.port)
 		close(info.linkIn)
 		close(info.keysIn)
 		close(info.closeIn)
 		close(info.out)
-		iface.sendClose(info.addr)
 		iface.core.log.Println("Removing peer:", info.name)
 	}()
 	for {
@@ -296,6 +287,7 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 			}
 		}()
 		//*/
+		conn.peer.close = func() { iface.sendClose(conn.addr) }
 		iface.mutex.Lock()
 		iface.conns[addr] = conn
 		iface.mutex.Unlock()
