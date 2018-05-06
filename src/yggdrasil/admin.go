@@ -58,7 +58,7 @@ func (a *admin) init(c *Core, listenaddr string) {
 	a.addHandler("getSessions", nil, func(out *[]byte, _ ...string) {
 		*out = []byte(a.printInfos(a.getData_getSessions()))
 	})
-	a.addHandler("addPeer", []string{"<port>"}, func(out *[]byte, saddr ...string) {
+	a.addHandler("addPeer", []string{"<proto://address:port>"}, func(out *[]byte, saddr ...string) {
 		if a.addPeer(saddr[0]) == nil {
 			*out = []byte("Adding peer: " + saddr[0] + "\n")
 		} else {
