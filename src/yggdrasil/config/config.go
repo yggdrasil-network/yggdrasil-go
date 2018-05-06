@@ -5,6 +5,7 @@ type NodeConfig struct {
 	Listen      string
 	AdminListen string
 	Peers       []string
+	PeerBoxPubs []string
 	BoxPub      string
 	BoxPriv     string
 	SigPub      string

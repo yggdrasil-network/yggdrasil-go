@@ -397,6 +397,12 @@ func (c *Core) DEBUG_setIfceExpr(expr *regexp.Regexp) {
 	c.ifceExpr = expr
 }
 
+func (c *Core) DEBUG_addAuthBoxPub(boxBytes []byte) {
+	var box boxPubKey
+	copy(box[:], boxBytes)
+	c.peers.authBoxPubs[box] = struct{}{}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 func DEBUG_simLinkPeers(p, q *peer) {

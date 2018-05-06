@@ -204,6 +204,14 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 	iface.mutex.RUnlock()
 	if !isIn {
 		udpAddr := addr.toUDPAddr()
+		// Check if we're authorized to connect to this key / IP
+		// TODO monitor and always allow outgoing connections
+		if !iface.core.peers.isAuthBoxPub(&ks.box) {
+			// Allow unauthorized peers if they're link-local
+			if !udpAddr.IP.IsLinkLocalUnicast() {
+				return
+			}
+		}
 		themNodeID := getNodeID(&ks.box)
 		themAddr := address_addrForNodeID(themNodeID)
 		themAddrString := net.IP(themAddr[:]).String()

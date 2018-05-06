@@ -30,9 +30,10 @@ import "math"
 //import "fmt"
 
 type peers struct {
-	core  *Core
-	mutex sync.Mutex   // Synchronize writes to atomic
-	ports atomic.Value //map[Port]*peer, use CoW semantics
+	core        *Core
+	authBoxPubs map[boxPubKey]struct{}
+	mutex       sync.Mutex   // Synchronize writes to atomic
+	ports       atomic.Value //map[Port]*peer, use CoW semantics
 	//ports map[Port]*peer
 }
 
@@ -41,6 +42,12 @@ func (ps *peers) init(c *Core) {
 	defer ps.mutex.Unlock()
 	ps.putPorts(make(map[switchPort]*peer))
 	ps.core = c
+	ps.authBoxPubs = make(map[boxPubKey]struct{})
+}
+
+func (ps *peers) isAuthBoxPub(box *boxPubKey) bool {
+	_, isIn := ps.authBoxPubs[*box]
+	return isIn || len(ps.authBoxPubs) == 0
 }
 
 func (ps *peers) getPorts() map[switchPort]*peer {
