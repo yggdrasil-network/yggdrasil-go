@@ -82,6 +82,8 @@ type peer struct {
 	throttle uint8
 	// Called when a peer is removed, to close the underlying connection, or via admin api
 	close func()
+	// To allow the peer to call close if idle for too long
+	lastAnc time.Time
 }
 
 const peer_Throttle = 1
@@ -106,14 +108,11 @@ func (p *peer) updateBandwidth(bytes int, duration time.Duration) {
 
 func (ps *peers) newPeer(box *boxPubKey,
 	sig *sigPubKey) *peer {
-	//in <-chan []byte,
-	//out chan<- []byte) *peer {
 	p := peer{box: *box,
-		sig:    *sig,
-		shared: *getSharedKey(&ps.core.boxPriv, box),
-		//in: in,
-		//out: out,
-		core: ps.core}
+		sig:     *sig,
+		shared:  *getSharedKey(&ps.core.boxPriv, box),
+		lastAnc: time.Now(),
+		core:    ps.core}
 	ps.mutex.Lock()
 	defer ps.mutex.Unlock()
 	oldPorts := ps.getPorts()
@@ -165,31 +164,33 @@ func (p *peer) linkLoop(in <-chan []byte) {
 			}
 			p.handleLinkTraffic(packet)
 		case <-ticker.C:
-			{
-				p.throttle = 0
-				if p.port == 0 {
-					continue
-				} // Don't send announces on selfInterface
-				p.myMsg, p.mySigs = p.core.switchTable.createMessage(p.port)
-				var update bool
-				switch {
-				case p.msgAnc == nil:
-					update = true
-				case lastRSeq != p.msgAnc.seq:
-					update = true
-				case p.msgAnc.rseq != p.myMsg.seq:
-					update = true
-				case counter%4 == 0:
-					update = true
-				}
-				if update {
-					if p.msgAnc != nil {
-						lastRSeq = p.msgAnc.seq
-					}
-					p.sendSwitchAnnounce()
-				}
-				counter = (counter + 1) % 4
+			if time.Since(p.lastAnc) > 16*time.Second && p.close != nil {
+				// Seems to have timed out, try to trigger a close
+				p.close()
 			}
+			p.throttle = 0
+			if p.port == 0 {
+				continue
+			} // Don't send announces on selfInterface
+			p.myMsg, p.mySigs = p.core.switchTable.createMessage(p.port)
+			var update bool
+			switch {
+			case p.msgAnc == nil:
+				update = true
+			case lastRSeq != p.msgAnc.seq:
+				update = true
+			case p.msgAnc.rseq != p.myMsg.seq:
+				update = true
+			case counter%4 == 0:
+				update = true
+			}
+			if update {
+				if p.msgAnc != nil {
+					lastRSeq = p.msgAnc.seq
+				}
+				p.sendSwitchAnnounce()
+			}
+			counter = (counter + 1) % 4
 		}
 	}
 }
@@ -217,6 +218,10 @@ func (p *peer) handlePacket(packet []byte, linkIn chan<- []byte) {
 }
 
 func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
+	if p.msgAnc == nil {
+		// Drop traffic until the peer manages to send us at least one anc
+		return
+	}
 	ttl, ttlLen := wire_decode_uint64(packet[pTypeLen:])
 	ttlBegin := pTypeLen
 	ttlEnd := pTypeLen + ttlLen
@@ -299,6 +304,7 @@ func (p *peer) handleSwitchAnnounce(packet []byte) {
 	}
 	p.msgAnc = &anc
 	p.processSwitchMessage()
+	p.lastAnc = time.Now()
 }
 
 func (p *peer) requestHop(hop uint64) {

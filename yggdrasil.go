@@ -104,6 +104,7 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	cfg.SigPub = hex.EncodeToString(spub[:])
 	cfg.SigPriv = hex.EncodeToString(spriv[:])
 	cfg.Peers = []string{}
+	cfg.PeerBoxPubs = []string{}
 	cfg.Multicast = true
 	cfg.LinkLocal = ""
 	cfg.IfName = core.DEBUG_GetTUNDefaultIfName()
