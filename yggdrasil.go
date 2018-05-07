@@ -58,13 +58,6 @@ func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
 		panic(err)
 	}
 	n.core.DEBUG_setIfceExpr(ifceExpr)
-	for _, pBoxStr := range cfg.PeerBoxPubs {
-		pbox, err := hex.DecodeString(pBoxStr)
-		if err != nil {
-			panic(err)
-		}
-		n.core.DEBUG_addAuthBoxPub(pbox)
-	}
 
 	logger.Println("Starting interface...")
 	n.core.DEBUG_setupAndStartGlobalTCPInterface(cfg.Listen) // Listen for peers on TCP
@@ -73,6 +66,10 @@ func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
 	logger.Println("Starting admin socket...")
 	n.core.DEBUG_setupAndStartAdminInterface(cfg.AdminListen)
 	logger.Println("Started admin socket")
+	for _, pBoxStr := range cfg.PeerBoxPubs {
+		n.core.DEBUG_addAuthBoxPub(pBoxStr)
+	}
+
 	go func() {
 		if len(cfg.Peers) == 0 {
 			return

@@ -377,7 +377,7 @@ func (a *admin) getAuthBoxPubs() string {
 
 func (a *admin) addAuthBoxPub(bstr string) (err error) {
 	boxBytes, err := hex.DecodeString(bstr)
-	if err != nil {
+	if err == nil {
 		var box boxPubKey
 		copy(box[:], boxBytes)
 		a.core.peers.addAuthBoxPub(&box)
@@ -387,7 +387,7 @@ func (a *admin) addAuthBoxPub(bstr string) (err error) {
 
 func (a *admin) removeAuthBoxPub(bstr string) (err error) {
 	boxBytes, err := hex.DecodeString(bstr)
-	if err != nil {
+	if err == nil {
 		var box boxPubKey
 		copy(box[:], boxBytes)
 		a.core.peers.removeAuthBoxPub(&box)

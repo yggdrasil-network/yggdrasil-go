@@ -44,6 +44,7 @@ func (c *Core) init(bpub *boxPubKey,
 	c.log = log.New(ioutil.Discard, "", 0)
 	c.boxPub, c.boxPriv = *bpub, *bpriv
 	c.sigPub, c.sigPriv = *spub, *spriv
+	c.admin.core = c
 	c.sigs.init()
 	c.searches.init(c)
 	c.dht.init(c)

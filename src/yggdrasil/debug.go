@@ -397,10 +397,11 @@ func (c *Core) DEBUG_setIfceExpr(expr *regexp.Regexp) {
 	c.ifceExpr = expr
 }
 
-func (c *Core) DEBUG_addAuthBoxPub(boxBytes []byte) {
-	var box boxPubKey
-	copy(box[:], boxBytes)
-	c.peers.addAuthBoxPub(&box)
+func (c *Core) DEBUG_addAuthBoxPub(boxStr string) {
+	err := c.admin.addAuthBoxPub(boxStr)
+	if err != nil {
+		panic(err)
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
