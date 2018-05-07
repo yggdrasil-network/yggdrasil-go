@@ -151,7 +151,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 		return
 	}
 	// Check if we're authorized to connect to this key / IP
-	if incoming && !iface.core.peers.isAuthBoxPub(&info.box) {
+	if incoming && !iface.core.peers.isAllowedBoxPub(&info.box) {
 		// Allow unauthorized peers if they're link-local
 		raddrStr, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
 		raddr := net.ParseIP(raddrStr)

@@ -397,8 +397,8 @@ func (c *Core) DEBUG_setIfceExpr(expr *regexp.Regexp) {
 	c.ifceExpr = expr
 }
 
-func (c *Core) DEBUG_addAuthBoxPub(boxStr string) {
-	err := c.admin.addAuthBoxPub(boxStr)
+func (c *Core) DEBUG_addAllowedBoxPub(boxStr string) {
+	err := c.admin.addAllowedBoxPub(boxStr)
 	if err != nil {
 		panic(err)
 	}

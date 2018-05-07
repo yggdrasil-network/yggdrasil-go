@@ -105,18 +105,18 @@ func (a *admin) init(c *Core, listenaddr string) {
 			*out = []byte(a.printInfos([]admin_nodeInfo{info}))
 		}
 	})
-	a.addHandler("getAuthBoxPubs", nil, func(out *[]byte, _ ...string) {
-		*out = []byte(a.getAuthBoxPubs())
+	a.addHandler("getAllowedBoxPubs", nil, func(out *[]byte, _ ...string) {
+		*out = []byte(a.getAllowedBoxPubs())
 	})
-	a.addHandler("addAuthBoxPub", []string{"<boxPubKey>"}, func(out *[]byte, saddr ...string) {
-		if a.addAuthBoxPub(saddr[0]) == nil {
+	a.addHandler("addAllowedBoxPub", []string{"<boxPubKey>"}, func(out *[]byte, saddr ...string) {
+		if a.addAllowedBoxPub(saddr[0]) == nil {
 			*out = []byte("Adding key: " + saddr[0] + "\n")
 		} else {
 			*out = []byte("Failed to add key: " + saddr[0] + "\n")
 		}
 	})
-	a.addHandler("removeAuthBoxPub", []string{"<boxPubKey>"}, func(out *[]byte, sport ...string) {
-		if a.removeAuthBoxPub(sport[0]) == nil {
+	a.addHandler("removeAllowedBoxPub", []string{"<boxPubKey>"}, func(out *[]byte, sport ...string) {
+		if a.removeAllowedBoxPub(sport[0]) == nil {
 			*out = []byte("Removing key: " + sport[0] + "\n")
 		} else {
 			*out = []byte("Failed to remove key: " + sport[0] + "\n")
@@ -365,8 +365,8 @@ func (a *admin) getData_getSessions() []admin_nodeInfo {
 	return infos
 }
 
-func (a *admin) getAuthBoxPubs() string {
-	pubs := a.core.peers.getAuthBoxPubs()
+func (a *admin) getAllowedBoxPubs() string {
+	pubs := a.core.peers.getAllowedBoxPubs()
 	var out []string
 	for _, pub := range pubs {
 		out = append(out, hex.EncodeToString(pub[:]))
@@ -375,22 +375,22 @@ func (a *admin) getAuthBoxPubs() string {
 	return strings.Join(out, "\n")
 }
 
-func (a *admin) addAuthBoxPub(bstr string) (err error) {
+func (a *admin) addAllowedBoxPub(bstr string) (err error) {
 	boxBytes, err := hex.DecodeString(bstr)
 	if err == nil {
 		var box boxPubKey
 		copy(box[:], boxBytes)
-		a.core.peers.addAuthBoxPub(&box)
+		a.core.peers.addAllowedBoxPub(&box)
 	}
 	return
 }
 
-func (a *admin) removeAuthBoxPub(bstr string) (err error) {
+func (a *admin) removeAllowedBoxPub(bstr string) (err error) {
 	boxBytes, err := hex.DecodeString(bstr)
 	if err == nil {
 		var box boxPubKey
 		copy(box[:], boxBytes)
-		a.core.peers.removeAuthBoxPub(&box)
+		a.core.peers.removeAllowedBoxPub(&box)
 	}
 	return
 }

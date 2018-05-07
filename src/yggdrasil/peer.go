@@ -34,8 +34,8 @@ type peers struct {
 	mutex sync.Mutex   // Synchronize writes to atomic
 	ports atomic.Value //map[Port]*peer, use CoW semantics
 	//ports map[Port]*peer
-	authMutex   sync.RWMutex
-	authBoxPubs map[boxPubKey]struct{}
+	authMutex      sync.RWMutex
+	allowedBoxPubs map[boxPubKey]struct{}
 }
 
 func (ps *peers) init(c *Core) {
@@ -43,33 +43,33 @@ func (ps *peers) init(c *Core) {
 	defer ps.mutex.Unlock()
 	ps.putPorts(make(map[switchPort]*peer))
 	ps.core = c
-	ps.authBoxPubs = make(map[boxPubKey]struct{})
+	ps.allowedBoxPubs = make(map[boxPubKey]struct{})
 }
 
-func (ps *peers) isAuthBoxPub(box *boxPubKey) bool {
+func (ps *peers) isAllowedBoxPub(box *boxPubKey) bool {
 	ps.authMutex.RLock()
 	defer ps.authMutex.RUnlock()
-	_, isIn := ps.authBoxPubs[*box]
-	return isIn || len(ps.authBoxPubs) == 0
+	_, isIn := ps.allowedBoxPubs[*box]
+	return isIn || len(ps.allowedBoxPubs) == 0
 }
 
-func (ps *peers) addAuthBoxPub(box *boxPubKey) {
+func (ps *peers) addAllowedBoxPub(box *boxPubKey) {
 	ps.authMutex.Lock()
 	defer ps.authMutex.Unlock()
-	ps.authBoxPubs[*box] = struct{}{}
+	ps.allowedBoxPubs[*box] = struct{}{}
 }
 
-func (ps *peers) removeAuthBoxPub(box *boxPubKey) {
+func (ps *peers) removeAllowedBoxPub(box *boxPubKey) {
 	ps.authMutex.Lock()
 	defer ps.authMutex.Unlock()
-	delete(ps.authBoxPubs, *box)
+	delete(ps.allowedBoxPubs, *box)
 }
 
-func (ps *peers) getAuthBoxPubs() []boxPubKey {
+func (ps *peers) getAllowedBoxPubs() []boxPubKey {
 	ps.authMutex.RLock()
 	defer ps.authMutex.RUnlock()
-	keys := make([]boxPubKey, 0, len(ps.authBoxPubs))
-	for key := range ps.authBoxPubs {
+	keys := make([]boxPubKey, 0, len(ps.allowedBoxPubs))
+	for key := range ps.allowedBoxPubs {
 		keys = append(keys, key)
 	}
 	return keys
