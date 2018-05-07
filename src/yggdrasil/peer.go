@@ -30,11 +30,12 @@ import "math"
 //import "fmt"
 
 type peers struct {
-	core        *Core
-	authBoxPubs map[boxPubKey]struct{}
-	mutex       sync.Mutex   // Synchronize writes to atomic
-	ports       atomic.Value //map[Port]*peer, use CoW semantics
+	core  *Core
+	mutex sync.Mutex   // Synchronize writes to atomic
+	ports atomic.Value //map[Port]*peer, use CoW semantics
 	//ports map[Port]*peer
+	authMutex   sync.RWMutex
+	authBoxPubs map[boxPubKey]struct{}
 }
 
 func (ps *peers) init(c *Core) {
@@ -46,8 +47,32 @@ func (ps *peers) init(c *Core) {
 }
 
 func (ps *peers) isAuthBoxPub(box *boxPubKey) bool {
+	ps.authMutex.RLock()
+	defer ps.authMutex.RUnlock()
 	_, isIn := ps.authBoxPubs[*box]
 	return isIn || len(ps.authBoxPubs) == 0
+}
+
+func (ps *peers) addAuthBoxPub(box *boxPubKey) {
+	ps.authMutex.Lock()
+	defer ps.authMutex.Unlock()
+	ps.authBoxPubs[*box] = struct{}{}
+}
+
+func (ps *peers) removeAuthBoxPub(box *boxPubKey) {
+	ps.authMutex.Lock()
+	defer ps.authMutex.Unlock()
+	delete(ps.authBoxPubs, *box)
+}
+
+func (ps *peers) getAuthBoxPubs() []boxPubKey {
+	ps.authMutex.RLock()
+	defer ps.authMutex.RUnlock()
+	keys := make([]boxPubKey, 0, len(ps.authBoxPubs))
+	for key := range ps.authBoxPubs {
+		keys = append(keys, key)
+	}
+	return keys
 }
 
 func (ps *peers) getPorts() map[switchPort]*peer {
@@ -218,7 +243,7 @@ func (p *peer) handlePacket(packet []byte, linkIn chan<- []byte) {
 }
 
 func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
-	if p.msgAnc == nil {
+	if p.port != 0 && p.msgAnc == nil {
 		// Drop traffic until the peer manages to send us at least one anc
 		return
 	}

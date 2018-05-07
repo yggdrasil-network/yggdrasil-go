@@ -400,7 +400,7 @@ func (c *Core) DEBUG_setIfceExpr(expr *regexp.Regexp) {
 func (c *Core) DEBUG_addAuthBoxPub(boxBytes []byte) {
 	var box boxPubKey
 	copy(box[:], boxBytes)
-	c.peers.authBoxPubs[box] = struct{}{}
+	c.peers.addAuthBoxPub(&box)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
