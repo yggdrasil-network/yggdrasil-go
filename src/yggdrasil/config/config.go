@@ -2,19 +2,20 @@ package config
 
 // NodeConfig defines all configuration values needed to run a signle yggdrasil node
 type NodeConfig struct {
-	Listen      string
-	AdminListen string
-	Peers       []string
-	BoxPub      string
-	BoxPriv     string
-	SigPub      string
-	SigPriv     string
-	Multicast   bool
-	LinkLocal   string
-	IfName      string
-	IfTAPMode   bool
-	IfMTU       int
-	Net         NetConfig
+	Listen         string
+	AdminListen    string
+	Peers          []string
+	AllowedBoxPubs []string
+	BoxPub         string
+	BoxPriv        string
+	SigPub         string
+	SigPriv        string
+	Multicast      bool
+	LinkLocal      string
+	IfName         string
+	IfTAPMode      bool
+	IfMTU          int
+	Net            NetConfig
 }
 
 // NetConfig defines network/proxy related configuration values

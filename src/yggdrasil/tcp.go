@@ -62,7 +62,7 @@ func (iface *tcpInterface) listener() {
 		if err != nil {
 			panic(err)
 		}
-		go iface.handler(sock)
+		go iface.handler(sock, true)
 	}
 }
 
@@ -81,7 +81,7 @@ func (iface *tcpInterface) callWithConn(conn net.Conn) {
 				delete(iface.calls, raddr)
 				iface.mutex.Unlock()
 			}()
-			iface.handler(conn)
+			iface.handler(conn, false)
 		}
 	}()
 }
@@ -106,12 +106,12 @@ func (iface *tcpInterface) call(saddr string) {
 			if err != nil {
 				return
 			}
-			iface.handler(conn)
+			iface.handler(conn, false)
 		}
 	}()
 }
 
-func (iface *tcpInterface) handler(sock net.Conn) {
+func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	defer sock.Close()
 	// Get our keys
 	keys := []byte{}
@@ -149,6 +149,15 @@ func (iface *tcpInterface) handler(sock net.Conn) {
 	} // testing
 	if equiv(info.sig[:], iface.core.sigPub[:]) {
 		return
+	}
+	// Check if we're authorized to connect to this key / IP
+	if incoming && !iface.core.peers.isAllowedBoxPub(&info.box) {
+		// Allow unauthorized peers if they're link-local
+		raddrStr, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
+		raddr := net.ParseIP(raddrStr)
+		if !raddr.IsLinkLocalUnicast() {
+			return
+		}
 	}
 	// Check if we already have a connection to this node, close and block if yes
 	info.localAddr, _, _ = net.SplitHostPort(sock.LocalAddr().String())

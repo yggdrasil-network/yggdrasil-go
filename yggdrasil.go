@@ -66,6 +66,10 @@ func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
 	logger.Println("Starting admin socket...")
 	n.core.DEBUG_setupAndStartAdminInterface(cfg.AdminListen)
 	logger.Println("Started admin socket")
+	for _, pBoxStr := range cfg.AllowedBoxPubs {
+		n.core.DEBUG_addAllowedBoxPub(pBoxStr)
+	}
+
 	go func() {
 		if len(cfg.Peers) == 0 {
 			return
@@ -97,6 +101,7 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	cfg.SigPub = hex.EncodeToString(spub[:])
 	cfg.SigPriv = hex.EncodeToString(spriv[:])
 	cfg.Peers = []string{}
+	cfg.AllowedBoxPubs = []string{}
 	cfg.Multicast = true
 	cfg.LinkLocal = ""
 	cfg.IfName = core.DEBUG_GetTUNDefaultIfName()
