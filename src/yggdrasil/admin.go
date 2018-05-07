@@ -3,6 +3,7 @@ package yggdrasil
 import "net"
 import "os"
 import "bytes"
+import "encoding/hex"
 import "errors"
 import "fmt"
 import "net/url"
@@ -102,6 +103,23 @@ func (a *admin) init(c *Core, listenaddr string) {
 				{"MTU", strconv.Itoa(ifmtu)},
 			}
 			*out = []byte(a.printInfos([]admin_nodeInfo{info}))
+		}
+	})
+	a.addHandler("getAuthBoxPubs", nil, func(out *[]byte, _ ...string) {
+		*out = []byte(a.getAuthBoxPubs())
+	})
+	a.addHandler("addAuthBoxPub", []string{"<boxPubKey>"}, func(out *[]byte, saddr ...string) {
+		if a.addAuthBoxPub(saddr[0]) == nil {
+			*out = []byte("Adding key: " + saddr[0] + "\n")
+		} else {
+			*out = []byte("Failed to add key: " + saddr[0] + "\n")
+		}
+	})
+	a.addHandler("removeAuthBoxPub", []string{"<boxPubKey>"}, func(out *[]byte, sport ...string) {
+		if a.removeAuthBoxPub(sport[0]) == nil {
+			*out = []byte("Removing key: " + sport[0] + "\n")
+		} else {
+			*out = []byte("Failed to remove key: " + sport[0] + "\n")
 		}
 	})
 	go a.listen()
@@ -345,6 +363,36 @@ func (a *admin) getData_getSessions() []admin_nodeInfo {
 	}
 	a.core.router.doAdmin(getSessions)
 	return infos
+}
+
+func (a *admin) getAuthBoxPubs() string {
+	pubs := a.core.peers.getAuthBoxPubs()
+	var out []string
+	for _, pub := range pubs {
+		out = append(out, hex.EncodeToString(pub[:]))
+	}
+	out = append(out, "")
+	return strings.Join(out, "\n")
+}
+
+func (a *admin) addAuthBoxPub(bstr string) (err error) {
+	boxBytes, err := hex.DecodeString(bstr)
+	if err != nil {
+		var box boxPubKey
+		copy(box[:], boxBytes)
+		a.core.peers.addAuthBoxPub(&box)
+	}
+	return
+}
+
+func (a *admin) removeAuthBoxPub(bstr string) (err error) {
+	boxBytes, err := hex.DecodeString(bstr)
+	if err != nil {
+		var box boxPubKey
+		copy(box[:], boxBytes)
+		a.core.peers.removeAuthBoxPub(&box)
+	}
+	return
 }
 
 func (a *admin) getResponse_dot() []byte {
