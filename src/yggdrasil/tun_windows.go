@@ -23,6 +23,11 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 	config := water.Config{DeviceType: water.TAP}
 	config.PlatformSpecificParams.ComponentID = "tap0901"
 	config.PlatformSpecificParams.Network = "169.254.0.1/32"
+	if ifname == "auto" {
+		config.PlatformSpecificParams.InterfaceName = ""
+	} else {
+		config.PlatformSpecificParams.InterfaceName = ifname
+	}
 	iface, err := water.New(config)
 	if err != nil {
 		panic(err)
