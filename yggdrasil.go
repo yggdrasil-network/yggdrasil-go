@@ -112,7 +112,6 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 }
 
 func doGenconf() string {
-
 	cfg := generateConfig(false)
 	bs, err := hjson.Marshal(cfg)
 	if err != nil {
@@ -239,8 +238,8 @@ func main() {
 		cfg = generateConfig(false)
 		var dat map[string]interface{}
 		if err := hjson.Unmarshal(config, &dat); err != nil {
-      panic(err)
-    }
+			panic(err)
+		}
 		if err = mapstructure.Decode(dat, &cfg); err != nil {
 			panic(err)
 		}
