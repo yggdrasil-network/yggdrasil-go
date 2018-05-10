@@ -73,6 +73,24 @@ func (a *admin) init(c *Core, listenaddr string) {
 			*out = []byte("Failed to remove peer: " + sport[0] + "\n")
 		}
 	})
+	a.addHandler("getTunTap", nil, func(out *[]byte, _ ...string) {
+		var info admin_nodeInfo
+		defer func() {
+			if r := recover(); r != nil {
+				info = admin_nodeInfo{
+					{"Interface name", "none"},
+				}
+				*out = []byte(a.printInfos([]admin_nodeInfo{info}))
+			}
+		}()
+
+		info = admin_nodeInfo{
+			{"Interface name", a.core.tun.iface.Name()},
+			{"TAP mode", strconv.FormatBool(a.core.tun.iface.IsTAP())},
+			{"MTU", strconv.Itoa(a.core.tun.mtu)},
+		}
+		*out = []byte(a.printInfos([]admin_nodeInfo{info}))
+	})
 	a.addHandler("setTunTap", []string{"<ifname|auto|none>", "[<tun|tap>]", "[<mtu>]"}, func(out *[]byte, ifparams ...string) {
 		// Set sane defaults
 		iftapmode := false
