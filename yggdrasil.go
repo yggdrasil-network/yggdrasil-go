@@ -1,8 +1,6 @@
 package main
 
-import "bytes"
 import "encoding/hex"
-import "encoding/json"
 import "flag"
 import "fmt"
 import "io/ioutil"
@@ -25,6 +23,8 @@ import "yggdrasil"
 import "yggdrasil/config"
 
 import "github.com/kardianos/minwinsvc"
+import "github.com/neilalexander/hjson-go"
+import "github.com/mitchellh/mapstructure"
 
 type nodeConfig = config.NodeConfig
 type Core = yggdrasil.Core
@@ -113,7 +113,7 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 
 func doGenconf() string {
 	cfg := generateConfig(false)
-	bs, err := json.MarshalIndent(cfg, "", "  ")
+	bs, err := hjson.Marshal(cfg)
 	if err != nil {
 		panic(err)
 	}
@@ -235,10 +235,12 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		decoder := json.NewDecoder(bytes.NewReader(config))
 		cfg = generateConfig(false)
-		err = decoder.Decode(cfg)
-		if err != nil {
+		var dat map[string]interface{}
+		if err := hjson.Unmarshal(config, &dat); err != nil {
+			panic(err)
+		}
+		if err = mapstructure.Decode(dat, &cfg); err != nil {
 			panic(err)
 		}
 	case *genconf:
