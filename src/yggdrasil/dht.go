@@ -234,14 +234,16 @@ func (t *dht) insert(info *dhtInfo, isPeer bool) {
 		return
 	}
 	b.other = append(b.other, info)
-	// Check if the next bucket is non-full and return early if it is
-	if bidx+1 == t.nBuckets() {
-		return
-	}
-	bnext := t.getBucket(bidx + 1)
-	if len(bnext.other) < dht_bucket_size {
-		return
-	}
+	/*
+		// Check if the next bucket is non-full and return early if it is
+		if bidx+1 == t.nBuckets() {
+			return
+		}
+		bnext := t.getBucket(bidx + 1)
+		if len(bnext.other) < dht_bucket_size {
+			return
+		}
+	  //*/
 	// Shrink from the *front* to requied size
 	for len(b.other) > dht_bucket_size {
 		b.other = b.other[1:]
@@ -478,13 +480,15 @@ func (t *dht) doMaintenance() {
 			}
 			// This is a good spot to check if a node is worth pinging
 			add := len(b.other) < dht_bucket_size
-			if bidx+1 == t.nBuckets() {
-				add = true
-			}
-			bnext := t.getBucket(bidx + 1)
-			if len(bnext.other) < dht_bucket_size {
-				add = true
-			}
+			/*
+						if bidx+1 == t.nBuckets() {
+							add = true
+						}
+						bnext := t.getBucket(bidx + 1)
+						if len(bnext.other) < dht_bucket_size {
+							add = true
+						}
+			      //*/
 			for _, info := range b.other {
 				if dht_firstCloserThanThird(rumor.info.getNodeID(), &t.nodeID, info.getNodeID()) {
 					// Add the node if they are closer to us than someone in the same bucket
