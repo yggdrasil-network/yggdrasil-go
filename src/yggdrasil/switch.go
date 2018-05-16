@@ -127,8 +127,7 @@ type switchMessage struct {
 
 type switchPort uint64
 type tableElem struct {
-	port switchPort
-	//firstSeen time.Time
+	port    switchPort
 	locator switchLocator
 }
 
@@ -304,7 +303,6 @@ func (t *switchTable) handleMessage(msg *switchMessage, fromPort switchPort, sig
 	doUpdate := false
 	if !equiv(&msg.locator, &oldSender.locator) {
 		doUpdate = true
-		//sender.firstSeen = now
 	}
 	t.data.peers[fromPort] = sender
 	updateRoot := false
@@ -396,10 +394,7 @@ func (t *switchTable) updateTable() {
 		loc.coords = loc.coords[:len(loc.coords)-1] // Remove the them->self link
 		newTable.elems = append(newTable.elems, tableElem{
 			locator: loc,
-			//degree: pinfo.degree,
-			//firstSeen: pinfo.firstSeen,
-			//forward: pinfo.forward,
-			port: pinfo.port,
+			port:    pinfo.port,
 		})
 	}
 	t.table.Store(newTable)
