@@ -469,14 +469,14 @@ func (t *dht) doMaintenance() {
 				continue
 			}
 			// This is a good spot to check if a node is worth pinging
-			add := len(b.other) < dht_bucket_size
+			doPing := len(b.other) < dht_bucket_size
 			for _, info := range b.other {
 				if dht_firstCloserThanThird(rumor.info.getNodeID(), &t.nodeID, info.getNodeID()) {
 					// Add the node if they are closer to us than someone in the same bucket
-					add = true
+					doPing = true
 				}
 			}
-			if !add {
+			if !doPing {
 				continue
 			}
 		}
