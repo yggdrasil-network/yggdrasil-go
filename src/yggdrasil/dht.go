@@ -25,9 +25,9 @@ import "time"
 
 // Maximum size for buckets and lookups
 //  Exception for buckets if the next one is non-full
-const dht_bucket_size = 2               // This should be at least 2
-const dht_lookup_size = 2               // This should be at least 1, below 2 is impractical
 const dht_bucket_number = 8 * NodeIDLen // This shouldn't be changed
+const dht_bucket_size = 2               // This should be at least 2
+const dht_lookup_size = 16              // This should be at least 1, below 2 is impractical
 
 type dhtInfo struct {
 	nodeID_hidden *NodeID
@@ -141,21 +141,14 @@ func (t *dht) handleRes(res *dhtRes) {
 	if res.dest == *rinfo.getNodeID() {
 		return
 	} // No infinite recursions
-	// ping the nodes we were told about
 	if len(res.infos) > dht_lookup_size {
 		// Ignore any "extra" lookup results
 		res.infos = res.infos[:dht_lookup_size]
 	}
 	for _, info := range res.infos {
-		bidx, isOK := t.getBucketIndex(info.getNodeID())
-		if !isOK {
-			continue
+		if dht_firstCloserThanThird(info.getNodeID(), &res.dest, rinfo.getNodeID()) {
+			t.addToMill(info, info.getNodeID())
 		}
-		b := t.getBucket(bidx)
-		if b.contains(info) {
-			continue
-		} // wait for maintenance cycle to get them
-		t.addToMill(info, info.getNodeID())
 	}
 }
 
@@ -167,7 +160,7 @@ func (t *dht) lookup(nodeID *NodeID) []*dhtInfo {
 			if info == nil {
 				panic("Should never happen!")
 			}
-			if true || dht_firstCloserThanThird(info.getNodeID(), nodeID, &t.nodeID) {
+			if dht_firstCloserThanThird(info.getNodeID(), nodeID, &t.nodeID) {
 				res = append(res, info)
 			}
 		}
@@ -467,10 +460,43 @@ func (t *dht) doMaintenance() {
 		}
 		t.offset++
 	}
-	if len(t.rumorMill) > 0 {
+	for len(t.rumorMill) > 0 {
 		var rumor dht_rumor
 		rumor, t.rumorMill = t.rumorMill[0], t.rumorMill[1:]
+		if rumor.target == rumor.info.getNodeID() {
+			// Note that the above is a pointer comparison, and target can be nil
+			// This is only for adding new nodes (learned from other lookups)
+			// It only makes sense to ping if the node isn't already in the table
+			bidx, isOK := t.getBucketIndex(rumor.info.getNodeID())
+			if !isOK {
+				continue
+			}
+			b := t.getBucket(bidx)
+			if b.contains(rumor.info) {
+				// Already know about this node
+				continue
+			}
+			// This is a good spot to check if a node is worth pinging
+			add := len(b.other) < dht_bucket_size
+			if bidx+1 == t.nBuckets() {
+				add = true
+			}
+			bnext := t.getBucket(bidx + 1)
+			if len(bnext.other) < dht_bucket_size {
+				add = true
+			}
+			for _, info := range b.other {
+				if dht_firstCloserThanThird(rumor.info.getNodeID(), &t.nodeID, info.getNodeID()) {
+					// Add the node if they are closer to us than someone in the same bucket
+					add = true
+				}
+			}
+			if !add {
+				continue
+			}
+		}
 		t.ping(rumor.info, rumor.target)
+		break
 	}
 }
 
@@ -488,8 +514,11 @@ func dht_firstCloserThanThird(first *NodeID,
 	return false
 }
 
-func (t *dht) resetPeers() {
+func (t *dht) reset() {
+	// This is mostly so bootstrapping will reset to resend coords into the network
 	for _, b := range t.buckets_hidden {
 		b.peers = b.peers[:0]
+		b.other = b.other[:0]
 	}
+	t.offset = 0
 }
