@@ -6,6 +6,7 @@ import "os"
 import "strings"
 import "strconv"
 import "time"
+import "log"
 
 import "runtime/pprof"
 import "flag"
@@ -418,12 +419,12 @@ func main() {
 	idxstore := loadGraph("misc/sim/fc00-2017-08-12.txt")
 	//idxstore := loadGraph("skitter")
 	kstore := getKeyedStore(idxstore)
-	/*
-	  for _, n := range kstore {
-	    log := n.core.DEBUG_getLogger()
-	    log.SetOutput(os.Stderr)
-	  }
-	*/
+	//*
+	logger := log.New(os.Stderr, "", log.Flags())
+	for _, n := range kstore {
+		n.core.DEBUG_setLogger(logger)
+	}
+	//*/
 	startNetwork(kstore)
 	//time.Sleep(10*time.Second)
 	// Note that testPaths only works if pressure is turend off
