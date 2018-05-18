@@ -374,6 +374,9 @@ func (a *admin) getData_getSessions() []admin_nodeInfo {
 				{"IP", net.IP(sinfo.theirAddr[:]).String()},
 				{"coords", fmt.Sprint(sinfo.coords)},
 				{"MTU", fmt.Sprint(sinfo.getMTU())},
+				{"wasMTUFixed", fmt.Sprint(sinfo.wasMTUFixed)},
+				{"bytesSent", fmt.Sprint(sinfo.bytesSent)},
+				{"bytesRecvd", fmt.Sprint(sinfo.bytesRecvd)},
 			}
 			infos = append(infos, info)
 		}
