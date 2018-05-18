@@ -198,20 +198,12 @@ func (t *dht) nBuckets() int {
 func (t *dht) insertIfNew(info *dhtInfo, isPeer bool) {
 	//fmt.Println("DEBUG: dht insertIfNew:", info.getNodeID(), info.coords)
 	// Insert a peer if and only if the bucket doesn't already contain it
-	nodeID := info.getNodeID()
-	bidx, isOK := t.getBucketIndex(nodeID)
-	if !isOK {
+	if !t.shouldInsert(info) {
 		return
 	}
-	b := t.getBucket(bidx)
-	if !b.contains(info) {
-		// We've never heard this node before
-		// TODO is there a better time than "now" to set send/recv to?
-		// (Is there another "natural" choice that bootstraps faster?)
-		info.send = time.Now()
-		info.recv = info.send
-		t.insert(info, isPeer)
-	}
+	info.send = time.Now()
+	info.recv = info.send
+	t.insert(info, isPeer)
 }
 
 func (t *dht) insert(info *dhtInfo, isPeer bool) {
@@ -459,30 +451,33 @@ func (t *dht) doMaintenance() {
 			// Note that the above is a pointer comparison, and target can be nil
 			// This is only for adding new nodes (learned from other lookups)
 			// It only makes sense to ping if the node isn't already in the table
-			bidx, isOK := t.getBucketIndex(rumor.info.getNodeID())
-			if !isOK {
-				continue
-			}
-			b := t.getBucket(bidx)
-			if b.contains(rumor.info) {
-				// Already know about this node
-				continue
-			}
-			// This is a good spot to check if a node is worth pinging
-			doPing := len(b.other) < dht_bucket_size
-			for _, info := range b.other {
-				if dht_firstCloserThanThird(rumor.info.getNodeID(), &t.nodeID, info.getNodeID()) {
-					// Add the node if they are closer to us than someone in the same bucket
-					doPing = true
-				}
-			}
-			if !doPing {
+			if !t.shouldInsert(rumor.info) {
 				continue
 			}
 		}
 		t.ping(rumor.info, rumor.target)
 		break
 	}
+}
+
+func (t *dht) shouldInsert(info *dhtInfo) bool {
+	bidx, isOK := t.getBucketIndex(info.getNodeID())
+	if !isOK {
+		return false
+	}
+	b := t.getBucket(bidx)
+	if b.contains(info) {
+		return false
+	}
+	if len(b.other) < dht_bucket_size {
+		return true
+	}
+	for _, other := range b.other {
+		if dht_firstCloserThanThird(info.getNodeID(), &t.nodeID, other.getNodeID()) {
+			return true
+		}
+	}
+	return false
 }
 
 func dht_firstCloserThanThird(first *NodeID,
