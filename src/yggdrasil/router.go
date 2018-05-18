@@ -164,6 +164,31 @@ func (r *router) sendPacket(bs []byte) {
 		}
 		fallthrough // Also send the packet
 	default:
+		// Drop packets if the session MTU is 0 - this means that one or other
+		// side probably has their TUN adapter disabled
+		if sinfo.getMTU() == 0 {
+			// Get the size of the oversized payload, up to a max of 900 bytes
+			window := 900
+			if len(bs) < window {
+				window = len(bs)
+			}
+
+			// Create the Destination Unreachable response
+			ptb := &icmp.DstUnreach{
+				Data: bs[:window],
+			}
+
+			// Create the ICMPv6 response from it
+			icmpv6Buf, err := r.core.tun.icmpv6.create_icmpv6_tun(
+				bs[8:24], bs[24:40],
+				ipv6.ICMPTypeDestinationUnreachable, 1, ptb)
+			if err == nil {
+				r.recv <- icmpv6Buf
+			}
+
+			// Don't continue - drop the packet
+			return
+		}
 		// Generate an ICMPv6 Packet Too Big for packets larger than session MTU
 		if len(bs) > int(sinfo.getMTU()) {
 			// Get the size of the oversized payload, up to a max of 900 bytes

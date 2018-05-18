@@ -280,6 +280,17 @@ func (a *admin) startTunWithMTU(ifname string, iftapmode bool, ifmtu int) error 
 		if err != nil {
 			return err
 		}
+		// If we have open sessions then we need to notify them
+		// that our MTU has now changed
+		for _, sinfo := range a.core.sessions.sinfos {
+			if ifname == "none" {
+				sinfo.myMTU = 0
+			} else {
+				sinfo.myMTU = uint16(ifmtu)
+			}
+			a.core.sessions.sendPingPong(sinfo, false)
+		}
+		// Aaaaand... go!
 		go a.core.tun.read()
 	}
 	go a.core.tun.write()

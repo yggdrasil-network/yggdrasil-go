@@ -65,7 +65,7 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 		s.theirNonce = boxNonce{}
 		s.nonceMask = 0
 	}
-	if p.mtu >= 1280 {
+	if p.mtu >= 1280 || p.mtu == 0 {
 		s.theirMTU = p.mtu
 	}
 	s.coords = append([]byte{}, p.coords...)
@@ -313,6 +313,9 @@ func (n *boxNonce) minus(m *boxNonce) int64 {
 }
 
 func (sinfo *sessionInfo) getMTU() uint16 {
+	if sinfo.theirMTU == 0 || sinfo.myMTU == 0 {
+		return 0
+	}
 	if sinfo.theirMTU < sinfo.myMTU {
 		return sinfo.theirMTU
 	}
