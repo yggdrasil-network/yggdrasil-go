@@ -21,6 +21,7 @@ type sessionInfo struct {
 	myNonce      boxNonce
 	theirMTU     uint16
 	myMTU        uint16
+	wasMTUFixed  bool      // Was the MTU fixed by a receive error?
 	time         time.Time // Time we last received a packet
 	coords       []byte    // coords of destination
 	packet       []byte    // a buffered packet, sent immediately on ping/pong
@@ -32,6 +33,8 @@ type sessionInfo struct {
 	mtuTime      time.Time // time myMTU was last changed
 	pingTime     time.Time // time the first ping was sent since the last received packet
 	pingSend     time.Time // time the last ping was sent
+	bytesSent    uint64    // Bytes of real traffic sent in this session
+	bytesRecvd   uint64    // Bytes of real traffic received in this session
 }
 
 type sessionPing struct {
@@ -62,7 +65,7 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 		s.theirNonce = boxNonce{}
 		s.nonceMask = 0
 	}
-	if p.mtu >= 1280 {
+	if p.mtu >= 1280 || p.mtu == 0 {
 		s.theirMTU = p.mtu
 	}
 	s.coords = append([]byte{}, p.coords...)
@@ -310,6 +313,9 @@ func (n *boxNonce) minus(m *boxNonce) int64 {
 }
 
 func (sinfo *sessionInfo) getMTU() uint16 {
+	if sinfo.theirMTU == 0 || sinfo.myMTU == 0 {
+		return 0
+	}
 	if sinfo.theirMTU < sinfo.myMTU {
 		return sinfo.theirMTU
 	}
@@ -384,6 +390,7 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 		payload: payload,
 	}
 	packet := p.encode()
+	sinfo.bytesSent += uint64(len(bs))
 	sinfo.core.router.out(packet)
 }
 
@@ -411,6 +418,7 @@ func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
 				//sinfo.core.log.Println("DEBUG set MTU to:", sinfo.myMTU)
 				sinfo.core.sessions.sendPingPong(sinfo, false)
 				sinfo.mtuTime = time.Now()
+				sinfo.wasMTUFixed = true
 			}
 		}
 		go func() { sinfo.core.router.admin <- fixSessionMTU }()
@@ -427,5 +435,6 @@ func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
 	go func() { sinfo.core.router.admin <- fixSessionMTU }()
 	sinfo.updateNonce(&p.nonce)
 	sinfo.time = time.Now()
+	sinfo.bytesRecvd += uint64(len(bs))
 	sinfo.core.router.recvPacket(bs, &sinfo.theirAddr, &sinfo.theirSubnet)
 }
