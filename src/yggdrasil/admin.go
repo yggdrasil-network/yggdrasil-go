@@ -344,20 +344,21 @@ func (a *admin) getData_getDHT() []admin_nodeInfo {
 	getDHT := func() {
 		for i := 0; i < a.core.dht.nBuckets(); i++ {
 			b := a.core.dht.getBucket(i)
-			getInfo := func(vs []*dhtInfo) {
+			getInfo := func(vs []*dhtInfo, isPeer bool) {
 				for _, v := range vs {
 					addr := *address_addrForNodeID(v.getNodeID())
 					info := admin_nodeInfo{
 						{"IP", net.IP(addr[:]).String()},
 						{"coords", fmt.Sprint(v.coords)},
 						{"bucket", fmt.Sprint(i)},
+						{"peerOnly", fmt.Sprint(isPeer)},
 						{"lastSeen", fmt.Sprint(now.Sub(v.recv))},
 					}
 					infos = append(infos, info)
 				}
 			}
-			getInfo(b.other)
-			getInfo(b.peers)
+			getInfo(b.other, false)
+			getInfo(b.peers, true)
 		}
 	}
 	a.core.router.doAdmin(getDHT)

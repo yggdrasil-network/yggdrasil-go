@@ -197,8 +197,14 @@ func (t *dht) nBuckets() int {
 
 func (t *dht) insertIfNew(info *dhtInfo, isPeer bool) {
 	//fmt.Println("DEBUG: dht insertIfNew:", info.getNodeID(), info.coords)
-	// Always inserts peers, inserts other nodes if not already present
-	if isPeer || t.shouldInsert(info) {
+	// Insert if no "other" entry already exists
+	nodeID := info.getNodeID()
+	bidx, isOK := t.getBucketIndex(nodeID)
+	if !isOK {
+		return
+	}
+	b := t.getBucket(bidx)
+	if (isPeer && !b.containsOther(info)) || t.shouldInsert(info) {
 		// We've never heard this node before
 		// TODO is there a better time than "now" to set send/recv to?
 		// (Is there another "natural" choice that bootstraps faster?)
@@ -222,7 +228,7 @@ func (t *dht) insert(info *dhtInfo, isPeer bool) {
 	if !isPeer && !b.containsOther(info) {
 		// This is a new entry, give it an old age so it's pinged sooner
 		// This speeds up bootstrapping
-		info.recv = info.recv.Add(-time.Minute)
+		info.recv = info.recv.Add(-time.Hour)
 	}
 	// First drop any existing entry from the bucket
 	b.drop(&info.key)
