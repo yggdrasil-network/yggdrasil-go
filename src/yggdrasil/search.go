@@ -84,7 +84,7 @@ func (s *searches) sendSearch(info *searchInfo) {
 }
 
 func (s *searches) handleSearchReq(req *searchReq) {
-	lookup := s.core.dht.lookup(&req.dest)
+	lookup := s.core.dht.lookup(&req.dest, false)
 	sent := false
 	//fmt.Println("DEBUG len:", len(lookup))
 	for _, info := range lookup {

@@ -10,6 +10,7 @@ import "net/url"
 import "sort"
 import "strings"
 import "strconv"
+import "time"
 
 // TODO? Make all of this JSON
 // TODO: Add authentication
@@ -339,27 +340,25 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 
 func (a *admin) getData_getDHT() []admin_nodeInfo {
 	var infos []admin_nodeInfo
+	now := time.Now()
 	getDHT := func() {
 		for i := 0; i < a.core.dht.nBuckets(); i++ {
 			b := a.core.dht.getBucket(i)
-			for _, v := range b.other {
-				addr := *address_addrForNodeID(v.getNodeID())
-				info := admin_nodeInfo{
-					{"IP", net.IP(addr[:]).String()},
-					{"coords", fmt.Sprint(v.coords)},
-					{"bucket", fmt.Sprint(i)},
+			getInfo := func(vs []*dhtInfo, isPeer bool) {
+				for _, v := range vs {
+					addr := *address_addrForNodeID(v.getNodeID())
+					info := admin_nodeInfo{
+						{"IP", net.IP(addr[:]).String()},
+						{"coords", fmt.Sprint(v.coords)},
+						{"bucket", fmt.Sprint(i)},
+						{"peerOnly", fmt.Sprint(isPeer)},
+						{"lastSeen", fmt.Sprint(now.Sub(v.recv))},
+					}
+					infos = append(infos, info)
 				}
-				infos = append(infos, info)
 			}
-			for _, v := range b.peers {
-				addr := *address_addrForNodeID(v.getNodeID())
-				info := admin_nodeInfo{
-					{"IP", net.IP(addr[:]).String()},
-					{"coords", fmt.Sprint(v.coords)},
-					{"bucket", fmt.Sprint(i)},
-				}
-				infos = append(infos, info)
-			}
+			getInfo(b.other, false)
+			getInfo(b.peers, true)
 		}
 	}
 	a.core.router.doAdmin(getDHT)
