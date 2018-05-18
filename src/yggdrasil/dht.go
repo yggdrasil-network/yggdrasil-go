@@ -93,7 +93,7 @@ func (t *dht) handleReq(req *dhtReq) {
 		key:    t.core.boxPub,
 		coords: coords,
 		dest:   req.dest,
-		infos:  t.lookup(&req.dest),
+		infos:  t.lookup(&req.dest, false),
 	}
 	t.sendRes(&res, req)
 	// Also (possibly) add them to our DHT
@@ -152,7 +152,7 @@ func (t *dht) handleRes(res *dhtRes) {
 	}
 }
 
-func (t *dht) lookup(nodeID *NodeID) []*dhtInfo {
+func (t *dht) lookup(nodeID *NodeID, allowCloser bool) []*dhtInfo {
 	// FIXME this allocates a bunch, sorts, and keeps the part it likes
 	// It would be better to only track the part it likes to begin with
 	addInfos := func(res []*dhtInfo, infos []*dhtInfo) []*dhtInfo {
@@ -160,7 +160,7 @@ func (t *dht) lookup(nodeID *NodeID) []*dhtInfo {
 			if info == nil {
 				panic("Should never happen!")
 			}
-			if dht_firstCloserThanThird(info.getNodeID(), nodeID, &t.nodeID) {
+			if allowCloser || dht_firstCloserThanThird(info.getNodeID(), nodeID, &t.nodeID) {
 				res = append(res, info)
 			}
 		}
@@ -197,13 +197,15 @@ func (t *dht) nBuckets() int {
 
 func (t *dht) insertIfNew(info *dhtInfo, isPeer bool) {
 	//fmt.Println("DEBUG: dht insertIfNew:", info.getNodeID(), info.coords)
-	// Insert a peer if and only if the bucket doesn't already contain it
-	if !t.shouldInsert(info) {
-		return
+	// Always inserts peers, inserts other nodes if not already present
+	if isPeer || t.shouldInsert(info) {
+		// We've never heard this node before
+		// TODO is there a better time than "now" to set send/recv to?
+		// (Is there another "natural" choice that bootstraps faster?)
+		info.send = time.Now()
+		info.recv = info.send
+		t.insert(info, isPeer)
 	}
-	info.send = time.Now()
-	info.recv = info.send
-	t.insert(info, isPeer)
 }
 
 func (t *dht) insert(info *dhtInfo, isPeer bool) {
@@ -217,6 +219,11 @@ func (t *dht) insert(info *dhtInfo, isPeer bool) {
 		return
 	}
 	b := t.getBucket(bidx)
+	if !isPeer && !b.containsOther(info) {
+		// This is a new entry, give it an old age so it's pinged sooner
+		// This speeds up bootstrapping
+		info.recv = info.recv.Add(-time.Minute)
+	}
 	// First drop any existing entry from the bucket
 	b.drop(&info.key)
 	// Now add to the *end* of the bucket
@@ -243,36 +250,45 @@ func (t *dht) getBucketIndex(nodeID *NodeID) (int, bool) {
 	return t.nBuckets(), false
 }
 
-func (b *bucket) contains(ninfo *dhtInfo) bool {
+func dht_bucket_check(newInfo *dhtInfo, infos []*dhtInfo) bool {
 	// Compares if key and coords match
-	var found bool
-	check := func(infos []*dhtInfo) {
-		for _, info := range infos {
-			if info == nil {
-				panic("Should never happen")
-			}
-			if info.key != info.key {
-				continue
-			}
-			if len(info.coords) != len(ninfo.coords) {
-				continue
-			}
-			match := true
-			for idx := 0; idx < len(info.coords); idx++ {
-				if info.coords[idx] != ninfo.coords[idx] {
-					match = false
-					break
-				}
-			}
-			if match {
-				found = true
+	if newInfo == nil {
+		panic("Should never happen")
+	}
+	for _, info := range infos {
+		if info == nil {
+			panic("Should never happen")
+		}
+		if info.key != newInfo.key {
+			continue
+		}
+		if len(info.coords) != len(newInfo.coords) {
+			continue
+		}
+		match := true
+		for idx := 0; idx < len(info.coords); idx++ {
+			if info.coords[idx] != newInfo.coords[idx] {
+				match = false
 				break
 			}
 		}
+		if match {
+			return true
+		}
 	}
-	check(b.peers)
-	check(b.other)
-	return found
+	return false
+}
+
+func (b *bucket) containsPeer(info *dhtInfo) bool {
+	return dht_bucket_check(info, b.peers)
+}
+
+func (b *bucket) containsOther(info *dhtInfo) bool {
+	return dht_bucket_check(info, b.other)
+}
+
+func (b *bucket) contains(info *dhtInfo) bool {
+	return b.containsPeer(info) || b.containsOther(info)
 }
 
 func (b *bucket) drop(key *boxPubKey) {
@@ -436,13 +452,14 @@ func (t *dht) doMaintenance() {
 			t.offset = 0
 		}
 		target := t.getTarget(t.offset)
-		for _, info := range t.lookup(target) {
+		for _, info := range t.lookup(target, true) {
 			if time.Since(info.recv) > time.Minute {
 				t.addToMill(info, target)
+				t.offset++
 				break
 			}
 		}
-		t.offset++
+		//t.offset++
 	}
 	for len(t.rumorMill) > 0 {
 		var rumor dht_rumor
@@ -466,7 +483,7 @@ func (t *dht) shouldInsert(info *dhtInfo) bool {
 		return false
 	}
 	b := t.getBucket(bidx)
-	if b.contains(info) {
+	if b.containsOther(info) {
 		return false
 	}
 	if len(b.other) < dht_bucket_size {
