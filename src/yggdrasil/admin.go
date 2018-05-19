@@ -10,6 +10,7 @@ import "net/url"
 import "sort"
 import "strings"
 import "strconv"
+import "sync/atomic"
 import "time"
 
 // TODO? Make all of this JSON
@@ -322,6 +323,9 @@ func (a *admin) getData_getPeers() []admin_nodeInfo {
 		info := admin_nodeInfo{
 			{"IP", net.IP(addr[:]).String()},
 			{"port", fmt.Sprint(port)},
+			{"uptime", fmt.Sprint(time.Since(p.firstSeen))},
+			{"bytesSent", fmt.Sprint(atomic.LoadUint64(&p.bytesSent))},
+			{"bytesRecvd", fmt.Sprint(atomic.LoadUint64(&p.bytesRecvd))},
 		}
 		peerInfos = append(peerInfos, info)
 	}
