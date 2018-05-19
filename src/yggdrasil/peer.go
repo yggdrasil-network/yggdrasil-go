@@ -86,11 +86,14 @@ func (ps *peers) putPorts(ports map[switchPort]*peer) {
 type peer struct {
 	// Rolling approximation of bandwidth, in bps, used by switch, updated by packet sends
 	// use get/update methods only! (atomic accessors as float64)
-	bandwidth uint64
+	bandwidth  uint64
+	bytesSent  uint64 // To track bandwidth usage for getPeers
+	bytesRecvd uint64 // To track bandwidth usage for getPeers
 	// BUG: sync/atomic, 32 bit platforms need the above to be the first element
-	box    boxPubKey
-	sig    sigPubKey
-	shared boxSharedKey
+	firstSeen time.Time // To track uptime for getPeers
+	box       boxPubKey
+	sig       sigPubKey
+	shared    boxSharedKey
 	//in <-chan []byte
 	//out chan<- []byte
 	//in func([]byte)
@@ -133,11 +136,13 @@ func (p *peer) updateBandwidth(bytes int, duration time.Duration) {
 
 func (ps *peers) newPeer(box *boxPubKey,
 	sig *sigPubKey) *peer {
+	now := time.Now()
 	p := peer{box: *box,
-		sig:     *sig,
-		shared:  *getSharedKey(&ps.core.boxPriv, box),
-		lastAnc: time.Now(),
-		core:    ps.core}
+		sig:       *sig,
+		shared:    *getSharedKey(&ps.core.boxPriv, box),
+		lastAnc:   now,
+		firstSeen: now,
+		core:      ps.core}
 	ps.mutex.Lock()
 	defer ps.mutex.Unlock()
 	oldPorts := ps.getPorts()
@@ -221,6 +226,8 @@ func (p *peer) linkLoop(in <-chan []byte) {
 }
 
 func (p *peer) handlePacket(packet []byte, linkIn chan<- []byte) {
+	// TODO See comment in sendPacket about atomics technically being done wrong
+	atomic.AddUint64(&p.bytesRecvd, uint64(len(packet)))
 	pType, pTypeLen := wire_decode_uint64(packet)
 	if pTypeLen == 0 {
 		return
@@ -277,6 +284,8 @@ func (p *peer) sendPacket(packet []byte) {
 	// Is there ever a case where something more complicated is needed?
 	// What if p.out blocks?
 	p.out(packet)
+	// TODO this should really happen at the interface, to account for LIFO packet drops and additional per-packet/per-message overhead, but this should be pretty close... better to move it to the tcp/udp stuff *after* rewriting both to give a common interface
+	atomic.AddUint64(&p.bytesSent, uint64(len(packet)))
 }
 
 func (p *peer) sendLinkPacket(packet []byte) {
