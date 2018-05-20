@@ -143,44 +143,35 @@ func (a *admin) init(c *Core, listenaddr string) {
 			"mtu":      a.core.tun.mtu,
 		}, nil
 	})
+	a.addHandler("setTunTap", []string{"name", "<tap_mode>", "<mtu>"}, func(in admin_info) (admin_info, error) {
+		// Set sane defaults
+		iftapmode := false
+		ifmtu := getDefaults().defaultIfMTU
+		// Has TAP mode been specified?
+		if tap, ok := in["tap_mode"]; ok {
+			iftapmode = tap.(bool)
+		}
+		// Check we have enough params for MTU
+		if mtu, ok := in["mtu"]; ok {
+			if mtu.(int) >= 1280 && ifmtu <= getDefaults().maximumIfMTU {
+				ifmtu = in["mtu"].(int)
+			}
+		}
+		// Start the TUN adapter
+		if err := a.startTunWithMTU(in["name"].(string), iftapmode, ifmtu); err != nil {
+			return admin_info{}, errors.New("Failed to configure adapter")
+		} else {
+			return admin_info{
+				"name":     a.core.tun.iface.Name(),
+				"tap_mode": iftapmode,
+				"mtu":      ifmtu,
+			}, nil
+		}
+	})
+	a.addHandler("getAllowedBoxPubs", nil, func(in admin_info) (admin_info, error) {
+		return admin_info{"allowed_box_pubs": a.getAllowedBoxPubs()}, nil
+	})
 	/*
-		a.addHandler("setTunTap", []string{"<ifname|auto|none>", "[<tun|tap>]", "[<mtu>]"}, func(out *[]byte, ifparams ...string) {
-			// Set sane defaults
-			iftapmode := false
-			ifmtu := 1280
-			var err error
-			// Check we have enough params for TAP mode
-			if len(ifparams) > 1 {
-				// Is it a TAP adapter?
-				if ifparams[1] == "tap" {
-					iftapmode = true
-				}
-			}
-			// Check we have enough params for MTU
-			if len(ifparams) > 2 {
-				// Make sure the MTU is sane
-				ifmtu, err = strconv.Atoi(ifparams[2])
-				if err != nil || ifmtu < 1280 || ifmtu > 65535 {
-					ifmtu = 1280
-				}
-			}
-			// Start the TUN adapter
-			if err := a.startTunWithMTU(ifparams[0], iftapmode, ifmtu); err != nil {
-				*out = []byte(fmt.Sprintf("Failed to set TUN: %v\n", err))
-			} else {
-				info := admin_nodeInfo{
-					{"Interface name", ifparams[0]},
-					{"TAP mode", strconv.FormatBool(iftapmode)},
-					{"mtu", strconv.Itoa(ifmtu)},
-				}
-				*out = []byte(a.printInfos([]admin_nodeInfo{info}))
-			}
-		})
-	*/
-	/*
-		a.addHandler("getAllowedBoxPubs", nil, func(out *[]byte, _ ...string) {
-			*out = []byte(a.getAllowedBoxPubs())
-		})
 		a.addHandler("addAllowedBoxPub", []string{"<boxPubKey>"}, func(out *[]byte, saddr ...string) {
 			if a.addAllowedBoxPub(saddr[0]) == nil {
 				*out = []byte("Adding key: " + saddr[0] + "\n")
@@ -215,24 +206,45 @@ func (a *admin) listen() {
 }
 
 func (a *admin) handleRequest(conn net.Conn) {
-	defer conn.Close()
 	decoder := json.NewDecoder(conn)
 	encoder := json.NewEncoder(conn)
 	encoder.SetIndent("", "  ")
 	recv := make(admin_info)
 	send := make(admin_info)
 
+	defer func() {
+		r := recover()
+		if r != nil {
+			send = admin_info{
+				"status": "error",
+				"error":  "Unrecoverable error, possibly as a result of invalid input types or malformed syntax",
+			}
+			if err := encoder.Encode(&send); err != nil {
+				fmt.Println("Admin socket JSON encode error:", err)
+			}
+			conn.Close()
+		}
+	}()
+
 	for {
+		// Start with a clean slate on each request
+		recv = admin_info{}
+		send = admin_info{}
+
+		// Decode the input
 		if err := decoder.Decode(&recv); err != nil {
 			fmt.Println("Admin socket JSON decode error:", err)
 			return
 		}
 
+		// Send the request back with the response, and default to "error"
+		// unless the status is changed below by one of the handlers
 		send["request"] = recv
 		send["status"] = "error"
 
 	handlers:
 		for _, handler := range a.handlers {
+			// We've found the handler that matches the request
 			if recv["request"] == handler.name {
 				// Check that we have all the required arguments
 				for _, arg := range handler.args {
@@ -243,10 +255,9 @@ func (a *admin) handleRequest(conn net.Conn) {
 					}
 					// Check if the field is missing
 					if _, ok := recv[arg]; !ok {
-						fmt.Println("Missing required argument", arg)
 						send = admin_info{
-							"error":     "One or more expected fields missing",
-							"expecting": handler.args,
+							"error":     "Expected field missing",
+							"expecting": arg,
 						}
 						break handlers
 					}
@@ -266,16 +277,21 @@ func (a *admin) handleRequest(conn net.Conn) {
 						send["response"] = response
 					}
 				}
+
 				break
 			}
 		}
 
+		// Send the response back
 		if err := encoder.Encode(&send); err != nil {
 			fmt.Println("Admin socket JSON encode error:", err)
 			return
 		}
 
-		return
+		// If "keepalive" isn't true then close the connection
+		if keepalive, ok := recv["keepalive"]; !ok || !keepalive.(bool) {
+			conn.Close()
+		}
 	}
 }
 
@@ -476,14 +492,13 @@ func (a *admin) getData_getSessions() []admin_nodeInfo {
 	return infos
 }
 
-func (a *admin) getAllowedBoxPubs() string {
+func (a *admin) getAllowedBoxPubs() []string {
 	pubs := a.core.peers.getAllowedBoxPubs()
 	var out []string
 	for _, pub := range pubs {
 		out = append(out, hex.EncodeToString(pub[:]))
 	}
-	out = append(out, "")
-	return strings.Join(out, "\n")
+	return out
 }
 
 func (a *admin) addAllowedBoxPub(bstr string) (err error) {
