@@ -69,6 +69,7 @@ systemctl stop yggdrasil
 EOF
 
 cp yggdrasil /tmp/$PKGNAME/usr/bin/
+cp yggdrasilctl /tmp/$PKGNAME/usr/bin/
 cp contrib/systemd/yggdrasil.service /tmp/$PKGNAME/etc/systemd/system/
 cp contrib/systemd/yggdrasil-resume.service /tmp/$PKGNAME/etc/systemd/system/
 

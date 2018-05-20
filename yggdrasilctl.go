@@ -15,6 +15,14 @@ func main() {
 	flag.Parse()
 	args := flag.Args()
 
+  if len(args) == 0 {
+    fmt.Println("usage:", os.Args[0], "[-endpoint=localhost:9001] command [key=value] [...]")
+    fmt.Println("example:", os.Args[0], "getPeers")
+    fmt.Println("example:", os.Args[0], "setTunTap name=auto mtu=1500 tap_mode=false")
+    fmt.Println("example:", os.Args[0], "-endpoint=localhost:9001 getDHT")
+    return
+  }
+
 	conn, err := net.Dial("tcp", *server)
 	if err != nil {
 		panic(err)
@@ -50,6 +58,14 @@ func main() {
 		panic(err)
 	}
 	if err := decoder.Decode(&recv); err == nil {
+    if _, ok := recv["request"]; !ok {
+      fmt.Println("Missing request")
+      return
+    }
+    if _, ok := recv["response"]; !ok {
+      fmt.Println("Missing response")
+      return
+    }
     req := recv["request"].(map[string]interface{})
     res := recv["response"].(map[string]interface{})
 		switch req["request"] {
