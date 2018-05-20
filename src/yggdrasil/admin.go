@@ -50,13 +50,13 @@ func (a *admin) init(c *Core, listenaddr string) {
 		}
 		return admin_info{"handlers": handlers}, nil
 	})
-	a.addHandler("dot", nil, func(in admin_info) (admin_info, error) {
+	a.addHandler("dot", []string{}, func(in admin_info) (admin_info, error) {
 		return admin_info{"dot": string(a.getResponse_dot())}, nil
 	})
-	a.addHandler("getSelf", nil, func(in admin_info) (admin_info, error) {
+	a.addHandler("getSelf", []string{}, func(in admin_info) (admin_info, error) {
 		return admin_info{"self": a.getData_getSelf().asMap()}, nil
 	})
-	a.addHandler("getPeers", nil, func(in admin_info) (admin_info, error) {
+	a.addHandler("getPeers", []string{}, func(in admin_info) (admin_info, error) {
 		sort := "ip"
 		peers := make(admin_info)
 		for _, peerdata := range a.getData_getPeers() {
@@ -67,7 +67,7 @@ func (a *admin) init(c *Core, listenaddr string) {
 		}
 		return admin_info{"peers": peers}, nil
 	})
-	a.addHandler("getSwitchPeers", nil, func(in admin_info) (admin_info, error) {
+	a.addHandler("getSwitchPeers", []string{}, func(in admin_info) (admin_info, error) {
 		sort := "port"
 		switchpeers := make(admin_info)
 		for _, s := range a.getData_getSwitchPeers() {
@@ -78,7 +78,7 @@ func (a *admin) init(c *Core, listenaddr string) {
 		}
 		return admin_info{"switchpeers": switchpeers}, nil
 	})
-	a.addHandler("getDHT", nil, func(in admin_info) (admin_info, error) {
+	a.addHandler("getDHT", []string{}, func(in admin_info) (admin_info, error) {
 		sort := "ip"
 		dht := make(admin_info)
 		for _, d := range a.getData_getDHT() {
@@ -89,7 +89,7 @@ func (a *admin) init(c *Core, listenaddr string) {
 		}
 		return admin_info{"dht": dht}, nil
 	})
-	a.addHandler("getSessions", nil, func(in admin_info) (admin_info, error) {
+	a.addHandler("getSessions", []string{}, func(in admin_info) (admin_info, error) {
 		sort := "ip"
 		sessions := make(admin_info)
 		for _, s := range a.getData_getSessions() {
@@ -130,7 +130,7 @@ func (a *admin) init(c *Core, listenaddr string) {
 			}, errors.New("Failed to remove peer")
 		}
 	})
-	a.addHandler("getTunTap", nil, func(in admin_info) (r admin_info, e error) {
+	a.addHandler("getTunTap", []string{}, func(in admin_info) (r admin_info, e error) {
 		defer func() {
 			recover()
 			r = admin_info{"name": "none"}
@@ -143,7 +143,7 @@ func (a *admin) init(c *Core, listenaddr string) {
 			"mtu":      a.core.tun.mtu,
 		}, nil
 	})
-	a.addHandler("setTunTap", []string{"name", "<tap_mode>", "<mtu>"}, func(in admin_info) (admin_info, error) {
+	a.addHandler("setTunTap", []string{"name", "[tap_mode]", "[mtu]"}, func(in admin_info) (admin_info, error) {
 		// Set sane defaults
 		iftapmode := getDefaults().defaultIfTAPMode
 		ifmtu := getDefaults().defaultIfMTU
@@ -168,7 +168,7 @@ func (a *admin) init(c *Core, listenaddr string) {
 			}, nil
 		}
 	})
-	a.addHandler("getAllowedBoxPubs", nil, func(in admin_info) (admin_info, error) {
+	a.addHandler("getAllowedBoxPubs", []string{}, func(in admin_info) (admin_info, error) {
 		return admin_info{"allowed_box_pubs": a.getAllowedBoxPubs()}, nil
 	})
 	a.addHandler("addAllowedBoxPub", []string{"box_pub_key"}, func(in admin_info) (admin_info, error) {
@@ -264,9 +264,9 @@ func (a *admin) handleRequest(conn net.Conn) {
 			if recv["request"] == handler.name {
 				// Check that we have all the required arguments
 				for _, arg := range handler.args {
-					// An argument in <pointy brackets> is optional and not required,
+					// An argument in [square brackets] is optional and not required,
 					// so we can safely ignore those
-					if strings.HasPrefix(arg, "<") && strings.HasSuffix(arg, ">") {
+					if strings.HasPrefix(arg, "[") && strings.HasSuffix(arg, "]") {
 						continue
 					}
 					// Check if the field is missing
