@@ -103,13 +103,13 @@ func (a *admin) init(c *Core, listenaddr string) {
 	a.addHandler("addPeer", []string{"uri"}, func(in admin_info) (admin_info, error) {
 		if a.addPeer(in["uri"].(string)) == nil {
 			return admin_info{
-				"peers_added": []string{
+				"added": []string{
 					in["uri"].(string),
 				},
 			}, nil
 		} else {
 			return admin_info{
-				"peers_not_added": []string{
+				"not_added": []string{
 					in["uri"].(string),
 				},
 			}, errors.New("Failed to add peer")
@@ -118,13 +118,13 @@ func (a *admin) init(c *Core, listenaddr string) {
 	a.addHandler("removePeer", []string{"port"}, func(in admin_info) (admin_info, error) {
 		if a.removePeer(fmt.Sprint(in["port"])) == nil {
 			return admin_info{
-				"peers_removed": []string{
+				"removed": []string{
 					fmt.Sprint(in["port"]),
 				},
 			}, nil
 		} else {
 			return admin_info{
-				"peers_not_removed": []string{
+				"not_removed": []string{
 					fmt.Sprint(in["port"]),
 				},
 			}, errors.New("Failed to remove peer")
@@ -145,7 +145,7 @@ func (a *admin) init(c *Core, listenaddr string) {
 	})
 	a.addHandler("setTunTap", []string{"name", "<tap_mode>", "<mtu>"}, func(in admin_info) (admin_info, error) {
 		// Set sane defaults
-		iftapmode := false
+		iftapmode := getDefaults().defaultIfTAPMode
 		ifmtu := getDefaults().defaultIfMTU
 		// Has TAP mode been specified?
 		if tap, ok := in["tap_mode"]; ok {
@@ -153,8 +153,8 @@ func (a *admin) init(c *Core, listenaddr string) {
 		}
 		// Check we have enough params for MTU
 		if mtu, ok := in["mtu"]; ok {
-			if mtu.(int) >= 1280 && ifmtu <= getDefaults().maximumIfMTU {
-				ifmtu = in["mtu"].(int)
+			if mtu.(float64) >= 1280 && ifmtu <= getDefaults().maximumIfMTU {
+				ifmtu = int(in["mtu"].(float64))
 			}
 		}
 		// Start the TUN adapter
@@ -163,7 +163,7 @@ func (a *admin) init(c *Core, listenaddr string) {
 		} else {
 			return admin_info{
 				"name":     a.core.tun.iface.Name(),
-				"tap_mode": iftapmode,
+				"tap_mode": a.core.tun.iface.IsTAP(),
 				"mtu":      ifmtu,
 			}, nil
 		}
@@ -171,21 +171,36 @@ func (a *admin) init(c *Core, listenaddr string) {
 	a.addHandler("getAllowedBoxPubs", nil, func(in admin_info) (admin_info, error) {
 		return admin_info{"allowed_box_pubs": a.getAllowedBoxPubs()}, nil
 	})
-	/*
-		a.addHandler("addAllowedBoxPub", []string{"<boxPubKey>"}, func(out *[]byte, saddr ...string) {
-			if a.addAllowedBoxPub(saddr[0]) == nil {
-				*out = []byte("Adding key: " + saddr[0] + "\n")
-			} else {
-				*out = []byte("Failed to add key: " + saddr[0] + "\n")
-			}
-		})
-		a.addHandler("removeAllowedBoxPub", []string{"<boxPubKey>"}, func(out *[]byte, sport ...string) {
-			if a.removeAllowedBoxPub(sport[0]) == nil {
-				*out = []byte("Removing key: " + sport[0] + "\n")
-			} else {
-				*out = []byte("Failed to remove key: " + sport[0] + "\n")
-			}
-		})*/
+	a.addHandler("addAllowedBoxPub", []string{"box_pub_key"}, func(in admin_info) (admin_info, error) {
+		if a.addAllowedBoxPub(in["box_pub_key"].(string)) == nil {
+			return admin_info{
+				"added": []string{
+					in["box_pub_key"].(string),
+				},
+			}, nil
+		} else {
+			return admin_info{
+				"not_added": []string{
+					in["box_pub_key"].(string),
+				},
+			}, errors.New("Failed to add allowed box pub key")
+		}
+	})
+	a.addHandler("removeAllowedBoxPub", []string{"box_pub_key"}, func(in admin_info) (admin_info, error) {
+		if a.removeAllowedBoxPub(in["box_pub_key"].(string)) == nil {
+			return admin_info{
+				"removed": []string{
+					in["box_pub_key"].(string),
+				},
+			}, nil
+		} else {
+			return admin_info{
+				"not_removed": []string{
+					in["box_pub_key"].(string),
+				},
+			}, errors.New("Failed to remove allowed box pub key")
+		}
+	})
 	go a.listen()
 }
 
@@ -219,6 +234,7 @@ func (a *admin) handleRequest(conn net.Conn) {
 				"status": "error",
 				"error":  "Unrecoverable error, possibly as a result of invalid input types or malformed syntax",
 			}
+			fmt.Println("Admin socket error:", r)
 			if err := encoder.Encode(&send); err != nil {
 				fmt.Println("Admin socket JSON encode error:", err)
 			}
