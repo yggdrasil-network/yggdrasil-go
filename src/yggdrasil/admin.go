@@ -2,8 +2,6 @@ package yggdrasil
 
 import "net"
 import "os"
-
-// import "bytes"
 import "encoding/hex"
 import "encoding/json"
 import "errors"
@@ -15,7 +13,6 @@ import "strconv"
 import "sync/atomic"
 import "time"
 
-// TODO? Make all of this JSON
 // TODO: Add authentication
 
 type admin struct {
@@ -133,25 +130,20 @@ func (a *admin) init(c *Core, listenaddr string) {
 			}, errors.New("Failed to remove peer")
 		}
 	})
-	/*
-		a.addHandler("getTunTap", nil, func(out *[]byte, _ ...string) {
-			var info admin_nodeInfo
-			defer func() {
-				if r := recover(); r != nil {
-					info = admin_nodeInfo{
-						{"Interface name", "none"},
-					}
-					*out = []byte(a.printInfos([]admin_nodeInfo{info}))
-				}
-			}()
+	a.addHandler("getTunTap", nil, func(in admin_info) (r admin_info, e error) {
+		defer func() {
+			recover()
+			r = admin_info{"name": "none"}
+			e = nil
+		}()
 
-			info = admin_nodeInfo{
-				{"Interface name", a.core.tun.iface.Name()},
-				{"TAP mode", strconv.FormatBool(a.core.tun.iface.IsTAP())},
-				{"mtu", strconv.Itoa(a.core.tun.mtu)},
-			}
-			*out = []byte(a.printInfos([]admin_nodeInfo{info}))
-		})
+		return admin_info{
+			"name":     a.core.tun.iface.Name(),
+			"tap_mode": a.core.tun.iface.IsTAP(),
+			"mtu":      a.core.tun.mtu,
+		}, nil
+	})
+	/*
 		a.addHandler("setTunTap", []string{"<ifname|auto|none>", "[<tun|tap>]", "[<mtu>]"}, func(out *[]byte, ifparams ...string) {
 			// Set sane defaults
 			iftapmode := false
@@ -184,6 +176,8 @@ func (a *admin) init(c *Core, listenaddr string) {
 				*out = []byte(a.printInfos([]admin_nodeInfo{info}))
 			}
 		})
+	*/
+	/*
 		a.addHandler("getAllowedBoxPubs", nil, func(out *[]byte, _ ...string) {
 			*out = []byte(a.getAllowedBoxPubs())
 		})
