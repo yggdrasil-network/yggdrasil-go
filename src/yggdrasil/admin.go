@@ -501,18 +501,18 @@ func (a *admin) getResponse_dot() []byte {
 	sessions := a.getData_getSessions()
 	// Map of coords onto IP
 	m := make(map[string]string)
-	m[self["coords"].(string)] = self["IP"].(string)
+	m[self["coords"].(string)] = self["ip"].(string)
 	for _, peer := range peers {
 		p := peer.asMap()
-		m[p["coords"].(string)] = p["IP"].(string)
+		m[p["coords"].(string)] = p["ip"].(string)
 	}
 	for _, node := range dht {
 		n := node.asMap()
-		m[n["coords"].(string)] = n["IP"].(string)
+		m[n["coords"].(string)] = n["ip"].(string)
 	}
 	for _, node := range sessions {
 		n := node.asMap()
-		m[n["coords"].(string)] = n["IP"].(string)
+		m[n["coords"].(string)] = n["ip"].(string)
 	}
 
 	// Start building a tree from all known nodes
