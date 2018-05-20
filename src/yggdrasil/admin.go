@@ -103,21 +103,37 @@ func (a *admin) init(c *Core, listenaddr string) {
 		}
 		return admin_info{"sessions": sessions}, nil
 	})
+	a.addHandler("addPeer", []string{"uri"}, func(in admin_info) (admin_info, error) {
+		if a.addPeer(in["uri"].(string)) == nil {
+			return admin_info{
+				"peers_added": []string{
+					in["uri"].(string),
+				},
+			}, nil
+		} else {
+			return admin_info{
+				"peers_not_added": []string{
+					in["uri"].(string),
+				},
+			}, errors.New("Failed to add peer")
+		}
+	})
+	a.addHandler("removePeer", []string{"port"}, func(in admin_info) (admin_info, error) {
+		if a.removePeer(fmt.Sprint(in["port"])) == nil {
+			return admin_info{
+				"peers_removed": []string{
+					fmt.Sprint(in["port"]),
+				},
+			}, nil
+		} else {
+			return admin_info{
+				"peers_not_removed": []string{
+					fmt.Sprint(in["port"]),
+				},
+			}, errors.New("Failed to remove peer")
+		}
+	})
 	/*
-		a.addHandler("addPeer", []string{"<proto://address:port>"}, func(out *[]byte, saddr ...string) {
-			if a.addPeer(saddr[0]) == nil {
-				*out = []byte("Adding peer: " + saddr[0] + "\n")
-			} else {
-				*out = []byte("Failed to add peer: " + saddr[0] + "\n")
-			}
-		})
-		a.addHandler("removePeer", []string{"<port>"}, func(out *[]byte, sport ...string) {
-			if a.removePeer(sport[0]) == nil {
-				*out = []byte("Removing peer: " + sport[0] + "\n")
-			} else {
-				*out = []byte("Failed to remove peer: " + sport[0] + "\n")
-			}
-		})
 		a.addHandler("getTunTap", nil, func(out *[]byte, _ ...string) {
 			var info admin_nodeInfo
 			defer func() {
@@ -218,6 +234,9 @@ func (a *admin) handleRequest(conn net.Conn) {
 			return
 		}
 
+		send["request"] = recv
+		send["status"] = "error"
+
 	handlers:
 		for _, handler := range a.handlers {
 			if recv["request"] == handler.name {
@@ -232,8 +251,8 @@ func (a *admin) handleRequest(conn net.Conn) {
 					if _, ok := recv[arg]; !ok {
 						fmt.Println("Missing required argument", arg)
 						send = admin_info{
-							"error":  "Missing field '" + arg + "'",
-							"fields": handler.args,
+							"error":     "One or more expected fields missing",
+							"expecting": handler.args,
 						}
 						break handlers
 					}
@@ -243,14 +262,14 @@ func (a *admin) handleRequest(conn net.Conn) {
 				// the handler
 				response, err := handler.handler(recv)
 				if err != nil {
-					send = admin_info{
-						"request": recv["request"],
-						"error":   err.Error(),
+					send["error"] = err.Error()
+					if response != nil {
+						send["response"] = response
 					}
 				} else {
-					send = admin_info{
-						"request":  recv["request"],
-						"response": response,
+					send["status"] = "success"
+					if response != nil {
+						send["response"] = response
 					}
 				}
 				break
