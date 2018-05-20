@@ -54,7 +54,7 @@ cat > /tmp/$PKGNAME/debian/docs << EOF
 Please see https://github.com/Arceliar/yggdrasil-go/
 EOF
 cat > /tmp/$PKGNAME/debian/install << EOF
-usr/bin/yggdrasil usr/bin
+usr/bin/yggdrasil usr/bin/yggdrasilctl usr/bin
 etc/systemd/system/*.service etc/systemd/system
 EOF
 cat > /tmp/$PKGNAME/debian/postinst << EOF
@@ -74,7 +74,7 @@ cp contrib/systemd/yggdrasil.service /tmp/$PKGNAME/etc/systemd/system/
 cp contrib/systemd/yggdrasil-resume.service /tmp/$PKGNAME/etc/systemd/system/
 
 tar -czvf /tmp/$PKGNAME/data.tar.gz -C /tmp/$PKGNAME/ \
-  usr/bin/yggdrasil \
+  usr/bin/yggdrasil usr/bin/yggdrasilctl \
   etc/systemd/system/yggdrasil.service \
   etc/systemd/system/yggdrasil-resume.service
 tar -czvf /tmp/$PKGNAME/control.tar.gz -C /tmp/$PKGNAME/debian .
