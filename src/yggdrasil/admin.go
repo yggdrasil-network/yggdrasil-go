@@ -2,8 +2,8 @@ package yggdrasil
 
 import "net"
 import "os"
-import "bytes"
 import "encoding/hex"
+import "encoding/json"
 import "errors"
 import "fmt"
 import "net/url"
@@ -13,7 +13,6 @@ import "strconv"
 import "sync/atomic"
 import "time"
 
-// TODO? Make all of this JSON
 // TODO: Add authentication
 
 type admin struct {
@@ -22,124 +21,184 @@ type admin struct {
 	handlers   []admin_handlerInfo
 }
 
+type admin_info map[string]interface{}
+
 type admin_handlerInfo struct {
-	name    string                   // Checked against the first word of the api call
-	args    []string                 // List of human-readable argument names
-	handler func(*[]byte, ...string) // First arg is pointer to the out slice, rest is args
+	name    string                               // Checked against the first word of the api call
+	args    []string                             // List of human-readable argument names
+	handler func(admin_info) (admin_info, error) // First is input map, second is output
 }
 
-func (a *admin) addHandler(name string, args []string, handler func(*[]byte, ...string)) {
+// Maps things like "IP", "port", "bucket", or "coords" onto strings
+type admin_pair struct {
+	key string
+	val interface{}
+}
+type admin_nodeInfo []admin_pair
+
+func (a *admin) addHandler(name string, args []string, handler func(admin_info) (admin_info, error)) {
 	a.handlers = append(a.handlers, admin_handlerInfo{name, args, handler})
 }
 
 func (a *admin) init(c *Core, listenaddr string) {
 	a.core = c
 	a.listenaddr = listenaddr
-	a.addHandler("help", nil, func(out *[]byte, _ ...string) {
+	a.addHandler("help", nil, func(in admin_info) (admin_info, error) {
+		handlers := make(map[string][]string)
 		for _, handler := range a.handlers {
-			tmp := append([]string{handler.name}, handler.args...)
-			*out = append(*out, []byte(strings.Join(tmp, " "))...)
-			*out = append(*out, "\n"...)
+			handlers[handler.name] = handler.args
 		}
+		return admin_info{"handlers": handlers}, nil
 	})
-	// TODO? have other parts of the program call to add their own handlers
-	a.addHandler("dot", nil, func(out *[]byte, _ ...string) {
-		*out = a.getResponse_dot()
+	a.addHandler("dot", []string{}, func(in admin_info) (admin_info, error) {
+		return admin_info{"dot": string(a.getResponse_dot())}, nil
 	})
-	a.addHandler("getSelf", nil, func(out *[]byte, _ ...string) {
-		*out = []byte(a.printInfos([]admin_nodeInfo{*a.getData_getSelf()}))
+	a.addHandler("getSelf", []string{}, func(in admin_info) (admin_info, error) {
+		return admin_info{"self": a.getData_getSelf().asMap()}, nil
 	})
-	a.addHandler("getPeers", nil, func(out *[]byte, _ ...string) {
-		*out = []byte(a.printInfos(a.getData_getPeers()))
+	a.addHandler("getPeers", []string{}, func(in admin_info) (admin_info, error) {
+		sort := "ip"
+		peers := make(admin_info)
+		for _, peerdata := range a.getData_getPeers() {
+			p := peerdata.asMap()
+			so := fmt.Sprint(p[sort])
+			peers[so] = p
+			delete(peers[so].(map[string]interface{}), sort)
+		}
+		return admin_info{"peers": peers}, nil
 	})
-	a.addHandler("getSwitchPeers", nil, func(out *[]byte, _ ...string) {
-		*out = []byte(a.printInfos(a.getData_getSwitchPeers()))
+	a.addHandler("getSwitchPeers", []string{}, func(in admin_info) (admin_info, error) {
+		sort := "port"
+		switchpeers := make(admin_info)
+		for _, s := range a.getData_getSwitchPeers() {
+			p := s.asMap()
+			so := fmt.Sprint(p[sort])
+			switchpeers[so] = p
+			delete(switchpeers[so].(map[string]interface{}), sort)
+		}
+		return admin_info{"switchpeers": switchpeers}, nil
 	})
-	a.addHandler("getDHT", nil, func(out *[]byte, _ ...string) {
-		*out = []byte(a.printInfos(a.getData_getDHT()))
+	a.addHandler("getDHT", []string{}, func(in admin_info) (admin_info, error) {
+		sort := "ip"
+		dht := make(admin_info)
+		for _, d := range a.getData_getDHT() {
+			p := d.asMap()
+			so := fmt.Sprint(p[sort])
+			dht[so] = p
+			delete(dht[so].(map[string]interface{}), sort)
+		}
+		return admin_info{"dht": dht}, nil
 	})
-	a.addHandler("getSessions", nil, func(out *[]byte, _ ...string) {
-		*out = []byte(a.printInfos(a.getData_getSessions()))
+	a.addHandler("getSessions", []string{}, func(in admin_info) (admin_info, error) {
+		sort := "ip"
+		sessions := make(admin_info)
+		for _, s := range a.getData_getSessions() {
+			p := s.asMap()
+			so := fmt.Sprint(p[sort])
+			sessions[so] = p
+			delete(sessions[so].(map[string]interface{}), sort)
+		}
+		return admin_info{"sessions": sessions}, nil
 	})
-	a.addHandler("addPeer", []string{"<proto://address:port>"}, func(out *[]byte, saddr ...string) {
-		if a.addPeer(saddr[0]) == nil {
-			*out = []byte("Adding peer: " + saddr[0] + "\n")
+	a.addHandler("addPeer", []string{"uri"}, func(in admin_info) (admin_info, error) {
+		if a.addPeer(in["uri"].(string)) == nil {
+			return admin_info{
+				"added": []string{
+					in["uri"].(string),
+				},
+			}, nil
 		} else {
-			*out = []byte("Failed to add peer: " + saddr[0] + "\n")
+			return admin_info{
+				"not_added": []string{
+					in["uri"].(string),
+				},
+			}, errors.New("Failed to add peer")
 		}
 	})
-	a.addHandler("removePeer", []string{"<port>"}, func(out *[]byte, sport ...string) {
-		if a.removePeer(sport[0]) == nil {
-			*out = []byte("Removing peer: " + sport[0] + "\n")
+	a.addHandler("removePeer", []string{"port"}, func(in admin_info) (admin_info, error) {
+		if a.removePeer(fmt.Sprint(in["port"])) == nil {
+			return admin_info{
+				"removed": []string{
+					fmt.Sprint(in["port"]),
+				},
+			}, nil
 		} else {
-			*out = []byte("Failed to remove peer: " + sport[0] + "\n")
+			return admin_info{
+				"not_removed": []string{
+					fmt.Sprint(in["port"]),
+				},
+			}, errors.New("Failed to remove peer")
 		}
 	})
-	a.addHandler("getTunTap", nil, func(out *[]byte, _ ...string) {
-		var info admin_nodeInfo
+	a.addHandler("getTunTap", []string{}, func(in admin_info) (r admin_info, e error) {
 		defer func() {
-			if r := recover(); r != nil {
-				info = admin_nodeInfo{
-					{"Interface name", "none"},
-				}
-				*out = []byte(a.printInfos([]admin_nodeInfo{info}))
-			}
+			recover()
+			r = admin_info{"name": "none"}
+			e = nil
 		}()
 
-		info = admin_nodeInfo{
-			{"Interface name", a.core.tun.iface.Name()},
-			{"TAP mode", strconv.FormatBool(a.core.tun.iface.IsTAP())},
-			{"MTU", strconv.Itoa(a.core.tun.mtu)},
-		}
-		*out = []byte(a.printInfos([]admin_nodeInfo{info}))
+		return admin_info{
+			"name":     a.core.tun.iface.Name(),
+			"tap_mode": a.core.tun.iface.IsTAP(),
+			"mtu":      a.core.tun.mtu,
+		}, nil
 	})
-	a.addHandler("setTunTap", []string{"<ifname|auto|none>", "[<tun|tap>]", "[<mtu>]"}, func(out *[]byte, ifparams ...string) {
+	a.addHandler("setTunTap", []string{"name", "[tap_mode]", "[mtu]"}, func(in admin_info) (admin_info, error) {
 		// Set sane defaults
-		iftapmode := false
-		ifmtu := 1280
-		var err error
-		// Check we have enough params for TAP mode
-		if len(ifparams) > 1 {
-			// Is it a TAP adapter?
-			if ifparams[1] == "tap" {
-				iftapmode = true
-			}
+		iftapmode := getDefaults().defaultIfTAPMode
+		ifmtu := getDefaults().defaultIfMTU
+		// Has TAP mode been specified?
+		if tap, ok := in["tap_mode"]; ok {
+			iftapmode = tap.(bool)
 		}
 		// Check we have enough params for MTU
-		if len(ifparams) > 2 {
-			// Make sure the MTU is sane
-			ifmtu, err = strconv.Atoi(ifparams[2])
-			if err != nil || ifmtu < 1280 || ifmtu > 65535 {
-				ifmtu = 1280
+		if mtu, ok := in["mtu"]; ok {
+			if mtu.(float64) >= 1280 && ifmtu <= getDefaults().maximumIfMTU {
+				ifmtu = int(in["mtu"].(float64))
 			}
 		}
 		// Start the TUN adapter
-		if err := a.startTunWithMTU(ifparams[0], iftapmode, ifmtu); err != nil {
-			*out = []byte(fmt.Sprintf("Failed to set TUN: %v\n", err))
+		if err := a.startTunWithMTU(in["name"].(string), iftapmode, ifmtu); err != nil {
+			return admin_info{}, errors.New("Failed to configure adapter")
 		} else {
-			info := admin_nodeInfo{
-				{"Interface name", ifparams[0]},
-				{"TAP mode", strconv.FormatBool(iftapmode)},
-				{"MTU", strconv.Itoa(ifmtu)},
-			}
-			*out = []byte(a.printInfos([]admin_nodeInfo{info}))
+			return admin_info{
+				"name":     a.core.tun.iface.Name(),
+				"tap_mode": a.core.tun.iface.IsTAP(),
+				"mtu":      ifmtu,
+			}, nil
 		}
 	})
-	a.addHandler("getAllowedBoxPubs", nil, func(out *[]byte, _ ...string) {
-		*out = []byte(a.getAllowedBoxPubs())
+	a.addHandler("getAllowedBoxPubs", []string{}, func(in admin_info) (admin_info, error) {
+		return admin_info{"allowed_box_pubs": a.getAllowedBoxPubs()}, nil
 	})
-	a.addHandler("addAllowedBoxPub", []string{"<boxPubKey>"}, func(out *[]byte, saddr ...string) {
-		if a.addAllowedBoxPub(saddr[0]) == nil {
-			*out = []byte("Adding key: " + saddr[0] + "\n")
+	a.addHandler("addAllowedBoxPub", []string{"box_pub_key"}, func(in admin_info) (admin_info, error) {
+		if a.addAllowedBoxPub(in["box_pub_key"].(string)) == nil {
+			return admin_info{
+				"added": []string{
+					in["box_pub_key"].(string),
+				},
+			}, nil
 		} else {
-			*out = []byte("Failed to add key: " + saddr[0] + "\n")
+			return admin_info{
+				"not_added": []string{
+					in["box_pub_key"].(string),
+				},
+			}, errors.New("Failed to add allowed box pub key")
 		}
 	})
-	a.addHandler("removeAllowedBoxPub", []string{"<boxPubKey>"}, func(out *[]byte, sport ...string) {
-		if a.removeAllowedBoxPub(sport[0]) == nil {
-			*out = []byte("Removing key: " + sport[0] + "\n")
+	a.addHandler("removeAllowedBoxPub", []string{"box_pub_key"}, func(in admin_info) (admin_info, error) {
+		if a.removeAllowedBoxPub(in["box_pub_key"].(string)) == nil {
+			return admin_info{
+				"removed": []string{
+					in["box_pub_key"].(string),
+				},
+			}, nil
 		} else {
-			*out = []byte("Failed to remove key: " + sport[0] + "\n")
+			return admin_info{
+				"not_removed": []string{
+					in["box_pub_key"].(string),
+				},
+			}, errors.New("Failed to remove allowed box pub key")
 		}
 	})
 	go a.listen()
@@ -162,49 +221,99 @@ func (a *admin) listen() {
 }
 
 func (a *admin) handleRequest(conn net.Conn) {
-	buf := make([]byte, 1024)
-	_, err := conn.Read(buf)
-	if err != nil {
-		a.core.log.Printf("Admin socket failed to read: %v", err)
-		conn.Close()
-		return
-	}
-	var out []byte
-	buf = bytes.Trim(buf, "\x00\r\n\t")
-	call := strings.Split(string(buf), " ")
-	var cmd string
-	var args []string
-	if len(call) > 0 {
-		cmd = call[0]
-		args = call[1:]
-	}
-	done := false
-	for _, handler := range a.handlers {
-		if cmd == handler.name {
-			handler.handler(&out, args...)
-			done = true
-			break
+	decoder := json.NewDecoder(conn)
+	encoder := json.NewEncoder(conn)
+	encoder.SetIndent("", "  ")
+	recv := make(admin_info)
+	send := make(admin_info)
+
+	defer func() {
+		r := recover()
+		if r != nil {
+			send = admin_info{
+				"status": "error",
+				"error":  "Unrecoverable error, possibly as a result of invalid input types or malformed syntax",
+			}
+			fmt.Println("Admin socket error:", r)
+			if err := encoder.Encode(&send); err != nil {
+				fmt.Println("Admin socket JSON encode error:", err)
+			}
+			conn.Close()
+		}
+	}()
+
+	for {
+		// Start with a clean slate on each request
+		recv = admin_info{}
+		send = admin_info{}
+
+		// Decode the input
+		if err := decoder.Decode(&recv); err != nil {
+		//	fmt.Println("Admin socket JSON decode error:", err)
+			return
+		}
+
+		// Send the request back with the response, and default to "error"
+		// unless the status is changed below by one of the handlers
+		send["request"] = recv
+		send["status"] = "error"
+
+	handlers:
+		for _, handler := range a.handlers {
+			// We've found the handler that matches the request
+			if recv["request"] == handler.name {
+				// Check that we have all the required arguments
+				for _, arg := range handler.args {
+					// An argument in [square brackets] is optional and not required,
+					// so we can safely ignore those
+					if strings.HasPrefix(arg, "[") && strings.HasSuffix(arg, "]") {
+						continue
+					}
+					// Check if the field is missing
+					if _, ok := recv[arg]; !ok {
+						send = admin_info{
+							"status":    "error",
+							"error":     "Expected field missing",
+							"expecting": arg,
+						}
+						break handlers
+					}
+				}
+
+				// By this point we should have all the fields we need, so call
+				// the handler
+				response, err := handler.handler(recv)
+				if err != nil {
+					send["error"] = err.Error()
+					if response != nil {
+						send["response"] = response
+					}
+				} else {
+					send["status"] = "success"
+					if response != nil {
+						send["response"] = response
+					}
+				}
+
+				break
+			}
+		}
+
+		// Send the response back
+		if err := encoder.Encode(&send); err != nil {
+		//	fmt.Println("Admin socket JSON encode error:", err)
+			return
+		}
+
+		// If "keepalive" isn't true then close the connection
+		if keepalive, ok := recv["keepalive"]; !ok || !keepalive.(bool) {
+			conn.Close()
 		}
 	}
-	if !done {
-		out = []byte("I didn't understand that!\n")
-	}
-	_, err = conn.Write(out)
-	if err != nil {
-		a.core.log.Printf("Admin socket error: %v", err)
-	}
-	conn.Close()
 }
 
-// Maps things like "IP", "port", "bucket", or "coords" onto strings
-type admin_pair struct {
-	key string
-	val string
-}
-type admin_nodeInfo []admin_pair
-
-func (n *admin_nodeInfo) asMap() map[string]string {
-	m := make(map[string]string, len(*n))
+func (n *admin_nodeInfo) asMap() map[string]interface{} {
+	m := make(map[string]interface{}, len(*n))
 	for _, p := range *n {
 		m[p.key] = p.val
 	}
@@ -303,7 +412,7 @@ func (a *admin) getData_getSelf() *admin_nodeInfo {
 	addr := a.core.router.addr
 	coords := table.self.getCoords()
 	self := admin_nodeInfo{
-		{"IP", net.IP(addr[:]).String()},
+		{"ip", net.IP(addr[:]).String()},
 		{"coords", fmt.Sprint(coords)},
 	}
 	return &self
@@ -321,11 +430,11 @@ func (a *admin) getData_getPeers() []admin_nodeInfo {
 		p := ports[port]
 		addr := *address_addrForNodeID(getNodeID(&p.box))
 		info := admin_nodeInfo{
-			{"IP", net.IP(addr[:]).String()},
-			{"port", fmt.Sprint(port)},
+			{"ip", net.IP(addr[:]).String()},
+			{"port", port},
 			{"uptime", fmt.Sprint(time.Since(p.firstSeen))},
-			{"bytesSent", fmt.Sprint(atomic.LoadUint64(&p.bytesSent))},
-			{"bytesRecvd", fmt.Sprint(atomic.LoadUint64(&p.bytesRecvd))},
+			{"bytes_sent", atomic.LoadUint64(&p.bytesSent)},
+			{"bytes_recvd", atomic.LoadUint64(&p.bytesRecvd)},
 		}
 		peerInfos = append(peerInfos, info)
 	}
@@ -344,9 +453,9 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 		addr := *address_addrForNodeID(getNodeID(&peer.box))
 		coords := elem.locator.getCoords()
 		info := admin_nodeInfo{
-			{"IP", net.IP(addr[:]).String()},
+			{"ip", net.IP(addr[:]).String()},
 			{"coords", fmt.Sprint(coords)},
-			{"port", fmt.Sprint(elem.port)},
+			{"port", elem.port},
 		}
 		peerInfos = append(peerInfos, info)
 	}
@@ -363,11 +472,11 @@ func (a *admin) getData_getDHT() []admin_nodeInfo {
 				for _, v := range vs {
 					addr := *address_addrForNodeID(v.getNodeID())
 					info := admin_nodeInfo{
-						{"IP", net.IP(addr[:]).String()},
+						{"ip", net.IP(addr[:]).String()},
 						{"coords", fmt.Sprint(v.coords)},
-						{"bucket", fmt.Sprint(i)},
-						{"peerOnly", fmt.Sprint(isPeer)},
-						{"lastSeen", fmt.Sprint(now.Sub(v.recv))},
+						{"bucket", i},
+						{"peer_only", isPeer},
+						{"last_seen", fmt.Sprint(now.Sub(v.recv))},
 					}
 					infos = append(infos, info)
 				}
@@ -386,12 +495,12 @@ func (a *admin) getData_getSessions() []admin_nodeInfo {
 		for _, sinfo := range a.core.sessions.sinfos {
 			// TODO? skipped known but timed out sessions?
 			info := admin_nodeInfo{
-				{"IP", net.IP(sinfo.theirAddr[:]).String()},
+				{"ip", net.IP(sinfo.theirAddr[:]).String()},
 				{"coords", fmt.Sprint(sinfo.coords)},
-				{"MTU", fmt.Sprint(sinfo.getMTU())},
-				{"wasMTUFixed", fmt.Sprint(sinfo.wasMTUFixed)},
-				{"bytesSent", fmt.Sprint(sinfo.bytesSent)},
-				{"bytesRecvd", fmt.Sprint(sinfo.bytesRecvd)},
+				{"mtu", sinfo.getMTU()},
+				{"was_mtu_fixed", sinfo.wasMTUFixed},
+				{"bytes_sent", sinfo.bytesSent},
+				{"bytes_recvd", sinfo.bytesRecvd},
 			}
 			infos = append(infos, info)
 		}
@@ -400,14 +509,13 @@ func (a *admin) getData_getSessions() []admin_nodeInfo {
 	return infos
 }
 
-func (a *admin) getAllowedBoxPubs() string {
+func (a *admin) getAllowedBoxPubs() []string {
 	pubs := a.core.peers.getAllowedBoxPubs()
 	var out []string
 	for _, pub := range pubs {
 		out = append(out, hex.EncodeToString(pub[:]))
 	}
-	out = append(out, "")
-	return strings.Join(out, "\n")
+	return out
 }
 
 func (a *admin) addAllowedBoxPub(bstr string) (err error) {
@@ -438,18 +546,18 @@ func (a *admin) getResponse_dot() []byte {
 	sessions := a.getData_getSessions()
 	// Map of coords onto IP
 	m := make(map[string]string)
-	m[self["coords"]] = self["IP"]
+	m[self["coords"].(string)] = self["ip"].(string)
 	for _, peer := range peers {
 		p := peer.asMap()
-		m[p["coords"]] = p["IP"]
+		m[p["coords"].(string)] = p["ip"].(string)
 	}
 	for _, node := range dht {
 		n := node.asMap()
-		m[n["coords"]] = n["IP"]
+		m[n["coords"].(string)] = n["ip"].(string)
 	}
 	for _, node := range sessions {
 		n := node.asMap()
-		m[n["coords"]] = n["IP"]
+		m[n["coords"].(string)] = n["ip"].(string)
 	}
 
 	// Start building a tree from all known nodes
