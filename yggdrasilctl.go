@@ -155,25 +155,36 @@ func main() {
 					fmt.Println("TAP mode:", tap_mode)
 				}
 			}
-		case "addPeer", "removePeer":
+		case "addPeer", "removePeer", "addAllowedBoxPub", "removeAllowedBoxPub":
 			if _, ok := res["added"]; ok {
 				for _, v := range res["added"].([]interface{}) {
-					fmt.Println("Peer added:", fmt.Sprint(v))
+					fmt.Println("Added:", fmt.Sprint(v))
 				}
 			}
 			if _, ok := res["not_added"]; ok {
 				for _, v := range res["not_added"].([]interface{}) {
-					fmt.Println("Peer not added:", fmt.Sprint(v))
+					fmt.Println("Not added:", fmt.Sprint(v))
 				}
 			}
 			if _, ok := res["removed"]; ok {
 				for _, v := range res["removed"].([]interface{}) {
-					fmt.Println("Peer removed:", fmt.Sprint(v))
+					fmt.Println("Removed:", fmt.Sprint(v))
 				}
 			}
 			if _, ok := res["not_removed"]; ok {
 				for _, v := range res["not_removed"].([]interface{}) {
-					fmt.Println("Peer not removed:", fmt.Sprint(v))
+					fmt.Println("Not removed:", fmt.Sprint(v))
+				}
+			}
+		case "getAllowedBoxPubs":
+			if _, ok := res["allowed_box_pubs"]; !ok {
+				fmt.Println("All connections are allowed")
+			} else if res["allowed_box_pubs"] == nil {
+				fmt.Println("All connections are allowed")
+			} else {
+				fmt.Println("Connections are allowed only from the following public box keys:")
+				for _, v := range res["allowed_box_pubs"].([]interface{}) {
+					fmt.Println("-", v)
 				}
 			}
 		default:
