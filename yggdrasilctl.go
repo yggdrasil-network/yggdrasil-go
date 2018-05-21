@@ -127,7 +127,20 @@ func main() {
 				for slk, slv := range tlv.(map[string]interface{}) {
 					fmt.Printf("%-"+fmt.Sprint(maxWidths["key"])+"s  ", slk)
 					for _, k := range keyOrder {
-						fmt.Printf("%-"+fmt.Sprint(maxWidths[k])+"s  ", fmt.Sprint(slv.(map[string]interface{})[k]))
+						preformatted := slv.(map[string]interface{})[k]
+						var formatted string
+						switch k {
+						case "bytes_sent", "bytes_recvd":
+							formatted = fmt.Sprintf("%d", uint(preformatted.(float64)))
+						case "uptime", "last_seen":
+							seconds := uint(preformatted.(float64)) % 60
+							minutes := uint(preformatted.(float64)/60) % 60
+							hours := uint(preformatted.(float64) / 60 / 60)
+							formatted = fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
+						default:
+							formatted = fmt.Sprint(preformatted)
+						}
+						fmt.Printf("%-"+fmt.Sprint(maxWidths[k])+"s  ", formatted)
 					}
 					fmt.Println()
 				}
