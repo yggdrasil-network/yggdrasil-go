@@ -134,6 +134,27 @@ func main() {
 					fmt.Println("TAP mode:", tap_mode)
 				}
 			}
+		case "addPeer", "removePeer":
+			if _, ok := res["added"]; ok {
+				for _, v := range res["added"].([]interface{}) {
+					fmt.Println("Peer added:", fmt.Sprint(v))
+				}
+			}
+			if _, ok := res["not_added"]; ok {
+				for _, v := range res["not_added"].([]interface{}) {
+					fmt.Println("Peer not added:", fmt.Sprint(v))
+				}
+			}
+			if _, ok := res["removed"]; ok {
+				for _, v := range res["removed"].([]interface{}) {
+					fmt.Println("Peer removed:", fmt.Sprint(v))
+				}
+			}
+			if _, ok := res["not_removed"]; ok {
+				for _, v := range res["not_removed"].([]interface{}) {
+					fmt.Println("Peer not removed:", fmt.Sprint(v))
+				}
+			}
 		default:
 			if json, err := json.MarshalIndent(recv["response"], "", "  "); err == nil {
 				fmt.Println(string(json))
