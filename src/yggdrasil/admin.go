@@ -46,7 +46,7 @@ func (a *admin) init(c *Core, listenaddr string) {
 	a.addHandler("help", nil, func(in admin_info) (admin_info, error) {
 		handlers := make(map[string]interface{})
 		for _, handler := range a.handlers {
-			handlers[handler.name] = admin_info{ "fields": handler.args }
+			handlers[handler.name] = admin_info{"fields": handler.args}
 		}
 		return admin_info{"help": handlers}, nil
 	})
@@ -57,7 +57,7 @@ func (a *admin) init(c *Core, listenaddr string) {
 		self := a.getData_getSelf().asMap()
 		ip := fmt.Sprint(self["ip"])
 		delete(self, "ip")
-		return admin_info{"self": admin_info{ ip: self }}, nil
+		return admin_info{"self": admin_info{ip: self}}, nil
 	})
 	a.addHandler("getPeers", []string{}, func(in admin_info) (admin_info, error) {
 		sort := "ip"
@@ -136,7 +136,7 @@ func (a *admin) init(c *Core, listenaddr string) {
 	a.addHandler("getTunTap", []string{}, func(in admin_info) (r admin_info, e error) {
 		defer func() {
 			recover()
-			r = admin_info{ "tuntap": admin_info{ "none": admin_info{ } } }
+			r = admin_info{"none": admin_info{}}
 			e = nil
 		}()
 
@@ -278,7 +278,7 @@ func (a *admin) handleRequest(conn net.Conn) {
 					if _, ok := recv[arg]; !ok {
 						send = admin_info{
 							"status":    "error",
-							"error":     "Expected field missing",
+							"error":     "Expected field missing: " + arg,
 							"expecting": arg,
 						}
 						break handlers

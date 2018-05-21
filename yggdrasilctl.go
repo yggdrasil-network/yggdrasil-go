@@ -61,7 +61,7 @@ func main() {
 	if err := decoder.Decode(&recv); err == nil {
 		if recv["status"] == "error" {
 			if err, ok := recv["error"]; ok {
-				fmt.Println(err)
+				fmt.Println("Error:", err)
 			} else {
 				fmt.Println("Unspecified error occured")
 			}
@@ -77,16 +77,11 @@ func main() {
 		}
 		req := recv["request"].(map[string]interface{})
 		res := recv["response"].(map[string]interface{})
-		defer func() {
-			recover()
-			if json, err := json.MarshalIndent(recv["response"], "", "  "); err == nil {
-				fmt.Println(string(json))
-			}
-		}()
+
 		switch req["request"] {
 		case "dot":
 			fmt.Println(res["dot"])
-		default:
+		case "help", "getPeers", "getSwitchPeers", "getDHT", "getSessions":
 			maxWidths := make(map[string]int)
 			var keyOrder []string
 			keysOrdered := false
@@ -114,22 +109,35 @@ func main() {
 				}
 
 				if len(keyOrder) > 0 {
-					fmt.Printf("%-" + fmt.Sprint(maxWidths["key"]) + "s  ", "")
+					fmt.Printf("%-"+fmt.Sprint(maxWidths["key"])+"s  ", "")
 					for _, v := range keyOrder {
-						fmt.Printf("%-" + fmt.Sprint(maxWidths[v]) + "s  ", v)
+						fmt.Printf("%-"+fmt.Sprint(maxWidths[v])+"s  ", v)
 					}
 					fmt.Println()
 				}
 
 				for slk, slv := range tlv.(map[string]interface{}) {
-					fmt.Printf("%-" + fmt.Sprint(maxWidths["key"]) + "s  ", slk)
+					fmt.Printf("%-"+fmt.Sprint(maxWidths["key"])+"s  ", slk)
 					for _, k := range keyOrder {
-						fmt.Printf("%-" + fmt.Sprint(maxWidths[k]) + "s  ", fmt.Sprint(slv.(map[string]interface{})[k]))
+						fmt.Printf("%-"+fmt.Sprint(maxWidths[k])+"s  ", fmt.Sprint(slv.(map[string]interface{})[k]))
 					}
 					fmt.Println()
 				}
 			}
-
+		case "getTunTap", "setTunTap":
+			for k, v := range res {
+				fmt.Println("Interface name:", k)
+				if mtu, ok := v.(map[string]interface{})["mtu"].(float64); ok {
+					fmt.Println("Interface MTU:", mtu)
+				}
+				if tap_mode, ok := v.(map[string]interface{})["tap_mode"].(bool); ok {
+					fmt.Println("TAP mode:", tap_mode)
+				}
+			}
+		default:
+			if json, err := json.MarshalIndent(recv["response"], "", "  "); err == nil {
+				fmt.Println(string(json))
+			}
 		}
 	}
 
