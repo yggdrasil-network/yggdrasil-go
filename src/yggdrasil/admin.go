@@ -434,12 +434,17 @@ func (a *admin) getData_getPeers() []admin_nodeInfo {
 	for _, port := range ps {
 		p := ports[port]
 		addr := *address_addrForNodeID(getNodeID(&p.box))
+		duration := time.Since(p.firstSeen)
 		info := admin_nodeInfo{
 			{"ip", net.IP(addr[:]).String()},
 			{"port", port},
-			{"uptime", fmt.Sprint(time.Since(p.firstSeen))},
-			{"bytes_sent", atomic.LoadUint64(&p.bytesSent)},
-			{"bytes_recvd", atomic.LoadUint64(&p.bytesRecvd)},
+			{"uptime", fmt.Sprintf("%02d:%02d:%02d",
+				int(duration.Hours()),
+				int(duration.Minutes())%60,
+				int(duration.Seconds())%60,
+			)},
+			{"bytes_sent", fmt.Sprintf("%d", atomic.LoadUint64(&p.bytesSent))},
+			{"bytes_recvd", fmt.Sprintf("%d", atomic.LoadUint64(&p.bytesRecvd))},
 		}
 		peerInfos = append(peerInfos, info)
 	}
@@ -481,7 +486,7 @@ func (a *admin) getData_getDHT() []admin_nodeInfo {
 						{"coords", fmt.Sprint(v.coords)},
 						{"bucket", i},
 						{"peer_only", isPeer},
-						{"last_seen", fmt.Sprint(now.Sub(v.recv))},
+						{"last_seen", fmt.Sprintf("%ds", int(now.Sub(v.recv).Seconds()))},
 					}
 					infos = append(infos, info)
 				}
@@ -504,8 +509,8 @@ func (a *admin) getData_getSessions() []admin_nodeInfo {
 				{"coords", fmt.Sprint(sinfo.coords)},
 				{"mtu", sinfo.getMTU()},
 				{"was_mtu_fixed", sinfo.wasMTUFixed},
-				{"bytes_sent", sinfo.bytesSent},
-				{"bytes_recvd", sinfo.bytesRecvd},
+				{"bytes_sent", fmt.Sprintf("%d", sinfo.bytesSent)},
+				{"bytes_recvd", fmt.Sprintf("%d", sinfo.bytesRecvd)},
 			}
 			infos = append(infos, info)
 		}
