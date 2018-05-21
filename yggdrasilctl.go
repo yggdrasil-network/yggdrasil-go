@@ -4,6 +4,7 @@ import "flag"
 import "fmt"
 import "strings"
 import "net"
+import "sort"
 import "encoding/json"
 import "strconv"
 import "os"
@@ -58,23 +59,77 @@ func main() {
 		panic(err)
 	}
 	if err := decoder.Decode(&recv); err == nil {
+		if recv["status"] == "error" {
+			if err, ok := recv["error"]; ok {
+				fmt.Println(err)
+			} else {
+				fmt.Println("Unspecified error occured")
+			}
+			os.Exit(1)
+		}
 		if _, ok := recv["request"]; !ok {
-			fmt.Println("Missing request")
+			fmt.Println("Missing request in response (malformed response?)")
 			return
 		}
 		if _, ok := recv["response"]; !ok {
-			fmt.Println("Missing response")
+			fmt.Println("Missing response body (malformed response?)")
 			return
 		}
 		req := recv["request"].(map[string]interface{})
 		res := recv["response"].(map[string]interface{})
+		defer func() {
+			recover()
+			if json, err := json.MarshalIndent(recv["response"], "", "  "); err == nil {
+				fmt.Println(string(json))
+			}
+		}()
 		switch req["request"] {
 		case "dot":
 			fmt.Println(res["dot"])
 		default:
-			if json, err := json.MarshalIndent(recv["response"], "", "  "); err == nil {
-				fmt.Println(string(json))
+			maxWidths := make(map[string]int)
+			var keyOrder []string
+			keysOrdered := false
+
+			for _, tlv := range res {
+				for slk, slv := range tlv.(map[string]interface{}) {
+					if !keysOrdered {
+						for k := range slv.(map[string]interface{}) {
+							keyOrder = append(keyOrder, fmt.Sprint(k))
+						}
+						sort.Strings(keyOrder)
+						keysOrdered = true
+					}
+					for k, v := range slv.(map[string]interface{}) {
+						if len(fmt.Sprint(slk)) > maxWidths["key"] {
+							maxWidths["key"] = len(fmt.Sprint(slk))
+						}
+						if len(fmt.Sprint(v)) > maxWidths[k] {
+							maxWidths[k] = len(fmt.Sprint(v))
+							if maxWidths[k] < len(k) {
+								maxWidths[k] = len(k)
+							}
+						}
+					}
+				}
+
+				if len(keyOrder) > 0 {
+					fmt.Printf("%-" + fmt.Sprint(maxWidths["key"]) + "s  ", "")
+					for _, v := range keyOrder {
+						fmt.Printf("%-" + fmt.Sprint(maxWidths[v]) + "s  ", v)
+					}
+					fmt.Println()
+				}
+
+				for slk, slv := range tlv.(map[string]interface{}) {
+					fmt.Printf("%-" + fmt.Sprint(maxWidths["key"]) + "s  ", slk)
+					for _, k := range keyOrder {
+						fmt.Printf("%-" + fmt.Sprint(maxWidths[k]) + "s  ", fmt.Sprint(slv.(map[string]interface{})[k]))
+					}
+					fmt.Println()
+				}
 			}
+
 		}
 	}
 

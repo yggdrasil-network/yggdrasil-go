@@ -44,17 +44,20 @@ func (a *admin) init(c *Core, listenaddr string) {
 	a.core = c
 	a.listenaddr = listenaddr
 	a.addHandler("help", nil, func(in admin_info) (admin_info, error) {
-		handlers := make(map[string][]string)
+		handlers := make(map[string]interface{})
 		for _, handler := range a.handlers {
-			handlers[handler.name] = handler.args
+			handlers[handler.name] = admin_info{ "fields": handler.args }
 		}
-		return admin_info{"handlers": handlers}, nil
+		return admin_info{"help": handlers}, nil
 	})
 	a.addHandler("dot", []string{}, func(in admin_info) (admin_info, error) {
 		return admin_info{"dot": string(a.getResponse_dot())}, nil
 	})
 	a.addHandler("getSelf", []string{}, func(in admin_info) (admin_info, error) {
-		return admin_info{"self": a.getData_getSelf().asMap()}, nil
+		self := a.getData_getSelf().asMap()
+		ip := fmt.Sprint(self["ip"])
+		delete(self, "ip")
+		return admin_info{"self": admin_info{ ip: self }}, nil
 	})
 	a.addHandler("getPeers", []string{}, func(in admin_info) (admin_info, error) {
 		sort := "ip"
@@ -133,14 +136,15 @@ func (a *admin) init(c *Core, listenaddr string) {
 	a.addHandler("getTunTap", []string{}, func(in admin_info) (r admin_info, e error) {
 		defer func() {
 			recover()
-			r = admin_info{"name": "none"}
+			r = admin_info{ "tuntap": admin_info{ "none": admin_info{ } } }
 			e = nil
 		}()
 
 		return admin_info{
-			"name":     a.core.tun.iface.Name(),
-			"tap_mode": a.core.tun.iface.IsTAP(),
-			"mtu":      a.core.tun.mtu,
+			a.core.tun.iface.Name(): admin_info{
+				"tap_mode": a.core.tun.iface.IsTAP(),
+				"mtu":      a.core.tun.mtu,
+			},
 		}, nil
 	})
 	a.addHandler("setTunTap", []string{"name", "[tap_mode]", "[mtu]"}, func(in admin_info) (admin_info, error) {
@@ -162,9 +166,10 @@ func (a *admin) init(c *Core, listenaddr string) {
 			return admin_info{}, errors.New("Failed to configure adapter")
 		} else {
 			return admin_info{
-				"name":     a.core.tun.iface.Name(),
-				"tap_mode": a.core.tun.iface.IsTAP(),
-				"mtu":      ifmtu,
+				a.core.tun.iface.Name(): admin_info{
+					"tap_mode": a.core.tun.iface.IsTAP(),
+					"mtu":      ifmtu,
+				},
 			}, nil
 		}
 	})
