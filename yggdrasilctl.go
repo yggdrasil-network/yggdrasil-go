@@ -13,11 +13,12 @@ type admin_info map[string]interface{}
 
 func main() {
 	server := flag.String("endpoint", "localhost:9001", "Admin socket endpoint")
+	injson := flag.Bool("json", false, "Output in JSON format")
 	flag.Parse()
 	args := flag.Args()
 
 	if len(args) == 0 {
-		fmt.Println("usage:", os.Args[0], "[-endpoint=localhost:9001] command [key=value] [...]")
+		fmt.Println("usage:", os.Args[0], "[-endpoint=localhost:9001] [-json] command [key=value] [...]")
 		fmt.Println("example:", os.Args[0], "getPeers")
 		fmt.Println("example:", os.Args[0], "setTunTap name=auto mtu=1500 tap_mode=false")
 		fmt.Println("example:", os.Args[0], "-endpoint=localhost:9001 getDHT")
@@ -77,6 +78,13 @@ func main() {
 		}
 		req := recv["request"].(map[string]interface{})
 		res := recv["response"].(map[string]interface{})
+
+		if *injson {
+			if json, err := json.MarshalIndent(res, "", "  "); err == nil {
+				fmt.Println(string(json))
+			}
+			os.Exit(0)
+		}
 
 		switch req["request"] {
 		case "dot":
