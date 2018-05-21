@@ -62,3 +62,11 @@ func (c *Core) GetNodeID() *NodeID {
 func (c *Core) GetTreeID() *TreeID {
 	return getTreeID(&c.sigPub)
 }
+
+func (c *Core) GetAddress() *address {
+	return address_addrForNodeID(c.GetNodeID())
+}
+
+func (c *Core) GetSubnet() *subnet {
+	return address_subnetForNodeID(c.GetNodeID())
+}
