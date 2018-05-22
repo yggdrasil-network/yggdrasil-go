@@ -272,6 +272,11 @@ func main() {
 		n.core.DEBUG_stopTun()
 	}()
 	logger.Println("Started...")
+	address := (*n.core.GetAddress())[:]
+	subnet := (*n.core.GetSubnet())[:]
+	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
+	logger.Printf("Your IPv6 address is %s", net.IP(address).String())
+	logger.Printf("Your IPv6 subnet is %s/64", net.IP(subnet).String())
 	if cfg.Multicast {
 		addr, err := net.ResolveUDPAddr("udp", multicastAddr)
 		if err != nil {

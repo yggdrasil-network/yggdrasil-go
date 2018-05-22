@@ -249,7 +249,7 @@ func (a *admin) handleRequest(conn net.Conn) {
 
 		// Decode the input
 		if err := decoder.Decode(&recv); err != nil {
-		//	fmt.Println("Admin socket JSON decode error:", err)
+			//	fmt.Println("Admin socket JSON decode error:", err)
 			return
 		}
 
@@ -301,7 +301,7 @@ func (a *admin) handleRequest(conn net.Conn) {
 
 		// Send the response back
 		if err := encoder.Encode(&send); err != nil {
-		//	fmt.Println("Admin socket JSON encode error:", err)
+			//	fmt.Println("Admin socket JSON encode error:", err)
 			return
 		}
 
