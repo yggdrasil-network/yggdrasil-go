@@ -157,12 +157,12 @@ func main() {
 			}
 		case "getSelf":
 			for k, v := range res["self"].(map[string]interface{}) {
-				fmt.Println("address:", k)
+				fmt.Println("IPv6 address:", k)
 				if subnet, ok := v.(map[string]interface{})["subnet"].(string); ok {
-					fmt.Println("subnet:", subnet)
+					fmt.Println("IPv6 subnet:", subnet)
 				}
 				if coords, ok := v.(map[string]interface{})["coords"].(string); ok {
-					fmt.Println("coords:", coords)
+					fmt.Println("Coords:", coords)
 				}
 			}
 		case "addPeer", "removePeer", "addAllowedEncryptionPublicKey", "removeAllowedEncryptionPublicKey":
