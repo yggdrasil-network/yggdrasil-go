@@ -54,11 +54,17 @@ cat > /tmp/$PKGNAME/debian/docs << EOF
 Please see https://github.com/Arceliar/yggdrasil-go/
 EOF
 cat > /tmp/$PKGNAME/debian/install << EOF
-usr/bin/yggdrasil usr/bin/yggdrasilctl usr/bin
+usr/bin/yggdrasil usr/bin
+usr/bin/yggdrasilctl usr/bin
 etc/systemd/system/*.service etc/systemd/system
 EOF
 cat > /tmp/$PKGNAME/debian/postinst << EOF
 #!/bin/sh
+if [ -f /etc/yggdrasil.conf ];
+then
+  cp /etc/yggdrasil.conf /etc/yggdrasil.conf.pre-upgrade
+  ./yggdrasil -useconffile /etc/yggdrasil.conf.pre-upgrade -normaliseconf > /etc/yggdrasil.conf;
+fi
 systemctl enable yggdrasil
 systemctl start yggdrasil
 EOF
