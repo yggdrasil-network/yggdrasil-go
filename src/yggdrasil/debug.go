@@ -17,11 +17,11 @@ import "regexp"
 
 // Core
 
-func (c *Core) DEBUG_getSigPub() sigPubKey {
+func (c *Core) DEBUG_getSigningPublicKey() sigPubKey {
 	return (sigPubKey)(c.sigPub)
 }
 
-func (c *Core) DEBUG_getBoxPub() boxPubKey {
+func (c *Core) DEBUG_getEncryptionPublicKey() boxPubKey {
 	return (boxPubKey)(c.boxPub)
 }
 
@@ -404,8 +404,8 @@ func (c *Core) DEBUG_setIfceExpr(expr *regexp.Regexp) {
 	c.ifceExpr = append(c.ifceExpr, expr)
 }
 
-func (c *Core) DEBUG_addAllowedBoxPub(boxStr string) {
-	err := c.admin.addAllowedBoxPub(boxStr)
+func (c *Core) DEBUG_addAllowedEncryptionPublicKey(boxStr string) {
+	err := c.admin.addAllowedEncryptionPublicKey(boxStr)
 	if err != nil {
 		panic(err)
 	}

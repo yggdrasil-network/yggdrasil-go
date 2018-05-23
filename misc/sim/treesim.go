@@ -48,16 +48,16 @@ func (n *Node) startPeers() {
 
 func linkNodes(m, n *Node) {
 	// Don't allow duplicates
-	if m.core.DEBUG_getPeers().DEBUG_hasPeer(n.core.DEBUG_getSigPub()) {
+	if m.core.DEBUG_getPeers().DEBUG_hasPeer(n.core.DEBUG_getSigningPublicKey()) {
 		return
 	}
 	// Create peers
 	// Buffering reduces packet loss in the sim
 	//  This slightly speeds up testing (fewer delays before retrying a ping)
-	p := m.core.DEBUG_getPeers().DEBUG_newPeer(n.core.DEBUG_getBoxPub(),
-		n.core.DEBUG_getSigPub())
-	q := n.core.DEBUG_getPeers().DEBUG_newPeer(m.core.DEBUG_getBoxPub(),
-		m.core.DEBUG_getSigPub())
+	p := m.core.DEBUG_getPeers().DEBUG_newPeer(n.core.DEBUG_getEncryptionPublicKey(),
+		n.core.DEBUG_getSigningPublicKey())
+	q := n.core.DEBUG_getPeers().DEBUG_newPeer(m.core.DEBUG_getEncryptionPublicKey(),
+		m.core.DEBUG_getSigningPublicKey())
 	DEBUG_simLinkPeers(p, q)
 	return
 }
@@ -141,7 +141,7 @@ func startNetwork(store map[[32]byte]*Node) {
 func getKeyedStore(store map[int]*Node) map[[32]byte]*Node {
 	newStore := make(map[[32]byte]*Node)
 	for _, node := range store {
-		newStore[node.core.DEBUG_getSigPub()] = node
+		newStore[node.core.DEBUG_getSigningPublicKey()] = node
 	}
 	return newStore
 }
@@ -257,7 +257,7 @@ func pingNodes(store map[[32]byte]*Node) {
 		count++
 		//if count > 16 { break }
 		fmt.Printf("Sending packets from node %d/%d (%d)\n", count, nNodes, source.index)
-		sourceKey := source.core.DEBUG_getBoxPub()
+		sourceKey := source.core.DEBUG_getEncryptionPublicKey()
 		payload := sourceKey[:]
 		sourceAddr := source.core.DEBUG_getAddr()[:]
 		sendTo := func(bs []byte, destAddr []byte) {
@@ -329,7 +329,7 @@ func pingBench(store map[[32]byte]*Node) {
 			return packet
 		}
 		for _, dest := range store {
-			key := dest.core.DEBUG_getBoxPub()
+			key := dest.core.DEBUG_getEncryptionPublicKey()
 			loc := dest.core.DEBUG_getLocator()
 			coords := loc.DEBUG_getCoords()
 			ping := getPing(key, coords)

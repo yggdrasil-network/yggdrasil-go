@@ -155,7 +155,7 @@ func main() {
 					fmt.Println("TAP mode:", tap_mode)
 				}
 			}
-		case "addPeer", "removePeer", "addAllowedBoxPub", "removeAllowedBoxPub":
+		case "addPeer", "removePeer", "addAllowedEncryptionPublicKey", "removeAllowedEncryptionPublicKey":
 			if _, ok := res["added"]; ok {
 				for _, v := range res["added"].([]interface{}) {
 					fmt.Println("Added:", fmt.Sprint(v))
@@ -176,7 +176,7 @@ func main() {
 					fmt.Println("Not removed:", fmt.Sprint(v))
 				}
 			}
-		case "getAllowedBoxPubs":
+		case "getAllowedEncryptionPublicKeys":
 			if _, ok := res["allowed_box_pubs"]; !ok {
 				fmt.Println("All connections are allowed")
 			} else if res["allowed_box_pubs"] == nil {

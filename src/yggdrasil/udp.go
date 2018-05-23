@@ -206,7 +206,7 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 		udpAddr := addr.toUDPAddr()
 		// Check if we're authorized to connect to this key / IP
 		// TODO monitor and always allow outgoing connections
-		if !iface.core.peers.isAllowedBoxPub(&ks.box) {
+		if !iface.core.peers.isAllowedEncryptionPublicKey(&ks.box) {
 			// Allow unauthorized peers if they're link-local
 			if !udpAddr.IP.IsLinkLocalUnicast() {
 				return

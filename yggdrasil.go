@@ -32,19 +32,19 @@ type node struct {
 }
 
 func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
-	boxPub, err := hex.DecodeString(cfg.BoxPub)
+	boxPub, err := hex.DecodeString(cfg.EncryptionPublicKey)
 	if err != nil {
 		panic(err)
 	}
-	boxPriv, err := hex.DecodeString(cfg.BoxPriv)
+	boxPriv, err := hex.DecodeString(cfg.EncryptionPrivateKey)
 	if err != nil {
 		panic(err)
 	}
-	sigPub, err := hex.DecodeString(cfg.SigPub)
+	sigPub, err := hex.DecodeString(cfg.SigningPublicKey)
 	if err != nil {
 		panic(err)
 	}
-	sigPriv, err := hex.DecodeString(cfg.SigPriv)
+	sigPriv, err := hex.DecodeString(cfg.SigningPrivateKey)
 	if err != nil {
 		panic(err)
 	}
@@ -58,17 +58,14 @@ func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
 	logger.Println("Starting admin socket...")
 	n.core.DEBUG_setupAndStartAdminInterface(cfg.AdminListen)
 	logger.Println("Started admin socket")
-	for _, pBoxStr := range cfg.AllowedBoxPubs {
-		n.core.DEBUG_addAllowedBoxPub(pBoxStr)
+	for _, pBoxStr := range cfg.AllowedEncryptionPublicKeys {
+		n.core.DEBUG_addAllowedEncryptionPublicKey(pBoxStr)
 	}
-	logger.Println(cfg.LinkLocal)
-	for _, ll := range cfg.LinkLocal {
-		logger.Println("Adding expression", ll)
+	for _, ll := range cfg.MulticastInterfaces {
 		ifceExpr, err := regexp.Compile(ll)
 		if err != nil {
 			panic(err)
 		}
-		logger.Println("Added expression", ifceExpr)
 		n.core.DEBUG_setIfceExpr(ifceExpr)
 	}
 	n.core.DEBUG_setupAndStartMulticastInterface()
@@ -99,14 +96,13 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 		cfg.Listen = fmt.Sprintf("[::]:%d", r1.Intn(65534-32768)+32768)
 	}
 	cfg.AdminListen = "[::1]:9001"
-	cfg.BoxPub = hex.EncodeToString(bpub[:])
-	cfg.BoxPriv = hex.EncodeToString(bpriv[:])
-	cfg.SigPub = hex.EncodeToString(spub[:])
-	cfg.SigPriv = hex.EncodeToString(spriv[:])
+	cfg.EncryptionPublicKey = hex.EncodeToString(bpub[:])
+	cfg.EncryptionPrivateKey = hex.EncodeToString(bpriv[:])
+	cfg.SigningPublicKey = hex.EncodeToString(spub[:])
+	cfg.SigningPrivateKey = hex.EncodeToString(spriv[:])
 	cfg.Peers = []string{}
-	cfg.AllowedBoxPubs = []string{}
-	cfg.Multicast = false
-	cfg.LinkLocal = []string{}
+	cfg.AllowedEncryptionPublicKeys = []string{}
+	cfg.MulticastInterfaces = []string{".*"}
 	cfg.IfName = core.DEBUG_GetTUNDefaultIfName()
 	cfg.IfMTU = core.DEBUG_GetTUNDefaultIfMTU()
 	cfg.IfTAPMode = core.DEBUG_GetTUNDefaultIfTAPMode()
