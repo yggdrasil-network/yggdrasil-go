@@ -160,14 +160,14 @@ func main() {
 			"AllowedBoxPubs": "AllowedEncryptionPublicKeys",
 		}
 		for from, to := range changes {
-			if val, ok := dat[from]; ok {
-				if val == "" {
+			if _, ok := dat[from]; ok {
+				if to == "" {
 					if !*normaliseconf {
-						log.Println("Warning: Deprecated config option", from, " - please remove")
+						log.Println("Warning: Deprecated config option", from, "- please remove")
 					}
 				} else {
 					if !*normaliseconf {
-						log.Println("Warning: Deprecated config option", from, " - please rename to", to)
+						log.Println("Warning: Deprecated config option", from, "- please rename to", to)
 					}
 					if _, ok := dat[to]; !ok {
 						dat[to] = dat[from]
