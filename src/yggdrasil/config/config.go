@@ -10,8 +10,8 @@ type NodeConfig struct {
 	BoxPriv        string    `json:"EncryptionPrivateKey" comment:"Your private encryption key (do not share this with anyone!)"`
 	SigPub         string    `json:"SigningPublicKey" comment:"Your public signing key"`
 	SigPriv        string    `json:"SigningPrivateKey" comment:"Your private signing key (do not share this with anyone!)"`
-	Multicast      bool      `comment:"Enable or disable automatic peer discovery on the same LAN using multicast"`
-	LinkLocal      string    `json:"MulticastInterfaces" comment:"Regex for which interfaces multicast peer discovery should be enabled on"`
+	Multicast      bool      `json:"MulticastEnabled,omitempty" comment:"Enable or disable automatic peer discovery on the same LAN using multicast"`
+	LinkLocal      []string  `json:"MulticastInterfaces" comment:"Regexes for which interfaces multicast peer discovery should be enabled\non. If none specified, multicast peer discovery is disabled"`
 	IfName         string    `comment:"Local network interface name for TUN/TAP adapter, or \"auto\", or \"none\""`
 	IfTAPMode      bool      `comment:"Set local network interface to TAP mode rather than TUN mode (if supported\nby your platform, option will be ignored if not)"`
 	IfMTU          int       `comment:"Maximux Transmission Unit (MTU) size for your local network interface"`

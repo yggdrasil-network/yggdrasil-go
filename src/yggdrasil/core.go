@@ -19,10 +19,11 @@ type Core struct {
 	tun         tunDevice
 	admin       admin
 	searches    searches
+	multicast   multicast
 	tcp         *tcpInterface
 	udp         *udpInterface
 	log         *log.Logger
-	ifceExpr    *regexp.Regexp // the zone of link-local IPv6 peers must match this
+	ifceExpr    []*regexp.Regexp // the zone of link-local IPv6 peers must match this
 }
 
 func (c *Core) Init() {
@@ -49,6 +50,7 @@ func (c *Core) init(bpub *boxPubKey,
 	c.searches.init(c)
 	c.dht.init(c)
 	c.sessions.init(c)
+	c.multicast.init(c)
 	c.peers.init(c)
 	c.router.init(c)
 	c.switchTable.init(c, c.sigPub) // TODO move before peers? before router?

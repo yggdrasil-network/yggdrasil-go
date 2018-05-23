@@ -387,6 +387,13 @@ func (c *Core) DEBUG_setupAndStartAdminInterface(addrport string) {
 	c.admin = a
 }
 
+func (c *Core) DEBUG_setupAndStartMulticastInterface() {
+	m := multicast{}
+	m.init(c)
+	c.multicast = m
+	m.Start()
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 func (c *Core) DEBUG_setLogger(log *log.Logger) {
@@ -394,7 +401,7 @@ func (c *Core) DEBUG_setLogger(log *log.Logger) {
 }
 
 func (c *Core) DEBUG_setIfceExpr(expr *regexp.Regexp) {
-	c.ifceExpr = expr
+	c.ifceExpr = append(c.ifceExpr, expr)
 }
 
 func (c *Core) DEBUG_addAllowedBoxPub(boxStr string) {
