@@ -157,6 +157,7 @@ func main() {
 			"BoxPriv": "EncryptionPrivateKey",
 			"SigPub": "SigningPublicKey",
 			"SigPriv": "SigningPrivateKey",
+			"AllowedBoxPubs": "AllowedEncryptionPublicKeys",
 		}
 		for from, to := range changes {
 			if val, ok := dat[from]; ok {
