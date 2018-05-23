@@ -155,6 +155,16 @@ func main() {
 					fmt.Println("TAP mode:", tap_mode)
 				}
 			}
+		case "getSelf":
+			for k, v := range res["self"].(map[string]interface{}) {
+				fmt.Println("IPv6 address:", k)
+				if subnet, ok := v.(map[string]interface{})["subnet"].(string); ok {
+					fmt.Println("IPv6 subnet:", subnet)
+				}
+				if coords, ok := v.(map[string]interface{})["coords"].(string); ok {
+					fmt.Println("Coords:", coords)
+				}
+			}
 		case "addPeer", "removePeer", "addAllowedEncryptionPublicKey", "removeAllowedEncryptionPublicKey":
 			if _, ok := res["added"]; ok {
 				for _, v := range res["added"].([]interface{}) {
@@ -184,6 +194,17 @@ func main() {
 			} else {
 				fmt.Println("Connections are allowed only from the following public box keys:")
 				for _, v := range res["allowed_box_pubs"].([]interface{}) {
+					fmt.Println("-", v)
+				}
+			}
+		case "getMulticastInterfaces":
+			if _, ok := res["multicast_interfaces"]; !ok {
+				fmt.Println("No multicast interfaces found")
+			} else if res["multicast_interfaces"] == nil {
+				fmt.Println("No multicast interfaces found")
+			} else {
+				fmt.Println("Multicast peer discovery is active on:")
+				for _, v := range res["multicast_interfaces"].([]interface{}) {
 					fmt.Println("-", v)
 				}
 			}
