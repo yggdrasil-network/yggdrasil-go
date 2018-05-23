@@ -213,6 +213,9 @@ func (a *admin) init(c *Core, listenaddr string) {
 			}, errors.New("Failed to remove allowed box pub key")
 		}
 	})
+}
+
+func (a *admin) start() {
 	go a.listen()
 }
 

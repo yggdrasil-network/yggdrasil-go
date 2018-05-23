@@ -3,6 +3,8 @@ package yggdrasil
 import "io/ioutil"
 import "log"
 import "regexp"
+import "net"
+import "yggdrasil/config"
 
 type Core struct {
 	// This is the main data structure that holds everything else for a node
@@ -31,6 +33,29 @@ func (c *Core) Init() {
 	bpub, bpriv := newBoxKeys()
 	spub, spriv := newSigKeys()
 	c.init(bpub, bpriv, spub, spriv)
+}
+
+func (c *Core) Run(nc *config.NodeConfig) {
+	var boxPub boxPubKey
+   	var boxPriv boxPrivKey
+   	var sigPub sigPubKey
+   	var sigPriv sigPrivKey
+   	copy(boxPub[:], nc.EncryptionPublicKey)
+   	copy(boxPriv[:], nc.EncryptionPrivateKey)
+   	copy(sigPub[:], nc.SigningPublicKey)
+   	copy(sigPriv[:], nc.SigningPrivateKey)
+
+   	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv)
+
+	c.udp.init(c, nc.Listen)
+	c.tcp.init(c, nc.Listen)
+	c.admin.init(c, nc.AdminListen)
+
+	c.multicast.start()
+	c.router.start()
+	c.switchTable.start()
+	c.tun.setup(nc.IfName, nc.IfTAPMode, net.IP(c.router.addr[:]).String(), nc.IfMTU)
+	c.admin.start()
 }
 
 func (c *Core) init(bpub *boxPubKey,

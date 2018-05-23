@@ -167,6 +167,9 @@ func (t *switchTable) init(core *Core, key sigPubKey) {
 	t.updater.Store(&sync.Once{})
 	t.table.Store(lookupTable{})
 	t.drop = make(map[sigPubKey]int64)
+}
+
+func (t *switchTable) start() {
 	doTicker := func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
