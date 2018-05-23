@@ -17,8 +17,6 @@ import "net/http"
 import "log"
 import "runtime"
 
-import "golang.org/x/net/ipv6"
-
 import "yggdrasil"
 import "yggdrasil/config"
 
@@ -31,33 +29,27 @@ type Core = yggdrasil.Core
 
 type node struct {
 	core Core
-	sock *ipv6.PacketConn
 }
 
 func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
-	boxPub, err := hex.DecodeString(cfg.BoxPub)
+	boxPub, err := hex.DecodeString(cfg.EncryptionPublicKey)
 	if err != nil {
 		panic(err)
 	}
-	boxPriv, err := hex.DecodeString(cfg.BoxPriv)
+	boxPriv, err := hex.DecodeString(cfg.EncryptionPrivateKey)
 	if err != nil {
 		panic(err)
 	}
-	sigPub, err := hex.DecodeString(cfg.SigPub)
+	sigPub, err := hex.DecodeString(cfg.SigningPublicKey)
 	if err != nil {
 		panic(err)
 	}
-	sigPriv, err := hex.DecodeString(cfg.SigPriv)
+	sigPriv, err := hex.DecodeString(cfg.SigningPrivateKey)
 	if err != nil {
 		panic(err)
 	}
 	n.core.DEBUG_init(boxPub, boxPriv, sigPub, sigPriv)
 	n.core.DEBUG_setLogger(logger)
-	ifceExpr, err := regexp.Compile(cfg.LinkLocal)
-	if err != nil {
-		panic(err)
-	}
-	n.core.DEBUG_setIfceExpr(ifceExpr)
 
 	logger.Println("Starting interface...")
 	n.core.DEBUG_setupAndStartGlobalTCPInterface(cfg.Listen) // Listen for peers on TCP
@@ -66,9 +58,17 @@ func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
 	logger.Println("Starting admin socket...")
 	n.core.DEBUG_setupAndStartAdminInterface(cfg.AdminListen)
 	logger.Println("Started admin socket")
-	for _, pBoxStr := range cfg.AllowedBoxPubs {
-		n.core.DEBUG_addAllowedBoxPub(pBoxStr)
+	for _, pBoxStr := range cfg.AllowedEncryptionPublicKeys {
+		n.core.DEBUG_addAllowedEncryptionPublicKey(pBoxStr)
 	}
+	for _, ll := range cfg.MulticastInterfaces {
+		ifceExpr, err := regexp.Compile(ll)
+		if err != nil {
+			panic(err)
+		}
+		n.core.DEBUG_setIfceExpr(ifceExpr)
+	}
+	n.core.DEBUG_setupAndStartMulticastInterface()
 
 	go func() {
 		if len(cfg.Peers) == 0 {
@@ -96,14 +96,13 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 		cfg.Listen = fmt.Sprintf("[::]:%d", r1.Intn(65534-32768)+32768)
 	}
 	cfg.AdminListen = "[::1]:9001"
-	cfg.BoxPub = hex.EncodeToString(bpub[:])
-	cfg.BoxPriv = hex.EncodeToString(bpriv[:])
-	cfg.SigPub = hex.EncodeToString(spub[:])
-	cfg.SigPriv = hex.EncodeToString(spriv[:])
+	cfg.EncryptionPublicKey = hex.EncodeToString(bpub[:])
+	cfg.EncryptionPrivateKey = hex.EncodeToString(bpriv[:])
+	cfg.SigningPublicKey = hex.EncodeToString(spub[:])
+	cfg.SigningPrivateKey = hex.EncodeToString(spriv[:])
 	cfg.Peers = []string{}
-	cfg.AllowedBoxPubs = []string{}
-	cfg.Multicast = true
-	cfg.LinkLocal = ""
+	cfg.AllowedEncryptionPublicKeys = []string{}
+	cfg.MulticastInterfaces = []string{".*"}
 	cfg.IfName = core.DEBUG_GetTUNDefaultIfName()
 	cfg.IfMTU = core.DEBUG_GetTUNDefaultIfMTU()
 	cfg.IfTAPMode = core.DEBUG_GetTUNDefaultIfTAPMode()
@@ -120,102 +119,11 @@ func doGenconf() string {
 	return string(bs)
 }
 
-var multicastAddr = "[ff02::114]:9001"
-
-func (n *node) listen() {
-	groupAddr, err := net.ResolveUDPAddr("udp6", multicastAddr)
-	if err != nil {
-		panic(err)
-	}
-	bs := make([]byte, 2048)
-	for {
-		nBytes, rcm, fromAddr, err := n.sock.ReadFrom(bs)
-		if err != nil {
-			panic(err)
-		}
-		//if rcm == nil { continue } // wat
-		//fmt.Println("DEBUG:", "packet from:", fromAddr.String())
-		if rcm != nil {
-			// Windows can't set the flag needed to return a non-nil value here
-			// So only make these checks if we get something useful back
-			// TODO? Skip them always, I'm not sure if they're really needed...
-			if !rcm.Dst.IsLinkLocalMulticast() {
-				continue
-			}
-			if !rcm.Dst.Equal(groupAddr.IP) {
-				continue
-			}
-		}
-		anAddr := string(bs[:nBytes])
-		addr, err := net.ResolveTCPAddr("tcp6", anAddr)
-		if err != nil {
-			panic(err)
-			continue
-		} // Panic for testing, remove later
-		from := fromAddr.(*net.UDPAddr)
-		//fmt.Println("DEBUG:", "heard:", addr.IP.String(), "from:", from.IP.String())
-		if addr.IP.String() != from.IP.String() {
-			continue
-		}
-		addr.Zone = from.Zone
-		saddr := addr.String()
-		//if _, isIn := n.peers[saddr]; isIn { continue }
-		//n.peers[saddr] = struct{}{}
-		n.core.DEBUG_addTCPConn(saddr)
-		//fmt.Println("DEBUG:", "added multicast peer:", saddr)
-	}
-}
-
-func (n *node) announce() {
-	groupAddr, err := net.ResolveUDPAddr("udp6", multicastAddr)
-	if err != nil {
-		panic(err)
-	}
-	var anAddr net.TCPAddr
-	myAddr := n.core.DEBUG_getGlobalTCPAddr()
-	anAddr.Port = myAddr.Port
-	destAddr, err := net.ResolveUDPAddr("udp6", multicastAddr)
-	if err != nil {
-		panic(err)
-	}
-	for {
-		ifaces, err := net.Interfaces()
-		if err != nil {
-			panic(err)
-		}
-		for _, iface := range ifaces {
-			n.sock.JoinGroup(&iface, groupAddr)
-			//err := n.sock.JoinGroup(&iface, groupAddr)
-			//if err != nil { panic(err) }
-			addrs, err := iface.Addrs()
-			if err != nil {
-				panic(err)
-			}
-			for _, addr := range addrs {
-				addrIP, _, _ := net.ParseCIDR(addr.String())
-				if addrIP.To4() != nil {
-					continue
-				} // IPv6 only
-				if !addrIP.IsLinkLocalUnicast() {
-					continue
-				}
-				anAddr.IP = addrIP
-				anAddr.Zone = iface.Name
-				destAddr.Zone = iface.Name
-				msg := []byte(anAddr.String())
-				n.sock.WriteTo(msg, nil, destAddr)
-				break
-			}
-			time.Sleep(time.Second)
-		}
-		time.Sleep(time.Second)
-	}
-}
-
 var pprof = flag.Bool("pprof", false, "Run pprof, see http://localhost:6060/debug/pprof/")
 var genconf = flag.Bool("genconf", false, "print a new config to stdout")
 var useconf = flag.Bool("useconf", false, "read config from stdin")
 var useconffile = flag.String("useconffile", "", "read config from specified file path")
+var normaliseconf = flag.Bool("normaliseconf", false, "use in combination with either -useconf or -useconffile, outputs your configuration normalised")
 var autoconf = flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
 
 func main() {
@@ -240,8 +148,43 @@ func main() {
 		if err := hjson.Unmarshal(config, &dat); err != nil {
 			panic(err)
 		}
+		// For now we will do a little bit to help the user adjust their
+		// configuration to match the new configuration format
+		changes := map[string]string{
+			"Multicast": "",
+			"LinkLocal": "MulticastInterfaces",
+			"BoxPub": "EncryptionPublicKey",
+			"BoxPriv": "EncryptionPrivateKey",
+			"SigPub": "SigningPublicKey",
+			"SigPriv": "SigningPrivateKey",
+			"AllowedBoxPubs": "AllowedEncryptionPublicKeys",
+		}
+		for from, to := range changes {
+			if _, ok := dat[from]; ok {
+				if to == "" {
+					if !*normaliseconf {
+						log.Println("Warning: Deprecated config option", from, "- please remove")
+					}
+				} else {
+					if !*normaliseconf {
+						log.Println("Warning: Deprecated config option", from, "- please rename to", to)
+					}
+					if _, ok := dat[to]; !ok {
+						dat[to] = dat[from]
+					}
+				}
+			}
+		}
 		if err = mapstructure.Decode(dat, &cfg); err != nil {
 			panic(err)
+		}
+		if *normaliseconf {
+			bs, err := hjson.Marshal(cfg)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println(string(bs))
+			return
 		}
 	case *genconf:
 		fmt.Println(doGenconf())
@@ -277,25 +220,6 @@ func main() {
 	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
 	logger.Printf("Your IPv6 address is %s", net.IP(address).String())
 	logger.Printf("Your IPv6 subnet is %s/64", net.IP(subnet).String())
-	if cfg.Multicast {
-		addr, err := net.ResolveUDPAddr("udp", multicastAddr)
-		if err != nil {
-			panic(err)
-		}
-		listenString := fmt.Sprintf("[::]:%v", addr.Port)
-		conn, err := net.ListenPacket("udp6", listenString)
-		if err != nil {
-			panic(err)
-		}
-		//defer conn.Close() // Let it close on its own when the application exits
-		n.sock = ipv6.NewPacketConn(conn)
-		if err = n.sock.SetControlMessage(ipv6.FlagDst, true); err != nil {
-			// Windows can't set this flag, so we need to handle it in other ways
-			//panic(err)
-		}
-		go n.listen()
-		go n.announce()
-	}
 	// Catch interrupt to exit gracefully
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)

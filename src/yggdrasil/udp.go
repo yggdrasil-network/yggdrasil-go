@@ -206,7 +206,7 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 		udpAddr := addr.toUDPAddr()
 		// Check if we're authorized to connect to this key / IP
 		// TODO monitor and always allow outgoing connections
-		if !iface.core.peers.isAllowedBoxPub(&ks.box) {
+		if !iface.core.peers.isAllowedEncryptionPublicKey(&ks.box) {
 			// Allow unauthorized peers if they're link-local
 			if !udpAddr.IP.IsLinkLocalUnicast() {
 				return
@@ -341,11 +341,17 @@ func (iface *udpInterface) reader() {
 			if them.isValid() {
 				continue
 			}
-			if udpAddr.IP.IsLinkLocalUnicast() &&
-				!iface.core.ifceExpr.MatchString(udpAddr.Zone) {
-				continue
+			if udpAddr.IP.IsLinkLocalUnicast() {
+				if len(iface.core.ifceExpr) == 0 {
+					break
+				}
+				for _, expr := range iface.core.ifceExpr {
+					if expr.MatchString(udpAddr.Zone) {
+						iface.handleKeys(msg, addr)
+						break
+					}
+				}
 			}
-			iface.handleKeys(msg, addr)
 		case udp_isClose(msg):
 			iface.handleClose(msg, addr)
 		default:

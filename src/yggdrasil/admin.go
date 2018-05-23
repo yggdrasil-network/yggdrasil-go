@@ -173,11 +173,11 @@ func (a *admin) init(c *Core, listenaddr string) {
 			}, nil
 		}
 	})
-	a.addHandler("getAllowedBoxPubs", []string{}, func(in admin_info) (admin_info, error) {
-		return admin_info{"allowed_box_pubs": a.getAllowedBoxPubs()}, nil
+	a.addHandler("getAllowedEncryptionPublicKeys", []string{}, func(in admin_info) (admin_info, error) {
+		return admin_info{"allowed_box_pubs": a.getAllowedEncryptionPublicKeys()}, nil
 	})
-	a.addHandler("addAllowedBoxPub", []string{"box_pub_key"}, func(in admin_info) (admin_info, error) {
-		if a.addAllowedBoxPub(in["box_pub_key"].(string)) == nil {
+	a.addHandler("addAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in admin_info) (admin_info, error) {
+		if a.addAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
 			return admin_info{
 				"added": []string{
 					in["box_pub_key"].(string),
@@ -191,8 +191,8 @@ func (a *admin) init(c *Core, listenaddr string) {
 			}, errors.New("Failed to add allowed box pub key")
 		}
 	})
-	a.addHandler("removeAllowedBoxPub", []string{"box_pub_key"}, func(in admin_info) (admin_info, error) {
-		if a.removeAllowedBoxPub(in["box_pub_key"].(string)) == nil {
+	a.addHandler("removeAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in admin_info) (admin_info, error) {
+		if a.removeAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
 			return admin_info{
 				"removed": []string{
 					in["box_pub_key"].(string),
@@ -514,8 +514,8 @@ func (a *admin) getData_getSessions() []admin_nodeInfo {
 	return infos
 }
 
-func (a *admin) getAllowedBoxPubs() []string {
-	pubs := a.core.peers.getAllowedBoxPubs()
+func (a *admin) getAllowedEncryptionPublicKeys() []string {
+	pubs := a.core.peers.getAllowedEncryptionPublicKeys()
 	var out []string
 	for _, pub := range pubs {
 		out = append(out, hex.EncodeToString(pub[:]))
@@ -523,22 +523,22 @@ func (a *admin) getAllowedBoxPubs() []string {
 	return out
 }
 
-func (a *admin) addAllowedBoxPub(bstr string) (err error) {
+func (a *admin) addAllowedEncryptionPublicKey(bstr string) (err error) {
 	boxBytes, err := hex.DecodeString(bstr)
 	if err == nil {
 		var box boxPubKey
 		copy(box[:], boxBytes)
-		a.core.peers.addAllowedBoxPub(&box)
+		a.core.peers.addAllowedEncryptionPublicKey(&box)
 	}
 	return
 }
 
-func (a *admin) removeAllowedBoxPub(bstr string) (err error) {
+func (a *admin) removeAllowedEncryptionPublicKey(bstr string) (err error) {
 	boxBytes, err := hex.DecodeString(bstr)
 	if err == nil {
 		var box boxPubKey
 		copy(box[:], boxBytes)
-		a.core.peers.removeAllowedBoxPub(&box)
+		a.core.peers.removeAllowedEncryptionPublicKey(&box)
 	}
 	return
 }
