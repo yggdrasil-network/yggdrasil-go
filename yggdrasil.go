@@ -123,6 +123,7 @@ var pprof = flag.Bool("pprof", false, "Run pprof, see http://localhost:6060/debu
 var genconf = flag.Bool("genconf", false, "print a new config to stdout")
 var useconf = flag.Bool("useconf", false, "read config from stdin")
 var useconffile = flag.String("useconffile", "", "read config from specified file path")
+var normaliseconf = flag.Bool("normaliseconf", false, "use in combination with either -useconf or -useconffile, outputs your configuration normalised")
 var autoconf = flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
 
 func main() {
@@ -147,8 +148,42 @@ func main() {
 		if err := hjson.Unmarshal(config, &dat); err != nil {
 			panic(err)
 		}
+		// For now we will do a little bit to help the user adjust their
+		// configuration to match the new configuration format
+		changes := map[string]string{
+			"Multicast": "",
+			"LinkLocal": "MulticastInterfaces",
+			"BoxPub": "EncryptionPublicKey",
+			"BoxPriv": "EncryptionPrivateKey",
+			"SigPub": "SigningPublicKey",
+			"SigPriv": "SigningPrivateKey",
+		}
+		for from, to := range changes {
+			if val, ok := dat[from]; ok {
+				if val == "" {
+					if !*normaliseconf {
+						log.Println("Warning: Deprecated config option", from, " - please remove")
+					}
+				} else {
+					if !*normaliseconf {
+						log.Println("Warning: Deprecated config option", from, " - please rename to", to)
+					}
+					if _, ok := dat[to]; !ok {
+						dat[to] = dat[from]
+					}
+				}
+			}
+		}
 		if err = mapstructure.Decode(dat, &cfg); err != nil {
 			panic(err)
+		}
+		if *normaliseconf {
+			bs, err := hjson.Marshal(cfg)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println(string(bs))
+			return
 		}
 	case *genconf:
 		fmt.Println(doGenconf())

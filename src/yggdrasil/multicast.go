@@ -44,7 +44,7 @@ func (m *multicast) init(core *Core) {
 	m.core.log.Println("Found", len(m.interfaces), "multicast interface(s)")
 }
 
-func (m *multicast) Start() {
+func (m *multicast) start() {
 	if len(m.core.ifceExpr) == 0 {
 		m.core.log.Println("Multicast discovery is disabled")
 	} else {

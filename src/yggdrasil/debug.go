@@ -391,7 +391,7 @@ func (c *Core) DEBUG_setupAndStartMulticastInterface() {
 	m := multicast{}
 	m.init(c)
 	c.multicast = m
-	m.Start()
+	m.start()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
