@@ -62,8 +62,11 @@ cat > /tmp/$PKGNAME/debian/postinst << EOF
 #!/bin/sh
 if [ -f /etc/yggdrasil.conf ];
 then
-  cp /etc/yggdrasil.conf /etc/yggdrasil.conf.pre-upgrade
-  ./yggdrasil -useconffile /etc/yggdrasil.conf.pre-upgrade -normaliseconf > /etc/yggdrasil.conf;
+  mkdir -p /var/backups
+  echo "Backing up configuration file to /var/backups/yggdrasil.conf.`date +%Y%m%d`"
+  cp /etc/yggdrasil.conf /var/backups/yggdrasil.conf.`date +%Y%m%d`
+  echo "Normalising /etc/yggdrasil.conf"
+  /usr/bin/yggdrasil -useconffile /var/backups/yggdrasil.conf.`date +%Y%m%d` -normaliseconf > /etc/yggdrasil.conf
 fi
 systemctl enable yggdrasil
 systemctl start yggdrasil
