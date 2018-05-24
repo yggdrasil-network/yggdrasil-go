@@ -67,8 +67,10 @@ func (r *router) init(core *Core) {
 	// go r.mainLoop()
 }
 
-func (r *router) start() {
+func (r *router) start() error {
+	r.core.log.Println("Starting router")
 	go r.mainLoop()
+	return nil
 }
 
 func (r *router) mainLoop() {

@@ -169,7 +169,7 @@ func (t *switchTable) init(core *Core, key sigPubKey) {
 	t.drop = make(map[sigPubKey]int64)
 }
 
-func (t *switchTable) start() {
+func (t *switchTable) start() error {
 	doTicker := func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
@@ -179,6 +179,7 @@ func (t *switchTable) start() {
 		}
 	}
 	go doTicker()
+	return nil
 }
 
 func (t *switchTable) getLocator() switchLocator {

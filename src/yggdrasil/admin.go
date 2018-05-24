@@ -215,8 +215,9 @@ func (a *admin) init(c *Core, listenaddr string) {
 	})
 }
 
-func (a *admin) start() {
+func (a *admin) start() error {
 	go a.listen()
+	return nil
 }
 
 func (a *admin) listen() {

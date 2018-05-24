@@ -44,19 +44,19 @@ func (m *multicast) init(core *Core) {
 	m.core.log.Println("Found", len(m.interfaces), "multicast interface(s)")
 }
 
-func (m *multicast) start() {
+func (m *multicast) start() error {
 	if len(m.core.ifceExpr) == 0 {
 		m.core.log.Println("Multicast discovery is disabled")
 	} else {
 		m.core.log.Println("Multicast discovery is enabled")
 		addr, err := net.ResolveUDPAddr("udp", m.groupAddr)
 		if err != nil {
-			panic(err)
+			return err
 		}
 		listenString := fmt.Sprintf("[::]:%v", addr.Port)
 		conn, err := net.ListenPacket("udp6", listenString)
 		if err != nil {
-			panic(err)
+			return err
 		}
 		//defer conn.Close() // Let it close on its own when the application exits
 		m.sock = ipv6.NewPacketConn(conn)
@@ -68,6 +68,7 @@ func (m *multicast) start() {
 		go m.listen()
 		go m.announce()
 	}
+	return nil
 }
 
 func (m *multicast) announce() {
@@ -76,7 +77,7 @@ func (m *multicast) announce() {
 		panic(err)
 	}
 	var anAddr net.TCPAddr
-	myAddr := m.core.DEBUG_getGlobalTCPAddr()
+	myAddr := m.core.tcp.getAddr()
 	anAddr.Port = myAddr.Port
 	destAddr, err := net.ResolveUDPAddr("udp6", m.groupAddr)
 	if err != nil {

@@ -31,63 +31,10 @@ type node struct {
 	core Core
 }
 
-func (n *node) init(cfg *nodeConfig, logger *log.Logger) {
-	boxPub, err := hex.DecodeString(cfg.EncryptionPublicKey)
-	if err != nil {
-		panic(err)
-	}
-	boxPriv, err := hex.DecodeString(cfg.EncryptionPrivateKey)
-	if err != nil {
-		panic(err)
-	}
-	sigPub, err := hex.DecodeString(cfg.SigningPublicKey)
-	if err != nil {
-		panic(err)
-	}
-	sigPriv, err := hex.DecodeString(cfg.SigningPrivateKey)
-	if err != nil {
-		panic(err)
-	}
-	n.core.DEBUG_init(boxPub, boxPriv, sigPub, sigPriv)
-	n.core.DEBUG_setLogger(logger)
-
-	logger.Println("Starting interface...")
-	n.core.DEBUG_setupAndStartGlobalTCPInterface(cfg.Listen) // Listen for peers on TCP
-	n.core.DEBUG_setupAndStartGlobalUDPInterface(cfg.Listen) // Also listen on UDP, TODO allow separate configuration for ip/port to listen on each of these
-	logger.Println("Started interface")
-	logger.Println("Starting admin socket...")
-	n.core.DEBUG_setupAndStartAdminInterface(cfg.AdminListen)
-	logger.Println("Started admin socket")
-	for _, pBoxStr := range cfg.AllowedEncryptionPublicKeys {
-		n.core.DEBUG_addAllowedEncryptionPublicKey(pBoxStr)
-	}
-	for _, ll := range cfg.MulticastInterfaces {
-		ifceExpr, err := regexp.Compile(ll)
-		if err != nil {
-			panic(err)
-		}
-		n.core.DEBUG_setIfceExpr(ifceExpr)
-	}
-	n.core.DEBUG_setupAndStartMulticastInterface()
-
-	go func() {
-		if len(cfg.Peers) == 0 {
-			return
-		}
-		for {
-			for _, p := range cfg.Peers {
-				n.core.DEBUG_addPeer(p)
-				time.Sleep(time.Second)
-			}
-			time.Sleep(time.Minute)
-		}
-	}()
-}
-
 func generateConfig(isAutoconf bool) *nodeConfig {
 	core := Core{}
-	bpub, bpriv := core.DEBUG_newBoxKeys()
-	spub, spriv := core.DEBUG_newSigKeys()
+	bpub, bpriv := core.NewEncryptionKeys()
+	spub, spriv := core.NewSigningKeys()
 	cfg := nodeConfig{}
 	if isAutoconf {
 		cfg.Listen = "[::]:0"
@@ -103,9 +50,9 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	cfg.Peers = []string{}
 	cfg.AllowedEncryptionPublicKeys = []string{}
 	cfg.MulticastInterfaces = []string{".*"}
-	cfg.IfName = core.DEBUG_GetTUNDefaultIfName()
-	cfg.IfMTU = core.DEBUG_GetTUNDefaultIfMTU()
-	cfg.IfTAPMode = core.DEBUG_GetTUNDefaultIfTAPMode()
+	cfg.IfName = core.GetTUNDefaultIfName()
+	cfg.IfMTU = core.GetTUNDefaultIfMTU()
+	cfg.IfTAPMode = core.GetTUNDefaultIfTAPMode()
 
 	return &cfg
 }
@@ -151,12 +98,12 @@ func main() {
 		// For now we will do a little bit to help the user adjust their
 		// configuration to match the new configuration format
 		changes := map[string]string{
-			"Multicast": "",
-			"LinkLocal": "MulticastInterfaces",
-			"BoxPub": "EncryptionPublicKey",
-			"BoxPriv": "EncryptionPrivateKey",
-			"SigPub": "SigningPublicKey",
-			"SigPriv": "SigningPrivateKey",
+			"Multicast":      "",
+			"LinkLocal":      "MulticastInterfaces",
+			"BoxPub":         "EncryptionPublicKey",
+			"BoxPriv":        "EncryptionPrivateKey",
+			"SigPub":         "SigningPublicKey",
+			"SigPriv":        "SigningPrivateKey",
 			"AllowedBoxPubs": "AllowedEncryptionPublicKeys",
 		}
 		for from, to := range changes {
@@ -200,21 +147,36 @@ func main() {
 		go func() { log.Println(http.ListenAndServe("localhost:6060", nil)) }()
 	}
 	// Setup
-	logger.Println("Initializing...")
 	n := node{}
-	n.init(cfg, logger)
-	if cfg.IfName != "none" {
-		logger.Println("Starting TUN/TAP...")
-	} else {
-		logger.Println("Not starting TUN/TAP")
+	for _, pBoxStr := range cfg.AllowedEncryptionPublicKeys {
+		n.core.AddAllowedEncryptionPublicKey(pBoxStr)
 	}
-	//n.core.DEBUG_startTun(cfg.IfName) // 1280, the smallest supported MTU
-	n.core.DEBUG_startTunWithMTU(cfg.IfName, cfg.IfTAPMode, cfg.IfMTU) // Largest supported MTU
-	defer func() {
-		logger.Println("Closing...")
-		n.core.DEBUG_stopTun()
+	for _, ll := range cfg.MulticastInterfaces {
+		ifceExpr, err := regexp.Compile(ll)
+		if err != nil {
+			panic(err)
+		}
+		n.core.AddMulticastInterfaceExpr(ifceExpr)
+	}
+	if err := n.core.Start(cfg, logger); err != nil {
+		logger.Println("An error occured during startup")
+		panic(err)
+	}
+	go func() {
+		if len(cfg.Peers) == 0 {
+			return
+		}
+		for {
+			for _, p := range cfg.Peers {
+				n.core.AddPeer(p)
+				time.Sleep(time.Second)
+			}
+			time.Sleep(time.Minute)
+		}
 	}()
-	logger.Println("Started...")
+	defer func() {
+		n.core.Stop()
+	}()
 	address := (*n.core.GetAddress())[:]
 	subnet := (*n.core.GetSubnet())[:]
 	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
@@ -230,5 +192,4 @@ func main() {
 	minwinsvc.SetOnExit(winTerminate)
 	// Wait for the terminate/interrupt signal
 	<-c
-	logger.Println("Stopping...")
 }

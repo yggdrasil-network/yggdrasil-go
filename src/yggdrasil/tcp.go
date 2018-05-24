@@ -42,6 +42,10 @@ type tcpInfo struct {
 	remoteAddr string
 }
 
+func (iface *tcpInterface) getAddr() *net.TCPAddr {
+	return iface.serv.Addr().(*net.TCPAddr)
+}
+
 func (iface *tcpInterface) init(core *Core, addr string) (err error) {
 	iface.core = core
 
@@ -51,7 +55,8 @@ func (iface *tcpInterface) init(core *Core, addr string) (err error) {
 		iface.conns = make(map[tcpInfo](chan struct{}))
 		go iface.listener()
 	}
-	return
+
+	return err
 }
 
 func (iface *tcpInterface) listener() {
