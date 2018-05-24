@@ -6,6 +6,8 @@ import "regexp"
 import "net"
 import "yggdrasil/config"
 
+// The Core object represents the Yggdrasil node. You should create a Core
+// object for each Yggdrasil node you plan to run.
 type Core struct {
 	// This is the main data structure that holds everything else for a node
 	boxPub      boxPubKey
@@ -28,8 +30,9 @@ type Core struct {
 	ifceExpr    []*regexp.Regexp // the zone of link-local IPv6 peers must match this
 }
 
+// This function is only called by the simulator to set up a node with random
+// keys. It should not be used and may be removed in the future.
 func (c *Core) Init() {
-	// Only called by the simulator, to set up nodes with random keys
 	bpub, bpriv := newBoxKeys()
 	spub, spriv := newSigKeys()
 	c.init(bpub, bpriv, spub, spriv)
@@ -59,6 +62,10 @@ func (c *Core) init(bpub *boxPubKey,
 	c.tun.init(c)
 }
 
+// Starts up Yggdrasil using the provided NodeConfig, and outputs debug logging
+// through the provided log.Logger. The started stack will include TCP and UDP
+// sockets, a multicast discovery socket, an admin socket, router, switch and
+// DHT node.
 func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	c.log = log
 	c.log.Println("Starting up...")
@@ -118,72 +125,97 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	return nil
 }
 
+// Stops the Yggdrasil node.
 func (c *Core) Stop() {
 	c.log.Println("Stopping...")
 	c.tun.close()
-	c.log.Println("Goodbye!")
 }
 
+// Generates a new encryption keypair. The encryption keys are used to
+// encrypt traffic and to derive the IPv6 address/subnet of the node.
 func (c *Core) NewEncryptionKeys() (*boxPubKey, *boxPrivKey) {
 	return newBoxKeys()
 }
 
+// Generates a new signing keypair. The signing keys are used to derive the
+// structure of the spanning tree.
 func (c *Core) NewSigningKeys() (*sigPubKey, *sigPrivKey) {
 	return newSigKeys()
 }
 
+// Gets the node ID.
 func (c *Core) GetNodeID() *NodeID {
 	return getNodeID(&c.boxPub)
 }
 
+// Gets the tree ID.
 func (c *Core) GetTreeID() *TreeID {
 	return getTreeID(&c.sigPub)
 }
 
+// Gets the IPv6 address of the Yggdrasil node. This is always a /128.
 func (c *Core) GetAddress() *address {
 	return address_addrForNodeID(c.GetNodeID())
 }
 
+// Gets the routed IPv6 subnet of the Yggdrasil node. This is always a /64.
 func (c *Core) GetSubnet() *subnet {
 	return address_subnetForNodeID(c.GetNodeID())
 }
 
+// Sets the output logger of the Yggdrasil node after startup. This may be
+// useful if you want to redirect the output later.
 func (c *Core) SetLogger(log *log.Logger) {
 	c.log = log
 }
 
+// Adds a peer. This should be specified in the peer URI format, i.e.
+// tcp://a.b.c.d:e, udp://a.b.c.d:e, socks://a.b.c.d:e/f.g.h.i:j
 func (c *Core) AddPeer(addr string) error {
 	return c.admin.addPeer(addr)
 }
 
+// Adds an expression to select multicast interfaces for peer discovery. This
+// should be done before calling Start. This function can be called multiple
+// times to add multiple search expressions.
 func (c *Core) AddMulticastInterfaceExpr(expr *regexp.Regexp) {
 	c.ifceExpr = append(c.ifceExpr, expr)
 }
 
+// Adds an allowed public key. This allow peerings to be restricted only to
+// keys that you have selected.
 func (c *Core) AddAllowedEncryptionPublicKey(boxStr string) error {
 	return c.admin.addAllowedEncryptionPublicKey(boxStr)
 }
 
+// Gets the default TUN/TAP interface name for your platform.
 func (c *Core) GetTUNDefaultIfName() string {
 	return getDefaults().defaultIfName
 }
 
+// Gets the default TUN/TAP interface MTU for your platform. This can be as high
+// as 65535, depending on platform, but is never lower than 1280.
 func (c *Core) GetTUNDefaultIfMTU() int {
 	return getDefaults().defaultIfMTU
 }
 
+// Gets the maximum supported TUN/TAP interface MTU for your platform. This
+// can be as high as 65535, depending on platform, but is never lower than 1280.
 func (c *Core) GetTUNMaximumIfMTU() int {
 	return getDefaults().maximumIfMTU
 }
 
+// Gets the default TUN/TAP interface mode for your platform.
 func (c *Core) GetTUNDefaultIfTAPMode() bool {
 	return getDefaults().defaultIfTAPMode
 }
 
+// Gets the current TUN/TAP interface name.
 func (c *Core) GetTUNIfName() string {
 	return c.tun.iface.Name()
 }
 
+// Gets the current TUN/TAP interface MTU.
 func (c *Core) GetTUNIfMTU() int {
 	return c.tun.mtu
 }
