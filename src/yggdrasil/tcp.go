@@ -16,6 +16,7 @@ import "errors"
 import "sync"
 import "fmt"
 import "bufio"
+import "golang.org/x/net/proxy"
 
 const tcp_msgSize = 2048 + 65535 // TODO figure out what makes sense
 
@@ -44,6 +45,28 @@ type tcpInfo struct {
 
 func (iface *tcpInterface) getAddr() *net.TCPAddr {
 	return iface.serv.Addr().(*net.TCPAddr)
+}
+
+func (iface *tcpInterface) connect(addr string) {
+	iface.call(addr)
+}
+
+func (iface *tcpInterface) connectSOCKS(socksaddr, peeraddr string) {
+	go func() {
+		dialer, err := proxy.SOCKS5("tcp", socksaddr, nil, proxy.Direct)
+		if err == nil {
+			conn, err := dialer.Dial("tcp", peeraddr)
+			if err == nil {
+				iface.callWithConn(&wrappedConn{
+					c: conn,
+					raddr: &wrappedAddr{
+						network: "tcp",
+						addr:    peeraddr,
+					},
+				})
+			}
+		}
+	}()
 }
 
 func (iface *tcpInterface) init(core *Core, addr string) (err error) {

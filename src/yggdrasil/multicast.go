@@ -68,7 +68,7 @@ func (m *multicast) start() error {
 		go m.listen()
 		go m.announce()
 	}
-	return nil
+  return nil
 }
 
 func (m *multicast) announce() {
@@ -152,7 +152,7 @@ func (m *multicast) listen() {
 		saddr := addr.String()
 		//if _, isIn := n.peers[saddr]; isIn { continue }
 		//n.peers[saddr] = struct{}{}
-		m.core.DEBUG_addTCPConn(saddr)
+		m.core.tcp.connect(saddr)
 		//fmt.Println("DEBUG:", "added multicast peer:", saddr)
 	}
 }

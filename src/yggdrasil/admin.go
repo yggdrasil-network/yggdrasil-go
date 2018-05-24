@@ -360,11 +360,11 @@ func (a *admin) addPeer(addr string) error {
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "tcp":
-			a.core.DEBUG_addTCPConn(u.Host)
+			a.core.tcp.connect(u.Host)
 		case "udp":
-			a.core.DEBUG_maybeSendUDPKeys(u.Host)
+			a.core.udp.connect(u.Host)
 		case "socks":
-			a.core.DEBUG_addSOCKSConn(u.Host, u.Path[1:])
+			a.core.tcp.connectSOCKS(u.Host, u.Path[1:])
 		default:
 			return errors.New("invalid peer: " + addr)
 		}
@@ -372,13 +372,13 @@ func (a *admin) addPeer(addr string) error {
 		// no url scheme provided
 		addr = strings.ToLower(addr)
 		if strings.HasPrefix(addr, "udp:") {
-			a.core.DEBUG_maybeSendUDPKeys(addr[4:])
+			a.core.udp.connect(addr[4:])
 			return nil
 		} else {
 			if strings.HasPrefix(addr, "tcp:") {
 				addr = addr[4:]
 			}
-			a.core.DEBUG_addTCPConn(addr)
+			a.core.tcp.connect(addr)
 			return nil
 		}
 		return errors.New("invalid peer: " + addr)
