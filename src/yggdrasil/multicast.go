@@ -16,10 +16,10 @@ type multicast struct {
 func (m *multicast) init(core *Core) {
 	m.core = core
 	m.groupAddr = "[ff02::114]:9001"
-  // Check if we've been given any expressions
-  if len(m.core.ifceExpr) == 0 {
-    return
-  }
+	// Check if we've been given any expressions
+	if len(m.core.ifceExpr) == 0 {
+		return
+	}
 	// Ask the system for network interfaces
 	allifaces, err := net.Interfaces()
 	if err != nil {
@@ -72,7 +72,7 @@ func (m *multicast) start() error {
 		go m.listen()
 		go m.announce()
 	}
-  return nil
+	return nil
 }
 
 func (m *multicast) announce() {

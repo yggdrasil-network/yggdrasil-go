@@ -302,14 +302,14 @@ func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) {
 		sock.SetReadDeadline(timeout)
 		n, err := sock.Read(bs[len(frag):])
 		if err != nil || n == 0 {
-		//	iface.core.log.Println(err)
+			//	iface.core.log.Println(err)
 			break
 		}
 		frag = bs[:len(frag)+n]
 		for {
 			msg, ok, err := tcp_chop_msg(&frag)
 			if err != nil {
-			//	iface.core.log.Println(err)
+				//	iface.core.log.Println(err)
 				return
 			}
 			if !ok {

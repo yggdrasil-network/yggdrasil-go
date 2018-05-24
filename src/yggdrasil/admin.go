@@ -425,13 +425,10 @@ func (a *admin) startTunWithMTU(ifname string, iftapmode bool, ifmtu int) error 
 
 func (a *admin) getData_getSelf() *admin_nodeInfo {
 	table := a.core.switchTable.table.Load().(lookupTable)
-	addr := (*a.core.GetAddress())[:]
-	subnet := (*a.core.GetSubnet())[:]
-	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
 	coords := table.self.getCoords()
 	self := admin_nodeInfo{
-		{"ip", net.IP(addr[:]).String()},
-		{"subnet", fmt.Sprintf("%s/64", net.IP(subnet[:]).String())},
+		{"ip", a.core.GetAddress().String()},
+		{"subnet", a.core.GetSubnet().String()},
 		{"coords", fmt.Sprint(coords)},
 	}
 	return &self

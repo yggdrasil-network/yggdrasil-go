@@ -4,7 +4,6 @@ import "encoding/hex"
 import "flag"
 import "fmt"
 import "io/ioutil"
-import "net"
 import "os"
 import "os/signal"
 import "syscall"
@@ -238,11 +237,10 @@ func main() {
 	}()
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
-	address := (*n.core.GetAddress())[:]
-	subnet := (*n.core.GetSubnet())[:]
-	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
-	logger.Printf("Your IPv6 address is %s", net.IP(address).String())
-	logger.Printf("Your IPv6 subnet is %s/64", net.IP(subnet).String())
+	address := n.core.GetAddress()
+	subnet := n.core.GetSubnet()
+	logger.Printf("Your IPv6 address is %s", address.String())
+	logger.Printf("Your IPv6 subnet is %s", subnet.String())
 	// Catch interrupts from the operating system to exit gracefully.
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)

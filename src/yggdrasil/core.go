@@ -48,7 +48,7 @@ func (c *Core) init(bpub *boxPubKey,
 	// This is pretty much required to completely avoid race conditions
 	util_initByteStore()
 	if c.log == nil {
- 		c.log = log.New(ioutil.Discard, "", 0)
+		c.log = log.New(ioutil.Discard, "", 0)
 	}
 	c.boxPub, c.boxPriv = *bpub, *bpriv
 	c.sigPub, c.sigPriv = *spub, *spriv
@@ -156,13 +156,16 @@ func (c *Core) GetTreeID() *TreeID {
 }
 
 // Gets the IPv6 address of the Yggdrasil node. This is always a /128.
-func (c *Core) GetAddress() *address {
-	return address_addrForNodeID(c.GetNodeID())
+func (c *Core) GetAddress() *net.IP {
+	address := net.IP(address_addrForNodeID(c.GetNodeID())[:])
+	return &address
 }
 
 // Gets the routed IPv6 subnet of the Yggdrasil node. This is always a /64.
-func (c *Core) GetSubnet() *subnet {
-	return address_subnetForNodeID(c.GetNodeID())
+func (c *Core) GetSubnet() *net.IPNet {
+	subnet := address_subnetForNodeID(c.GetNodeID())[:]
+	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
+	return &net.IPNet{ IP: subnet, Mask: net.CIDRMask(64, 128) }
 }
 
 // Sets the output logger of the Yggdrasil node after startup. This may be
