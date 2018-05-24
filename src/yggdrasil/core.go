@@ -1,6 +1,6 @@
 package yggdrasil
 
-// import "io/ioutil"
+import "io/ioutil"
 import "log"
 import "regexp"
 import "net"
@@ -47,7 +47,9 @@ func (c *Core) init(bpub *boxPubKey,
 	//  Start launches goroutines that depend on structs being set up
 	// This is pretty much required to completely avoid race conditions
 	util_initByteStore()
-	// c.log = log.New(ioutil.Discard, "", 0)
+	if c.log == nil {
+ 		c.log = log.New(ioutil.Discard, "", 0)
+	}
 	c.boxPub, c.boxPriv = *bpub, *bpriv
 	c.sigPub, c.sigPriv = *spub, *spriv
 	c.admin.core = c
