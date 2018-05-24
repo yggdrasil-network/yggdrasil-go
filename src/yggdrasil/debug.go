@@ -1,5 +1,3 @@
-// +build !linux,!darwin,!windows,!openbsd,!freebsd,!netbsd
-
 package yggdrasil
 
 // These are functions that should not exist
