@@ -4,6 +4,7 @@ import "io/ioutil"
 import "log"
 import "regexp"
 import "net"
+import "encoding/hex"
 import "yggdrasil/config"
 
 // The Core object represents the Yggdrasil node. You should create a Core
@@ -72,12 +73,33 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	c.log = log
 	c.log.Println("Starting up...")
 
-	udp := udpInterface{}
-	if err := udp.init(c, nc.Listen); err != nil {
-		c.log.Println("Failed to start UDP interface")
+	var boxPub boxPubKey
+	var boxPriv boxPrivKey
+	var sigPub sigPubKey
+	var sigPriv sigPrivKey
+	boxPubHex, err := hex.DecodeString(nc.EncryptionPublicKey)
+	if err != nil {
 		return err
 	}
-	c.udp = &udp
+	boxPrivHex, err := hex.DecodeString(nc.EncryptionPrivateKey)
+	if err != nil {
+		return err
+	}
+	sigPubHex, err := hex.DecodeString(nc.SigningPublicKey)
+	if err != nil {
+		return err
+	}
+	sigPrivHex, err := hex.DecodeString(nc.SigningPrivateKey)
+	if err != nil {
+		return err
+	}
+	copy(boxPub[:], boxPubHex)
+	copy(boxPriv[:], boxPrivHex)
+	copy(sigPub[:], sigPubHex)
+	copy(sigPriv[:], sigPrivHex)
+
+	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv)
+	c.admin.init(c, nc.AdminListen)
 
 	tcp := tcpInterface{}
 	if err := tcp.init(c, nc.Listen); err != nil {
@@ -86,17 +108,12 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	}
 	c.tcp = &tcp
 
-	var boxPub boxPubKey
-	var boxPriv boxPrivKey
-	var sigPub sigPubKey
-	var sigPriv sigPrivKey
-	copy(boxPub[:], nc.EncryptionPublicKey)
-	copy(boxPriv[:], nc.EncryptionPrivateKey)
-	copy(sigPub[:], nc.SigningPublicKey)
-	copy(sigPriv[:], nc.SigningPrivateKey)
-
-	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv)
-	c.admin.init(c, nc.AdminListen)
+	udp := udpInterface{}
+	if err := udp.init(c, nc.Listen); err != nil {
+		c.log.Println("Failed to start UDP interface")
+		return err
+	}
+	c.udp = &udp
 
 	if err := c.router.start(); err != nil {
 		c.log.Println("Failed to start router")
