@@ -64,7 +64,13 @@ func (r *router) init(core *Core) {
 	r.core.tun.send = send
 	r.reset = make(chan struct{}, 1)
 	r.admin = make(chan func())
+	// go r.mainLoop()
+}
+
+func (r *router) start() error {
+	r.core.log.Println("Starting router")
 	go r.mainLoop()
+	return nil
 }
 
 func (r *router) mainLoop() {

@@ -65,18 +65,40 @@ type udpKeys struct {
 	sig sigPubKey
 }
 
-func (iface *udpInterface) init(core *Core, addr string) {
+func (iface *udpInterface) getAddr() *net.UDPAddr {
+	return iface.sock.LocalAddr().(*net.UDPAddr)
+}
+
+func (iface *udpInterface) connect(saddr string) {
+	udpAddr, err := net.ResolveUDPAddr("udp", saddr)
+	if err != nil {
+		panic(err)
+	}
+	var addr connAddr
+	addr.fromUDPAddr(udpAddr)
+	iface.mutex.RLock()
+	_, isIn := iface.conns[addr]
+	iface.mutex.RUnlock()
+	if !isIn {
+		iface.sendKeys(addr)
+	}
+}
+
+func (iface *udpInterface) init(core *Core, addr string) error {
 	iface.core = core
 	udpAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
-		panic(err)
+		return err
+		//panic(err)
 	}
 	iface.sock, err = net.ListenUDP("udp", udpAddr)
 	if err != nil {
-		panic(err)
+		return err
+		//	panic(err)
 	}
 	iface.conns = make(map[connAddr]*connInfo)
 	go iface.reader()
+	return nil
 }
 
 func (iface *udpInterface) sendKeys(addr connAddr) {
