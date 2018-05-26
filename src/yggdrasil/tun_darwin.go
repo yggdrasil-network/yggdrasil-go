@@ -84,7 +84,7 @@ func (tun *tunDevice) setupAddress(addr string) error {
 
 	ar.ifra_addr.sin6_len = uint8(unsafe.Sizeof(ar.ifra_addr))
 	ar.ifra_addr.sin6_family = unix.AF_INET6
-	parts := strings.Split(strings.TrimRight(addr, "/8"), ":")
+	parts := strings.Split(strings.Split(addr, "/")[0], ":")
 	for i := 0; i < 8; i++ {
 		addr, _ := strconv.ParseUint(parts[i], 16, 16)
 		b := make([]byte, 16)
