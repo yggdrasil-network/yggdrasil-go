@@ -91,9 +91,11 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	cfg := nodeConfig{}
 	if isAutoconf {
 		cfg.Listen = "[::]:0"
+		cfg.MulticastInterfaces = []string{".*"}
 	} else {
 		r1 := rand.New(rand.NewSource(time.Now().UnixNano()))
 		cfg.Listen = fmt.Sprintf("[::]:%d", r1.Intn(65534-32768)+32768)
+		cfg.MulticastInterfaces = []string{}
 	}
 	cfg.AdminListen = "[::1]:9001"
 	cfg.EncryptionPublicKey = hex.EncodeToString(bpub[:])
@@ -102,7 +104,6 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	cfg.SigningPrivateKey = hex.EncodeToString(spriv[:])
 	cfg.Peers = []string{}
 	cfg.AllowedEncryptionPublicKeys = []string{}
-	cfg.MulticastInterfaces = []string{".*"}
 	cfg.IfName = core.DEBUG_GetTUNDefaultIfName()
 	cfg.IfMTU = core.DEBUG_GetTUNDefaultIfMTU()
 	cfg.IfTAPMode = core.DEBUG_GetTUNDefaultIfTAPMode()
@@ -112,6 +113,7 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 
 func doGenconf() string {
 	cfg := generateConfig(false)
+	cfg.MulticastInterfaces = append(cfg.MulticastInterfaces, ".*")
 	bs, err := hjson.Marshal(cfg)
 	if err != nil {
 		panic(err)
@@ -151,12 +153,12 @@ func main() {
 		// For now we will do a little bit to help the user adjust their
 		// configuration to match the new configuration format
 		changes := map[string]string{
-			"Multicast": "",
-			"LinkLocal": "MulticastInterfaces",
-			"BoxPub": "EncryptionPublicKey",
-			"BoxPriv": "EncryptionPrivateKey",
-			"SigPub": "SigningPublicKey",
-			"SigPriv": "SigningPrivateKey",
+			"Multicast":      "",
+			"LinkLocal":      "MulticastInterfaces",
+			"BoxPub":         "EncryptionPublicKey",
+			"BoxPriv":        "EncryptionPrivateKey",
+			"SigPub":         "SigningPublicKey",
+			"SigPriv":        "SigningPrivateKey",
 			"AllowedBoxPubs": "AllowedEncryptionPublicKeys",
 		}
 		for from, to := range changes {
