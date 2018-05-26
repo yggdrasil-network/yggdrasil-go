@@ -212,7 +212,7 @@ func main() {
 	// start Yggdrasil. This will start the router, switch, DHT node, TCP and UDP
 	// sockets, TUN/TAP adapter and multicast discovery port.
 	if err := n.core.Start(cfg, logger); err != nil {
-		logger.Println("An error occured during startup")
+		logger.Println("An error occurred during startup")
 		panic(err)
 	}
 	// If any static peers were provided in the configuration above then we should
