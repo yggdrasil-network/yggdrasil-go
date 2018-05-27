@@ -284,9 +284,10 @@ func (c *Core) DEBUG_init(bpub []byte,
 ////////////////////////////////////////////////////////////////////////////////
 
 func (c *Core) DEBUG_setupAndStartGlobalUDPInterface(addrport string) {
-	iface := udpInterface{}
-	iface.init(c, addrport)
-	c.udp = &iface
+	if err := c.udp.init(c, addrport); err != nil {
+		c.log.Println("Failed to start UDP interface:", err)
+		panic(err)
+	}
 }
 
 func (c *Core) DEBUG_getGlobalUDPAddr() *net.UDPAddr {
@@ -337,9 +338,10 @@ func (c *Core) DEBUG_addSOCKSConn(socksaddr, peeraddr string) {
 
 //*
 func (c *Core) DEBUG_setupAndStartGlobalTCPInterface(addrport string) {
-	iface := tcpInterface{}
-	iface.init(c, addrport)
-	c.tcp = &iface
+	if err := c.tcp.init(c, addrport); err != nil {
+		c.log.Println("Failed to start TCP interface:", err)
+		panic(err)
+	}
 }
 
 func (c *Core) DEBUG_getGlobalTCPAddr() *net.TCPAddr {
