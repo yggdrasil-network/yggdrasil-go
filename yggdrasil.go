@@ -123,7 +123,8 @@ func doGenconf() string {
 var pprof = flag.Bool("pprof", false, "Run pprof, see http://localhost:6060/debug/pprof/")
 var genconf = flag.Bool("genconf", false, "print a new config to stdout")
 var useconf = flag.Bool("useconf", false, "read config from stdin")
-var normaliseconf = flag.Bool("normaliseconf", false, "use in combination with -useconf, outputs your configuration normalised")
+var useconffile = flag.String("useconffile", "", "read config from specified file path")
+var normaliseconf = flag.Bool("normaliseconf", false, "use in combination with either -useconf or -useconffile, outputs your configuration normalised")
 var autoconf = flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
 
 func main() {
@@ -132,10 +133,14 @@ func main() {
 	switch {
 	case *autoconf:
 		cfg = generateConfig(true)
-	case *useconf:
+	case *useconffile != "" || *useconf:
 		var config []byte
 		var err error
-		config, err = ioutil.ReadAll(os.Stdin)
+		if *useconffile != "" {
+			config, err = ioutil.ReadFile(*useconffile)
+		} else {
+			config, err = ioutil.ReadAll(os.Stdin)
+		}
 		if err != nil {
 			panic(err)
 		}
