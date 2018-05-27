@@ -32,14 +32,6 @@ type Core struct {
 	ifceExpr    []*regexp.Regexp // the zone of link-local IPv6 peers must match this
 }
 
-// This function is only called by the simulator to set up a node with random
-// keys. It should not be used and may be removed in the future.
-func (c *Core) Init() {
-	bpub, bpriv := newBoxKeys()
-	spub, spriv := newSigKeys()
-	c.init(bpub, bpriv, spub, spriv)
-}
-
 func (c *Core) init(bpub *boxPubKey,
 	bpriv *boxPrivKey,
 	spub *sigPubKey,
