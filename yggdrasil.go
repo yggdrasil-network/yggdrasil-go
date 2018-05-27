@@ -60,9 +60,9 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	cfg.Peers = []string{}
 	cfg.AllowedEncryptionPublicKeys = []string{}
 	cfg.MulticastInterfaces = []string{".*"}
-	cfg.IfName = core.DEBUG_GetTUNDefaultIfName()
-	cfg.IfMTU = core.DEBUG_GetTUNDefaultIfMTU()
-	cfg.IfTAPMode = core.DEBUG_GetTUNDefaultIfTAPMode()
+	cfg.IfName = core.GetTUNDefaultIfName()
+	cfg.IfMTU = core.GetTUNDefaultIfMTU()
+	cfg.IfTAPMode = core.GetTUNDefaultIfTAPMode()
 
 	return &cfg
 }
