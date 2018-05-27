@@ -36,6 +36,15 @@ func (tun *tunDevice) init(core *Core) {
 	tun.icmpv6.init(tun)
 }
 
+func (tun *tunDevice) start(ifname string, iftapmode bool, addr string, mtu int) error {
+	if err := tun.setup(ifname, iftapmode, addr, mtu); err != nil {
+		return err
+	}
+	go func() { panic(tun.read()) }()
+	go func() { panic(tun.write()) }()
+	return nil
+}
+
 func (tun *tunDevice) write() error {
 	for {
 		data := <-tun.recv

@@ -122,12 +122,6 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
-	ip := net.IP(c.router.addr[:]).String()
-	if err := c.tun.setup(nc.IfName, nc.IfTAPMode, fmt.Sprintf("%s/8", ip), nc.IfMTU); err != nil {
-		c.log.Println("Failed to start TUN/TAP")
-		return err
-	}
-
 	if err := c.admin.start(); err != nil {
 		c.log.Println("Failed to start admin socket")
 		return err
@@ -135,6 +129,12 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 
 	if err := c.multicast.start(); err != nil {
 		c.log.Println("Failed to start multicast interface")
+		return err
+	}
+
+	ip := net.IP(c.router.addr[:]).String()
+	if err := c.tun.start(nc.IfName, nc.IfTAPMode, fmt.Sprintf("%s/8", ip), nc.IfMTU); err != nil {
+		c.log.Println("Failed to start TUN/TAP")
 		return err
 	}
 
