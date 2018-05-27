@@ -20,8 +20,8 @@ type Core struct {
 	admin       admin
 	searches    searches
 	multicast   multicast
-	tcp         *tcpInterface
-	udp         *udpInterface
+	tcp         tcpInterface
+	udp         udpInterface
 	log         *log.Logger
 	ifceExpr    []*regexp.Regexp // the zone of link-local IPv6 peers must match this
 }
