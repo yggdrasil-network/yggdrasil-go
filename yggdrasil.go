@@ -1,5 +1,6 @@
 package main
 
+import "encoding/json"
 import "encoding/hex"
 import "flag"
 import "fmt"
@@ -91,11 +92,9 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	cfg := nodeConfig{}
 	if isAutoconf {
 		cfg.Listen = "[::]:0"
-		cfg.MulticastInterfaces = []string{".*"}
 	} else {
 		r1 := rand.New(rand.NewSource(time.Now().UnixNano()))
 		cfg.Listen = fmt.Sprintf("[::]:%d", r1.Intn(65534-32768)+32768)
-		cfg.MulticastInterfaces = []string{}
 	}
 	cfg.AdminListen = "[::1]:9001"
 	cfg.EncryptionPublicKey = hex.EncodeToString(bpub[:])
@@ -104,6 +103,7 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	cfg.SigningPrivateKey = hex.EncodeToString(spriv[:])
 	cfg.Peers = []string{}
 	cfg.AllowedEncryptionPublicKeys = []string{}
+	cfg.MulticastInterfaces = []string{".*"}
 	cfg.IfName = core.DEBUG_GetTUNDefaultIfName()
 	cfg.IfMTU = core.DEBUG_GetTUNDefaultIfMTU()
 	cfg.IfTAPMode = core.DEBUG_GetTUNDefaultIfTAPMode()
@@ -113,7 +113,6 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 
 func doGenconf() string {
 	cfg := generateConfig(false)
-	cfg.MulticastInterfaces = append(cfg.MulticastInterfaces, ".*")
 	bs, err := hjson.Marshal(cfg)
 	if err != nil {
 		panic(err)
@@ -124,8 +123,7 @@ func doGenconf() string {
 var pprof = flag.Bool("pprof", false, "Run pprof, see http://localhost:6060/debug/pprof/")
 var genconf = flag.Bool("genconf", false, "print a new config to stdout")
 var useconf = flag.Bool("useconf", false, "read config from stdin")
-var useconffile = flag.String("useconffile", "", "read config from specified file path")
-var normaliseconf = flag.Bool("normaliseconf", false, "use in combination with either -useconf or -useconffile, outputs your configuration normalised")
+var normaliseconf = flag.Bool("normaliseconf", false, "use in combination with -useconf, outputs your configuration normalised")
 var autoconf = flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
 
 func main() {
@@ -134,14 +132,10 @@ func main() {
 	switch {
 	case *autoconf:
 		cfg = generateConfig(true)
-	case *useconffile != "" || *useconf:
+	case *useconf:
 		var config []byte
 		var err error
-		if *useconffile != "" {
-			config, err = ioutil.ReadFile(*useconffile)
-		} else {
-			config, err = ioutil.ReadAll(os.Stdin)
-		}
+		config, err = ioutil.ReadAll(os.Stdin)
 		if err != nil {
 			panic(err)
 		}
@@ -150,6 +144,11 @@ func main() {
 		if err := hjson.Unmarshal(config, &dat); err != nil {
 			panic(err)
 		}
+		confJson, err := json.Marshal(dat)
+		if err != nil {
+			panic(err)
+		}
+		json.Unmarshal(confJson, &cfg)
 		// For now we will do a little bit to help the user adjust their
 		// configuration to match the new configuration format
 		changes := map[string]string{
