@@ -1,3 +1,5 @@
+// +build debug
+
 package yggdrasil
 
 // These are functions that should not exist
@@ -14,6 +16,20 @@ import "fmt"
 import "net"
 import "log"
 import "regexp"
+
+import _ "net/http/pprof"
+import "net/http"
+import "runtime"
+
+// Starts the function profiler. This is only supported when built with
+// '-tags build'.
+func StartProfiler(log *log.Logger) error {
+	runtime.SetBlockProfileRate(1)
+	go func() { log.Println(http.ListenAndServe("localhost:6060", nil)) }()
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 // Core
 

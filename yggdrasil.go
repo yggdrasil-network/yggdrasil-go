@@ -11,11 +11,7 @@ import "syscall"
 import "time"
 import "regexp"
 import "math/rand"
-
-import _ "net/http/pprof"
-import "net/http"
 import "log"
-import "runtime"
 
 import "yggdrasil"
 import "yggdrasil/config"
@@ -191,8 +187,9 @@ func main() {
 	logger := log.New(os.Stdout, "", log.Flags())
 	// If the -pprof flag was provided then start the pprof service on port 6060.
 	if *pprof {
-		runtime.SetBlockProfileRate(1)
-		go func() { log.Println(http.ListenAndServe("localhost:6060", nil)) }()
+		if err := yggdrasil.StartProfiler(logger); err != nil {
+			logger.Println(err)
+		}
 	}
 	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
 	// don't need to create this manually.
