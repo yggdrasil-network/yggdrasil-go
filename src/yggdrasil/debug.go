@@ -279,6 +279,14 @@ func (c *Core) DEBUG_init(bpub []byte,
 	copy(sigPub[:], spub)
 	copy(sigPriv[:], spriv)
 	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv)
+
+	if err := c.router.start(); err != nil {
+		panic(err)
+	}
+
+	if err := c.switchTable.start(); err != nil {
+		panic(err)
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
