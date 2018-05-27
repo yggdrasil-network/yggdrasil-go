@@ -456,3 +456,28 @@ func DEBUG_simLinkPeers(p, q *peer) {
 func (c *Core) DEBUG_simFixMTU() {
 	c.tun.mtu = 65535
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+func Util_testAddrIDMask() {
+	for idx := 0; idx < 16; idx++ {
+		var orig NodeID
+		orig[8] = 42
+		for bidx := 0; bidx < idx; bidx++ {
+			orig[bidx/8] |= (0x80 >> uint8(bidx%8))
+		}
+		addr := address_addrForNodeID(&orig)
+		nid, mask := addr.getNodeIDandMask()
+		for b := 0; b < len(mask); b++ {
+			nid[b] &= mask[b]
+			orig[b] &= mask[b]
+		}
+		if *nid != orig {
+			fmt.Println(orig)
+			fmt.Println(*addr)
+			fmt.Println(*nid)
+			fmt.Println(*mask)
+			panic(idx)
+		}
+	}
+}

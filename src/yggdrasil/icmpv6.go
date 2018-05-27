@@ -12,7 +12,7 @@ import "errors"
 
 type macAddress [6]byte
 
-const ETHER = 14
+const len_ETHER = 14
 
 type icmpv6 struct {
 	tun        *tunDevice
@@ -79,13 +79,13 @@ func (i *icmpv6) parse_packet_tap(datain []byte) ([]byte, error) {
 	}
 
 	// Hand over to parse_packet_tun to interpret the IPv6 packet
-	ipv6packet, err := i.parse_packet_tun(datain[ETHER:])
+	ipv6packet, err := i.parse_packet_tun(datain[len_ETHER:])
 	if err != nil {
 		return nil, err
 	}
 
 	// Create the response buffer
-	dataout := make([]byte, ETHER+ipv6.HeaderLen+32)
+	dataout := make([]byte, len_ETHER+ipv6.HeaderLen+32)
 
 	// Populate the response ethernet headers
 	copy(dataout[:6], datain[6:12])
@@ -93,7 +93,7 @@ func (i *icmpv6) parse_packet_tap(datain []byte) ([]byte, error) {
 	binary.BigEndian.PutUint16(dataout[12:14], uint16(0x86DD))
 
 	// Copy the returned packet to our response ethernet frame
-	copy(dataout[ETHER:], ipv6packet)
+	copy(dataout[len_ETHER:], ipv6packet)
 	return dataout, nil
 }
 
@@ -157,7 +157,7 @@ func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, src net.IP, mt
 	}
 
 	// Create the response buffer
-	dataout := make([]byte, ETHER+len(ipv6packet))
+	dataout := make([]byte, len_ETHER+len(ipv6packet))
 
 	// Populate the response ethernet headers
 	copy(dataout[:6], dstmac[:6])
@@ -165,7 +165,7 @@ func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, src net.IP, mt
 	binary.BigEndian.PutUint16(dataout[12:14], uint16(0x86DD))
 
 	// Copy the returned packet to our response ethernet frame
-	copy(dataout[ETHER:], ipv6packet)
+	copy(dataout[len_ETHER:], ipv6packet)
 	return dataout, nil
 }
 
