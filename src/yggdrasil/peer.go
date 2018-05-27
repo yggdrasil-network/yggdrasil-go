@@ -25,7 +25,6 @@ package yggdrasil
 import "time"
 import "sync"
 import "sync/atomic"
-import "math"
 
 //import "fmt"
 
@@ -86,7 +85,7 @@ func (ps *peers) putPorts(ports map[switchPort]*peer) {
 type peer struct {
 	// Rolling approximation of bandwidth, in bps, used by switch, updated by packet sends
 	// use get/update methods only! (atomic accessors as float64)
-	bandwidth  uint64
+	queueSize  int64
 	bytesSent  uint64 // To track bandwidth usage for getPeers
 	bytesRecvd uint64 // To track bandwidth usage for getPeers
 	// BUG: sync/atomic, 32 bit platforms need the above to be the first element
@@ -116,22 +115,12 @@ type peer struct {
 
 const peer_Throttle = 1
 
-func (p *peer) getBandwidth() float64 {
-	bits := atomic.LoadUint64(&p.bandwidth)
-	return math.Float64frombits(bits)
+func (p *peer) getQueueSize() int64 {
+	return atomic.LoadInt64(&p.queueSize)
 }
 
-func (p *peer) updateBandwidth(bytes int, duration time.Duration) {
-	if p == nil {
-		return
-	}
-	for ok := false; !ok; {
-		oldBits := atomic.LoadUint64(&p.bandwidth)
-		oldBandwidth := math.Float64frombits(oldBits)
-		bandwidth := oldBandwidth*7/8 + float64(bytes)/duration.Seconds()
-		bits := math.Float64bits(bandwidth)
-		ok = atomic.CompareAndSwapUint64(&p.bandwidth, oldBits, bits)
-	}
+func (p *peer) updateQueueSize(delta int64) {
+	atomic.AddInt64(&p.queueSize, delta)
 }
 
 func (ps *peers) newPeer(box *boxPubKey,

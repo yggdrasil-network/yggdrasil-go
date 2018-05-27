@@ -265,6 +265,7 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 			defer func() { recover() }()
 			select {
 			case conn.out <- msg:
+				conn.peer.updateQueueSize(1)
 			default:
 				util_putBytes(msg)
 			}
@@ -282,16 +283,14 @@ func (iface *udpInterface) handleKeys(msg []byte, addr connAddr) {
 				if len(chunks) > 255 {
 					continue
 				}
-				start := time.Now()
 				for idx, bs := range chunks {
 					nChunks, nChunk, count := uint8(len(chunks)), uint8(idx)+1, conn.countOut
 					out = udp_encode(out[:0], nChunks, nChunk, count, bs)
 					//iface.core.log.Println("DEBUG out:", nChunks, nChunk, count, len(bs))
 					iface.sock.WriteToUDP(out, udpAddr)
 				}
-				timed := time.Since(start)
 				conn.countOut += 1
-				conn.peer.updateBandwidth(len(msg), timed)
+				conn.peer.updateQueueSize(-1)
 				util_putBytes(msg)
 			}
 		}()
