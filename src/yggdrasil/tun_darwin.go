@@ -33,7 +33,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 	return tun.setupAddress(addr)
 }
 
-const SIOCAIFADDR_IN6 = 2155899162
+const darwin_SIOCAIFADDR_IN6 = 2155899162
 
 type in6_addrlifetime struct {
 	ia6t_expire    float64
@@ -103,9 +103,9 @@ func (tun *tunDevice) setupAddress(addr string) error {
 	tun.core.log.Printf("Interface IPv6: %s", addr)
 	tun.core.log.Printf("Interface MTU: %d", ir.ifru_mtu)
 
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(SIOCAIFADDR_IN6), uintptr(unsafe.Pointer(&ar))); errno != 0 {
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(darwin_SIOCAIFADDR_IN6), uintptr(unsafe.Pointer(&ar))); errno != 0 {
 		err = errno
-		tun.core.log.Printf("Error in SIOCAIFADDR_IN6: %v", errno)
+		tun.core.log.Printf("Error in darwin_SIOCAIFADDR_IN6: %v", errno)
 		return err
 	}
 

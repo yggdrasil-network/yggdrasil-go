@@ -1,3 +1,5 @@
+// +build debug
+
 package yggdrasil
 
 // These are functions that should not exist
@@ -14,6 +16,28 @@ import "fmt"
 import "net"
 import "log"
 import "regexp"
+
+import _ "net/http/pprof"
+import "net/http"
+import "runtime"
+
+// Starts the function profiler. This is only supported when built with
+// '-tags build'.
+func StartProfiler(log *log.Logger) error {
+	runtime.SetBlockProfileRate(1)
+	go func() { log.Println(http.ListenAndServe("localhost:6060", nil)) }()
+	return nil
+}
+
+// This function is only called by the simulator to set up a node with random
+// keys. It should not be used and may be removed in the future.
+func (c *Core) Init() {
+	bpub, bpriv := newBoxKeys()
+	spub, spriv := newSigKeys()
+	c.init(bpub, bpriv, spub, spriv)
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 // Core
 
@@ -279,6 +303,14 @@ func (c *Core) DEBUG_init(bpub []byte,
 	copy(sigPub[:], spub)
 	copy(sigPriv[:], spriv)
 	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv)
+
+	if err := c.router.start(); err != nil {
+		panic(err)
+	}
+
+	if err := c.switchTable.start(); err != nil {
+		panic(err)
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -431,4 +463,29 @@ func DEBUG_simLinkPeers(p, q *peer) {
 
 func (c *Core) DEBUG_simFixMTU() {
 	c.tun.mtu = 65535
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+func Util_testAddrIDMask() {
+	for idx := 0; idx < 16; idx++ {
+		var orig NodeID
+		orig[8] = 42
+		for bidx := 0; bidx < idx; bidx++ {
+			orig[bidx/8] |= (0x80 >> uint8(bidx%8))
+		}
+		addr := address_addrForNodeID(&orig)
+		nid, mask := addr.getNodeIDandMask()
+		for b := 0; b < len(mask); b++ {
+			nid[b] &= mask[b]
+			orig[b] &= mask[b]
+		}
+		if *nid != orig {
+			fmt.Println(orig)
+			fmt.Println(*addr)
+			fmt.Println(*nid)
+			fmt.Println(*mask)
+			panic(idx)
+		}
+	}
 }

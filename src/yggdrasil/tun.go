@@ -5,8 +5,8 @@ package yggdrasil
 import "github.com/songgao/packets/ethernet"
 import "github.com/yggdrasil-network/water"
 
-const IPv6_HEADER_LENGTH = 40
-const ETHER_HEADER_LENGTH = 14
+const tun_IPv6_HEADER_LENGTH = 40
+const tun_ETHER_HEADER_LENGTH = 14
 
 type tunDevice struct {
 	core   *Core
@@ -36,6 +36,15 @@ func (tun *tunDevice) init(core *Core) {
 	tun.icmpv6.init(tun)
 }
 
+func (tun *tunDevice) start(ifname string, iftapmode bool, addr string, mtu int) error {
+	if err := tun.setup(ifname, iftapmode, addr, mtu); err != nil {
+		return err
+	}
+	go func() { panic(tun.read()) }()
+	go func() { panic(tun.write()) }()
+	return nil
+}
+
 func (tun *tunDevice) write() error {
 	for {
 		data := <-tun.recv
@@ -50,7 +59,7 @@ func (tun *tunDevice) write() error {
 				ethernet.NotTagged,     // VLAN tagging
 				ethernet.IPv6,          // Ethertype
 				len(data))              // Payload length
-			copy(frame[ETHER_HEADER_LENGTH:], data[:])
+			copy(frame[tun_ETHER_HEADER_LENGTH:], data[:])
 			if _, err := tun.iface.Write(frame); err != nil {
 				panic(err)
 			}
@@ -66,7 +75,7 @@ func (tun *tunDevice) write() error {
 func (tun *tunDevice) read() error {
 	mtu := tun.mtu
 	if tun.iface.IsTAP() {
-		mtu += ETHER_HEADER_LENGTH
+		mtu += tun_ETHER_HEADER_LENGTH
 	}
 	buf := make([]byte, mtu)
 	for {
@@ -77,10 +86,10 @@ func (tun *tunDevice) read() error {
 		}
 		o := 0
 		if tun.iface.IsTAP() {
-			o = ETHER_HEADER_LENGTH
+			o = tun_ETHER_HEADER_LENGTH
 		}
 		if buf[o]&0xf0 != 0x60 ||
-			n != 256*int(buf[o+4])+int(buf[o+5])+IPv6_HEADER_LENGTH+o {
+			n != 256*int(buf[o+4])+int(buf[o+5])+tun_IPv6_HEADER_LENGTH+o {
 			// Either not an IPv6 packet or not the complete packet for some reason
 			//panic("Should not happen in testing")
 			continue

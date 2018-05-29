@@ -213,7 +213,11 @@ func (a *admin) init(c *Core, listenaddr string) {
 			}, errors.New("Failed to remove allowed box pub key")
 		}
 	})
+}
+
+func (a *admin) start() error {
 	go a.listen()
+	return nil
 }
 
 func (a *admin) listen() {
@@ -356,11 +360,11 @@ func (a *admin) addPeer(addr string) error {
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "tcp":
-			a.core.DEBUG_addTCPConn(u.Host)
+			a.core.tcp.connect(u.Host)
 		case "udp":
-			a.core.DEBUG_maybeSendUDPKeys(u.Host)
+			a.core.udp.connect(u.Host)
 		case "socks":
-			a.core.DEBUG_addSOCKSConn(u.Host, u.Path[1:])
+			a.core.tcp.connectSOCKS(u.Host, u.Path[1:])
 		default:
 			return errors.New("invalid peer: " + addr)
 		}
@@ -368,13 +372,13 @@ func (a *admin) addPeer(addr string) error {
 		// no url scheme provided
 		addr = strings.ToLower(addr)
 		if strings.HasPrefix(addr, "udp:") {
-			a.core.DEBUG_maybeSendUDPKeys(addr[4:])
+			a.core.udp.connect(addr[4:])
 			return nil
 		} else {
 			if strings.HasPrefix(addr, "tcp:") {
 				addr = addr[4:]
 			}
-			a.core.DEBUG_addTCPConn(addr)
+			a.core.tcp.connect(addr)
 			return nil
 		}
 		return errors.New("invalid peer: " + addr)
@@ -421,13 +425,10 @@ func (a *admin) startTunWithMTU(ifname string, iftapmode bool, ifmtu int) error 
 
 func (a *admin) getData_getSelf() *admin_nodeInfo {
 	table := a.core.switchTable.table.Load().(lookupTable)
-	addr := (*a.core.GetAddress())[:]
-	subnet := (*a.core.GetSubnet())[:]
-	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
 	coords := table.self.getCoords()
 	self := admin_nodeInfo{
-		{"ip", net.IP(addr[:]).String()},
-		{"subnet", fmt.Sprintf("%s/64", net.IP(subnet[:]).String())},
+		{"ip", a.core.GetAddress().String()},
+		{"subnet", a.core.GetSubnet().String()},
 		{"coords", fmt.Sprint(coords)},
 	}
 	return &self
