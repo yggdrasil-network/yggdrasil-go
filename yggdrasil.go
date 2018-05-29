@@ -194,11 +194,6 @@ func main() {
 	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
 	// don't need to create this manually.
 	n := node{}
-	// Check to see if any allowed encryption keys were provided in the config.
-	// If they were then set them now.
-	for _, pBoxStr := range cfg.AllowedEncryptionPublicKeys {
-		n.core.AddAllowedEncryptionPublicKey(pBoxStr)
-	}
 	// Check to see if any multicast interface expressions were provided in the
 	// config. If they were then set them now.
 	for _, ll := range cfg.MulticastInterfaces {
@@ -208,13 +203,17 @@ func main() {
 		}
 		n.core.AddMulticastInterfaceExpr(ifceExpr)
 	}
-	// Now that we have a working configuration, and we have provided any allowed
-	// encryption keys or multicast interface expressions, we can now actually
-	// start Yggdrasil. This will start the router, switch, DHT node, TCP and UDP
+	// Now that we have a working configuration, we can now actually start
+	// Yggdrasil. This will start the router, switch, DHT node, TCP and UDP
 	// sockets, TUN/TAP adapter and multicast discovery port.
 	if err := n.core.Start(cfg, logger); err != nil {
 		logger.Println("An error occurred during startup")
 		panic(err)
+	}
+	// Check to see if any allowed encryption keys were provided in the config.
+	// If they were then set them now.
+	for _, pBoxStr := range cfg.AllowedEncryptionPublicKeys {
+		n.core.AddAllowedEncryptionPublicKey(pBoxStr)
 	}
 	// If any static peers were provided in the configuration above then we should
 	// configure them. The loop ensures that disconnected peers will eventually
