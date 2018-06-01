@@ -605,7 +605,7 @@ func (a *admin) getResponse_dot() []byte {
 			}
 			newInfo.name = "?"
 			newInfo.key = key
-			newInfo.options = "style=filled"
+			newInfo.options = "style=dashed"
 			infos[key] = newInfo
 		}
 	}
