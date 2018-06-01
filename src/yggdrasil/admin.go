@@ -568,21 +568,25 @@ func (a *admin) getResponse_dot() []byte {
 	}
 	infos := make(map[string]nodeInfo)
 	// First fill the tree with all known nodes, no parents
-	addInfo := func(nodes []admin_nodeInfo, options string) {
+	addInfo := func(nodes []admin_nodeInfo, options string, tag string) {
 		for _, node := range nodes {
 			n := node.asMap()
 			info := nodeInfo{
-				name:    n["ip"].(string),
 				key:     n["coords"].(string),
 				options: options,
+			}
+			if len(tag) > 0 {
+				info.name = fmt.Sprintf("%s\n%s", n["ip"].(string), tag)
+			} else {
+				info.name = n["ip"].(string)
 			}
 			infos[info.key] = info
 		}
 	}
-	addInfo(sessions, "fillcolor=\"#acf3fd\" style=filled") // blue
-	addInfo(dht, "fillcolor=\"#ffffff\" style=filled") // white
-	addInfo(peers, "fillcolor=\"#ffffb5\" style=filled") // yellow
-	addInfo(append([]admin_nodeInfo(nil), *self), "fillcolor=\"#a5ff8a\" style=filled") // green
+	addInfo(dht, "fillcolor=\"#ffffff\" style=filled", "Known in DHT") // white
+	addInfo(sessions, "fillcolor=\"#acf3fd\" style=filled", "Open session") // blue
+	addInfo(peers, "fillcolor=\"#ffffb5\" style=filled", "Connected peer") // yellow
+	addInfo(append([]admin_nodeInfo(nil), *self), "fillcolor=\"#a5ff8a\" style=filled", "This node") // green
 	// Get coords as a slice of strings, FIXME? this looks very fragile
 	coordSlice := func(coords string) []string {
 		tmp := strings.Replace(coords, "[", "", -1)
