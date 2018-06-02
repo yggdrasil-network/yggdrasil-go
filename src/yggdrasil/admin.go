@@ -583,10 +583,10 @@ func (a *admin) getResponse_dot() []byte {
 			infos[info.key] = info
 		}
 	}
-	addInfo(dht, "fillcolor=\"#ffffff\" style=filled", "Known in DHT")                               // white
-	addInfo(sessions, "fillcolor=\"#acf3fd\" style=filled", "Open session")                          // blue
-	addInfo(peers, "fillcolor=\"#ffffb5\" style=filled", "Connected peer")                           // yellow
-	addInfo(append([]admin_nodeInfo(nil), *self), "fillcolor=\"#a5ff8a\" style=filled", "This node") // green
+	addInfo(dht, "fillcolor=\"#ffffff\" style=filled fontname=\"sans serif\"", "Known in DHT") // white
+	addInfo(sessions, "fillcolor=\"#acf3fd\" style=filled fontname=\"sans serif\"", "Open session") // blue
+	addInfo(peers, "fillcolor=\"#ffffb5\" style=filled fontname=\"sans serif\"", "Connected peer") // yellow
+	addInfo(append([]admin_nodeInfo(nil), *self), "fillcolor=\"#a5ff8a\" style=filled fontname=\"sans serif\"", "This node") // green
 	// Get coords as a slice of strings, FIXME? this looks very fragile
 	coordSlice := func(coords string) []string {
 		tmp := strings.Replace(coords, "[", "", -1)
@@ -605,7 +605,7 @@ func (a *admin) getResponse_dot() []byte {
 			}
 			newInfo.name = "?"
 			newInfo.key = key
-			newInfo.options = "style=dashed"
+			newInfo.options = "fontname=\"sans serif\" style=dashed color=\"#999999\" fontcolor=\"#999999\""
 			infos[key] = newInfo
 		}
 	}
@@ -650,7 +650,11 @@ func (a *admin) getResponse_dot() []byte {
 			continue
 		}
 		port := coordsSplit[len(coordsSplit)-1]
-		put(fmt.Sprintf("  \"%+v\" -> \"%+v\" [ label = \"%v\" ];\n", info.parent, info.key, port))
+		style := "fontname=\"sans serif\""
+		if infos[info.parent].name == "?" || infos[info.key].name == "?" {
+			style = "fontname=\"sans serif\" style=dashed color=\"#999999\" fontcolor=\"#999999\""
+		}
+		put(fmt.Sprintf("  \"%+v\" -> \"%+v\" [ label = \"%v\" %s ];\n", info.parent, info.key, port, style))
 	}
 	put("}\n")
 	return out
