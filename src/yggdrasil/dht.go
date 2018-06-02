@@ -51,16 +51,16 @@ type bucket struct {
 }
 
 type dhtReq struct {
-	key    boxPubKey // Key of whoever asked
-	coords []byte    // Coords of whoever asked
-	dest   NodeID    // NodeID they're asking about
+	Key    boxPubKey // Key of whoever asked
+	Coords []byte    // Coords of whoever asked
+	Dest   NodeID    // NodeID they're asking about
 }
 
 type dhtRes struct {
-	key    boxPubKey // key to respond to
-	coords []byte    // coords to respond to
-	dest   NodeID
-	infos  []*dhtInfo // response
+	Key    boxPubKey // key to respond to
+	Coords []byte    // coords to respond to
+	Dest   NodeID
+	Infos  []*dhtInfo // response
 }
 
 type dht_rumor struct {
@@ -90,33 +90,33 @@ func (t *dht) handleReq(req *dhtReq) {
 	loc := t.core.switchTable.getLocator()
 	coords := loc.getCoords()
 	res := dhtRes{
-		key:    t.core.boxPub,
-		coords: coords,
-		dest:   req.dest,
-		infos:  t.lookup(&req.dest, false),
+		Key:    t.core.boxPub,
+		Coords: coords,
+		Dest:   req.Dest,
+		Infos:  t.lookup(&req.Dest, false),
 	}
 	t.sendRes(&res, req)
 	// Also (possibly) add them to our DHT
 	info := dhtInfo{
-		key:    req.key,
-		coords: req.coords,
+		key:    req.Key,
+		coords: req.Coords,
 	}
 	t.insertIfNew(&info, false) // This seems DoSable (we just trust their coords...)
 	//if req.dest != t.nodeID { t.ping(&info, info.getNodeID()) } // Or spam...
 }
 
 func (t *dht) handleRes(res *dhtRes) {
-	reqs, isIn := t.reqs[res.key]
+	reqs, isIn := t.reqs[res.Key]
 	if !isIn {
 		return
 	}
-	_, isIn = reqs[res.dest]
+	_, isIn = reqs[res.Dest]
 	if !isIn {
 		return
 	}
 	rinfo := dhtInfo{
-		key:    res.key,
-		coords: res.coords,
+		key:    res.Key,
+		coords: res.Coords,
 		send:   time.Now(), // Technically wrong but should be OK...
 		recv:   time.Now(),
 	}
@@ -138,15 +138,15 @@ func (t *dht) handleRes(res *dhtRes) {
 	}
 	// Insert into table
 	t.insert(&rinfo, false)
-	if res.dest == *rinfo.getNodeID() {
+	if res.Dest == *rinfo.getNodeID() {
 		return
 	} // No infinite recursions
-	if len(res.infos) > dht_lookup_size {
+	if len(res.Infos) > dht_lookup_size {
 		// Ignore any "extra" lookup results
-		res.infos = res.infos[:dht_lookup_size]
+		res.Infos = res.Infos[:dht_lookup_size]
 	}
-	for _, info := range res.infos {
-		if dht_firstCloserThanThird(info.getNodeID(), &res.dest, rinfo.getNodeID()) {
+	for _, info := range res.Infos {
+		if dht_firstCloserThanThird(info.getNodeID(), &res.Dest, rinfo.getNodeID()) {
 			t.addToMill(info, info.getNodeID())
 		}
 	}
@@ -318,12 +318,12 @@ func (t *dht) sendReq(req *dhtReq, dest *dhtInfo) {
 	shared := t.core.sessions.getSharedKey(&t.core.boxPriv, &dest.key)
 	payload, nonce := boxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
-		ttl:     ^uint64(0),
-		coords:  dest.coords,
-		toKey:   dest.key,
-		fromKey: t.core.boxPub,
-		nonce:   *nonce,
-		payload: payload,
+		TTL:     ^uint64(0),
+		Coords:  dest.coords,
+		ToKey:   dest.key,
+		FromKey: t.core.boxPub,
+		Nonce:   *nonce,
+		Payload: payload,
 	}
 	packet := p.encode()
 	t.core.router.out(packet)
@@ -335,21 +335,21 @@ func (t *dht) sendReq(req *dhtReq, dest *dhtInfo) {
 			panic("This should never happen")
 		}
 	}
-	reqsToDest[req.dest] = time.Now()
+	reqsToDest[req.Dest] = time.Now()
 }
 
 func (t *dht) sendRes(res *dhtRes, req *dhtReq) {
 	// Send a reply for a dhtReq
 	bs := res.encode()
-	shared := t.core.sessions.getSharedKey(&t.core.boxPriv, &req.key)
+	shared := t.core.sessions.getSharedKey(&t.core.boxPriv, &req.Key)
 	payload, nonce := boxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
-		ttl:     ^uint64(0),
-		coords:  req.coords,
-		toKey:   req.key,
-		fromKey: t.core.boxPub,
-		nonce:   *nonce,
-		payload: payload,
+		TTL:     ^uint64(0),
+		Coords:  req.Coords,
+		ToKey:   req.Key,
+		FromKey: t.core.boxPub,
+		Nonce:   *nonce,
+		Payload: payload,
 	}
 	packet := p.encode()
 	t.core.router.out(packet)
@@ -403,9 +403,9 @@ func (t *dht) ping(info *dhtInfo, target *NodeID) {
 	loc := t.core.switchTable.getLocator()
 	coords := loc.getCoords()
 	req := dhtReq{
-		key:    t.core.boxPub,
-		coords: coords,
-		dest:   *target,
+		Key:    t.core.boxPub,
+		Coords: coords,
+		Dest:   *target,
 	}
 	info.pings++
 	info.send = time.Now()

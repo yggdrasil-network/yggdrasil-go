@@ -38,40 +38,40 @@ type sessionInfo struct {
 }
 
 type sessionPing struct {
-	sendPermPub boxPubKey // Sender's permanent key
-	handle      handle    // Random number to ID session
-	sendSesPub  boxPubKey // Session key to use
-	coords      []byte
-	tstamp      int64 // unix time, but the only real requirement is that it increases
-	isPong      bool
-	mtu         uint16
+	SendPermPub boxPubKey // Sender's permanent key
+	Handle      handle    // Random number to ID session
+	SendSesPub  boxPubKey // Session key to use
+	Coords      []byte
+	Tstamp      int64 // unix time, but the only real requirement is that it increases
+	IsPong      bool
+	MTU         uint16
 }
 
 // Returns true if the session was updated, false otherwise
 func (s *sessionInfo) update(p *sessionPing) bool {
-	if !(p.tstamp > s.tstamp) {
+	if !(p.Tstamp > s.tstamp) {
 		// To protect against replay attacks
 		return false
 	}
-	if p.sendPermPub != s.theirPermPub {
+	if p.SendPermPub != s.theirPermPub {
 		// Should only happen if two sessions got the same handle
 		// That shouldn't be allowed anyway, but if it happens then let one time out
 		return false
 	}
-	if p.sendSesPub != s.theirSesPub {
-		s.theirSesPub = p.sendSesPub
-		s.theirHandle = p.handle
+	if p.SendSesPub != s.theirSesPub {
+		s.theirSesPub = p.SendSesPub
+		s.theirHandle = p.Handle
 		s.sharedSesKey = *getSharedKey(&s.mySesPriv, &s.theirSesPub)
 		s.theirNonce = boxNonce{}
 		s.nonceMask = 0
 	}
-	if p.mtu >= 1280 || p.mtu == 0 {
-		s.theirMTU = p.mtu
+	if p.MTU >= 1280 || p.MTU == 0 {
+		s.theirMTU = p.MTU
 	}
-	s.coords = append([]byte{}, p.coords...)
+	s.coords = append([]byte{}, p.Coords...)
 	now := time.Now()
 	s.time = now
-	s.tstamp = p.tstamp
+	s.tstamp = p.Tstamp
 	s.init = true
 	return true
 }
@@ -215,12 +215,12 @@ func (ss *sessions) getPing(sinfo *sessionInfo) sessionPing {
 	loc := ss.core.switchTable.getLocator()
 	coords := loc.getCoords()
 	ref := sessionPing{
-		sendPermPub: ss.core.boxPub,
-		handle:      sinfo.myHandle,
-		sendSesPub:  sinfo.mySesPub,
-		tstamp:      time.Now().Unix(),
-		coords:      coords,
-		mtu:         sinfo.myMTU,
+		SendPermPub: ss.core.boxPub,
+		Handle:      sinfo.myHandle,
+		SendSesPub:  sinfo.mySesPub,
+		Tstamp:      time.Now().Unix(),
+		Coords:      coords,
+		MTU:         sinfo.myMTU,
 	}
 	sinfo.myNonce.update()
 	return ref
@@ -250,17 +250,17 @@ func (ss *sessions) ping(sinfo *sessionInfo) {
 
 func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 	ping := ss.getPing(sinfo)
-	ping.isPong = isPong
+	ping.IsPong = isPong
 	bs := ping.encode()
 	shared := ss.getSharedKey(&ss.core.boxPriv, &sinfo.theirPermPub)
 	payload, nonce := boxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
-		ttl:     ^uint64(0),
-		coords:  sinfo.coords,
-		toKey:   sinfo.theirPermPub,
-		fromKey: ss.core.boxPub,
-		nonce:   *nonce,
-		payload: payload,
+		TTL:     ^uint64(0),
+		Coords:  sinfo.coords,
+		ToKey:   sinfo.theirPermPub,
+		FromKey: ss.core.boxPub,
+		Nonce:   *nonce,
+		Payload: payload,
 	}
 	packet := p.encode()
 	ss.core.router.out(packet)
@@ -271,13 +271,13 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 
 func (ss *sessions) handlePing(ping *sessionPing) {
 	// Get the corresponding session (or create a new session)
-	sinfo, isIn := ss.getByTheirPerm(&ping.sendPermPub)
+	sinfo, isIn := ss.getByTheirPerm(&ping.SendPermPub)
 	if !isIn || sinfo.timedout() {
 		if isIn {
 			sinfo.close()
 		}
-		ss.createSession(&ping.sendPermPub)
-		sinfo, isIn = ss.getByTheirPerm(&ping.sendPermPub)
+		ss.createSession(&ping.SendPermPub)
+		sinfo, isIn = ss.getByTheirPerm(&ping.SendPermPub)
 		if !isIn {
 			panic("This should not happen")
 		}
@@ -286,7 +286,7 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 	if !sinfo.update(ping) { /*panic("Should not happen in testing")*/
 		return
 	}
-	if !ping.isPong {
+	if !ping.IsPong {
 		ss.sendPingPong(sinfo, true)
 	}
 	if sinfo.packet != nil {
@@ -383,11 +383,11 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 	payload, nonce := boxSeal(&sinfo.sharedSesKey, bs, &sinfo.myNonce)
 	defer util_putBytes(payload)
 	p := wire_trafficPacket{
-		ttl:     ^uint64(0),
-		coords:  sinfo.coords,
-		handle:  sinfo.theirHandle,
-		nonce:   *nonce,
-		payload: payload,
+		TTL:     ^uint64(0),
+		Coords:  sinfo.coords,
+		Handle:  sinfo.theirHandle,
+		Nonce:   *nonce,
+		Payload: payload,
 	}
 	packet := p.encode()
 	sinfo.bytesSent += uint64(len(bs))
@@ -395,12 +395,12 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 }
 
 func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
-	defer util_putBytes(p.payload)
-	payloadSize := uint16(len(p.payload))
-	if !sinfo.nonceIsOK(&p.nonce) {
+	defer util_putBytes(p.Payload)
+	payloadSize := uint16(len(p.Payload))
+	if !sinfo.nonceIsOK(&p.Nonce) {
 		return
 	}
-	bs, isOK := boxOpen(&sinfo.sharedSesKey, p.payload, &p.nonce)
+	bs, isOK := boxOpen(&sinfo.sharedSesKey, p.Payload, &p.Nonce)
 	if !isOK {
 		// We're going to guess that the session MTU is too large
 		// Set myMTU to the largest value we think we can receive
@@ -433,7 +433,7 @@ func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
 		}
 	}
 	go func() { sinfo.core.router.admin <- fixSessionMTU }()
-	sinfo.updateNonce(&p.nonce)
+	sinfo.updateNonce(&p.Nonce)
 	sinfo.time = time.Now()
 	sinfo.bytesRecvd += uint64(len(bs))
 	sinfo.core.router.recvPacket(bs, &sinfo.theirAddr, &sinfo.theirSubnet)
