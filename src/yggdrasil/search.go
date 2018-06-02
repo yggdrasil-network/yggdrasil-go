@@ -25,8 +25,8 @@ const search_MAX_SEARCH_SIZE = 16
 const search_RETRY_TIME = time.Second
 
 type searchInfo struct {
-	dest    *NodeID
-	mask    *NodeID
+	dest    NodeID
+	mask    NodeID
 	time    time.Time
 	packet  []byte
 	toVisit []*dhtInfo
@@ -51,8 +51,8 @@ func (s *searches) createSearch(dest *NodeID, mask *NodeID) *searchInfo {
 		}
 	}
 	info := searchInfo{
-		dest: dest,
-		mask: mask,
+		dest: *dest,
+		mask: *mask,
 		time: now.Add(-time.Second),
 	}
 	s.searches[*dest] = &info
@@ -106,13 +106,13 @@ func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 func (s *searches) doSearchStep(sinfo *searchInfo) {
 	if len(sinfo.toVisit) == 0 {
 		// Dead end, do cleanup
-		delete(s.searches, *sinfo.dest)
+		delete(s.searches, sinfo.dest)
 		return
 	} else {
 		// Send to the next search target
 		var next *dhtInfo
 		next, sinfo.toVisit = sinfo.toVisit[0], sinfo.toVisit[1:]
-		s.core.dht.ping(next, sinfo.dest)
+		s.core.dht.ping(next, &sinfo.dest)
 		sinfo.visited[*next.getNodeID()] = true
 	}
 }
@@ -127,7 +127,7 @@ func (s *searches) continueSearch(sinfo *searchInfo) {
 	// Note that this will spawn multiple parallel searches as time passes
 	// Any that die aren't restarted, but a new one will start later
 	retryLater := func() {
-		newSearchInfo := s.searches[*sinfo.dest]
+		newSearchInfo := s.searches[sinfo.dest]
 		if newSearchInfo != sinfo {
 			return
 		}
@@ -199,7 +199,7 @@ func (s *searches) sendSearch(info *searchInfo) {
 	req := searchReq{
 		key:    s.core.boxPub,
 		coords: coords,
-		dest:   *info.dest,
+		dest:   info.dest,
 	}
 	info.time = time.Now()
 	s.handleSearchReq(&req)
