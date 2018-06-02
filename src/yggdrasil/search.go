@@ -141,7 +141,7 @@ func (s *searches) continueSearch(sinfo *searchInfo) {
 
 func (s *searches) newIterSearch(dest *NodeID, mask *NodeID) *searchInfo {
 	sinfo := s.createSearch(dest, mask)
-	sinfo.toVisit = s.core.dht.lookup(dest, false)
+	sinfo.toVisit = s.core.dht.lookup(dest, true)
 	sinfo.visited = make(map[NodeID]bool)
 	return sinfo
 }
