@@ -555,41 +555,38 @@ func (a *admin) removeAllowedEncryptionPublicKey(bstr string) (err error) {
 }
 
 func (a *admin) getResponse_dot() []byte {
-	self := a.getData_getSelf().asMap()
-	myAddr := self["IP"]
+	self := a.getData_getSelf()
 	peers := a.getData_getSwitchPeers()
 	dht := a.getData_getDHT()
 	sessions := a.getData_getSessions()
-	// Map of coords onto IP
-	m := make(map[string]string)
-	m[self["coords"].(string)] = self["ip"].(string)
-	for _, peer := range peers {
-		p := peer.asMap()
-		m[p["coords"].(string)] = p["ip"].(string)
-	}
-	for _, node := range dht {
-		n := node.asMap()
-		m[n["coords"].(string)] = n["ip"].(string)
-	}
-	for _, node := range sessions {
-		n := node.asMap()
-		m[n["coords"].(string)] = n["ip"].(string)
-	}
-
 	// Start building a tree from all known nodes
 	type nodeInfo struct {
-		name   string
-		key    string
-		parent string
+		name    string
+		key     string
+		parent  string
+		options string
 	}
 	infos := make(map[string]nodeInfo)
 	// First fill the tree with all known nodes, no parents
-	for k, n := range m {
-		infos[k] = nodeInfo{
-			name: n,
-			key:  k,
+	addInfo := func(nodes []admin_nodeInfo, options string, tag string) {
+		for _, node := range nodes {
+			n := node.asMap()
+			info := nodeInfo{
+				key:     n["coords"].(string),
+				options: options,
+			}
+			if len(tag) > 0 {
+				info.name = fmt.Sprintf("%s\n%s", n["ip"].(string), tag)
+			} else {
+				info.name = n["ip"].(string)
+			}
+			infos[info.key] = info
 		}
 	}
+	addInfo(dht, "fillcolor=\"#ffffff\" style=filled", "Known in DHT") // white
+	addInfo(sessions, "fillcolor=\"#acf3fd\" style=filled", "Open session") // blue
+	addInfo(peers, "fillcolor=\"#ffffb5\" style=filled", "Connected peer") // yellow
+	addInfo(append([]admin_nodeInfo(nil), *self), "fillcolor=\"#a5ff8a\" style=filled", "This node") // green
 	// Get coords as a slice of strings, FIXME? this looks very fragile
 	coordSlice := func(coords string) []string {
 		tmp := strings.Replace(coords, "[", "", -1)
@@ -608,6 +605,7 @@ func (a *admin) getResponse_dot() []byte {
 			}
 			newInfo.name = "?"
 			newInfo.key = key
+			newInfo.options = "style=dashed"
 			infos[key] = newInfo
 		}
 	}
@@ -639,11 +637,7 @@ func (a *admin) getResponse_dot() []byte {
 	// First set the labels
 	for _, key := range keys {
 		info := infos[key]
-		if info.name == myAddr {
-			put(fmt.Sprintf("\"%v\" [ style = \"filled\", label = \"%v\" ];\n", info.key, info.name))
-		} else {
-			put(fmt.Sprintf("\"%v\" [ label = \"%v\" ];\n", info.key, info.name))
-		}
+		put(fmt.Sprintf("\"%v\" [ label = \"%v\" %v ];\n", info.key, info.name, info.options))
 	}
 	// Then print the tree structure
 	for _, key := range keys {
