@@ -430,8 +430,8 @@ func (p *sessionPing) decode(bs []byte) bool {
 		return false
 	case pType != wire_SessionPing && pType != wire_SessionPong:
 		return false
-	//p.sendPermPub used in top level (crypto), so skipped here
-case !wire_chop_slice(p.Handle[:], &bs):
+		//p.sendPermPub used in top level (crypto), so skipped here
+	case !wire_chop_slice(p.Handle[:], &bs):
 		return false
 	case !wire_chop_slice(p.SendSesPub[:], &bs):
 		return false

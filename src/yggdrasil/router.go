@@ -128,12 +128,12 @@ func (r *router) sendPacket(bs []byte) {
 		}
 		sinfo, isIn := r.core.searches.searches[*nodeID]
 		if !isIn {
-			sinfo = r.core.searches.createSearch(nodeID, mask)
+			sinfo = r.core.searches.newIterSearch(nodeID, mask)
 		}
 		if packet != nil {
 			sinfo.packet = packet
 		}
-		r.core.searches.sendSearch(sinfo)
+		r.core.searches.continueSearch(sinfo)
 	}
 	var sinfo *sessionInfo
 	var isIn bool
