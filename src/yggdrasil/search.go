@@ -58,18 +58,20 @@ func (s *searches) createSearch(dest *NodeID, mask *NodeID) *searchInfo {
 ////////////////////////////////////////////////////////////////////////////////
 
 func (s *searches) handleDHTRes(res *dhtRes) {
-	if s.checkDHTRes(res) {
+	sinfo, isIn := s.searches[res.dest]
+	if !isIn || s.checkDHTRes(sinfo, res) {
+		// Either we don't recognize this search, or we just finished it
 		return
+	} else {
+		// Add to the search and continue
+		s.addToSearch(sinfo, res)
+		s.doSearchStep(sinfo)
 	}
-	s.addToSearch(res)
 }
 
-func (s *searches) addToSearch(res *dhtRes) {
+func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 	// TODO
-	sinfo, isIn := s.searches[res.dest]
-	if !isIn {
-		return
-	}
+
 	from := dhtInfo{key: res.key, coords: res.coords}
 	for _, info := range res.infos {
 		if dht_firstCloserThanThird(info.getNodeID(), &res.dest, from.getNodeID()) {
@@ -79,7 +81,6 @@ func (s *searches) addToSearch(res *dhtRes) {
 	sort.SliceStable(sinfo.toVisit, func(i, j int) bool {
 		return dht_firstCloserThanThird(sinfo.toVisit[i].getNodeID(), &res.dest, sinfo.toVisit[j].getNodeID())
 	})
-	s.doSearchStep(sinfo)
 }
 
 func (s *searches) doSearchStep(sinfo *searchInfo) {
@@ -109,11 +110,7 @@ func (s *searches) newIterSearch(dest *NodeID, mask *NodeID) *searchInfo {
 	return sinfo
 }
 
-func (s *searches) checkDHTRes(res *dhtRes) bool {
-	info, isIn := s.searches[res.dest]
-	if !isIn {
-		return false
-	}
+func (s *searches) checkDHTRes(info *searchInfo, res *dhtRes) bool {
 	them := getNodeID(&res.key)
 	var destMasked NodeID
 	var themMasked NodeID
