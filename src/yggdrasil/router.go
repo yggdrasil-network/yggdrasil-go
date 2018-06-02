@@ -266,7 +266,7 @@ func (r *router) handleTraffic(packet []byte) {
 	if !p.decode(packet) {
 		return
 	}
-	sinfo, isIn := r.core.sessions.getSessionForHandle(&p.handle)
+	sinfo, isIn := r.core.sessions.getSessionForHandle(&p.Handle)
 	if !isIn {
 		return
 	}
@@ -283,13 +283,13 @@ func (r *router) handleProto(packet []byte) {
 	// Now try to open the payload
 	var sharedKey *boxSharedKey
 	//var theirPermPub *boxPubKey
-	if p.toKey == r.core.boxPub {
+	if p.ToKey == r.core.boxPub {
 		// Try to open using our permanent key
-		sharedKey = r.core.sessions.getSharedKey(&r.core.boxPriv, &p.fromKey)
+		sharedKey = r.core.sessions.getSharedKey(&r.core.boxPriv, &p.FromKey)
 	} else {
 		return
 	}
-	bs, isOK := boxOpen(sharedKey, p.payload, &p.nonce)
+	bs, isOK := boxOpen(sharedKey, p.Payload, &p.Nonce)
 	if !isOK {
 		return
 	}
@@ -303,13 +303,13 @@ func (r *router) handleProto(packet []byte) {
 	//fmt.Println("RECV bytes:", bs)
 	switch bsType {
 	case wire_SessionPing:
-		r.handlePing(bs, &p.fromKey)
+		r.handlePing(bs, &p.FromKey)
 	case wire_SessionPong:
-		r.handlePong(bs, &p.fromKey)
+		r.handlePong(bs, &p.FromKey)
 	case wire_DHTLookupRequest:
-		r.handleDHTReq(bs, &p.fromKey)
+		r.handleDHTReq(bs, &p.FromKey)
 	case wire_DHTLookupResponse:
-		r.handleDHTRes(bs, &p.fromKey)
+		r.handleDHTRes(bs, &p.FromKey)
 	case wire_SearchRequest:
 		r.handleSearchReq(bs)
 	case wire_SearchResponse:

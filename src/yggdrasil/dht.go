@@ -318,12 +318,12 @@ func (t *dht) sendReq(req *dhtReq, dest *dhtInfo) {
 	shared := t.core.sessions.getSharedKey(&t.core.boxPriv, &dest.key)
 	payload, nonce := boxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
-		ttl:     ^uint64(0),
-		coords:  dest.coords,
-		toKey:   dest.key,
-		fromKey: t.core.boxPub,
-		nonce:   *nonce,
-		payload: payload,
+		TTL:     ^uint64(0),
+		Coords:  dest.coords,
+		ToKey:   dest.key,
+		FromKey: t.core.boxPub,
+		Nonce:   *nonce,
+		Payload: payload,
 	}
 	packet := p.encode()
 	t.core.router.out(packet)
@@ -344,12 +344,12 @@ func (t *dht) sendRes(res *dhtRes, req *dhtReq) {
 	shared := t.core.sessions.getSharedKey(&t.core.boxPriv, &req.key)
 	payload, nonce := boxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
-		ttl:     ^uint64(0),
-		coords:  req.coords,
-		toKey:   req.key,
-		fromKey: t.core.boxPub,
-		nonce:   *nonce,
-		payload: payload,
+		TTL:     ^uint64(0),
+		Coords:  req.coords,
+		ToKey:   req.key,
+		FromKey: t.core.boxPub,
+		Nonce:   *nonce,
+		Payload: payload,
 	}
 	packet := p.encode()
 	t.core.router.out(packet)

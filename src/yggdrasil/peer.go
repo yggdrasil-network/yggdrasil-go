@@ -207,16 +207,16 @@ func (p *peer) linkLoop(in <-chan []byte) {
 			switch {
 			case p.msgAnc == nil:
 				update = true
-			case lastRSeq != p.msgAnc.seq:
+			case lastRSeq != p.msgAnc.Seq:
 				update = true
-			case p.msgAnc.rseq != p.myMsg.seq:
+			case p.msgAnc.Rseq != p.myMsg.seq:
 				update = true
 			case counter%4 == 0:
 				update = true
 			}
 			if update {
 				if p.msgAnc != nil {
-					lastRSeq = p.msgAnc.seq
+					lastRSeq = p.msgAnc.Seq
 				}
 				p.sendSwitchAnnounce()
 			}
@@ -291,8 +291,8 @@ func (p *peer) sendPacket(packet []byte) {
 func (p *peer) sendLinkPacket(packet []byte) {
 	bs, nonce := boxSeal(&p.shared, packet, nil)
 	linkPacket := wire_linkProtoTrafficPacket{
-		nonce:   *nonce,
-		payload: bs,
+		Nonce:   *nonce,
+		Payload: bs,
 	}
 	packet = linkPacket.encode()
 	p.sendPacket(packet)
@@ -303,7 +303,7 @@ func (p *peer) handleLinkTraffic(bs []byte) {
 	if !packet.decode(bs) {
 		return
 	}
-	payload, isOK := boxOpen(&p.shared, packet.payload, &packet.nonce)
+	payload, isOK := boxOpen(&p.shared, packet.Payload, &packet.Nonce)
 	if !isOK {
 		return
 	}
@@ -331,9 +331,9 @@ func (p *peer) handleSwitchAnnounce(packet []byte) {
 	}
 	//if p.msgAnc != nil && anc.Seq != p.msgAnc.Seq { p.msgHops = nil }
 	if p.msgAnc == nil ||
-		anc.root != p.msgAnc.root ||
-		anc.tstamp != p.msgAnc.tstamp ||
-		anc.seq != p.msgAnc.seq {
+		anc.Root != p.msgAnc.Root ||
+		anc.Tstamp != p.msgAnc.Tstamp ||
+		anc.Seq != p.msgAnc.Seq {
 		p.msgHops = nil
 	}
 	p.msgAnc = &anc
@@ -344,10 +344,10 @@ func (p *peer) handleSwitchAnnounce(packet []byte) {
 func (p *peer) requestHop(hop uint64) {
 	//p.core.log.Println("DEBUG requestHop")
 	req := msgHopReq{}
-	req.root = p.msgAnc.root
-	req.tstamp = p.msgAnc.tstamp
-	req.seq = p.msgAnc.seq
-	req.hop = hop
+	req.Root = p.msgAnc.Root
+	req.Tstamp = p.msgAnc.Tstamp
+	req.Seq = p.msgAnc.Seq
+	req.Hop = hop
 	packet := req.encode()
 	p.sendLinkPacket(packet)
 }
@@ -364,28 +364,28 @@ func (p *peer) handleSwitchHopRequest(packet []byte) {
 	if !req.decode(packet) {
 		return
 	}
-	if req.root != p.myMsg.locator.root {
+	if req.Root != p.myMsg.locator.root {
 		return
 	}
-	if req.tstamp != p.myMsg.locator.tstamp {
+	if req.Tstamp != p.myMsg.locator.tstamp {
 		return
 	}
-	if req.seq != p.myMsg.seq {
+	if req.Seq != p.myMsg.seq {
 		return
 	}
-	if uint64(len(p.myMsg.locator.coords)) <= req.hop {
+	if uint64(len(p.myMsg.locator.coords)) <= req.Hop {
 		return
 	}
 	res := msgHop{}
-	res.root = p.myMsg.locator.root
-	res.tstamp = p.myMsg.locator.tstamp
-	res.seq = p.myMsg.seq
-	res.hop = req.hop
-	res.port = p.myMsg.locator.coords[res.hop]
-	sinfo := p.getSig(res.hop)
+	res.Root = p.myMsg.locator.root
+	res.Tstamp = p.myMsg.locator.tstamp
+	res.Seq = p.myMsg.seq
+	res.Hop = req.Hop
+	res.Port = p.myMsg.locator.coords[res.Hop]
+	sinfo := p.getSig(res.Hop)
 	//p.core.log.Println("DEBUG sig:", sinfo)
-	res.next = sinfo.next
-	res.sig = sinfo.sig
+	res.Next = sinfo.next
+	res.Sig = sinfo.sig
 	packet = res.encode()
 	p.sendLinkPacket(packet)
 }
@@ -402,31 +402,31 @@ func (p *peer) handleSwitchHop(packet []byte) {
 	if !res.decode(packet) {
 		return
 	}
-	if res.root != p.msgAnc.root {
+	if res.Root != p.msgAnc.Root {
 		return
 	}
-	if res.tstamp != p.msgAnc.tstamp {
+	if res.Tstamp != p.msgAnc.Tstamp {
 		return
 	}
-	if res.seq != p.msgAnc.seq {
+	if res.Seq != p.msgAnc.Seq {
 		return
 	}
-	if res.hop != uint64(len(p.msgHops)) {
+	if res.Hop != uint64(len(p.msgHops)) {
 		return
 	} // always process in order
 	loc := switchLocator{coords: make([]switchPort, 0, len(p.msgHops)+1)}
-	loc.root = res.root
-	loc.tstamp = res.tstamp
+	loc.root = res.Root
+	loc.tstamp = res.Tstamp
 	for _, hop := range p.msgHops {
-		loc.coords = append(loc.coords, hop.port)
+		loc.coords = append(loc.coords, hop.Port)
 	}
-	loc.coords = append(loc.coords, res.port)
-	thisHopKey := &res.root
-	if res.hop != 0 {
-		thisHopKey = &p.msgHops[res.hop-1].next
+	loc.coords = append(loc.coords, res.Port)
+	thisHopKey := &res.Root
+	if res.Hop != 0 {
+		thisHopKey = &p.msgHops[res.Hop-1].Next
 	}
-	bs := getBytesForSig(&res.next, &loc)
-	if p.core.sigs.check(thisHopKey, &res.sig, bs) {
+	bs := getBytesForSig(&res.Next, &loc)
+	if p.core.sigs.check(thisHopKey, &res.Sig, bs) {
 		p.msgHops = append(p.msgHops, &res)
 		p.processSwitchMessage()
 	} else {
@@ -442,12 +442,12 @@ func (p *peer) processSwitchMessage() {
 	if p.msgAnc == nil {
 		return
 	}
-	if uint64(len(p.msgHops)) < p.msgAnc.len {
+	if uint64(len(p.msgHops)) < p.msgAnc.Len {
 		p.requestHop(uint64(len(p.msgHops)))
 		return
 	}
 	p.throttle++
-	if p.msgAnc.len != uint64(len(p.msgHops)) {
+	if p.msgAnc.Len != uint64(len(p.msgHops)) {
 		return
 	}
 	msg := switchMessage{}
@@ -455,26 +455,26 @@ func (p *peer) processSwitchMessage() {
 	sigs := make([]sigInfo, 0, len(p.msgHops))
 	for idx, hop := range p.msgHops {
 		// Consistency checks, should be redundant (already checked these...)
-		if hop.root != p.msgAnc.root {
+		if hop.Root != p.msgAnc.Root {
 			return
 		}
-		if hop.tstamp != p.msgAnc.tstamp {
+		if hop.Tstamp != p.msgAnc.Tstamp {
 			return
 		}
-		if hop.seq != p.msgAnc.seq {
+		if hop.Seq != p.msgAnc.Seq {
 			return
 		}
-		if hop.hop != uint64(idx) {
+		if hop.Hop != uint64(idx) {
 			return
 		}
-		coords = append(coords, hop.port)
-		sigs = append(sigs, sigInfo{next: hop.next, sig: hop.sig})
+		coords = append(coords, hop.Port)
+		sigs = append(sigs, sigInfo{next: hop.Next, sig: hop.Sig})
 	}
 	msg.from = p.sig
-	msg.locator.root = p.msgAnc.root
-	msg.locator.tstamp = p.msgAnc.tstamp
+	msg.locator.root = p.msgAnc.Root
+	msg.locator.tstamp = p.msgAnc.Tstamp
 	msg.locator.coords = coords
-	msg.seq = p.msgAnc.seq
+	msg.seq = p.msgAnc.Seq
 	//msg.RSeq = p.msgAnc.RSeq
 	//msg.Degree = p.msgAnc.Deg
 	p.core.switchTable.handleMessage(&msg, p.port, sigs)
@@ -493,13 +493,13 @@ func (p *peer) processSwitchMessage() {
 
 func (p *peer) sendSwitchAnnounce() {
 	anc := msgAnnounce{}
-	anc.root = p.myMsg.locator.root
-	anc.tstamp = p.myMsg.locator.tstamp
-	anc.seq = p.myMsg.seq
-	anc.len = uint64(len(p.myMsg.locator.coords))
+	anc.Root = p.myMsg.locator.root
+	anc.Tstamp = p.myMsg.locator.tstamp
+	anc.Seq = p.myMsg.seq
+	anc.Len = uint64(len(p.myMsg.locator.coords))
 	//anc.Deg = p.myMsg.Degree
 	if p.msgAnc != nil {
-		anc.rseq = p.msgAnc.seq
+		anc.Rseq = p.msgAnc.Seq
 	}
 	packet := anc.encode()
 	p.sendLinkPacket(packet)

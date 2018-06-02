@@ -121,21 +121,21 @@ func wire_decode_coords(packet []byte) ([]byte, int) {
 
 // Announces that we can send parts of a Message with a particular seq
 type msgAnnounce struct {
-	root   sigPubKey
-	tstamp int64
-	seq    uint64
-	len    uint64
+	Root   sigPubKey
+	Tstamp int64
+	Seq    uint64
+	Len    uint64
 	//Deg uint64
-	rseq uint64
+	Rseq uint64
 }
 
 func (m *msgAnnounce) encode() []byte {
 	bs := wire_encode_uint64(wire_SwitchAnnounce)
-	bs = append(bs, m.root[:]...)
-	bs = append(bs, wire_encode_uint64(wire_intToUint(m.tstamp))...)
-	bs = append(bs, wire_encode_uint64(m.seq)...)
-	bs = append(bs, wire_encode_uint64(m.len)...)
-	bs = append(bs, wire_encode_uint64(m.rseq)...)
+	bs = append(bs, m.Root[:]...)
+	bs = append(bs, wire_encode_uint64(wire_intToUint(m.Tstamp))...)
+	bs = append(bs, wire_encode_uint64(m.Seq)...)
+	bs = append(bs, wire_encode_uint64(m.Len)...)
+	bs = append(bs, wire_encode_uint64(m.Rseq)...)
 	return bs
 }
 
@@ -147,34 +147,34 @@ func (m *msgAnnounce) decode(bs []byte) bool {
 		return false
 	case pType != wire_SwitchAnnounce:
 		return false
-	case !wire_chop_slice(m.root[:], &bs):
+	case !wire_chop_slice(m.Root[:], &bs):
 		return false
 	case !wire_chop_uint64(&tstamp, &bs):
 		return false
-	case !wire_chop_uint64(&m.seq, &bs):
+	case !wire_chop_uint64(&m.Seq, &bs):
 		return false
-	case !wire_chop_uint64(&m.len, &bs):
+	case !wire_chop_uint64(&m.Len, &bs):
 		return false
-	case !wire_chop_uint64(&m.rseq, &bs):
+	case !wire_chop_uint64(&m.Rseq, &bs):
 		return false
 	}
-	m.tstamp = wire_intFromUint(tstamp)
+	m.Tstamp = wire_intFromUint(tstamp)
 	return true
 }
 
 type msgHopReq struct {
-	root   sigPubKey
-	tstamp int64
-	seq    uint64
-	hop    uint64
+	Root   sigPubKey
+	Tstamp int64
+	Seq    uint64
+	Hop    uint64
 }
 
 func (m *msgHopReq) encode() []byte {
 	bs := wire_encode_uint64(wire_SwitchHopRequest)
-	bs = append(bs, m.root[:]...)
-	bs = append(bs, wire_encode_uint64(wire_intToUint(m.tstamp))...)
-	bs = append(bs, wire_encode_uint64(m.seq)...)
-	bs = append(bs, wire_encode_uint64(m.hop)...)
+	bs = append(bs, m.Root[:]...)
+	bs = append(bs, wire_encode_uint64(wire_intToUint(m.Tstamp))...)
+	bs = append(bs, wire_encode_uint64(m.Seq)...)
+	bs = append(bs, wire_encode_uint64(m.Hop)...)
 	return bs
 }
 
@@ -186,38 +186,38 @@ func (m *msgHopReq) decode(bs []byte) bool {
 		return false
 	case pType != wire_SwitchHopRequest:
 		return false
-	case !wire_chop_slice(m.root[:], &bs):
+	case !wire_chop_slice(m.Root[:], &bs):
 		return false
 	case !wire_chop_uint64(&tstamp, &bs):
 		return false
-	case !wire_chop_uint64(&m.seq, &bs):
+	case !wire_chop_uint64(&m.Seq, &bs):
 		return false
-	case !wire_chop_uint64(&m.hop, &bs):
+	case !wire_chop_uint64(&m.Hop, &bs):
 		return false
 	}
-	m.tstamp = wire_intFromUint(tstamp)
+	m.Tstamp = wire_intFromUint(tstamp)
 	return true
 }
 
 type msgHop struct {
-	root   sigPubKey
-	tstamp int64
-	seq    uint64
-	hop    uint64
-	port   switchPort
-	next   sigPubKey
-	sig    sigBytes
+	Root   sigPubKey
+	Tstamp int64
+	Seq    uint64
+	Hop    uint64
+	Port   switchPort
+	Next   sigPubKey
+	Sig    sigBytes
 }
 
 func (m *msgHop) encode() []byte {
 	bs := wire_encode_uint64(wire_SwitchHop)
-	bs = append(bs, m.root[:]...)
-	bs = append(bs, wire_encode_uint64(wire_intToUint(m.tstamp))...)
-	bs = append(bs, wire_encode_uint64(m.seq)...)
-	bs = append(bs, wire_encode_uint64(m.hop)...)
-	bs = append(bs, wire_encode_uint64(uint64(m.port))...)
-	bs = append(bs, m.next[:]...)
-	bs = append(bs, m.sig[:]...)
+	bs = append(bs, m.Root[:]...)
+	bs = append(bs, wire_encode_uint64(wire_intToUint(m.Tstamp))...)
+	bs = append(bs, wire_encode_uint64(m.Seq)...)
+	bs = append(bs, wire_encode_uint64(m.Hop)...)
+	bs = append(bs, wire_encode_uint64(uint64(m.Port))...)
+	bs = append(bs, m.Next[:]...)
+	bs = append(bs, m.Sig[:]...)
 	return bs
 }
 
@@ -229,22 +229,22 @@ func (m *msgHop) decode(bs []byte) bool {
 		return false
 	case pType != wire_SwitchHop:
 		return false
-	case !wire_chop_slice(m.root[:], &bs):
+	case !wire_chop_slice(m.Root[:], &bs):
 		return false
 	case !wire_chop_uint64(&tstamp, &bs):
 		return false
-	case !wire_chop_uint64(&m.seq, &bs):
+	case !wire_chop_uint64(&m.Seq, &bs):
 		return false
-	case !wire_chop_uint64(&m.hop, &bs):
+	case !wire_chop_uint64(&m.Hop, &bs):
 		return false
-	case !wire_chop_uint64((*uint64)(&m.port), &bs):
+	case !wire_chop_uint64((*uint64)(&m.Port), &bs):
 		return false
-	case !wire_chop_slice(m.next[:], &bs):
+	case !wire_chop_slice(m.Next[:], &bs):
 		return false
-	case !wire_chop_slice(m.sig[:], &bs):
+	case !wire_chop_slice(m.Sig[:], &bs):
 		return false
 	}
-	m.tstamp = wire_intFromUint(tstamp)
+	m.Tstamp = wire_intFromUint(tstamp)
 	return true
 }
 
@@ -292,22 +292,22 @@ func wire_chop_uint64(toUInt64 *uint64, fromSlice *[]byte) bool {
 // Wire traffic packets
 
 type wire_trafficPacket struct {
-	ttl     uint64
-	coords  []byte
-	handle  handle
-	nonce   boxNonce
-	payload []byte
+	TTL     uint64
+	Coords  []byte
+	Handle  handle
+	Nonce   boxNonce
+	Payload []byte
 }
 
 // This is basically MarshalBinary, but decode doesn't allow that...
 func (p *wire_trafficPacket) encode() []byte {
 	bs := util_getBytes()
 	bs = wire_put_uint64(wire_Traffic, bs)
-	bs = wire_put_uint64(p.ttl, bs)
-	bs = wire_put_coords(p.coords, bs)
-	bs = append(bs, p.handle[:]...)
-	bs = append(bs, p.nonce[:]...)
-	bs = append(bs, p.payload...)
+	bs = wire_put_uint64(p.TTL, bs)
+	bs = wire_put_coords(p.Coords, bs)
+	bs = append(bs, p.Handle[:]...)
+	bs = append(bs, p.Nonce[:]...)
+	bs = append(bs, p.Payload...)
 	return bs
 }
 
@@ -319,37 +319,37 @@ func (p *wire_trafficPacket) decode(bs []byte) bool {
 		return false
 	case pType != wire_Traffic:
 		return false
-	case !wire_chop_uint64(&p.ttl, &bs):
+	case !wire_chop_uint64(&p.TTL, &bs):
 		return false
-	case !wire_chop_coords(&p.coords, &bs):
+	case !wire_chop_coords(&p.Coords, &bs):
 		return false
-	case !wire_chop_slice(p.handle[:], &bs):
+	case !wire_chop_slice(p.Handle[:], &bs):
 		return false
-	case !wire_chop_slice(p.nonce[:], &bs):
+	case !wire_chop_slice(p.Nonce[:], &bs):
 		return false
 	}
-	p.payload = append(util_getBytes(), bs...)
+	p.Payload = append(util_getBytes(), bs...)
 	return true
 }
 
 type wire_protoTrafficPacket struct {
-	ttl     uint64
-	coords  []byte
-	toKey   boxPubKey
-	fromKey boxPubKey
-	nonce   boxNonce
-	payload []byte
+	TTL     uint64
+	Coords  []byte
+	ToKey   boxPubKey
+	FromKey boxPubKey
+	Nonce   boxNonce
+	Payload []byte
 }
 
 func (p *wire_protoTrafficPacket) encode() []byte {
-	coords := wire_encode_coords(p.coords)
+	coords := wire_encode_coords(p.Coords)
 	bs := wire_encode_uint64(wire_ProtocolTraffic)
-	bs = append(bs, wire_encode_uint64(p.ttl)...)
+	bs = append(bs, wire_encode_uint64(p.TTL)...)
 	bs = append(bs, coords...)
-	bs = append(bs, p.toKey[:]...)
-	bs = append(bs, p.fromKey[:]...)
-	bs = append(bs, p.nonce[:]...)
-	bs = append(bs, p.payload...)
+	bs = append(bs, p.ToKey[:]...)
+	bs = append(bs, p.FromKey[:]...)
+	bs = append(bs, p.Nonce[:]...)
+	bs = append(bs, p.Payload...)
 	return bs
 }
 
@@ -360,30 +360,30 @@ func (p *wire_protoTrafficPacket) decode(bs []byte) bool {
 		return false
 	case pType != wire_ProtocolTraffic:
 		return false
-	case !wire_chop_uint64(&p.ttl, &bs):
+	case !wire_chop_uint64(&p.TTL, &bs):
 		return false
-	case !wire_chop_coords(&p.coords, &bs):
+	case !wire_chop_coords(&p.Coords, &bs):
 		return false
-	case !wire_chop_slice(p.toKey[:], &bs):
+	case !wire_chop_slice(p.ToKey[:], &bs):
 		return false
-	case !wire_chop_slice(p.fromKey[:], &bs):
+	case !wire_chop_slice(p.FromKey[:], &bs):
 		return false
-	case !wire_chop_slice(p.nonce[:], &bs):
+	case !wire_chop_slice(p.Nonce[:], &bs):
 		return false
 	}
-	p.payload = bs
+	p.Payload = bs
 	return true
 }
 
 type wire_linkProtoTrafficPacket struct {
-	nonce   boxNonce
-	payload []byte
+	Nonce   boxNonce
+	Payload []byte
 }
 
 func (p *wire_linkProtoTrafficPacket) encode() []byte {
 	bs := wire_encode_uint64(wire_LinkProtocolTraffic)
-	bs = append(bs, p.nonce[:]...)
-	bs = append(bs, p.payload...)
+	bs = append(bs, p.Nonce[:]...)
+	bs = append(bs, p.Payload...)
 	return bs
 }
 
@@ -394,10 +394,10 @@ func (p *wire_linkProtoTrafficPacket) decode(bs []byte) bool {
 		return false
 	case pType != wire_LinkProtocolTraffic:
 		return false
-	case !wire_chop_slice(p.nonce[:], &bs):
+	case !wire_chop_slice(p.Nonce[:], &bs):
 		return false
 	}
-	p.payload = bs
+	p.Payload = bs
 	return true
 }
 

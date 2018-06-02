@@ -108,12 +108,12 @@ func (s *searches) forwardSearch(req *searchReq, next *dhtInfo) {
 	shared := s.core.sessions.getSharedKey(&s.core.boxPriv, &next.key)
 	payload, nonce := boxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
-		ttl:     ^uint64(0),
-		coords:  next.coords,
-		toKey:   next.key,
-		fromKey: s.core.boxPub,
-		nonce:   *nonce,
-		payload: payload,
+		TTL:     ^uint64(0),
+		Coords:  next.coords,
+		ToKey:   next.key,
+		FromKey: s.core.boxPub,
+		Nonce:   *nonce,
+		Payload: payload,
 	}
 	packet := p.encode()
 	s.core.router.out(packet)
@@ -132,12 +132,12 @@ func (s *searches) sendSearchRes(req *searchReq) {
 	shared := s.core.sessions.getSharedKey(&s.core.boxPriv, &req.key)
 	payload, nonce := boxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
-		ttl:     ^uint64(0),
-		coords:  req.coords,
-		toKey:   req.key,
-		fromKey: s.core.boxPub,
-		nonce:   *nonce,
-		payload: payload,
+		TTL:     ^uint64(0),
+		Coords:  req.coords,
+		ToKey:   req.key,
+		FromKey: s.core.boxPub,
+		Nonce:   *nonce,
+		Payload: payload,
 	}
 	packet := p.encode()
 	s.core.router.out(packet)

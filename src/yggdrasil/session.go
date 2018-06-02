@@ -255,12 +255,12 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 	shared := ss.getSharedKey(&ss.core.boxPriv, &sinfo.theirPermPub)
 	payload, nonce := boxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
-		ttl:     ^uint64(0),
-		coords:  sinfo.coords,
-		toKey:   sinfo.theirPermPub,
-		fromKey: ss.core.boxPub,
-		nonce:   *nonce,
-		payload: payload,
+		TTL:     ^uint64(0),
+		Coords:  sinfo.coords,
+		ToKey:   sinfo.theirPermPub,
+		FromKey: ss.core.boxPub,
+		Nonce:   *nonce,
+		Payload: payload,
 	}
 	packet := p.encode()
 	ss.core.router.out(packet)
@@ -383,11 +383,11 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 	payload, nonce := boxSeal(&sinfo.sharedSesKey, bs, &sinfo.myNonce)
 	defer util_putBytes(payload)
 	p := wire_trafficPacket{
-		ttl:     ^uint64(0),
-		coords:  sinfo.coords,
-		handle:  sinfo.theirHandle,
-		nonce:   *nonce,
-		payload: payload,
+		TTL:     ^uint64(0),
+		Coords:  sinfo.coords,
+		Handle:  sinfo.theirHandle,
+		Nonce:   *nonce,
+		Payload: payload,
 	}
 	packet := p.encode()
 	sinfo.bytesSent += uint64(len(bs))
@@ -395,12 +395,12 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 }
 
 func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
-	defer util_putBytes(p.payload)
-	payloadSize := uint16(len(p.payload))
-	if !sinfo.nonceIsOK(&p.nonce) {
+	defer util_putBytes(p.Payload)
+	payloadSize := uint16(len(p.Payload))
+	if !sinfo.nonceIsOK(&p.Nonce) {
 		return
 	}
-	bs, isOK := boxOpen(&sinfo.sharedSesKey, p.payload, &p.nonce)
+	bs, isOK := boxOpen(&sinfo.sharedSesKey, p.Payload, &p.Nonce)
 	if !isOK {
 		// We're going to guess that the session MTU is too large
 		// Set myMTU to the largest value we think we can receive
@@ -433,7 +433,7 @@ func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
 		}
 	}
 	go func() { sinfo.core.router.admin <- fixSessionMTU }()
-	sinfo.updateNonce(&p.nonce)
+	sinfo.updateNonce(&p.Nonce)
 	sinfo.time = time.Now()
 	sinfo.bytesRecvd += uint64(len(bs))
 	sinfo.core.router.recvPacket(bs, &sinfo.theirAddr, &sinfo.theirSubnet)
