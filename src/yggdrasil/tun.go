@@ -37,6 +37,9 @@ func (tun *tunDevice) init(core *Core) {
 }
 
 func (tun *tunDevice) start(ifname string, iftapmode bool, addr string, mtu int) error {
+	if ifname == "none" {
+		return nil
+	}
 	if err := tun.setup(ifname, iftapmode, addr, mtu); err != nil {
 		return err
 	}
