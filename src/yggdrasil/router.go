@@ -324,7 +324,7 @@ func (r *router) handlePing(bs []byte, fromKey *boxPubKey) {
 	if !ping.decode(bs) {
 		return
 	}
-	ping.sendPermPub = *fromKey
+	ping.SendPermPub = *fromKey
 	r.core.sessions.handlePing(&ping)
 }
 
@@ -337,7 +337,7 @@ func (r *router) handleDHTReq(bs []byte, fromKey *boxPubKey) {
 	if !req.decode(bs) {
 		return
 	}
-	req.key = *fromKey
+	req.Key = *fromKey
 	r.core.dht.handleReq(&req)
 }
 
@@ -346,7 +346,7 @@ func (r *router) handleDHTRes(bs []byte, fromKey *boxPubKey) {
 	if !res.decode(bs) {
 		return
 	}
-	res.key = *fromKey
+	res.Key = *fromKey
 	r.core.dht.handleRes(&res)
 }
 

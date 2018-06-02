@@ -405,19 +405,19 @@ func (p *wire_linkProtoTrafficPacket) decode(bs []byte) bool {
 
 func (p *sessionPing) encode() []byte {
 	var pTypeVal uint64
-	if p.isPong {
+	if p.IsPong {
 		pTypeVal = wire_SessionPong
 	} else {
 		pTypeVal = wire_SessionPing
 	}
 	bs := wire_encode_uint64(pTypeVal)
 	//p.sendPermPub used in top level (crypto), so skipped here
-	bs = append(bs, p.handle[:]...)
-	bs = append(bs, p.sendSesPub[:]...)
-	bs = append(bs, wire_encode_uint64(wire_intToUint(p.tstamp))...)
-	coords := wire_encode_coords(p.coords)
+	bs = append(bs, p.Handle[:]...)
+	bs = append(bs, p.SendSesPub[:]...)
+	bs = append(bs, wire_encode_uint64(wire_intToUint(p.Tstamp))...)
+	coords := wire_encode_coords(p.Coords)
 	bs = append(bs, coords...)
-	bs = append(bs, wire_encode_uint64(uint64(p.mtu))...)
+	bs = append(bs, wire_encode_uint64(uint64(p.MTU))...)
 	return bs
 }
 
@@ -431,32 +431,32 @@ func (p *sessionPing) decode(bs []byte) bool {
 	case pType != wire_SessionPing && pType != wire_SessionPong:
 		return false
 	//p.sendPermPub used in top level (crypto), so skipped here
-	case !wire_chop_slice(p.handle[:], &bs):
+case !wire_chop_slice(p.Handle[:], &bs):
 		return false
-	case !wire_chop_slice(p.sendSesPub[:], &bs):
+	case !wire_chop_slice(p.SendSesPub[:], &bs):
 		return false
 	case !wire_chop_uint64(&tstamp, &bs):
 		return false
-	case !wire_chop_coords(&p.coords, &bs):
+	case !wire_chop_coords(&p.Coords, &bs):
 		return false
 	case !wire_chop_uint64(&mtu, &bs):
 		mtu = 1280
 	}
-	p.tstamp = wire_intFromUint(tstamp)
+	p.Tstamp = wire_intFromUint(tstamp)
 	if pType == wire_SessionPong {
-		p.isPong = true
+		p.IsPong = true
 	}
-	p.mtu = uint16(mtu)
+	p.MTU = uint16(mtu)
 	return true
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 func (r *dhtReq) encode() []byte {
-	coords := wire_encode_coords(r.coords)
+	coords := wire_encode_coords(r.Coords)
 	bs := wire_encode_uint64(wire_DHTLookupRequest)
 	bs = append(bs, coords...)
-	bs = append(bs, r.dest[:]...)
+	bs = append(bs, r.Dest[:]...)
 	return bs
 }
 
@@ -467,9 +467,9 @@ func (r *dhtReq) decode(bs []byte) bool {
 		return false
 	case pType != wire_DHTLookupRequest:
 		return false
-	case !wire_chop_coords(&r.coords, &bs):
+	case !wire_chop_coords(&r.Coords, &bs):
 		return false
-	case !wire_chop_slice(r.dest[:], &bs):
+	case !wire_chop_slice(r.Dest[:], &bs):
 		return false
 	default:
 		return true
@@ -477,11 +477,11 @@ func (r *dhtReq) decode(bs []byte) bool {
 }
 
 func (r *dhtRes) encode() []byte {
-	coords := wire_encode_coords(r.coords)
+	coords := wire_encode_coords(r.Coords)
 	bs := wire_encode_uint64(wire_DHTLookupResponse)
 	bs = append(bs, coords...)
-	bs = append(bs, r.dest[:]...)
-	for _, info := range r.infos {
+	bs = append(bs, r.Dest[:]...)
+	for _, info := range r.Infos {
 		coords = wire_encode_coords(info.coords)
 		bs = append(bs, info.key[:]...)
 		bs = append(bs, coords...)
@@ -496,9 +496,9 @@ func (r *dhtRes) decode(bs []byte) bool {
 		return false
 	case pType != wire_DHTLookupResponse:
 		return false
-	case !wire_chop_coords(&r.coords, &bs):
+	case !wire_chop_coords(&r.Coords, &bs):
 		return false
-	case !wire_chop_slice(r.dest[:], &bs):
+	case !wire_chop_slice(r.Dest[:], &bs):
 		return false
 	}
 	for len(bs) > 0 {
@@ -509,7 +509,7 @@ func (r *dhtRes) decode(bs []byte) bool {
 		case !wire_chop_coords(&info.coords, &bs):
 			return false
 		}
-		r.infos = append(r.infos, &info)
+		r.Infos = append(r.Infos, &info)
 	}
 	return true
 }
