@@ -106,6 +106,7 @@ func (t *dht) handleReq(req *dhtReq) {
 }
 
 func (t *dht) handleRes(res *dhtRes) {
+	t.core.searches.handleDHTRes(res)
 	reqs, isIn := t.reqs[res.key]
 	if !isIn {
 		return

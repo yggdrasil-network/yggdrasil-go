@@ -16,15 +16,17 @@ package yggdrasil
 //  The iterative parallel lookups from kad can skip over some DHT blackholes
 //  This hides bugs, which I don't want to do right now
 
+import "sort"
 import "time"
 
 //import "fmt"
 
 type searchInfo struct {
-	dest   *NodeID
-	mask   *NodeID
-	time   time.Time
-	packet []byte
+	dest    *NodeID
+	mask    *NodeID
+	time    time.Time
+	packet  []byte
+	toVisit []*dhtInfo
 }
 
 type searches struct {
@@ -51,6 +53,93 @@ func (s *searches) createSearch(dest *NodeID, mask *NodeID) *searchInfo {
 	}
 	s.searches[*dest] = &info
 	return &info
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+func (s *searches) handleDHTRes(res *dhtRes) {
+	if s.checkDHTRes(res) {
+		return
+	}
+	s.addToSearch(res)
+}
+
+func (s *searches) addToSearch(res *dhtRes) {
+	// TODO
+	sinfo, isIn := s.searches[res.dest]
+	if !isIn {
+		return
+	}
+	from := dhtInfo{key: res.key, coords: res.coords}
+	for _, info := range res.infos {
+		if dht_firstCloserThanThird(info.getNodeID(), &res.dest, from.getNodeID()) {
+			sinfo.toVisit = append(sinfo.toVisit, info)
+		}
+	}
+	sort.SliceStable(sinfo.toVisit, func(i, j int) bool {
+		return dht_firstCloserThanThird(sinfo.toVisit[i].getNodeID(), &res.dest, sinfo.toVisit[j].getNodeID())
+	})
+	s.doSearchStep(sinfo)
+}
+
+func (s *searches) doSearchStep(sinfo *searchInfo) {
+	if len(sinfo.toVisit) == 0 || time.Since(sinfo.time) > 6*time.Second {
+		// Dead end or timeout, do cleanup
+		delete(s.searches, *sinfo.dest)
+		return
+	} else {
+		// Send to the next search target
+		var next *dhtInfo
+		next, sinfo.toVisit = sinfo.toVisit[0], sinfo.toVisit[1:]
+		s.core.dht.ping(next, sinfo.dest)
+	}
+}
+
+func (s *searches) continueSearch(sinfo *searchInfo) {
+	if time.Since(sinfo.time) < time.Second {
+		return
+	}
+	sinfo.time = time.Now()
+	s.doSearchStep(sinfo)
+}
+
+func (s *searches) newIterSearch(dest *NodeID, mask *NodeID) *searchInfo {
+	sinfo := s.createSearch(dest, mask)
+	sinfo.toVisit = s.core.dht.lookup(dest, false)
+	return sinfo
+}
+
+func (s *searches) checkDHTRes(res *dhtRes) bool {
+	info, isIn := s.searches[res.dest]
+	if !isIn {
+		return false
+	}
+	them := getNodeID(&res.key)
+	var destMasked NodeID
+	var themMasked NodeID
+	for idx := 0; idx < NodeIDLen; idx++ {
+		destMasked[idx] = info.dest[idx] & info.mask[idx]
+		themMasked[idx] = them[idx] & info.mask[idx]
+	}
+	if themMasked != destMasked {
+		return false
+	}
+	// They match, so create a session and send a sessionRequest
+	sinfo, isIn := s.core.sessions.getByTheirPerm(&res.key)
+	if !isIn {
+		sinfo = s.core.sessions.createSession(&res.key)
+		_, isIn := s.core.sessions.getByTheirPerm(&res.key)
+		if !isIn {
+			panic("This should never happen")
+		}
+	}
+	// FIXME (!) replay attacks could mess with coords? Give it a handle (tstamp)?
+	sinfo.coords = res.coords
+	sinfo.packet = info.packet
+	s.core.sessions.ping(sinfo)
+	// Cleanup
+	delete(s.searches, res.dest)
+	return true
 }
 
 ////////////////////////////////////////////////////////////////////////////////

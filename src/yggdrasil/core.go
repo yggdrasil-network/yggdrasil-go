@@ -172,7 +172,7 @@ func (c *Core) GetAddress() *net.IP {
 func (c *Core) GetSubnet() *net.IPNet {
 	subnet := address_subnetForNodeID(c.GetNodeID())[:]
 	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
-	return &net.IPNet{ IP: subnet, Mask: net.CIDRMask(64, 128) }
+	return &net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
 }
 
 // Sets the output logger of the Yggdrasil node after startup. This may be
