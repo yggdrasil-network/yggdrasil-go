@@ -70,17 +70,30 @@ func (s *searches) handleDHTRes(res *dhtRes) {
 }
 
 func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
-	// TODO
-
+	// Add responses to toVisit if closer to dest than the res node
 	from := dhtInfo{key: res.key, coords: res.coords}
 	for _, info := range res.infos {
 		if dht_firstCloserThanThird(info.getNodeID(), &res.dest, from.getNodeID()) {
 			sinfo.toVisit = append(sinfo.toVisit, info)
 		}
 	}
+	// Deduplicate
+	vMap := make(map[NodeID]*dhtInfo)
+	for _, info := range sinfo.toVisit {
+		vMap[*info.getNodeID()] = info
+	}
+	sinfo.toVisit = sinfo.toVisit[:0]
+	for _, info := range vMap {
+		sinfo.toVisit = append(sinfo.toVisit, info)
+	}
+	// Sort
 	sort.SliceStable(sinfo.toVisit, func(i, j int) bool {
 		return dht_firstCloserThanThird(sinfo.toVisit[i].getNodeID(), &res.dest, sinfo.toVisit[j].getNodeID())
 	})
+	// Truncate to some maximum size
+	if len(sinfo.toVisit) > 16 {
+		sinfo.toVisit = sinfo.toVisit[:16]
+	}
 }
 
 func (s *searches) doSearchStep(sinfo *searchInfo) {
