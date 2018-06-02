@@ -62,7 +62,7 @@ func (s *searches) createSearch(dest *NodeID, mask *NodeID) *searchInfo {
 ////////////////////////////////////////////////////////////////////////////////
 
 func (s *searches) handleDHTRes(res *dhtRes) {
-	sinfo, isIn := s.searches[res.dest]
+	sinfo, isIn := s.searches[res.Dest]
 	if !isIn || s.checkDHTRes(sinfo, res) {
 		// Either we don't recognize this search, or we just finished it
 		return
@@ -75,12 +75,12 @@ func (s *searches) handleDHTRes(res *dhtRes) {
 
 func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 	// Add responses to toVisit if closer to dest than the res node
-	from := dhtInfo{key: res.key, coords: res.coords}
-	for _, info := range res.infos {
+	from := dhtInfo{key: res.Key, coords: res.Coords}
+	for _, info := range res.Infos {
 		if sinfo.visited[*info.getNodeID()] {
 			continue
 		}
-		if dht_firstCloserThanThird(info.getNodeID(), &res.dest, from.getNodeID()) {
+		if dht_firstCloserThanThird(info.getNodeID(), &res.Dest, from.getNodeID()) {
 			sinfo.toVisit = append(sinfo.toVisit, info)
 		}
 	}
@@ -95,7 +95,7 @@ func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 	}
 	// Sort
 	sort.SliceStable(sinfo.toVisit, func(i, j int) bool {
-		return dht_firstCloserThanThird(sinfo.toVisit[i].getNodeID(), &res.dest, sinfo.toVisit[j].getNodeID())
+		return dht_firstCloserThanThird(sinfo.toVisit[i].getNodeID(), &res.Dest, sinfo.toVisit[j].getNodeID())
 	})
 	// Truncate to some maximum size
 	if len(sinfo.toVisit) > search_MAX_SEARCH_SIZE {
@@ -147,7 +147,7 @@ func (s *searches) newIterSearch(dest *NodeID, mask *NodeID) *searchInfo {
 }
 
 func (s *searches) checkDHTRes(info *searchInfo, res *dhtRes) bool {
-	them := getNodeID(&res.key)
+	them := getNodeID(&res.Key)
 	var destMasked NodeID
 	var themMasked NodeID
 	for idx := 0; idx < NodeIDLen; idx++ {
@@ -158,20 +158,20 @@ func (s *searches) checkDHTRes(info *searchInfo, res *dhtRes) bool {
 		return false
 	}
 	// They match, so create a session and send a sessionRequest
-	sinfo, isIn := s.core.sessions.getByTheirPerm(&res.key)
+	sinfo, isIn := s.core.sessions.getByTheirPerm(&res.Key)
 	if !isIn {
-		sinfo = s.core.sessions.createSession(&res.key)
-		_, isIn := s.core.sessions.getByTheirPerm(&res.key)
+		sinfo = s.core.sessions.createSession(&res.Key)
+		_, isIn := s.core.sessions.getByTheirPerm(&res.Key)
 		if !isIn {
 			panic("This should never happen")
 		}
 	}
 	// FIXME (!) replay attacks could mess with coords? Give it a handle (tstamp)?
-	sinfo.coords = res.coords
+	sinfo.coords = res.Coords
 	sinfo.packet = info.packet
 	s.core.sessions.ping(sinfo)
 	// Cleanup
-	delete(s.searches, res.dest)
+	delete(s.searches, res.Dest)
 	return true
 }
 
@@ -230,12 +230,12 @@ func (s *searches) forwardSearch(req *searchReq, next *dhtInfo) {
 	shared := s.core.sessions.getSharedKey(&s.core.boxPriv, &next.key)
 	payload, nonce := boxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
-		ttl:     ^uint64(0),
-		coords:  next.coords,
-		toKey:   next.key,
-		fromKey: s.core.boxPub,
-		nonce:   *nonce,
-		payload: payload,
+		TTL:     ^uint64(0),
+		Coords:  next.coords,
+		ToKey:   next.key,
+		FromKey: s.core.boxPub,
+		Nonce:   *nonce,
+		Payload: payload,
 	}
 	packet := p.encode()
 	s.core.router.out(packet)
@@ -254,12 +254,12 @@ func (s *searches) sendSearchRes(req *searchReq) {
 	shared := s.core.sessions.getSharedKey(&s.core.boxPriv, &req.key)
 	payload, nonce := boxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
-		ttl:     ^uint64(0),
-		coords:  req.coords,
-		toKey:   req.key,
-		fromKey: s.core.boxPub,
-		nonce:   *nonce,
-		payload: payload,
+		TTL:     ^uint64(0),
+		Coords:  req.coords,
+		ToKey:   req.key,
+		FromKey: s.core.boxPub,
+		Nonce:   *nonce,
+		Payload: payload,
 	}
 	packet := p.encode()
 	s.core.router.out(packet)
