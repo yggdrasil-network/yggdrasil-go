@@ -4,17 +4,12 @@ package yggdrasil
 
 // The basic idea is as follows:
 //  We may know a NodeID (with a mask) and want to connect
-//  We forward a searchReq packet through the dht
-//  The last person in the dht will respond with a searchRes
-//  If the responders nodeID is close enough to the requested key, it matches
-//  The "close enough" is handled by a bitmask, set when the request is sent
-//  For testing in the sim, it must match exactly
-//  For the real world, the mask would need to map it to the desired IPv6
-// This is also where we store the temporary keys used to send a request
-//  Would go in sessions, but can't open one without knowing perm key
-// This is largely to avoid using an iterative DHT lookup approach
-//  The iterative parallel lookups from kad can skip over some DHT blackholes
-//  This hides bugs, which I don't want to do right now
+//  We begin a search by initializing a list of all nodes in our DHT, sorted by closest to the destination
+//  We then iteratively ping nodes from the search, marking each pinged node as visited
+//  We add any unvisited nodes from ping responses to the search, truncating to some maximum search size
+//  This stops when we either run out of nodes to ping (we hit a dead end where we can't make progress without going back), or we reach the destination
+//  A new search packet is sent immediately after receiving a response
+//  A new search packet is sent periodically, once per second, in case a packet was dropped (this slowly causes the search to become parallel if the search doesn't timeout but also doesn't finish within 1 second for whatever reason)
 
 import "sort"
 import "time"
