@@ -317,6 +317,7 @@ func (c *Core) DEBUG_init(bpub []byte,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*
 func (c *Core) DEBUG_setupAndStartGlobalUDPInterface(addrport string) {
 	if err := c.udp.init(c, addrport); err != nil {
 		c.log.Println("Failed to start UDP interface:", err)
@@ -342,6 +343,7 @@ func (c *Core) DEBUG_maybeSendUDPKeys(saddr string) {
 		c.udp.sendKeys(addr)
 	}
 }
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 

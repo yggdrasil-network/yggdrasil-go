@@ -27,7 +27,6 @@ type Core struct {
 	searches    searches
 	multicast   multicast
 	tcp         tcpInterface
-	udp         udpInterface
 	log         *log.Logger
 	ifceExpr    []*regexp.Regexp // the zone of link-local IPv6 peers must match this
 }
@@ -96,11 +95,6 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 
 	if err := c.tcp.init(c, nc.Listen); err != nil {
 		c.log.Println("Failed to start TCP interface")
-		return err
-	}
-
-	if err := c.udp.init(c, nc.Listen); err != nil {
-		c.log.Println("Failed to start UDP interface")
 		return err
 	}
 

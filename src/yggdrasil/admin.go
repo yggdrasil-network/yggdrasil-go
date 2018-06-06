@@ -361,8 +361,6 @@ func (a *admin) addPeer(addr string) error {
 		switch strings.ToLower(u.Scheme) {
 		case "tcp":
 			a.core.tcp.connect(u.Host)
-		case "udp":
-			a.core.udp.connect(u.Host)
 		case "socks":
 			a.core.tcp.connectSOCKS(u.Host, u.Path[1:])
 		default:
@@ -371,17 +369,11 @@ func (a *admin) addPeer(addr string) error {
 	} else {
 		// no url scheme provided
 		addr = strings.ToLower(addr)
-		if strings.HasPrefix(addr, "udp:") {
-			a.core.udp.connect(addr[4:])
-			return nil
-		} else {
-			if strings.HasPrefix(addr, "tcp:") {
-				addr = addr[4:]
-			}
-			a.core.tcp.connect(addr)
-			return nil
+		if strings.HasPrefix(addr, "tcp:") {
+			addr = addr[4:]
 		}
-		return errors.New("invalid peer: " + addr)
+		a.core.tcp.connect(addr)
+		return nil
 	}
 	return nil
 }
