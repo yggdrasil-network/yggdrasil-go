@@ -111,6 +111,9 @@ type peer struct {
 	close func()
 	// To allow the peer to call close if idle for too long
 	lastAnc time.Time
+	// used for protocol traffic (to bypass queues)
+	linkIn  (chan []byte) // handlePacket sends, linkLoop recvs
+	linkOut (chan []byte)
 }
 
 const peer_Throttle = 1
@@ -123,8 +126,7 @@ func (p *peer) updateQueueSize(delta int64) {
 	atomic.AddInt64(&p.queueSize, delta)
 }
 
-func (ps *peers) newPeer(box *boxPubKey,
-	sig *sigPubKey) *peer {
+func (ps *peers) newPeer(box *boxPubKey, sig *sigPubKey) *peer {
 	now := time.Now()
 	p := peer{box: *box,
 		sig:       *sig,
@@ -170,14 +172,14 @@ func (ps *peers) removePeer(port switchPort) {
 	}
 }
 
-func (p *peer) linkLoop(in <-chan []byte) {
+func (p *peer) linkLoop() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	var counter uint8
 	var lastRSeq uint64
 	for {
 		select {
-		case packet, ok := <-in:
+		case packet, ok := <-p.linkIn:
 			if !ok {
 				return
 			}
@@ -214,7 +216,7 @@ func (p *peer) linkLoop(in <-chan []byte) {
 	}
 }
 
-func (p *peer) handlePacket(packet []byte, linkIn chan<- []byte) {
+func (p *peer) handlePacket(packet []byte) {
 	// TODO See comment in sendPacket about atomics technically being done wrong
 	atomic.AddUint64(&p.bytesRecvd, uint64(len(packet)))
 	pType, pTypeLen := wire_decode_uint64(packet)
@@ -227,12 +229,7 @@ func (p *peer) handlePacket(packet []byte, linkIn chan<- []byte) {
 	case wire_ProtocolTraffic:
 		p.handleTraffic(packet, pTypeLen)
 	case wire_LinkProtocolTraffic:
-		{
-			select {
-			case linkIn <- packet:
-			default:
-			}
-		}
+		p.linkIn <- packet
 	default: /*panic(pType) ;*/
 		return
 	}
@@ -284,7 +281,7 @@ func (p *peer) sendLinkPacket(packet []byte) {
 		Payload: bs,
 	}
 	packet = linkPacket.encode()
-	p.sendPacket(packet)
+	p.linkOut <- packet
 }
 
 func (p *peer) handleLinkTraffic(bs []byte) {

@@ -208,10 +208,11 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	}()
 	// Note that multiple connections to the same node are allowed
 	//  E.g. over different interfaces
-	linkIn := make(chan []byte, 1)
-	p := iface.core.peers.newPeer(&info.box, &info.sig) //, in, out)
+	p := iface.core.peers.newPeer(&info.box, &info.sig)
+	p.linkIn = make(chan []byte, 1)
+	p.linkOut = make(chan []byte, 1)
 	in := func(bs []byte) {
-		p.handlePacket(bs, linkIn)
+		p.handlePacket(bs)
 	}
 	out := make(chan []byte, 32) // TODO? what size makes sense
 	defer close(out)
@@ -221,10 +222,10 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 		buf.Write(tcp_msg[:])
 		buf.Write(msgLen)
 		buf.Write(msg)
-		p.updateQueueSize(-1)
 		util_putBytes(msg)
 	}
 	go func() {
+		defer buf.Flush()
 		var stack [][]byte
 		put := func(msg []byte) {
 			stack = append(stack, msg)
@@ -234,14 +235,22 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 				p.updateQueueSize(-1)
 			}
 		}
-		for msg := range out {
-			put(msg)
+		for {
+			select {
+			case msg := <-p.linkOut:
+				send(msg)
+			case msg, ok := <-out:
+				if !ok {
+					return
+				}
+				put(msg)
+			}
 			for len(stack) > 0 {
-				// Keep trying to fill the stack (LIFO order) while sending
 				select {
+				case msg := <-p.linkOut:
+					send(msg)
 				case msg, ok := <-out:
 					if !ok {
-						buf.Flush()
 						return
 					}
 					put(msg)
@@ -249,6 +258,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 					msg := stack[len(stack)-1]
 					stack = stack[:len(stack)-1]
 					send(msg)
+					p.updateQueueSize(-1)
 				}
 			}
 			buf.Flush()
@@ -265,11 +275,11 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	}
 	p.close = func() { sock.Close() }
 	setNoDelay(sock, true)
-	go p.linkLoop(linkIn)
+	go p.linkLoop()
 	defer func() {
 		// Put all of our cleanup here...
 		p.core.peers.removePeer(p.port)
-		close(linkIn)
+		close(p.linkIn)
 	}()
 	them, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
 	themNodeID := getNodeID(&info.box)

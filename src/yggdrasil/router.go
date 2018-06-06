@@ -55,7 +55,7 @@ func (r *router) init(core *Core) {
 		}
 	}
 	r.in = in
-	r.out = func(packet []byte) { p.handlePacket(packet, nil) } // The caller is responsible for go-ing if it needs to not block
+	r.out = func(packet []byte) { p.handlePacket(packet) } // The caller is responsible for go-ing if it needs to not block
 	recv := make(chan []byte, 32)
 	send := make(chan []byte, 32)
 	r.recv = recv
