@@ -310,10 +310,6 @@ func (r *router) handleProto(packet []byte) {
 		r.handleDHTReq(bs, &p.FromKey)
 	case wire_DHTLookupResponse:
 		r.handleDHTRes(bs, &p.FromKey)
-	case wire_SearchRequest:
-		r.handleSearchReq(bs)
-	case wire_SearchResponse:
-		r.handleSearchRes(bs)
 	default: /*panic("Should not happen in testing") ;*/
 		return
 	}
@@ -348,22 +344,6 @@ func (r *router) handleDHTRes(bs []byte, fromKey *boxPubKey) {
 	}
 	res.Key = *fromKey
 	r.core.dht.handleRes(&res)
-}
-
-func (r *router) handleSearchReq(bs []byte) {
-	req := searchReq{}
-	if !req.decode(bs) {
-		return
-	}
-	r.core.searches.handleSearchReq(&req)
-}
-
-func (r *router) handleSearchRes(bs []byte) {
-	res := searchRes{}
-	if !res.decode(bs) {
-		return
-	}
-	r.core.searches.handleSearchRes(&res)
 }
 
 func (r *router) doAdmin(f func()) {

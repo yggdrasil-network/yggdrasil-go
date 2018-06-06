@@ -19,8 +19,6 @@ const (
 	wire_SessionPong                // inside protocol traffic header
 	wire_DHTLookupRequest           // inside protocol traffic header
 	wire_DHTLookupResponse          // inside protocol traffic header
-	wire_SearchRequest              // inside protocol traffic header
-	wire_SearchResponse             // inside protocol traffic header
 )
 
 // Encode uint64 using a variable length scheme
@@ -514,58 +512,3 @@ func (r *dhtRes) decode(bs []byte) bool {
 	return true
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-func (r *searchReq) encode() []byte {
-	coords := wire_encode_coords(r.coords)
-	bs := wire_encode_uint64(wire_SearchRequest)
-	bs = append(bs, r.key[:]...)
-	bs = append(bs, coords...)
-	bs = append(bs, r.dest[:]...)
-	return bs
-}
-
-func (r *searchReq) decode(bs []byte) bool {
-	var pType uint64
-	switch {
-	case !wire_chop_uint64(&pType, &bs):
-		return false
-	case pType != wire_SearchRequest:
-		return false
-	case !wire_chop_slice(r.key[:], &bs):
-		return false
-	case !wire_chop_coords(&r.coords, &bs):
-		return false
-	case !wire_chop_slice(r.dest[:], &bs):
-		return false
-	default:
-		return true
-	}
-}
-
-func (r *searchRes) encode() []byte {
-	coords := wire_encode_coords(r.coords)
-	bs := wire_encode_uint64(wire_SearchResponse)
-	bs = append(bs, r.key[:]...)
-	bs = append(bs, coords...)
-	bs = append(bs, r.dest[:]...)
-	return bs
-}
-
-func (r *searchRes) decode(bs []byte) bool {
-	var pType uint64
-	switch {
-	case !wire_chop_uint64(&pType, &bs):
-		return false
-	case pType != wire_SearchResponse:
-		return false
-	case !wire_chop_slice(r.key[:], &bs):
-		return false
-	case !wire_chop_coords(&r.coords, &bs):
-		return false
-	case !wire_chop_slice(r.dest[:], &bs):
-		return false
-	default:
-		return true
-	}
-}

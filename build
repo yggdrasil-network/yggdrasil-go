@@ -5,7 +5,7 @@ go get -d -v
 go get -d -v yggdrasil
 for file in *.go ; do
   echo "Building: $file"
-  go build -v $file
+  go build $@ $file
   #go build -ldflags="-s -w" -v $file
   #upx --brute ${file/.go/}
 done
