@@ -218,25 +218,11 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	buf := bufio.NewWriterSize(sock, tcp_msgSize)
 	send := func(msg []byte) {
 		msgLen := wire_encode_uint64(uint64(len(msg)))
-		before := buf.Buffered()
-		start := time.Now()
 		buf.Write(tcp_msg[:])
 		buf.Write(msgLen)
 		buf.Write(msg)
-		timed := time.Since(start)
-		after := buf.Buffered()
-		written := (before + len(tcp_msg) + len(msgLen) + len(msg)) - after
-		if written > 0 {
-			p.updateBandwidth(written, timed)
-		}
+		p.updateQueueSize(-1)
 		util_putBytes(msg)
-	}
-	flush := func() {
-		size := buf.Buffered()
-		start := time.Now()
-		buf.Flush()
-		timed := time.Since(start)
-		p.updateBandwidth(size, timed)
 	}
 	go func() {
 		var stack [][]byte
@@ -245,6 +231,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 			for len(stack) > 32 {
 				util_putBytes(stack[0])
 				stack = stack[1:]
+				p.updateQueueSize(-1)
 			}
 		}
 		for msg := range out {
@@ -254,7 +241,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 				select {
 				case msg, ok := <-out:
 					if !ok {
-						flush()
+						buf.Flush()
 						return
 					}
 					put(msg)
@@ -264,13 +251,14 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 					send(msg)
 				}
 			}
-			flush()
+			buf.Flush()
 		}
 	}()
 	p.out = func(msg []byte) {
 		defer func() { recover() }()
 		select {
 		case out <- msg:
+			p.updateQueueSize(1)
 		default:
 			util_putBytes(msg)
 		}

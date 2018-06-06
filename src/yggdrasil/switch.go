@@ -12,6 +12,7 @@ package yggdrasil
 //  A little annoying to do with constant changes from bandwidth estimates
 
 import "time"
+import "sort"
 import "sync"
 import "sync/atomic"
 
@@ -401,37 +402,36 @@ func (t *switchTable) updateTable() {
 			port:    pinfo.port,
 		})
 	}
+	sort.SliceStable(newTable.elems, func(i, j int) bool {
+		return t.data.peers[newTable.elems[i].port].firstSeen.Before(t.data.peers[newTable.elems[j].port].firstSeen)
+	})
 	t.table.Store(newTable)
 }
 
 func (t *switchTable) lookup(dest []byte, ttl uint64) (switchPort, uint64) {
 	t.updater.Load().(*sync.Once).Do(t.updateTable)
 	table := t.table.Load().(lookupTable)
-	ports := t.core.peers.getPorts()
-	getBandwidth := func(port switchPort) float64 {
-		var bandwidth float64
-		if p, isIn := ports[port]; isIn {
-			bandwidth = p.getBandwidth()
-		}
-		return bandwidth
-	}
-	var best switchPort
 	myDist := table.self.dist(dest) //getDist(table.self.coords)
 	if !(uint64(myDist) < ttl) {
 		return 0, 0
 	}
-	// score is in units of bandwidth / distance
-	bestScore := float64(-1)
+	// cost is in units of (expected distance) + (expected queue size), where expected distance is used as an approximation of the minimum backpressure gradient needed for packets to flow
+	ports := t.core.peers.getPorts()
+	var best switchPort
+	bestCost := int64(^uint64(0) >> 1)
 	for _, info := range table.elems {
 		dist := info.locator.dist(dest) //getDist(info.locator.coords)
 		if !(dist < myDist) {
 			continue
 		}
-		score := getBandwidth(info.port)
-		score /= float64(1 + dist)
-		if score > bestScore {
+		p, isIn := ports[info.port]
+		if !isIn {
+			continue
+		}
+		cost := int64(dist) + p.getQueueSize()
+		if cost < bestCost {
 			best = info.port
-			bestScore = score
+			bestCost = cost
 		}
 	}
 	//t.core.log.Println("DEBUG: sending to", best, "bandwidth", getBandwidth(best))
