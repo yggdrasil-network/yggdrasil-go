@@ -511,4 +511,3 @@ func (r *dhtRes) decode(bs []byte) bool {
 	}
 	return true
 }
-

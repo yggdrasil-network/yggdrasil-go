@@ -169,4 +169,3 @@ func (s *searches) checkDHTRes(info *searchInfo, res *dhtRes) bool {
 	delete(s.searches, res.Dest)
 	return true
 }
-

@@ -379,12 +379,12 @@ func dumpDHTSize(store map[[32]byte]*Node) {
 	fmt.Printf("DHT min %d / avg %f / max %d\n", min, avg, max)
 }
 
-func (n *Node) startUDP(listen string) {
-	n.core.DEBUG_setupAndStartGlobalUDPInterface(listen)
+func (n *Node) startTCP(listen string) {
+	n.core.DEBUG_setupAndStartGlobalTCPInterface(listen)
 }
 
-func (n *Node) connectUDP(remoteAddr string) {
-	n.core.DEBUG_maybeSendUDPKeys(remoteAddr)
+func (n *Node) connectTCP(remoteAddr string) {
+	n.core.AddPeer(remoteAddr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -440,8 +440,8 @@ func main() {
 	if false {
 		// This connects the sim to the local network
 		for _, node := range kstore {
-			node.startUDP("localhost:0")
-			node.connectUDP("localhost:12345")
+			node.startTCP("localhost:0")
+			node.connectTCP("localhost:12345")
 			break // just 1
 		}
 		for _, node := range kstore {
