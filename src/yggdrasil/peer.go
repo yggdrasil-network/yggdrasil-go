@@ -106,7 +106,6 @@ type peer struct {
 	// To allow the peer to call close if idle for too long
 	lastAnc time.Time // TODO? rename and use this
 	// used for protocol traffic (to bypass queues)
-	linkIn  (chan []byte) // handlePacket sends, linkLoop recvs
 	linkOut (chan []byte)
 	lastMsg []byte          // last switchMsg accepted
 	doSend  (chan struct{}) // tell the linkLoop to send a switchMsg
@@ -170,7 +169,7 @@ func (ps *peers) removePeer(port switchPort) {
 		if p.close != nil {
 			p.close()
 		}
-		close(p.linkIn)
+		close(p.doSend)
 	}
 }
 
@@ -200,27 +199,8 @@ func (ps *peers) fixSwitchAfterPeerDisconnect() {
 
 func (p *peer) linkLoop() {
 	go func() { p.doSend <- struct{}{} }()
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case packet, ok := <-p.linkIn:
-			if !ok {
-				return
-			}
-			p.handleLinkTraffic(packet)
-		case <-ticker.C:
-			p.throttle = 0
-			if p.lastMsg != nil {
-				// TODO? remove ticker completely
-				// p.throttle isn't useful anymore (if they send a wrong message, remove peer instead)
-				// the handleMessage below is just for debugging, but it *shouldn't* be needed now that things react to state changes instantly
-				// The one case where it's maybe useful is if you get messages faster than the switch throttle, but that should fix itself after the next periodic update or timeout
-				p.handleSwitchMsg(p.lastMsg)
-			}
-		case <-p.doSend:
-			p.sendSwitchMsg()
-		}
+	for range p.doSend {
+		p.sendSwitchMsg()
 	}
 }
 
@@ -237,8 +217,8 @@ func (p *peer) handlePacket(packet []byte) {
 	case wire_ProtocolTraffic:
 		p.handleTraffic(packet, pTypeLen)
 	case wire_LinkProtocolTraffic:
-		p.linkIn <- packet
-	default: /*panic(pType) ;*/
+		p.handleLinkTraffic(packet)
+	default:
 		return
 	}
 }

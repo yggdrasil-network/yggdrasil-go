@@ -449,8 +449,17 @@ func (c *Core) DEBUG_addAllowedEncryptionPublicKey(boxStr string) {
 
 func DEBUG_simLinkPeers(p, q *peer) {
 	// Sets q.out() to point to p and starts p.linkLoop()
-	p.linkIn, q.linkIn = make(chan []byte, 32), make(chan []byte, 32)
-	p.linkOut, q.linkOut = q.linkIn, p.linkIn
+	p.linkOut, q.linkOut = make(chan []byte, 1), make(chan []byte, 1)
+	go func() {
+		for bs := range p.linkOut {
+			q.handlePacket(bs)
+		}
+	}()
+	go func() {
+		for bs := range q.linkOut {
+			p.handlePacket(bs)
+		}
+	}()
 	p.out = func(bs []byte) {
 		go q.handlePacket(bs)
 	}
