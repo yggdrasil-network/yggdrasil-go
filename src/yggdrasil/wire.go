@@ -13,9 +13,6 @@ const (
 	wire_ProtocolTraffic            // protocol traffic, pub keys for crypto
 	wire_LinkProtocolTraffic        // link proto traffic, pub keys for crypto
 	wire_SwitchMsg                  // inside link protocol traffic header
-	wire_SwitchAnnounce             // inside protocol traffic header
-	wire_SwitchHopRequest           // inside protocol traffic header
-	wire_SwitchHop                  // inside protocol traffic header
 	wire_SessionPing                // inside protocol traffic header
 	wire_SessionPong                // inside protocol traffic header
 	wire_DHTLookupRequest           // inside protocol traffic header
@@ -173,136 +170,8 @@ func (m *switchMsg) decode(bs []byte) bool {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Announces that we can send parts of a Message with a particular seq
-type msgAnnounce struct {
-	Root   sigPubKey
-	Tstamp int64
-	Seq    uint64
-	Len    uint64
-	//Deg uint64
-	Rseq uint64
-}
-
-func (m *msgAnnounce) encode() []byte {
-	bs := wire_encode_uint64(wire_SwitchAnnounce)
-	bs = append(bs, m.Root[:]...)
-	bs = append(bs, wire_encode_uint64(wire_intToUint(m.Tstamp))...)
-	bs = append(bs, wire_encode_uint64(m.Seq)...)
-	bs = append(bs, wire_encode_uint64(m.Len)...)
-	bs = append(bs, wire_encode_uint64(m.Rseq)...)
-	return bs
-}
-
-func (m *msgAnnounce) decode(bs []byte) bool {
-	var pType uint64
-	var tstamp uint64
-	switch {
-	case !wire_chop_uint64(&pType, &bs):
-		return false
-	case pType != wire_SwitchAnnounce:
-		return false
-	case !wire_chop_slice(m.Root[:], &bs):
-		return false
-	case !wire_chop_uint64(&tstamp, &bs):
-		return false
-	case !wire_chop_uint64(&m.Seq, &bs):
-		return false
-	case !wire_chop_uint64(&m.Len, &bs):
-		return false
-	case !wire_chop_uint64(&m.Rseq, &bs):
-		return false
-	}
-	m.Tstamp = wire_intFromUint(tstamp)
-	return true
-}
-
-type msgHopReq struct {
-	Root   sigPubKey
-	Tstamp int64
-	Seq    uint64
-	Hop    uint64
-}
-
-func (m *msgHopReq) encode() []byte {
-	bs := wire_encode_uint64(wire_SwitchHopRequest)
-	bs = append(bs, m.Root[:]...)
-	bs = append(bs, wire_encode_uint64(wire_intToUint(m.Tstamp))...)
-	bs = append(bs, wire_encode_uint64(m.Seq)...)
-	bs = append(bs, wire_encode_uint64(m.Hop)...)
-	return bs
-}
-
-func (m *msgHopReq) decode(bs []byte) bool {
-	var pType uint64
-	var tstamp uint64
-	switch {
-	case !wire_chop_uint64(&pType, &bs):
-		return false
-	case pType != wire_SwitchHopRequest:
-		return false
-	case !wire_chop_slice(m.Root[:], &bs):
-		return false
-	case !wire_chop_uint64(&tstamp, &bs):
-		return false
-	case !wire_chop_uint64(&m.Seq, &bs):
-		return false
-	case !wire_chop_uint64(&m.Hop, &bs):
-		return false
-	}
-	m.Tstamp = wire_intFromUint(tstamp)
-	return true
-}
-
-type msgHop struct {
-	Root   sigPubKey
-	Tstamp int64
-	Seq    uint64
-	Hop    uint64
-	Port   switchPort
-	Next   sigPubKey
-	Sig    sigBytes
-}
-
-func (m *msgHop) encode() []byte {
-	bs := wire_encode_uint64(wire_SwitchHop)
-	bs = append(bs, m.Root[:]...)
-	bs = append(bs, wire_encode_uint64(wire_intToUint(m.Tstamp))...)
-	bs = append(bs, wire_encode_uint64(m.Seq)...)
-	bs = append(bs, wire_encode_uint64(m.Hop)...)
-	bs = append(bs, wire_encode_uint64(uint64(m.Port))...)
-	bs = append(bs, m.Next[:]...)
-	bs = append(bs, m.Sig[:]...)
-	return bs
-}
-
-func (m *msgHop) decode(bs []byte) bool {
-	var pType uint64
-	var tstamp uint64
-	switch {
-	case !wire_chop_uint64(&pType, &bs):
-		return false
-	case pType != wire_SwitchHop:
-		return false
-	case !wire_chop_slice(m.Root[:], &bs):
-		return false
-	case !wire_chop_uint64(&tstamp, &bs):
-		return false
-	case !wire_chop_uint64(&m.Seq, &bs):
-		return false
-	case !wire_chop_uint64(&m.Hop, &bs):
-		return false
-	case !wire_chop_uint64((*uint64)(&m.Port), &bs):
-		return false
-	case !wire_chop_slice(m.Next[:], &bs):
-		return false
-	case !wire_chop_slice(m.Sig[:], &bs):
-		return false
-	}
-	m.Tstamp = wire_intFromUint(tstamp)
-	return true
-}
-
 // Format used to check signatures only, so no need to also support decoding
+// TODO something else for signatures
 func wire_encode_locator(loc *switchLocator) []byte {
 	coords := wire_encode_coords(loc.getCoords())
 	var bs []byte
