@@ -103,11 +103,6 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
-	if err := c.switchTable.start(); err != nil {
-		c.log.Println("Failed to start switch table ticker")
-		return err
-	}
-
 	if err := c.admin.start(); err != nil {
 		c.log.Println("Failed to start admin socket")
 		return err

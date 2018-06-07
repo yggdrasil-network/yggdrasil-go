@@ -36,7 +36,6 @@ func (c *Core) Init() {
 	spub, spriv := newSigKeys()
 	c.init(bpub, bpriv, spub, spriv)
 	c.router.start()
-	c.switchTable.start()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -310,9 +309,6 @@ func (c *Core) DEBUG_init(bpub []byte,
 		panic(err)
 	}
 
-	if err := c.switchTable.start(); err != nil {
-		panic(err)
-	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

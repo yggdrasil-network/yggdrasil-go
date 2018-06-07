@@ -170,26 +170,13 @@ func (t *switchTable) init(core *Core, key sigPubKey) {
 	t.drop = make(map[sigPubKey]int64)
 }
 
-func (t *switchTable) start() error {
-	doTicker := func() {
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-		for {
-			<-ticker.C
-			t.Tick()
-		}
-	}
-	go doTicker()
-	return nil
-}
-
 func (t *switchTable) getLocator() switchLocator {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
 	return t.data.locator.clone()
 }
 
-func (t *switchTable) Tick() {
+func (t *switchTable) doMaintenance() {
 	// Periodic maintenance work to keep things internally consistent
 	t.mutex.Lock()         // Write lock
 	defer t.mutex.Unlock() // Release lock when we're done

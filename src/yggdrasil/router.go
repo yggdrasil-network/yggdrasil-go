@@ -91,6 +91,7 @@ func (r *router) mainLoop() {
 		case <-ticker.C:
 			{
 				// Any periodic maintenance stuff goes here
+				r.core.switchTable.doMaintenance()
 				r.core.dht.doMaintenance()
 				util_getBytes() // To slowly drain things
 			}
