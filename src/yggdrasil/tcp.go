@@ -225,16 +225,20 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	}
 	go func() {
 		defer buf.Flush()
+		var shadow uint64
 		var stack [][]byte
 		put := func(msg []byte) {
 			stack = append(stack, msg)
 			for len(stack) > 32 {
 				util_putBytes(stack[0])
 				stack = stack[1:]
-				p.updateQueueSize(-1)
+				shadow++
 			}
 		}
 		for {
+			for ; shadow > 0; shadow-- {
+				p.updateQueueSize(-1)
+			}
 			select {
 			case msg := <-p.linkOut:
 				send(msg)
@@ -294,7 +298,7 @@ func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) {
 	bs := make([]byte, 2*tcp_msgSize)
 	frag := bs[:0]
 	for {
-		timeout := time.Now().Add(6 * time.Second)
+		timeout := time.Now().Add(2 * time.Minute)
 		sock.SetReadDeadline(timeout)
 		n, err := sock.Read(bs[len(frag):])
 		if err != nil || n == 0 {
