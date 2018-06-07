@@ -520,9 +520,15 @@ func dht_firstCloserThanThird(first *NodeID,
 
 func (t *dht) reset() {
 	// This is mostly so bootstrapping will reset to resend coords into the network
+	t.offset = 0
+	t.rumorMill = nil // reset mill
 	for _, b := range t.buckets_hidden {
 		b.peers = b.peers[:0]
+		for _, info := range b.other {
+			// Add other nodes to the rumor mill so they'll be pinged soon
+			// This will hopefully tell them our coords and re-learn theirs quickly if they haven't changed
+			t.addToMill(info, info.getNodeID())
+		}
 		b.other = b.other[:0]
 	}
-	t.offset = 0
 }
