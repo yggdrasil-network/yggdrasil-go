@@ -319,7 +319,6 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 		panic("FIXME testing")
 		return
 	}
-	var info switchMessage
 	var loc switchLocator
 	prevKey := msg.Root
 	for idx, hop := range msg.Hops {
@@ -335,7 +334,7 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 		}
 		prevKey = hop.Next
 	}
-	p.core.switchTable.handleMsg(&msg, &info, p.port)
+	p.core.switchTable.handleMsg(&msg, p.port)
 	// Pass a mesage to the dht informing it that this peer (still) exists
 	loc.coords = loc.coords[:len(loc.coords)-1]
 	dinfo := dhtInfo{
