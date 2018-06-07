@@ -347,11 +347,9 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 }
 
 func getBytesForSig(next *sigPubKey, loc *switchLocator) []byte {
-	//bs, err := wire_encode_locator(loc)
-	//if err != nil { panic(err) }
 	bs := append([]byte(nil), next[:]...)
-	bs = append(bs, wire_encode_locator(loc)...)
-	//bs := wire_encode_locator(loc)
-	//bs = append(next[:], bs...)
+	bs = append(bs, loc.root[:]...)
+	bs = append(bs, wire_encode_uint64(wire_intToUint(loc.tstamp))...)
+	bs = append(bs, wire_encode_coords(loc.getCoords())...)
 	return bs
 }

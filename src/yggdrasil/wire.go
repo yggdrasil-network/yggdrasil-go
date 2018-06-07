@@ -170,17 +170,6 @@ func (m *switchMsg) decode(bs []byte) bool {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Format used to check signatures only, so no need to also support decoding
-// TODO something else for signatures
-func wire_encode_locator(loc *switchLocator) []byte {
-	coords := wire_encode_coords(loc.getCoords())
-	var bs []byte
-	bs = append(bs, loc.root[:]...)
-	bs = append(bs, wire_encode_uint64(wire_intToUint(loc.tstamp))...)
-	bs = append(bs, coords...)
-	return bs
-}
-
 func wire_chop_slice(toSlice []byte, fromSlice *[]byte) bool {
 	if len(*fromSlice) < len(toSlice) {
 		return false
