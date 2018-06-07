@@ -294,18 +294,11 @@ func (p *peer) handleLinkTraffic(bs []byte) {
 }
 
 func (p *peer) sendSwitchMsg() {
-	info, sigs := p.core.switchTable.createMessage(p.port)
-	var msg switchMsg
-	msg.Root, msg.TStamp = info.locator.root, info.locator.tstamp
-	for idx, sig := range sigs {
-		hop := switchMsgHop{
-			Port: info.locator.coords[idx],
-			Next: sig.next,
-			Sig:  sig.sig,
-		}
-		msg.Hops = append(msg.Hops, hop)
+	msg := p.core.switchTable.getMsg()
+	if msg == nil {
+		return
 	}
-	bs := getBytesForSig(&p.sig, &info.locator)
+	bs := getBytesForSig(&p.sig, msg)
 	msg.Hops = append(msg.Hops, switchMsgHop{
 		Port: p.port,
 		Next: p.sig,
@@ -313,6 +306,7 @@ func (p *peer) sendSwitchMsg() {
 	})
 	packet := msg.encode()
 	//p.core.log.Println("Encoded msg:", msg, "; bytes:", packet)
+	//fmt.Println("Encoded msg:", msg, "; bytes:", packet)
 	p.sendLinkPacket(packet)
 }
 
@@ -326,44 +320,40 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 		return
 	}
 	var info switchMessage
-	var sigs []sigInfo
-	info.locator.root = msg.Root
-	info.locator.tstamp = msg.TStamp
+	var loc switchLocator
 	prevKey := msg.Root
-	for _, hop := range msg.Hops {
-		// Build locator and signatures
-		var sig sigInfo
-		sig.next = hop.Next
-		sig.sig = hop.Sig
-		sigs = append(sigs, sig)
-		info.locator.coords = append(info.locator.coords, hop.Port)
-		// Check signature
-		bs := getBytesForSig(&sig.next, &info.locator)
-		if !p.core.sigs.check(&prevKey, &sig.sig, bs) {
+	for idx, hop := range msg.Hops {
+		// Check signatures and collect coords for dht
+		sigMsg := msg
+		sigMsg.Hops = msg.Hops[:idx]
+		loc.coords = append(loc.coords, hop.Port)
+		bs := getBytesForSig(&hop.Next, &sigMsg)
+		if !p.core.sigs.check(&prevKey, &hop.Sig, bs) {
 			p.throttle++
 			panic("FIXME testing")
 			return
 		}
-		prevKey = sig.next
+		prevKey = hop.Next
 	}
-	info.from = p.sig
-	info.seq = uint64(time.Now().Unix())
-	p.core.switchTable.handleMessage(&info, p.port, sigs)
+	p.core.switchTable.handleMsg(&msg, &info, p.port)
 	// Pass a mesage to the dht informing it that this peer (still) exists
-	l := info.locator
-	l.coords = l.coords[:len(l.coords)-1]
+	loc.coords = loc.coords[:len(loc.coords)-1]
 	dinfo := dhtInfo{
 		key:    p.box,
-		coords: l.getCoords(),
+		coords: loc.getCoords(),
 	}
 	p.core.dht.peers <- &dinfo
 	p.dinfo = &dinfo
 }
 
-func getBytesForSig(next *sigPubKey, loc *switchLocator) []byte {
+func getBytesForSig(next *sigPubKey, msg *switchMsg) []byte {
+	var loc switchLocator
+	for _, hop := range msg.Hops {
+		loc.coords = append(loc.coords, hop.Port)
+	}
 	bs := append([]byte(nil), next[:]...)
-	bs = append(bs, loc.root[:]...)
-	bs = append(bs, wire_encode_uint64(wire_intToUint(loc.tstamp))...)
+	bs = append(bs, msg.Root[:]...)
+	bs = append(bs, wire_encode_uint64(wire_intToUint(msg.TStamp))...)
 	bs = append(bs, wire_encode_coords(loc.getCoords())...)
 	return bs
 }

@@ -118,6 +118,7 @@ type peerInfo struct {
 	firstSeen time.Time
 	port      switchPort // Interface number of this peer
 	seq       uint64     // Seq number we last saw this peer advertise
+	smsg      switchMsg  // The wire switchMsg used
 }
 
 type switchMessage struct {
@@ -144,6 +145,7 @@ type switchData struct {
 	seq     uint64 // Sequence number, reported to peers, so they know about changes
 	peers   map[switchPort]peerInfo
 	sigs    []sigInfo
+	msg     *switchMsg
 }
 
 type switchTable struct {
@@ -251,11 +253,58 @@ func (t *switchTable) createMessage(port switchPort) (*switchMessage, []sigInfo)
 	return &msg, t.data.sigs
 }
 
-func (t *switchTable) handleMessage(msg *switchMessage, fromPort switchPort, sigs []sigInfo) {
+type switchMsg struct {
+	Root   sigPubKey
+	TStamp int64
+	Hops   []switchMsgHop
+}
+
+type switchMsgHop struct {
+	Port switchPort
+	Next sigPubKey
+	Sig  sigBytes
+}
+
+func (t *switchTable) getMsg() *switchMsg {
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
+	if t.parent == 0 {
+		return &switchMsg{Root: t.key, TStamp: t.data.locator.tstamp}
+	} else if parent, isIn := t.data.peers[t.parent]; isIn {
+		msg := parent.smsg
+		msg.Hops = append([]switchMsgHop(nil), msg.Hops...)
+		return &msg
+	} else {
+		return nil
+	}
+}
+
+func (t *switchTable) handleMsg(smsg *switchMsg, xmsg *switchMessage, fromPort switchPort) {
 	// TODO directly use a switchMsg instead of switchMessage + sigs
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	now := time.Now()
+
+	//*
+	var msg switchMessage
+	var sigs []sigInfo
+	msg.locator.root = smsg.Root
+	msg.locator.tstamp = smsg.TStamp
+	msg.from = smsg.Root
+	prevKey := msg.from
+	for _, hop := range smsg.Hops {
+		// Build locator and signatures
+		var sig sigInfo
+		sig.next = hop.Next
+		sig.sig = hop.Sig
+		sigs = append(sigs, sig)
+		msg.locator.coords = append(msg.locator.coords, hop.Port)
+		msg.from = prevKey
+		prevKey = hop.Next
+	}
+	msg.seq = uint64(now.Unix())
+	//*/
+
 	if len(msg.locator.coords) == 0 {
 		return
 	} // Should always have >=1 links
@@ -269,7 +318,8 @@ func (t *switchTable) handleMessage(msg *switchMessage, fromPort switchPort, sig
 		time:      now,
 		firstSeen: oldSender.firstSeen,
 		port:      fromPort,
-		seq:       msg.seq}
+		seq:       msg.seq,
+		smsg:      *smsg}
 	equiv := func(x *switchLocator, y *switchLocator) bool {
 		if x.root != y.root {
 			return false

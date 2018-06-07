@@ -115,18 +115,6 @@ func wire_decode_coords(packet []byte) ([]byte, int) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type switchMsg struct {
-	Root   sigPubKey
-	TStamp int64
-	Hops   []switchMsgHop
-}
-
-type switchMsgHop struct {
-	Port switchPort
-	Next sigPubKey
-	Sig  sigBytes
-}
-
 func (m *switchMsg) encode() []byte {
 	bs := wire_encode_uint64(wire_SwitchMsg)
 	bs = append(bs, m.Root[:]...)
