@@ -36,6 +36,7 @@ type dhtInfo struct {
 	send          time.Time // When we last sent a message
 	recv          time.Time // When we last received a message
 	pings         int       // Decide when to drop
+	throttle      uint8     // Number of seconds to wait before pinging a node to bootstrap buckets, gradually increases up to 1 minute
 }
 
 func (info *dhtInfo) getNodeID() *NodeID {
@@ -116,10 +117,11 @@ func (t *dht) handleRes(res *dhtRes) {
 		return
 	}
 	rinfo := dhtInfo{
-		key:    res.Key,
-		coords: res.Coords,
-		send:   time.Now(), // Technically wrong but should be OK...
-		recv:   time.Now(),
+		key:      res.Key,
+		coords:   res.Coords,
+		send:     time.Now(), // Technically wrong but should be OK...
+		recv:     time.Now(),
+		throttle: 1,
 	}
 	// If they're already in the table, then keep the correct send time
 	bidx, isOK := t.getBucketIndex(rinfo.getNodeID())
@@ -130,11 +132,13 @@ func (t *dht) handleRes(res *dhtRes) {
 	for _, oldinfo := range b.peers {
 		if oldinfo.key == rinfo.key {
 			rinfo.send = oldinfo.send
+			rinfo.throttle += oldinfo.throttle
 		}
 	}
 	for _, oldinfo := range b.other {
 		if oldinfo.key == rinfo.key {
 			rinfo.send = oldinfo.send
+			rinfo.throttle += oldinfo.throttle
 		}
 	}
 	// Insert into table
@@ -230,6 +234,9 @@ func (t *dht) insert(info *dhtInfo, isPeer bool) {
 		// This is a new entry, give it an old age so it's pinged sooner
 		// This speeds up bootstrapping
 		info.recv = info.recv.Add(-time.Hour)
+	}
+	if isPeer || info.throttle > 60 {
+		info.throttle = 60
 	}
 	// First drop any existing entry from the bucket
 	b.drop(&info.key)
@@ -460,7 +467,7 @@ func (t *dht) doMaintenance() {
 		}
 		target := t.getTarget(t.offset)
 		for _, info := range t.lookup(target, true) {
-			if time.Since(info.recv) > time.Minute {
+			if time.Since(info.recv) > time.Duration(info.throttle)*time.Second {
 				t.addToMill(info, target)
 				t.offset++
 				break
