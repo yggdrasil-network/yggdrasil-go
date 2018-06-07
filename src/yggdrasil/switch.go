@@ -223,6 +223,9 @@ func (t *switchTable) removePeer(port switchPort) {
 	delete(t.data.peers, port)
 	t.updater.Store(&sync.Once{})
 	// TODO if parent, find a new peer to use as parent instead
+	for _, info := range t.data.peers {
+		t.unlockedHandleMsg(&info.msg, info.port)
+	}
 }
 
 func (t *switchTable) cleanDropped() {
@@ -261,9 +264,13 @@ func (t *switchTable) getMsg() *switchMsg {
 }
 
 func (t *switchTable) handleMsg(msg *switchMsg, fromPort switchPort) {
-	// TODO directly use a switchMsg instead of switchMessage + sigs
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
+	t.unlockedHandleMsg(msg, fromPort)
+}
+
+func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
+	// TODO directly use a switchMsg instead of switchMessage + sigs
 	now := time.Now()
 	// Set up the sender peerInfo
 	var sender peerInfo
@@ -433,6 +440,7 @@ func (t *switchTable) lookup(dest []byte, ttl uint64) (switchPort, uint64) {
 		}
 	}
 	//t.core.log.Println("DEBUG: sending to", best, "bandwidth", getBandwidth(best))
+	//t.core.log.Println("DEBUG: sending to", best, "cost", bestCost)
 	return best, uint64(myDist)
 }
 

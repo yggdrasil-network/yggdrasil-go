@@ -15,7 +15,6 @@ import "time"
 import "errors"
 import "sync"
 import "fmt"
-import "bufio"
 import "golang.org/x/net/proxy"
 
 const tcp_msgSize = 2048 + 65535 // TODO figure out what makes sense
@@ -215,16 +214,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	}
 	out := make(chan []byte, 32) // TODO? what size makes sense
 	defer close(out)
-	buf := bufio.NewWriterSize(sock, tcp_msgSize)
-	send := func(msg []byte) {
-		msgLen := wire_encode_uint64(uint64(len(msg)))
-		buf.Write(tcp_msg[:])
-		buf.Write(msgLen)
-		buf.Write(msg)
-		util_putBytes(msg)
-	}
 	go func() {
-		defer buf.Flush()
 		var shadow uint64
 		var stack [][]byte
 		put := func(msg []byte) {
@@ -235,11 +225,29 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 				shadow++
 			}
 		}
+		send := func(msg []byte) {
+			msgLen := wire_encode_uint64(uint64(len(msg)))
+			buf := net.Buffers{tcp_msg[:], msgLen, msg}
+			buf.WriteTo(sock)
+			util_putBytes(msg)
+		}
+		timerInterval := 4 * time.Second
+		timer := time.NewTimer(timerInterval)
+		defer timer.Stop()
 		for {
 			for ; shadow > 0; shadow-- {
 				p.updateQueueSize(-1)
 			}
+			timer.Stop()
 			select {
+			case <-timer.C:
+			default:
+			}
+			timer.Reset(timerInterval)
+			select {
+			case _ = <-timer.C:
+				//iface.core.log.Println("DEBUG: sending keep-alive:", sock.RemoteAddr().String())
+				send(nil) // TCP keep-alive traffic
 			case msg := <-p.linkOut:
 				send(msg)
 			case msg, ok := <-out:
@@ -264,7 +272,6 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 					p.updateQueueSize(-1)
 				}
 			}
-			buf.Flush()
 		}
 	}()
 	p.out = func(msg []byte) {
@@ -298,7 +305,7 @@ func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) {
 	bs := make([]byte, 2*tcp_msgSize)
 	frag := bs[:0]
 	for {
-		timeout := time.Now().Add(2 * time.Minute)
+		timeout := time.Now().Add(6 * time.Second)
 		sock.SetReadDeadline(timeout)
 		n, err := sock.Read(bs[len(frag):])
 		if err != nil || n == 0 {
