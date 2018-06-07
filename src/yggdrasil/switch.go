@@ -181,7 +181,6 @@ func (t *switchTable) doMaintenance() {
 	t.mutex.Lock()         // Write lock
 	defer t.mutex.Unlock() // Release lock when we're done
 	t.cleanRoot()
-	t.cleanPeers()
 	t.cleanDropped()
 }
 
@@ -227,19 +226,9 @@ func (t *switchTable) cleanRoot() {
 	}
 }
 
-func (t *switchTable) cleanPeers() {
-	now := time.Now()
-	changed := false
-	for idx, info := range t.data.peers {
-		if info.port != switchPort(0) && now.Sub(info.time) > 6*time.Second /*switch_timeout*/ {
-			//fmt.Println("peer timed out", t.key, info.locator)
-			delete(t.data.peers, idx)
-			changed = true
-		}
-	}
-	if changed {
-		t.updater.Store(&sync.Once{})
-	}
+func (t *switchTable) removePeer(port switchPort) {
+	delete(t.data.peers, port)
+	t.updater.Store(&sync.Once{})
 }
 
 func (t *switchTable) cleanDropped() {

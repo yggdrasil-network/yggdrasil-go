@@ -279,7 +279,6 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	defer func() {
 		// Put all of our cleanup here...
 		p.core.peers.removePeer(p.port)
-		close(p.linkIn)
 	}()
 	them, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
 	themNodeID := getNodeID(&info.box)

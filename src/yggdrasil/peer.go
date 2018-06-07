@@ -150,6 +150,9 @@ func (ps *peers) removePeer(port switchPort) {
 	if port == 0 {
 		return
 	} // Can't remove self peer
+	ps.core.router.doAdmin(func() {
+		ps.core.switchTable.removePeer(port)
+	})
 	ps.mutex.Lock()
 	oldPorts := ps.getPorts()
 	p, isIn := oldPorts[port]
@@ -160,8 +163,11 @@ func (ps *peers) removePeer(port switchPort) {
 	delete(newPorts, port)
 	ps.putPorts(newPorts)
 	ps.mutex.Unlock()
-	if isIn && p.close != nil {
-		p.close()
+	if isIn {
+		if p.close != nil {
+			p.close()
+		}
+		close(p.linkIn)
 	}
 }
 
