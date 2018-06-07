@@ -100,13 +100,11 @@ type peer struct {
 	core *Core
 	port switchPort
 	// This is used to limit how often we perform expensive operations
-	//  Specifically, processing switch messages, signing, and verifying sigs
-	//  Resets at the start of each tick
-	throttle uint8
+	throttle uint8 // TODO apply this sanely
 	// Called when a peer is removed, to close the underlying connection, or via admin api
 	close func()
 	// To allow the peer to call close if idle for too long
-	lastAnc time.Time
+	lastAnc time.Time // TODO? rename and use this
 	// used for protocol traffic (to bypass queues)
 	linkIn  (chan []byte) // handlePacket sends, linkLoop recvs
 	linkOut (chan []byte)
@@ -149,7 +147,6 @@ func (ps *peers) newPeer(box *boxPubKey, sig *sigPubKey) *peer {
 }
 
 func (ps *peers) removePeer(port switchPort) {
-	// TODO? store linkIn in the peer struct, close it here? (once)
 	if port == 0 {
 		return
 	} // Can't remove self peer
@@ -181,6 +178,7 @@ func (p *peer) linkLoop() {
 		case <-ticker.C:
 			if time.Since(p.lastAnc) > 16*time.Second && p.close != nil {
 				// Seems to have timed out, try to trigger a close
+				// FIXME this depends on lastAnc or something equivalent being updated
 				p.close()
 			}
 			p.throttle = 0
@@ -215,7 +213,7 @@ func (p *peer) handlePacket(packet []byte) {
 func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
 	//if p.port != 0 && p.msgAnc == nil {
 	//	// Drop traffic until the peer manages to send us at least one anc
-	//  // TODO? equivalent for new switch format?
+	//  // TODO equivalent for new switch format, maybe add some bool flag?
 	//	return
 	//}
 	ttl, ttlLen := wire_decode_uint64(packet[pTypeLen:])
@@ -294,14 +292,13 @@ func (p *peer) sendSwitchMsg() {
 		}
 		msg.Hops = append(msg.Hops, hop)
 	}
+	bs := getBytesForSig(&p.sig, &info.locator)
 	msg.Hops = append(msg.Hops, switchMsgHop{
 		Port: p.port,
 		Next: p.sig,
-		Sig:  *sign(&p.core.sigPriv, getBytesForSig(&p.sig, &info.locator)),
+		Sig:  *sign(&p.core.sigPriv, bs),
 	})
 	packet := msg.encode()
-	var test switchMsg
-	test.decode(packet)
 	//p.core.log.Println("Encoded msg:", msg, "; bytes:", packet)
 	p.sendLinkPacket(packet)
 }
@@ -319,21 +316,22 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 	var sigs []sigInfo
 	info.locator.root = msg.Root
 	info.locator.tstamp = msg.TStamp
-	thisHopKey := &msg.Root
+	prevKey := msg.Root
 	for _, hop := range msg.Hops {
+		// Build locator and signatures
 		var sig sigInfo
 		sig.next = hop.Next
 		sig.sig = hop.Sig
 		sigs = append(sigs, sig)
 		info.locator.coords = append(info.locator.coords, hop.Port)
-		// TODO check signatures
-		bs := getBytesForSig(&hop.Next, &info.locator)
-		if !p.core.sigs.check(thisHopKey, &hop.Sig, bs) {
-			//p.throttle++
-			//panic("FIXME testing")
-			//return
+		// Check signature
+		bs := getBytesForSig(&sig.next, &info.locator)
+		if !p.core.sigs.check(&prevKey, &sig.sig, bs) {
+			p.throttle++
+			panic("FIXME testing")
+			return
 		}
-		thisHopKey = &hop.Next
+		prevKey = sig.next
 	}
 	info.from = p.sig
 	info.seq = uint64(time.Now().Unix())
