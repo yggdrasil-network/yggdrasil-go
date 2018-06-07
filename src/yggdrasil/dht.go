@@ -81,7 +81,7 @@ type dht struct {
 func (t *dht) init(c *Core) {
 	t.core = c
 	t.nodeID = *t.core.GetNodeID()
-	t.peers = make(chan *dhtInfo, 1)
+	t.peers = make(chan *dhtInfo, 1024)
 	t.reqs = make(map[boxPubKey]map[NodeID]time.Time)
 }
 

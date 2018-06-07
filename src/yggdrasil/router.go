@@ -93,6 +93,7 @@ func (r *router) mainLoop() {
 				// Any periodic maintenance stuff goes here
 				r.core.switchTable.doMaintenance()
 				r.core.dht.doMaintenance()
+				//r.core.peers.fixSwitchAfterPeerDisconnect() // FIXME makes sure dht peers get added quickly
 				util_getBytes() // To slowly drain things
 			}
 		case f := <-r.admin:

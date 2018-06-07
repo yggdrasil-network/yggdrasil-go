@@ -230,7 +230,7 @@ func (t *switchTable) cleanRoot() {
 func (t *switchTable) removePeer(port switchPort) {
 	delete(t.data.peers, port)
 	t.updater.Store(&sync.Once{})
-	t.core.peers.fixSwitchAfterPeerDisconnect()
+	// TODO if parent, find a new peer to use as parent instead
 }
 
 func (t *switchTable) cleanDropped() {
@@ -287,6 +287,7 @@ func (t *switchTable) handleMessage(msg *switchMessage, fromPort switchPort, sig
 	doUpdate := false
 	if !equiv(&msg.locator, &oldSender.locator) {
 		doUpdate = true
+		//sender.firstSeen = now // TODO? uncomment to prevent flapping?
 	}
 	t.data.peers[fromPort] = sender
 	updateRoot := false

@@ -107,8 +107,8 @@ type peer struct {
 	lastAnc time.Time // TODO? rename and use this
 	// used for protocol traffic (to bypass queues)
 	linkOut (chan []byte)
-	lastMsg []byte          // last switchMsg accepted
 	doSend  (chan struct{}) // tell the linkLoop to send a switchMsg
+	dinfo   *dhtInfo        // used to keep the DHT working
 }
 
 const peer_Throttle = 1
@@ -186,21 +186,22 @@ func (ps *peers) sendSwitchMsgs() {
 	}
 }
 
-func (ps *peers) fixSwitchAfterPeerDisconnect() {
-	// TODO something better, this is very wasteful
-	ports := ps.getPorts()
-	for _, p := range ports {
-		if p.lastMsg == nil {
-			continue
-		}
-		p.handleSwitchMsg(p.lastMsg)
-	}
-}
-
 func (p *peer) linkLoop() {
 	go func() { p.doSend <- struct{}{} }()
-	for range p.doSend {
-		p.sendSwitchMsg()
+	tick := time.NewTicker(time.Second)
+	defer tick.Stop()
+	for {
+		select {
+		case _, ok := <-p.doSend:
+			if !ok {
+				return
+			}
+			p.sendSwitchMsg()
+		case _ = <-tick.C:
+			if p.dinfo != nil {
+				p.core.dht.peers <- p.dinfo
+			}
+		}
 	}
 }
 
@@ -224,7 +225,7 @@ func (p *peer) handlePacket(packet []byte) {
 }
 
 func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
-	if p.port != 0 && p.lastMsg == nil {
+	if p.port != 0 && p.dinfo == nil {
 		// Drop traffic until the peer manages to send us at least one good switchMsg
 		return
 	}
@@ -356,7 +357,7 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 		coords: l.getCoords(),
 	}
 	p.core.dht.peers <- &dinfo
-	p.lastMsg = packet
+	p.dinfo = &dinfo
 }
 
 func getBytesForSig(next *sigPubKey, loc *switchLocator) []byte {
