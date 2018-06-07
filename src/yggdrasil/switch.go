@@ -223,12 +223,14 @@ func (t *switchTable) cleanRoot() {
 		}
 		t.data.locator = switchLocator{root: t.key, tstamp: now.Unix()}
 		t.data.sigs = nil
+		t.core.peers.sendSwitchMsgs()
 	}
 }
 
 func (t *switchTable) removePeer(port switchPort) {
 	delete(t.data.peers, port)
 	t.updater.Store(&sync.Once{})
+	t.core.peers.fixSwitchAfterPeerDisconnect()
 }
 
 func (t *switchTable) cleanDropped() {
@@ -250,6 +252,7 @@ func (t *switchTable) createMessage(port switchPort) (*switchMessage, []sigInfo)
 }
 
 func (t *switchTable) handleMessage(msg *switchMessage, fromPort switchPort, sigs []sigInfo) {
+	// TODO directly use a switchMsg instead of switchMessage + sigs
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	now := time.Now()
@@ -344,6 +347,7 @@ func (t *switchTable) handleMessage(msg *switchMessage, fromPort switchPort, sig
 		t.parent = sender.port
 		t.data.sigs = sigs
 		//t.core.log.Println("Switch update:", msg.Locator.Root, msg.Locator.Tstamp, msg.Locator.Coords)
+		t.core.peers.sendSwitchMsgs()
 	}
 	if doUpdate {
 		t.updater.Store(&sync.Once{})
