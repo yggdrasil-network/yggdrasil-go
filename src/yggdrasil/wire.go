@@ -12,6 +12,7 @@ const (
 	wire_Traffic             = iota // data being routed somewhere, handle for crypto
 	wire_ProtocolTraffic            // protocol traffic, pub keys for crypto
 	wire_LinkProtocolTraffic        // link proto traffic, pub keys for crypto
+	wire_SwitchMsg                  // inside link protocol traffic header
 	wire_SwitchAnnounce             // inside protocol traffic header
 	wire_SwitchHopRequest           // inside protocol traffic header
 	wire_SwitchHop                  // inside protocol traffic header
@@ -113,6 +114,61 @@ func wire_decode_coords(packet []byte) ([]byte, int) {
 		return nil, 0
 	}
 	return packet[coordBegin:coordEnd], coordEnd
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type switchMsg struct {
+	Root   sigPubKey
+	TStamp int64
+	Hops   []switchMsgHop
+}
+
+type switchMsgHop struct {
+	Port switchPort
+	Next sigPubKey
+	Sig  sigBytes
+}
+
+func (m *switchMsg) encode() []byte {
+	bs := wire_encode_uint64(wire_SwitchMsg)
+	bs = append(bs, m.Root[:]...)
+	bs = append(bs, wire_encode_uint64(wire_intToUint(m.TStamp))...)
+	for _, hop := range m.Hops {
+		bs = append(bs, wire_encode_uint64(uint64(hop.Port))...)
+		bs = append(bs, hop.Next[:]...)
+		bs = append(bs, hop.Sig[:]...)
+	}
+	return bs
+}
+
+func (m *switchMsg) decode(bs []byte) bool {
+	var pType uint64
+	var tstamp uint64
+	switch {
+	case !wire_chop_uint64(&pType, &bs):
+		return false
+	case pType != wire_SwitchMsg:
+		return false
+	case !wire_chop_slice(m.Root[:], &bs):
+		return false
+	case !wire_chop_uint64(&tstamp, &bs):
+		return false
+	}
+	m.TStamp = wire_intFromUint(tstamp)
+	for len(bs) > 0 {
+		var hop switchMsgHop
+		switch {
+		case !wire_chop_uint64((*uint64)(&hop.Port), &bs):
+			return false
+		case !wire_chop_slice(hop.Next[:], &bs):
+			return false
+		case !wire_chop_slice(hop.Sig[:], &bs):
+			return false
+		}
+		m.Hops = append(m.Hops, hop)
+	}
+	return true
 }
 
 ////////////////////////////////////////////////////////////////////////////////
