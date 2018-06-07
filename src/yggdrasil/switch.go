@@ -9,7 +9,7 @@ package yggdrasil
 // TODO document/comment everything in a lot more detail
 
 // TODO? use a pre-computed lookup table (python version had this)
-//  A little annoying to do with constant changes from bandwidth estimates
+//  A little annoying to do with constant changes from backpressure
 
 import "time"
 import "sort"
