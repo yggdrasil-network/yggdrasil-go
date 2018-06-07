@@ -287,7 +287,9 @@ func (p *peer) sendSwitchMsg() {
 
 func (p *peer) handleSwitchMsg(packet []byte) {
 	var msg switchMsg
-	msg.decode(packet)
+	if !msg.decode(packet) {
+		return
+	}
 	//p.core.log.Println("Decoded msg:", msg, "; bytes:", packet)
 	if len(msg.Hops) < 1 {
 		panic("FIXME testing")
