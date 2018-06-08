@@ -207,6 +207,10 @@ func testPaths(store map[[32]byte]*Node) bool {
 					// This is sufficient to check for routing loops or blackholes
 					//break
 				}
+				if here == next {
+					fmt.Println("Drop2:", source.index, here.index, dest.index, oldTTL)
+					return false
+				}
 				here = next
 			}
 		}

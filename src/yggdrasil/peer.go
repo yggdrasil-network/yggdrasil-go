@@ -204,15 +204,14 @@ func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
 		// Drop traffic until the peer manages to send us at least one good switchMsg
 		return
 	}
-	ttl, ttlLen := wire_decode_uint64(packet[pTypeLen:])
-	ttlBegin := pTypeLen
+	_, ttlLen := wire_decode_uint64(packet[pTypeLen:])
 	ttlEnd := pTypeLen + ttlLen
 	coords, coordLen := wire_decode_coords(packet[ttlEnd:])
 	coordEnd := ttlEnd + coordLen
 	if coordEnd == len(packet) {
 		return
 	} // No payload
-	toPort, newTTL := p.core.switchTable.lookup(coords, ttl)
+	toPort, _ := p.core.switchTable.lookup(coords, 0)
 	if toPort == p.port {
 		return
 	}
@@ -220,13 +219,6 @@ func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
 	if to == nil {
 		return
 	}
-	// This mutates the packet in-place if the length of the TTL changes!
-	ttlSlice := wire_encode_uint64(newTTL)
-	newTTLLen := len(ttlSlice)
-	shift := ttlLen - newTTLLen
-	copy(packet[shift:], packet[:pTypeLen])
-	copy(packet[ttlBegin+shift:], ttlSlice)
-	packet = packet[shift:]
 	to.sendPacket(packet)
 }
 

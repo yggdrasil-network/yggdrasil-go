@@ -418,6 +418,9 @@ func (t *switchTable) lookup(dest []byte, ttl uint64) (switchPort, uint64) {
 	table := t.table.Load().(lookupTable)
 	myDist := table.self.dist(dest) //getDist(table.self.coords)
 	if !(uint64(myDist) < ttl) {
+		//return 0, 0
+	}
+	if myDist == 0 {
 		return 0, 0
 	}
 	// cost is in units of (expected distance) + (expected queue size), where expected distance is used as an approximation of the minimum backpressure gradient needed for packets to flow
@@ -441,7 +444,7 @@ func (t *switchTable) lookup(dest []byte, ttl uint64) (switchPort, uint64) {
 	}
 	//t.core.log.Println("DEBUG: sending to", best, "bandwidth", getBandwidth(best))
 	//t.core.log.Println("DEBUG: sending to", best, "cost", bestCost)
-	return best, uint64(myDist)
+	return best, ttl //uint64(myDist)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
