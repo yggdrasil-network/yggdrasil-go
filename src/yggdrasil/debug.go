@@ -64,11 +64,10 @@ func (c *Core) DEBUG_getPeers() *peers {
 	return &c.peers
 }
 
-func (ps *peers) DEBUG_newPeer(box boxPubKey,
-	sig sigPubKey) *peer {
+func (ps *peers) DEBUG_newPeer(box boxPubKey, sig sigPubKey, link boxSharedKey) *peer {
 	//in <-chan []byte,
 	//out chan<- []byte) *peer {
-	return ps.newPeer(&box, &sig) //, in, out)
+	return ps.newPeer(&box, &sig, &link) //, in, out)
 }
 
 /*
@@ -273,6 +272,10 @@ func (c *Core) DEBUG_stopTun() {
 
 func (c *Core) DEBUG_newBoxKeys() (*boxPubKey, *boxPrivKey) {
 	return newBoxKeys()
+}
+
+func (c *Core) DEBUG_getSharedKey(myPrivKey *boxPrivKey, othersPubKey *boxPubKey) *boxSharedKey {
+	return getSharedKey(myPrivKey, othersPubKey)
 }
 
 func (c *Core) DEBUG_newSigKeys() (*sigPubKey, *sigPrivKey) {

@@ -141,10 +141,12 @@ func (iface *tcpInterface) call(saddr string) {
 func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	defer sock.Close()
 	// Get our keys
+	myLinkPub, myLinkPriv := newBoxKeys() // ephemeral link keys
 	keys := []byte{}
 	keys = append(keys, tcp_key[:]...)
 	keys = append(keys, iface.core.boxPub[:]...)
 	keys = append(keys, iface.core.sigPub[:]...)
+	keys = append(keys, myLinkPub[:]...)
 	_, err := sock.Write(keys)
 	if err != nil {
 		return
@@ -158,8 +160,9 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	if n < len(keys) { /*panic("Partial key packet?") ;*/
 		return
 	}
-	info := tcpInfo{}
-	if !tcp_chop_keys(&info.box, &info.sig, &keys) { /*panic("Invalid key packet?") ;*/
+	info := tcpInfo{} // used as a map key, so don't include ephemeral link eys
+	var theirLinkPub boxPubKey
+	if !tcp_chop_keys(&info.box, &info.sig, &theirLinkPub, &keys) { /*panic("Invalid key packet?") ;*/
 		return
 	}
 	// Quit the parent call if this is a connection to ourself
@@ -207,7 +210,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	}()
 	// Note that multiple connections to the same node are allowed
 	//  E.g. over different interfaces
-	p := iface.core.peers.newPeer(&info.box, &info.sig)
+	p := iface.core.peers.newPeer(&info.box, &info.sig, getSharedKey(myLinkPriv, &theirLinkPub))
 	p.linkOut = make(chan []byte, 1)
 	in := func(bs []byte) {
 		p.handlePacket(bs)
@@ -336,10 +339,10 @@ func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) {
 var tcp_key = [...]byte{'k', 'e', 'y', 's'}
 var tcp_msg = [...]byte{0xde, 0xad, 0xb1, 0x75} // "dead bits"
 
-func tcp_chop_keys(box *boxPubKey, sig *sigPubKey, bs *[]byte) bool {
+func tcp_chop_keys(box *boxPubKey, sig *sigPubKey, link *boxPubKey, bs *[]byte) bool {
 	// This one is pretty simple: we know how long the message should be
 	// So don't call this with a message that's too short
-	if len(*bs) < len(tcp_key)+len(*box)+len(*sig) {
+	if len(*bs) < len(tcp_key)+2*len(*box)+len(*sig) {
 		return false
 	}
 	for idx := range tcp_key {
@@ -351,6 +354,8 @@ func tcp_chop_keys(box *boxPubKey, sig *sigPubKey, bs *[]byte) bool {
 	copy(box[:], *bs)
 	(*bs) = (*bs)[len(box):]
 	copy(sig[:], *bs)
+	(*bs) = (*bs)[len(sig):]
+	copy(link[:], *bs)
 	(*bs) = (*bs)[len(sig):]
 	return true
 }
