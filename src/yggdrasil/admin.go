@@ -175,7 +175,7 @@ func (a *admin) init(c *Core, listenaddr string) {
 	})
 	a.addHandler("getMulticastInterfaces", []string{}, func(in admin_info) (admin_info, error) {
 		var intfs []string
-		for _, v := range a.core.multicast.interfaces {
+		for _, v := range a.core.multicast.interfaces() {
 			intfs = append(intfs, v.Name)
 		}
 		return admin_info{"multicast_interfaces": intfs}, nil

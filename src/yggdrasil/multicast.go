@@ -7,10 +7,9 @@ import "fmt"
 import "golang.org/x/net/ipv6"
 
 type multicast struct {
-	core       *Core
-	sock       *ipv6.PacketConn
-	groupAddr  string
-	interfaces []net.Interface
+	core      *Core
+	sock      *ipv6.PacketConn
+	groupAddr string
 }
 
 func (m *multicast) init(core *Core) {
@@ -21,31 +20,7 @@ func (m *multicast) init(core *Core) {
 		return
 	}
 	// Ask the system for network interfaces
-	allifaces, err := net.Interfaces()
-	if err != nil {
-		panic(err)
-	}
-	// Work out which interfaces to announce on
-	for _, iface := range allifaces {
-		if iface.Flags&net.FlagUp == 0 {
-			// Ignore interfaces that are down
-			continue
-		}
-		if iface.Flags&net.FlagMulticast == 0 {
-			// Ignore non-multicast interfaces
-			continue
-		}
-		if iface.Flags&net.FlagPointToPoint != 0 {
-			// Ignore point-to-point interfaces
-			continue
-		}
-		for _, expr := range m.core.ifceExpr {
-			if expr.MatchString(iface.Name) {
-				m.interfaces = append(m.interfaces, iface)
-			}
-		}
-	}
-	m.core.log.Println("Found", len(m.interfaces), "multicast interface(s)")
+	m.core.log.Println("Found", len(m.interfaces()), "multicast interface(s)")
 }
 
 func (m *multicast) start() error {
@@ -75,6 +50,36 @@ func (m *multicast) start() error {
 	return nil
 }
 
+func (m *multicast) interfaces() []net.Interface {
+	// Ask the system for network interfaces
+	var interfaces []net.Interface
+	allifaces, err := net.Interfaces()
+	if err != nil {
+		panic(err)
+	}
+	// Work out which interfaces to announce on
+	for _, iface := range allifaces {
+		if iface.Flags&net.FlagUp == 0 {
+			// Ignore interfaces that are down
+			continue
+		}
+		if iface.Flags&net.FlagMulticast == 0 {
+			// Ignore non-multicast interfaces
+			continue
+		}
+		if iface.Flags&net.FlagPointToPoint != 0 {
+			// Ignore point-to-point interfaces
+			continue
+		}
+		for _, expr := range m.core.ifceExpr {
+			if expr.MatchString(iface.Name) {
+				interfaces = append(interfaces, iface)
+			}
+		}
+	}
+	return interfaces
+}
+
 func (m *multicast) announce() {
 	groupAddr, err := net.ResolveUDPAddr("udp6", m.groupAddr)
 	if err != nil {
@@ -88,7 +93,7 @@ func (m *multicast) announce() {
 		panic(err)
 	}
 	for {
-		for _, iface := range m.interfaces {
+		for _, iface := range m.interfaces() {
 			m.sock.JoinGroup(&iface, groupAddr)
 			//err := n.sock.JoinGroup(&iface, groupAddr)
 			//if err != nil { panic(err) }
