@@ -162,7 +162,9 @@ func testPaths(store map[[32]byte]*Node) bool {
 			for here := source; here != dest; {
 				temp++
 				if temp > 4096 {
-					panic("Loop?")
+					fmt.Println("Loop?")
+					time.Sleep(time.Second)
+					return false
 				}
 				nextPort := here.core.DEBUG_switchLookup(coords)
 				// First check if "here" is accepting packets from the previous node
@@ -195,7 +197,7 @@ func testPaths(store map[[32]byte]*Node) bool {
 						source.index, source.core.DEBUG_getLocator(),
 						here.index, here.core.DEBUG_getLocator(),
 						dest.index, dest.core.DEBUG_getLocator())
-					here.core.DEBUG_getSwitchTable().DEBUG_dumpTable()
+					//here.core.DEBUG_getSwitchTable().DEBUG_dumpTable()
 				}
 				if here != source {
 					// This is sufficient to check for routing loops or blackholes
