@@ -281,7 +281,6 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 	}
 	//p.core.log.Println("Decoded msg:", msg, "; bytes:", packet)
 	if len(msg.Hops) < 1 {
-		panic("FIXME testing")
 		p.core.peers.removePeer(p.port)
 	}
 	var loc switchLocator
@@ -293,7 +292,6 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 		loc.coords = append(loc.coords, hop.Port)
 		bs := getBytesForSig(&hop.Next, &sigMsg)
 		if !p.core.sigs.check(&prevKey, &hop.Sig, bs) {
-			panic("FIXME testing")
 			p.core.peers.removePeer(p.port)
 		}
 		prevKey = hop.Next
