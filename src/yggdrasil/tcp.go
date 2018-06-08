@@ -15,7 +15,6 @@ import "time"
 import "errors"
 import "sync"
 import "fmt"
-import "bufio"
 import "golang.org/x/net/proxy"
 
 const tcp_msgSize = 2048 + 65535 // TODO figure out what makes sense
@@ -208,40 +207,61 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	}()
 	// Note that multiple connections to the same node are allowed
 	//  E.g. over different interfaces
-	linkIn := make(chan []byte, 1)
-	p := iface.core.peers.newPeer(&info.box, &info.sig) //, in, out)
+	p := iface.core.peers.newPeer(&info.box, &info.sig)
+	p.linkOut = make(chan []byte, 1)
 	in := func(bs []byte) {
-		p.handlePacket(bs, linkIn)
+		p.handlePacket(bs)
 	}
 	out := make(chan []byte, 32) // TODO? what size makes sense
 	defer close(out)
-	buf := bufio.NewWriterSize(sock, tcp_msgSize)
-	send := func(msg []byte) {
-		msgLen := wire_encode_uint64(uint64(len(msg)))
-		buf.Write(tcp_msg[:])
-		buf.Write(msgLen)
-		buf.Write(msg)
-		p.updateQueueSize(-1)
-		util_putBytes(msg)
-	}
 	go func() {
+		var shadow uint64
 		var stack [][]byte
 		put := func(msg []byte) {
 			stack = append(stack, msg)
 			for len(stack) > 32 {
 				util_putBytes(stack[0])
 				stack = stack[1:]
-				p.updateQueueSize(-1)
+				shadow++
 			}
 		}
-		for msg := range out {
-			put(msg)
+		send := func(msg []byte) {
+			msgLen := wire_encode_uint64(uint64(len(msg)))
+			buf := net.Buffers{tcp_msg[:], msgLen, msg}
+			buf.WriteTo(sock)
+			util_putBytes(msg)
+		}
+		timerInterval := 4 * time.Second
+		timer := time.NewTimer(timerInterval)
+		defer timer.Stop()
+		for {
+			for ; shadow > 0; shadow-- {
+				p.updateQueueSize(-1)
+			}
+			timer.Stop()
+			select {
+			case <-timer.C:
+			default:
+			}
+			timer.Reset(timerInterval)
+			select {
+			case _ = <-timer.C:
+				//iface.core.log.Println("DEBUG: sending keep-alive:", sock.RemoteAddr().String())
+				send(nil) // TCP keep-alive traffic
+			case msg := <-p.linkOut:
+				send(msg)
+			case msg, ok := <-out:
+				if !ok {
+					return
+				}
+				put(msg)
+			}
 			for len(stack) > 0 {
-				// Keep trying to fill the stack (LIFO order) while sending
 				select {
+				case msg := <-p.linkOut:
+					send(msg)
 				case msg, ok := <-out:
 					if !ok {
-						buf.Flush()
 						return
 					}
 					put(msg)
@@ -249,9 +269,9 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 					msg := stack[len(stack)-1]
 					stack = stack[:len(stack)-1]
 					send(msg)
+					p.updateQueueSize(-1)
 				}
 			}
-			buf.Flush()
 		}
 	}()
 	p.out = func(msg []byte) {
@@ -265,11 +285,10 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	}
 	p.close = func() { sock.Close() }
 	setNoDelay(sock, true)
-	go p.linkLoop(linkIn)
+	go p.linkLoop()
 	defer func() {
 		// Put all of our cleanup here...
 		p.core.peers.removePeer(p.port)
-		close(linkIn)
 	}()
 	them, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
 	themNodeID := getNodeID(&info.box)

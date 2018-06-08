@@ -11,17 +11,6 @@ package yggdrasil
 //  It needs to ignore messages with a lower seq
 //  Probably best to start setting seq to a timestamp in that case...
 
-// FIXME (!?) if it takes too long to communicate all the msgHops, then things hit a horizon
-//  That could happen with a peer over a high-latency link, with many msgHops
-//  Possible workarounds:
-//    1. Pre-emptively send all hops when one is requested, or after any change
-//      Maybe requires changing how the throttle works and msgHops are saved
-//      In case some arrive out of order or are dropped
-//      This is relatively easy to implement, but could be wasteful
-//    2. Save your old locator, sigs, etc, so you can respond to older ancs
-//      And finish requesting an old anc before updating to a new one
-//      But that may lead to other issues if not done carefully...
-
 import "time"
 import "sync"
 import "sync/atomic"
@@ -83,37 +72,22 @@ func (ps *peers) putPorts(ports map[switchPort]*peer) {
 }
 
 type peer struct {
-	// Rolling approximation of bandwidth, in bps, used by switch, updated by packet sends
-	// use get/update methods only! (atomic accessors as float64)
-	queueSize  int64
+	queueSize  int64  // used to track local backpressure
 	bytesSent  uint64 // To track bandwidth usage for getPeers
 	bytesRecvd uint64 // To track bandwidth usage for getPeers
 	// BUG: sync/atomic, 32 bit platforms need the above to be the first element
-	firstSeen time.Time // To track uptime for getPeers
+	core      *Core
+	port      switchPort
 	box       boxPubKey
 	sig       sigPubKey
 	shared    boxSharedKey
-	//in <-chan []byte
-	//out chan<- []byte
-	//in func([]byte)
-	out     func([]byte)
-	core    *Core
-	port    switchPort
-	msgAnc  *msgAnnounce
-	msgHops []*msgHop
-	myMsg   *switchMessage
-	mySigs  []sigInfo
-	// This is used to limit how often we perform expensive operations
-	//  Specifically, processing switch messages, signing, and verifying sigs
-	//  Resets at the start of each tick
-	throttle uint8
-	// Called when a peer is removed, to close the underlying connection, or via admin api
-	close func()
-	// To allow the peer to call close if idle for too long
-	lastAnc time.Time
+	firstSeen time.Time       // To track uptime for getPeers
+	linkOut   (chan []byte)   // used for protocol traffic (to bypass queues)
+	doSend    (chan struct{}) // tell the linkLoop to send a switchMsg
+	dinfo     *dhtInfo        // used to keep the DHT working
+	out       func([]byte)    // Set up by whatever created the peers struct, used to send packets to other nodes
+	close     func()          // Called when a peer is removed, to close the underlying connection, or via admin api
 }
-
-const peer_Throttle = 1
 
 func (p *peer) getQueueSize() int64 {
 	return atomic.LoadInt64(&p.queueSize)
@@ -123,14 +97,13 @@ func (p *peer) updateQueueSize(delta int64) {
 	atomic.AddInt64(&p.queueSize, delta)
 }
 
-func (ps *peers) newPeer(box *boxPubKey,
-	sig *sigPubKey) *peer {
+func (ps *peers) newPeer(box *boxPubKey, sig *sigPubKey) *peer {
 	now := time.Now()
 	p := peer{box: *box,
 		sig:       *sig,
 		shared:    *getSharedKey(&ps.core.boxPriv, box),
-		lastAnc:   now,
 		firstSeen: now,
+		doSend:    make(chan struct{}, 1),
 		core:      ps.core}
 	ps.mutex.Lock()
 	defer ps.mutex.Unlock()
@@ -151,10 +124,12 @@ func (ps *peers) newPeer(box *boxPubKey,
 }
 
 func (ps *peers) removePeer(port switchPort) {
-	// TODO? store linkIn in the peer struct, close it here? (once)
 	if port == 0 {
 		return
 	} // Can't remove self peer
+	ps.core.router.doAdmin(func() {
+		ps.core.switchTable.removePeer(port)
+	})
 	ps.mutex.Lock()
 	oldPorts := ps.getPorts()
 	p, isIn := oldPorts[port]
@@ -165,56 +140,47 @@ func (ps *peers) removePeer(port switchPort) {
 	delete(newPorts, port)
 	ps.putPorts(newPorts)
 	ps.mutex.Unlock()
-	if isIn && p.close != nil {
-		p.close()
+	if isIn {
+		if p.close != nil {
+			p.close()
+		}
+		close(p.doSend)
 	}
 }
 
-func (p *peer) linkLoop(in <-chan []byte) {
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	var counter uint8
-	var lastRSeq uint64
-	for {
+func (ps *peers) sendSwitchMsgs() {
+	ports := ps.getPorts()
+	for _, p := range ports {
+		if p.port == 0 {
+			continue
+		}
 		select {
-		case packet, ok := <-in:
-			if !ok {
-				return
-			}
-			p.handleLinkTraffic(packet)
-		case <-ticker.C:
-			if time.Since(p.lastAnc) > 16*time.Second && p.close != nil {
-				// Seems to have timed out, try to trigger a close
-				p.close()
-			}
-			p.throttle = 0
-			if p.port == 0 {
-				continue
-			} // Don't send announces on selfInterface
-			p.myMsg, p.mySigs = p.core.switchTable.createMessage(p.port)
-			var update bool
-			switch {
-			case p.msgAnc == nil:
-				update = true
-			case lastRSeq != p.msgAnc.Seq:
-				update = true
-			case p.msgAnc.Rseq != p.myMsg.seq:
-				update = true
-			case counter%4 == 0:
-				update = true
-			}
-			if update {
-				if p.msgAnc != nil {
-					lastRSeq = p.msgAnc.Seq
-				}
-				p.sendSwitchAnnounce()
-			}
-			counter = (counter + 1) % 4
+		case p.doSend <- struct{}{}:
+		default:
 		}
 	}
 }
 
-func (p *peer) handlePacket(packet []byte, linkIn chan<- []byte) {
+func (p *peer) linkLoop() {
+	go func() { p.doSend <- struct{}{} }()
+	tick := time.NewTicker(time.Second)
+	defer tick.Stop()
+	for {
+		select {
+		case _, ok := <-p.doSend:
+			if !ok {
+				return
+			}
+			p.sendSwitchMsg()
+		case _ = <-tick.C:
+			if p.dinfo != nil {
+				p.core.dht.peers <- p.dinfo
+			}
+		}
+	}
+}
+
+func (p *peer) handlePacket(packet []byte) {
 	// TODO See comment in sendPacket about atomics technically being done wrong
 	atomic.AddUint64(&p.bytesRecvd, uint64(len(packet)))
 	pType, pTypeLen := wire_decode_uint64(packet)
@@ -227,31 +193,22 @@ func (p *peer) handlePacket(packet []byte, linkIn chan<- []byte) {
 	case wire_ProtocolTraffic:
 		p.handleTraffic(packet, pTypeLen)
 	case wire_LinkProtocolTraffic:
-		{
-			select {
-			case linkIn <- packet:
-			default:
-			}
-		}
-	default: /*panic(pType) ;*/
+		p.handleLinkTraffic(packet)
+	default:
 		return
 	}
 }
 
 func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
-	if p.port != 0 && p.msgAnc == nil {
-		// Drop traffic until the peer manages to send us at least one anc
+	if p.port != 0 && p.dinfo == nil {
+		// Drop traffic until the peer manages to send us at least one good switchMsg
 		return
 	}
-	ttl, ttlLen := wire_decode_uint64(packet[pTypeLen:])
-	ttlBegin := pTypeLen
-	ttlEnd := pTypeLen + ttlLen
-	coords, coordLen := wire_decode_coords(packet[ttlEnd:])
-	coordEnd := ttlEnd + coordLen
-	if coordEnd == len(packet) {
+	coords, coordLen := wire_decode_coords(packet[pTypeLen:])
+	if coordLen >= len(packet) {
 		return
 	} // No payload
-	toPort, newTTL := p.core.switchTable.lookup(coords, ttl)
+	toPort := p.core.switchTable.lookup(coords)
 	if toPort == p.port {
 		return
 	}
@@ -259,13 +216,6 @@ func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
 	if to == nil {
 		return
 	}
-	// This mutates the packet in-place if the length of the TTL changes!
-	ttlSlice := wire_encode_uint64(newTTL)
-	newTTLLen := len(ttlSlice)
-	shift := ttlLen - newTTLLen
-	copy(packet[shift:], packet[:pTypeLen])
-	copy(packet[ttlBegin+shift:], ttlSlice)
-	packet = packet[shift:]
 	to.sendPacket(packet)
 }
 
@@ -284,7 +234,7 @@ func (p *peer) sendLinkPacket(packet []byte) {
 		Payload: bs,
 	}
 	packet = linkPacket.encode()
-	p.sendPacket(packet)
+	p.linkOut <- packet
 }
 
 func (p *peer) handleLinkTraffic(bs []byte) {
@@ -301,219 +251,70 @@ func (p *peer) handleLinkTraffic(bs []byte) {
 		return
 	}
 	switch pType {
-	case wire_SwitchAnnounce:
-		p.handleSwitchAnnounce(payload)
-	case wire_SwitchHopRequest:
-		p.handleSwitchHopRequest(payload)
-	case wire_SwitchHop:
-		p.handleSwitchHop(payload)
+	case wire_SwitchMsg:
+		p.handleSwitchMsg(payload)
+	default: // TODO?...
 	}
 }
 
-func (p *peer) handleSwitchAnnounce(packet []byte) {
-	//p.core.log.Println("DEBUG: handleSwitchAnnounce")
-	anc := msgAnnounce{}
-	//err := wire_decode_struct(packet, &anc)
-	//if err != nil { return }
-	if !anc.decode(packet) {
+func (p *peer) sendSwitchMsg() {
+	msg := p.core.switchTable.getMsg()
+	if msg == nil {
 		return
 	}
-	//if p.msgAnc != nil && anc.Seq != p.msgAnc.Seq { p.msgHops = nil }
-	if p.msgAnc == nil ||
-		anc.Root != p.msgAnc.Root ||
-		anc.Tstamp != p.msgAnc.Tstamp ||
-		anc.Seq != p.msgAnc.Seq {
-		p.msgHops = nil
-	}
-	p.msgAnc = &anc
-	p.processSwitchMessage()
-	p.lastAnc = time.Now()
-}
-
-func (p *peer) requestHop(hop uint64) {
-	//p.core.log.Println("DEBUG requestHop")
-	req := msgHopReq{}
-	req.Root = p.msgAnc.Root
-	req.Tstamp = p.msgAnc.Tstamp
-	req.Seq = p.msgAnc.Seq
-	req.Hop = hop
-	packet := req.encode()
+	bs := getBytesForSig(&p.sig, msg)
+	msg.Hops = append(msg.Hops, switchMsgHop{
+		Port: p.port,
+		Next: p.sig,
+		Sig:  *sign(&p.core.sigPriv, bs),
+	})
+	packet := msg.encode()
+	//p.core.log.Println("Encoded msg:", msg, "; bytes:", packet)
+	//fmt.Println("Encoded msg:", msg, "; bytes:", packet)
 	p.sendLinkPacket(packet)
 }
 
-func (p *peer) handleSwitchHopRequest(packet []byte) {
-	//p.core.log.Println("DEBUG: handleSwitchHopRequest")
-	if p.throttle > peer_Throttle {
+func (p *peer) handleSwitchMsg(packet []byte) {
+	var msg switchMsg
+	if !msg.decode(packet) {
 		return
 	}
-	if p.myMsg == nil {
-		return
+	//p.core.log.Println("Decoded msg:", msg, "; bytes:", packet)
+	if len(msg.Hops) < 1 {
+		p.core.peers.removePeer(p.port)
 	}
-	req := msgHopReq{}
-	if !req.decode(packet) {
-		return
-	}
-	if req.Root != p.myMsg.locator.root {
-		return
-	}
-	if req.Tstamp != p.myMsg.locator.tstamp {
-		return
-	}
-	if req.Seq != p.myMsg.seq {
-		return
-	}
-	if uint64(len(p.myMsg.locator.coords)) <= req.Hop {
-		return
-	}
-	res := msgHop{}
-	res.Root = p.myMsg.locator.root
-	res.Tstamp = p.myMsg.locator.tstamp
-	res.Seq = p.myMsg.seq
-	res.Hop = req.Hop
-	res.Port = p.myMsg.locator.coords[res.Hop]
-	sinfo := p.getSig(res.Hop)
-	//p.core.log.Println("DEBUG sig:", sinfo)
-	res.Next = sinfo.next
-	res.Sig = sinfo.sig
-	packet = res.encode()
-	p.sendLinkPacket(packet)
-}
-
-func (p *peer) handleSwitchHop(packet []byte) {
-	//p.core.log.Println("DEBUG: handleSwitchHop")
-	if p.throttle > peer_Throttle {
-		return
-	}
-	if p.msgAnc == nil {
-		return
-	}
-	res := msgHop{}
-	if !res.decode(packet) {
-		return
-	}
-	if res.Root != p.msgAnc.Root {
-		return
-	}
-	if res.Tstamp != p.msgAnc.Tstamp {
-		return
-	}
-	if res.Seq != p.msgAnc.Seq {
-		return
-	}
-	if res.Hop != uint64(len(p.msgHops)) {
-		return
-	} // always process in order
-	loc := switchLocator{coords: make([]switchPort, 0, len(p.msgHops)+1)}
-	loc.root = res.Root
-	loc.tstamp = res.Tstamp
-	for _, hop := range p.msgHops {
+	var loc switchLocator
+	prevKey := msg.Root
+	for idx, hop := range msg.Hops {
+		// Check signatures and collect coords for dht
+		sigMsg := msg
+		sigMsg.Hops = msg.Hops[:idx]
 		loc.coords = append(loc.coords, hop.Port)
-	}
-	loc.coords = append(loc.coords, res.Port)
-	thisHopKey := &res.Root
-	if res.Hop != 0 {
-		thisHopKey = &p.msgHops[res.Hop-1].Next
-	}
-	bs := getBytesForSig(&res.Next, &loc)
-	if p.core.sigs.check(thisHopKey, &res.Sig, bs) {
-		p.msgHops = append(p.msgHops, &res)
-		p.processSwitchMessage()
-	} else {
-		p.throttle++
-	}
-}
-
-func (p *peer) processSwitchMessage() {
-	//p.core.log.Println("DEBUG: processSwitchMessage")
-	if p.throttle > peer_Throttle {
-		return
-	}
-	if p.msgAnc == nil {
-		return
-	}
-	if uint64(len(p.msgHops)) < p.msgAnc.Len {
-		p.requestHop(uint64(len(p.msgHops)))
-		return
-	}
-	p.throttle++
-	if p.msgAnc.Len != uint64(len(p.msgHops)) {
-		return
-	}
-	msg := switchMessage{}
-	coords := make([]switchPort, 0, len(p.msgHops))
-	sigs := make([]sigInfo, 0, len(p.msgHops))
-	for idx, hop := range p.msgHops {
-		// Consistency checks, should be redundant (already checked these...)
-		if hop.Root != p.msgAnc.Root {
-			return
+		bs := getBytesForSig(&hop.Next, &sigMsg)
+		if !p.core.sigs.check(&prevKey, &hop.Sig, bs) {
+			p.core.peers.removePeer(p.port)
 		}
-		if hop.Tstamp != p.msgAnc.Tstamp {
-			return
-		}
-		if hop.Seq != p.msgAnc.Seq {
-			return
-		}
-		if hop.Hop != uint64(idx) {
-			return
-		}
-		coords = append(coords, hop.Port)
-		sigs = append(sigs, sigInfo{next: hop.Next, sig: hop.Sig})
+		prevKey = hop.Next
 	}
-	msg.from = p.sig
-	msg.locator.root = p.msgAnc.Root
-	msg.locator.tstamp = p.msgAnc.Tstamp
-	msg.locator.coords = coords
-	msg.seq = p.msgAnc.Seq
-	//msg.RSeq = p.msgAnc.RSeq
-	//msg.Degree = p.msgAnc.Deg
-	p.core.switchTable.handleMessage(&msg, p.port, sigs)
-	if len(coords) == 0 {
-		return
-	}
-	// Reuse locator, set the coords to the peer's coords, to use in dht
-	msg.locator.coords = coords[:len(coords)-1]
+	p.core.switchTable.handleMsg(&msg, p.port)
 	// Pass a mesage to the dht informing it that this peer (still) exists
+	loc.coords = loc.coords[:len(loc.coords)-1]
 	dinfo := dhtInfo{
 		key:    p.box,
-		coords: msg.locator.getCoords(),
+		coords: loc.getCoords(),
 	}
 	p.core.dht.peers <- &dinfo
+	p.dinfo = &dinfo
 }
 
-func (p *peer) sendSwitchAnnounce() {
-	anc := msgAnnounce{}
-	anc.Root = p.myMsg.locator.root
-	anc.Tstamp = p.myMsg.locator.tstamp
-	anc.Seq = p.myMsg.seq
-	anc.Len = uint64(len(p.myMsg.locator.coords))
-	//anc.Deg = p.myMsg.Degree
-	if p.msgAnc != nil {
-		anc.Rseq = p.msgAnc.Seq
+func getBytesForSig(next *sigPubKey, msg *switchMsg) []byte {
+	var loc switchLocator
+	for _, hop := range msg.Hops {
+		loc.coords = append(loc.coords, hop.Port)
 	}
-	packet := anc.encode()
-	p.sendLinkPacket(packet)
-}
-
-func (p *peer) getSig(hop uint64) sigInfo {
-	//p.core.log.Println("DEBUG getSig:", len(p.mySigs), hop)
-	if hop < uint64(len(p.mySigs)) {
-		return p.mySigs[hop]
-	}
-	bs := getBytesForSig(&p.sig, &p.myMsg.locator)
-	sig := sigInfo{}
-	sig.next = p.sig
-	sig.sig = *sign(&p.core.sigPriv, bs)
-	p.mySigs = append(p.mySigs, sig)
-	//p.core.log.Println("DEBUG sig bs:", bs)
-	return sig
-}
-
-func getBytesForSig(next *sigPubKey, loc *switchLocator) []byte {
-	//bs, err := wire_encode_locator(loc)
-	//if err != nil { panic(err) }
 	bs := append([]byte(nil), next[:]...)
-	bs = append(bs, wire_encode_locator(loc)...)
-	//bs := wire_encode_locator(loc)
-	//bs = append(next[:], bs...)
+	bs = append(bs, msg.Root[:]...)
+	bs = append(bs, wire_encode_uint64(wire_intToUint(msg.TStamp))...)
+	bs = append(bs, wire_encode_coords(loc.getCoords())...)
 	return bs
 }

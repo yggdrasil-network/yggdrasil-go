@@ -9,7 +9,7 @@ package yggdrasil
 // TODO document/comment everything in a lot more detail
 
 // TODO? use a pre-computed lookup table (python version had this)
-//  A little annoying to do with constant changes from bandwidth estimates
+//  A little annoying to do with constant changes from backpressure
 
 import "time"
 import "sort"
@@ -113,17 +113,10 @@ type peerInfo struct {
 	key       sigPubKey     // ID of this peer
 	locator   switchLocator // Should be able to respond with signatures upon request
 	degree    uint64        // Self-reported degree
-	coords    []switchPort  // Coords of this peer (taken from coords of the sent locator)
 	time      time.Time     // Time this node was last seen
 	firstSeen time.Time
 	port      switchPort // Interface number of this peer
-	seq       uint64     // Seq number we last saw this peer advertise
-}
-
-type switchMessage struct {
-	from    sigPubKey     // key of the sender
-	locator switchLocator // Locator advertised for the receiver, not the sender's loc!
-	seq     uint64
+	msg       switchMsg  // The wire switchMsg used
 }
 
 type switchPort uint64
@@ -143,7 +136,7 @@ type switchData struct {
 	locator switchLocator
 	seq     uint64 // Sequence number, reported to peers, so they know about changes
 	peers   map[switchPort]peerInfo
-	sigs    []sigInfo
+	msg     *switchMsg
 }
 
 type switchTable struct {
@@ -170,31 +163,17 @@ func (t *switchTable) init(core *Core, key sigPubKey) {
 	t.drop = make(map[sigPubKey]int64)
 }
 
-func (t *switchTable) start() error {
-	doTicker := func() {
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-		for {
-			<-ticker.C
-			t.Tick()
-		}
-	}
-	go doTicker()
-	return nil
-}
-
 func (t *switchTable) getLocator() switchLocator {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
 	return t.data.locator.clone()
 }
 
-func (t *switchTable) Tick() {
+func (t *switchTable) doMaintenance() {
 	// Periodic maintenance work to keep things internally consistent
 	t.mutex.Lock()         // Write lock
 	defer t.mutex.Unlock() // Release lock when we're done
 	t.cleanRoot()
-	t.cleanPeers()
 	t.cleanDropped()
 }
 
@@ -236,22 +215,16 @@ func (t *switchTable) cleanRoot() {
 			}
 		}
 		t.data.locator = switchLocator{root: t.key, tstamp: now.Unix()}
-		t.data.sigs = nil
+		t.core.peers.sendSwitchMsgs()
 	}
 }
 
-func (t *switchTable) cleanPeers() {
-	now := time.Now()
-	changed := false
-	for idx, info := range t.data.peers {
-		if info.port != switchPort(0) && now.Sub(info.time) > 6*time.Second /*switch_timeout*/ {
-			//fmt.Println("peer timed out", t.key, info.locator)
-			delete(t.data.peers, idx)
-			changed = true
-		}
-	}
-	if changed {
-		t.updater.Store(&sync.Once{})
+func (t *switchTable) removePeer(port switchPort) {
+	delete(t.data.peers, port)
+	t.updater.Store(&sync.Once{})
+	// TODO if parent, find a new peer to use as parent instead
+	for _, info := range t.data.peers {
+		t.unlockedHandleMsg(&info.msg, info.port)
 	}
 }
 
@@ -264,33 +237,64 @@ func (t *switchTable) cleanDropped() {
 	}
 }
 
-func (t *switchTable) createMessage(port switchPort) (*switchMessage, []sigInfo) {
-	t.mutex.RLock()
-	defer t.mutex.RUnlock()
-	msg := switchMessage{from: t.key, locator: t.data.locator.clone()}
-	msg.locator.coords = append(msg.locator.coords, port)
-	msg.seq = t.data.seq
-	return &msg, t.data.sigs
+type switchMsg struct {
+	Root   sigPubKey
+	TStamp int64
+	Hops   []switchMsgHop
 }
 
-func (t *switchTable) handleMessage(msg *switchMessage, fromPort switchPort, sigs []sigInfo) {
+type switchMsgHop struct {
+	Port switchPort
+	Next sigPubKey
+	Sig  sigBytes
+}
+
+func (t *switchTable) getMsg() *switchMsg {
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
+	if t.parent == 0 {
+		return &switchMsg{Root: t.key, TStamp: t.data.locator.tstamp}
+	} else if parent, isIn := t.data.peers[t.parent]; isIn {
+		msg := parent.msg
+		msg.Hops = append([]switchMsgHop(nil), msg.Hops...)
+		return &msg
+	} else {
+		return nil
+	}
+}
+
+func (t *switchTable) handleMsg(msg *switchMsg, fromPort switchPort) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
+	t.unlockedHandleMsg(msg, fromPort)
+}
+
+func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
+	// TODO directly use a switchMsg instead of switchMessage + sigs
 	now := time.Now()
-	if len(msg.locator.coords) == 0 {
-		return
-	} // Should always have >=1 links
+	// Set up the sender peerInfo
+	var sender peerInfo
+	sender.locator.root = msg.Root
+	sender.locator.tstamp = msg.TStamp
+	prevKey := msg.Root
+	for _, hop := range msg.Hops {
+		// Build locator and signatures
+		var sig sigInfo
+		sig.next = hop.Next
+		sig.sig = hop.Sig
+		sender.locator.coords = append(sender.locator.coords, hop.Port)
+		sender.key = prevKey
+		prevKey = hop.Next
+	}
+	sender.msg = *msg
 	oldSender, isIn := t.data.peers[fromPort]
 	if !isIn {
 		oldSender.firstSeen = now
 	}
-	sender := peerInfo{key: msg.from,
-		locator:   msg.locator,
-		coords:    msg.locator.coords[:len(msg.locator.coords)-1],
-		time:      now,
-		firstSeen: oldSender.firstSeen,
-		port:      fromPort,
-		seq:       msg.seq}
+	sender.firstSeen = oldSender.firstSeen
+	sender.port = fromPort
+	sender.time = now
+	// Decide what to do
 	equiv := func(x *switchLocator, y *switchLocator) bool {
 		if x.root != y.root {
 			return false
@@ -306,20 +310,21 @@ func (t *switchTable) handleMessage(msg *switchMessage, fromPort switchPort, sig
 		return true
 	}
 	doUpdate := false
-	if !equiv(&msg.locator, &oldSender.locator) {
+	if !equiv(&sender.locator, &oldSender.locator) {
 		doUpdate = true
+		//sender.firstSeen = now // TODO? uncomment to prevent flapping?
 	}
 	t.data.peers[fromPort] = sender
 	updateRoot := false
 	oldParent, isIn := t.data.peers[t.parent]
 	noParent := !isIn
 	noLoop := func() bool {
-		for idx := 0; idx < len(sigs)-1; idx++ {
-			if sigs[idx].next == t.core.sigPub {
+		for idx := 0; idx < len(msg.Hops)-1; idx++ {
+			if msg.Hops[idx].Next == t.core.sigPub {
 				return false
 			}
 		}
-		if msg.locator.root == t.core.sigPub {
+		if sender.locator.root == t.core.sigPub {
 			return false
 		}
 		return true
@@ -328,30 +333,30 @@ func (t *switchTable) handleMessage(msg *switchMessage, fromPort switchPort, sig
 	pTime := oldParent.time.Sub(oldParent.firstSeen) + switch_timeout
 	// Really want to compare sLen/sTime and pLen/pTime
 	// Cross multiplied to avoid divide-by-zero
-	cost := len(msg.locator.coords) * int(pTime.Seconds())
+	cost := len(sender.locator.coords) * int(pTime.Seconds())
 	pCost := len(t.data.locator.coords) * int(sTime.Seconds())
-	dropTstamp, isIn := t.drop[msg.locator.root]
+	dropTstamp, isIn := t.drop[sender.locator.root]
 	// Here be dragons
 	switch {
 	case !noLoop: // do nothing
-	case isIn && dropTstamp >= msg.locator.tstamp: // do nothing
-	case firstIsBetter(&msg.locator.root, &t.data.locator.root):
+	case isIn && dropTstamp >= sender.locator.tstamp: // do nothing
+	case firstIsBetter(&sender.locator.root, &t.data.locator.root):
 		updateRoot = true
-	case t.data.locator.root != msg.locator.root: // do nothing
-	case t.data.locator.tstamp > msg.locator.tstamp: // do nothing
+	case t.data.locator.root != sender.locator.root: // do nothing
+	case t.data.locator.tstamp > sender.locator.tstamp: // do nothing
 	case noParent:
 		updateRoot = true
 	case cost < pCost:
 		updateRoot = true
 	case sender.port != t.parent: // do nothing
-	case !equiv(&msg.locator, &t.data.locator):
+	case !equiv(&sender.locator, &t.data.locator):
 		updateRoot = true
 	case now.Sub(t.time) < switch_throttle: // do nothing
-	case msg.locator.tstamp > t.data.locator.tstamp:
+	case sender.locator.tstamp > t.data.locator.tstamp:
 		updateRoot = true
 	}
 	if updateRoot {
-		if !equiv(&msg.locator, &t.data.locator) {
+		if !equiv(&sender.locator, &t.data.locator) {
 			doUpdate = true
 			t.data.seq++
 			select {
@@ -361,13 +366,13 @@ func (t *switchTable) handleMessage(msg *switchMessage, fromPort switchPort, sig
 			//t.core.log.Println("Switch update:", msg.locator.root, msg.locator.tstamp, msg.locator.coords)
 			//fmt.Println("Switch update:", msg.Locator.Root, msg.Locator.Tstamp, msg.Locator.Coords)
 		}
-		if t.data.locator.tstamp != msg.locator.tstamp {
+		if t.data.locator.tstamp != sender.locator.tstamp {
 			t.time = now
 		}
-		t.data.locator = msg.locator
+		t.data.locator = sender.locator
 		t.parent = sender.port
-		t.data.sigs = sigs
 		//t.core.log.Println("Switch update:", msg.Locator.Root, msg.Locator.Tstamp, msg.Locator.Coords)
+		t.core.peers.sendSwitchMsgs()
 	}
 	if doUpdate {
 		t.updater.Store(&sync.Once{})
@@ -408,19 +413,19 @@ func (t *switchTable) updateTable() {
 	t.table.Store(newTable)
 }
 
-func (t *switchTable) lookup(dest []byte, ttl uint64) (switchPort, uint64) {
+func (t *switchTable) lookup(dest []byte) switchPort {
 	t.updater.Load().(*sync.Once).Do(t.updateTable)
 	table := t.table.Load().(lookupTable)
-	myDist := table.self.dist(dest) //getDist(table.self.coords)
-	if !(uint64(myDist) < ttl) {
-		return 0, 0
+	myDist := table.self.dist(dest)
+	if myDist == 0 {
+		return 0
 	}
 	// cost is in units of (expected distance) + (expected queue size), where expected distance is used as an approximation of the minimum backpressure gradient needed for packets to flow
 	ports := t.core.peers.getPorts()
 	var best switchPort
 	bestCost := int64(^uint64(0) >> 1)
 	for _, info := range table.elems {
-		dist := info.locator.dist(dest) //getDist(info.locator.coords)
+		dist := info.locator.dist(dest)
 		if !(dist < myDist) {
 			continue
 		}
@@ -434,8 +439,8 @@ func (t *switchTable) lookup(dest []byte, ttl uint64) (switchPort, uint64) {
 			bestCost = cost
 		}
 	}
-	//t.core.log.Println("DEBUG: sending to", best, "bandwidth", getBandwidth(best))
-	return best, uint64(myDist)
+	//t.core.log.Println("DEBUG: sending to", best, "cost", bestCost)
+	return best
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -160,17 +160,13 @@ func testPaths(store map[[32]byte]*Node) bool {
 			ttl := ^uint64(0)
 			oldTTL := ttl
 			for here := source; here != dest; {
-				if ttl == 0 {
-					fmt.Println("Drop:", source.index, here.index, dest.index, oldTTL)
-					return false
-				}
 				temp++
 				if temp > 4096 {
-					panic("Loop?")
+					fmt.Println("Loop?")
+					time.Sleep(time.Second)
+					return false
 				}
-				oldTTL = ttl
-				nextPort, newTTL := here.core.DEBUG_switchLookup(coords, ttl)
-				ttl = newTTL
+				nextPort := here.core.DEBUG_switchLookup(coords)
 				// First check if "here" is accepting packets from the previous node
 				// TODO explain how this works
 				ports := here.core.DEBUG_getPeers().DEBUG_getPorts()
@@ -201,11 +197,15 @@ func testPaths(store map[[32]byte]*Node) bool {
 						source.index, source.core.DEBUG_getLocator(),
 						here.index, here.core.DEBUG_getLocator(),
 						dest.index, dest.core.DEBUG_getLocator())
-					here.core.DEBUG_getSwitchTable().DEBUG_dumpTable()
+					//here.core.DEBUG_getSwitchTable().DEBUG_dumpTable()
 				}
 				if here != source {
 					// This is sufficient to check for routing loops or blackholes
 					//break
+				}
+				if here == next {
+					fmt.Println("Drop:", source.index, here.index, dest.index, oldTTL)
+					return false
 				}
 				here = next
 			}
@@ -227,7 +227,7 @@ func stressTest(store map[[32]byte]*Node) {
 	start := time.Now()
 	for _, source := range store {
 		for _, coords := range dests {
-			source.core.DEBUG_switchLookup(coords, ^uint64(0))
+			source.core.DEBUG_switchLookup(coords)
 			lookups++
 		}
 	}

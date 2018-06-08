@@ -36,7 +36,6 @@ func (c *Core) Init() {
 	spub, spriv := newSigKeys()
 	c.init(bpub, bpriv, spub, spriv)
 	c.router.start()
-	c.switchTable.start()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,8 +126,8 @@ func (l *switchLocator) DEBUG_getCoords() []byte {
 	return l.getCoords()
 }
 
-func (c *Core) DEBUG_switchLookup(dest []byte, ttl uint64) (switchPort, uint64) {
-	return c.switchTable.lookup(dest, ttl)
+func (c *Core) DEBUG_switchLookup(dest []byte) switchPort {
+	return c.switchTable.lookup(dest)
 }
 
 /*
@@ -310,9 +309,6 @@ func (c *Core) DEBUG_init(bpub []byte,
 		panic(err)
 	}
 
-	if err := c.switchTable.start(); err != nil {
-		panic(err)
-	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -453,16 +449,25 @@ func (c *Core) DEBUG_addAllowedEncryptionPublicKey(boxStr string) {
 
 func DEBUG_simLinkPeers(p, q *peer) {
 	// Sets q.out() to point to p and starts p.linkLoop()
-	plinkIn := make(chan []byte, 1)
-	qlinkIn := make(chan []byte, 1)
+	p.linkOut, q.linkOut = make(chan []byte, 1), make(chan []byte, 1)
+	go func() {
+		for bs := range p.linkOut {
+			q.handlePacket(bs)
+		}
+	}()
+	go func() {
+		for bs := range q.linkOut {
+			p.handlePacket(bs)
+		}
+	}()
 	p.out = func(bs []byte) {
-		go q.handlePacket(bs, qlinkIn)
+		go q.handlePacket(bs)
 	}
 	q.out = func(bs []byte) {
-		go p.handlePacket(bs, plinkIn)
+		go p.handlePacket(bs)
 	}
-	go p.linkLoop(plinkIn)
-	go q.linkLoop(qlinkIn)
+	go p.linkLoop()
+	go q.linkLoop()
 }
 
 func (c *Core) DEBUG_simFixMTU() {

@@ -36,6 +36,7 @@ type dhtInfo struct {
 	send          time.Time // When we last sent a message
 	recv          time.Time // When we last received a message
 	pings         int       // Decide when to drop
+	throttle      uint8     // Number of seconds to wait before pinging a node to bootstrap buckets, gradually increases up to 1 minute
 }
 
 func (info *dhtInfo) getNodeID() *NodeID {
@@ -81,7 +82,7 @@ type dht struct {
 func (t *dht) init(c *Core) {
 	t.core = c
 	t.nodeID = *t.core.GetNodeID()
-	t.peers = make(chan *dhtInfo, 1)
+	t.peers = make(chan *dhtInfo, 1024)
 	t.reqs = make(map[boxPubKey]map[NodeID]time.Time)
 }
 
@@ -116,10 +117,11 @@ func (t *dht) handleRes(res *dhtRes) {
 		return
 	}
 	rinfo := dhtInfo{
-		key:    res.Key,
-		coords: res.Coords,
-		send:   time.Now(), // Technically wrong but should be OK...
-		recv:   time.Now(),
+		key:      res.Key,
+		coords:   res.Coords,
+		send:     time.Now(), // Technically wrong but should be OK...
+		recv:     time.Now(),
+		throttle: 1,
 	}
 	// If they're already in the table, then keep the correct send time
 	bidx, isOK := t.getBucketIndex(rinfo.getNodeID())
@@ -130,11 +132,13 @@ func (t *dht) handleRes(res *dhtRes) {
 	for _, oldinfo := range b.peers {
 		if oldinfo.key == rinfo.key {
 			rinfo.send = oldinfo.send
+			rinfo.throttle += oldinfo.throttle
 		}
 	}
 	for _, oldinfo := range b.other {
 		if oldinfo.key == rinfo.key {
 			rinfo.send = oldinfo.send
+			rinfo.throttle += oldinfo.throttle
 		}
 	}
 	// Insert into table
@@ -231,6 +235,9 @@ func (t *dht) insert(info *dhtInfo, isPeer bool) {
 		// This speeds up bootstrapping
 		info.recv = info.recv.Add(-time.Hour)
 	}
+	if isPeer || info.throttle > 60 {
+		info.throttle = 60
+	}
 	// First drop any existing entry from the bucket
 	b.drop(&info.key)
 	// Now add to the *end* of the bucket
@@ -319,7 +326,6 @@ func (t *dht) sendReq(req *dhtReq, dest *dhtInfo) {
 	shared := t.core.sessions.getSharedKey(&t.core.boxPriv, &dest.key)
 	payload, nonce := boxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
-		TTL:     ^uint64(0),
 		Coords:  dest.coords,
 		ToKey:   dest.key,
 		FromKey: t.core.boxPub,
@@ -345,7 +351,6 @@ func (t *dht) sendRes(res *dhtRes, req *dhtReq) {
 	shared := t.core.sessions.getSharedKey(&t.core.boxPriv, &req.Key)
 	payload, nonce := boxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
-		TTL:     ^uint64(0),
 		Coords:  req.Coords,
 		ToKey:   req.Key,
 		FromKey: t.core.boxPub,
@@ -460,7 +465,7 @@ func (t *dht) doMaintenance() {
 		}
 		target := t.getTarget(t.offset)
 		for _, info := range t.lookup(target, true) {
-			if time.Since(info.recv) > time.Minute {
+			if time.Since(info.recv) > time.Duration(info.throttle)*time.Second {
 				t.addToMill(info, target)
 				t.offset++
 				break
@@ -520,9 +525,15 @@ func dht_firstCloserThanThird(first *NodeID,
 
 func (t *dht) reset() {
 	// This is mostly so bootstrapping will reset to resend coords into the network
+	t.offset = 0
+	t.rumorMill = nil // reset mill
 	for _, b := range t.buckets_hidden {
 		b.peers = b.peers[:0]
+		for _, info := range b.other {
+			// Add other nodes to the rumor mill so they'll be pinged soon
+			// This will hopefully tell them our coords and re-learn theirs quickly if they haven't changed
+			t.addToMill(info, info.getNodeID())
+		}
 		b.other = b.other[:0]
 	}
-	t.offset = 0
 }

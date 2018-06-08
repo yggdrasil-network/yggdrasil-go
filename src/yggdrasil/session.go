@@ -255,7 +255,6 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 	shared := ss.getSharedKey(&ss.core.boxPriv, &sinfo.theirPermPub)
 	payload, nonce := boxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
-		TTL:     ^uint64(0),
 		Coords:  sinfo.coords,
 		ToKey:   sinfo.theirPermPub,
 		FromKey: ss.core.boxPub,
@@ -383,7 +382,6 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 	payload, nonce := boxSeal(&sinfo.sharedSesKey, bs, &sinfo.myNonce)
 	defer util_putBytes(payload)
 	p := wire_trafficPacket{
-		TTL:     ^uint64(0),
 		Coords:  sinfo.coords,
 		Handle:  sinfo.theirHandle,
 		Nonce:   *nonce,

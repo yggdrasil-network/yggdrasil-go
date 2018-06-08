@@ -55,7 +55,7 @@ func (r *router) init(core *Core) {
 		}
 	}
 	r.in = in
-	r.out = func(packet []byte) { p.handlePacket(packet, nil) } // The caller is responsible for go-ing if it needs to not block
+	r.out = func(packet []byte) { p.handlePacket(packet) } // The caller is responsible for go-ing if it needs to not block
 	recv := make(chan []byte, 32)
 	send := make(chan []byte, 32)
 	r.recv = recv
@@ -91,7 +91,9 @@ func (r *router) mainLoop() {
 		case <-ticker.C:
 			{
 				// Any periodic maintenance stuff goes here
+				r.core.switchTable.doMaintenance()
 				r.core.dht.doMaintenance()
+				//r.core.peers.sendSwitchMsgs() // FIXME debugging
 				util_getBytes() // To slowly drain things
 			}
 		case f := <-r.admin:
