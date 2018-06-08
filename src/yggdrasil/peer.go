@@ -297,6 +297,13 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 		prevKey = hop.Next
 	}
 	p.core.switchTable.handleMsg(&msg, p.port)
+	if !p.core.switchTable.checkRoot(&msg) {
+		// Bad switch message
+		// Stop forwarding traffic from it
+		// Stop refreshing it in the DHT
+		p.dinfo = nil
+		return
+	}
 	// Pass a mesage to the dht informing it that this peer (still) exists
 	loc.coords = loc.coords[:len(loc.coords)-1]
 	dinfo := dhtInfo{
