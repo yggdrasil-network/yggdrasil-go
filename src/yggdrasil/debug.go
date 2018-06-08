@@ -126,8 +126,8 @@ func (l *switchLocator) DEBUG_getCoords() []byte {
 	return l.getCoords()
 }
 
-func (c *Core) DEBUG_switchLookup(dest []byte, ttl uint64) (switchPort, uint64) {
-	return c.switchTable.lookup(dest, ttl)
+func (c *Core) DEBUG_switchLookup(dest []byte) switchPort {
+	return c.switchTable.lookup(dest)
 }
 
 /*

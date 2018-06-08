@@ -326,7 +326,6 @@ func (t *dht) sendReq(req *dhtReq, dest *dhtInfo) {
 	shared := t.core.sessions.getSharedKey(&t.core.boxPriv, &dest.key)
 	payload, nonce := boxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
-		TTL:     ^uint64(0),
 		Coords:  dest.coords,
 		ToKey:   dest.key,
 		FromKey: t.core.boxPub,
@@ -352,7 +351,6 @@ func (t *dht) sendRes(res *dhtRes, req *dhtReq) {
 	shared := t.core.sessions.getSharedKey(&t.core.boxPriv, &req.Key)
 	payload, nonce := boxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
-		TTL:     ^uint64(0),
 		Coords:  req.Coords,
 		ToKey:   req.Key,
 		FromKey: t.core.boxPub,

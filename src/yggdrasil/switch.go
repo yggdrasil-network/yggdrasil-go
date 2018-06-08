@@ -413,22 +413,19 @@ func (t *switchTable) updateTable() {
 	t.table.Store(newTable)
 }
 
-func (t *switchTable) lookup(dest []byte, ttl uint64) (switchPort, uint64) {
+func (t *switchTable) lookup(dest []byte) switchPort {
 	t.updater.Load().(*sync.Once).Do(t.updateTable)
 	table := t.table.Load().(lookupTable)
-	myDist := table.self.dist(dest) //getDist(table.self.coords)
-	if !(uint64(myDist) < ttl) {
-		//return 0, 0
-	}
+	myDist := table.self.dist(dest)
 	if myDist == 0 {
-		return 0, 0
+		return 0
 	}
 	// cost is in units of (expected distance) + (expected queue size), where expected distance is used as an approximation of the minimum backpressure gradient needed for packets to flow
 	ports := t.core.peers.getPorts()
 	var best switchPort
 	bestCost := int64(^uint64(0) >> 1)
 	for _, info := range table.elems {
-		dist := info.locator.dist(dest) //getDist(info.locator.coords)
+		dist := info.locator.dist(dest)
 		if !(dist < myDist) {
 			continue
 		}
@@ -442,9 +439,8 @@ func (t *switchTable) lookup(dest []byte, ttl uint64) (switchPort, uint64) {
 			bestCost = cost
 		}
 	}
-	//t.core.log.Println("DEBUG: sending to", best, "bandwidth", getBandwidth(best))
 	//t.core.log.Println("DEBUG: sending to", best, "cost", bestCost)
-	return best, ttl //uint64(myDist)
+	return best
 }
 
 ////////////////////////////////////////////////////////////////////////////////

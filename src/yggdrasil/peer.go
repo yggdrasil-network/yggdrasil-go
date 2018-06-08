@@ -204,14 +204,11 @@ func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
 		// Drop traffic until the peer manages to send us at least one good switchMsg
 		return
 	}
-	_, ttlLen := wire_decode_uint64(packet[pTypeLen:])
-	ttlEnd := pTypeLen + ttlLen
-	coords, coordLen := wire_decode_coords(packet[ttlEnd:])
-	coordEnd := ttlEnd + coordLen
-	if coordEnd == len(packet) {
+	coords, coordLen := wire_decode_coords(packet[pTypeLen:])
+	if coordLen >= len(packet) {
 		return
 	} // No payload
-	toPort, _ := p.core.switchTable.lookup(coords, 0)
+	toPort := p.core.switchTable.lookup(coords)
 	if toPort == p.port {
 		return
 	}

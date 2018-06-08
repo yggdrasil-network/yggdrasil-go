@@ -192,7 +192,6 @@ func wire_chop_uint64(toUInt64 *uint64, fromSlice *[]byte) bool {
 // Wire traffic packets
 
 type wire_trafficPacket struct {
-	TTL     uint64
 	Coords  []byte
 	Handle  handle
 	Nonce   boxNonce
@@ -203,7 +202,6 @@ type wire_trafficPacket struct {
 func (p *wire_trafficPacket) encode() []byte {
 	bs := util_getBytes()
 	bs = wire_put_uint64(wire_Traffic, bs)
-	bs = wire_put_uint64(p.TTL, bs)
 	bs = wire_put_coords(p.Coords, bs)
 	bs = append(bs, p.Handle[:]...)
 	bs = append(bs, p.Nonce[:]...)
@@ -219,8 +217,6 @@ func (p *wire_trafficPacket) decode(bs []byte) bool {
 		return false
 	case pType != wire_Traffic:
 		return false
-	case !wire_chop_uint64(&p.TTL, &bs):
-		return false
 	case !wire_chop_coords(&p.Coords, &bs):
 		return false
 	case !wire_chop_slice(p.Handle[:], &bs):
@@ -233,7 +229,6 @@ func (p *wire_trafficPacket) decode(bs []byte) bool {
 }
 
 type wire_protoTrafficPacket struct {
-	TTL     uint64
 	Coords  []byte
 	ToKey   boxPubKey
 	FromKey boxPubKey
@@ -244,7 +239,6 @@ type wire_protoTrafficPacket struct {
 func (p *wire_protoTrafficPacket) encode() []byte {
 	coords := wire_encode_coords(p.Coords)
 	bs := wire_encode_uint64(wire_ProtocolTraffic)
-	bs = append(bs, wire_encode_uint64(p.TTL)...)
 	bs = append(bs, coords...)
 	bs = append(bs, p.ToKey[:]...)
 	bs = append(bs, p.FromKey[:]...)
@@ -259,8 +253,6 @@ func (p *wire_protoTrafficPacket) decode(bs []byte) bool {
 	case !wire_chop_uint64(&pType, &bs):
 		return false
 	case pType != wire_ProtocolTraffic:
-		return false
-	case !wire_chop_uint64(&p.TTL, &bs):
 		return false
 	case !wire_chop_coords(&p.Coords, &bs):
 		return false
