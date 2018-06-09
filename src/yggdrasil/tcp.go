@@ -354,29 +354,7 @@ func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Magic bytes to check
-var tcp_key = [...]byte{'k', 'e', 'y', 's'}
 var tcp_msg = [...]byte{0xde, 0xad, 0xb1, 0x75} // "dead bits"
-
-func tcp_chop_keys(box *boxPubKey, sig *sigPubKey, link *boxPubKey, bs *[]byte) bool {
-	// This one is pretty simple: we know how long the message should be
-	// So don't call this with a message that's too short
-	if len(*bs) < len(tcp_key)+2*len(*box)+len(*sig) {
-		return false
-	}
-	for idx := range tcp_key {
-		if (*bs)[idx] != tcp_key[idx] {
-			return false
-		}
-	}
-	(*bs) = (*bs)[len(tcp_key):]
-	copy(box[:], *bs)
-	(*bs) = (*bs)[len(box):]
-	copy(sig[:], *bs)
-	(*bs) = (*bs)[len(sig):]
-	copy(link[:], *bs)
-	(*bs) = (*bs)[len(sig):]
-	return true
-}
 
 func tcp_chop_msg(bs *[]byte) ([]byte, bool, error) {
 	// Returns msg, ok, err
