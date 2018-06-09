@@ -54,10 +54,12 @@ func linkNodes(m, n *Node) {
 	// Create peers
 	// Buffering reduces packet loss in the sim
 	//  This slightly speeds up testing (fewer delays before retrying a ping)
+	pLinkPub, pLinkPriv := m.core.DEBUG_newBoxKeys()
+	qLinkPub, qLinkPriv := m.core.DEBUG_newBoxKeys()
 	p := m.core.DEBUG_getPeers().DEBUG_newPeer(n.core.DEBUG_getEncryptionPublicKey(),
-		n.core.DEBUG_getSigningPublicKey())
+		n.core.DEBUG_getSigningPublicKey(), *m.core.DEBUG_getSharedKey(pLinkPriv, qLinkPub))
 	q := n.core.DEBUG_getPeers().DEBUG_newPeer(m.core.DEBUG_getEncryptionPublicKey(),
-		m.core.DEBUG_getSigningPublicKey())
+		m.core.DEBUG_getSigningPublicKey(), *n.core.DEBUG_getSharedKey(qLinkPriv, pLinkPub))
 	DEBUG_simLinkPeers(p, q)
 	return
 }

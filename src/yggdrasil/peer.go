@@ -76,17 +76,18 @@ type peer struct {
 	bytesSent  uint64 // To track bandwidth usage for getPeers
 	bytesRecvd uint64 // To track bandwidth usage for getPeers
 	// BUG: sync/atomic, 32 bit platforms need the above to be the first element
-	core      *Core
-	port      switchPort
-	box       boxPubKey
-	sig       sigPubKey
-	shared    boxSharedKey
-	firstSeen time.Time       // To track uptime for getPeers
-	linkOut   (chan []byte)   // used for protocol traffic (to bypass queues)
-	doSend    (chan struct{}) // tell the linkLoop to send a switchMsg
-	dinfo     *dhtInfo        // used to keep the DHT working
-	out       func([]byte)    // Set up by whatever created the peers struct, used to send packets to other nodes
-	close     func()          // Called when a peer is removed, to close the underlying connection, or via admin api
+	core       *Core
+	port       switchPort
+	box        boxPubKey
+	sig        sigPubKey
+	shared     boxSharedKey
+	linkShared boxSharedKey
+	firstSeen  time.Time       // To track uptime for getPeers
+	linkOut    (chan []byte)   // used for protocol traffic (to bypass queues)
+	doSend     (chan struct{}) // tell the linkLoop to send a switchMsg
+	dinfo      *dhtInfo        // used to keep the DHT working
+	out        func([]byte)    // Set up by whatever created the peers struct, used to send packets to other nodes
+	close      func()          // Called when a peer is removed, to close the underlying connection, or via admin api
 }
 
 func (p *peer) getQueueSize() int64 {
@@ -97,14 +98,15 @@ func (p *peer) updateQueueSize(delta int64) {
 	atomic.AddInt64(&p.queueSize, delta)
 }
 
-func (ps *peers) newPeer(box *boxPubKey, sig *sigPubKey) *peer {
+func (ps *peers) newPeer(box *boxPubKey, sig *sigPubKey, linkShared *boxSharedKey) *peer {
 	now := time.Now()
 	p := peer{box: *box,
-		sig:       *sig,
-		shared:    *getSharedKey(&ps.core.boxPriv, box),
-		firstSeen: now,
-		doSend:    make(chan struct{}, 1),
-		core:      ps.core}
+		sig:        *sig,
+		shared:     *getSharedKey(&ps.core.boxPriv, box),
+		linkShared: *linkShared,
+		firstSeen:  now,
+		doSend:     make(chan struct{}, 1),
+		core:       ps.core}
 	ps.mutex.Lock()
 	defer ps.mutex.Unlock()
 	oldPorts := ps.getPorts()
@@ -228,7 +230,13 @@ func (p *peer) sendPacket(packet []byte) {
 }
 
 func (p *peer) sendLinkPacket(packet []byte) {
-	bs, nonce := boxSeal(&p.shared, packet, nil)
+	innerPayload, innerNonce := boxSeal(&p.linkShared, packet, nil)
+	innerLinkPacket := wire_linkProtoTrafficPacket{
+		Nonce:   *innerNonce,
+		Payload: innerPayload,
+	}
+	outerPayload := innerLinkPacket.encode()
+	bs, nonce := boxSeal(&p.shared, outerPayload, nil)
 	linkPacket := wire_linkProtoTrafficPacket{
 		Nonce:   *nonce,
 		Payload: bs,
@@ -242,7 +250,15 @@ func (p *peer) handleLinkTraffic(bs []byte) {
 	if !packet.decode(bs) {
 		return
 	}
-	payload, isOK := boxOpen(&p.shared, packet.Payload, &packet.Nonce)
+	outerPayload, isOK := boxOpen(&p.shared, packet.Payload, &packet.Nonce)
+	if !isOK {
+		return
+	}
+	innerPacket := wire_linkProtoTrafficPacket{}
+	if !innerPacket.decode(outerPayload) {
+		return
+	}
+	payload, isOK := boxOpen(&p.linkShared, innerPacket.Payload, &innerPacket.Nonce)
 	if !isOK {
 		return
 	}
@@ -297,6 +313,13 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 		prevKey = hop.Next
 	}
 	p.core.switchTable.handleMsg(&msg, p.port)
+	if !p.core.switchTable.checkRoot(&msg) {
+		// Bad switch message
+		// Stop forwarding traffic from it
+		// Stop refreshing it in the DHT
+		p.dinfo = nil
+		return
+	}
 	// Pass a mesage to the dht informing it that this peer (still) exists
 	loc.coords = loc.coords[:len(loc.coords)-1]
 	dinfo := dhtInfo{

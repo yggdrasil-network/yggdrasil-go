@@ -263,6 +263,27 @@ func (t *switchTable) getMsg() *switchMsg {
 	}
 }
 
+func (t *switchTable) checkRoot(msg *switchMsg) bool {
+	// returns false if it's a dropped root, not a better root, or has an older timestamp
+	// returns true otherwise
+	// used elsewhere to keep inserting peers into the dht only if root info is OK
+	t.mutex.RLock()
+	defer t.mutex.RUnlock()
+	dropTstamp, isIn := t.drop[msg.Root]
+	switch {
+	case isIn && dropTstamp >= msg.TStamp:
+		return false
+	case firstIsBetter(&msg.Root, &t.data.locator.root):
+		return true
+	case t.data.locator.root != msg.Root:
+		return false
+	case t.data.locator.tstamp > msg.TStamp:
+		return false
+	default:
+		return true
+	}
+}
+
 func (t *switchTable) handleMsg(msg *switchMsg, fromPort switchPort) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
