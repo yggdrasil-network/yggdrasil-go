@@ -157,18 +157,14 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	}
 	timeout := time.Now().Add(6 * time.Second)
 	sock.SetReadDeadline(timeout)
-	n, err := sock.Read(metaBytes)
+	_, err = sock.Read(metaBytes)
 	if err != nil {
 		return
 	}
-	if n != version_getMetaLength() {
-		return
-	}
 	meta = version_metadata{} // Reset to zero value
-	if !meta.decode(metaBytes) {
-		return
-	}
-	if !meta.check() {
+	if !meta.decode(metaBytes) || !meta.check() {
+		// Failed to decode and check the metadata
+		// If it's a version mismatch issue, then print an error message
 		base := version_getBaseMetadata()
 		if meta.meta == base.meta {
 			if meta.ver > base.ver {
@@ -177,6 +173,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 				iface.core.log.Println("Failed to connect to node:", sock.RemoteAddr().String(), "version:", fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
 			}
 		}
+		// TODO? Block forever to prevent future connection attempts? suppress future messages about the same node?
 		return
 	}
 	info := tcpInfo{ // used as a map key, so don't include ephemeral link key
