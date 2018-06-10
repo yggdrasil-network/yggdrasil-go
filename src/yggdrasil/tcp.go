@@ -18,12 +18,13 @@ import "net"
 import "time"
 import "errors"
 import "sync"
+import "sync/atomic"
 import "fmt"
 import "golang.org/x/net/proxy"
 
 const tcp_msgSize = 2048 + 65535 // TODO figure out what makes sense
 
-// wrapper function for non tcp/ip connections
+// Wrapper function for non tcp/ip connections.
 func setNoDelay(c net.Conn, delay bool) {
 	tcp, ok := c.(*net.TCPConn)
 	if ok {
@@ -31,6 +32,7 @@ func setNoDelay(c net.Conn, delay bool) {
 	}
 }
 
+// The TCP listener and information about active TCP connections, to avoid duplication.
 type tcpInterface struct {
 	core  *Core
 	serv  net.Listener
@@ -39,6 +41,8 @@ type tcpInterface struct {
 	conns map[tcpInfo](chan struct{})
 }
 
+// This is used as the key to a map that tracks existing connections, to prevent multiple connections to the same keys and local/remote address pair from occuring.
+// Different address combinations are allowed, so multi-homing is still technically possible (but not necessarily advisable).
 type tcpInfo struct {
 	box        boxPubKey
 	sig        sigPubKey
@@ -46,15 +50,21 @@ type tcpInfo struct {
 	remoteAddr string
 }
 
+// Returns the address of the listener.
 func (iface *tcpInterface) getAddr() *net.TCPAddr {
 	return iface.serv.Addr().(*net.TCPAddr)
 }
 
+// Attempts to initiate a connection to the provided address.
 func (iface *tcpInterface) connect(addr string) {
 	iface.call(addr)
 }
 
+// Attempst to initiate a connection to the provided address, viathe provided socks proxy address.
 func (iface *tcpInterface) connectSOCKS(socksaddr, peeraddr string) {
+	// TODO make sure this doesn't keep attempting/killing connections when one is already active.
+	// I think some of the interaction between this and callWithConn needs work, so the dial isn't even attempted if there's already an outgoing call to peeraddr.
+	// Or maybe only if there's already an outgoing call to peeraddr via this socksaddr?
 	go func() {
 		dialer, err := proxy.SOCKS5("tcp", socksaddr, nil, proxy.Direct)
 		if err == nil {
@@ -72,6 +82,7 @@ func (iface *tcpInterface) connectSOCKS(socksaddr, peeraddr string) {
 	}()
 }
 
+// Initializes the struct.
 func (iface *tcpInterface) init(core *Core, addr string) (err error) {
 	iface.core = core
 
@@ -85,6 +96,7 @@ func (iface *tcpInterface) init(core *Core, addr string) (err error) {
 	return err
 }
 
+// Runs the listener, which spawns off goroutines for incoming connections.
 func (iface *tcpInterface) listener() {
 	defer iface.serv.Close()
 	iface.core.log.Println("Listening for TCP on:", iface.serv.Addr().String())
@@ -97,6 +109,7 @@ func (iface *tcpInterface) listener() {
 	}
 }
 
+// Called by connectSOCKS, it's like call but with the connection already established.
 func (iface *tcpInterface) callWithConn(conn net.Conn) {
 	go func() {
 		raddr := conn.RemoteAddr().String()
@@ -117,6 +130,11 @@ func (iface *tcpInterface) callWithConn(conn net.Conn) {
 	}()
 }
 
+// Checks if a connection already exists.
+// If not, it adds it to the list of active outgoing calls (to block future attempts) and dials the address.
+// If the dial is successful, it launches the handler.
+// When finished, it removes the outgoing call, so reconnection attempts can be made later.
+// This all happens in a separate goroutine that it spawns.
 func (iface *tcpInterface) call(saddr string) {
 	go func() {
 		quit := false
@@ -142,6 +160,8 @@ func (iface *tcpInterface) call(saddr string) {
 	}()
 }
 
+// This exchanges/checks connection metadata, sets up the peer struct, sets up the writer goroutine, and then runs the reader within the current goroutine.
+// It defers a bunch of cleanup stuff to tear down all of these things when the reader exists (e.g. due to a closed connection or a timeout).
 func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	defer sock.Close()
 	// Get our keys
@@ -233,7 +253,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	out := make(chan []byte, 32) // TODO? what size makes sense
 	defer close(out)
 	go func() {
-		var shadow uint64
+		var shadow int64
 		var stack [][]byte
 		put := func(msg []byte) {
 			stack = append(stack, msg)
@@ -247,14 +267,16 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 			msgLen := wire_encode_uint64(uint64(len(msg)))
 			buf := net.Buffers{tcp_msg[:], msgLen, msg}
 			buf.WriteTo(sock)
+			atomic.AddUint64(&p.bytesSent, uint64(len(tcp_msg)+len(msgLen)+len(msg)))
 			util_putBytes(msg)
 		}
 		timerInterval := 4 * time.Second
 		timer := time.NewTimer(timerInterval)
 		defer timer.Stop()
 		for {
-			for ; shadow > 0; shadow-- {
-				p.updateQueueSize(-1)
+			if shadow != 0 {
+				p.updateQueueSize(-shadow)
+				shadow = 0
 			}
 			timer.Stop()
 			select {
@@ -319,6 +341,9 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	return
 }
 
+// This reads from the socket into a []byte buffer for incomping messages.
+// It copies completed messages out of the cache into a new slice, and passes them to the peer struct via the provided `in func([]byte)` argument.
+// Then it shifts the incomplete fragments of data forward so future reads won't overwrite it.
 func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) {
 	bs := make([]byte, 2*tcp_msgSize)
 	frag := bs[:0]
@@ -350,9 +375,13 @@ func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Magic bytes to check
+// These are 4 bytes of padding used to catch if something went horribly wrong with the tcp connection.
 var tcp_msg = [...]byte{0xde, 0xad, 0xb1, 0x75} // "dead bits"
 
+// This takes a pointer to a slice as an argument.
+// It checks if there's a complete message and, if so, slices out those parts and returns the message, true, and nil.
+// If there's no error, but also no complete message, it returns nil, false, and nil.
+// If there's an error, it returns nil, false, and the error, which the reader then handles (currently, by returning from the reader, which causes the connection to close).
 func tcp_chop_msg(bs *[]byte) ([]byte, bool, error) {
 	// Returns msg, ok, err
 	if len(*bs) < len(tcp_msg) {

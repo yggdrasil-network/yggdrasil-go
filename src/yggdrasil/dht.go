@@ -23,12 +23,20 @@ import "time"
 
 //import "fmt"
 
-// Maximum size for buckets and lookups
-//  Exception for buckets if the next one is non-full
-const dht_bucket_number = 8 * NodeIDLen // This shouldn't be changed
-const dht_bucket_size = 2               // This should be at least 2
-const dht_lookup_size = 16              // This should be at least 1, below 2 is impractical
+// Number of DHT buckets, equal to the number of bits in a NodeID.
+// Note that, in practice, nearly all of these will be empty.
+const dht_bucket_number = 8 * NodeIDLen
 
+// Number of nodes to keep in each DHT bucket.
+// Additional entries may be kept for peers, for bootstrapping reasons, if they don't already have an entry in the bucket.
+const dht_bucket_size = 2
+
+// Number of responses to include in a lookup.
+// If extras are given, they will be truncated from the response handler to prevent abuse.
+const dht_lookup_size = 16
+
+// dhtInfo represents everything we know about a node in the DHT.
+// This includes its key, a cache of it's NodeID, coords, and timing/ping related info for deciding who/when to ping nodes for maintenance.
 type dhtInfo struct {
 	nodeID_hidden *NodeID
 	key           boxPubKey
@@ -39,6 +47,7 @@ type dhtInfo struct {
 	throttle      uint8     // Number of seconds to wait before pinging a node to bootstrap buckets, gradually increases up to 1 minute
 }
 
+// Returns the *NodeID associated with dhtInfo.key, calculating it on the fly the first time or from a cache all subsequent times.
 func (info *dhtInfo) getNodeID() *NodeID {
 	if info.nodeID_hidden == nil {
 		info.nodeID_hidden = getNodeID(&info.key)
@@ -46,17 +55,23 @@ func (info *dhtInfo) getNodeID() *NodeID {
 	return info.nodeID_hidden
 }
 
+// The nodes we known in a bucket (a region of keyspace with a matching prefix of some length).
 type bucket struct {
 	peers []*dhtInfo
 	other []*dhtInfo
 }
 
+// Request for a node to do a lookup.
+// Includes our key and coords so they can send a response back, and the destination NodeID we want to ask about.
 type dhtReq struct {
 	Key    boxPubKey // Key of whoever asked
 	Coords []byte    // Coords of whoever asked
 	Dest   NodeID    // NodeID they're asking about
 }
 
+// Response to a DHT lookup.
+// Includes the key and coords of the node that's responding, and the destination they were asked about.
+// The main part is Infos []*dhtInfo, the lookup response.
 type dhtRes struct {
 	Key    boxPubKey // key to respond to
 	Coords []byte    // coords to respond to
@@ -64,11 +79,16 @@ type dhtRes struct {
 	Infos  []*dhtInfo // response
 }
 
+// Information about a node, either taken from our table or from a lookup response.
+// Used to schedule pings at a later time (they're throttled to 1/second for background maintenance traffic).
 type dht_rumor struct {
 	info   *dhtInfo
 	target *NodeID
 }
 
+// The main DHT struct.
+// Includes a slice of buckets, to organize known nodes based on their region of keyspace.
+// Also includes information about outstanding DHT requests and the rumor mill of nodes to ping at some point.
 type dht struct {
 	core           *Core
 	nodeID         NodeID
@@ -79,6 +99,7 @@ type dht struct {
 	rumorMill      []dht_rumor
 }
 
+// Initializes the DHT.
 func (t *dht) init(c *Core) {
 	t.core = c
 	t.nodeID = *t.core.GetNodeID()
@@ -86,6 +107,8 @@ func (t *dht) init(c *Core) {
 	t.reqs = make(map[boxPubKey]map[NodeID]time.Time)
 }
 
+// Reads a request, performs a lookup, and responds.
+// If the node that sent the request isn't in our DHT, but should be, then we add them.
 func (t *dht) handleReq(req *dhtReq) {
 	// Send them what they asked for
 	loc := t.core.switchTable.getLocator()
@@ -106,6 +129,8 @@ func (t *dht) handleReq(req *dhtReq) {
 	//if req.dest != t.nodeID { t.ping(&info, info.getNodeID()) } // Or spam...
 }
 
+// Reads a lookup response, checks that we had sent a matching request, and processes the response info.
+// This mainly consists of updating the node we asked in our DHT (they responded, so we know they're still alive), and adding the response info to the rumor mill.
 func (t *dht) handleRes(res *dhtRes) {
 	t.core.searches.handleDHTRes(res)
 	reqs, isIn := t.reqs[res.Key]
@@ -157,6 +182,7 @@ func (t *dht) handleRes(res *dhtRes) {
 	}
 }
 
+// Does a DHT lookup and returns the results, sorted in ascending order of distance from the destination.
 func (t *dht) lookup(nodeID *NodeID, allowCloser bool) []*dhtInfo {
 	// FIXME this allocates a bunch, sorts, and keeps the part it likes
 	// It would be better to only track the part it likes to begin with
@@ -192,14 +218,18 @@ func (t *dht) lookup(nodeID *NodeID, allowCloser bool) []*dhtInfo {
 	return res
 }
 
+// Gets the bucket for a specified matching prefix length.
 func (t *dht) getBucket(bidx int) *bucket {
 	return &t.buckets_hidden[bidx]
 }
 
+// Lists the number of buckets.
 func (t *dht) nBuckets() int {
 	return len(t.buckets_hidden)
 }
 
+// Inserts a node into the DHT if they meet certain requirements.
+// In particular, they must either be a peer that's not already in the DHT, or else be someone we should insert into the DHT (see: shouldInsert).
 func (t *dht) insertIfNew(info *dhtInfo, isPeer bool) {
 	//fmt.Println("DEBUG: dht insertIfNew:", info.getNodeID(), info.coords)
 	// Insert if no "other" entry already exists
@@ -219,6 +249,7 @@ func (t *dht) insertIfNew(info *dhtInfo, isPeer bool) {
 	}
 }
 
+// Adds a node to the DHT, possibly removing another node in the process.
 func (t *dht) insert(info *dhtInfo, isPeer bool) {
 	//fmt.Println("DEBUG: dht insert:", info.getNodeID(), info.coords)
 	// First update the time on this info
@@ -253,6 +284,7 @@ func (t *dht) insert(info *dhtInfo, isPeer bool) {
 	}
 }
 
+// Gets the bucket index for the bucket where we would put the given NodeID.
 func (t *dht) getBucketIndex(nodeID *NodeID) (int, bool) {
 	for bidx := 0; bidx < t.nBuckets(); bidx++ {
 		them := nodeID[bidx/8] & (0x80 >> byte(bidx%8))
@@ -264,6 +296,8 @@ func (t *dht) getBucketIndex(nodeID *NodeID) (int, bool) {
 	return t.nBuckets(), false
 }
 
+// Helper called by containsPeer, containsOther, and contains.
+// Returns true if a node with the same ID *and coords* is already in the given part of the bucket.
 func dht_bucket_check(newInfo *dhtInfo, infos []*dhtInfo) bool {
 	// Compares if key and coords match
 	if newInfo == nil {
@@ -293,18 +327,22 @@ func dht_bucket_check(newInfo *dhtInfo, infos []*dhtInfo) bool {
 	return false
 }
 
+// Calls bucket_check over the bucket's peers infos.
 func (b *bucket) containsPeer(info *dhtInfo) bool {
 	return dht_bucket_check(info, b.peers)
 }
 
+// Calls bucket_check over the bucket's other info.
 func (b *bucket) containsOther(info *dhtInfo) bool {
 	return dht_bucket_check(info, b.other)
 }
 
+// returns containsPeer || containsOther
 func (b *bucket) contains(info *dhtInfo) bool {
 	return b.containsPeer(info) || b.containsOther(info)
 }
 
+// Removes a node with the corresponding key, if any, from a bucket.
 func (b *bucket) drop(key *boxPubKey) {
 	clean := func(infos []*dhtInfo) []*dhtInfo {
 		cleaned := infos[:0]
@@ -320,6 +358,7 @@ func (b *bucket) drop(key *boxPubKey) {
 	b.other = clean(b.other)
 }
 
+// Sends a lookup request to the specified node.
 func (t *dht) sendReq(req *dhtReq, dest *dhtInfo) {
 	// Send a dhtReq to the node in dhtInfo
 	bs := req.encode()
@@ -345,6 +384,7 @@ func (t *dht) sendReq(req *dhtReq, dest *dhtInfo) {
 	reqsToDest[req.Dest] = time.Now()
 }
 
+// Sends a lookup response to the specified node.
 func (t *dht) sendRes(res *dhtRes, req *dhtReq) {
 	// Send a reply for a dhtReq
 	bs := res.encode()
@@ -361,10 +401,14 @@ func (t *dht) sendRes(res *dhtRes, req *dhtReq) {
 	t.core.router.out(packet)
 }
 
+// Returns true of a bucket contains no peers and no other nodes.
 func (b *bucket) isEmpty() bool {
 	return len(b.peers)+len(b.other) == 0
 }
 
+// Gets the next node that should be pinged from the bucket.
+// There's a cooldown of 6 seconds between ping attempts for each node, to give them time to respond.
+// It returns the least recently pinged node, subject to that send cooldown.
 func (b *bucket) nextToPing() *dhtInfo {
 	// Check the nodes in the bucket
 	// Return whichever one responded least recently
@@ -387,12 +431,16 @@ func (b *bucket) nextToPing() *dhtInfo {
 	return toPing
 }
 
+// Returns a useful target address to ask about for pings.
+// Equal to the our node's ID, except for exactly 1 bit at the bucket index.
 func (t *dht) getTarget(bidx int) *NodeID {
 	targetID := t.nodeID
 	targetID[bidx/8] ^= 0x80 >> byte(bidx%8)
 	return &targetID
 }
 
+// Sends a ping to a node, or removes the node if it has failed to respond to too many pings.
+// If target is nil, we will ask the node about our own NodeID.
 func (t *dht) ping(info *dhtInfo, target *NodeID) {
 	if info.pings > 2 {
 		bidx, isOK := t.getBucketIndex(info.getNodeID())
@@ -418,6 +466,8 @@ func (t *dht) ping(info *dhtInfo, target *NodeID) {
 	t.sendReq(&req, info)
 }
 
+// Adds a node info and target to the rumor mill.
+// The node will be asked about the target at a later point, if doing so would still be useful at the time.
 func (t *dht) addToMill(info *dhtInfo, target *NodeID) {
 	rumor := dht_rumor{
 		info:   info,
@@ -426,6 +476,11 @@ func (t *dht) addToMill(info *dhtInfo, target *NodeID) {
 	t.rumorMill = append(t.rumorMill, rumor)
 }
 
+// Regular periodic maintenance.
+// If the mill is empty, it adds two pings to the rumor mill.
+// The first is to the node that responded least recently, provided that it's been at least 1 minute, to make sure we eventually detect and remove unresponsive nodes.
+// The second is used for bootstrapping, and attempts to fill some bucket, iterating over buckets and resetting after it hits the last non-empty one.
+// If the mill is not empty, it pops nodes from the mill until it finds one that would be useful to ping (see: shouldInsert), and then pings it.
 func (t *dht) doMaintenance() {
 	// First clean up reqs
 	for key, reqs := range t.reqs {
@@ -489,6 +544,8 @@ func (t *dht) doMaintenance() {
 	}
 }
 
+// Returns true if it would be worth pinging the specified node.
+// This requires that the bucket doesn't already contain the node, and that either the bucket isn't full yet or the node is closer to us in keyspace than some other node in that bucket.
 func (t *dht) shouldInsert(info *dhtInfo) bool {
 	bidx, isOK := t.getBucketIndex(info.getNodeID())
 	if !isOK {
@@ -509,6 +566,7 @@ func (t *dht) shouldInsert(info *dhtInfo) bool {
 	return false
 }
 
+// Returns true if the keyspace distance between the first and second node is smaller than the keyspace distance between the second and third node.
 func dht_firstCloserThanThird(first *NodeID,
 	second *NodeID,
 	third *NodeID) bool {
@@ -523,6 +581,10 @@ func dht_firstCloserThanThird(first *NodeID,
 	return false
 }
 
+// Resets the DHT in response to coord changes.
+// This empties all buckets, resets the bootstrapping cycle to 0, and empties the rumor mill.
+// It adds all old "other" node info to the rumor mill, so they'll be pinged quickly.
+// If those nodes haven't also changed coords, then this is a relatively quick way to notify those nodes of our new coords and re-add them to our own DHT if they respond.
 func (t *dht) reset() {
 	// This is mostly so bootstrapping will reset to resend coords into the network
 	t.offset = 0

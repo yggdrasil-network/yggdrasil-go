@@ -4,6 +4,9 @@ package yggdrasil
 // Used in the inital connection setup and key exchange
 // Some of this could arguably go in wire.go instead
 
+// This is the version-specific metadata exchanged at the start of a connection.
+// It must always beign with the 4 bytes "meta" and a wire formatted uint64 major version number.
+// The current version also includes a minor version number, and the box/sig/link keys that need to be exchanged to open an connection.
 type version_metadata struct {
 	meta [4]byte
 	ver  uint64 // 1 byte in this version
@@ -14,6 +17,7 @@ type version_metadata struct {
 	link     boxPubKey
 }
 
+// Gets a base metadata with no keys set, but with the correct version numbers.
 func version_getBaseMetadata() version_metadata {
 	return version_metadata{
 		meta:     [4]byte{'m', 'e', 't', 'a'},
@@ -22,16 +26,18 @@ func version_getBaseMetadata() version_metadata {
 	}
 }
 
+// Gest the length of the metadata for this version, used to know how many bytes to read from the start of a connection.
 func version_getMetaLength() (mlen int) {
 	mlen += 4            // meta
-	mlen += 1            // ver
-	mlen += 1            // minorVer
+	mlen += 1            // ver, as long as it's < 127, which it is in this version
+	mlen += 1            // minorVer, as long as it's < 127, which it is in this version
 	mlen += boxPubKeyLen // box
 	mlen += sigPubKeyLen // sig
 	mlen += boxPubKeyLen // link
 	return
 }
 
+// Encodes version metadata into its wire format.
 func (m *version_metadata) encode() []byte {
 	bs := make([]byte, 0, version_getMetaLength())
 	bs = append(bs, m.meta[:]...)
@@ -46,6 +52,7 @@ func (m *version_metadata) encode() []byte {
 	return bs
 }
 
+// Decodes version metadata from its wire format into the struct.
 func (m *version_metadata) decode(bs []byte) bool {
 	switch {
 	case !wire_chop_slice(m.meta[:], &bs):
@@ -64,6 +71,7 @@ func (m *version_metadata) decode(bs []byte) bool {
 	return true
 }
 
+// Checks that the "meta" bytes and the version numbers are the expected values.
 func (m *version_metadata) check() bool {
 	base := version_getBaseMetadata()
 	return base.meta == m.meta && base.ver == m.ver && base.minorVer == m.minorVer

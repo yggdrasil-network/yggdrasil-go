@@ -1,10 +1,17 @@
 package yggdrasil
 
-type address [16]byte // IPv6 address within the network
-type subnet [8]byte   // It's a /64
+// address represents an IPv6 address in the yggdrasil address range.
+type address [16]byte
 
-var address_prefix = [...]byte{0xfd} // For node addresses + local subnets
+// subnet represents an IPv6 /64 subnet in the yggdrasil subnet range.
+type subnet [8]byte
 
+// address_prefix is the prefix used for all addresses and subnets in the network.
+// The current implementation requires this to be a multiple of 8 bits.
+// Nodes that configure this differently will be unable to communicate with eachother, though routing and the DHT machinery *should* still work.
+var address_prefix = [...]byte{0xfd}
+
+// isValid returns true if an address falls within the range used by nodes in the network.
 func (a *address) isValid() bool {
 	for idx := range address_prefix {
 		if (*a)[idx] != address_prefix[idx] {
@@ -14,6 +21,7 @@ func (a *address) isValid() bool {
 	return (*a)[len(address_prefix)]&0x80 == 0
 }
 
+// isValid returns true if a prefix falls within the range usable by the network.
 func (s *subnet) isValid() bool {
 	for idx := range address_prefix {
 		if (*s)[idx] != address_prefix[idx] {
@@ -23,6 +31,11 @@ func (s *subnet) isValid() bool {
 	return (*s)[len(address_prefix)]&0x80 != 0
 }
 
+// address_addrForNodeID takes a *NodeID as an argument and returns an *address.
+// This address begins with the address prefix.
+// The next bit is 0 for an address, and 1 for a subnet.
+// The following 7 bits are set to the number of leading 1 bits in the NodeID.
+// The NodeID, excluding the leading 1 bits and the first leading 1 bit, is truncated to the appropriate length and makes up the remainder of the address.
 func address_addrForNodeID(nid *NodeID) *address {
 	// 128 bit address
 	// Begins with prefix
@@ -59,6 +72,11 @@ func address_addrForNodeID(nid *NodeID) *address {
 	return &addr
 }
 
+// address_subnetForNodeID takes a *NodeID as an argument and returns a *subnet.
+// This subnet begins with the address prefix.
+// The next bit is 0 for an address, and 1 for a subnet.
+// The following 7 bits are set to the number of leading 1 bits in the NodeID.
+// The NodeID, excluding the leading 1 bits and the first leading 1 bit, is truncated to the appropriate length and makes up the remainder of the subnet.
 func address_subnetForNodeID(nid *NodeID) *subnet {
 	// Exactly as the address version, with two exceptions:
 	//  1) The first bit after the fixed prefix is a 1 instead of a 0
@@ -70,6 +88,10 @@ func address_subnetForNodeID(nid *NodeID) *subnet {
 	return &snet
 }
 
+// getNodeIDandMask returns two *NodeID.
+// The first is a NodeID with all the bits known from the address set to their correct values.
+// The second is a bitmask with 1 bit set for each bit that was known from the address.
+// This is used to look up NodeIDs in the DHT and tell if they match an address.
 func (a *address) getNodeIDandMask() (*NodeID, *NodeID) {
 	// Mask is a bitmask to mark the bits visible from the address
 	// This means truncated leading 1s, first leading 0, and visible part of addr
@@ -95,6 +117,10 @@ func (a *address) getNodeIDandMask() (*NodeID, *NodeID) {
 	return &nid, &mask
 }
 
+// getNodeIDandMask returns two *NodeID.
+// The first is a NodeID with all the bits known from the address set to their correct values.
+// The second is a bitmask with 1 bit set for each bit that was known from the subnet.
+// This is used to look up NodeIDs in the DHT and tell if they match a subnet.
 func (s *subnet) getNodeIDandMask() (*NodeID, *NodeID) {
 	// As with the address version, but visible parts of the subnet prefix instead
 	var nid NodeID
