@@ -66,23 +66,14 @@ func wire_decode_uint64(bs []byte) (uint64, int) {
 }
 
 func wire_intToUint(i int64) uint64 {
-	var u uint64
-	if i < 0 {
-		u = uint64(-i) << 1
-		u |= 0x01 // sign bit
-	} else {
-		u = uint64(i) << 1
-	}
-	return u
+	// Non-negative integers mapped to even integers: 0 -> 0, 1 -> 2, etc.
+	// Negative integres mapped to odd integes: -1 -> 1, -2 -> 3, etc.
+	// This means the least significant bit is a sign bit.
+	return ((uint64(-(i+1))<<1)|0x01)*(uint64(i)>>63) + (uint64(i)<<1)*(^uint64(i)>>63)
 }
 
 func wire_intFromUint(u uint64) int64 {
-	var i int64
-	i = int64(u >> 1)
-	if u&0x01 != 0 {
-		i *= -1
-	}
-	return i
+	return int64(u&0x01)*(-int64(u>>1)-1) + int64(^u&0x01)*int64(u>>1)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

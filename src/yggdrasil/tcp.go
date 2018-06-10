@@ -10,6 +10,10 @@ package yggdrasil
 //  Could be used to DoS (connect, give someone else's keys, spew garbage)
 //  I guess the "peer" part should watch for link packets, disconnect?
 
+// TCP connections start with a metadata exchange.
+//  It involves exchanging version numbers and crypto keys
+//  See version.go for version metadata format
+
 import "net"
 import "time"
 import "errors"
@@ -142,28 +146,39 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	defer sock.Close()
 	// Get our keys
 	myLinkPub, myLinkPriv := newBoxKeys() // ephemeral link keys
-	keys := []byte{}
-	keys = append(keys, tcp_key[:]...)
-	keys = append(keys, iface.core.boxPub[:]...)
-	keys = append(keys, iface.core.sigPub[:]...)
-	keys = append(keys, myLinkPub[:]...)
-	_, err := sock.Write(keys)
+	meta := version_getBaseMetadata()
+	meta.box = iface.core.boxPub
+	meta.sig = iface.core.sigPub
+	meta.link = *myLinkPub
+	metaBytes := meta.encode()
+	_, err := sock.Write(metaBytes)
 	if err != nil {
 		return
 	}
 	timeout := time.Now().Add(6 * time.Second)
 	sock.SetReadDeadline(timeout)
-	n, err := sock.Read(keys)
+	_, err = sock.Read(metaBytes)
 	if err != nil {
 		return
 	}
-	if n < len(keys) { /*panic("Partial key packet?") ;*/
+	meta = version_metadata{} // Reset to zero value
+	if !meta.decode(metaBytes) || !meta.check() {
+		// Failed to decode and check the metadata
+		// If it's a version mismatch issue, then print an error message
+		base := version_getBaseMetadata()
+		if meta.meta == base.meta {
+			if meta.ver > base.ver {
+				iface.core.log.Println("Failed to connect to node:", sock.RemoteAddr().String(), "version:", meta.ver)
+			} else if meta.ver == base.ver && meta.minorVer > base.minorVer {
+				iface.core.log.Println("Failed to connect to node:", sock.RemoteAddr().String(), "version:", fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
+			}
+		}
+		// TODO? Block forever to prevent future connection attempts? suppress future messages about the same node?
 		return
 	}
-	info := tcpInfo{} // used as a map key, so don't include ephemeral link eys
-	var theirLinkPub boxPubKey
-	if !tcp_chop_keys(&info.box, &info.sig, &theirLinkPub, &keys) { /*panic("Invalid key packet?") ;*/
-		return
+	info := tcpInfo{ // used as a map key, so don't include ephemeral link key
+		box: meta.box,
+		sig: meta.sig,
 	}
 	// Quit the parent call if this is a connection to ourself
 	equiv := func(k1, k2 []byte) bool {
@@ -210,7 +225,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	}()
 	// Note that multiple connections to the same node are allowed
 	//  E.g. over different interfaces
-	p := iface.core.peers.newPeer(&info.box, &info.sig, getSharedKey(myLinkPriv, &theirLinkPub))
+	p := iface.core.peers.newPeer(&info.box, &info.sig, getSharedKey(myLinkPriv, &meta.link))
 	p.linkOut = make(chan []byte, 1)
 	in := func(bs []byte) {
 		p.handlePacket(bs)
@@ -336,29 +351,7 @@ func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Magic bytes to check
-var tcp_key = [...]byte{'k', 'e', 'y', 's'}
 var tcp_msg = [...]byte{0xde, 0xad, 0xb1, 0x75} // "dead bits"
-
-func tcp_chop_keys(box *boxPubKey, sig *sigPubKey, link *boxPubKey, bs *[]byte) bool {
-	// This one is pretty simple: we know how long the message should be
-	// So don't call this with a message that's too short
-	if len(*bs) < len(tcp_key)+2*len(*box)+len(*sig) {
-		return false
-	}
-	for idx := range tcp_key {
-		if (*bs)[idx] != tcp_key[idx] {
-			return false
-		}
-	}
-	(*bs) = (*bs)[len(tcp_key):]
-	copy(box[:], *bs)
-	(*bs) = (*bs)[len(box):]
-	copy(sig[:], *bs)
-	(*bs) = (*bs)[len(sig):]
-	copy(link[:], *bs)
-	(*bs) = (*bs)[len(sig):]
-	return true
-}
 
 func tcp_chop_msg(bs *[]byte) ([]byte, bool, error) {
 	// Returns msg, ok, err
