@@ -11,12 +11,12 @@ It's named Yggdrasil after the world tree from Norse mythology, because that see
 For a longer, rambling version of this readme with more information, see: [doc](doc/README.md).
 A very early incomplete draft of a [whitepaper](doc/Whitepaper.md) describing the protocol is also available.
 
-This is a toy / proof-of-principle, so it's not even alpha quality software--any nontrivial update is likely to break backwards compatibility with no possibility for a clean upgrade path.
+This is a toy / proof-of-principle, and considered alpha quality by the developers. It's not expected to be feature complete, and future updates may not be backwards compatible, though it should warn you if it sees a connection attempt with a node running a newer version.
 You're encouraged to play with it, but it is strongly advised not to use it for anything mission critical.
 
 ## Building
 
-1. Install Go (tested on 1.9+, [godeb](https://github.com/niemeyer/godeb) is recommended).
+1. Install Go (tested on 1.9+, [godeb](https://github.com/niemeyer/godeb) is recommended for debian-based linux distributions).
 2. Clone this repository.
 2. `./build`
 
@@ -44,10 +44,9 @@ In practice, you probably want to run this instead:
 
 This keeps a persistent set of keys (and by extension, IP address) and gives you the option of editing the configuration file.
 If you want to use it as an overlay network on top of e.g. the internet, then you can do so by adding the remote devices domain/address and port (as a string, e.g. `"1.2.3.4:5678"`) to the list of `Peers` in the configuration file.
-You can control whether or not it peers over TCP or UDP by adding `tcp://` or `udp://` to the start of the string, i.e. `"udp://1.2.3.4:5678"`.
-It is also possible to route outgoing TCP connections through a socks proxy using the syntax: `"socks://socksHost:socksPort/destHost:destPort"`.
-It is currently configured to accept incoming TCP and UDP connections.
-In the interest of testing the TCP machinery, it's set to create TCP connections for auto-peering (over link-local IPv6), and to use TCP by default if no transport is specified for a manually configured peer.
+By default, it peers over TCP (which can be forced with `"tcp://1.2.3.4:5678"` syntax), but it's also possible to connect over a socks proxy (`"socks://socksHost:socksPort/1.2.3.4:5678"`).
+The socks proxy approach is useful for e.g. [peering over tor hidden services](https://github.com/yggdrasil-network/public-peers/blob/master/other/tor.md).
+UDP support was removed as part of v0.2, and may be replaced by a better implementation at a later date.
 
 ### Platforms
 

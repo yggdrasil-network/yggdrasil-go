@@ -6,6 +6,8 @@ package yggdrasil
 
 import "time"
 
+// All the information we know about an active session.
+// This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
 type sessionInfo struct {
 	core         *Core
 	theirAddr    address
@@ -37,6 +39,7 @@ type sessionInfo struct {
 	bytesRecvd   uint64    // Bytes of real traffic received in this session
 }
 
+// Represents a session ping/pong packet, andincludes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
 type sessionPing struct {
 	SendPermPub boxPubKey // Sender's permanent key
 	Handle      handle    // Random number to ID session
@@ -47,7 +50,8 @@ type sessionPing struct {
 	MTU         uint16
 }
 
-// Returns true if the session was updated, false otherwise
+// Updates session info in response to a ping, after checking that the ping is OK.
+// Returns true if the session was updated, or false otherwise.
 func (s *sessionInfo) update(p *sessionPing) bool {
 	if !(p.Tstamp > s.tstamp) {
 		// To protect against replay attacks
@@ -76,10 +80,14 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 	return true
 }
 
+// Returns true if the session has been idle for longer than the allowed timeout.
 func (s *sessionInfo) timedout() bool {
 	return time.Since(s.time) > time.Minute
 }
 
+// Struct of all active sessions.
+// Sessions are indexed by handle.
+// Additionally, stores maps of address/subnet onto keys, and keys onto handles.
 type sessions struct {
 	core *Core
 	// Maps known permanent keys to their shared key, used by DHT a lot
@@ -94,6 +102,7 @@ type sessions struct {
 	subnetToPerm map[subnet]*boxPubKey
 }
 
+// Initializes the session struct.
 func (ss *sessions) init(core *Core) {
 	ss.core = core
 	ss.permShared = make(map[boxPubKey]*boxSharedKey)
@@ -104,6 +113,7 @@ func (ss *sessions) init(core *Core) {
 	ss.subnetToPerm = make(map[subnet]*boxPubKey)
 }
 
+// Gets the session corresponding to a given handle.
 func (ss *sessions) getSessionForHandle(handle *handle) (*sessionInfo, bool) {
 	sinfo, isIn := ss.sinfos[*handle]
 	if isIn && sinfo.timedout() {
@@ -113,6 +123,7 @@ func (ss *sessions) getSessionForHandle(handle *handle) (*sessionInfo, bool) {
 	return sinfo, isIn
 }
 
+// Gets a session corresponding to an ephemeral session key used by this node.
 func (ss *sessions) getByMySes(key *boxPubKey) (*sessionInfo, bool) {
 	h, isIn := ss.byMySes[*key]
 	if !isIn {
@@ -122,6 +133,7 @@ func (ss *sessions) getByMySes(key *boxPubKey) (*sessionInfo, bool) {
 	return sinfo, isIn
 }
 
+// Gets a session corresponding to a permanent key used by the remote node.
 func (ss *sessions) getByTheirPerm(key *boxPubKey) (*sessionInfo, bool) {
 	h, isIn := ss.byTheirPerm[*key]
 	if !isIn {
@@ -131,6 +143,7 @@ func (ss *sessions) getByTheirPerm(key *boxPubKey) (*sessionInfo, bool) {
 	return sinfo, isIn
 }
 
+// Gets a session corresponding to an IPv6 address used by the remote node.
 func (ss *sessions) getByTheirAddr(addr *address) (*sessionInfo, bool) {
 	p, isIn := ss.addrToPerm[*addr]
 	if !isIn {
@@ -140,6 +153,7 @@ func (ss *sessions) getByTheirAddr(addr *address) (*sessionInfo, bool) {
 	return sinfo, isIn
 }
 
+// Gets a session corresponding to an IPv6 /64 subnet used by the remote node/network.
 func (ss *sessions) getByTheirSubnet(snet *subnet) (*sessionInfo, bool) {
 	p, isIn := ss.subnetToPerm[*snet]
 	if !isIn {
@@ -149,6 +163,8 @@ func (ss *sessions) getByTheirSubnet(snet *subnet) (*sessionInfo, bool) {
 	return sinfo, isIn
 }
 
+// Creates a new session and lazily cleans up old/timedout existing sessions.
+// This includse initializing session info to sane defaults (e.g. lowest supported MTU).
 func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
 	sinfo := sessionInfo{}
 	sinfo.core = ss.core
@@ -201,6 +217,7 @@ func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
 	return &sinfo
 }
 
+// Closes a session, removing it from sessions maps and killing the worker goroutine.
 func (sinfo *sessionInfo) close() {
 	delete(sinfo.core.sessions.sinfos, sinfo.myHandle)
 	delete(sinfo.core.sessions.byMySes, sinfo.mySesPub)
@@ -211,6 +228,7 @@ func (sinfo *sessionInfo) close() {
 	close(sinfo.recv)
 }
 
+// Returns a session ping appropriate for the given session info.
 func (ss *sessions) getPing(sinfo *sessionInfo) sessionPing {
 	loc := ss.core.switchTable.getLocator()
 	coords := loc.getCoords()
@@ -226,6 +244,9 @@ func (ss *sessions) getPing(sinfo *sessionInfo) sessionPing {
 	return ref
 }
 
+// Gets the shared key for a pair of box keys.
+// Used to cache recently used shared keys for protocol traffic.
+// This comes up with dht req/res and session ping/pong traffic.
 func (ss *sessions) getSharedKey(myPriv *boxPrivKey,
 	theirPub *boxPubKey) *boxSharedKey {
 	if skey, isIn := ss.permShared[*theirPub]; isIn {
@@ -244,10 +265,13 @@ func (ss *sessions) getSharedKey(myPriv *boxPrivKey,
 	return ss.permShared[*theirPub]
 }
 
+// Sends a session ping by calling sendPingPong in ping mode.
 func (ss *sessions) ping(sinfo *sessionInfo) {
 	ss.sendPingPong(sinfo, false)
 }
 
+// Calls getPing, sets the appropriate ping/pong flag, encodes to wire format, and send it.
+// Updates the time the last ping was sent in the session info.
 func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 	ping := ss.getPing(sinfo)
 	ping.IsPong = isPong
@@ -268,6 +292,8 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 	}
 }
 
+// Handles a session ping, creating a session if needed and calling update, then possibly responding with a pong if the ping was in ping mode and the update was successful.
+// If the session has a packet cached (common when first setting up a session), it will be sent.
 func (ss *sessions) handlePing(ping *sessionPing) {
 	// Get the corresponding session (or create a new session)
 	sinfo, isIn := ss.getByTheirPerm(&ping.SendPermPub)
@@ -296,6 +322,9 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 	}
 }
 
+// Used to subtract one nonce from another, staying in the range +- 64.
+// This is used by the nonce progression machinery to advance the bitmask of recently received packets (indexed by nonce), or to check the appropriate bit of the bitmask.
+// It's basically part of the machinery that prevents replays and duplicate packets.
 func (n *boxNonce) minus(m *boxNonce) int64 {
 	diff := int64(0)
 	for idx := range n {
@@ -311,6 +340,9 @@ func (n *boxNonce) minus(m *boxNonce) int64 {
 	return diff
 }
 
+// Get the MTU of the session.
+// Will be equal to the smaller of this node's MTU or the remote node's MTU.
+// If sending over links with a maximum message size (this was a thing with the old UDP code), it could be further lowered, to a minimum of 1280.
 func (sinfo *sessionInfo) getMTU() uint16 {
 	if sinfo.theirMTU == 0 || sinfo.myMTU == 0 {
 		return 0
@@ -321,6 +353,7 @@ func (sinfo *sessionInfo) getMTU() uint16 {
 	return sinfo.myMTU
 }
 
+// Checks if a packet's nonce is recent enough to fall within the window of allowed packets, and not already received.
 func (sinfo *sessionInfo) nonceIsOK(theirNonce *boxNonce) bool {
 	// The bitmask is to allow for some non-duplicate out-of-order packets
 	diff := theirNonce.minus(&sinfo.theirNonce)
@@ -330,19 +363,24 @@ func (sinfo *sessionInfo) nonceIsOK(theirNonce *boxNonce) bool {
 	return ^sinfo.nonceMask&(0x01<<uint64(-diff)) != 0
 }
 
+// Updates the nonce mask by (possibly) shifting the bitmask and setting the bit corresponding to this nonce to 1, and then updating the most recent nonce
 func (sinfo *sessionInfo) updateNonce(theirNonce *boxNonce) {
 	// Shift nonce mask if needed
 	// Set bit
 	diff := theirNonce.minus(&sinfo.theirNonce)
 	if diff > 0 {
+		// This nonce is newer, so shift the window before setting the bit, and update theirNonce in the session info.
 		sinfo.nonceMask <<= uint64(diff)
 		sinfo.nonceMask &= 0x01
+		sinfo.theirNonce = *theirNonce
 	} else {
+		// This nonce is older, so set the bit but do not shift the window.
 		sinfo.nonceMask &= 0x01 << uint64(-diff)
 	}
-	sinfo.theirNonce = *theirNonce
 }
 
+// Resets all sessions to an uninitialized state.
+// Called after coord changes, so attemtps to use a session will trigger a new ping and notify the remote end of the coord change.
 func (ss *sessions) resetInits() {
 	for _, sinfo := range ss.sinfos {
 		sinfo.init = false
@@ -351,10 +389,9 @@ func (ss *sessions) resetInits() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// This is for a per-session worker
-// It handles calling the relatively expensive crypto operations
-// It's also responsible for keeping nonces consistent
-
+// This is for a per-session worker.
+// It handles calling the relatively expensive crypto operations.
+// It's also responsible for checking nonces and dropping out-of-date/duplicate packets, or else calling the function to update nonces if the packet is OK.
 func (sinfo *sessionInfo) doWorker() {
 	for {
 		select {
@@ -374,6 +411,7 @@ func (sinfo *sessionInfo) doWorker() {
 	}
 }
 
+// This encrypts a packet, creates a trafficPacket struct, encodes it, and sends it to router.out to pass it to the switch layer.
 func (sinfo *sessionInfo) doSend(bs []byte) {
 	defer util_putBytes(bs)
 	if !sinfo.init {
@@ -392,6 +430,11 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 	sinfo.core.router.out(packet)
 }
 
+// This takes a trafficPacket and checks the nonce.
+// If the nonce is OK, it decrypts the packet.
+// If the decrypted packet is OK, it calls router.recvPacket to pass the packet to the tun/tap.
+// If a packet does not decrypt successfully, it assumes the packet was truncated, and updates the MTU accordingly.
+// TODO? remove the MTU updating part? That should never happen with TCP peers, and the old UDP code that caused it was removed (and if replaced, should be replaced with something that can reliably send messages with an arbitrary size).
 func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
 	defer util_putBytes(p.Payload)
 	payloadSize := uint16(len(p.Payload))

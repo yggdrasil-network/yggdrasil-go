@@ -22,15 +22,17 @@ const switch_timeout = time.Minute
 const switch_updateInterval = switch_timeout / 2
 const switch_throttle = switch_updateInterval / 2
 
-// You should be able to provide crypto signatures for this
-// 1 signature per coord, from the *sender* to that coord
-// E.g. A->B->C has sigA(A->B) and sigB(A->B->C)
+// The switch locator represents the topology and network state dependent info about a node, minus the signatures that go with it.
+// Nodes will pick the best root they see, provided that the root continues to push out updates with new timestamps.
+// The coords represent a path from the root to a node.
+// This path is generally part of a spanning tree, except possibly the last hop (it can loop when sending coords to your parent, but they see this and know not to use a looping path).
 type switchLocator struct {
 	root   sigPubKey
 	tstamp int64
 	coords []switchPort
 }
 
+// Returns true if the first sigPubKey has a higher TreeID.
 func firstIsBetter(first, second *sigPubKey) bool {
 	// Higher TreeID is better
 	ftid := getTreeID(first)
@@ -45,6 +47,7 @@ func firstIsBetter(first, second *sigPubKey) bool {
 	return false
 }
 
+// Returns a copy of the locator which can safely be mutated.
 func (l *switchLocator) clone() switchLocator {
 	// Used to create a deep copy for use in messages
 	// Copy required because we need to mutate coords before sending
@@ -55,6 +58,7 @@ func (l *switchLocator) clone() switchLocator {
 	return loc
 }
 
+// Gets the distance a locator is from the provided destination coords, with the coords provided in []byte format (used to compress integers sent over the wire).
 func (l *switchLocator) dist(dest []byte) int {
 	// Returns distance (on the tree) from these coords
 	offset := 0
@@ -85,6 +89,7 @@ func (l *switchLocator) dist(dest []byte) int {
 	return dist
 }
 
+// Gets coords in wire encoded format, with *no* length prefix.
 func (l *switchLocator) getCoords() []byte {
 	bs := make([]byte, 0, len(l.coords))
 	for _, coord := range l.coords {
@@ -94,6 +99,8 @@ func (l *switchLocator) getCoords() []byte {
 	return bs
 }
 
+// Returns true if the this locator represents an ancestor of the locator given as an argument.
+// Ancestor means that it's the parent node, or the parent of parent, and so on...
 func (x *switchLocator) isAncestorOf(y *switchLocator) bool {
 	if x.root != y.root {
 		return false
@@ -109,6 +116,7 @@ func (x *switchLocator) isAncestorOf(y *switchLocator) bool {
 	return true
 }
 
+// Information about a peer, used by the switch to build the tree and eventually make routing decisions.
 type peerInfo struct {
 	key       sigPubKey     // ID of this peer
 	locator   switchLocator // Should be able to respond with signatures upon request
@@ -119,17 +127,23 @@ type peerInfo struct {
 	msg       switchMsg  // The wire switchMsg used
 }
 
+// This is just a uint64 with a named type for clarity reasons.
 type switchPort uint64
+
+// This is the subset of the information about a peer needed to make routing decisions, and it stored separately in an atomically accessed table, which gets hammered in the "hot loop" of the routing logic (see: peer.handleTraffic in peers.go).
 type tableElem struct {
 	port    switchPort
 	locator switchLocator
 }
 
+// This is the subset of the information about all peers needed to make routing decisions, and it stored separately in an atomically accessed table, which gets hammered in the "hot loop" of the routing logic (see: peer.handleTraffic in peers.go).
 type lookupTable struct {
 	self  switchLocator
 	elems []tableElem
 }
 
+// This is switch information which is mutable and needs to be modified by other goroutines, but is not accessed atomically.
+// Use the switchTable functions to access it safely using the RWMutex for synchronization.
 type switchData struct {
 	// All data that's mutable and used by exported Table methods
 	// To be read/written with atomic.Value Store/Load calls
@@ -139,6 +153,7 @@ type switchData struct {
 	msg     *switchMsg
 }
 
+// All the information stored by the switch.
 type switchTable struct {
 	core    *Core
 	key     sigPubKey           // Our own key
@@ -151,6 +166,7 @@ type switchTable struct {
 	table   atomic.Value //lookupTable
 }
 
+// Initializes the switchTable struct.
 func (t *switchTable) init(core *Core, key sigPubKey) {
 	now := time.Now()
 	t.core = core
@@ -163,12 +179,14 @@ func (t *switchTable) init(core *Core, key sigPubKey) {
 	t.drop = make(map[sigPubKey]int64)
 }
 
+// Safely gets a copy of this node's locator.
 func (t *switchTable) getLocator() switchLocator {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
 	return t.data.locator.clone()
 }
 
+// Regular maintenance to possibly timeout/reset the root and similar.
 func (t *switchTable) doMaintenance() {
 	// Periodic maintenance work to keep things internally consistent
 	t.mutex.Lock()         // Write lock
@@ -177,6 +195,7 @@ func (t *switchTable) doMaintenance() {
 	t.cleanDropped()
 }
 
+// Updates the root periodically if it is ourself, or promotes ourself to root if we're better than the current root or if the current root has timed out.
 func (t *switchTable) cleanRoot() {
 	// TODO rethink how this is done?...
 	// Get rid of the root if it looks like its timed out
@@ -219,15 +238,23 @@ func (t *switchTable) cleanRoot() {
 	}
 }
 
-func (t *switchTable) removePeer(port switchPort) {
+// Removes a peer.
+// Must be called by the router mainLoop goroutine, e.g. call router.doAdmin with a lambda that calls this.
+// If the removed peer was this node's parent, it immediately tries to find a new parent.
+func (t *switchTable) unlockedRemovePeer(port switchPort) {
 	delete(t.data.peers, port)
 	t.updater.Store(&sync.Once{})
-	// TODO if parent, find a new peer to use as parent instead
+	if port != t.parent {
+		return
+	}
 	for _, info := range t.data.peers {
 		t.unlockedHandleMsg(&info.msg, info.port)
 	}
 }
 
+// Dropped is a list of roots that are better than the current root, but stopped sending new timestamps.
+// If we switch to a new root, and that root is better than an old root that previously timed out, then we can clean up the old dropped root infos.
+// This function is called periodically to do that cleanup.
 func (t *switchTable) cleanDropped() {
 	// TODO? only call this after root changes, not periodically
 	for root := range t.drop {
@@ -237,18 +264,23 @@ func (t *switchTable) cleanDropped() {
 	}
 }
 
+// A switchMsg contains the root node's sig key, timestamp, and signed per-hop information about a path from the root node to some other node in the network.
+// This is exchanged with peers to construct the spanning tree.
+// A subset of this information, excluding the signatures, is used to construct locators that are used elsewhere in the code.
 type switchMsg struct {
 	Root   sigPubKey
 	TStamp int64
 	Hops   []switchMsgHop
 }
 
+// This represents the signed information about the path leading from the root the Next node, via the Port specified here.
 type switchMsgHop struct {
 	Port switchPort
 	Next sigPubKey
 	Sig  sigBytes
 }
 
+// This returns a *switchMsg to a copy of this node's current switchMsg, which can safely have additional information appended to Hops and sent to a peer.
 func (t *switchTable) getMsg() *switchMsg {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
@@ -263,6 +295,8 @@ func (t *switchTable) getMsg() *switchMsg {
 	}
 }
 
+// This function checks that the root information in a switchMsg is OK.
+// In particular, that the root is better, or else the same as the current root but with a good timestamp, and that this root+timestamp haven't been dropped due to timeout.
 func (t *switchTable) checkRoot(msg *switchMsg) bool {
 	// returns false if it's a dropped root, not a better root, or has an older timestamp
 	// returns true otherwise
@@ -284,12 +318,18 @@ func (t *switchTable) checkRoot(msg *switchMsg) bool {
 	}
 }
 
+// This is a mutexed wrapper to unlockedHandleMsg, and is called by the peer structs in peers.go to pass a switchMsg for that peer into the switch.
 func (t *switchTable) handleMsg(msg *switchMsg, fromPort switchPort) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	t.unlockedHandleMsg(msg, fromPort)
 }
 
+// This updates the switch with information about a peer.
+// Then the tricky part, it decides if it should update our own locator as a result.
+// That happens if this node is already our parent, or is advertising a better root, or is advertising a better path to the same root, etc...
+// There are a lot of very delicate order sensitive checks here, so its' best to just read the code if you need to understand what it's doing.
+// It's very important to not change the order of the statements in the case function unless you're absolutely sure that it's safe, including safe if used along side nodes that used the previous order.
 func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 	// TODO directly use a switchMsg instead of switchMessage + sigs
 	now := time.Now()
@@ -299,10 +339,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 	sender.locator.tstamp = msg.TStamp
 	prevKey := msg.Root
 	for _, hop := range msg.Hops {
-		// Build locator and signatures
-		var sig sigInfo
-		sig.next = hop.Next
-		sig.sig = hop.Sig
+		// Build locator
 		sender.locator.coords = append(sender.locator.coords, hop.Port)
 		sender.key = prevKey
 		prevKey = hop.Next
@@ -401,6 +438,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 	return
 }
 
+// This is called via a sync.Once to update the atomically readable subset of switch information that gets used for routing decisions.
 func (t *switchTable) updateTable() {
 	// WARNING this should only be called from within t.data.updater.Do()
 	//  It relies on the sync.Once for synchronization with messages and lookups
@@ -434,6 +472,12 @@ func (t *switchTable) updateTable() {
 	t.table.Store(newTable)
 }
 
+// This does the switch layer lookups that decide how to route traffic.
+// Traffic uses greedy routing in a metric space, where the metric distance between nodes is equal to the distance between them on the tree.
+// Traffic must be routed to a node that is closer to the destination via the metric space distance.
+// In the event that two nodes are equally close, it gets routed to the one with the longest uptime (due to the order that things are iterated over).
+// The size of the outgoing packet queue is added to a node's tree distance when the cost of forwarding to a node, subject to the constraint that the real tree distance puts them closer to the destination than ourself.
+// Doing so adds a limited form of backpressure routing, based on local information, which allows us to forward traffic around *local* bottlenecks, provided that another greedy path exists.
 func (t *switchTable) lookup(dest []byte) switchPort {
 	t.updater.Load().(*sync.Once).Do(t.updateTable)
 	table := t.table.Load().(lookupTable)
@@ -463,14 +507,3 @@ func (t *switchTable) lookup(dest []byte) switchPort {
 	//t.core.log.Println("DEBUG: sending to", best, "cost", bestCost)
 	return best
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-//Signature stuff
-
-type sigInfo struct {
-	next sigPubKey
-	sig  sigBytes
-}
-
-////////////////////////////////////////////////////////////////////////////////
