@@ -2,8 +2,10 @@
 
 package yggdrasil
 
-import "errors"
-import "log"
+import (
+	"errors"
+	"log"
+)
 
 // Starts the function profiler. This is only supported when built with
 // '-tags build'.

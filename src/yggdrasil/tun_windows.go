@@ -1,9 +1,12 @@
 package yggdrasil
 
-import water "github.com/yggdrasil-network/water"
-import "os/exec"
-import "strings"
-import "fmt"
+import (
+	"fmt"
+	"os/exec"
+	"strings"
+
+	water "github.com/yggdrasil-network/water"
+)
 
 // This is to catch Windows platforms
 

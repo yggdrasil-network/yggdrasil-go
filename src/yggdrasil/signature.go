@@ -3,8 +3,10 @@ package yggdrasil
 // This is where we record which signatures we've previously checked
 // It's so we can avoid needlessly checking them again
 
-import "sync"
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 // This keeps track of what signatures have already been checked.
 // It's used to skip expensive crypto operations, given that many signatures are likely to be the same for the average node's peers.

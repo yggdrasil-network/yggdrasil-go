@@ -2,13 +2,16 @@ package yggdrasil
 
 // The darwin platform specific tun parts
 
-import "unsafe"
-import "strings"
-import "strconv"
-import "encoding/binary"
-import "golang.org/x/sys/unix"
+import (
+	"encoding/binary"
+	"strconv"
+	"strings"
+	"unsafe"
 
-import water "github.com/yggdrasil-network/water"
+	"golang.org/x/sys/unix"
+
+	water "github.com/yggdrasil-network/water"
+)
 
 // Sane defaults for the Darwin/macOS platform. The "default" options may be
 // may be replaced by the running configuration.
@@ -69,7 +72,7 @@ type ifreq struct {
 }
 
 // Sets the IPv6 address of the utun adapter. On Darwin/macOS this is done using
-// a system socket and making direct syscalls to the kernel. 
+// a system socket and making direct syscalls to the kernel.
 func (tun *tunDevice) setupAddress(addr string) error {
 	var fd int
 	var err error

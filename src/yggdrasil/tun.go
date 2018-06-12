@@ -2,8 +2,10 @@ package yggdrasil
 
 // This manages the tun driver to send/recv packets to/from applications
 
-import "github.com/songgao/packets/ethernet"
-import "github.com/yggdrasil-network/water"
+import (
+	"github.com/songgao/packets/ethernet"
+	"github.com/yggdrasil-network/water"
+)
 
 const tun_IPv6_HEADER_LENGTH = 40
 const tun_ETHER_HEADER_LENGTH = 14
@@ -127,7 +129,7 @@ func (tun *tunDevice) read() error {
 
 // Closes the TUN/TAP adapter. This is only usually called when the Yggdrasil
 // process stops. Typically this operation will happen quickly, but on macOS
-// it can block until a read operation is completed. 
+// it can block until a read operation is completed.
 func (tun *tunDevice) close() error {
 	if tun.iface == nil {
 		return nil

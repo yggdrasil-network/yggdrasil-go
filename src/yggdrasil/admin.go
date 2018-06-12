@@ -1,17 +1,19 @@
 package yggdrasil
 
-import "net"
-import "os"
-import "encoding/hex"
-import "encoding/json"
-import "errors"
-import "fmt"
-import "net/url"
-import "sort"
-import "strings"
-import "strconv"
-import "sync/atomic"
-import "time"
+import (
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"net/url"
+	"os"
+	"sort"
+	"strconv"
+	"strings"
+	"sync/atomic"
+	"time"
+)
 
 // TODO: Add authentication
 
@@ -324,7 +326,6 @@ func (a *admin) handleRequest(conn net.Conn) {
 
 		// Send the response back
 		if err := encoder.Encode(&send); err != nil {
-			//	fmt.Println("Admin socket JSON encode error:", err)
 			return
 		}
 
@@ -640,7 +641,7 @@ func (a *admin) getResponse_dot() []byte {
 	for _, info := range infos {
 		keys = append(keys, info.key)
 	}
-	// TODO sort
+	// sort
 	less := func(i, j int) bool {
 		return keys[i] < keys[j]
 	}

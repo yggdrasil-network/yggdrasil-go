@@ -456,7 +456,6 @@ func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
 			}
 			if newMTU < sinfo.myMTU {
 				sinfo.myMTU = newMTU
-				//sinfo.core.log.Println("DEBUG set MTU to:", sinfo.myMTU)
 				sinfo.core.sessions.sendPingPong(sinfo, false)
 				sinfo.mtuTime = time.Now()
 				sinfo.wasMTUFixed = true
@@ -470,7 +469,6 @@ func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
 		if time.Since(sinfo.mtuTime) > time.Minute {
 			sinfo.myMTU = uint16(sinfo.core.tun.mtu)
 			sinfo.mtuTime = time.Now()
-			//sinfo.core.log.Println("DEBUG: Reset MTU to:", sinfo.myMTU)
 		}
 	}
 	go func() { sinfo.core.router.admin <- fixSessionMTU }()

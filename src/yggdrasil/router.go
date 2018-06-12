@@ -22,12 +22,12 @@ package yggdrasil
 //  The packet is passed to the session, which decrypts it, router.recvPacket
 //  The router then runs some sanity checks before passing it to the tun
 
-import "time"
-import "golang.org/x/net/icmp"
-import "golang.org/x/net/ipv6"
+import (
+	"time"
 
-//import "fmt"
-//import "net"
+	"golang.org/x/net/icmp"
+	"golang.org/x/net/ipv6"
+)
 
 // The router struct has channels to/from the tun/tap device and a self peer (0), which is how messages are passed between this node and the peers/switch layer.
 // The router's mainLoop goroutine is responsible for managing all information related to the dht, searches, and crypto sessions.
@@ -101,7 +101,6 @@ func (r *router) mainLoop() {
 				// Any periodic maintenance stuff goes here
 				r.core.switchTable.doMaintenance()
 				r.core.dht.doMaintenance()
-				//r.core.peers.sendSwitchMsgs() // FIXME debugging
 				util_getBytes() // To slowly drain things
 			}
 		case f := <-r.admin:
@@ -243,7 +242,6 @@ func (r *router) sendPacket(bs []byte) {
 // Checks that the IP address is correct (matches the session) and passes the packet to the tun/tap.
 func (r *router) recvPacket(bs []byte, theirAddr *address, theirSubnet *subnet) {
 	// Note: called directly by the session worker, not the router goroutine
-	//fmt.Println("Recv packet")
 	if len(bs) < 24 {
 		util_putBytes(bs)
 		return
@@ -274,7 +272,7 @@ func (r *router) handleIn(packet []byte) {
 		r.handleTraffic(packet)
 	case wire_ProtocolTraffic:
 		r.handleProto(packet)
-	default: /*panic("Should not happen in testing") ;*/
+	default:
 	}
 }
 
@@ -290,7 +288,6 @@ func (r *router) handleTraffic(packet []byte) {
 	if !isIn {
 		return
 	}
-	//go func () { sinfo.recv<-&p }()
 	sinfo.recv <- &p
 }
 
@@ -303,7 +300,6 @@ func (r *router) handleProto(packet []byte) {
 	}
 	// Now try to open the payload
 	var sharedKey *boxSharedKey
-	//var theirPermPub *boxPubKey
 	if p.ToKey == r.core.boxPub {
 		// Try to open using our permanent key
 		sharedKey = r.core.sessions.getSharedKey(&r.core.boxPriv, &p.FromKey)
@@ -321,7 +317,6 @@ func (r *router) handleProto(packet []byte) {
 	if bsTypeLen == 0 {
 		return
 	}
-	//fmt.Println("RECV bytes:", bs)
 	switch bsType {
 	case wire_SessionPing:
 		r.handlePing(bs, &p.FromKey)

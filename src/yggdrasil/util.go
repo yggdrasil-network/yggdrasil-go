@@ -4,8 +4,6 @@ package yggdrasil
 
 import "runtime"
 
-//import "sync"
-
 // A wrapper around runtime.Gosched() so it doesn't need to be imported elsewhere.
 func util_yield() {
 	runtime.Gosched()
@@ -20,20 +18,6 @@ func util_lockthread() {
 func util_unlockthread() {
 	runtime.UnlockOSThread()
 }
-
-/* Used previously, but removed because casting to an interface{} allocates...
-var byteStore sync.Pool = sync.Pool{
-  New: func () interface{} { return []byte(nil) },
-}
-
-func util_getBytes() []byte {
-  return byteStore.Get().([]byte)[:0]
-}
-
-func util_putBytes(bs []byte) {
-  byteStore.Put(bs) // This is the part that allocates
-}
-*/
 
 // This is used to buffer recently used slices of bytes, to prevent allocations in the hot loops.
 // It's used like a sync.Pool, but with a fixed size and typechecked without type casts to/from interface{} (which were making the profiles look ugly).

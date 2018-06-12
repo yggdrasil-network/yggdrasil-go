@@ -11,10 +11,10 @@ package yggdrasil
 //  A new search packet is sent immediately after receiving a response
 //  A new search packet is sent periodically, once per second, in case a packet was dropped (this slowly causes the search to become parallel if the search doesn't timeout but also doesn't finish within 1 second for whatever reason)
 
-import "sort"
-import "time"
-
-//import "fmt"
+import (
+	"sort"
+	"time"
+)
 
 // This defines the maximum number of dhtInfo that we keep track of for nodes to query in an ongoing search.
 const search_MAX_SEARCH_SIZE = 16
