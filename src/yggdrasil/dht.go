@@ -18,10 +18,10 @@ Slight changes *do* make it blackhole hard, bootstrapping isn't an easy problem
 
 */
 
-import "sort"
-import "time"
-
-//import "fmt"
+import (
+	"sort"
+	"time"
+)
 
 // Number of DHT buckets, equal to the number of bits in a NodeID.
 // Note that, in practice, nearly all of these will be empty.
@@ -236,7 +236,6 @@ func (t *dht) nBuckets() int {
 // Inserts a node into the DHT if they meet certain requirements.
 // In particular, they must either be a peer that's not already in the DHT, or else be someone we should insert into the DHT (see: shouldInsert).
 func (t *dht) insertIfNew(info *dhtInfo, isPeer bool) {
-	//fmt.Println("DEBUG: dht insertIfNew:", info.getNodeID(), info.coords)
 	// Insert if no "other" entry already exists
 	nodeID := info.getNodeID()
 	bidx, isOK := t.getBucketIndex(nodeID)
@@ -256,7 +255,6 @@ func (t *dht) insertIfNew(info *dhtInfo, isPeer bool) {
 
 // Adds a node to the DHT, possibly removing another node in the process.
 func (t *dht) insert(info *dhtInfo, isPeer bool) {
-	//fmt.Println("DEBUG: dht insert:", info.getNodeID(), info.coords)
 	// First update the time on this info
 	info.recv = time.Now()
 	// Get the bucket for this node

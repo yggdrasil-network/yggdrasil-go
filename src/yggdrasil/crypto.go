@@ -10,10 +10,13 @@ It also defines NodeID and TreeID as hashes of keys, and wraps hash functions
 
 */
 
-import "crypto/rand"
-import "crypto/sha512"
-import "golang.org/x/crypto/ed25519"
-import "golang.org/x/crypto/nacl/box"
+import (
+	"crypto/rand"
+	"crypto/sha512"
+
+	"golang.org/x/crypto/ed25519"
+	"golang.org/x/crypto/nacl/box"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,7 +124,6 @@ func boxOpen(shared *boxSharedKey,
 	boxed []byte,
 	nonce *boxNonce) ([]byte, bool) {
 	out := util_getBytes()
-	//return append(out, boxed...), true // XXX HACK to test without encryption
 	s := (*[boxSharedKeyLen]byte)(shared)
 	n := (*[boxNonceLen]byte)(nonce)
 	unboxed, success := box.OpenAfterPrecomputation(out, boxed, n, s)
@@ -134,7 +136,6 @@ func boxSeal(shared *boxSharedKey, unboxed []byte, nonce *boxNonce) ([]byte, *bo
 	}
 	nonce.update()
 	out := util_getBytes()
-	//return append(out, unboxed...), nonce // XXX HACK to test without encryption
 	s := (*[boxSharedKeyLen]byte)(shared)
 	n := (*[boxNonceLen]byte)(nonce)
 	boxed := box.SealAfterPrecomputation(out, unboxed, n, s)

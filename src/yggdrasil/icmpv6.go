@@ -9,11 +9,14 @@ package yggdrasil
 // - Destination Unreachable messages, when a session prohibits
 //   incoming traffic
 
-import "net"
-import "golang.org/x/net/ipv6"
-import "golang.org/x/net/icmp"
-import "encoding/binary"
-import "errors"
+import (
+	"encoding/binary"
+	"errors"
+	"net"
+
+	"golang.org/x/net/icmp"
+	"golang.org/x/net/ipv6"
+)
 
 type macAddress [6]byte
 
@@ -239,10 +242,16 @@ func (i *icmpv6) create_icmpv6_tun(dst net.IP, src net.IP, mtype ipv6.ICMPType, 
 // when the host operating system generates an NDP request for any address in
 // the fd00::/8 range, so that the operating system knows to route that traffic
 // to the Yggdrasil TAP adapter.
-// TODO: Make this respect the value of address_prefix in address.go
 func (i *icmpv6) handle_ndp(in []byte) ([]byte, error) {
 	// Ignore NDP requests for anything outside of fd00::/8
-	if in[8] != 0xFD {
+	var source address
+	copy(source[:], in[8:])
+	var snet subnet
+	copy(snet[:], in[8:])
+	switch {
+	case source.isValid():
+	case snet.isValid():
+	default:
 		return nil, errors.New("Not an NDP for fd00::/8")
 	}
 

@@ -11,12 +11,12 @@ package yggdrasil
 // TODO? use a pre-computed lookup table (python version had this)
 //  A little annoying to do with constant changes from backpressure
 
-import "time"
-import "sort"
-import "sync"
-import "sync/atomic"
-
-//import "fmt"
+import (
+	"sort"
+	"sync"
+	"sync/atomic"
+	"time"
+)
 
 const switch_timeout = time.Minute
 const switch_updateInterval = switch_timeout / 2
@@ -201,25 +201,19 @@ func (t *switchTable) cleanRoot() {
 	// Get rid of the root if it looks like its timed out
 	now := time.Now()
 	doUpdate := false
-	//fmt.Println("DEBUG clean root:", now.Sub(t.time))
 	if now.Sub(t.time) > switch_timeout {
-		//fmt.Println("root timed out", t.data.locator)
 		dropped := t.data.peers[t.parent]
 		dropped.time = t.time
 		t.drop[t.data.locator.root] = t.data.locator.tstamp
 		doUpdate = true
-		//t.core.log.Println("DEBUG: switch root timeout", len(t.drop))
 	}
 	// Or, if we're better than our root, root ourself
 	if firstIsBetter(&t.key, &t.data.locator.root) {
-		//fmt.Println("root is worse than us", t.data.locator.Root)
 		doUpdate = true
-		//t.core.log.Println("DEBUG: switch root replace with self", t.data.locator.Root)
 	}
 	// Or, if we are the root, possibly update our timestamp
 	if t.data.locator.root == t.key &&
 		now.Sub(t.time) > switch_updateInterval {
-		//fmt.Println("root is self and old, updating", t.data.locator.Root)
 		doUpdate = true
 	}
 	if doUpdate {
@@ -421,15 +415,12 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 			case t.core.router.reset <- struct{}{}:
 			default:
 			}
-			//t.core.log.Println("Switch update:", msg.locator.root, msg.locator.tstamp, msg.locator.coords)
-			//fmt.Println("Switch update:", msg.Locator.Root, msg.Locator.Tstamp, msg.Locator.Coords)
 		}
 		if t.data.locator.tstamp != sender.locator.tstamp {
 			t.time = now
 		}
 		t.data.locator = sender.locator
 		t.parent = sender.port
-		//t.core.log.Println("Switch update:", msg.Locator.Root, msg.Locator.Tstamp, msg.Locator.Coords)
 		t.core.peers.sendSwitchMsgs()
 	}
 	if doUpdate {
@@ -504,6 +495,5 @@ func (t *switchTable) lookup(dest []byte) switchPort {
 			bestCost = cost
 		}
 	}
-	//t.core.log.Println("DEBUG: sending to", best, "cost", bestCost)
 	return best
 }

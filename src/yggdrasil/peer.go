@@ -4,21 +4,20 @@ package yggdrasil
 //  Commented code should be removed
 //  Live code should be better commented
 
-import "time"
-import "sync"
-import "sync/atomic"
-
-//import "fmt"
+import (
+	"sync"
+	"sync/atomic"
+	"time"
+)
 
 // The peers struct represents peers with an active connection.
 // Incomping packets are passed to the corresponding peer, which handles them somehow.
 // In most cases, this involves passing the packet to the handler for outgoing traffic to another peer.
 // In other cases, it's link protocol traffic used to build the spanning tree, in which case this checks signatures and passes the message along to the switch.
 type peers struct {
-	core  *Core
-	mutex sync.Mutex   // Synchronize writes to atomic
-	ports atomic.Value //map[Port]*peer, use CoW semantics
-	//ports map[Port]*peer
+	core                        *Core
+	mutex                       sync.Mutex   // Synchronize writes to atomic
+	ports                       atomic.Value //map[Port]*peer, use CoW semantics
 	authMutex                   sync.RWMutex
 	allowedEncryptionPublicKeys map[boxPubKey]struct{}
 }
@@ -198,7 +197,7 @@ func (p *peer) linkLoop() {
 // Called to handle incoming packets.
 // Passes the packet to a handler for that packet type.
 func (p *peer) handlePacket(packet []byte) {
-	// TODO See comment in sendPacket about atomics technically being done wrong
+	// FIXME this is off by stream padding and msg length overhead, should be done in tcp.go
 	atomic.AddUint64(&p.bytesRecvd, uint64(len(packet)))
 	pType, pTypeLen := wire_decode_uint64(packet)
 	if pTypeLen == 0 {
@@ -307,8 +306,6 @@ func (p *peer) sendSwitchMsg() {
 		Sig:  *sign(&p.core.sigPriv, bs),
 	})
 	packet := msg.encode()
-	//p.core.log.Println("Encoded msg:", msg, "; bytes:", packet)
-	//fmt.Println("Encoded msg:", msg, "; bytes:", packet)
 	p.sendLinkPacket(packet)
 }
 
@@ -319,7 +316,6 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 	if !msg.decode(packet) {
 		return
 	}
-	//p.core.log.Println("Decoded msg:", msg, "; bytes:", packet)
 	if len(msg.Hops) < 1 {
 		p.core.peers.removePeer(p.port)
 	}

@@ -1,12 +1,15 @@
 package yggdrasil
 
-import "io/ioutil"
-import "log"
-import "regexp"
-import "net"
-import "fmt"
-import "encoding/hex"
-import "yggdrasil/config"
+import (
+	"encoding/hex"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net"
+	"regexp"
+
+	"yggdrasil/config"
+)
 
 // The Core object represents the Yggdrasil node. You should create a Core
 // object for each Yggdrasil node you plan to run.

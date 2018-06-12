@@ -14,13 +14,16 @@ package yggdrasil
 //  It involves exchanging version numbers and crypto keys
 //  See version.go for version metadata format
 
-import "net"
-import "time"
-import "errors"
-import "sync"
-import "sync/atomic"
-import "fmt"
-import "golang.org/x/net/proxy"
+import (
+	"errors"
+	"fmt"
+	"net"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"golang.org/x/net/proxy"
+)
 
 const tcp_msgSize = 2048 + 65535 // TODO figure out what makes sense
 
@@ -211,7 +214,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	}
 	if equiv(info.box[:], iface.core.boxPub[:]) {
 		return
-	} // testing
+	}
 	if equiv(info.sig[:], iface.core.sigPub[:]) {
 		return
 	}
@@ -286,7 +289,6 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 			timer.Reset(timerInterval)
 			select {
 			case _ = <-timer.C:
-				//iface.core.log.Println("DEBUG: sending keep-alive:", sock.RemoteAddr().String())
 				send(nil) // TCP keep-alive traffic
 			case msg := <-p.linkOut:
 				send(msg)
@@ -352,14 +354,12 @@ func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) {
 		sock.SetReadDeadline(timeout)
 		n, err := sock.Read(bs[len(frag):])
 		if err != nil || n == 0 {
-			//	iface.core.log.Println(err)
 			break
 		}
 		frag = bs[:len(frag)+n]
 		for {
 			msg, ok, err := tcp_chop_msg(&frag)
 			if err != nil {
-				//	iface.core.log.Println(err)
 				return
 			}
 			if !ok {

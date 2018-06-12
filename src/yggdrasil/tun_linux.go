@@ -2,13 +2,15 @@ package yggdrasil
 
 // The linux platform specific tun parts
 
-import "errors"
-import "fmt"
-import "net"
+import (
+	"errors"
+	"fmt"
+	"net"
 
-import water "github.com/yggdrasil-network/water"
+	"github.com/docker/libcontainer/netlink"
 
-import "github.com/docker/libcontainer/netlink"
+	water "github.com/yggdrasil-network/water"
+)
 
 // Sane defaults for the Linux platform. The "default" options may be
 // may be replaced by the running configuration.
