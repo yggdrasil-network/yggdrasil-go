@@ -1,7 +1,6 @@
 package yggdrasil
 
 // The linux platform specific tun parts
-// It depends on iproute2 being installed to set things on the tun device
 
 import "errors"
 import "fmt"
@@ -11,6 +10,8 @@ import water "github.com/yggdrasil-network/water"
 
 import "github.com/docker/libcontainer/netlink"
 
+// Sane defaults for the Linux platform. The "default" options may be
+// may be replaced by the running configuration.
 func getDefaults() tunDefaultParameters {
 	return tunDefaultParameters{
 		maximumIfMTU:     65535,
@@ -20,6 +21,7 @@ func getDefaults() tunDefaultParameters {
 	}
 }
 
+// Configures the TAP adapter with the correct IPv6 address and MTU.
 func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	var config water.Config
 	if iftapmode {
@@ -39,6 +41,10 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 	return tun.setupAddress(addr)
 }
 
+// Configures the TAP adapter with the correct IPv6 address and MTU. Netlink
+// is used to do this, so there is not a hard requirement on "ip" or "ifconfig"
+// to exist on the system, but this will fail if Netlink is not present in the
+// kernel (it nearly always is).
 func (tun *tunDevice) setupAddress(addr string) error {
 	// Set address
 	var netIF *net.Interface

@@ -1,5 +1,7 @@
 package yggdrasil
 
+// Sane defaults for the FreeBSD platform. The "default" options may be
+// may be replaced by the running configuration.
 func getDefaults() tunDefaultParameters {
 	return tunDefaultParameters{
 		maximumIfMTU:     32767,
