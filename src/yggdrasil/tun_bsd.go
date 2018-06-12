@@ -70,6 +70,11 @@ type in6_ifreq_lifetime struct {
 	ifru_addrlifetime in6_addrlifetime
 }
 
+// Sets the IPv6 address of the utun adapter. On all BSD platforms (FreeBSD,
+// OpenBSD, NetBSD) an attempt is made to set the adapter properties by using
+// a system socket and making syscalls to the kernel. This is not refined though
+// and often doesn't work (if at all), therefore if a call fails, it resorts
+// to calling "ifconfig" instead. 
 func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	var config water.Config
 	if ifname[:4] == "auto" {

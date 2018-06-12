@@ -7,6 +7,8 @@ import "fmt"
 
 // This is to catch Windows platforms
 
+// Sane defaults for the Windows platform. The "default" options may be
+// may be replaced by the running configuration.
 func getDefaults() tunDefaultParameters {
 	return tunDefaultParameters{
 		maximumIfMTU:     65535,
@@ -16,6 +18,9 @@ func getDefaults() tunDefaultParameters {
 	}
 }
 
+// Configures the TAP adapter with the correct IPv6 address and MTU. On Windows
+// we don't make use of a direct operating system API to do this - we instead
+// delegate the hard work to "netsh".
 func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	if !iftapmode {
 		tun.core.log.Printf("TUN mode is not supported on this platform, defaulting to TAP")
@@ -63,6 +68,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 	return tun.setupAddress(addr)
 }
 
+// Sets the MTU of the TAP adapter.
 func (tun *tunDevice) setupMTU(mtu int) error {
 	// Set MTU
 	cmd := exec.Command("netsh", "interface", "ipv6", "set", "subinterface",
@@ -79,6 +85,7 @@ func (tun *tunDevice) setupMTU(mtu int) error {
 	return nil
 }
 
+// Sets the IPv6 address of the TAP adapter.
 func (tun *tunDevice) setupAddress(addr string) error {
 	// Set address
 	cmd := exec.Command("netsh", "interface", "ipv6", "add", "address",
