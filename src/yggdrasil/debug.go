@@ -36,7 +36,6 @@ func (c *Core) Init() {
 	spub, spriv := newSigKeys()
 	c.init(bpub, bpriv, spub, spriv)
 	c.router.start()
-	c.switchTable.start()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,11 +64,10 @@ func (c *Core) DEBUG_getPeers() *peers {
 	return &c.peers
 }
 
-func (ps *peers) DEBUG_newPeer(box boxPubKey,
-	sig sigPubKey) *peer {
+func (ps *peers) DEBUG_newPeer(box boxPubKey, sig sigPubKey, link boxSharedKey) *peer {
 	//in <-chan []byte,
 	//out chan<- []byte) *peer {
-	return ps.newPeer(&box, &sig) //, in, out)
+	return ps.newPeer(&box, &sig, &link) //, in, out)
 }
 
 /*
@@ -127,8 +125,8 @@ func (l *switchLocator) DEBUG_getCoords() []byte {
 	return l.getCoords()
 }
 
-func (c *Core) DEBUG_switchLookup(dest []byte, ttl uint64) (switchPort, uint64) {
-	return c.switchTable.lookup(dest, ttl)
+func (c *Core) DEBUG_switchLookup(dest []byte) switchPort {
+	return c.switchTable.lookup(dest)
 }
 
 /*
@@ -276,6 +274,10 @@ func (c *Core) DEBUG_newBoxKeys() (*boxPubKey, *boxPrivKey) {
 	return newBoxKeys()
 }
 
+func (c *Core) DEBUG_getSharedKey(myPrivKey *boxPrivKey, othersPubKey *boxPubKey) *boxSharedKey {
+	return getSharedKey(myPrivKey, othersPubKey)
+}
+
 func (c *Core) DEBUG_newSigKeys() (*sigPubKey, *sigPrivKey) {
 	return newSigKeys()
 }
@@ -310,13 +312,11 @@ func (c *Core) DEBUG_init(bpub []byte,
 		panic(err)
 	}
 
-	if err := c.switchTable.start(); err != nil {
-		panic(err)
-	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*
 func (c *Core) DEBUG_setupAndStartGlobalUDPInterface(addrport string) {
 	if err := c.udp.init(c, addrport); err != nil {
 		c.log.Println("Failed to start UDP interface:", err)
@@ -342,6 +342,7 @@ func (c *Core) DEBUG_maybeSendUDPKeys(saddr string) {
 		c.udp.sendKeys(addr)
 	}
 }
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -451,16 +452,25 @@ func (c *Core) DEBUG_addAllowedEncryptionPublicKey(boxStr string) {
 
 func DEBUG_simLinkPeers(p, q *peer) {
 	// Sets q.out() to point to p and starts p.linkLoop()
-	plinkIn := make(chan []byte, 1)
-	qlinkIn := make(chan []byte, 1)
+	p.linkOut, q.linkOut = make(chan []byte, 1), make(chan []byte, 1)
+	go func() {
+		for bs := range p.linkOut {
+			q.handlePacket(bs)
+		}
+	}()
+	go func() {
+		for bs := range q.linkOut {
+			p.handlePacket(bs)
+		}
+	}()
 	p.out = func(bs []byte) {
-		go q.handlePacket(bs, qlinkIn)
+		go q.handlePacket(bs)
 	}
 	q.out = func(bs []byte) {
-		go p.handlePacket(bs, plinkIn)
+		go p.handlePacket(bs)
 	}
-	go p.linkLoop(plinkIn)
-	go q.linkLoop(qlinkIn)
+	go p.linkLoop()
+	go q.linkLoop()
 }
 
 func (c *Core) DEBUG_simFixMTU() {

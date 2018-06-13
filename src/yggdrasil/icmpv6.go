@@ -1,14 +1,22 @@
 package yggdrasil
 
-// The NDP functions are needed when you are running with a
-// TAP adapter - as the operating system expects neighbor solicitations
-// for on-link traffic, this goroutine provides them
+// The ICMPv6 module implements functions to easily create ICMPv6
+// packets. These functions, when mixed with the built-in Go IPv6
+// and ICMP libraries, can be used to send control messages back
+// to the host. Examples include:
+// - NDP messages, when running in TAP mode
+// - Packet Too Big messages, when packets exceed the session MTU
+// - Destination Unreachable messages, when a session prohibits
+//   incoming traffic
 
-import "net"
-import "golang.org/x/net/ipv6"
-import "golang.org/x/net/icmp"
-import "encoding/binary"
-import "errors"
+import (
+	"encoding/binary"
+	"errors"
+	"net"
+
+	"golang.org/x/net/icmp"
+	"golang.org/x/net/ipv6"
+)
 
 type macAddress [6]byte
 
@@ -39,6 +47,9 @@ func ipv6Header_Marshal(h *ipv6.Header) ([]byte, error) {
 	return b, nil
 }
 
+// Initialises the ICMPv6 module by assigning our link-local IPv6 address and
+// our MAC address. ICMPv6 messages will always appear to originate from these
+// addresses.
 func (i *icmpv6) init(t *tunDevice) {
 	i.tun = t
 
@@ -50,6 +61,10 @@ func (i *icmpv6) init(t *tunDevice) {
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xFE}
 }
 
+// Parses an incoming ICMPv6 packet. The packet provided may be either an
+// ethernet frame containing an IP packet, or the IP packet alone. This is
+// determined by whether the TUN/TAP adapter is running in TUN (layer 3) or
+// TAP (layer 2) mode.
 func (i *icmpv6) parse_packet(datain []byte) {
 	var response []byte
 	var err error
@@ -69,6 +84,10 @@ func (i *icmpv6) parse_packet(datain []byte) {
 	i.tun.iface.Write(response)
 }
 
+// Unwraps the ethernet headers of an incoming ICMPv6 packet and hands off
+// the IP packet to the parse_packet_tun function for further processing.
+// A response buffer is also created for the response message, also complete
+// with ethernet headers.
 func (i *icmpv6) parse_packet_tap(datain []byte) ([]byte, error) {
 	// Store the peer MAC address
 	copy(i.peermac[:6], datain[6:12])
@@ -97,6 +116,10 @@ func (i *icmpv6) parse_packet_tap(datain []byte) ([]byte, error) {
 	return dataout, nil
 }
 
+// Unwraps the IP headers of an incoming IPv6 packet and performs various
+// sanity checks on the packet - i.e. is the packet an ICMPv6 packet, does the
+// ICMPv6 message match a known expected type. The relevant handler function
+// is then called and a response packet may be returned.
 func (i *icmpv6) parse_packet_tun(datain []byte) ([]byte, error) {
 	// Parse the IPv6 packet headers
 	ipv6Header, err := ipv6.ParseHeader(datain[:ipv6.HeaderLen])
@@ -149,6 +172,9 @@ func (i *icmpv6) parse_packet_tun(datain []byte) ([]byte, error) {
 	return nil, errors.New("ICMPv6 type not matched")
 }
 
+// Creates an ICMPv6 packet based on the given icmp.MessageBody and other
+// parameters, complete with ethernet and IP headers, which can be written
+// directly to a TAP adapter.
 func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, src net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
 	// Pass through to create_icmpv6_tun
 	ipv6packet, err := i.create_icmpv6_tun(dst, src, mtype, mcode, mbody)
@@ -169,6 +195,10 @@ func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, src net.IP, mt
 	return dataout, nil
 }
 
+// Creates an ICMPv6 packet based on the given icmp.MessageBody and other
+// parameters, complete with IP headers only, which can be written directly to
+// a TUN adapter, or called directly by the create_icmpv6_tap function when
+// generating a message for TAP adapters.
 func (i *icmpv6) create_icmpv6_tun(dst net.IP, src net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
 	// Create the ICMPv6 message
 	icmpMessage := icmp.Message{
@@ -208,9 +238,20 @@ func (i *icmpv6) create_icmpv6_tun(dst net.IP, src net.IP, mtype ipv6.ICMPType, 
 	return responsePacket, nil
 }
 
+// Generates a response to an NDP discovery packet. This is effectively called
+// when the host operating system generates an NDP request for any address in
+// the fd00::/8 range, so that the operating system knows to route that traffic
+// to the Yggdrasil TAP adapter.
 func (i *icmpv6) handle_ndp(in []byte) ([]byte, error) {
 	// Ignore NDP requests for anything outside of fd00::/8
-	if in[8] != 0xFD {
+	var source address
+	copy(source[:], in[8:])
+	var snet subnet
+	copy(snet[:], in[8:])
+	switch {
+	case source.isValid():
+	case snet.isValid():
+	default:
 		return nil, errors.New("Not an NDP for fd00::/8")
 	}
 

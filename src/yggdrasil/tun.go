@@ -2,12 +2,15 @@ package yggdrasil
 
 // This manages the tun driver to send/recv packets to/from applications
 
-import "github.com/songgao/packets/ethernet"
-import "github.com/yggdrasil-network/water"
+import (
+	"github.com/songgao/packets/ethernet"
+	"github.com/yggdrasil-network/water"
+)
 
 const tun_IPv6_HEADER_LENGTH = 40
 const tun_ETHER_HEADER_LENGTH = 14
 
+// Represents a running TUN/TAP interface.
 type tunDevice struct {
 	core   *Core
 	icmpv6 icmpv6
@@ -17,6 +20,9 @@ type tunDevice struct {
 	iface  *water.Interface
 }
 
+// Defines which parameters are expected by default for a TUN/TAP adapter on a
+// specific platform. These values are populated in the relevant tun_*.go for
+// the platform being targeted. They must be set.
 type tunDefaultParameters struct {
 	maximumIfMTU     int
 	defaultIfMTU     int
@@ -24,6 +30,8 @@ type tunDefaultParameters struct {
 	defaultIfTAPMode bool
 }
 
+// Gets the maximum supported MTU for the platform based on the defaults in
+// getDefaults().
 func getSupportedMTU(mtu int) int {
 	if mtu > getDefaults().maximumIfMTU {
 		return getDefaults().maximumIfMTU
@@ -31,11 +39,14 @@ func getSupportedMTU(mtu int) int {
 	return mtu
 }
 
+// Initialises the TUN/TAP adapter.
 func (tun *tunDevice) init(core *Core) {
 	tun.core = core
 	tun.icmpv6.init(tun)
 }
 
+// Starts the setup process for the TUN/TAP adapter, and if successful, starts
+// the read/write goroutines to handle packets on that interface.
 func (tun *tunDevice) start(ifname string, iftapmode bool, addr string, mtu int) error {
 	if ifname == "none" {
 		return nil
@@ -48,6 +59,9 @@ func (tun *tunDevice) start(ifname string, iftapmode bool, addr string, mtu int)
 	return nil
 }
 
+// Writes a packet to the TUN/TAP adapter. If the adapter is running in TAP
+// mode then additional ethernet encapsulation is added for the benefit of the
+// host operating system.
 func (tun *tunDevice) write() error {
 	for {
 		data := <-tun.recv
@@ -75,6 +89,10 @@ func (tun *tunDevice) write() error {
 	}
 }
 
+// Reads any packets that are waiting on the TUN/TAP adapter. If the adapter
+// is running in TAP mode then the ethernet headers will automatically be
+// processed and stripped if necessary. If an ICMPv6 packet is found, then
+// the relevant helper functions in icmpv6.go are called.
 func (tun *tunDevice) read() error {
 	mtu := tun.mtu
 	if tun.iface.IsTAP() {
@@ -109,6 +127,9 @@ func (tun *tunDevice) read() error {
 	}
 }
 
+// Closes the TUN/TAP adapter. This is only usually called when the Yggdrasil
+// process stops. Typically this operation will happen quickly, but on macOS
+// it can block until a read operation is completed.
 func (tun *tunDevice) close() error {
 	if tun.iface == nil {
 		return nil

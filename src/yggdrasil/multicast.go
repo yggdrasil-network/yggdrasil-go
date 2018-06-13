@@ -1,10 +1,12 @@
 package yggdrasil
 
-import "net"
-import "time"
-import "fmt"
+import (
+	"fmt"
+	"net"
+	"time"
 
-import "golang.org/x/net/ipv6"
+	"golang.org/x/net/ipv6"
+)
 
 type multicast struct {
 	core      *Core
@@ -37,11 +39,9 @@ func (m *multicast) start() error {
 		if err != nil {
 			return err
 		}
-		//defer conn.Close() // Let it close on its own when the application exits
 		m.sock = ipv6.NewPacketConn(conn)
 		if err = m.sock.SetControlMessage(ipv6.FlagDst, true); err != nil {
 			// Windows can't set this flag, so we need to handle it in other ways
-			//panic(err)
 		}
 
 		go m.listen()
@@ -95,8 +95,6 @@ func (m *multicast) announce() {
 	for {
 		for _, iface := range m.interfaces() {
 			m.sock.JoinGroup(&iface, groupAddr)
-			//err := n.sock.JoinGroup(&iface, groupAddr)
-			//if err != nil { panic(err) }
 			addrs, err := iface.Addrs()
 			if err != nil {
 				panic(err)
@@ -133,8 +131,6 @@ func (m *multicast) listen() {
 		if err != nil {
 			panic(err)
 		}
-		//if rcm == nil { continue } // wat
-		//fmt.Println("DEBUG:", "packet from:", fromAddr.String())
 		if rcm != nil {
 			// Windows can't set the flag needed to return a non-nil value here
 			// So only make these checks if we get something useful back
@@ -149,19 +145,14 @@ func (m *multicast) listen() {
 		anAddr := string(bs[:nBytes])
 		addr, err := net.ResolveTCPAddr("tcp6", anAddr)
 		if err != nil {
-			panic(err)
 			continue
-		} // Panic for testing, remove later
+		}
 		from := fromAddr.(*net.UDPAddr)
-		//fmt.Println("DEBUG:", "heard:", addr.IP.String(), "from:", from.IP.String())
 		if addr.IP.String() != from.IP.String() {
 			continue
 		}
 		addr.Zone = from.Zone
 		saddr := addr.String()
-		//if _, isIn := n.peers[saddr]; isIn { continue }
-		//n.peers[saddr] = struct{}{}
 		m.core.tcp.connect(saddr)
-		//fmt.Println("DEBUG:", "added multicast peer:", saddr)
 	}
 }

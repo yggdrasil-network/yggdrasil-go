@@ -2,16 +2,18 @@
 
 package yggdrasil
 
-import "unsafe"
-import "syscall"
-import "strings"
-import "strconv"
-import "encoding/binary"
-import "os/exec"
+import (
+	"encoding/binary"
+	"os/exec"
+	"strconv"
+	"strings"
+	"syscall"
+	"unsafe"
 
-import "golang.org/x/sys/unix"
+	"golang.org/x/sys/unix"
 
-import "github.com/yggdrasil-network/water"
+	"github.com/yggdrasil-network/water"
+)
 
 const SIOCSIFADDR_IN6 = (0x80000000) | ((288 & 0x1fff) << 16) | uint32(byte('i'))<<8 | 12
 
@@ -70,6 +72,11 @@ type in6_ifreq_lifetime struct {
 	ifru_addrlifetime in6_addrlifetime
 }
 
+// Sets the IPv6 address of the utun adapter. On all BSD platforms (FreeBSD,
+// OpenBSD, NetBSD) an attempt is made to set the adapter properties by using
+// a system socket and making syscalls to the kernel. This is not refined though
+// and often doesn't work (if at all), therefore if a call fails, it resorts
+// to calling "ifconfig" instead.
 func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	var config water.Config
 	if ifname[:4] == "auto" {

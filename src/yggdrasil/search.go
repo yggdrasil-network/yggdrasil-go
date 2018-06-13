@@ -11,14 +11,21 @@ package yggdrasil
 //  A new search packet is sent immediately after receiving a response
 //  A new search packet is sent periodically, once per second, in case a packet was dropped (this slowly causes the search to become parallel if the search doesn't timeout but also doesn't finish within 1 second for whatever reason)
 
-import "sort"
-import "time"
+import (
+	"sort"
+	"time"
+)
 
-//import "fmt"
-
+// This defines the maximum number of dhtInfo that we keep track of for nodes to query in an ongoing search.
 const search_MAX_SEARCH_SIZE = 16
+
+// This defines the time after which we send a new search packet.
+// Search packets are sent automatically immediately after a response is received.
+// So this allows for timeouts and for long searches to become increasingly parallel.
 const search_RETRY_TIME = time.Second
 
+// Information about an ongoing search.
+// Includes the targed NodeID, the bitmask to match it to an IP, and the list of nodes to visit / already visited.
 type searchInfo struct {
 	dest    NodeID
 	mask    NodeID
@@ -28,16 +35,19 @@ type searchInfo struct {
 	visited map[NodeID]bool
 }
 
+// This stores a map of active searches.
 type searches struct {
 	core     *Core
 	searches map[NodeID]*searchInfo
 }
 
+// Intializes the searches struct.
 func (s *searches) init(core *Core) {
 	s.core = core
 	s.searches = make(map[NodeID]*searchInfo)
 }
 
+// Creates a new search info, adds it to the searches struct, and returns a pointer to the info.
 func (s *searches) createSearch(dest *NodeID, mask *NodeID) *searchInfo {
 	now := time.Now()
 	for dest, sinfo := range s.searches {
@@ -56,6 +66,9 @@ func (s *searches) createSearch(dest *NodeID, mask *NodeID) *searchInfo {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Checks if there's an ongoing search relaed to a dhtRes.
+// If there is, it adds the response info to the search and triggers a new search step.
+// If there's no ongoing search, or we if the dhtRes finished the search (it was from the target node), then don't do anything more.
 func (s *searches) handleDHTRes(res *dhtRes) {
 	sinfo, isIn := s.searches[res.Dest]
 	if !isIn || s.checkDHTRes(sinfo, res) {
@@ -68,6 +81,10 @@ func (s *searches) handleDHTRes(res *dhtRes) {
 	}
 }
 
+// Adds the information from a dhtRes to an ongoing search.
+// Info about a node that has already been visited is not re-added to the search.
+// Duplicate information about nodes toVisit is deduplicated (the newest information is kept).
+// The toVisit list is sorted in ascending order of keyspace distance from the destination.
 func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 	// Add responses to toVisit if closer to dest than the res node
 	from := dhtInfo{key: res.Key, coords: res.Coords}
@@ -98,6 +115,8 @@ func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 	}
 }
 
+// If there are no nodes left toVisit, then this cleans up the search.
+// Otherwise, it pops the closest node to the destination (in keyspace) off of the toVisit list and sends a dht ping.
 func (s *searches) doSearchStep(sinfo *searchInfo) {
 	if len(sinfo.toVisit) == 0 {
 		// Dead end, do cleanup
@@ -107,11 +126,16 @@ func (s *searches) doSearchStep(sinfo *searchInfo) {
 		// Send to the next search target
 		var next *dhtInfo
 		next, sinfo.toVisit = sinfo.toVisit[0], sinfo.toVisit[1:]
+		var oldPings int
+		oldPings, next.pings = next.pings, 0
 		s.core.dht.ping(next, &sinfo.dest)
+		next.pings = oldPings // Don't evict a node for searching with it too much
 		sinfo.visited[*next.getNodeID()] = true
 	}
 }
 
+// If we've recenty sent a ping for this search, do nothing.
+// Otherwise, doSearchStep and schedule another continueSearch to happen after search_RETRY_TIME.
 func (s *searches) continueSearch(sinfo *searchInfo) {
 	if time.Since(sinfo.time) < search_RETRY_TIME {
 		return
@@ -134,6 +158,7 @@ func (s *searches) continueSearch(sinfo *searchInfo) {
 	}()
 }
 
+// Calls create search, and initializes the iterative search parts of the struct before returning it.
 func (s *searches) newIterSearch(dest *NodeID, mask *NodeID) *searchInfo {
 	sinfo := s.createSearch(dest, mask)
 	sinfo.toVisit = s.core.dht.lookup(dest, true)
@@ -141,6 +166,9 @@ func (s *searches) newIterSearch(dest *NodeID, mask *NodeID) *searchInfo {
 	return sinfo
 }
 
+// Checks if a dhtRes is good (called by handleDHTRes).
+// If the response is from the target, get/create a session, trigger a session ping, and return true.
+// Otherwise return false.
 func (s *searches) checkDHTRes(info *searchInfo, res *dhtRes) bool {
 	them := getNodeID(&res.Key)
 	var destMasked NodeID
@@ -168,128 +196,4 @@ func (s *searches) checkDHTRes(info *searchInfo, res *dhtRes) bool {
 	// Cleanup
 	delete(s.searches, res.Dest)
 	return true
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-type searchReq struct {
-	key    boxPubKey // Who I am
-	coords []byte    // Where I am
-	dest   NodeID    // Who I'm trying to connect to
-}
-
-type searchRes struct {
-	key    boxPubKey // Who I am
-	coords []byte    // Where I am
-	dest   NodeID    // Who I was asked about
-}
-
-func (s *searches) sendSearch(info *searchInfo) {
-	now := time.Now()
-	if now.Sub(info.time) < time.Second {
-		return
-	}
-	loc := s.core.switchTable.getLocator()
-	coords := loc.getCoords()
-	req := searchReq{
-		key:    s.core.boxPub,
-		coords: coords,
-		dest:   info.dest,
-	}
-	info.time = time.Now()
-	s.handleSearchReq(&req)
-}
-
-func (s *searches) handleSearchReq(req *searchReq) {
-	lookup := s.core.dht.lookup(&req.dest, false)
-	sent := false
-	//fmt.Println("DEBUG len:", len(lookup))
-	for _, info := range lookup {
-		//fmt.Println("DEBUG lup:", info.getNodeID())
-		if dht_firstCloserThanThird(info.getNodeID(),
-			&req.dest,
-			&s.core.dht.nodeID) {
-			s.forwardSearch(req, info)
-			sent = true
-			break
-		}
-	}
-	if !sent {
-		s.sendSearchRes(req)
-	}
-}
-
-func (s *searches) forwardSearch(req *searchReq, next *dhtInfo) {
-	//fmt.Println("DEBUG fwd:", req.dest, next.getNodeID())
-	bs := req.encode()
-	shared := s.core.sessions.getSharedKey(&s.core.boxPriv, &next.key)
-	payload, nonce := boxSeal(shared, bs, nil)
-	p := wire_protoTrafficPacket{
-		TTL:     ^uint64(0),
-		Coords:  next.coords,
-		ToKey:   next.key,
-		FromKey: s.core.boxPub,
-		Nonce:   *nonce,
-		Payload: payload,
-	}
-	packet := p.encode()
-	s.core.router.out(packet)
-}
-
-func (s *searches) sendSearchRes(req *searchReq) {
-	//fmt.Println("DEBUG res:", req.dest, s.core.dht.nodeID)
-	loc := s.core.switchTable.getLocator()
-	coords := loc.getCoords()
-	res := searchRes{
-		key:    s.core.boxPub,
-		coords: coords,
-		dest:   req.dest,
-	}
-	bs := res.encode()
-	shared := s.core.sessions.getSharedKey(&s.core.boxPriv, &req.key)
-	payload, nonce := boxSeal(shared, bs, nil)
-	p := wire_protoTrafficPacket{
-		TTL:     ^uint64(0),
-		Coords:  req.coords,
-		ToKey:   req.key,
-		FromKey: s.core.boxPub,
-		Nonce:   *nonce,
-		Payload: payload,
-	}
-	packet := p.encode()
-	s.core.router.out(packet)
-}
-
-func (s *searches) handleSearchRes(res *searchRes) {
-	info, isIn := s.searches[res.dest]
-	if !isIn {
-		return
-	}
-	them := getNodeID(&res.key)
-	var destMasked NodeID
-	var themMasked NodeID
-	for idx := 0; idx < NodeIDLen; idx++ {
-		destMasked[idx] = info.dest[idx] & info.mask[idx]
-		themMasked[idx] = them[idx] & info.mask[idx]
-	}
-	//fmt.Println("DEBUG search res1:", themMasked, destMasked)
-	//fmt.Println("DEBUG search res2:", *them, *info.dest, *info.mask)
-	if themMasked != destMasked {
-		return
-	}
-	// They match, so create a session and send a sessionRequest
-	sinfo, isIn := s.core.sessions.getByTheirPerm(&res.key)
-	if !isIn {
-		sinfo = s.core.sessions.createSession(&res.key)
-		_, isIn := s.core.sessions.getByTheirPerm(&res.key)
-		if !isIn {
-			panic("This should never happen")
-		}
-	}
-	// FIXME (!) replay attacks could mess with coords? Give it a handle (tstamp)?
-	sinfo.coords = res.coords
-	sinfo.packet = info.packet
-	s.core.sessions.ping(sinfo)
-	// Cleanup
-	delete(s.searches, res.dest)
 }

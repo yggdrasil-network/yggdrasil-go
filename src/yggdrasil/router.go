@@ -22,13 +22,15 @@ package yggdrasil
 //  The packet is passed to the session, which decrypts it, router.recvPacket
 //  The router then runs some sanity checks before passing it to the tun
 
-import "time"
-import "golang.org/x/net/icmp"
-import "golang.org/x/net/ipv6"
+import (
+	"time"
 
-//import "fmt"
-//import "net"
+	"golang.org/x/net/icmp"
+	"golang.org/x/net/ipv6"
+)
 
+// The router struct has channels to/from the tun/tap device and a self peer (0), which is how messages are passed between this node and the peers/switch layer.
+// The router's mainLoop goroutine is responsible for managing all information related to the dht, searches, and crypto sessions.
 type router struct {
 	core  *Core
 	addr  address
@@ -40,11 +42,12 @@ type router struct {
 	admin chan func()   // pass a lambda for the admin socket to query stuff
 }
 
+// Initializes the router struct, which includes setting up channels to/from the tun/tap.
 func (r *router) init(core *Core) {
 	r.core = core
 	r.addr = *address_addrForNodeID(&r.core.dht.nodeID)
-	in := make(chan []byte, 32)                               // TODO something better than this...
-	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub) //, out, in)
+	in := make(chan []byte, 32) // TODO something better than this...
+	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &boxSharedKey{})
 	p.out = func(packet []byte) {
 		// This is to make very sure it never blocks
 		select {
@@ -55,7 +58,7 @@ func (r *router) init(core *Core) {
 		}
 	}
 	r.in = in
-	r.out = func(packet []byte) { p.handlePacket(packet, nil) } // The caller is responsible for go-ing if it needs to not block
+	r.out = func(packet []byte) { p.handlePacket(packet) } // The caller is responsible for go-ing if it needs to not block
 	recv := make(chan []byte, 32)
 	send := make(chan []byte, 32)
 	r.recv = recv
@@ -67,12 +70,17 @@ func (r *router) init(core *Core) {
 	// go r.mainLoop()
 }
 
+// Starts the mainLoop goroutine.
 func (r *router) start() error {
 	r.core.log.Println("Starting router")
 	go r.mainLoop()
 	return nil
 }
 
+// Takes traffic from the tun/tap and passes it to router.send, or from r.in and handles incoming traffic.
+// Also adds new peer info to the DHT.
+// Also resets the DHT and sesssions in the event of a coord change.
+// Also does periodic maintenance stuff.
 func (r *router) mainLoop() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -91,6 +99,7 @@ func (r *router) mainLoop() {
 		case <-ticker.C:
 			{
 				// Any periodic maintenance stuff goes here
+				r.core.switchTable.doMaintenance()
 				r.core.dht.doMaintenance()
 				util_getBytes() // To slowly drain things
 			}
@@ -100,6 +109,11 @@ func (r *router) mainLoop() {
 	}
 }
 
+// Checks a packet's to/from address to make sure it's in the allowed range.
+// If a session to the destination exists, gets the session and passes the packet to it.
+// If no session exists, it triggers (or continues) a search.
+// If the session hasn't responded recently, it triggers a ping or search to keep things alive or deal with broken coords *relatively* quickly.
+// It also deals with oversized packets if there are MTU issues by calling into icmpv6.go to spoof PacketTooBig traffic, or DestinationUnreachable if the other side has their tun/tap disabled.
 func (r *router) sendPacket(bs []byte) {
 	if len(bs) < 40 {
 		panic("Tried to send a packet shorter than a header...")
@@ -224,9 +238,10 @@ func (r *router) sendPacket(bs []byte) {
 	}
 }
 
+// Called for incoming traffic by the session worker for that connection.
+// Checks that the IP address is correct (matches the session) and passes the packet to the tun/tap.
 func (r *router) recvPacket(bs []byte, theirAddr *address, theirSubnet *subnet) {
 	// Note: called directly by the session worker, not the router goroutine
-	//fmt.Println("Recv packet")
 	if len(bs) < 24 {
 		util_putBytes(bs)
 		return
@@ -246,6 +261,7 @@ func (r *router) recvPacket(bs []byte, theirAddr *address, theirSubnet *subnet) 
 	r.recv <- bs
 }
 
+// Checks incoming traffic type and passes it to the appropriate handler.
 func (r *router) handleIn(packet []byte) {
 	pType, pTypeLen := wire_decode_uint64(packet)
 	if pTypeLen == 0 {
@@ -256,10 +272,12 @@ func (r *router) handleIn(packet []byte) {
 		r.handleTraffic(packet)
 	case wire_ProtocolTraffic:
 		r.handleProto(packet)
-	default: /*panic("Should not happen in testing") ;*/
+	default:
 	}
 }
 
+// Handles incoming traffic, i.e. encapuslated ordinary IPv6 packets.
+// Passes them to the crypto session worker to be decrypted and sent to the tun/tap.
 func (r *router) handleTraffic(packet []byte) {
 	defer util_putBytes(packet)
 	p := wire_trafficPacket{}
@@ -270,10 +288,10 @@ func (r *router) handleTraffic(packet []byte) {
 	if !isIn {
 		return
 	}
-	//go func () { sinfo.recv<-&p }()
 	sinfo.recv <- &p
 }
 
+// Handles protocol traffic by decrypting it, checking its type, and passing it to the appropriate handler for that traffic type.
 func (r *router) handleProto(packet []byte) {
 	// First parse the packet
 	p := wire_protoTrafficPacket{}
@@ -282,7 +300,6 @@ func (r *router) handleProto(packet []byte) {
 	}
 	// Now try to open the payload
 	var sharedKey *boxSharedKey
-	//var theirPermPub *boxPubKey
 	if p.ToKey == r.core.boxPub {
 		// Try to open using our permanent key
 		sharedKey = r.core.sessions.getSharedKey(&r.core.boxPriv, &p.FromKey)
@@ -300,7 +317,6 @@ func (r *router) handleProto(packet []byte) {
 	if bsTypeLen == 0 {
 		return
 	}
-	//fmt.Println("RECV bytes:", bs)
 	switch bsType {
 	case wire_SessionPing:
 		r.handlePing(bs, &p.FromKey)
@@ -310,15 +326,12 @@ func (r *router) handleProto(packet []byte) {
 		r.handleDHTReq(bs, &p.FromKey)
 	case wire_DHTLookupResponse:
 		r.handleDHTRes(bs, &p.FromKey)
-	case wire_SearchRequest:
-		r.handleSearchReq(bs)
-	case wire_SearchResponse:
-		r.handleSearchRes(bs)
-	default: /*panic("Should not happen in testing") ;*/
-		return
+	default:
+		util_putBytes(packet)
 	}
 }
 
+// Decodes session pings from wire format and passes them to sessions.handlePing where they either create or update a session.
 func (r *router) handlePing(bs []byte, fromKey *boxPubKey) {
 	ping := sessionPing{}
 	if !ping.decode(bs) {
@@ -328,10 +341,12 @@ func (r *router) handlePing(bs []byte, fromKey *boxPubKey) {
 	r.core.sessions.handlePing(&ping)
 }
 
+// Handles session pongs (which are really pings with an extra flag to prevent acknowledgement).
 func (r *router) handlePong(bs []byte, fromKey *boxPubKey) {
 	r.handlePing(bs, fromKey)
 }
 
+// Decodes dht requests and passes them to dht.handleReq to trigger a lookup/response.
 func (r *router) handleDHTReq(bs []byte, fromKey *boxPubKey) {
 	req := dhtReq{}
 	if !req.decode(bs) {
@@ -341,6 +356,7 @@ func (r *router) handleDHTReq(bs []byte, fromKey *boxPubKey) {
 	r.core.dht.handleReq(&req)
 }
 
+// Decodes dht responses and passes them to dht.handleRes to update the DHT table and further pass them to the search code (if applicable).
 func (r *router) handleDHTRes(bs []byte, fromKey *boxPubKey) {
 	res := dhtRes{}
 	if !res.decode(bs) {
@@ -350,22 +366,9 @@ func (r *router) handleDHTRes(bs []byte, fromKey *boxPubKey) {
 	r.core.dht.handleRes(&res)
 }
 
-func (r *router) handleSearchReq(bs []byte) {
-	req := searchReq{}
-	if !req.decode(bs) {
-		return
-	}
-	r.core.searches.handleSearchReq(&req)
-}
-
-func (r *router) handleSearchRes(bs []byte) {
-	res := searchRes{}
-	if !res.decode(bs) {
-		return
-	}
-	r.core.searches.handleSearchRes(&res)
-}
-
+// Passed a function to call.
+// This will send the function to r.admin and block until it finishes.
+// It's used by the admin socket to ask the router mainLoop goroutine about information in the session or dht structs, which cannot be read safely from outside that goroutine.
 func (r *router) doAdmin(f func()) {
 	// Pass this a function that needs to be run by the router's main goroutine
 	// It will pass the function to the router and wait for the router to finish

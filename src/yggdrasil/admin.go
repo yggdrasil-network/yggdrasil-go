@@ -1,17 +1,19 @@
 package yggdrasil
 
-import "net"
-import "os"
-import "encoding/hex"
-import "encoding/json"
-import "errors"
-import "fmt"
-import "net/url"
-import "sort"
-import "strings"
-import "strconv"
-import "sync/atomic"
-import "time"
+import (
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net"
+	"net/url"
+	"os"
+	"sort"
+	"strconv"
+	"strings"
+	"sync/atomic"
+	"time"
+)
 
 // TODO: Add authentication
 
@@ -29,17 +31,21 @@ type admin_handlerInfo struct {
 	handler func(admin_info) (admin_info, error) // First is input map, second is output
 }
 
-// Maps things like "IP", "port", "bucket", or "coords" onto strings
+// admin_pair maps things like "IP", "port", "bucket", or "coords" onto values.
 type admin_pair struct {
 	key string
 	val interface{}
 }
+
+// admin_nodeInfo represents the information we know about a node for an admin response.
 type admin_nodeInfo []admin_pair
 
+// addHandler is called for each admin function to add the handler and help documentation to the API.
 func (a *admin) addHandler(name string, args []string, handler func(admin_info) (admin_info, error)) {
 	a.handlers = append(a.handlers, admin_handlerInfo{name, args, handler})
 }
 
+// init runs the initial admin setup.
 func (a *admin) init(c *Core, listenaddr string) {
 	a.core = c
 	a.listenaddr = listenaddr
@@ -215,11 +221,13 @@ func (a *admin) init(c *Core, listenaddr string) {
 	})
 }
 
+// start runs the admin API socket to listen for / respond to admin API calls.
 func (a *admin) start() error {
 	go a.listen()
 	return nil
 }
 
+// listen is run by start and manages API connections.
 func (a *admin) listen() {
 	l, err := net.Listen("tcp", a.listenaddr)
 	if err != nil {
@@ -236,6 +244,7 @@ func (a *admin) listen() {
 	}
 }
 
+// handleRequest calls the request handler for each request sent to the admin API.
 func (a *admin) handleRequest(conn net.Conn) {
 	decoder := json.NewDecoder(conn)
 	encoder := json.NewEncoder(conn)
@@ -317,7 +326,6 @@ func (a *admin) handleRequest(conn net.Conn) {
 
 		// Send the response back
 		if err := encoder.Encode(&send); err != nil {
-			//	fmt.Println("Admin socket JSON encode error:", err)
 			return
 		}
 
@@ -328,6 +336,7 @@ func (a *admin) handleRequest(conn net.Conn) {
 	}
 }
 
+// asMap converts an admin_nodeInfo into a map of key/value pairs.
 func (n *admin_nodeInfo) asMap() map[string]interface{} {
 	m := make(map[string]interface{}, len(*n))
 	for _, p := range *n {
@@ -336,6 +345,7 @@ func (n *admin_nodeInfo) asMap() map[string]interface{} {
 	return m
 }
 
+// toString creates a printable string representation of an admin_nodeInfo.
 func (n *admin_nodeInfo) toString() string {
 	// TODO return something nicer looking than this
 	var out []string
@@ -346,6 +356,7 @@ func (n *admin_nodeInfo) toString() string {
 	return fmt.Sprint(*n)
 }
 
+// printInfos returns a newline separated list of strings from admin_nodeInfos, e.g. a printable string of info about all peers.
 func (a *admin) printInfos(infos []admin_nodeInfo) string {
 	var out []string
 	for _, info := range infos {
@@ -355,14 +366,13 @@ func (a *admin) printInfos(infos []admin_nodeInfo) string {
 	return strings.Join(out, "\n")
 }
 
+// addPeer triggers a connection attempt to a node.
 func (a *admin) addPeer(addr string) error {
 	u, err := url.Parse(addr)
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "tcp":
 			a.core.tcp.connect(u.Host)
-		case "udp":
-			a.core.udp.connect(u.Host)
 		case "socks":
 			a.core.tcp.connectSOCKS(u.Host, u.Path[1:])
 		default:
@@ -371,21 +381,16 @@ func (a *admin) addPeer(addr string) error {
 	} else {
 		// no url scheme provided
 		addr = strings.ToLower(addr)
-		if strings.HasPrefix(addr, "udp:") {
-			a.core.udp.connect(addr[4:])
-			return nil
-		} else {
-			if strings.HasPrefix(addr, "tcp:") {
-				addr = addr[4:]
-			}
-			a.core.tcp.connect(addr)
-			return nil
+		if strings.HasPrefix(addr, "tcp:") {
+			addr = addr[4:]
 		}
-		return errors.New("invalid peer: " + addr)
+		a.core.tcp.connect(addr)
+		return nil
 	}
 	return nil
 }
 
+// removePeer disconnects an existing node (given by the node's port number).
 func (a *admin) removePeer(p string) error {
 	iport, err := strconv.Atoi(p)
 	if err != nil {
@@ -395,6 +400,7 @@ func (a *admin) removePeer(p string) error {
 	return nil
 }
 
+// startTunWithMTU creates the tun/tap device, sets its address, and sets the MTU to the provided value.
 func (a *admin) startTunWithMTU(ifname string, iftapmode bool, ifmtu int) error {
 	// Close the TUN first if open
 	_ = a.core.tun.close()
@@ -423,6 +429,7 @@ func (a *admin) startTunWithMTU(ifname string, iftapmode bool, ifmtu int) error 
 	return nil
 }
 
+// getData_getSelf returns the self node's info for admin responses.
 func (a *admin) getData_getSelf() *admin_nodeInfo {
 	table := a.core.switchTable.table.Load().(lookupTable)
 	coords := table.self.getCoords()
@@ -434,6 +441,7 @@ func (a *admin) getData_getSelf() *admin_nodeInfo {
 	return &self
 }
 
+// getData_getPeers returns info from Core.peers for an admin response.
 func (a *admin) getData_getPeers() []admin_nodeInfo {
 	ports := a.core.peers.ports.Load().(map[switchPort]*peer)
 	var peerInfos []admin_nodeInfo
@@ -457,6 +465,7 @@ func (a *admin) getData_getPeers() []admin_nodeInfo {
 	return peerInfos
 }
 
+// getData_getSwitchPeers returns info from Core.switchTable for an admin response.
 func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 	var peerInfos []admin_nodeInfo
 	table := a.core.switchTable.table.Load().(lookupTable)
@@ -478,6 +487,7 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 	return peerInfos
 }
 
+// getData_getDHT returns info from Core.dht for an admin response.
 func (a *admin) getData_getDHT() []admin_nodeInfo {
 	var infos []admin_nodeInfo
 	now := time.Now()
@@ -505,6 +515,7 @@ func (a *admin) getData_getDHT() []admin_nodeInfo {
 	return infos
 }
 
+// getData_getSessions returns info from Core.sessions for an admin response.
 func (a *admin) getData_getSessions() []admin_nodeInfo {
 	var infos []admin_nodeInfo
 	getSessions := func() {
@@ -525,6 +536,7 @@ func (a *admin) getData_getSessions() []admin_nodeInfo {
 	return infos
 }
 
+// getAllowedEncryptionPublicKeys returns the public keys permitted for incoming peer connections.
 func (a *admin) getAllowedEncryptionPublicKeys() []string {
 	pubs := a.core.peers.getAllowedEncryptionPublicKeys()
 	var out []string
@@ -534,6 +546,7 @@ func (a *admin) getAllowedEncryptionPublicKeys() []string {
 	return out
 }
 
+// addAllowedEncryptionPublicKey whitelists a key for incoming peer connections.
 func (a *admin) addAllowedEncryptionPublicKey(bstr string) (err error) {
 	boxBytes, err := hex.DecodeString(bstr)
 	if err == nil {
@@ -544,6 +557,8 @@ func (a *admin) addAllowedEncryptionPublicKey(bstr string) (err error) {
 	return
 }
 
+// removeAllowedEncryptionPublicKey removes a key from the whitelist for incoming peer connections.
+// If none are set, an empty list permits all incoming connections.
 func (a *admin) removeAllowedEncryptionPublicKey(bstr string) (err error) {
 	boxBytes, err := hex.DecodeString(bstr)
 	if err == nil {
@@ -554,6 +569,9 @@ func (a *admin) removeAllowedEncryptionPublicKey(bstr string) (err error) {
 	return
 }
 
+// getResponse_dot returns a response for a graphviz dot formatted representation of the known parts of the network.
+// This is color-coded and labeled, and includes the self node, switch peers, nodes known to the DHT, and nodes with open sessions.
+// The graph is structured as a tree with directed links leading away from the root.
 func (a *admin) getResponse_dot() []byte {
 	self := a.getData_getSelf()
 	peers := a.getData_getSwitchPeers()
@@ -623,7 +641,7 @@ func (a *admin) getResponse_dot() []byte {
 	for _, info := range infos {
 		keys = append(keys, info.key)
 	}
-	// TODO sort
+	// sort
 	less := func(i, j int) bool {
 		return keys[i] < keys[j]
 	}

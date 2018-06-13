@@ -5,31 +5,26 @@ package yggdrasil
 
 // TODO clean up unused/commented code, and add better comments to whatever is left
 
-// Packet types, as an Encode_uint64 at the start of each packet
-// TODO? make things still work after reordering (after things stabilize more?)
-//  Type safety would also be nice, `type wire_type uint64`, rewrite as needed?
+// Packet types, as wire_encode_uint64(type) at the start of each packet
+
 const (
 	wire_Traffic             = iota // data being routed somewhere, handle for crypto
 	wire_ProtocolTraffic            // protocol traffic, pub keys for crypto
 	wire_LinkProtocolTraffic        // link proto traffic, pub keys for crypto
-	wire_SwitchAnnounce             // inside protocol traffic header
-	wire_SwitchHopRequest           // inside protocol traffic header
-	wire_SwitchHop                  // inside protocol traffic header
+	wire_SwitchMsg                  // inside link protocol traffic header
 	wire_SessionPing                // inside protocol traffic header
 	wire_SessionPong                // inside protocol traffic header
 	wire_DHTLookupRequest           // inside protocol traffic header
 	wire_DHTLookupResponse          // inside protocol traffic header
-	wire_SearchRequest              // inside protocol traffic header
-	wire_SearchResponse             // inside protocol traffic header
 )
 
-// Encode uint64 using a variable length scheme
-// Similar to binary.Uvarint, but big-endian
+// Calls wire_put_uint64 on a nil slice.
 func wire_encode_uint64(elem uint64) []byte {
 	return wire_put_uint64(elem, nil)
 }
 
-// Occasionally useful for appending to an existing slice (if there's room)
+// Encode uint64 using a variable length scheme.
+// Similar to binary.Uvarint, but big-endian.
 func wire_put_uint64(elem uint64, out []byte) []byte {
 	bs := make([]byte, 0, 10)
 	bs = append(bs, byte(elem&0x7f))
@@ -45,6 +40,7 @@ func wire_put_uint64(elem uint64, out []byte) []byte {
 	return append(out, bs...)
 }
 
+// Returns the length of a wire encoded uint64 of this value.
 func wire_uint64_len(elem uint64) int {
 	l := 1
 	for e := elem >> 7; e > 0; e >>= 7 {
@@ -53,8 +49,8 @@ func wire_uint64_len(elem uint64) int {
 	return l
 }
 
-// Decode uint64 from a []byte slice
-// Returns the decoded uint64 and the number of bytes used
+// Decode uint64 from a []byte slice.
+// Returns the decoded uint64 and the number of bytes used.
 func wire_decode_uint64(bs []byte) (uint64, int) {
 	length := 0
 	elem := uint64(0)
@@ -69,29 +65,22 @@ func wire_decode_uint64(bs []byte) (uint64, int) {
 	return elem, length
 }
 
+// Converts an int64 into uint64 so it can be written to the wire.
+// Non-negative integers are mapped to even integers: 0 -> 0, 1 -> 2, etc.
+// Negative integres are mapped to odd integes: -1 -> 1, -2 -> 3, etc.
+// This means the least significant bit is a sign bit.
 func wire_intToUint(i int64) uint64 {
-	var u uint64
-	if i < 0 {
-		u = uint64(-i) << 1
-		u |= 0x01 // sign bit
-	} else {
-		u = uint64(i) << 1
-	}
-	return u
+	return ((uint64(-(i+1))<<1)|0x01)*(uint64(i)>>63) + (uint64(i)<<1)*(^uint64(i)>>63)
 }
 
+// Converts uint64 back to int64, genreally when being read from the wire.
 func wire_intFromUint(u uint64) int64 {
-	var i int64
-	i = int64(u >> 1)
-	if u&0x01 != 0 {
-		i *= -1
-	}
-	return i
+	return int64(u&0x01)*(-int64(u>>1)-1) + int64(^u&0x01)*int64(u>>1)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Takes coords, returns coords prefixed with encoded coord length
+// Takes coords, returns coords prefixed with encoded coord length.
 func wire_encode_coords(coords []byte) []byte {
 	coordLen := wire_encode_uint64(uint64(len(coords)))
 	bs := make([]byte, 0, len(coordLen)+len(coords))
@@ -100,14 +89,17 @@ func wire_encode_coords(coords []byte) []byte {
 	return bs
 }
 
+// Puts a length prefix and the coords into bs, returns the wire formatted coords.
+// Useful in hot loops where we don't want to allocate and we know the rest of the later parts of the slice are safe to overwrite.
 func wire_put_coords(coords []byte, bs []byte) []byte {
 	bs = wire_put_uint64(uint64(len(coords)), bs)
 	bs = append(bs, coords...)
 	return bs
 }
 
-// Takes a packet that begins with coords (starting with coord length)
-// Returns a slice of coords and the number of bytes read
+// Takes a slice that begins with coords (starting with coord length).
+// Returns a slice of coords and the number of bytes read.
+// Used as part of various decode() functions for structs.
 func wire_decode_coords(packet []byte) ([]byte, int) {
 	coordLen, coordBegin := wire_decode_uint64(packet)
 	coordEnd := coordBegin + int(coordLen)
@@ -119,145 +111,52 @@ func wire_decode_coords(packet []byte) ([]byte, int) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Announces that we can send parts of a Message with a particular seq
-type msgAnnounce struct {
-	Root   sigPubKey
-	Tstamp int64
-	Seq    uint64
-	Len    uint64
-	//Deg uint64
-	Rseq uint64
-}
-
-func (m *msgAnnounce) encode() []byte {
-	bs := wire_encode_uint64(wire_SwitchAnnounce)
+// Encodes a swtichMsg into its wire format.
+func (m *switchMsg) encode() []byte {
+	bs := wire_encode_uint64(wire_SwitchMsg)
 	bs = append(bs, m.Root[:]...)
-	bs = append(bs, wire_encode_uint64(wire_intToUint(m.Tstamp))...)
-	bs = append(bs, wire_encode_uint64(m.Seq)...)
-	bs = append(bs, wire_encode_uint64(m.Len)...)
-	bs = append(bs, wire_encode_uint64(m.Rseq)...)
+	bs = append(bs, wire_encode_uint64(wire_intToUint(m.TStamp))...)
+	for _, hop := range m.Hops {
+		bs = append(bs, wire_encode_uint64(uint64(hop.Port))...)
+		bs = append(bs, hop.Next[:]...)
+		bs = append(bs, hop.Sig[:]...)
+	}
 	return bs
 }
 
-func (m *msgAnnounce) decode(bs []byte) bool {
+// Decodes a wire formatted switchMsg into the struct, returns true if successful.
+func (m *switchMsg) decode(bs []byte) bool {
 	var pType uint64
 	var tstamp uint64
 	switch {
 	case !wire_chop_uint64(&pType, &bs):
 		return false
-	case pType != wire_SwitchAnnounce:
+	case pType != wire_SwitchMsg:
 		return false
 	case !wire_chop_slice(m.Root[:], &bs):
 		return false
 	case !wire_chop_uint64(&tstamp, &bs):
 		return false
-	case !wire_chop_uint64(&m.Seq, &bs):
-		return false
-	case !wire_chop_uint64(&m.Len, &bs):
-		return false
-	case !wire_chop_uint64(&m.Rseq, &bs):
-		return false
 	}
-	m.Tstamp = wire_intFromUint(tstamp)
+	m.TStamp = wire_intFromUint(tstamp)
+	for len(bs) > 0 {
+		var hop switchMsgHop
+		switch {
+		case !wire_chop_uint64((*uint64)(&hop.Port), &bs):
+			return false
+		case !wire_chop_slice(hop.Next[:], &bs):
+			return false
+		case !wire_chop_slice(hop.Sig[:], &bs):
+			return false
+		}
+		m.Hops = append(m.Hops, hop)
+	}
 	return true
 }
 
-type msgHopReq struct {
-	Root   sigPubKey
-	Tstamp int64
-	Seq    uint64
-	Hop    uint64
-}
+////////////////////////////////////////////////////////////////////////////////
 
-func (m *msgHopReq) encode() []byte {
-	bs := wire_encode_uint64(wire_SwitchHopRequest)
-	bs = append(bs, m.Root[:]...)
-	bs = append(bs, wire_encode_uint64(wire_intToUint(m.Tstamp))...)
-	bs = append(bs, wire_encode_uint64(m.Seq)...)
-	bs = append(bs, wire_encode_uint64(m.Hop)...)
-	return bs
-}
-
-func (m *msgHopReq) decode(bs []byte) bool {
-	var pType uint64
-	var tstamp uint64
-	switch {
-	case !wire_chop_uint64(&pType, &bs):
-		return false
-	case pType != wire_SwitchHopRequest:
-		return false
-	case !wire_chop_slice(m.Root[:], &bs):
-		return false
-	case !wire_chop_uint64(&tstamp, &bs):
-		return false
-	case !wire_chop_uint64(&m.Seq, &bs):
-		return false
-	case !wire_chop_uint64(&m.Hop, &bs):
-		return false
-	}
-	m.Tstamp = wire_intFromUint(tstamp)
-	return true
-}
-
-type msgHop struct {
-	Root   sigPubKey
-	Tstamp int64
-	Seq    uint64
-	Hop    uint64
-	Port   switchPort
-	Next   sigPubKey
-	Sig    sigBytes
-}
-
-func (m *msgHop) encode() []byte {
-	bs := wire_encode_uint64(wire_SwitchHop)
-	bs = append(bs, m.Root[:]...)
-	bs = append(bs, wire_encode_uint64(wire_intToUint(m.Tstamp))...)
-	bs = append(bs, wire_encode_uint64(m.Seq)...)
-	bs = append(bs, wire_encode_uint64(m.Hop)...)
-	bs = append(bs, wire_encode_uint64(uint64(m.Port))...)
-	bs = append(bs, m.Next[:]...)
-	bs = append(bs, m.Sig[:]...)
-	return bs
-}
-
-func (m *msgHop) decode(bs []byte) bool {
-	var pType uint64
-	var tstamp uint64
-	switch {
-	case !wire_chop_uint64(&pType, &bs):
-		return false
-	case pType != wire_SwitchHop:
-		return false
-	case !wire_chop_slice(m.Root[:], &bs):
-		return false
-	case !wire_chop_uint64(&tstamp, &bs):
-		return false
-	case !wire_chop_uint64(&m.Seq, &bs):
-		return false
-	case !wire_chop_uint64(&m.Hop, &bs):
-		return false
-	case !wire_chop_uint64((*uint64)(&m.Port), &bs):
-		return false
-	case !wire_chop_slice(m.Next[:], &bs):
-		return false
-	case !wire_chop_slice(m.Sig[:], &bs):
-		return false
-	}
-	m.Tstamp = wire_intFromUint(tstamp)
-	return true
-}
-
-// Format used to check signatures only, so no need to also support decoding
-func wire_encode_locator(loc *switchLocator) []byte {
-	coords := wire_encode_coords(loc.getCoords())
-	var bs []byte
-	bs = append(bs, loc.root[:]...)
-	bs = append(bs, wire_encode_uint64(wire_intToUint(loc.tstamp))...)
-	bs = append(bs, coords...)
-	return bs
-}
-
+// A utility function used to copy bytes into a slice and advance the beginning of the source slice, returns true if successful.
 func wire_chop_slice(toSlice []byte, fromSlice *[]byte) bool {
 	if len(*fromSlice) < len(toSlice) {
 		return false
@@ -267,6 +166,7 @@ func wire_chop_slice(toSlice []byte, fromSlice *[]byte) bool {
 	return true
 }
 
+// A utility function to extract coords from a slice and advance the source slices, returning true if successful.
 func wire_chop_coords(toCoords *[]byte, fromSlice *[]byte) bool {
 	coords, coordLen := wire_decode_coords(*fromSlice)
 	if coordLen == 0 {
@@ -277,6 +177,7 @@ func wire_chop_coords(toCoords *[]byte, fromSlice *[]byte) bool {
 	return true
 }
 
+// A utility function to extract a wire encoded uint64 into the provided pointer while advancing the start of the source slice, returning true if successful.
 func wire_chop_uint64(toUInt64 *uint64, fromSlice *[]byte) bool {
 	dec, decLen := wire_decode_uint64(*fromSlice)
 	if decLen == 0 {
@@ -291,19 +192,18 @@ func wire_chop_uint64(toUInt64 *uint64, fromSlice *[]byte) bool {
 
 // Wire traffic packets
 
+// The wire format for ordinary IPv6 traffic encapsulated by the network.
 type wire_trafficPacket struct {
-	TTL     uint64
 	Coords  []byte
 	Handle  handle
 	Nonce   boxNonce
 	Payload []byte
 }
 
-// This is basically MarshalBinary, but decode doesn't allow that...
+// Encodes a wire_trafficPacket into its wire format.
 func (p *wire_trafficPacket) encode() []byte {
 	bs := util_getBytes()
 	bs = wire_put_uint64(wire_Traffic, bs)
-	bs = wire_put_uint64(p.TTL, bs)
 	bs = wire_put_coords(p.Coords, bs)
 	bs = append(bs, p.Handle[:]...)
 	bs = append(bs, p.Nonce[:]...)
@@ -311,15 +211,13 @@ func (p *wire_trafficPacket) encode() []byte {
 	return bs
 }
 
-// Not just UnmarshalBinary becuase the original slice isn't always copied from
+// Decodes an encoded wire_trafficPacket into the struct, returning true if successful.
 func (p *wire_trafficPacket) decode(bs []byte) bool {
 	var pType uint64
 	switch {
 	case !wire_chop_uint64(&pType, &bs):
 		return false
 	case pType != wire_Traffic:
-		return false
-	case !wire_chop_uint64(&p.TTL, &bs):
 		return false
 	case !wire_chop_coords(&p.Coords, &bs):
 		return false
@@ -332,8 +230,8 @@ func (p *wire_trafficPacket) decode(bs []byte) bool {
 	return true
 }
 
+// The wire format for protocol traffic, such as dht req/res or session ping/pong packets.
 type wire_protoTrafficPacket struct {
-	TTL     uint64
 	Coords  []byte
 	ToKey   boxPubKey
 	FromKey boxPubKey
@@ -341,10 +239,10 @@ type wire_protoTrafficPacket struct {
 	Payload []byte
 }
 
+// Encodes a wire_protoTrafficPacket into its wire format.
 func (p *wire_protoTrafficPacket) encode() []byte {
 	coords := wire_encode_coords(p.Coords)
 	bs := wire_encode_uint64(wire_ProtocolTraffic)
-	bs = append(bs, wire_encode_uint64(p.TTL)...)
 	bs = append(bs, coords...)
 	bs = append(bs, p.ToKey[:]...)
 	bs = append(bs, p.FromKey[:]...)
@@ -353,14 +251,13 @@ func (p *wire_protoTrafficPacket) encode() []byte {
 	return bs
 }
 
+// Decodes an encoded wire_protoTrafficPacket into the struct, returning true if successful.
 func (p *wire_protoTrafficPacket) decode(bs []byte) bool {
 	var pType uint64
 	switch {
 	case !wire_chop_uint64(&pType, &bs):
 		return false
 	case pType != wire_ProtocolTraffic:
-		return false
-	case !wire_chop_uint64(&p.TTL, &bs):
 		return false
 	case !wire_chop_coords(&p.Coords, &bs):
 		return false
@@ -375,11 +272,16 @@ func (p *wire_protoTrafficPacket) decode(bs []byte) bool {
 	return true
 }
 
+// The wire format for link protocol traffic, namely switchMsg.
+// There's really two layers of this, with the outer layer using permanent keys, and the inner layer using ephemeral keys.
+// The keys themselves are exchanged as part of the connection setup, and then omitted from the packets.
+// The two layer logic is handled in peers.go, but it's kind of ugly.
 type wire_linkProtoTrafficPacket struct {
 	Nonce   boxNonce
 	Payload []byte
 }
 
+// Encodes a wire_linkProtoTrafficPacket into its wire format.
 func (p *wire_linkProtoTrafficPacket) encode() []byte {
 	bs := wire_encode_uint64(wire_LinkProtocolTraffic)
 	bs = append(bs, p.Nonce[:]...)
@@ -387,6 +289,7 @@ func (p *wire_linkProtoTrafficPacket) encode() []byte {
 	return bs
 }
 
+// Decodes an encoded wire_linkProtoTrafficPacket into the struct, returning true if successful.
 func (p *wire_linkProtoTrafficPacket) decode(bs []byte) bool {
 	var pType uint64
 	switch {
@@ -403,6 +306,7 @@ func (p *wire_linkProtoTrafficPacket) decode(bs []byte) bool {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Encodes a sessionPing into its wire format.
 func (p *sessionPing) encode() []byte {
 	var pTypeVal uint64
 	if p.IsPong {
@@ -421,6 +325,7 @@ func (p *sessionPing) encode() []byte {
 	return bs
 }
 
+// Decodes an encoded sessionPing into the struct, returning true if successful.
 func (p *sessionPing) decode(bs []byte) bool {
 	var pType uint64
 	var tstamp uint64
@@ -452,6 +357,7 @@ func (p *sessionPing) decode(bs []byte) bool {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Encodes a dhtReq into its wire format.
 func (r *dhtReq) encode() []byte {
 	coords := wire_encode_coords(r.Coords)
 	bs := wire_encode_uint64(wire_DHTLookupRequest)
@@ -460,6 +366,7 @@ func (r *dhtReq) encode() []byte {
 	return bs
 }
 
+// Decodes an encoded dhtReq into the struct, returning true if successful.
 func (r *dhtReq) decode(bs []byte) bool {
 	var pType uint64
 	switch {
@@ -476,6 +383,7 @@ func (r *dhtReq) decode(bs []byte) bool {
 	}
 }
 
+// Encodes a dhtRes into its wire format.
 func (r *dhtRes) encode() []byte {
 	coords := wire_encode_coords(r.Coords)
 	bs := wire_encode_uint64(wire_DHTLookupResponse)
@@ -489,6 +397,7 @@ func (r *dhtRes) encode() []byte {
 	return bs
 }
 
+// Decodes an encoded dhtRes into the struct, returning true if successful.
 func (r *dhtRes) decode(bs []byte) bool {
 	var pType uint64
 	switch {
@@ -512,60 +421,4 @@ func (r *dhtRes) decode(bs []byte) bool {
 		r.Infos = append(r.Infos, &info)
 	}
 	return true
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-func (r *searchReq) encode() []byte {
-	coords := wire_encode_coords(r.coords)
-	bs := wire_encode_uint64(wire_SearchRequest)
-	bs = append(bs, r.key[:]...)
-	bs = append(bs, coords...)
-	bs = append(bs, r.dest[:]...)
-	return bs
-}
-
-func (r *searchReq) decode(bs []byte) bool {
-	var pType uint64
-	switch {
-	case !wire_chop_uint64(&pType, &bs):
-		return false
-	case pType != wire_SearchRequest:
-		return false
-	case !wire_chop_slice(r.key[:], &bs):
-		return false
-	case !wire_chop_coords(&r.coords, &bs):
-		return false
-	case !wire_chop_slice(r.dest[:], &bs):
-		return false
-	default:
-		return true
-	}
-}
-
-func (r *searchRes) encode() []byte {
-	coords := wire_encode_coords(r.coords)
-	bs := wire_encode_uint64(wire_SearchResponse)
-	bs = append(bs, r.key[:]...)
-	bs = append(bs, coords...)
-	bs = append(bs, r.dest[:]...)
-	return bs
-}
-
-func (r *searchRes) decode(bs []byte) bool {
-	var pType uint64
-	switch {
-	case !wire_chop_uint64(&pType, &bs):
-		return false
-	case pType != wire_SearchResponse:
-		return false
-	case !wire_chop_slice(r.key[:], &bs):
-		return false
-	case !wire_chop_coords(&r.coords, &bs):
-		return false
-	case !wire_chop_slice(r.dest[:], &bs):
-		return false
-	default:
-		return true
-	}
 }

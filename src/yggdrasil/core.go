@@ -1,12 +1,15 @@
 package yggdrasil
 
-import "io/ioutil"
-import "log"
-import "regexp"
-import "net"
-import "fmt"
-import "encoding/hex"
-import "yggdrasil/config"
+import (
+	"encoding/hex"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net"
+	"regexp"
+
+	"yggdrasil/config"
+)
 
 // The Core object represents the Yggdrasil node. You should create a Core
 // object for each Yggdrasil node you plan to run.
@@ -27,7 +30,6 @@ type Core struct {
 	searches    searches
 	multicast   multicast
 	tcp         tcpInterface
-	udp         udpInterface
 	log         *log.Logger
 	ifceExpr    []*regexp.Regexp // the zone of link-local IPv6 peers must match this
 }
@@ -99,18 +101,8 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
-	if err := c.udp.init(c, nc.Listen); err != nil {
-		c.log.Println("Failed to start UDP interface")
-		return err
-	}
-
 	if err := c.router.start(); err != nil {
 		c.log.Println("Failed to start router")
-		return err
-	}
-
-	if err := c.switchTable.start(); err != nil {
-		c.log.Println("Failed to start switch table ticker")
 		return err
 	}
 
