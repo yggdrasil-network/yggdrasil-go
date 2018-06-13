@@ -166,17 +166,24 @@ func (ps *peers) sendSwitchMsgs() {
 		if p.port == 0 {
 			continue
 		}
-		select {
-		case p.doSend <- struct{}{}:
-		default:
-		}
+		p.doSendSwitchMsgs()
+	}
+}
+
+// If called, sends a notification to the peer's linkLoop to trigger a switchMsg send.
+// Mainly called by sendSwitchMsgs or during linkLoop startup.
+func (p *peer) doSendSwitchMsgs() {
+	defer func() { recover() }() // In case there's a race with close(p.doSend)
+	select {
+	case p.doSend <- struct{}{}:
+	default:
 	}
 }
 
 // This must be launched in a separate goroutine by whatever sets up the peer struct.
 // It handles link protocol traffic.
 func (p *peer) linkLoop() {
-	go func() { p.doSend <- struct{}{} }()
+	go p.doSendSwitchMsgs()
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
 	for {
