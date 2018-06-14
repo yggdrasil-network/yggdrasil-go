@@ -15,6 +15,11 @@ PKGNAME=$(sh contrib/semver/name.sh)
 PKGVERSION=$(sh contrib/semver/version.sh | cut -c 2-)
 PKGARCH=${PKGARCH-amd64}
 PKGFILE=$PKGNAME-$PKGVERSION-$PKGARCH.deb
+PKGREPLACES=yggdrasil
+
+if [ $PKGBRANCH = "master" ]; then
+  PKGREPLACES=yggdrasil-develop
+fi
 
 if [ $PKGARCH = "amd64" ]; then GOARCH=amd64 GOOS=linux ./build
 elif [ $PKGARCH = "i386" ]; then GOARCH=386 GOOS=linux ./build
@@ -43,7 +48,7 @@ Version: $PKGVERSION
 Section: contrib/net
 Priority: extra
 Architecture: $PKGARCH
-Replaces: yggdrasil | yggdrasil-develop
+Replaces: $PKGREPLACES
 Maintainer: Neil Alexander <neilalexander@users.noreply.github.com>
 Description: Debian yggdrasil package
  Binary yggdrasil package for Debian and Ubuntu
