@@ -85,7 +85,7 @@ journalctl -u yggdrasil
 
 - Tested and working on Windows 7 and Windows 10, and should work on any recent versions of Windows, but it depends on the [OpenVPN TAP driver](https://openvpn.net/index.php/open-source/downloads.html) being installed first.
 - Has been proven to work with both the [NDIS 5](https://swupdate.openvpn.org/community/releases/tap-windows-9.9.2_3.exe) (`tap-windows-9.9.2_3`) driver and the [NDIS 6](https://swupdate.openvpn.org/community/releases/tap-windows-9.21.2.exe) (`tap-windows-9.21.2`) driver, however there are substantial performance issues with the NDIS 6 driver therefore it is recommended to use the NDIS 5 driver instead.
-- Be aware that connectivity issues can occur on Windows if multiple IPv6 addresses from the `fd00::/8` prefix are assigned to the TAP interface. If this happens, then you may need to manually remove the old/unused addresses from the interface (though the code has a workaround in place to do this automatically in some cases).
+- Be aware that connectivity issues can occur on Windows if multiple IPv6 addresses from the `200::/7` prefix are assigned to the TAP interface. If this happens, then you may need to manually remove the old/unused addresses from the interface (though the code has a workaround in place to do this automatically in some cases).
 - TUN mode is not supported on Windows.
 - Yggdrasil can be installed as a Windows service so that it runs automatically in the background. From an Administrator Command Prompt:
 ```
@@ -105,26 +105,26 @@ sc create yggdrasil binpath= "\"C:\path\to\yggdrasil.exe\" -autoconf"
 
 ## Optional: advertise a prefix locally
 
-Suppose a node has generated the address: `fd00:1111:2222:3333:4444:5555:6666:7777`
+Suppose a node has generated the address: `200:1111:2222:3333:4444:5555:6666:7777`
 
-Then the node may also use addresses from the prefix: `fd80:1111:2222:3333::/64` (note the `fd00` changed to `fd80`, a separate `/9` is used for prefixes, but the rest of the first 64 bits are the same).
+Then the node may also use addresses from the prefix: `300:1111:2222:3333::/64` (note the `200` changed to `300`, a separate `/8` is used for prefixes, but the rest of the first 64 bits are the same).
 
-To advertise this prefix and a route to `fd00::/8`, the following seems to work on the developers' networks:
+To advertise this prefix and a route to `200::/7`, the following seems to work on the developers' networks:
 
 1. Enable IPv6 forwarding (e.g. `sysctl -w net.ipv6.conf.all.forwarding=1` or add it to sysctl.conf).
 
-2. `ip addr add fd80:1111:2222:3333::1/64 dev eth0` or similar, to assign an address for the router to use in that prefix, where the LAN is reachable through `eth0`.
+2. `ip addr add 300:1111:2222:3333::1/64 dev eth0` or similar, to assign an address for the router to use in that prefix, where the LAN is reachable through `eth0`.
 
 3. Install/run `radvd` with something like the following in `/etc/radvd.conf`:
 ```
 interface eth0
 {
         AdvSendAdvert on;
-        prefix fd80:1111:2222:3333::/64 {
+        prefix 300:1111:2222:3333::/64 {
             AdvOnLink on;
             AdvAutonomous on;
         };
-        route fd00::/8 {};
+        route 200::/7 {};
 };
 ```
 
