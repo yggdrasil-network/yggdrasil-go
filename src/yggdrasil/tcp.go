@@ -131,7 +131,6 @@ func (iface *tcpInterface) call(saddr string, dialer proxy.Dialer) {
 			if err != nil {
 				return
 			}
-			//
 			conn = &wrappedConn{
 				c: conn,
 				raddr: &wrappedAddr{
