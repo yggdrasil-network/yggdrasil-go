@@ -60,29 +60,12 @@ func (iface *tcpInterface) getAddr() *net.TCPAddr {
 
 // Attempts to initiate a connection to the provided address.
 func (iface *tcpInterface) connect(addr string) {
-	iface.call(addr)
+	iface.call(addr, nil)
 }
 
 // Attempst to initiate a connection to the provided address, viathe provided socks proxy address.
 func (iface *tcpInterface) connectSOCKS(socksaddr, peeraddr string) {
-	// TODO make sure this doesn't keep attempting/killing connections when one is already active.
-	// I think some of the interaction between this and callWithConn needs work, so the dial isn't even attempted if there's already an outgoing call to peeraddr.
-	// Or maybe only if there's already an outgoing call to peeraddr via this socksaddr?
-	go func() {
-		dialer, err := proxy.SOCKS5("tcp", socksaddr, nil, proxy.Direct)
-		if err == nil {
-			conn, err := dialer.Dial("tcp", peeraddr)
-			if err == nil {
-				iface.callWithConn(&wrappedConn{
-					c: conn,
-					raddr: &wrappedAddr{
-						network: "tcp",
-						addr:    peeraddr,
-					},
-				})
-			}
-		}
-	}()
+	iface.call(peeraddr, &socksaddr)
 }
 
 // Initializes the struct.
@@ -112,33 +95,12 @@ func (iface *tcpInterface) listener() {
 	}
 }
 
-// Called by connectSOCKS, it's like call but with the connection already established.
-func (iface *tcpInterface) callWithConn(conn net.Conn) {
-	go func() {
-		raddr := conn.RemoteAddr().String()
-		iface.mutex.Lock()
-		_, isIn := iface.calls[raddr]
-		iface.mutex.Unlock()
-		if !isIn {
-			iface.mutex.Lock()
-			iface.calls[raddr] = struct{}{}
-			iface.mutex.Unlock()
-			defer func() {
-				iface.mutex.Lock()
-				delete(iface.calls, raddr)
-				iface.mutex.Unlock()
-			}()
-			iface.handler(conn, false)
-		}
-	}()
-}
-
 // Checks if a connection already exists.
 // If not, it adds it to the list of active outgoing calls (to block future attempts) and dials the address.
 // If the dial is successful, it launches the handler.
 // When finished, it removes the outgoing call, so reconnection attempts can be made later.
 // This all happens in a separate goroutine that it spawns.
-func (iface *tcpInterface) call(saddr string) {
+func (iface *tcpInterface) call(saddr string, socksaddr *string) {
 	go func() {
 		quit := false
 		iface.mutex.Lock()
@@ -153,13 +115,35 @@ func (iface *tcpInterface) call(saddr string) {
 			}()
 		}
 		iface.mutex.Unlock()
-		if !quit {
-			conn, err := net.Dial("tcp", saddr)
+		if quit {
+			return
+		}
+		var conn net.Conn
+		var err error
+		if socksaddr != nil {
+			var dialer proxy.Dialer
+			dialer, err = proxy.SOCKS5("tcp", *socksaddr, nil, proxy.Direct)
 			if err != nil {
 				return
 			}
-			iface.handler(conn, false)
+			conn, err = dialer.Dial("tcp", saddr)
+			if err != nil {
+				return
+			}
+			conn = &wrappedConn{
+				c: conn,
+				raddr: &wrappedAddr{
+					network: "tcp",
+					addr:    saddr,
+				},
+			}
+		} else {
+			conn, err = net.Dial("tcp", saddr)
+			if err != nil {
+				return
+			}
 		}
+		iface.handler(conn, false)
 	}()
 }
 
