@@ -19,17 +19,18 @@ func (a *address) isValid() bool {
 			return false
 		}
 	}
-	return (*a)[len(address_prefix)-1]&0x80 == 0
+	return true
 }
 
 // isValid returns true if a prefix falls within the range usable by the network.
 func (s *subnet) isValid() bool {
-	for idx := range address_prefix {
+	l := len(address_prefix)
+	for idx := range address_prefix[:l-1] {
 		if (*s)[idx] != address_prefix[idx] {
 			return false
 		}
 	}
-	return (*s)[len(address_prefix)-1]&0x80 != 0
+	return (*s)[l-1] == address_prefix[l-1]|0x01
 }
 
 // address_addrForNodeID takes a *NodeID as an argument and returns an *address.
@@ -83,7 +84,7 @@ func address_subnetForNodeID(nid *NodeID) *subnet {
 	addr := *address_addrForNodeID(nid)
 	var snet subnet
 	copy(snet[:], addr[:])
-	snet[len(address_prefix)-1] |= 0x80
+	snet[len(address_prefix)-1] |= 0x01
 	return &snet
 }
 
