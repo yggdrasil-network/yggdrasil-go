@@ -7,9 +7,10 @@ type address [16]byte
 type subnet [8]byte
 
 // address_prefix is the prefix used for all addresses and subnets in the network.
-// The current implementation requires this to be a multiple of 8 bits.
+// The current implementation requires this to be a muliple of 8 bits + 7 bits.
+// The 8th bit of the last byte is used to signal nodes (0) or /64 prefixes (1).
 // Nodes that configure this differently will be unable to communicate with eachother, though routing and the DHT machinery *should* still work.
-var address_prefix = [...]byte{0xfd}
+var address_prefix = [...]byte{0x02}
 
 // isValid returns true if an address falls within the range used by nodes in the network.
 func (a *address) isValid() bool {
@@ -18,7 +19,7 @@ func (a *address) isValid() bool {
 			return false
 		}
 	}
-	return (*a)[len(address_prefix)]&0x80 == 0
+	return (*a)[len(address_prefix)-1]&0x80 == 0
 }
 
 // isValid returns true if a prefix falls within the range usable by the network.
@@ -28,14 +29,13 @@ func (s *subnet) isValid() bool {
 			return false
 		}
 	}
-	return (*s)[len(address_prefix)]&0x80 != 0
+	return (*s)[len(address_prefix)-1]&0x80 != 0
 }
 
 // address_addrForNodeID takes a *NodeID as an argument and returns an *address.
-// This address begins with the address prefix.
-// The next bit is 0 for an address, and 1 for a subnet.
-// The following 7 bits are set to the number of leading 1 bits in the NodeID.
-// The NodeID, excluding the leading 1 bits and the first leading 1 bit, is truncated to the appropriate length and makes up the remainder of the address.
+// This subnet begins with the address prefix, with the last bit set to 0 to indicate an address.
+// The following 8 bits are set to the number of leading 1 bits in the NodeID.
+// The NodeID, excluding the leading 1 bits and the first leading 0 bit, is truncated to the appropriate length and makes up the remainder of the address.
 func address_addrForNodeID(nid *NodeID) *address {
 	// 128 bit address
 	// Begins with prefix
@@ -67,16 +67,15 @@ func address_addrForNodeID(nid *NodeID) *address {
 		}
 	}
 	copy(addr[:], address_prefix[:])
-	addr[len(address_prefix)] = ones & 0x7f
+	addr[len(address_prefix)] = ones
 	copy(addr[len(address_prefix)+1:], temp)
 	return &addr
 }
 
 // address_subnetForNodeID takes a *NodeID as an argument and returns a *subnet.
-// This subnet begins with the address prefix.
-// The next bit is 0 for an address, and 1 for a subnet.
-// The following 7 bits are set to the number of leading 1 bits in the NodeID.
-// The NodeID, excluding the leading 1 bits and the first leading 1 bit, is truncated to the appropriate length and makes up the remainder of the subnet.
+// This subnet begins with the address prefix, with the last bit set to 1 to indicate a prefix.
+// The following 8 bits are set to the number of leading 1 bits in the NodeID.
+// The NodeID, excluding the leading 1 bits and the first leading 0 bit, is truncated to the appropriate length and makes up the remainder of the subnet.
 func address_subnetForNodeID(nid *NodeID) *subnet {
 	// Exactly as the address version, with two exceptions:
 	//  1) The first bit after the fixed prefix is a 1 instead of a 0
@@ -84,7 +83,7 @@ func address_subnetForNodeID(nid *NodeID) *subnet {
 	addr := *address_addrForNodeID(nid)
 	var snet subnet
 	copy(snet[:], addr[:])
-	snet[len(address_prefix)] |= 0x80
+	snet[len(address_prefix)-1] |= 0x80
 	return &snet
 }
 
@@ -97,7 +96,7 @@ func (a *address) getNodeIDandMask() (*NodeID, *NodeID) {
 	// This means truncated leading 1s, first leading 0, and visible part of addr
 	var nid NodeID
 	var mask NodeID
-	ones := int(a[len(address_prefix)] & 0x7f)
+	ones := int(a[len(address_prefix)])
 	for idx := 0; idx < ones; idx++ {
 		nid[idx/8] |= 0x80 >> byte(idx%8)
 	}
@@ -125,7 +124,7 @@ func (s *subnet) getNodeIDandMask() (*NodeID, *NodeID) {
 	// As with the address version, but visible parts of the subnet prefix instead
 	var nid NodeID
 	var mask NodeID
-	ones := int(s[len(address_prefix)] & 0x7f)
+	ones := int(s[len(address_prefix)])
 	for idx := 0; idx < ones; idx++ {
 		nid[idx/8] |= 0x80 >> byte(idx%8)
 	}
