@@ -49,6 +49,7 @@ Section: contrib/net
 Priority: extra
 Architecture: $PKGARCH
 Replaces: $PKGREPLACES
+Conflicts: $PKGREPLACES
 Maintainer: Neil Alexander <neilalexander@users.noreply.github.com>
 Description: Debian yggdrasil package
  Binary yggdrasil package for Debian and Ubuntu
