@@ -126,8 +126,10 @@ func (t *dht) handleReq(req *dhtReq) {
 		key:    req.Key,
 		coords: req.Coords,
 	}
-	t.insertIfNew(&info, false) // This seems DoSable (we just trust their coords...)
-	//if req.dest != t.nodeID { t.ping(&info, info.getNodeID()) } // Or spam...
+	// For bootstrapping to work, we need to add these nodes to the table
+	// Using insertIfNew, they can lie about coords, but searches will route around them
+	// Using the mill would mean trying to block off the mill becomes an attack vector
+	t.insertIfNew(&info, false)
 }
 
 // Reads a lookup response, checks that we had sent a matching request, and processes the response info.
@@ -142,6 +144,7 @@ func (t *dht) handleRes(res *dhtRes) {
 	if !isIn {
 		return
 	}
+	delete(reqs, res.Dest)
 	now := time.Now()
 	rinfo := dhtInfo{
 		key:           res.Key,

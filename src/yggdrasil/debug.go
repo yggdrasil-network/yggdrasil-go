@@ -10,7 +10,7 @@ package yggdrasil
 
 import _ "golang.org/x/net/ipv6" // TODO put this somewhere better
 
-import "golang.org/x/net/proxy"
+//import "golang.org/x/net/proxy"
 
 import "fmt"
 import "net"
@@ -353,6 +353,7 @@ func (c *Core) DEBUG_addPeer(addr string) {
 	}
 }
 
+/*
 func (c *Core) DEBUG_addSOCKSConn(socksaddr, peeraddr string) {
 	go func() {
 		dialer, err := proxy.SOCKS5("tcp", socksaddr, nil, proxy.Direct)
@@ -370,6 +371,7 @@ func (c *Core) DEBUG_addSOCKSConn(socksaddr, peeraddr string) {
 		}
 	}()
 }
+*/
 
 //*
 func (c *Core) DEBUG_setupAndStartGlobalTCPInterface(addrport string) {
@@ -384,7 +386,7 @@ func (c *Core) DEBUG_getGlobalTCPAddr() *net.TCPAddr {
 }
 
 func (c *Core) DEBUG_addTCPConn(saddr string) {
-	c.tcp.call(saddr)
+	c.tcp.call(saddr, nil)
 }
 
 //*/
