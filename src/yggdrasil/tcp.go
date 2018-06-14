@@ -65,13 +65,7 @@ func (iface *tcpInterface) connect(addr string) {
 
 // Attempst to initiate a connection to the provided address, viathe provided socks proxy address.
 func (iface *tcpInterface) connectSOCKS(socksaddr, peeraddr string) {
-	go func() {
-		dialer, err := proxy.SOCKS5("tcp", socksaddr, nil, proxy.Direct)
-		if err != nil {
-			return
-		}
-		iface.call(peeraddr, dialer)
-	}()
+	iface.call(peeraddr, &socksaddr)
 }
 
 // Initializes the struct.
@@ -106,7 +100,7 @@ func (iface *tcpInterface) listener() {
 // If the dial is successful, it launches the handler.
 // When finished, it removes the outgoing call, so reconnection attempts can be made later.
 // This all happens in a separate goroutine that it spawns.
-func (iface *tcpInterface) call(saddr string, dialer proxy.Dialer) {
+func (iface *tcpInterface) call(saddr string, socksaddr *string) {
 	go func() {
 		quit := false
 		iface.mutex.Lock()
@@ -126,7 +120,12 @@ func (iface *tcpInterface) call(saddr string, dialer proxy.Dialer) {
 		}
 		var conn net.Conn
 		var err error
-		if dialer != nil {
+		if socksaddr != nil {
+			var dialer proxy.Dialer
+			dialer, err = proxy.SOCKS5("tcp", *socksaddr, nil, proxy.Direct)
+			if err != nil {
+				return
+			}
 			conn, err = dialer.Dial("tcp", saddr)
 			if err != nil {
 				return
