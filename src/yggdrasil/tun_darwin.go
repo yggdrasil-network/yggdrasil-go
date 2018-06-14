@@ -87,7 +87,7 @@ func (tun *tunDevice) setupAddress(addr string) error {
 
 	ar.ifra_prefixmask.sin6_len = uint8(unsafe.Sizeof(ar.ifra_prefixmask))
 	b := make([]byte, 16)
-	binary.LittleEndian.PutUint16(b, uint16(0xFF00))
+	binary.LittleEndian.PutUint16(b, uint16(0xFE00))
 	ar.ifra_prefixmask.sin6_addr[0] = uint16(binary.BigEndian.Uint16(b))
 
 	ar.ifra_addr.sin6_len = uint8(unsafe.Sizeof(ar.ifra_addr))
