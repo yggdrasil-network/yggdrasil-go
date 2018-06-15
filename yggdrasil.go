@@ -1,7 +1,8 @@
 package main
 
-import "encoding/json"
+import "bytes"
 import "encoding/hex"
+import "encoding/json"
 import "flag"
 import "fmt"
 import "io/ioutil"
@@ -12,6 +13,8 @@ import "time"
 import "regexp"
 import "math/rand"
 import "log"
+
+import "golang.org/x/text/encoding/unicode"
 
 import "yggdrasil"
 import "yggdrasil/config"
@@ -106,6 +109,19 @@ func main() {
 		}
 		if err != nil {
 			panic(err)
+		}
+		// If there's a byte order mark - which Windows 10 is now incredibly fond of
+		// throwing everywhere when it's converting things into UTF-16 for the hell
+		// of it - remove it and decode back down into UTF-8. This is necessary
+		// because hjson doesn't know what to do with UTF-16 and will panic
+		if bytes.Compare(config[0:2], []byte{0xFF, 0xFE}) == 0 ||
+		  bytes.Compare(config[0:2], []byte{0xFF, 0xFF}) == 0 {
+			utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
+			decoder := utf.NewDecoder()
+			config, err = decoder.Bytes(config)
+			if err != nil {
+				panic(err)
+			}
 		}
 		// Generate a new configuration - this gives us a set of sane defaults -
 		// then parse the configuration we loaded above on top of it. The effect
