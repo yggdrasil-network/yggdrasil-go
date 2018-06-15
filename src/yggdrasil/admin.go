@@ -406,7 +406,7 @@ func (a *admin) startTunWithMTU(ifname string, iftapmode bool, ifmtu int) error 
 	_ = a.core.tun.close()
 	// Then reconfigure and start it
 	addr := a.core.router.addr
-	straddr := fmt.Sprintf("%s/%v", net.IP(addr[:]).String(), 8*len(address_prefix))
+	straddr := fmt.Sprintf("%s/%v", net.IP(addr[:]).String(), 8*len(address_prefix)-1)
 	if ifname != "none" {
 		err := a.core.tun.setup(ifname, iftapmode, straddr, ifmtu)
 		if err != nil {

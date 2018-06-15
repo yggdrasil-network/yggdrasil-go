@@ -15,6 +15,11 @@ PKGNAME=$(sh contrib/semver/name.sh)
 PKGVERSION=$(sh contrib/semver/version.sh | cut -c 2-)
 PKGARCH=${PKGARCH-amd64}
 PKGFILE=$PKGNAME-$PKGVERSION-$PKGARCH.deb
+PKGREPLACES=yggdrasil
+
+if [ $PKGBRANCH = "master" ]; then
+  PKGREPLACES=yggdrasil-develop
+fi
 
 if [ $PKGARCH = "amd64" ]; then GOARCH=amd64 GOOS=linux ./build
 elif [ $PKGARCH = "i386" ]; then GOARCH=386 GOOS=linux ./build
@@ -34,7 +39,7 @@ mkdir -p /tmp/$PKGNAME/usr/bin/
 mkdir -p /tmp/$PKGNAME/etc/systemd/system/
 
 cat > /tmp/$PKGNAME/debian/changelog << EOF
-Please see https://github.com/Arceliar/yggdrasil-go/
+Please see https://github.com/yggdrasil-network/yggdrasil-go/
 EOF
 echo 9 > /tmp/$PKGNAME/debian/compat
 cat > /tmp/$PKGNAME/debian/control << EOF
@@ -43,15 +48,17 @@ Version: $PKGVERSION
 Section: contrib/net
 Priority: extra
 Architecture: $PKGARCH
+Replaces: $PKGREPLACES
+Conflicts: $PKGREPLACES
 Maintainer: Neil Alexander <neilalexander@users.noreply.github.com>
 Description: Debian yggdrasil package
  Binary yggdrasil package for Debian and Ubuntu
 EOF
 cat > /tmp/$PKGNAME/debian/copyright << EOF
-Please see https://github.com/Arceliar/yggdrasil-go/
+Please see https://github.com/yggdrasil-network/yggdrasil-go/
 EOF
 cat > /tmp/$PKGNAME/debian/docs << EOF
-Please see https://github.com/Arceliar/yggdrasil-go/
+Please see https://github.com/yggdrasil-network/yggdrasil-go/
 EOF
 cat > /tmp/$PKGNAME/debian/install << EOF
 usr/bin/yggdrasil usr/bin

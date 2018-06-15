@@ -252,7 +252,7 @@ func (i *icmpv6) handle_ndp(in []byte) ([]byte, error) {
 	case source.isValid():
 	case snet.isValid():
 	default:
-		return nil, errors.New("Not an NDP for fd00::/8")
+		return nil, errors.New("Not an NDP for 0200::/7")
 	}
 
 	// Create our NDP message body response
