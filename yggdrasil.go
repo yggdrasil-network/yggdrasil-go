@@ -1,27 +1,29 @@
 package main
 
-import "bytes"
-import "encoding/hex"
-import "encoding/json"
-import "flag"
-import "fmt"
-import "io/ioutil"
-import "os"
-import "os/signal"
-import "syscall"
-import "time"
-import "regexp"
-import "math/rand"
-import "log"
+import (
+	"bytes"
+	"encoding/hex"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"math/rand"
+	"os"
+	"os/signal"
+	"regexp"
+	"syscall"
+	"time"
 
-import "golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/encoding/unicode"
 
-import "yggdrasil"
-import "yggdrasil/config"
+	"github.com/kardianos/minwinsvc"
+	"github.com/mitchellh/mapstructure"
+	"github.com/neilalexander/hjson-go"
 
-import "github.com/kardianos/minwinsvc"
-import "github.com/neilalexander/hjson-go"
-import "github.com/mitchellh/mapstructure"
+	"yggdrasil"
+	"yggdrasil/config"
+)
 
 type nodeConfig = config.NodeConfig
 type Core = yggdrasil.Core
@@ -115,7 +117,7 @@ func main() {
 		// of it - remove it and decode back down into UTF-8. This is necessary
 		// because hjson doesn't know what to do with UTF-16 and will panic
 		if bytes.Compare(config[0:2], []byte{0xFF, 0xFE}) == 0 ||
-		  bytes.Compare(config[0:2], []byte{0xFF, 0xFF}) == 0 {
+			bytes.Compare(config[0:2], []byte{0xFF, 0xFF}) == 0 {
 			utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
 			decoder := utf.NewDecoder()
 			config, err = decoder.Bytes(config)
