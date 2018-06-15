@@ -117,7 +117,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	}
 
 	ip := net.IP(c.router.addr[:]).String()
-	if err := c.tun.start(nc.IfName, nc.IfTAPMode, fmt.Sprintf("%s/8", ip), nc.IfMTU); err != nil {
+	if err := c.tun.start(nc.IfName, nc.IfTAPMode, fmt.Sprintf("%s/%d", ip, 8*len(address_prefix)-1), nc.IfMTU); err != nil {
 		c.log.Println("Failed to start TUN/TAP")
 		return err
 	}

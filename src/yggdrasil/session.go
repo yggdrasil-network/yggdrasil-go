@@ -437,41 +437,14 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 // TODO? remove the MTU updating part? That should never happen with TCP peers, and the old UDP code that caused it was removed (and if replaced, should be replaced with something that can reliably send messages with an arbitrary size).
 func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
 	defer util_putBytes(p.Payload)
-	payloadSize := uint16(len(p.Payload))
 	if !sinfo.nonceIsOK(&p.Nonce) {
 		return
 	}
 	bs, isOK := boxOpen(&sinfo.sharedSesKey, p.Payload, &p.Nonce)
 	if !isOK {
-		// We're going to guess that the session MTU is too large
-		// Set myMTU to the largest value we think we can receive
-		fixSessionMTU := func() {
-			// This clamps down to 1280 almost immediately over ipv4
-			// Over link-local ipv6, it seems to approach link MTU
-			// So maybe it's doing the right thing?...
-			//sinfo.core.log.Println("DEBUG got bad packet:", payloadSize)
-			newMTU := payloadSize - boxOverhead
-			if newMTU < 1280 {
-				newMTU = 1280
-			}
-			if newMTU < sinfo.myMTU {
-				sinfo.myMTU = newMTU
-				sinfo.core.sessions.sendPingPong(sinfo, false)
-				sinfo.mtuTime = time.Now()
-				sinfo.wasMTUFixed = true
-			}
-		}
-		go func() { sinfo.core.router.admin <- fixSessionMTU }()
 		util_putBytes(bs)
 		return
 	}
-	fixSessionMTU := func() {
-		if time.Since(sinfo.mtuTime) > time.Minute {
-			sinfo.myMTU = uint16(sinfo.core.tun.mtu)
-			sinfo.mtuTime = time.Now()
-		}
-	}
-	go func() { sinfo.core.router.admin <- fixSessionMTU }()
 	sinfo.updateNonce(&p.Nonce)
 	sinfo.time = time.Now()
 	sinfo.bytesRecvd += uint64(len(bs))

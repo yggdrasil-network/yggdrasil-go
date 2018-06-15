@@ -364,7 +364,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 	doUpdate := false
 	if !equiv(&sender.locator, &oldSender.locator) {
 		doUpdate = true
-		//sender.firstSeen = now // TODO? uncomment to prevent flapping?
+		sender.firstSeen = now
 	}
 	t.data.peers[fromPort] = sender
 	updateRoot := false
@@ -402,7 +402,16 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 		updateRoot = true
 	case sender.port != t.parent: // do nothing
 	case !equiv(&sender.locator, &t.data.locator):
-		updateRoot = true
+		// Special case
+		// If coords changed, then this may now be a worse parent than before
+		// Re-parent the node (de-parent and reprocess the message)
+		// Then reprocess *all* messages to look for a better parent
+		// This is so we don't keep using this node as our parent if there's something better
+		t.parent = 0
+		t.unlockedHandleMsg(msg, fromPort)
+		for _, info := range t.data.peers {
+			t.unlockedHandleMsg(&info.msg, info.port)
+		}
 	case now.Sub(t.time) < switch_throttle: // do nothing
 	case sender.locator.tstamp > t.data.locator.tstamp:
 		updateRoot = true
