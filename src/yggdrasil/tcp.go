@@ -26,6 +26,7 @@ import (
 )
 
 const tcp_msgSize = 2048 + 65535 // TODO figure out what makes sense
+const tcp_timeout = 6 * time.Second
 
 // Wrapper function for non tcp/ip connections.
 func setNoDelay(c net.Conn, delay bool) {
@@ -109,6 +110,8 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string) {
 		} else {
 			iface.calls[saddr] = struct{}{}
 			defer func() {
+				// Block new calls for a little while, to mitigate livelock scenarios
+				time.Sleep(tcp_timeout)
 				iface.mutex.Lock()
 				delete(iface.calls, saddr)
 				iface.mutex.Unlock()
@@ -162,7 +165,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	if err != nil {
 		return
 	}
-	timeout := time.Now().Add(6 * time.Second)
+	timeout := time.Now().Add(tcp_timeout)
 	sock.SetReadDeadline(timeout)
 	_, err = sock.Read(metaBytes)
 	if err != nil {
@@ -257,7 +260,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 			atomic.AddUint64(&p.bytesSent, uint64(len(tcp_msg)+len(msgLen)+len(msg)))
 			util_putBytes(msg)
 		}
-		timerInterval := 4 * time.Second
+		timerInterval := tcp_timeout * 2 / 3
 		timer := time.NewTimer(timerInterval)
 		defer timer.Stop()
 		for {
@@ -334,7 +337,7 @@ func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) {
 	bs := make([]byte, 2*tcp_msgSize)
 	frag := bs[:0]
 	for {
-		timeout := time.Now().Add(6 * time.Second)
+		timeout := time.Now().Add(tcp_timeout)
 		sock.SetReadDeadline(timeout)
 		n, err := sock.Read(bs[len(frag):])
 		if err != nil || n == 0 {
