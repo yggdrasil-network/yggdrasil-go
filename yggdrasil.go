@@ -117,7 +117,7 @@ func main() {
 		// of it - remove it and decode back down into UTF-8. This is necessary
 		// because hjson doesn't know what to do with UTF-16 and will panic
 		if bytes.Compare(config[0:2], []byte{0xFF, 0xFE}) == 0 ||
-			bytes.Compare(config[0:2], []byte{0xFF, 0xFF}) == 0 {
+			bytes.Compare(config[0:2], []byte{0xFE, 0xFF}) == 0 {
 			utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
 			decoder := utf.NewDecoder()
 			config, err = decoder.Bytes(config)
