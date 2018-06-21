@@ -1,11 +1,25 @@
 #!/bin/sh
+while getopts ud option
+do
+  case "${option}"
+  in
+  u) UPX=true;;
+  d) DEBUG=true;;
+  esac
+done
 export GOPATH=$PWD
 echo "Downloading..."
 go get -d -v
 go get -d -v yggdrasil
 for file in *.go ; do
   echo "Building: $file"
-  go build $@ $file
-  #go build -ldflags="-s -w" -v $file
-  #upx --brute ${file/.go/}
+  #go build $@ $file
+  if [ $DEBUG ]; then
+    go build -tags debug -v $file
+  else
+    go build -ldflags="-s -w" -v $file
+  fi
+  if [ $UPX ]; then
+    upx --brute ${file%.go}
+  fi
 done
