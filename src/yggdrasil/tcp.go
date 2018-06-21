@@ -17,6 +17,7 @@ package yggdrasil
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -112,6 +113,7 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string) {
 			defer func() {
 				// Block new calls for a little while, to mitigate livelock scenarios
 				time.Sleep(tcp_timeout)
+				time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
 				iface.mutex.Lock()
 				delete(iface.calls, saddr)
 				iface.mutex.Unlock()
