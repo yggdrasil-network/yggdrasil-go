@@ -20,6 +20,6 @@ for file in *.go ; do
     go build -ldflags="-s -w" -v $file
   fi
   if [ $UPX ]; then
-    upx --brute ${file/.go/}
+    upx --brute ${file%.go}
   fi
 done
