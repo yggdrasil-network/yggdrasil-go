@@ -82,7 +82,6 @@ func doGenconf() string {
 // The main function is responsible for configuring and starting Yggdrasil.
 func main() {
 	// Configure the command line parameters.
-	pprof := flag.Bool("pprof", false, "Run pprof, see http://localhost:6060/debug/pprof/")
 	genconf := flag.Bool("genconf", false, "print a new config to stdout")
 	useconf := flag.Bool("useconf", false, "read config from stdin")
 	useconffile := flag.String("useconffile", "", "read config from specified file path")
@@ -203,12 +202,6 @@ func main() {
 	}
 	// Create a new logger that logs output to stdout.
 	logger := log.New(os.Stdout, "", log.Flags())
-	// If the -pprof flag was provided then start the pprof service on port 6060.
-	if *pprof {
-		if err := yggdrasil.StartProfiler(logger); err != nil {
-			logger.Println(err)
-		}
-	}
 	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
 	// don't need to create this manually.
 	n := node{}

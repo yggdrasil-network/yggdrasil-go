@@ -20,6 +20,20 @@ import "regexp"
 import _ "net/http/pprof"
 import "net/http"
 import "runtime"
+import "os"
+
+// Start the profiler in debug builds, if the required environment variable is set.
+func init() {
+	envVarName := "PPROFLISTEN"
+	hostPort := os.Getenv(envVarName)
+	switch {
+	case hostPort == "":
+		fmt.Printf("DEBUG: %s not set, profiler not started.\n", envVarName)
+	default:
+		fmt.Printf("DEBUG: Starting pprof on %s\n", hostPort)
+		go func() { fmt.Println(http.ListenAndServe(hostPort, nil)) }()
+	}
+}
 
 // Starts the function profiler. This is only supported when built with
 // '-tags build'.
