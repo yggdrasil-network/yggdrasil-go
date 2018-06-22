@@ -189,34 +189,34 @@ func (a *admin) init(c *Core, listenaddr string) {
 	a.addHandler("getAllowedEncryptionPublicKeys", []string{}, func(in admin_info) (admin_info, error) {
 		return admin_info{"allowed_box_pubs": a.getAllowedEncryptionPublicKeys()}, nil
 	})
-	a.addHandler("addAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in admin_info) (admin_info, error) {
-		if a.addAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
+	a.addHandler("addAllowedEncryptionPublicKey", []string{"key"}, func(in admin_info) (admin_info, error) {
+		if a.addAllowedEncryptionPublicKey(in["key"].(string)) == nil {
 			return admin_info{
 				"added": []string{
-					in["box_pub_key"].(string),
+					in["key"].(string),
 				},
 			}, nil
 		} else {
 			return admin_info{
 				"not_added": []string{
-					in["box_pub_key"].(string),
+					in["key"].(string),
 				},
-			}, errors.New("Failed to add allowed box pub key")
+			}, errors.New("Failed to add allowed key")
 		}
 	})
-	a.addHandler("removeAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in admin_info) (admin_info, error) {
-		if a.removeAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
+	a.addHandler("removeAllowedEncryptionPublicKey", []string{"key"}, func(in admin_info) (admin_info, error) {
+		if a.removeAllowedEncryptionPublicKey(in["key"].(string)) == nil {
 			return admin_info{
 				"removed": []string{
-					in["box_pub_key"].(string),
+					in["key"].(string),
 				},
 			}, nil
 		} else {
 			return admin_info{
 				"not_removed": []string{
-					in["box_pub_key"].(string),
+					in["key"].(string),
 				},
-			}, errors.New("Failed to remove allowed box pub key")
+			}, errors.New("Failed to remove allowed key")
 		}
 	})
 }
