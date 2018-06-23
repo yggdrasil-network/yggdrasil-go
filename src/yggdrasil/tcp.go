@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -249,6 +250,10 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 		var stack [][]byte
 		put := func(msg []byte) {
 			stack = append(stack, msg)
+			sort.SliceStable(stack, func(i, j int) bool {
+				// Sort in reverse order, with smallest messages at the end
+				return len(stack[i]) >= len(stack[j])
+			})
 			for len(stack) > 32 {
 				util_putBytes(stack[0])
 				stack = stack[1:]
