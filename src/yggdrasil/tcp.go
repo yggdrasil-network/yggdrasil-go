@@ -242,7 +242,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	in := func(bs []byte) {
 		p.handlePacket(bs)
 	}
-	out := make(chan []byte, 1)
+	out := make(chan []byte, 1024) // Should be effectively infinite, but gets fed into finite LIFO stack
 	defer close(out)
 	go func() {
 		var shadow int64
@@ -296,6 +296,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 				select {
 				case msg := <-p.linkOut:
 					send <- msg
+					continue
 				default:
 				}
 				// Then block until we send or receive something
