@@ -624,8 +624,10 @@ func (t *switchTable) handleIdle(port switchPort, stacks map[string][][]byte) bo
 	var bestSize int
 	for streamID, packets := range stacks {
 		// Filter over the streams that this node is closer to
+		// Keep the one with the smallest queue
 		packet := packets[len(packets)-1]
-		if (bestSize == 0 || len(packets) < bestSize) && t.portIsCloser(packet, port) {
+		coords := switch_getPacketCoords(packet)
+		if (bestSize == 0 || len(packets) < bestSize) && t.portIsCloser(coords, port) {
 			best = streamID
 			bestSize = len(packets)
 		}
