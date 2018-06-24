@@ -74,9 +74,8 @@ func (ps *peers) putPorts(ports map[switchPort]*peer) {
 	ps.ports.Store(ports)
 }
 
-// Information known about a peer, including thier box/sig keys, precomputed shared keys (static and ephemeral), a handler for their outgoing traffic, and queue sizes for local backpressure.
+// Information known about a peer, including thier box/sig keys, precomputed shared keys (static and ephemeral) and a handler for their outgoing traffic
 type peer struct {
-	queueSize  int64  // used to track local backpressure
 	bytesSent  uint64 // To track bandwidth usage for getPeers
 	bytesRecvd uint64 // To track bandwidth usage for getPeers
 	// BUG: sync/atomic, 32 bit platforms need the above to be the first element
@@ -92,16 +91,6 @@ type peer struct {
 	dinfo      *dhtInfo        // used to keep the DHT working
 	out        func([]byte)    // Set up by whatever created the peers struct, used to send packets to other nodes
 	close      func()          // Called when a peer is removed, to close the underlying connection, or via admin api
-}
-
-// Size of the queue of packets to be sent to the node.
-func (p *peer) getQueueSize() int64 {
-	return atomic.LoadInt64(&p.queueSize)
-}
-
-// Used to increment or decrement the queue.
-func (p *peer) updateQueueSize(delta int64) {
-	atomic.AddInt64(&p.queueSize, delta)
 }
 
 // Creates a new peer with the specified box, sig, and linkShared keys, using the lowest unocupied port number.

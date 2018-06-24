@@ -503,11 +503,12 @@ func (t *switchTable) lookup(dest []byte) switchPort {
 		if !(dist < myDist) {
 			continue
 		}
-		p, isIn := ports[info.port]
+		//p, isIn := ports[info.port]
+		_, isIn := ports[info.port]
 		if !isIn {
 			continue
 		}
-		cost := int64(dist) + p.getQueueSize()
+		cost := int64(dist) // + p.getQueueSize()
 		if cost < bestCost {
 			best = info.port
 			bestCost = cost
@@ -573,6 +574,7 @@ func (t *switchTable) portIsCloser(dest []byte, port switchPort) bool {
 
 // Handle an incoming packet
 // Either send it to ourself, or to the first idle peer that's free
+// Returns true if the packet has been handled somehow, false if it should be queued
 func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool {
 	// Get the coords, skipping the first byte (the pType)
 	_, pTypeLen := wire_decode_uint64(packet)
@@ -599,6 +601,27 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool
 	return false
 }
 
+// Handles incoming idle notifications
+// Loops over packets and sends the newest one that's OK for this peer to send
+// Returns true if the peer is no longer idle, false if it should be added to the idle list
+func (t *switchTable) handleIdle(port switchPort, packets *[][]byte) bool {
+	to := t.core.peers.getPorts()[port]
+	if to == nil {
+		return true
+	}
+	for idx := len(*packets) - 1; idx >= 0; idx-- {
+		packet := (*packets)[idx]
+		_, pTypeLen := wire_decode_uint64(packet)
+		coords, _ := wire_decode_coords(packet[pTypeLen:])
+		if t.portIsCloser(coords, port) {
+			to.sendPacket(packet)
+			*packets = append((*packets)[:idx], (*packets)[idx+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
 // The switch worker does routing lookups and sends packets to where they need to be
 func (t *switchTable) doWorker() {
 	var packets [][]byte                  // Should really be a linked list
@@ -606,13 +629,9 @@ func (t *switchTable) doWorker() {
 	for {
 		select {
 		case packet := <-t.packetIn:
-			idle = make(map[switchPort]struct{})
-			for port := range t.getTable().elems {
-				idle[port] = struct{}{}
-			}
-			// TODO correcty fill idle, so the above can be removed
+			// Try to send it somewhere (or drop it if it's corrupt or at a dead end)
 			if !t.handleIn(packet, idle) {
-				// There's nobody free to take it now, so queue it
+				// There's nobody free to take it right now, so queue it for later
 				packets = append(packets, packet)
 				for len(packets) > 32 {
 					util_putBytes(packets[0])
@@ -620,9 +639,11 @@ func (t *switchTable) doWorker() {
 				}
 			}
 		case port := <-t.idleIn:
-			// TODO the part that loops over packets and finds something to send
-			// Didn't find anything to send, so add this port to the idle list
-			idle[port] = struct{}{}
+			// Try to find something to send to this peer
+			if !t.handleIdle(port, &packets) {
+				// Didn't find anything ready to send yet, so stay idle
+				idle[port] = struct{}{}
+			}
 		}
 	}
 }

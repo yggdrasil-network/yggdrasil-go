@@ -481,13 +481,17 @@ func DEBUG_simLinkPeers(p, q *peer) {
 		}
 	}()
 	p.out = func(bs []byte) {
+		p.core.switchTable.idleIn <- p.port
 		go q.handlePacket(bs)
 	}
 	q.out = func(bs []byte) {
+		q.core.switchTable.idleIn <- q.port
 		go p.handlePacket(bs)
 	}
 	go p.linkLoop()
 	go q.linkLoop()
+	p.core.switchTable.idleIn <- p.port
+	q.core.switchTable.idleIn <- q.port
 }
 
 func (c *Core) DEBUG_simFixMTU() {

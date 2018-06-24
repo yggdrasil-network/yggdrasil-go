@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -243,26 +242,15 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	in := func(bs []byte) {
 		p.handlePacket(bs)
 	}
-	out := make(chan []byte, 1024) // Should be effectively infinite, but gets fed into finite LIFO stack
+	out := make(chan []byte, 1)
 	defer close(out)
 	go func() {
-		var shadow int64
-		var stack [][]byte
-		put := func(msg []byte) {
-			stack = append(stack, msg)
-			sort.SliceStable(stack, func(i, j int) bool {
-				// Sort in reverse order, with smallest messages at the end
-				return len(stack[i]) >= len(stack[j])
-			})
-			for len(stack) > 32 {
-				util_putBytes(stack[0])
-				stack = stack[1:]
-				shadow++
-			}
-		}
+		// This goroutine waits for outgoing packets, link protocol traffic, or sends idle keep-alive traffic
 		send := make(chan []byte)
 		defer close(send)
 		go func() {
+			// This goroutine does the actual socket write operations
+			// The parent goroutine aggregates things for it and feeds them in
 			for msg := range send {
 				msgLen := wire_encode_uint64(uint64(len(msg)))
 				buf := net.Buffers{tcp_msg[:], msgLen, msg}
@@ -275,10 +263,14 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 		timer := time.NewTimer(timerInterval)
 		defer timer.Stop()
 		for {
-			if shadow != 0 {
-				p.updateQueueSize(-shadow)
-				shadow = 0
+			select {
+			case msg := <-p.linkOut:
+				// Always send outgoing link traffic first, if needed
+				send <- msg
+				continue
+			default:
 			}
+			// Otherwise wait reset the timer and wait for something to do
 			timer.Stop()
 			select {
 			case <-timer.C:
@@ -294,34 +286,14 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 				if !ok {
 					return
 				}
-				put(msg)
-			}
-			for len(stack) > 0 {
-				// First make sure linkOut gets sent first, if it's non-empty
-				select {
-				case msg := <-p.linkOut:
-					send <- msg
-					continue
-				default:
-				}
-				// Then block until we send or receive something
-				select {
-				case msg := <-p.linkOut:
-					send <- msg
-				case msg, ok := <-out:
-					if !ok {
-						return
-					}
-					put(msg)
-				case send <- stack[len(stack)-1]:
-					stack = stack[:len(stack)-1]
-					p.updateQueueSize(-1)
-				}
+				send <- msg // Block until the socket writer has the packet
+				// Now inform the switch that we're ready for more traffic
+				p.core.switchTable.idleIn <- p.port
 			}
 		}
 	}()
+	p.core.switchTable.idleIn <- p.port // Start in the idle state
 	p.out = func(msg []byte) {
-		p.updateQueueSize(1)
 		defer func() { recover() }()
 		out <- msg
 	}
