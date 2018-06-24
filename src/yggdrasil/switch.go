@@ -12,7 +12,6 @@ package yggdrasil
 //  A little annoying to do with constant changes from backpressure
 
 import (
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -139,7 +138,7 @@ type tableElem struct {
 // This is the subset of the information about all peers needed to make routing decisions, and it stored separately in an atomically accessed table, which gets hammered in the "hot loop" of the routing logic (see: peer.handleTraffic in peers.go).
 type lookupTable struct {
 	self  switchLocator
-	elems []tableElem
+	elems map[switchPort]tableElem
 }
 
 // This is switch information which is mutable and needs to be modified by other goroutines, but is not accessed atomically.
@@ -162,9 +161,10 @@ type switchTable struct {
 	drop     map[sigPubKey]int64 // Tstamp associated with a dropped root
 	mutex    sync.RWMutex        // Lock for reads/writes of switchData
 	data     switchData
-	updater  atomic.Value //*sync.Once
-	table    atomic.Value //lookupTable
-	packetIn chan []byte  // Incoming packets for the worker to handle
+	updater  atomic.Value    //*sync.Once
+	table    atomic.Value    //lookupTable
+	packetIn chan []byte     // Incoming packets for the worker to handle
+	idleIn   chan switchPort // Incoming idle notifications from peer links
 }
 
 // Initializes the switchTable struct.
@@ -179,6 +179,7 @@ func (t *switchTable) init(core *Core, key sigPubKey) {
 	t.table.Store(lookupTable{})
 	t.drop = make(map[sigPubKey]int64)
 	t.packetIn = make(chan []byte, 1024)
+	t.idleIn = make(chan switchPort, 1024)
 }
 
 // Safely gets a copy of this node's locator.
@@ -458,7 +459,7 @@ func (t *switchTable) updateTable() {
 	defer t.mutex.RUnlock()
 	newTable := lookupTable{
 		self:  t.data.locator.clone(),
-		elems: make([]tableElem, 0, len(t.data.peers)),
+		elems: make(map[switchPort]tableElem, len(t.data.peers)),
 	}
 	for _, pinfo := range t.data.peers {
 		//if !pinfo.forward { continue }
@@ -467,15 +468,18 @@ func (t *switchTable) updateTable() {
 		}
 		loc := pinfo.locator.clone()
 		loc.coords = loc.coords[:len(loc.coords)-1] // Remove the them->self link
-		newTable.elems = append(newTable.elems, tableElem{
+		newTable.elems[pinfo.port] = tableElem{
 			locator: loc,
 			port:    pinfo.port,
-		})
+		}
 	}
-	sort.SliceStable(newTable.elems, func(i, j int) bool {
-		return t.data.peers[newTable.elems[i].port].firstSeen.Before(t.data.peers[newTable.elems[j].port].firstSeen)
-	})
 	t.table.Store(newTable)
+}
+
+// Returns a copy of the atomically-updated table used for switch lookups
+func (t *switchTable) getTable() lookupTable {
+	t.updater.Load().(*sync.Once).Do(t.updateTable)
+	return t.table.Load().(lookupTable)
 }
 
 // This does the switch layer lookups that decide how to route traffic.
@@ -485,8 +489,7 @@ func (t *switchTable) updateTable() {
 // The size of the outgoing packet queue is added to a node's tree distance when the cost of forwarding to a node, subject to the constraint that the real tree distance puts them closer to the destination than ourself.
 // Doing so adds a limited form of backpressure routing, based on local information, which allows us to forward traffic around *local* bottlenecks, provided that another greedy path exists.
 func (t *switchTable) lookup(dest []byte) switchPort {
-	t.updater.Load().(*sync.Once).Do(t.updateTable)
-	table := t.table.Load().(lookupTable)
+	table := t.getTable()
 	myDist := table.self.dist(dest)
 	if myDist == 0 {
 		return 0
@@ -520,7 +523,7 @@ func (t *switchTable) start() error {
 	return nil
 }
 
-func (t *switchTable) handleIn(packet []byte) {
+func (t *switchTable) handleIn_old(packet []byte) {
 	// Get the coords, skipping the first byte (the pType)
 	_, pTypeLen := wire_decode_uint64(packet)
 	coords, coordLen := wire_decode_coords(packet[pTypeLen:])
@@ -537,9 +540,89 @@ func (t *switchTable) handleIn(packet []byte) {
 	to.sendPacket(packet)
 }
 
+// Check if a packet should go to the self node
+// This means there's no node closer to the destination than us
+// This is mainly used to identify packets addressed to us, or that hit a blackhole
+func (t *switchTable) selfIsClosest(dest []byte) bool {
+	table := t.getTable()
+	myDist := table.self.dist(dest)
+	if myDist == 0 {
+		// Skip the iteration step if it's impossible to be closer
+		return true
+	}
+	for _, info := range table.elems {
+		dist := info.locator.dist(dest)
+		if dist < myDist {
+			return false
+		}
+	}
+	return true
+}
+
+// Returns true if the peer is closer to the destination than ourself
+func (t *switchTable) portIsCloser(dest []byte, port switchPort) bool {
+	table := t.getTable()
+	if info, isIn := table.elems[port]; isIn {
+		theirDist := info.locator.dist(dest)
+		myDist := table.self.dist(dest)
+		return theirDist < myDist
+	} else {
+		return false
+	}
+}
+
+// Handle an incoming packet
+// Either send it to ourself, or to the first idle peer that's free
+func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool {
+	// Get the coords, skipping the first byte (the pType)
+	_, pTypeLen := wire_decode_uint64(packet)
+	coords, coordLen := wire_decode_coords(packet[pTypeLen:])
+	if coordLen >= len(packet) {
+		util_putBytes(packet)
+		return true
+	} // No payload
+	ports := t.core.peers.getPorts()
+	if t.selfIsClosest(coords) {
+		ports[0].sendPacket(packet)
+		return true
+	}
+	for port := range idle {
+		if to := ports[port]; to != nil {
+			if t.portIsCloser(coords, port) {
+				delete(idle, port)
+				to.sendPacket(packet)
+				return true
+			}
+		}
+	}
+	// Didn't find anyone idle to send it to
+	return false
+}
+
 // The switch worker does routing lookups and sends packets to where they need to be
 func (t *switchTable) doWorker() {
-	for packet := range t.packetIn {
-		t.handleIn(packet)
+	var packets [][]byte                  // Should really be a linked list
+	idle := make(map[switchPort]struct{}) // this is to deduplicate things
+	for {
+		select {
+		case packet := <-t.packetIn:
+			idle = make(map[switchPort]struct{})
+			for port := range t.getTable().elems {
+				idle[port] = struct{}{}
+			}
+			// TODO correcty fill idle, so the above can be removed
+			if !t.handleIn(packet, idle) {
+				// There's nobody free to take it now, so queue it
+				packets = append(packets, packet)
+				for len(packets) > 32 {
+					util_putBytes(packets[0])
+					packets = packets[1:]
+				}
+			}
+		case port := <-t.idleIn:
+			// TODO the part that loops over packets and finds something to send
+			// Didn't find anything to send, so add this port to the idle list
+			idle[port] = struct{}{}
+		}
 	}
 }
