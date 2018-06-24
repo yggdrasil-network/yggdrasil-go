@@ -141,7 +141,42 @@ func (l *switchLocator) DEBUG_getCoords() []byte {
 }
 
 func (c *Core) DEBUG_switchLookup(dest []byte) switchPort {
-	return c.switchTable.lookup(dest)
+	return c.switchTable.DEBUG_lookup(dest)
+}
+
+// This does the switch layer lookups that decide how to route traffic.
+// Traffic uses greedy routing in a metric space, where the metric distance between nodes is equal to the distance between them on the tree.
+// Traffic must be routed to a node that is closer to the destination via the metric space distance.
+// In the event that two nodes are equally close, it gets routed to the one with the longest uptime (due to the order that things are iterated over).
+// The size of the outgoing packet queue is added to a node's tree distance when the cost of forwarding to a node, subject to the constraint that the real tree distance puts them closer to the destination than ourself.
+// Doing so adds a limited form of backpressure routing, based on local information, which allows us to forward traffic around *local* bottlenecks, provided that another greedy path exists.
+func (t *switchTable) DEBUG_lookup(dest []byte) switchPort {
+	table := t.getTable()
+	myDist := table.self.dist(dest)
+	if myDist == 0 {
+		return 0
+	}
+	// cost is in units of (expected distance) + (expected queue size), where expected distance is used as an approximation of the minimum backpressure gradient needed for packets to flow
+	ports := t.core.peers.getPorts()
+	var best switchPort
+	bestCost := int64(^uint64(0) >> 1)
+	for _, info := range table.elems {
+		dist := info.locator.dist(dest)
+		if !(dist < myDist) {
+			continue
+		}
+		//p, isIn := ports[info.port]
+		_, isIn := ports[info.port]
+		if !isIn {
+			continue
+		}
+		cost := int64(dist) // + p.getQueueSize()
+		if cost < bestCost {
+			best = info.port
+			bestCost = cost
+		}
+	}
+	return best
 }
 
 /*

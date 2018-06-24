@@ -482,63 +482,11 @@ func (t *switchTable) getTable() lookupTable {
 	return t.table.Load().(lookupTable)
 }
 
-// This does the switch layer lookups that decide how to route traffic.
-// Traffic uses greedy routing in a metric space, where the metric distance between nodes is equal to the distance between them on the tree.
-// Traffic must be routed to a node that is closer to the destination via the metric space distance.
-// In the event that two nodes are equally close, it gets routed to the one with the longest uptime (due to the order that things are iterated over).
-// The size of the outgoing packet queue is added to a node's tree distance when the cost of forwarding to a node, subject to the constraint that the real tree distance puts them closer to the destination than ourself.
-// Doing so adds a limited form of backpressure routing, based on local information, which allows us to forward traffic around *local* bottlenecks, provided that another greedy path exists.
-func (t *switchTable) lookup(dest []byte) switchPort {
-	table := t.getTable()
-	myDist := table.self.dist(dest)
-	if myDist == 0 {
-		return 0
-	}
-	// cost is in units of (expected distance) + (expected queue size), where expected distance is used as an approximation of the minimum backpressure gradient needed for packets to flow
-	ports := t.core.peers.getPorts()
-	var best switchPort
-	bestCost := int64(^uint64(0) >> 1)
-	for _, info := range table.elems {
-		dist := info.locator.dist(dest)
-		if !(dist < myDist) {
-			continue
-		}
-		//p, isIn := ports[info.port]
-		_, isIn := ports[info.port]
-		if !isIn {
-			continue
-		}
-		cost := int64(dist) // + p.getQueueSize()
-		if cost < bestCost {
-			best = info.port
-			bestCost = cost
-		}
-	}
-	return best
-}
-
 // Starts the switch worker
 func (t *switchTable) start() error {
 	t.core.log.Println("Starting switch")
 	go t.doWorker()
 	return nil
-}
-
-func (t *switchTable) handleIn_old(packet []byte) {
-	// Get the coords, skipping the first byte (the pType)
-	_, pTypeLen := wire_decode_uint64(packet)
-	coords, coordLen := wire_decode_coords(packet[pTypeLen:])
-	if coordLen >= len(packet) {
-		util_putBytes(packet)
-		return
-	} // No payload
-	toPort := t.lookup(coords)
-	to := t.core.peers.getPorts()[toPort]
-	if to == nil {
-		util_putBytes(packet)
-		return
-	}
-	to.sendPacket(packet)
 }
 
 // Check if a packet should go to the self node
@@ -585,6 +533,7 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool
 	} // No payload
 	ports := t.core.peers.getPorts()
 	if t.selfIsClosest(coords) {
+		// TODO? call the router directly, and remove the whole concept of a self peer?
 		ports[0].sendPacket(packet)
 		return true
 	}
