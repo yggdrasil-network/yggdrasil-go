@@ -586,32 +586,6 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool
 	}
 }
 
-/*
-FIXME for some reason the new version is a *lot* slower than this one was
-It seems to be from the switchLocator.dist(coords) calls
-
-// Handles incoming idle notifications
-// Loops over packets and sends the newest one that's OK for this peer to send
-// Returns true if the peer is no longer idle, false if it should be added to the idle list
-func (t *switchTable) handleIdle(port switchPort, packets *[][]byte) bool {
-	to := t.core.peers.getPorts()[port]
-	if to == nil {
-		return true
-	}
-	for idx := len(*packets) - 1; idx >= 0; idx-- {
-		packet := (*packets)[idx]
-		_, pTypeLen := wire_decode_uint64(packet)
-		coords, _ := wire_decode_coords(packet[pTypeLen:])
-		if t.portIsCloser(coords, port) {
-			to.sendPacket(packet)
-			*packets = append((*packets)[:idx], (*packets)[idx+1:]...)
-			return true
-		}
-	}
-	return false
-}
-*/
-
 // Handles incoming idle notifications
 // Loops over packets and sends the newest one that's OK for this peer to send
 // Returns true if the peer is no longer idle, false if it should be added to the idle list
