@@ -588,17 +588,31 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool
 		ports[0].sendPacket(packet)
 		return true
 	}
+	table := t.getTable()
+	myDist := table.self.dist(coords)
+	var best *peer
+	bestDist := myDist
 	for port := range idle {
 		if to := ports[port]; to != nil {
-			if t.portIsCloser(coords, port) {
-				delete(idle, port)
-				to.sendPacket(packet)
-				return true
+			if info, isIn := table.elems[to.port]; isIn {
+				dist := info.locator.dist(coords)
+				if !(dist < bestDist) {
+					continue
+				}
+				best = to
+				bestDist = dist
 			}
 		}
 	}
-	// Didn't find anyone idle to send it to
-	return false
+	if best != nil {
+		// Send to the best idle next hop
+		delete(idle, best.port)
+		best.sendPacket(packet)
+		return true
+	} else {
+		// Didn't find anyone idle to send it to
+		return false
+	}
 }
 
 // Handles incoming idle notifications
