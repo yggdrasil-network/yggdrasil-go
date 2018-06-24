@@ -229,19 +229,7 @@ func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
 		// Drop traffic until the peer manages to send us at least one good switchMsg
 		return
 	}
-	coords, coordLen := wire_decode_coords(packet[pTypeLen:])
-	if coordLen >= len(packet) {
-		return
-	} // No payload
-	toPort := p.core.switchTable.lookup(coords)
-	if toPort == p.port {
-		return
-	}
-	to := p.core.peers.getPorts()[toPort]
-	if to == nil {
-		return
-	}
-	to.sendPacket(packet)
+	p.core.switchTable.packetIn <- packet
 }
 
 // This just calls p.out(packet) for now.

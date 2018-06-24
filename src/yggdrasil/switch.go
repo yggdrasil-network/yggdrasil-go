@@ -155,15 +155,16 @@ type switchData struct {
 
 // All the information stored by the switch.
 type switchTable struct {
-	core    *Core
-	key     sigPubKey           // Our own key
-	time    time.Time           // Time when locator.tstamp was last updated
-	parent  switchPort          // Port of whatever peer is our parent, or self if we're root
-	drop    map[sigPubKey]int64 // Tstamp associated with a dropped root
-	mutex   sync.RWMutex        // Lock for reads/writes of switchData
-	data    switchData
-	updater atomic.Value //*sync.Once
-	table   atomic.Value //lookupTable
+	core     *Core
+	key      sigPubKey           // Our own key
+	time     time.Time           // Time when locator.tstamp was last updated
+	parent   switchPort          // Port of whatever peer is our parent, or self if we're root
+	drop     map[sigPubKey]int64 // Tstamp associated with a dropped root
+	mutex    sync.RWMutex        // Lock for reads/writes of switchData
+	data     switchData
+	updater  atomic.Value //*sync.Once
+	table    atomic.Value //lookupTable
+	packetIn chan []byte  // Incoming packets for the worker to handle
 }
 
 // Initializes the switchTable struct.
@@ -177,6 +178,7 @@ func (t *switchTable) init(core *Core, key sigPubKey) {
 	t.updater.Store(&sync.Once{})
 	t.table.Store(lookupTable{})
 	t.drop = make(map[sigPubKey]int64)
+	t.packetIn = make(chan []byte, 1024)
 }
 
 // Safely gets a copy of this node's locator.
@@ -438,6 +440,10 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 	return
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+// The rest of these are related to the switch worker
+
 // This is called via a sync.Once to update the atomically readable subset of switch information that gets used for routing decisions.
 func (t *switchTable) updateTable() {
 	// WARNING this should only be called from within t.data.updater.Do()
@@ -505,4 +511,35 @@ func (t *switchTable) lookup(dest []byte) switchPort {
 		}
 	}
 	return best
+}
+
+// Starts the switch worker
+func (t *switchTable) start() error {
+	t.core.log.Println("Starting switch")
+	go t.doWorker()
+	return nil
+}
+
+func (t *switchTable) handleIn(packet []byte) {
+	// Get the coords, skipping the first byte (the pType)
+	_, pTypeLen := wire_decode_uint64(packet)
+	coords, coordLen := wire_decode_coords(packet[pTypeLen:])
+	if coordLen >= len(packet) {
+		util_putBytes(packet)
+		return
+	} // No payload
+	toPort := t.lookup(coords)
+	to := t.core.peers.getPorts()[toPort]
+	if to == nil {
+		util_putBytes(packet)
+		return
+	}
+	to.sendPacket(packet)
+}
+
+// The switch worker does routing lookups and sends packets to where they need to be
+func (t *switchTable) doWorker() {
+	for packet := range t.packetIn {
+		t.handleIn(packet)
+	}
 }

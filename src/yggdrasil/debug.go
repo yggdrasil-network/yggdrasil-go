@@ -49,6 +49,7 @@ func (c *Core) Init() {
 	bpub, bpriv := newBoxKeys()
 	spub, spriv := newSigKeys()
 	c.init(bpub, bpriv, spub, spriv)
+	c.switchTable.start()
 	c.router.start()
 }
 
