@@ -246,19 +246,13 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	defer close(out)
 	go func() {
 		// This goroutine waits for outgoing packets, link protocol traffic, or sends idle keep-alive traffic
-		send := make(chan []byte)
-		defer close(send)
-		go func() {
-			// This goroutine does the actual socket write operations
-			// The parent goroutine aggregates things for it and feeds them in
-			for msg := range send {
-				msgLen := wire_encode_uint64(uint64(len(msg)))
-				buf := net.Buffers{tcp_msg[:], msgLen, msg}
-				buf.WriteTo(sock)
-				atomic.AddUint64(&p.bytesSent, uint64(len(tcp_msg)+len(msgLen)+len(msg)))
-				util_putBytes(msg)
-			}
-		}()
+		send := func(msg []byte) {
+			msgLen := wire_encode_uint64(uint64(len(msg)))
+			buf := net.Buffers{tcp_msg[:], msgLen, msg}
+			buf.WriteTo(sock)
+			atomic.AddUint64(&p.bytesSent, uint64(len(tcp_msg)+len(msgLen)+len(msg)))
+			util_putBytes(msg)
+		}
 		timerInterval := tcp_timeout * 2 / 3
 		timer := time.NewTimer(timerInterval)
 		defer timer.Stop()
@@ -266,7 +260,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 			select {
 			case msg := <-p.linkOut:
 				// Always send outgoing link traffic first, if needed
-				send <- msg
+				send(msg)
 				continue
 			default:
 			}
@@ -279,14 +273,14 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 			timer.Reset(timerInterval)
 			select {
 			case _ = <-timer.C:
-				send <- nil // TCP keep-alive traffic
+				send(nil) // TCP keep-alive traffic
 			case msg := <-p.linkOut:
-				send <- msg
+				send(msg)
 			case msg, ok := <-out:
 				if !ok {
 					return
 				}
-				send <- msg // Block until the socket writer has the packet
+				send(msg) // Block until the socket write has finished
 				// Now inform the switch that we're ready for more traffic
 				p.core.switchTable.idleIn <- p.port
 			}

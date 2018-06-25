@@ -589,17 +589,17 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool
 // Handles incoming idle notifications
 // Loops over packets and sends the newest one that's OK for this peer to send
 // Returns true if the peer is no longer idle, false if it should be added to the idle list
-func (t *switchTable) handleIdle(port switchPort, stacks map[string][][]byte) bool {
+func (t *switchTable) handleIdle(port switchPort, buffs map[string][][]byte) bool {
 	to := t.core.peers.getPorts()[port]
 	if to == nil {
 		return true
 	}
 	var best string
 	var bestSize int
-	for streamID, packets := range stacks {
+	for streamID, packets := range buffs {
 		// Filter over the streams that this node is closer to
 		// Keep the one with the smallest queue
-		packet := packets[len(packets)-1]
+		packet := packets[0]
 		coords := switch_getPacketCoords(packet)
 		if (bestSize == 0 || len(packets) < bestSize) && t.portIsCloser(coords, port) {
 			best = streamID
@@ -607,13 +607,13 @@ func (t *switchTable) handleIdle(port switchPort, stacks map[string][][]byte) bo
 		}
 	}
 	if bestSize != 0 {
-		packets := stacks[best]
+		packets := buffs[best]
 		var packet []byte
-		packet, packets = packets[len(packets)-1], packets[:len(packets)-1]
+		packet, packets = packets[0], packets[1:]
 		if len(packets) == 0 {
-			delete(stacks, best)
+			delete(buffs, best)
 		} else {
-			stacks[best] = packets
+			buffs[best] = packets
 		}
 		to.sendPacket(packet)
 		return true
@@ -624,7 +624,7 @@ func (t *switchTable) handleIdle(port switchPort, stacks map[string][][]byte) bo
 
 // The switch worker does routing lookups and sends packets to where they need to be
 func (t *switchTable) doWorker() {
-	stacks := make(map[string][][]byte)   // Packets per PacketStreamID (string)
+	buffs := make(map[string][][]byte)    // Packets per PacketStreamID (string)
 	idle := make(map[switchPort]struct{}) // this is to deduplicate things
 	for {
 		select {
@@ -633,16 +633,16 @@ func (t *switchTable) doWorker() {
 			if !t.handleIn(packet, idle) {
 				// There's nobody free to take it right now, so queue it for later
 				streamID := switch_getPacketStreamID(packet)
-				packets := append(stacks[streamID], packet)
+				packets := append(buffs[streamID], packet)
 				for len(packets) > 32 {
 					util_putBytes(packets[0])
 					packets = packets[1:]
 				}
-				stacks[streamID] = packets
+				buffs[streamID] = packets
 			}
 		case port := <-t.idleIn:
 			// Try to find something to send to this peer
-			if !t.handleIdle(port, stacks) {
+			if !t.handleIdle(port, buffs) {
 				// Didn't find anything ready to send yet, so stay idle
 				idle[port] = struct{}{}
 			}
