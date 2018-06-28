@@ -242,19 +242,10 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	in := func(bs []byte) {
 		p.handlePacket(bs)
 	}
-	out := make(chan []byte, 32) // TODO? what size makes sense
+	out := make(chan []byte, 1)
 	defer close(out)
 	go func() {
-		var shadow int64
-		var stack [][]byte
-		put := func(msg []byte) {
-			stack = append(stack, msg)
-			for len(stack) > 32 {
-				util_putBytes(stack[0])
-				stack = stack[1:]
-				shadow++
-			}
-		}
+		// This goroutine waits for outgoing packets, link protocol traffic, or sends idle keep-alive traffic
 		send := func(msg []byte) {
 			msgLen := wire_encode_uint64(uint64(len(msg)))
 			buf := net.Buffers{tcp_msg[:], msgLen, msg}
@@ -266,10 +257,14 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 		timer := time.NewTimer(timerInterval)
 		defer timer.Stop()
 		for {
-			if shadow != 0 {
-				p.updateQueueSize(-shadow)
-				shadow = 0
+			select {
+			case msg := <-p.linkOut:
+				// Always send outgoing link traffic first, if needed
+				send(msg)
+				continue
+			default:
 			}
+			// Otherwise wait reset the timer and wait for something to do
 			timer.Stop()
 			select {
 			case <-timer.C:
@@ -285,34 +280,16 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 				if !ok {
 					return
 				}
-				put(msg)
-			}
-			for len(stack) > 0 {
-				select {
-				case msg := <-p.linkOut:
-					send(msg)
-				case msg, ok := <-out:
-					if !ok {
-						return
-					}
-					put(msg)
-				default:
-					msg := stack[len(stack)-1]
-					stack = stack[:len(stack)-1]
-					send(msg)
-					p.updateQueueSize(-1)
-				}
+				send(msg) // Block until the socket write has finished
+				// Now inform the switch that we're ready for more traffic
+				p.core.switchTable.idleIn <- p.port
 			}
 		}
 	}()
+	p.core.switchTable.idleIn <- p.port // Start in the idle state
 	p.out = func(msg []byte) {
 		defer func() { recover() }()
-		select {
-		case out <- msg:
-			p.updateQueueSize(1)
-		default:
-			util_putBytes(msg)
-		}
+		out <- msg
 	}
 	p.close = func() { sock.Close() }
 	setNoDelay(sock, true)
