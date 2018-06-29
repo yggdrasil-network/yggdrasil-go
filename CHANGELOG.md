@@ -28,31 +28,32 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [Unreleased]
 ### Added
 - Begin keeping changelog (incomplete and possibly inaccurate information before this point).
-- Build RPMs in CircleCI using alien.
+- Build RPMs in CircleCI using alien. This provides package support for Fedora, Red Hat Enterprise Linux, CentOS and other RPM-based distributions.
 
 ### Changed
 - Local backpressure improvements.
-- Change `box_pub_key` to `key` in admin API.
+- Change `box_pub_key` to `key` in admin API for simplicity.
 - Session cleanup.
 
 ## [0.2.2] - 2018-06-21
 ### Added
-- Add yggdrasilconf for testing with vyatta-yggdrasil.
+- Add `yggdrasilconf` utility for testing with the `vyatta-yggdrasil` package.
 - Add a randomized retry delay after TCP disconnects, to prevent synchronization livelocks.
 
 ### Changed
-- Update build script ot strip by default, allow debug `-d` and UPX `-u` flags.
+- Update build script to strip by default, which significantly reduces the size of the binary.
+- Add debug `-d` and UPX `-u` flags to the `build` script.
 - Start pprof in debug builds based on an environment variable (e.g. `PPROFLISTEN=localhost:6060`), instead of a flag.
 
 ### Fixed
-- Fix typo in big-endian BOM.
+- Fix typo in big-endian BOM so that both little-endian and big-endian UTF-16 files are detected correctly.
 
 ## [0.2.1] - 2018-06-15
 ### Changed
-- The address range was moved from `fd00::/8` to `200::/7`.
+- The address range was moved from `fd00::/8` to `200::/7`. This range was chosen as it is marked as deprecated. The change prevents overlap with other ULA privately assigned ranges.
 
 ### Fixed
-- UTF-16 conversion for configuration files.
+- UTF-16 detection conversion for configuration files, which can particularly be a problem on Windows 10 if a configuration file is generated from within PowerShell.
 - Fixes to the Debian package control file.
 - Fixes to the launchd service for macOS.
 - Fixes to the DHT and switch.
@@ -70,7 +71,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Removed
 - UDP peering, this may be added again if/when a better implementation appears.
-- Per peer bandwidth estimation.
+- Per peer bandwidth estimation, as this has been replaced with an early local backpressure implementation.
 
 ## [0.1.0] - 2018-02-01
 ### Added
@@ -84,4 +85,3 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Added
 - First commit.
 - Initial public release.
-
