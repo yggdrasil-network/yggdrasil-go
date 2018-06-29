@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
-## [Unreleased]
+## [0.2.3] - 2018-06-29
 ### Added
 - Begin keeping changelog (incomplete and possibly inaccurate information before this point).
 - Build RPMs in CircleCI using alien. This provides package support for Fedora, Red Hat Enterprise Linux, CentOS and other RPM-based distributions.
