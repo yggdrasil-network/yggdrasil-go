@@ -12,7 +12,6 @@ package yggdrasil
 //  A little annoying to do with constant changes from backpressure
 
 import (
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -139,7 +138,7 @@ type tableElem struct {
 // This is the subset of the information about all peers needed to make routing decisions, and it stored separately in an atomically accessed table, which gets hammered in the "hot loop" of the routing logic (see: peer.handleTraffic in peers.go).
 type lookupTable struct {
 	self  switchLocator
-	elems []tableElem
+	elems map[switchPort]tableElem
 }
 
 // This is switch information which is mutable and needs to be modified by other goroutines, but is not accessed atomically.
@@ -155,15 +154,17 @@ type switchData struct {
 
 // All the information stored by the switch.
 type switchTable struct {
-	core    *Core
-	key     sigPubKey           // Our own key
-	time    time.Time           // Time when locator.tstamp was last updated
-	parent  switchPort          // Port of whatever peer is our parent, or self if we're root
-	drop    map[sigPubKey]int64 // Tstamp associated with a dropped root
-	mutex   sync.RWMutex        // Lock for reads/writes of switchData
-	data    switchData
-	updater atomic.Value //*sync.Once
-	table   atomic.Value //lookupTable
+	core     *Core
+	key      sigPubKey           // Our own key
+	time     time.Time           // Time when locator.tstamp was last updated
+	parent   switchPort          // Port of whatever peer is our parent, or self if we're root
+	drop     map[sigPubKey]int64 // Tstamp associated with a dropped root
+	mutex    sync.RWMutex        // Lock for reads/writes of switchData
+	data     switchData
+	updater  atomic.Value    //*sync.Once
+	table    atomic.Value    //lookupTable
+	packetIn chan []byte     // Incoming packets for the worker to handle
+	idleIn   chan switchPort // Incoming idle notifications from peer links
 }
 
 // Initializes the switchTable struct.
@@ -177,6 +178,8 @@ func (t *switchTable) init(core *Core, key sigPubKey) {
 	t.updater.Store(&sync.Once{})
 	t.table.Store(lookupTable{})
 	t.drop = make(map[sigPubKey]int64)
+	t.packetIn = make(chan []byte, 1024)
+	t.idleIn = make(chan switchPort, 1024)
 }
 
 // Safely gets a copy of this node's locator.
@@ -438,6 +441,10 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 	return
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+// The rest of these are related to the switch worker
+
 // This is called via a sync.Once to update the atomically readable subset of switch information that gets used for routing decisions.
 func (t *switchTable) updateTable() {
 	// WARNING this should only be called from within t.data.updater.Do()
@@ -452,7 +459,7 @@ func (t *switchTable) updateTable() {
 	defer t.mutex.RUnlock()
 	newTable := lookupTable{
 		self:  t.data.locator.clone(),
-		elems: make([]tableElem, 0, len(t.data.peers)),
+		elems: make(map[switchPort]tableElem, len(t.data.peers)),
 	}
 	for _, pinfo := range t.data.peers {
 		//if !pinfo.forward { continue }
@@ -461,48 +468,214 @@ func (t *switchTable) updateTable() {
 		}
 		loc := pinfo.locator.clone()
 		loc.coords = loc.coords[:len(loc.coords)-1] // Remove the them->self link
-		newTable.elems = append(newTable.elems, tableElem{
+		newTable.elems[pinfo.port] = tableElem{
 			locator: loc,
 			port:    pinfo.port,
-		})
+		}
 	}
-	sort.SliceStable(newTable.elems, func(i, j int) bool {
-		return t.data.peers[newTable.elems[i].port].firstSeen.Before(t.data.peers[newTable.elems[j].port].firstSeen)
-	})
 	t.table.Store(newTable)
 }
 
-// This does the switch layer lookups that decide how to route traffic.
-// Traffic uses greedy routing in a metric space, where the metric distance between nodes is equal to the distance between them on the tree.
-// Traffic must be routed to a node that is closer to the destination via the metric space distance.
-// In the event that two nodes are equally close, it gets routed to the one with the longest uptime (due to the order that things are iterated over).
-// The size of the outgoing packet queue is added to a node's tree distance when the cost of forwarding to a node, subject to the constraint that the real tree distance puts them closer to the destination than ourself.
-// Doing so adds a limited form of backpressure routing, based on local information, which allows us to forward traffic around *local* bottlenecks, provided that another greedy path exists.
-func (t *switchTable) lookup(dest []byte) switchPort {
+// Returns a copy of the atomically-updated table used for switch lookups
+func (t *switchTable) getTable() lookupTable {
 	t.updater.Load().(*sync.Once).Do(t.updateTable)
-	table := t.table.Load().(lookupTable)
+	return t.table.Load().(lookupTable)
+}
+
+// Starts the switch worker
+func (t *switchTable) start() error {
+	t.core.log.Println("Starting switch")
+	go t.doWorker()
+	return nil
+}
+
+// Check if a packet should go to the self node
+// This means there's no node closer to the destination than us
+// This is mainly used to identify packets addressed to us, or that hit a blackhole
+func (t *switchTable) selfIsClosest(dest []byte) bool {
+	table := t.getTable()
 	myDist := table.self.dist(dest)
 	if myDist == 0 {
-		return 0
+		// Skip the iteration step if it's impossible to be closer
+		return true
 	}
-	// cost is in units of (expected distance) + (expected queue size), where expected distance is used as an approximation of the minimum backpressure gradient needed for packets to flow
-	ports := t.core.peers.getPorts()
-	var best switchPort
-	bestCost := int64(^uint64(0) >> 1)
 	for _, info := range table.elems {
 		dist := info.locator.dist(dest)
-		if !(dist < myDist) {
-			continue
-		}
-		p, isIn := ports[info.port]
-		if !isIn {
-			continue
-		}
-		cost := int64(dist) + p.getQueueSize()
-		if cost < bestCost {
-			best = info.port
-			bestCost = cost
+		if dist < myDist {
+			return false
 		}
 	}
-	return best
+	return true
+}
+
+// Returns true if the peer is closer to the destination than ourself
+func (t *switchTable) portIsCloser(dest []byte, port switchPort) bool {
+	table := t.getTable()
+	if info, isIn := table.elems[port]; isIn {
+		theirDist := info.locator.dist(dest)
+		myDist := table.self.dist(dest)
+		return theirDist < myDist
+	} else {
+		return false
+	}
+}
+
+// Get the coords of a packet without decoding
+func switch_getPacketCoords(packet []byte) []byte {
+	_, pTypeLen := wire_decode_uint64(packet)
+	coords, _ := wire_decode_coords(packet[pTypeLen:])
+	return coords
+}
+
+// Returns a unique string for each stream of traffic
+// Equal to type+coords+handle for traffic packets
+// Equal to type+coords+toKey+fromKey for protocol traffic packets
+func switch_getPacketStreamID(packet []byte) string {
+	pType, pTypeLen := wire_decode_uint64(packet)
+	_, coordLen := wire_decode_coords(packet[pTypeLen:])
+	end := pTypeLen + coordLen
+	switch {
+	case pType == wire_Traffic:
+		end += handleLen // handle
+	case pType == wire_ProtocolTraffic:
+		end += 2 * boxPubKeyLen
+	default:
+		end = 0
+	}
+	if end > len(packet) {
+		end = len(packet)
+	}
+	return string(packet[:end])
+}
+
+// Handle an incoming packet
+// Either send it to ourself, or to the first idle peer that's free
+// Returns true if the packet has been handled somehow, false if it should be queued
+func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool {
+	coords := switch_getPacketCoords(packet)
+	ports := t.core.peers.getPorts()
+	if t.selfIsClosest(coords) {
+		// TODO? call the router directly, and remove the whole concept of a self peer?
+		ports[0].sendPacket(packet)
+		return true
+	}
+	table := t.getTable()
+	myDist := table.self.dist(coords)
+	var best *peer
+	bestDist := myDist
+	for port := range idle {
+		if to := ports[port]; to != nil {
+			if info, isIn := table.elems[to.port]; isIn {
+				dist := info.locator.dist(coords)
+				if !(dist < bestDist) {
+					continue
+				}
+				best = to
+				bestDist = dist
+			}
+		}
+	}
+	if best != nil {
+		// Send to the best idle next hop
+		delete(idle, best.port)
+		best.sendPacket(packet)
+		return true
+	} else {
+		// Didn't find anyone idle to send it to
+		return false
+	}
+}
+
+// Info about a buffered packet
+type switch_packetInfo struct {
+	bytes []byte
+	time  time.Time // Timestamp of when the packet arrived
+}
+
+// Used to keep track of buffered packets
+type switch_buffer struct {
+	packets []switch_packetInfo // Currently buffered packets, which may be dropped if it grows too large
+	count   uint64              // Total queue size, including dropped packets
+}
+
+func (b *switch_buffer) dropTimedOut() {
+	// TODO figure out what timeout makes sense
+	const timeout = 25 * time.Millisecond
+	now := time.Now()
+	for len(b.packets) > 0 && now.Sub(b.packets[0].time) > timeout {
+		util_putBytes(b.packets[0].bytes)
+		b.packets = b.packets[1:]
+	}
+}
+
+// Handles incoming idle notifications
+// Loops over packets and sends the newest one that's OK for this peer to send
+// Returns true if the peer is no longer idle, false if it should be added to the idle list
+func (t *switchTable) handleIdle(port switchPort, buffs map[string]switch_buffer) bool {
+	to := t.core.peers.getPorts()[port]
+	if to == nil {
+		return true
+	}
+	var best string
+	var bestSize uint64
+	for streamID, buf := range buffs {
+		// Filter over the streams that this node is closer to
+		// Keep the one with the smallest queue
+		buf.dropTimedOut()
+		if len(buf.packets) == 0 {
+			delete(buffs, streamID)
+			continue
+		}
+		buffs[streamID] = buf
+		packet := buf.packets[0]
+		coords := switch_getPacketCoords(packet.bytes)
+		if (bestSize == 0 || buf.count < bestSize) && t.portIsCloser(coords, port) {
+			best = streamID
+			bestSize = buf.count
+		}
+	}
+	if bestSize != 0 {
+		buf := buffs[best]
+		var packet switch_packetInfo
+		// TODO decide if this should be LIFO or FIFO
+		packet, buf.packets = buf.packets[0], buf.packets[1:]
+		buf.count--
+		if len(buf.packets) == 0 {
+			delete(buffs, best)
+		} else {
+			buffs[best] = buf
+		}
+		to.sendPacket(packet.bytes)
+		return true
+	} else {
+		return false
+	}
+}
+
+// The switch worker does routing lookups and sends packets to where they need to be
+func (t *switchTable) doWorker() {
+	buffs := make(map[string]switch_buffer) // Packets per PacketStreamID (string)
+	idle := make(map[switchPort]struct{})   // this is to deduplicate things
+	for {
+		select {
+		case packet := <-t.packetIn:
+			// Try to send it somewhere (or drop it if it's corrupt or at a dead end)
+			if !t.handleIn(packet, idle) {
+				// There's nobody free to take it right now, so queue it for later
+				streamID := switch_getPacketStreamID(packet)
+				buf := buffs[streamID]
+				buf.dropTimedOut()
+				pinfo := switch_packetInfo{packet, time.Now()}
+				buf.packets = append(buf.packets, pinfo)
+				buf.count++
+				buffs[streamID] = buf
+			}
+		case port := <-t.idleIn:
+			// Try to find something to send to this peer
+			if !t.handleIdle(port, buffs) {
+				// Didn't find anything ready to send yet, so stay idle
+				idle[port] = struct{}{}
+			}
+		}
+	}
 }

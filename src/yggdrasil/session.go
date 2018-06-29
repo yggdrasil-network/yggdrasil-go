@@ -89,7 +89,8 @@ func (s *sessionInfo) timedout() bool {
 // Sessions are indexed by handle.
 // Additionally, stores maps of address/subnet onto keys, and keys onto handles.
 type sessions struct {
-	core *Core
+	core        *Core
+	lastCleanup time.Time
 	// Maps known permanent keys to their shared key, used by DHT a lot
 	permShared map[boxPubKey]*boxSharedKey
 	// Maps (secret) handle onto session info
@@ -111,6 +112,7 @@ func (ss *sessions) init(core *Core) {
 	ss.byTheirPerm = make(map[boxPubKey]*handle)
 	ss.addrToPerm = make(map[address]*boxPubKey)
 	ss.subnetToPerm = make(map[subnet]*boxPubKey)
+	ss.lastCleanup = time.Now()
 }
 
 // Gets the session corresponding to a given handle.
@@ -202,19 +204,25 @@ func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
 	sinfo.send = make(chan []byte, 32)
 	sinfo.recv = make(chan *wire_trafficPacket, 32)
 	go sinfo.doWorker()
-	// Do some cleanup
-	// Time thresholds almost certainly could use some adjusting
-	for _, s := range ss.sinfos {
-		if s.timedout() {
-			s.close()
-		}
-	}
 	ss.sinfos[sinfo.myHandle] = &sinfo
 	ss.byMySes[sinfo.mySesPub] = &sinfo.myHandle
 	ss.byTheirPerm[sinfo.theirPermPub] = &sinfo.myHandle
 	ss.addrToPerm[sinfo.theirAddr] = &sinfo.theirPermPub
 	ss.subnetToPerm[sinfo.theirSubnet] = &sinfo.theirPermPub
 	return &sinfo
+}
+
+func (ss *sessions) cleanup() {
+	// Time thresholds almost certainly could use some adjusting
+	if time.Since(ss.lastCleanup) < time.Minute {
+		return
+	}
+	for _, s := range ss.sinfos {
+		if s.timedout() {
+			s.close()
+		}
+	}
+	ss.lastCleanup = time.Now()
 }
 
 // Closes a session, removing it from sessions maps and killing the worker goroutine.

@@ -71,16 +71,20 @@ func (m *sigManager) isChecked(key *sigPubKey, sig *sigBytes, bs []byte) bool {
 func (m *sigManager) putChecked(key *sigPubKey, newsig *sigBytes, bs []byte) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	now := time.Now()
-	if time.Since(m.lastCleaned) > 60*time.Second {
-		// Since we have the write lock anyway, do some cleanup
-		for s, k := range m.checked {
-			if time.Since(k.time) > 60*time.Second {
-				delete(m.checked, s)
-			}
-		}
-		m.lastCleaned = now
-	}
-	k := knownSig{key: *key, sig: *newsig, bs: bs, time: now}
+	k := knownSig{key: *key, sig: *newsig, bs: bs, time: time.Now()}
 	m.checked[*newsig] = k
+}
+
+func (m *sigManager) cleanup() {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if time.Since(m.lastCleaned) < time.Minute {
+		return
+	}
+	for s, k := range m.checked {
+		if time.Since(k.time) > time.Minute {
+			delete(m.checked, s)
+		}
+	}
+	m.lastCleaned = time.Now()
 }

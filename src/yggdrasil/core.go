@@ -101,6 +101,11 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
+	if err := c.switchTable.start(); err != nil {
+		c.log.Println("Failed to start switch")
+		return err
+	}
+
 	if err := c.router.start(); err != nil {
 		c.log.Println("Failed to start router")
 		return err
