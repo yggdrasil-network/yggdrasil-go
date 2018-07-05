@@ -589,7 +589,6 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool
 // Info about a buffered packet
 type switch_packetInfo struct {
 	bytes []byte
-	time  time.Time // Timestamp of when the packet arrived
 }
 
 // Used to keep track of buffered packets
@@ -598,11 +597,10 @@ type switch_buffer struct {
 	count   uint64              // Total queue size, including dropped packets
 }
 
-func (b *switch_buffer) dropTimedOut() {
-	// TODO figure out what timeout makes sense
-	const timeout = 25 * time.Millisecond
-	now := time.Now()
-	for len(b.packets) > 0 && now.Sub(b.packets[0].time) > timeout {
+// Clean up old packets from buffers, to help keep latency within some reasonable bound
+func (t *switchTable) cleanBuffer(b *switch_buffer) {
+	// TODO sane maximum buffer size, or else CoDel-like maximum time
+	for len(b.packets) > 1024 || (len(b.packets) > 0 && t.selfIsClosest(switch_getPacketCoords(b.packets[0].bytes))) {
 		util_putBytes(b.packets[0].bytes)
 		b.packets = b.packets[1:]
 	}
@@ -621,7 +619,7 @@ func (t *switchTable) handleIdle(port switchPort, buffs map[string]switch_buffer
 	for streamID, buf := range buffs {
 		// Filter over the streams that this node is closer to
 		// Keep the one with the smallest queue
-		buf.dropTimedOut()
+		t.cleanBuffer(&buf)
 		if len(buf.packets) == 0 {
 			delete(buffs, streamID)
 			continue
@@ -639,7 +637,6 @@ func (t *switchTable) handleIdle(port switchPort, buffs map[string]switch_buffer
 		var packet switch_packetInfo
 		// TODO decide if this should be LIFO or FIFO
 		packet, buf.packets = buf.packets[0], buf.packets[1:]
-		buf.count--
 		if len(buf.packets) == 0 {
 			delete(buffs, best)
 		} else {
@@ -662,10 +659,21 @@ func (t *switchTable) doWorker() {
 			// Try to send it somewhere (or drop it if it's corrupt or at a dead end)
 			if !t.handleIn(packet, idle) {
 				// There's nobody free to take it right now, so queue it for later
+				// First drop random queues if we're already tracking too much, to prevent OOM DoS
+				for streamID, buf := range buffs {
+					if len(buffs) < 32 {
+						break
+					}
+					for _, packet := range buf.packets {
+						util_putBytes(packet.bytes)
+					}
+					delete(buffs, streamID)
+				}
+				// Now add the packet to the appropriate queue
 				streamID := switch_getPacketStreamID(packet)
 				buf := buffs[streamID]
-				buf.dropTimedOut()
-				pinfo := switch_packetInfo{packet, time.Now()}
+				t.cleanBuffer(&buf)
+				pinfo := switch_packetInfo{packet}
 				buf.packets = append(buf.packets, pinfo)
 				buf.count++
 				buffs[streamID] = buf
