@@ -589,7 +589,7 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool
 // Info about a buffered packet
 type switch_packetInfo struct {
 	bytes []byte
-	time  time.Time // Timestamp of when the packet arrived
+	//time  time.Time // Timestamp of when the packet arrived
 }
 
 // Used to keep track of buffered packets
@@ -600,15 +600,8 @@ type switch_buffer struct {
 
 // Clean up old packets from buffers, to help keep latency within some reasonable bound
 func (t *switchTable) cleanBuffer(b *switch_buffer) {
-	// TODO figure out what timeout makes sense
-	if len(b.packets) == 0 {
-		return
-	}
-	coords := switch_getPacketCoords(b.packets[0].bytes)
-	dropAll := t.selfIsClosest(coords)
-	const timeout = 25 * time.Millisecond
-	now := time.Now()
-	for len(b.packets) > 0 && (dropAll || len(b.packets) > 32 || (len(b.packets) > 1 && now.Sub(b.packets[0].time) > timeout)) {
+  // TODO sane maximum buffer size, or else CoDel-like maximum time
+	for len(b.packets) > 32 || (len(b.packets) > 0 && t.selfIsClosest(switch_getPacketCoords(b.packets[0].bytes))) {
 		util_putBytes(b.packets[0].bytes)
 		b.packets = b.packets[1:]
 	}
@@ -641,11 +634,12 @@ func (t *switchTable) handleIdle(port switchPort, buffs map[string]switch_buffer
 		}
 	}
 	if bestSize != 0 {
+    t.core.log.Println("DEBUG:", []byte(best), bestSize)
 		buf := buffs[best]
 		var packet switch_packetInfo
 		// TODO decide if this should be LIFO or FIFO
 		packet, buf.packets = buf.packets[0], buf.packets[1:]
-		buf.count--
+		//buf.count-- // Force flooding connections to eventually yield
 		if len(buf.packets) == 0 {
 			delete(buffs, best)
 		} else {
@@ -682,7 +676,7 @@ func (t *switchTable) doWorker() {
 				streamID := switch_getPacketStreamID(packet)
 				buf := buffs[streamID]
 				t.cleanBuffer(&buf)
-				pinfo := switch_packetInfo{packet, time.Now()}
+				pinfo := switch_packetInfo{packet/*, time.Now()*/}
 				buf.packets = append(buf.packets, pinfo)
 				buf.count++
 				buffs[streamID] = buf
