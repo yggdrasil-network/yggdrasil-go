@@ -609,7 +609,6 @@ func (t *switchTable) cleanBuffer(b *switch_buffer) {
 	const timeout = 25 * time.Millisecond
 	now := time.Now()
 	for len(b.packets) > 0 && (dropAll || len(b.packets) > 32 || (len(b.packets) > 1 && now.Sub(b.packets[0].time) > timeout)) {
-		t.core.log.Println("DEBUG:", len(b.packets), now.Sub(b.packets[0].time))
 		util_putBytes(b.packets[0].bytes)
 		b.packets = b.packets[1:]
 	}
