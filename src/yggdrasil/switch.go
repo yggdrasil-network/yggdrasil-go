@@ -600,7 +600,7 @@ type switch_buffer struct {
 // Clean up old packets from buffers, to help keep latency within some reasonable bound
 func (t *switchTable) cleanBuffer(b *switch_buffer) {
 	// TODO sane maximum buffer size, or else CoDel-like maximum time
-	for len(b.packets) > 32 || (len(b.packets) > 0 && t.selfIsClosest(switch_getPacketCoords(b.packets[0].bytes))) {
+	for len(b.packets) > 1024 || (len(b.packets) > 0 && t.selfIsClosest(switch_getPacketCoords(b.packets[0].bytes))) {
 		util_putBytes(b.packets[0].bytes)
 		b.packets = b.packets[1:]
 	}
