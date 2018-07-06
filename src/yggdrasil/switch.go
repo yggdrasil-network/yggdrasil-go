@@ -12,6 +12,7 @@ package yggdrasil
 //  A little annoying to do with constant changes from backpressure
 
 import (
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -595,55 +596,88 @@ type switch_packetInfo struct {
 // Used to keep track of buffered packets
 type switch_buffer struct {
 	packets []switch_packetInfo // Currently buffered packets, which may be dropped if it grows too large
-	count   uint64              // Total queue size, including dropped packets
+	size    uint64              // Total queue size in bytes
 }
 
-func (b *switch_buffer) dropTimedOut() {
-	// TODO figure out what timeout makes sense
-	const timeout = 25 * time.Millisecond
-	now := time.Now()
-	for len(b.packets) > 0 && now.Sub(b.packets[0].time) > timeout {
-		util_putBytes(b.packets[0].bytes)
-		b.packets = b.packets[1:]
+type switch_buffers struct {
+	bufs map[string]switch_buffer // Buffers indexed by StreamID
+	size uint64                   // Total size of all buffers, in bytes
+}
+
+func (b *switch_buffers) cleanup(t *switchTable) {
+	for streamID, buf := range b.bufs {
+		// Remove queues for which we have no next hop
+		packet := buf.packets[0]
+		coords := switch_getPacketCoords(packet.bytes)
+		if t.selfIsClosest(coords) {
+			for _, packet := range buf.packets {
+				util_putBytes(packet.bytes)
+			}
+			b.size -= buf.size
+			delete(b.bufs, streamID)
+		}
+	}
+	const maxSize = 4 * 1048576 // Maximum 4 MB
+	for b.size > maxSize {
+		// Drop a random queue
+		target := rand.Uint64() % b.size
+		var size uint64 // running total
+		for streamID, buf := range b.bufs {
+			size += buf.size
+			if size < target {
+				continue
+			}
+			var packet switch_packetInfo
+			packet, buf.packets = buf.packets[0], buf.packets[1:]
+			buf.size -= uint64(len(packet.bytes))
+			b.size -= uint64(len(packet.bytes))
+			util_putBytes(packet.bytes)
+			if len(buf.packets) == 0 {
+				delete(b.bufs, streamID)
+			} else {
+				// Need to update the map, since buf was retrieved by value
+				b.bufs[streamID] = buf
+			}
+			break
+		}
 	}
 }
 
 // Handles incoming idle notifications
 // Loops over packets and sends the newest one that's OK for this peer to send
 // Returns true if the peer is no longer idle, false if it should be added to the idle list
-func (t *switchTable) handleIdle(port switchPort, buffs map[string]switch_buffer) bool {
+func (t *switchTable) handleIdle(port switchPort, bufs *switch_buffers) bool {
 	to := t.core.peers.getPorts()[port]
 	if to == nil {
 		return true
 	}
 	var best string
-	var bestSize uint64
-	for streamID, buf := range buffs {
+	var bestPriority float64
+	bufs.cleanup(t)
+	now := time.Now()
+	for streamID, buf := range bufs.bufs {
 		// Filter over the streams that this node is closer to
 		// Keep the one with the smallest queue
-		buf.dropTimedOut()
-		if len(buf.packets) == 0 {
-			delete(buffs, streamID)
-			continue
-		}
-		buffs[streamID] = buf
 		packet := buf.packets[0]
 		coords := switch_getPacketCoords(packet.bytes)
-		if (bestSize == 0 || buf.count < bestSize) && t.portIsCloser(coords, port) {
+		priority := float64(now.Sub(packet.time)) / float64(buf.size)
+		if priority > bestPriority && t.portIsCloser(coords, port) {
 			best = streamID
-			bestSize = buf.count
+			bestPriority = priority
 		}
 	}
-	if bestSize != 0 {
-		buf := buffs[best]
+	if bestPriority != 0 {
+		buf := bufs.bufs[best]
 		var packet switch_packetInfo
 		// TODO decide if this should be LIFO or FIFO
 		packet, buf.packets = buf.packets[0], buf.packets[1:]
-		buf.count--
+		buf.size -= uint64(len(packet.bytes))
+		bufs.size -= uint64(len(packet.bytes))
 		if len(buf.packets) == 0 {
-			delete(buffs, best)
+			delete(bufs.bufs, best)
 		} else {
-			buffs[best] = buf
+			// Need to update the map, since buf was retrieved by value
+			bufs.bufs[best] = buf
 		}
 		to.sendPacket(packet.bytes)
 		return true
@@ -654,25 +688,27 @@ func (t *switchTable) handleIdle(port switchPort, buffs map[string]switch_buffer
 
 // The switch worker does routing lookups and sends packets to where they need to be
 func (t *switchTable) doWorker() {
-	buffs := make(map[string]switch_buffer) // Packets per PacketStreamID (string)
-	idle := make(map[switchPort]struct{})   // this is to deduplicate things
+	var bufs switch_buffers
+	bufs.bufs = make(map[string]switch_buffer) // Packets per PacketStreamID (string)
+	idle := make(map[switchPort]struct{})      // this is to deduplicate things
 	for {
 		select {
-		case packet := <-t.packetIn:
+		case bytes := <-t.packetIn:
 			// Try to send it somewhere (or drop it if it's corrupt or at a dead end)
-			if !t.handleIn(packet, idle) {
+			if !t.handleIn(bytes, idle) {
 				// There's nobody free to take it right now, so queue it for later
-				streamID := switch_getPacketStreamID(packet)
-				buf := buffs[streamID]
-				buf.dropTimedOut()
-				pinfo := switch_packetInfo{packet, time.Now()}
-				buf.packets = append(buf.packets, pinfo)
-				buf.count++
-				buffs[streamID] = buf
+				packet := switch_packetInfo{bytes, time.Now()}
+				streamID := switch_getPacketStreamID(packet.bytes)
+				buf := bufs.bufs[streamID]
+				buf.packets = append(buf.packets, packet)
+				buf.size += uint64(len(packet.bytes))
+				bufs.size += uint64(len(packet.bytes))
+				bufs.bufs[streamID] = buf
+				bufs.cleanup(t)
 			}
 		case port := <-t.idleIn:
 			// Try to find something to send to this peer
-			if !t.handleIdle(port, buffs) {
+			if !t.handleIdle(port, &bufs) {
 				// Didn't find anything ready to send yet, so stay idle
 				idle[port] = struct{}{}
 			}
