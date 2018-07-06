@@ -12,6 +12,7 @@ package yggdrasil
 //  A little annoying to do with constant changes from backpressure
 
 import (
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -624,7 +625,13 @@ func (b *switch_buffers) cleanup(t *switchTable) {
 	const maxSize = 4 * 1048576 // Maximum 4 MB
 	for b.size > maxSize {
 		// Drop a random queue
-		for streamID := range b.bufs {
+		target := rand.Uint64() % b.size
+		var size uint64 // running total
+		for streamID, buf := range b.bufs {
+			size += buf.size
+			if size < target {
+				continue
+			}
 			remove(streamID)
 			break
 		}
