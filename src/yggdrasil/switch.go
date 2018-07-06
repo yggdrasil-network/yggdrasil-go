@@ -631,8 +631,12 @@ func (b *switch_buffers) cleanup(t *switchTable) {
 			packet, buf.packets = buf.packets[0], buf.packets[1:]
 			buf.size -= uint64(len(packet.bytes))
 			b.size -= uint64(len(packet.bytes))
+			util_putBytes(packet.bytes)
 			if len(buf.packets) == 0 {
 				delete(b.bufs, streamID)
+			} else {
+				// Need to update the map, since buf was retrieved by value
+				b.bufs[streamID] = buf
 			}
 			break
 		}
@@ -672,6 +676,7 @@ func (t *switchTable) handleIdle(port switchPort, bufs *switch_buffers) bool {
 		if len(buf.packets) == 0 {
 			delete(bufs.bufs, best)
 		} else {
+			// Need to update the map, since buf was retrieved by value
 			bufs.bufs[best] = buf
 		}
 		to.sendPacket(packet.bytes)
