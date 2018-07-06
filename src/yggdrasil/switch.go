@@ -598,37 +598,53 @@ type switch_buffer struct {
 	size    uint64              // Total queue size in bytes
 }
 
-func (b *switch_buffer) dropTimedOut() {
-	// TODO figure out what timeout makes sense
-	const timeout = 25 * time.Millisecond
-	now := time.Now()
-	for len(b.packets) > 0 && now.Sub(b.packets[0].time) > timeout {
-		var packet switch_packetInfo
-		packet, b.packets = b.packets[0], b.packets[1:]
-		b.size -= uint64(len(packet.bytes))
-		util_putBytes(packet.bytes)
+type switch_buffers struct {
+	bufs map[string]switch_buffer // Buffers indexed by StreamID
+	size uint64                   // Total size of all buffers, in bytes
+}
+
+func (b *switch_buffers) cleanup(t *switchTable) {
+	remove := func(streamID string) {
+		// Helper function to drop a queue
+		buf := b.bufs[streamID]
+		for _, packet := range buf.packets {
+			util_putBytes(packet.bytes)
+		}
+		b.size -= buf.size
+		delete(b.bufs, streamID)
+	}
+	for streamID, buf := range b.bufs {
+		// Remove queues for which we have no next hop
+		packet := buf.packets[0]
+		coords := switch_getPacketCoords(packet.bytes)
+		if t.selfIsClosest(coords) {
+			remove(streamID)
+		}
+	}
+	const maxSize = 4 * 1048576 // Maximum 4 MB
+	for b.size > maxSize {
+		// Drop a random queue
+		for streamID := range b.bufs {
+			remove(streamID)
+			break
+		}
 	}
 }
 
 // Handles incoming idle notifications
 // Loops over packets and sends the newest one that's OK for this peer to send
 // Returns true if the peer is no longer idle, false if it should be added to the idle list
-func (t *switchTable) handleIdle(port switchPort, buffs map[string]switch_buffer) bool {
+func (t *switchTable) handleIdle(port switchPort, bufs *switch_buffers) bool {
 	to := t.core.peers.getPorts()[port]
 	if to == nil {
 		return true
 	}
 	var best string
 	var bestSize uint64
-	for streamID, buf := range buffs {
+	bufs.cleanup(t)
+	for streamID, buf := range bufs.bufs {
 		// Filter over the streams that this node is closer to
 		// Keep the one with the smallest queue
-		buf.dropTimedOut()
-		if len(buf.packets) == 0 {
-			delete(buffs, streamID)
-			continue
-		}
-		buffs[streamID] = buf
 		packet := buf.packets[0]
 		coords := switch_getPacketCoords(packet.bytes)
 		if (bestSize == 0 || buf.size < bestSize) && t.portIsCloser(coords, port) {
@@ -637,15 +653,16 @@ func (t *switchTable) handleIdle(port switchPort, buffs map[string]switch_buffer
 		}
 	}
 	if bestSize != 0 {
-		buf := buffs[best]
+		buf := bufs.bufs[best]
 		var packet switch_packetInfo
 		// TODO decide if this should be LIFO or FIFO
 		packet, buf.packets = buf.packets[0], buf.packets[1:]
 		buf.size -= uint64(len(packet.bytes))
+		bufs.size -= uint64(len(packet.bytes))
 		if len(buf.packets) == 0 {
-			delete(buffs, best)
+			delete(bufs.bufs, best)
 		} else {
-			buffs[best] = buf
+			bufs.bufs[best] = buf
 		}
 		to.sendPacket(packet.bytes)
 		return true
@@ -656,8 +673,9 @@ func (t *switchTable) handleIdle(port switchPort, buffs map[string]switch_buffer
 
 // The switch worker does routing lookups and sends packets to where they need to be
 func (t *switchTable) doWorker() {
-	buffs := make(map[string]switch_buffer) // Packets per PacketStreamID (string)
-	idle := make(map[switchPort]struct{})   // this is to deduplicate things
+	var bufs switch_buffers
+	bufs.bufs = make(map[string]switch_buffer) // Packets per PacketStreamID (string)
+	idle := make(map[switchPort]struct{})      // this is to deduplicate things
 	for {
 		select {
 		case bytes := <-t.packetIn:
@@ -666,15 +684,16 @@ func (t *switchTable) doWorker() {
 				// There's nobody free to take it right now, so queue it for later
 				packet := switch_packetInfo{bytes, time.Now()}
 				streamID := switch_getPacketStreamID(packet.bytes)
-				buf := buffs[streamID]
-				buf.dropTimedOut()
+				buf := bufs.bufs[streamID]
 				buf.packets = append(buf.packets, packet)
 				buf.size += uint64(len(packet.bytes))
-				buffs[streamID] = buf
+				bufs.size += uint64(len(packet.bytes))
+				bufs.bufs[streamID] = buf
+				bufs.cleanup(t)
 			}
 		case port := <-t.idleIn:
 			// Try to find something to send to this peer
-			if !t.handleIdle(port, buffs) {
+			if !t.handleIdle(port, &bufs) {
 				// Didn't find anything ready to send yet, so stay idle
 				idle[port] = struct{}{}
 			}
