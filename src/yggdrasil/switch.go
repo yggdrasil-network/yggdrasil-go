@@ -605,21 +605,16 @@ type switch_buffers struct {
 }
 
 func (b *switch_buffers) cleanup(t *switchTable) {
-	remove := func(streamID string) {
-		// Helper function to drop a queue
-		buf := b.bufs[streamID]
-		for _, packet := range buf.packets {
-			util_putBytes(packet.bytes)
-		}
-		b.size -= buf.size
-		delete(b.bufs, streamID)
-	}
 	for streamID, buf := range b.bufs {
 		// Remove queues for which we have no next hop
 		packet := buf.packets[0]
 		coords := switch_getPacketCoords(packet.bytes)
 		if t.selfIsClosest(coords) {
-			remove(streamID)
+			for _, packet := range buf.packets {
+				util_putBytes(packet.bytes)
+			}
+			b.size -= buf.size
+			delete(b.bufs, streamID)
 		}
 	}
 	const maxSize = 4 * 1048576 // Maximum 4 MB
@@ -632,7 +627,13 @@ func (b *switch_buffers) cleanup(t *switchTable) {
 			if size < target {
 				continue
 			}
-			remove(streamID)
+			var packet switch_packetInfo
+			packet, buf.packets = buf.packets[0], buf.packets[1:]
+			buf.size -= uint64(len(packet.bytes))
+			b.size -= uint64(len(packet.bytes))
+			if len(buf.packets) == 0 {
+				delete(b.bufs, streamID)
+			}
 			break
 		}
 	}
