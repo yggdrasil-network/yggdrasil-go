@@ -640,19 +640,21 @@ func (t *switchTable) handleIdle(port switchPort, bufs *switch_buffers) bool {
 		return true
 	}
 	var best string
-	var bestSize uint64
+	var bestPriority float64
 	bufs.cleanup(t)
+	now := time.Now()
 	for streamID, buf := range bufs.bufs {
 		// Filter over the streams that this node is closer to
 		// Keep the one with the smallest queue
 		packet := buf.packets[0]
 		coords := switch_getPacketCoords(packet.bytes)
-		if (bestSize == 0 || buf.size < bestSize) && t.portIsCloser(coords, port) {
+		priority := float64(now.Sub(packet.time)) / float64(buf.size)
+		if priority > bestPriority && t.portIsCloser(coords, port) {
 			best = streamID
-			bestSize = buf.size
+			bestPriority = priority
 		}
 	}
-	if bestSize != 0 {
+	if bestPriority != 0 {
 		buf := bufs.bufs[best]
 		var packet switch_packetInfo
 		// TODO decide if this should be LIFO or FIFO
