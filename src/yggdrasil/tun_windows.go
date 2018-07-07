@@ -10,17 +10,6 @@ import (
 
 // This is to catch Windows platforms
 
-// Sane defaults for the Windows platform. The "default" options may be
-// may be replaced by the running configuration.
-func getDefaults() tunDefaultParameters {
-	return tunDefaultParameters{
-		maximumIfMTU:     65535,
-		defaultIfMTU:     65535,
-		defaultIfName:    "auto",
-		defaultIfTAPMode: true,
-	}
-}
-
 // Configures the TAP adapter with the correct IPv6 address and MTU. On Windows
 // we don't make use of a direct operating system API to do this - we instead
 // delegate the hard work to "netsh".
