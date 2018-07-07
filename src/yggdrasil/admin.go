@@ -227,6 +227,16 @@ func (a *admin) start() error {
 	return nil
 }
 
+// cleans up when stopping
+func (a *admin) stop() error {
+	if a.listenaddr[0:7] == "unix://" {
+		if err := os.Remove(a.listenaddr[7:]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // listen is run by start and manages API connections.
 func (a *admin) listen() {
 	var l net.Listener
