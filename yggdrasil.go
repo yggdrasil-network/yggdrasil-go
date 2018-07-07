@@ -53,7 +53,7 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 		r1 := rand.New(rand.NewSource(time.Now().UnixNano()))
 		cfg.Listen = fmt.Sprintf("[::]:%d", r1.Intn(65534-32768)+32768)
 	}
-	cfg.AdminListen = "localhost:9001"
+	cfg.AdminListen = "tcp://localhost:9001"
 	cfg.EncryptionPublicKey = hex.EncodeToString(bpub[:])
 	cfg.EncryptionPrivateKey = hex.EncodeToString(bpriv[:])
 	cfg.SigningPublicKey = hex.EncodeToString(spub[:])
