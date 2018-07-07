@@ -1,4 +1,4 @@
-// +build freebsd
+// +build netbsd
 
 package defaults
 
