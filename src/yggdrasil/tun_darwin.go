@@ -13,17 +13,6 @@ import (
 	water "github.com/yggdrasil-network/water"
 )
 
-// Sane defaults for the Darwin/macOS platform. The "default" options may be
-// may be replaced by the running configuration.
-func getDefaults() tunDefaultParameters {
-	return tunDefaultParameters{
-		maximumIfMTU:     65535,
-		defaultIfMTU:     65535,
-		defaultIfName:    "auto",
-		defaultIfTAPMode: false,
-	}
-}
-
 // Configures the "utun" adapter with the correct IPv6 address and MTU.
 func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	if iftapmode {
