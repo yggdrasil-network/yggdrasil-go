@@ -229,13 +229,26 @@ func (a *admin) start() error {
 
 // listen is run by start and manages API connections.
 func (a *admin) listen() {
-	l, err := net.Listen("tcp", a.listenaddr)
+	var l net.Listener
+	u, err := url.Parse(a.listenaddr)
+	if err == nil {
+		switch strings.ToLower(u.Scheme) {
+		case "unix":
+			l, err = net.Listen("unix", a.listenaddr[7:])
+		case "tcp":
+			l, err = net.Listen("tcp", u.Host)
+		default:
+			err = errors.New("protocol not supported")
+		}
+	} else {
+		l, err = net.Listen("tcp", a.listenaddr)
+	}
 	if err != nil {
 		a.core.log.Printf("Admin socket failed to listen: %v", err)
 		os.Exit(1)
 	}
+	a.core.log.Printf("%s admin socket listening on %s", strings.ToUpper(l.Addr().Network()), l.Addr().String())
 	defer l.Close()
-	a.core.log.Printf("Admin socket listening on %s", l.Addr().String())
 	for {
 		conn, err := l.Accept()
 		if err == nil {
