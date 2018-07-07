@@ -1,9 +1,11 @@
 package main
 
+import "errors"
 import "flag"
 import "fmt"
 import "strings"
 import "net"
+import "net/url"
 import "sort"
 import "encoding/json"
 import "strconv"
@@ -20,14 +22,28 @@ func main() {
 	args := flag.Args()
 
 	if len(args) == 0 {
-		fmt.Println("usage:", os.Args[0], "[-endpoint=localhost:9001] [-json] command [key=value] [...]")
+		fmt.Println("usage:", os.Args[0], "[-endpoint=proto://server] [-json] command [key=value] [...]")
 		fmt.Println("example:", os.Args[0], "getPeers")
 		fmt.Println("example:", os.Args[0], "setTunTap name=auto mtu=1500 tap_mode=false")
-		fmt.Println("example:", os.Args[0], "-endpoint=localhost:9001 getDHT")
+		fmt.Println("example:", os.Args[0], "-endpoint=tcp://localhost:9001 getDHT")
+		fmt.Println("example:", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getDHT")
 		return
 	}
 
-	conn, err := net.Dial("tcp", *server)
+	var conn net.Conn
+	u, err := url.Parse(*server)
+	if err == nil {
+		switch strings.ToLower(u.Scheme) {
+		case "unix":
+			conn, err = net.Dial("unix", (*server)[7:])
+		case "tcp":
+			conn, err = net.Dial("tcp", u.Host)
+		default:
+			err = errors.New("protocol not supported")
+		}
+	} else {
+		conn, err = net.Dial("tcp", *server)
+	}
 	if err != nil {
 		panic(err)
 	}
