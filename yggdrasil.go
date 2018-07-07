@@ -23,6 +23,7 @@ import (
 
 	"yggdrasil"
 	"yggdrasil/config"
+	"yggdrasil/defaults"
 )
 
 type nodeConfig = config.NodeConfig
@@ -53,7 +54,7 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 		r1 := rand.New(rand.NewSource(time.Now().UnixNano()))
 		cfg.Listen = fmt.Sprintf("[::]:%d", r1.Intn(65534-32768)+32768)
 	}
-	cfg.AdminListen = "tcp://localhost:9001"
+	cfg.AdminListen = defaults.GetDefaults().DefaultAdminListen
 	cfg.EncryptionPublicKey = hex.EncodeToString(bpub[:])
 	cfg.EncryptionPrivateKey = hex.EncodeToString(bpriv[:])
 	cfg.SigningPublicKey = hex.EncodeToString(spub[:])
@@ -61,9 +62,9 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	cfg.Peers = []string{}
 	cfg.AllowedEncryptionPublicKeys = []string{}
 	cfg.MulticastInterfaces = []string{".*"}
-	cfg.IfName = core.GetTUNDefaultIfName()
-	cfg.IfMTU = core.GetTUNDefaultIfMTU()
-	cfg.IfTAPMode = core.GetTUNDefaultIfTAPMode()
+	cfg.IfName = defaults.GetDefaults().DefaultIfName
+	cfg.IfMTU = defaults.GetDefaults().DefaultIfMTU
+	cfg.IfTAPMode = defaults.GetDefaults().DefaultIfTAPMode
 
 	return &cfg
 }

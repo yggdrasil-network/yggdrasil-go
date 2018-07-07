@@ -11,10 +11,12 @@ import "encoding/json"
 import "strconv"
 import "os"
 
+import "yggdrasil/defaults"
+
 type admin_info map[string]interface{}
 
 func main() {
-	server := flag.String("endpoint", "tcp://localhost:9001", "Admin socket endpoint")
+	server := flag.String("endpoint", defaults.GetDefaults().DefaultAdminListen, "Admin socket endpoint")
 	injson := flag.Bool("json", false, "Output in JSON format")
 	flag.Parse()
 	args := flag.Args()

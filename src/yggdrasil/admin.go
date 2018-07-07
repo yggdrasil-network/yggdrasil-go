@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"yggdrasil/defaults"
 )
 
 // TODO: Add authentication
@@ -156,15 +158,15 @@ func (a *admin) init(c *Core, listenaddr string) {
 	})
 	a.addHandler("setTunTap", []string{"name", "[tap_mode]", "[mtu]"}, func(in admin_info) (admin_info, error) {
 		// Set sane defaults
-		iftapmode := getDefaults().defaultIfTAPMode
-		ifmtu := getDefaults().defaultIfMTU
+		iftapmode := defaults.GetDefaults().DefaultIfTAPMode
+		ifmtu := defaults.GetDefaults().DefaultIfMTU
 		// Has TAP mode been specified?
 		if tap, ok := in["tap_mode"]; ok {
 			iftapmode = tap.(bool)
 		}
 		// Check we have enough params for MTU
 		if mtu, ok := in["mtu"]; ok {
-			if mtu.(float64) >= 1280 && ifmtu <= getDefaults().maximumIfMTU {
+			if mtu.(float64) >= 1280 && ifmtu <= defaults.GetDefaults().MaximumIfMTU {
 				ifmtu = int(in["mtu"].(float64))
 			}
 		}
