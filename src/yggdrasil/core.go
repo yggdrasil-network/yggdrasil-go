@@ -135,7 +135,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 func (c *Core) Stop() {
 	c.log.Println("Stopping...")
 	c.tun.close()
-	c.admin.stop()
+	c.admin.close()
 }
 
 // Generates a new encryption keypair. The encryption keys are used to

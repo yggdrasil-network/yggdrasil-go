@@ -20,6 +20,7 @@ import (
 type admin struct {
 	core       *Core
 	listenaddr string
+	listener   net.Listener
 	handlers   []admin_handlerInfo
 }
 
@@ -228,39 +229,35 @@ func (a *admin) start() error {
 }
 
 // cleans up when stopping
-func (a *admin) stop() error {
-	if a.listenaddr[0:7] == "unix://" {
-		if err := os.Remove(a.listenaddr[7:]); err != nil {
-			return err
-		}
-	}
-	return nil
+func (a *admin) close() error {
+	return a.listener.Close()
 }
 
 // listen is run by start and manages API connections.
 func (a *admin) listen() {
-	var l net.Listener
 	u, err := url.Parse(a.listenaddr)
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "unix":
-			l, err = net.Listen("unix", a.listenaddr[7:])
+			a.listener, err = net.Listen("unix", a.listenaddr[7:])
 		case "tcp":
-			l, err = net.Listen("tcp", u.Host)
+			a.listener, err = net.Listen("tcp", u.Host)
 		default:
 			err = errors.New("protocol not supported")
 		}
 	} else {
-		l, err = net.Listen("tcp", a.listenaddr)
+		a.listener, err = net.Listen("tcp", a.listenaddr)
 	}
 	if err != nil {
 		a.core.log.Printf("Admin socket failed to listen: %v", err)
 		os.Exit(1)
 	}
-	a.core.log.Printf("%s admin socket listening on %s", strings.ToUpper(l.Addr().Network()), l.Addr().String())
-	defer l.Close()
+	a.core.log.Printf("%s admin socket listening on %s",
+		strings.ToUpper(a.listener.Addr().Network()),
+		a.listener.Addr().String())
+	defer a.listener.Close()
 	for {
-		conn, err := l.Accept()
+		conn, err := a.listener.Accept()
 		if err == nil {
 			a.handleRequest(conn)
 		}
