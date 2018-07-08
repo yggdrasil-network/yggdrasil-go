@@ -9,6 +9,7 @@ import (
 	"regexp"
 
 	"yggdrasil/config"
+	"yggdrasil/defaults"
 )
 
 // The Core object represents the Yggdrasil node. You should create a Core
@@ -135,6 +136,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 func (c *Core) Stop() {
 	c.log.Println("Stopping...")
 	c.tun.close()
+	c.admin.close()
 }
 
 // Generates a new encryption keypair. The encryption keys are used to
@@ -197,26 +199,31 @@ func (c *Core) AddAllowedEncryptionPublicKey(boxStr string) error {
 	return c.admin.addAllowedEncryptionPublicKey(boxStr)
 }
 
+// Gets the default admin listen address for your platform.
+func (c *Core) GetAdminDefaultListen() string {
+	return defaults.GetDefaults().DefaultAdminListen
+}
+
 // Gets the default TUN/TAP interface name for your platform.
 func (c *Core) GetTUNDefaultIfName() string {
-	return getDefaults().defaultIfName
+	return defaults.GetDefaults().DefaultIfName
 }
 
 // Gets the default TUN/TAP interface MTU for your platform. This can be as high
 // as 65535, depending on platform, but is never lower than 1280.
 func (c *Core) GetTUNDefaultIfMTU() int {
-	return getDefaults().defaultIfMTU
+	return defaults.GetDefaults().DefaultIfMTU
 }
 
 // Gets the maximum supported TUN/TAP interface MTU for your platform. This
 // can be as high as 65535, depending on platform, but is never lower than 1280.
 func (c *Core) GetTUNMaximumIfMTU() int {
-	return getDefaults().maximumIfMTU
+	return defaults.GetDefaults().MaximumIfMTU
 }
 
 // Gets the default TUN/TAP interface mode for your platform.
 func (c *Core) GetTUNDefaultIfTAPMode() bool {
-	return getDefaults().defaultIfTAPMode
+	return defaults.GetDefaults().DefaultIfTAPMode
 }
 
 // Gets the current TUN/TAP interface name.

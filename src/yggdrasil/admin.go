@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"yggdrasil/defaults"
 )
 
 // TODO: Add authentication
@@ -20,6 +22,7 @@ import (
 type admin struct {
 	core       *Core
 	listenaddr string
+	listener   net.Listener
 	handlers   []admin_handlerInfo
 }
 
@@ -155,15 +158,15 @@ func (a *admin) init(c *Core, listenaddr string) {
 	})
 	a.addHandler("setTunTap", []string{"name", "[tap_mode]", "[mtu]"}, func(in admin_info) (admin_info, error) {
 		// Set sane defaults
-		iftapmode := getDefaults().defaultIfTAPMode
-		ifmtu := getDefaults().defaultIfMTU
+		iftapmode := defaults.GetDefaults().DefaultIfTAPMode
+		ifmtu := defaults.GetDefaults().DefaultIfMTU
 		// Has TAP mode been specified?
 		if tap, ok := in["tap_mode"]; ok {
 			iftapmode = tap.(bool)
 		}
 		// Check we have enough params for MTU
 		if mtu, ok := in["mtu"]; ok {
-			if mtu.(float64) >= 1280 && ifmtu <= getDefaults().maximumIfMTU {
+			if mtu.(float64) >= 1280 && ifmtu <= defaults.GetDefaults().MaximumIfMTU {
 				ifmtu = int(in["mtu"].(float64))
 			}
 		}
@@ -227,17 +230,37 @@ func (a *admin) start() error {
 	return nil
 }
 
+// cleans up when stopping
+func (a *admin) close() error {
+	return a.listener.Close()
+}
+
 // listen is run by start and manages API connections.
 func (a *admin) listen() {
-	l, err := net.Listen("tcp", a.listenaddr)
+	u, err := url.Parse(a.listenaddr)
+	if err == nil {
+		switch strings.ToLower(u.Scheme) {
+		case "unix":
+			a.listener, err = net.Listen("unix", a.listenaddr[7:])
+		case "tcp":
+			a.listener, err = net.Listen("tcp", u.Host)
+		default:
+			// err = errors.New(fmt.Sprint("protocol not supported: ", u.Scheme))
+			a.listener, err = net.Listen("tcp", a.listenaddr)
+		}
+	} else {
+		a.listener, err = net.Listen("tcp", a.listenaddr)
+	}
 	if err != nil {
 		a.core.log.Printf("Admin socket failed to listen: %v", err)
 		os.Exit(1)
 	}
-	defer l.Close()
-	a.core.log.Printf("Admin socket listening on %s", l.Addr().String())
+	a.core.log.Printf("%s admin socket listening on %s",
+		strings.ToUpper(a.listener.Addr().Network()),
+		a.listener.Addr().String())
+	defer a.listener.Close()
 	for {
-		conn, err := l.Accept()
+		conn, err := a.listener.Accept()
 		if err == nil {
 			a.handleRequest(conn)
 		}

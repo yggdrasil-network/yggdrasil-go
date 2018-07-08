@@ -3,6 +3,8 @@ package yggdrasil
 // This manages the tun driver to send/recv packets to/from applications
 
 import (
+	"yggdrasil/defaults"
+
 	"github.com/songgao/packets/ethernet"
 	"github.com/yggdrasil-network/water"
 )
@@ -20,21 +22,11 @@ type tunDevice struct {
 	iface  *water.Interface
 }
 
-// Defines which parameters are expected by default for a TUN/TAP adapter on a
-// specific platform. These values are populated in the relevant tun_*.go for
-// the platform being targeted. They must be set.
-type tunDefaultParameters struct {
-	maximumIfMTU     int
-	defaultIfMTU     int
-	defaultIfName    string
-	defaultIfTAPMode bool
-}
-
 // Gets the maximum supported MTU for the platform based on the defaults in
-// getDefaults().
+// defaults.GetDefaults().
 func getSupportedMTU(mtu int) int {
-	if mtu > getDefaults().maximumIfMTU {
-		return getDefaults().maximumIfMTU
+	if mtu > defaults.GetDefaults().MaximumIfMTU {
+		return defaults.GetDefaults().MaximumIfMTU
 	}
 	return mtu
 }
