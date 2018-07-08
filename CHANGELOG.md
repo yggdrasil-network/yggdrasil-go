@@ -25,6 +25,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.2.4] - 2018-07-08
+### Added
+- Support for UNIX domain sockets for the admin socket using `unix:///path/to/file.sock`
+- Centralised platform-specific defaults
+
+### Changed
+- Backpressure tuning, including reducing resource consumption
+
+### Fixed
+- macOS local ping bug, which previously prevented you from pinging your own `utun` adapter's IPv6 address
+
 ## [0.2.3] - 2018-06-29
 ### Added
 - Begin keeping changelog (incomplete and possibly inaccurate information before this point).
