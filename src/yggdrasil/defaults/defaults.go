@@ -5,7 +5,7 @@ package defaults
 // for the platform being targeted. They must be set.
 type platformDefaultParameters struct {
 	// Admin socket
-	DefaultAdminListen	string
+	DefaultAdminListen string
 
 	// TUN/TAP
 	MaximumIfMTU     int

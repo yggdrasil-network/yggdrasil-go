@@ -245,7 +245,7 @@ func (a *admin) listen() {
 		case "tcp":
 			a.listener, err = net.Listen("tcp", u.Host)
 		default:
-			err = errors.New("protocol not supported")
+			err = errors.New(fmt.Sprint("protocol not supported: ", u.Scheme))
 		}
 	} else {
 		a.listener, err = net.Listen("tcp", a.listenaddr)
