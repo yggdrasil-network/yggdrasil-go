@@ -309,7 +309,7 @@ func (a *admin) handleRequest(conn net.Conn) {
 	handlers:
 		for _, handler := range a.handlers {
 			// We've found the handler that matches the request
-			if recv["request"] == handler.name {
+			if strings.ToLower(recv["request"].(string)) == strings.ToLower(handler.name) {
 				// Check that we have all the required arguments
 				for _, arg := range handler.args {
 					// An argument in [square brackets] is optional and not required,
