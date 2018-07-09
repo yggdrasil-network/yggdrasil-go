@@ -63,7 +63,7 @@ func main() {
 		if i, err := strconv.Atoi(tokens[1]); err == nil {
 			send[tokens[0]] = i
 		} else {
-			switch tokens[1] {
+			switch strings.ToLower(tokens[1]) {
 			case "true":
 				send[tokens[0]] = true
 			case "false":
@@ -104,10 +104,10 @@ func main() {
 			os.Exit(0)
 		}
 
-		switch req["request"] {
+		switch strings.ToLower(req["request"].(string)) {
 		case "dot":
 			fmt.Println(res["dot"])
-		case "help", "getPeers", "getSwitchPeers", "getDHT", "getSessions":
+		case "help", "getpeers", "getswitchpeers", "getdht", "getsessions":
 			maxWidths := make(map[string]int)
 			var keyOrder []string
 			keysOrdered := false
@@ -163,7 +163,7 @@ func main() {
 					fmt.Println()
 				}
 			}
-		case "getTunTap", "setTunTap":
+		case "gettuntap", "settuntap":
 			for k, v := range res {
 				fmt.Println("Interface name:", k)
 				if mtu, ok := v.(map[string]interface{})["mtu"].(float64); ok {
@@ -173,7 +173,7 @@ func main() {
 					fmt.Println("TAP mode:", tap_mode)
 				}
 			}
-		case "getSelf":
+		case "getself":
 			for k, v := range res["self"].(map[string]interface{}) {
 				fmt.Println("IPv6 address:", k)
 				if subnet, ok := v.(map[string]interface{})["subnet"].(string); ok {
@@ -183,7 +183,7 @@ func main() {
 					fmt.Println("Coords:", coords)
 				}
 			}
-		case "addPeer", "removePeer", "addAllowedEncryptionPublicKey", "removeAllowedEncryptionPublicKey":
+		case "addpeer", "removepeer", "addallowedencryptionpublickey", "removeallowedencryptionpublickey":
 			if _, ok := res["added"]; ok {
 				for _, v := range res["added"].([]interface{}) {
 					fmt.Println("Added:", fmt.Sprint(v))
@@ -204,7 +204,7 @@ func main() {
 					fmt.Println("Not removed:", fmt.Sprint(v))
 				}
 			}
-		case "getAllowedEncryptionPublicKeys":
+		case "getallowedencryptionpublickeys":
 			if _, ok := res["allowed_box_pubs"]; !ok {
 				fmt.Println("All connections are allowed")
 			} else if res["allowed_box_pubs"] == nil {
@@ -215,7 +215,7 @@ func main() {
 					fmt.Println("-", v)
 				}
 			}
-		case "getMulticastInterfaces":
+		case "getmulticastinterfaces":
 			if _, ok := res["multicast_interfaces"]; !ok {
 				fmt.Println("No multicast interfaces found")
 			} else if res["multicast_interfaces"] == nil {
