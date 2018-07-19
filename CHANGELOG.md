@@ -25,6 +25,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.2.5] - 2018-07-19
+### Changed
+- Make `yggdrasilctl` less case sensitive
+- More verbose TCP disconnect messages
+
+### Fixed
+- Fixed debug builds
+- Cap maximum MTU on Linux in TAP mode
+- Process successfully-read TCP traffic before checking for / handling errors (fixes EOF behavior)
+
 ## [0.2.4] - 2018-07-08
 ### Added
 - Support for UNIX domain sockets for the admin socket using `unix:///path/to/file.sock`

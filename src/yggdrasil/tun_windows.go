@@ -57,6 +57,10 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 	if err != nil {
 		panic(err)
 	}
+	// Friendly output
+	tun.core.log.Printf("Interface name: %s", tun.iface.Name())
+	tun.core.log.Printf("Interface IPv6: %s", addr)
+	tun.core.log.Printf("Interface MTU: %d", tun.mtu)
 	return tun.setupAddress(addr)
 }
 

@@ -22,6 +22,8 @@ import "net/http"
 import "runtime"
 import "os"
 
+import "yggdrasil/defaults"
+
 // Start the profiler in debug builds, if the required environment variable is set.
 func init() {
 	envVarName := "PPROFLISTEN"
@@ -239,15 +241,15 @@ func (c *Core) DEBUG_getDHTSize() int {
 // TUN defaults
 
 func (c *Core) DEBUG_GetTUNDefaultIfName() string {
-	return getDefaults().defaultIfName
+	return defaults.GetDefaults().DefaultIfName
 }
 
 func (c *Core) DEBUG_GetTUNDefaultIfMTU() int {
-	return getDefaults().defaultIfMTU
+	return defaults.GetDefaults().DefaultIfMTU
 }
 
 func (c *Core) DEBUG_GetTUNDefaultIfTAPMode() bool {
-	return getDefaults().defaultIfTAPMode
+	return defaults.GetDefaults().DefaultIfTAPMode
 }
 
 // udpInterface
