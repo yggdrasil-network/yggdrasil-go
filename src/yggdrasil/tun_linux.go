@@ -37,6 +37,10 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 			tun.mtu = 65535-tun_ETHER_HEADER_LENGTH
 		}
 	}
+	// Friendly output
+	tun.core.log.Printf("Interface name: %s", tun.iface.Name())
+	tun.core.log.Printf("Interface IPv6: %s", addr)
+	tun.core.log.Printf("Interface MTU: %d", tun.mtu)
 	return tun.setupAddress(addr)
 }
 
