@@ -324,26 +324,29 @@ func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) error {
 		timeout := time.Now().Add(tcp_timeout)
 		sock.SetReadDeadline(timeout)
 		n, err := sock.Read(bs[len(frag):])
+		if n > 0 {
+			frag = bs[:len(frag)+n]
+			for {
+				msg, ok, err2 := tcp_chop_msg(&frag)
+				if err2 != nil {
+					return fmt.Errorf("Message error: %v", err2)
+				}
+				if !ok {
+					// We didn't get the whole message yet
+					break
+				}
+				newMsg := append(util_getBytes(), msg...)
+				in(newMsg)
+				util_yield()
+			}
+			frag = append(bs[:0], frag...)
+		}
 		if err != nil || n == 0 {
 			if err != io.EOF {
 				return err
 			}
 			return nil
 		}
-		frag = bs[:len(frag)+n]
-		for {
-			msg, ok, err := tcp_chop_msg(&frag)
-			if err != nil {
-				return fmt.Errorf("Message error: %v", err)
-			}
-			if !ok {
-				break
-			} // We didn't get the whole message yet
-			newMsg := append(util_getBytes(), msg...)
-			in(newMsg)
-			util_yield()
-		}
-		frag = append(bs[:0], frag...)
 	}
 }
 
