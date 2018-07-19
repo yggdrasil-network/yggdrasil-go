@@ -17,6 +17,7 @@ package yggdrasil
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 	"sync"
@@ -304,15 +305,19 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, them)
 	iface.core.log.Println("Connected:", themString)
-	iface.reader(sock, in) // In this goroutine, because of defers
-	iface.core.log.Println("Disconnected:", themString)
+	err = iface.reader(sock, in) // In this goroutine, because of defers
+	if err == nil {
+		iface.core.log.Println("Disconnected:", themString)
+	} else {
+		iface.core.log.Println("Disconnected:", themString, "with error:", err)
+	}
 	return
 }
 
 // This reads from the socket into a []byte buffer for incomping messages.
 // It copies completed messages out of the cache into a new slice, and passes them to the peer struct via the provided `in func([]byte)` argument.
 // Then it shifts the incomplete fragments of data forward so future reads won't overwrite it.
-func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) {
+func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) error {
 	bs := make([]byte, 2*tcp_msgSize)
 	frag := bs[:0]
 	for {
@@ -320,13 +325,16 @@ func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) {
 		sock.SetReadDeadline(timeout)
 		n, err := sock.Read(bs[len(frag):])
 		if err != nil || n == 0 {
-			break
+			if err != io.EOF {
+				return err
+			}
+			return nil
 		}
 		frag = bs[:len(frag)+n]
 		for {
 			msg, ok, err := tcp_chop_msg(&frag)
 			if err != nil {
-				return
+				return fmt.Errorf("Message error: %v", err)
 			}
 			if !ok {
 				break
