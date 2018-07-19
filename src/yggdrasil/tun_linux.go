@@ -29,6 +29,14 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 	}
 	tun.iface = iface
 	tun.mtu = getSupportedMTU(mtu)
+	// The following check is specific to Linux, as the TAP driver only supports
+	// an MTU of 65535-14 to make room for the ethernet headers. This makes sure
+	// that the MTU gets rounded down to 65521 instead of causing a panic.
+	if iftapmode {
+		if tun.mtu > 65535-tun_ETHER_HEADER_LENGTH {
+			tun.mtu = 65535-tun_ETHER_HEADER_LENGTH
+		}
+	}
 	return tun.setupAddress(addr)
 }
 
