@@ -26,8 +26,9 @@ elif [ $PKGARCH = "i386" ]; then GOARCH=386 GOOS=linux ./build
 elif [ $PKGARCH = "mipsel" ]; then GOARCH=mipsle GOOS=linux ./build
 elif [ $PKGARCH = "mips" ]; then GOARCH=mips64 GOOS=linux ./build
 elif [ $PKGARCH = "armhf" ]; then GOARCH=arm GOOS=linux GOARM=7 ./build
+elif [ $PKGARCH = "arm64" ]; then GOARCH=arm64 GOOS=linux ./build
 else
-  echo "Specify PKGARCH=amd64,i386,mips,mipsel,armhf"
+  echo "Specify PKGARCH=amd64,i386,mips,mipsel,armhf,arm64"
   exit -1
 fi
 
