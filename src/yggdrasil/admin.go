@@ -605,9 +605,16 @@ func (a *admin) getResponse_dot() []byte {
 		name    string
 		key     string
 		parent  string
+		port    switchPort
 		options string
 	}
 	infos := make(map[string]nodeInfo)
+	// Get coords as a slice of strings, FIXME? this looks very fragile
+	coordSlice := func(coords string) []string {
+		tmp := strings.Replace(coords, "[", "", -1)
+		tmp = strings.Replace(tmp, "]", "", -1)
+		return strings.Split(tmp, " ")
+	}
 	// First fill the tree with all known nodes, no parents
 	addInfo := func(nodes []admin_nodeInfo, options string, tag string) {
 		for _, node := range nodes {
@@ -621,6 +628,14 @@ func (a *admin) getResponse_dot() []byte {
 			} else {
 				info.name = n["ip"].(string)
 			}
+			coordsSplit := coordSlice(info.key)
+			if len(coordsSplit) != 0 {
+				portStr := coordsSplit[len(coordsSplit)-1]
+				portUint, err := strconv.ParseUint(portStr, 10, 64)
+				if err == nil {
+					info.port = switchPort(portUint)
+				}
+			}
 			infos[info.key] = info
 		}
 	}
@@ -628,12 +643,6 @@ func (a *admin) getResponse_dot() []byte {
 	addInfo(sessions, "fillcolor=\"#acf3fd\" style=filled fontname=\"sans serif\"", "Open session")                          // blue
 	addInfo(peers, "fillcolor=\"#ffffb5\" style=filled fontname=\"sans serif\"", "Connected peer")                           // yellow
 	addInfo(append([]admin_nodeInfo(nil), *self), "fillcolor=\"#a5ff8a\" style=filled fontname=\"sans serif\"", "This node") // green
-	// Get coords as a slice of strings, FIXME? this looks very fragile
-	coordSlice := func(coords string) []string {
-		tmp := strings.Replace(coords, "[", "", -1)
-		tmp = strings.Replace(tmp, "]", "", -1)
-		return strings.Split(tmp, " ")
-	}
 	// Now go through and create placeholders for any missing nodes
 	for _, info := range infos {
 		// This is ugly string manipulation
@@ -665,10 +674,12 @@ func (a *admin) getResponse_dot() []byte {
 		keys = append(keys, info.key)
 	}
 	// sort
-	less := func(i, j int) bool {
+	sort.SliceStable(keys, func(i, j int) bool {
 		return keys[i] < keys[j]
-	}
-	sort.Slice(keys, less)
+	})
+	sort.SliceStable(keys, func(i, j int) bool {
+		return infos[keys[i]].port < infos[keys[j]].port
+	})
 	// Now print it all out
 	var out []byte
 	put := func(s string) {
@@ -686,11 +697,7 @@ func (a *admin) getResponse_dot() []byte {
 		if info.key == info.parent {
 			continue
 		} // happens for the root, skip it
-		coordsSplit := coordSlice(key)
-		if len(coordsSplit) == 0 {
-			continue
-		}
-		port := coordsSplit[len(coordsSplit)-1]
+		port := fmt.Sprint(info.port)
 		style := "fontname=\"sans serif\""
 		if infos[info.parent].name == "?" || infos[info.key].name == "?" {
 			style = "fontname=\"sans serif\" style=dashed color=\"#999999\" fontcolor=\"#999999\""
