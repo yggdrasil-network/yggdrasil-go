@@ -431,20 +431,22 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 	// The rest is ignored, but it's still part as the coords, so it affects switch queues
 	// This helps separate traffic streams (coords, flowlabel) to be queued independently
 	var coords []byte
-	coords = append(coords, sinfo.coords...) // Start with the real coords
-	flowlabel := int(bs[1:2][0]&0x0f)<<16 | int(bs[2:3][0])<<8 | int(bs[3:4][0])
-	if flowlabel > 0 {
-		coords = append(coords, 0) // Add an explicit 0 for the destination's self peer
-		if flowlabel>>16 > 0 {
-			coords = append(coords, byte(flowlabel>>16))
+	addUint64 := func(bs []byte) {
+		// Converts bytes to a uint64
+		// Converts that back to variable length bytes
+		// Appends it to coords
+		var u uint64
+		for _, b := range bs {
+			u <<= 8
+			u |= uint64(b)
 		}
-		if flowlabel>>8 > 0 {
-			coords = append(coords, byte(flowlabel>>8))
-		}
-		if flowlabel>>0 > 0 {
-			coords = append(coords, byte(flowlabel>>0))
-		}
+		coords = append(coords, wire_encode_uint64(u)...)
 	}
+	coords = append(coords, sinfo.coords...) // Start with the real coords
+	coords = append(coords, 0)               // Then target the local switchport
+	flowlabel := append([]byte(nil), bs[1:4]...)
+	flowlabel[0] &= 0x0f
+	addUint64(flowlabel)
 	payload, nonce := boxSeal(&sinfo.sharedSesKey, bs, &sinfo.myNonce)
 	defer util_putBytes(payload)
 	p := wire_trafficPacket{
