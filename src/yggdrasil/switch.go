@@ -529,24 +529,13 @@ func switch_getPacketCoords(packet []byte) []byte {
 }
 
 // Returns a unique string for each stream of traffic
-// Equal to type+coords+handle for traffic packets
-// Equal to type+coords+toKey+fromKey for protocol traffic packets
+// Equal to coords
+// The sender may append arbitrary info to the end of coords (as long as it's begins with a 0x00) to designate separate traffic streams
+// Currently, it's the IPv6 next header type and the first 2 uint16 of the next header
+// This is equivalent to the TCP/UDP protocol numbers and the source / dest ports
+// TODO figure out if something else would make more sense (other transport protocols?)
 func switch_getPacketStreamID(packet []byte) string {
-	pType, pTypeLen := wire_decode_uint64(packet)
-	_, coordLen := wire_decode_coords(packet[pTypeLen:])
-	end := pTypeLen + coordLen
-	switch {
-	case pType == wire_Traffic:
-		end += handleLen // handle
-	case pType == wire_ProtocolTraffic:
-		end += 2 * boxPubKeyLen
-	default:
-		end = 0
-	}
-	if end > len(packet) {
-		end = len(packet)
-	}
-	return string(packet[:end])
+	return string(switch_getPacketCoords(packet))
 }
 
 // Handle an incoming packet

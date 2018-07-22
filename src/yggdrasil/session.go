@@ -425,10 +425,33 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 	if !sinfo.init {
 		return
 	} // To prevent using empty session keys
+	// Now we append something to the coords
+	// Specifically, we append a 0, and then arbitrary data
+	// The 0 ensures that the destination node switch forwards to the self peer (router)
+	// The rest is ignored, but it's still part as the coords, so it affects switch queues
+	// This helps separate traffic streams (protocol + source + dest port) are queued independently
+	var coords []byte
+	addUint64 := func(bs []byte) {
+		// Converts bytes to a uint64
+		// Converts that back to variable length bytes
+		// Appends it to coords
+		var u uint64
+		for _, b := range bs {
+			u <<= 8
+			u |= uint64(b)
+		}
+		coords = append(coords, wire_encode_uint64(u)...)
+	}
+	coords = append(coords, sinfo.coords...) // Start with the real coords
+	coords = append(coords, 0)               // Add an explicit 0 for the destination's self peer
+	addUint64(bs[6:7])                       // Byte 6, next header type (e.g. TCP vs UDP)
+	// TODO parse headers, in case the next header isn't TCP/UDP for some reason
+	addUint64(bs[40:42]) // Bytes 40-41, source port for TCP/UDP
+	addUint64(bs[42:44]) // Bytes 42-43, destination port for TCP/UDP
 	payload, nonce := boxSeal(&sinfo.sharedSesKey, bs, &sinfo.myNonce)
 	defer util_putBytes(payload)
 	p := wire_trafficPacket{
-		Coords:  sinfo.coords,
+		Coords:  coords,
 		Handle:  sinfo.theirHandle,
 		Nonce:   *nonce,
 		Payload: payload,
