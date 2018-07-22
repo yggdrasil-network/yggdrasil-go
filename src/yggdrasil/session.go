@@ -445,9 +445,16 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 	coords = append(coords, sinfo.coords...) // Start with the real coords
 	coords = append(coords, 0)               // Add an explicit 0 for the destination's self peer
 	addUint64(bs[6:7])                       // Byte 6, next header type (e.g. TCP vs UDP)
-	// TODO parse headers, in case the next header isn't TCP/UDP for some reason
-	addUint64(bs[40:42]) // Bytes 40-41, source port for TCP/UDP
-	addUint64(bs[42:44]) // Bytes 42-43, destination port for TCP/UDP
+	// Is the next header TCP, UDP, SCTP for finding source port?
+	// 0x06 (6) = TCP, 0x11 (17) = UDP, 0x84 (132) = SCTP
+	// TODO: Perhaps improve this for other protocols
+	// TODO: Consider that the Next Header could be an IPv6 Extension Header instead
+	if bs[6:7][0] == 0x06 || bs[6:7][0] == 0x11 || bs[6:7][0] == 0x84 {
+		if len(bs) > 44 {
+			addUint64(bs[40:42]) // Bytes 40-41, source port for TCP/UDP/SCTP
+			addUint64(bs[42:44]) // Bytes 42-43, destination port for TCP/UDP/SCTP
+		}
+	}
 	payload, nonce := boxSeal(&sinfo.sharedSesKey, bs, &sinfo.myNonce)
 	defer util_putBytes(payload)
 	p := wire_trafficPacket{
