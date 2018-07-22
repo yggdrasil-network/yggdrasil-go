@@ -429,30 +429,20 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 	// Specifically, we append a 0, and then arbitrary data
 	// The 0 ensures that the destination node switch forwards to the self peer (router)
 	// The rest is ignored, but it's still part as the coords, so it affects switch queues
-	// This helps separate traffic streams (protocol + source + dest port) are queued independently
+	// This helps separate traffic streams (coords, flowlabel) to be queued independently
 	var coords []byte
-	addUint64 := func(bs []byte) {
-		// Converts bytes to a uint64
-		// Converts that back to variable length bytes
-		// Appends it to coords
-		var u uint64
-		for _, b := range bs {
-			u <<= 8
-			u |= uint64(b)
-		}
-		coords = append(coords, wire_encode_uint64(u)...)
-	}
 	coords = append(coords, sinfo.coords...) // Start with the real coords
-	coords = append(coords, 0)               // Add an explicit 0 for the destination's self peer
-	addUint64(bs[6:7])                       // Byte 6, next header type (e.g. TCP vs UDP)
-	// Is the next header TCP, UDP, SCTP for finding source port?
-	// 0x06 (6) = TCP, 0x11 (17) = UDP, 0x84 (132) = SCTP
-	// TODO: Perhaps improve this for other protocols
-	// TODO: Consider that the Next Header could be an IPv6 Extension Header instead
-	if bs[6:7][0] == 0x06 || bs[6:7][0] == 0x11 || bs[6:7][0] == 0x84 {
-		if len(bs) > 44 {
-			addUint64(bs[40:42]) // Bytes 40-41, source port for TCP/UDP/SCTP
-			addUint64(bs[42:44]) // Bytes 42-43, destination port for TCP/UDP/SCTP
+	flowlabel := int(bs[1:2][0]&0x0f)<<16 | int(bs[2:3][0])<<8 | int(bs[3:4][0])
+	if flowlabel > 0 {
+		coords = append(coords, 0) // Add an explicit 0 for the destination's self peer
+		if flowlabel>>16 > 0 {
+			coords = append(coords, byte(flowlabel>>16))
+		}
+		if flowlabel>>8 > 0 {
+			coords = append(coords, byte(flowlabel>>8))
+		}
+		if flowlabel>>0 > 0 {
+			coords = append(coords, byte(flowlabel>>0))
 		}
 	}
 	payload, nonce := boxSeal(&sinfo.sharedSesKey, bs, &sinfo.myNonce)
