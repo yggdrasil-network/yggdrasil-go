@@ -4,7 +4,10 @@ package yggdrasil
 // It's responsible for keeping track of open sessions to other nodes
 // The session information consists of crypto keys and coords
 
-import "time"
+import (
+	"bytes"
+	"time"
+)
 
 // All the information we know about an active session.
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
@@ -72,8 +75,10 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 	if p.MTU >= 1280 || p.MTU == 0 {
 		s.theirMTU = p.MTU
 	}
-	// allocate enough space for additional coords
-	s.coords = append(make([]byte, 0, len(p.Coords)+11), p.Coords...)
+	if !bytes.Equal(s.coords, p.Coords) {
+		// allocate enough space for additional coords
+		s.coords = append(make([]byte, 0, len(p.Coords)+11), p.Coords...)
+	}
 	now := time.Now()
 	s.time = now
 	s.tstamp = p.Tstamp
