@@ -426,7 +426,8 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 		// To prevent using empty session keys
 		return
 	}
-	coords := sinfo.coords
+	var coords []byte
+	coords = append(coords, sinfo.coords...)
 	// Read IPv6 flowlabel field (20 bits).
 	// Assumes packet at least contains IPv6 header.
 	flowkey := uint64(bs[1]&0x0f)<<16 | uint64(bs[2])<<8 | uint64(bs[3])
