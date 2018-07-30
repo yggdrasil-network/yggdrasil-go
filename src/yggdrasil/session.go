@@ -423,40 +423,37 @@ func (sinfo *sessionInfo) doWorker() {
 func (sinfo *sessionInfo) doSend(bs []byte) {
 	defer util_putBytes(bs)
 	if !sinfo.init {
+		// To prevent using empty session keys
 		return
-	} // To prevent using empty session keys
-
+	}
+	coords := sinfo.coords
 	// Read IPv6 flowlabel field (20 bits).
 	// Assumes packet at least contains IPv6 header.
 	flowkey := uint64(bs[1]&0x0f)<<16 | uint64(bs[2])<<8 | uint64(bs[3])
-	if flowkey == 0 /* not specified */ &&
-		len(bs) >= 48 /* min UDP len, others are bigger */ &&
-		(bs[6] == 0x06 || bs[6] == 0x11 || bs[6] == 0x84) /* TCP UDP SCTP */ {
-		// if flowlabel was unspecified (0), try to use known protocols' ports
-		// protokey: proto | sport | dport
-		flowkey = uint64(bs[6])<<32 /* proto */ |
-			uint64(bs[40])<<24 | uint64(bs[41])<<16 /* sport */ |
-			uint64(bs[42])<<8 | uint64(bs[43]) /* dport */
+	// Check if the flowlabel was specified
+	if flowkey == 0 {
+		// Does the packet meet the minimum UDP packet size? (others are bigger)
+		if len(bs) >= 48 {
+			// Is the protocol TCP, UDP, SCTP?
+			if bs[6] == 0x06 || bs[6] == 0x11 || bs[6] == 0x84 {
+				// if flowlabel was unspecified (0), try to use known protocols' ports
+				// protokey: proto | sport | dport
+				flowkey = uint64(bs[6])<<32 /* proto */ |
+					uint64(bs[40])<<24 | uint64(bs[41])<<16 /* sport */ |
+					uint64(bs[42])<<8 | uint64(bs[43]) /* dport */
+			}
+		}
 	}
-	var coords []byte
+	// If we have a flowkey, either through the IPv6 flowlabel field or through
+	// known TCP/UDP/SCTP proto-sport-dport triplet, then append it to the coords.
+	// Appending extra coords after a 0 ensures that we still target the local router
+	// but lets us send extra data (which is otherwise ignored) to help separate
+	// traffic streams into independent queues
 	if flowkey != 0 {
-		// Now we append something to the coords
-		// Specifically, we append a 0, and then arbitrary data
-		// The 0 ensures that the destination node switch forwards to the self peer (router)
-		// The rest is ignored, but it's still part as the coords, so it affects switch queues
-		// This helps separate traffic streams (coords, flowlabel) to be queued independently
-
-		// TODO could we avoid allocations there and put this work into wire_trafficPacket.encode()?
-		coords = append(coords, sinfo.coords...)  // Start with the real coords
-		coords = append(coords, 0)                // Then target the local switchport
+		coords = append(coords, 0)                // First target the local switchport
 		coords = wire_put_uint64(flowkey, coords) // Then variable-length encoded flowkey
-	} else {
-		// flowlabel was unspecified (0) and protocol unrecognised.
-		// To save bytes, we're not including it, therefore we won't need self-port override either.
-		// So just use sinfo.coords directly to avoid golang GC allocations.
-		// Recent enough Linux and BSDs support flowlabels (auto_flowlabel) out of the box so this will be rare.
-		coords = sinfo.coords
 	}
+	// Prepare the payload
 	payload, nonce := boxSeal(&sinfo.sharedSesKey, bs, &sinfo.myNonce)
 	defer util_putBytes(payload)
 	p := wire_trafficPacket{
