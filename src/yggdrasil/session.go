@@ -72,7 +72,8 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 	if p.MTU >= 1280 || p.MTU == 0 {
 		s.theirMTU = p.MTU
 	}
-	s.coords = append([]byte{}, p.Coords...)
+	// allocate enough space for additional coords
+	s.coords = append(make([]byte, 0, len(p.Coords)+11), p.Coords...)
 	now := time.Now()
 	s.time = now
 	s.tstamp = p.Tstamp
@@ -426,8 +427,8 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 		// To prevent using empty session keys
 		return
 	}
-	var coords []byte
-	coords = append(coords, sinfo.coords...)
+	// code isn't multithreaded so appending to this is safe
+	coords := sinfo.coords
 	// Read IPv6 flowlabel field (20 bits).
 	// Assumes packet at least contains IPv6 header.
 	flowkey := uint64(bs[1]&0x0f)<<16 | uint64(bs[2])<<8 | uint64(bs[3])
