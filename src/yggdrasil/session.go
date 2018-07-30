@@ -426,30 +426,30 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 		return
 	} // To prevent using empty session keys
 
-	var coords []byte
 	// Read IPv6 flowlabel field (20 bits).
 	// Assumes packet at least contains IPv6 header.
-	flowlabel := uint(bs[1]&0x0f)<<16 | uint(bs[2])<<8 | uint(bs[3])
-	if flowlabel != 0 {
+	flowkey := uint64(bs[1]&0x0f)<<16 | uint64(bs[2])<<8 | uint64(bs[3])
+	if flowkey == 0 /* not specified */ &&
+		len(bs) >= 48 /* min UDP len, others are bigger */ &&
+		(bs[6] == 0x06 || bs[6] == 0x11 || bs[6] == 0x84) /* TCP UDP SCTP */ {
+		// if flowlabel was unspecified (0), try to use known protocols' ports
+		// protokey: proto | sport | dport
+		flowkey = uint64(bs[6])<<32 /* proto */ |
+			uint64(bs[40])<<24 | uint64(bs[41])<<16 /* sport */ |
+			uint64(bs[42])<<8 | uint64(bs[43]) /* dport */
+	}
+	var coords []byte
+	if flowkey != 0 {
 		// Now we append something to the coords
 		// Specifically, we append a 0, and then arbitrary data
 		// The 0 ensures that the destination node switch forwards to the self peer (router)
 		// The rest is ignored, but it's still part as the coords, so it affects switch queues
 		// This helps separate traffic streams (coords, flowlabel) to be queued independently
 
-		coords = append(coords, sinfo.coords...)            // Start with the real coords
-		coords = append(coords, 0)                          // Then target the local switchport
-		coords = wire_put_uint64(uint64(flowlabel), coords) // Then variable-length encoded flowlabel
-	} else if len(bs) >= 48 /* min UDP len, others are bigger */ &&
-		(bs[6] == 0x06 || bs[6] == 0x11 || bs[6] == 0x84) /* TCP UDP SCTP */ {
-		// if flowlabel was unspecified (0), try to use known protocols' ports
-		// protokey: proto | sport | dport
-		pkey := uint64(bs[6])<<32 /* proto */ |
-			uint64(bs[40])<<24 | uint64(bs[41])<<16 /* sport */ |
-			uint64(bs[42])<<8 | uint64(bs[43]) /* dport */
-		coords = append(coords, sinfo.coords...) // Start with the real coords
-		coords = append(coords, 0)               // Then target the local switchport
-		coords = wire_put_uint64(pkey, coords)   // Then variable-length encoded protokey
+		// TODO could we avoid allocations there and put this work into wire_trafficPacket.encode()?
+		coords = append(coords, sinfo.coords...)  // Start with the real coords
+		coords = append(coords, 0)                // Then target the local switchport
+		coords = wire_put_uint64(flowkey, coords) // Then variable-length encoded flowkey
 	} else {
 		// flowlabel was unspecified (0) and protocol unrecognised.
 		// To save bytes, we're not including it, therefore we won't need self-port override either.
