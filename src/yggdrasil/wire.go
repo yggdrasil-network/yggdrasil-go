@@ -25,19 +25,15 @@ func wire_encode_uint64(elem uint64) []byte {
 
 // Encode uint64 using a variable length scheme.
 // Similar to binary.Uvarint, but big-endian.
-func wire_put_uint64(elem uint64, out []byte) []byte {
-	bs := make([]byte, 0, 10)
-	bs = append(bs, byte(elem&0x7f))
-	for e := elem >> 7; e > 0; e >>= 7 {
-		bs = append(bs, byte(e|0x80))
+func wire_put_uint64(e uint64, out []byte) []byte {
+	var b [10]byte
+	i := len(b) - 1
+	b[i] = byte(e & 0x7f)
+	for e >>= 7; e != 0; e >>= 7 {
+		i--
+		b[i] = byte(e | 0x80)
 	}
-	// Now reverse bytes, because we set them in the wrong order
-	// TODO just put them in the right place the first time...
-	last := len(bs) - 1
-	for idx := 0; idx < len(bs)/2; idx++ {
-		bs[idx], bs[last-idx] = bs[last-idx], bs[idx]
-	}
-	return append(out, bs...)
+	return append(out, b[i:]...)
 }
 
 // Returns the length of a wire encoded uint64 of this value.

@@ -4,7 +4,10 @@ package yggdrasil
 // It's responsible for keeping track of open sessions to other nodes
 // The session information consists of crypto keys and coords
 
-import "time"
+import (
+	"bytes"
+	"time"
+)
 
 // All the information we know about an active session.
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
@@ -72,7 +75,10 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 	if p.MTU >= 1280 || p.MTU == 0 {
 		s.theirMTU = p.MTU
 	}
-	s.coords = append([]byte{}, p.Coords...)
+	if !bytes.Equal(s.coords, p.Coords) {
+		// allocate enough space for additional coords
+		s.coords = append(make([]byte, 0, len(p.Coords)+11), p.Coords...)
+	}
 	now := time.Now()
 	s.time = now
 	s.tstamp = p.Tstamp
@@ -423,30 +429,38 @@ func (sinfo *sessionInfo) doWorker() {
 func (sinfo *sessionInfo) doSend(bs []byte) {
 	defer util_putBytes(bs)
 	if !sinfo.init {
+		// To prevent using empty session keys
 		return
-	} // To prevent using empty session keys
-	// Now we append something to the coords
-	// Specifically, we append a 0, and then arbitrary data
-	// The 0 ensures that the destination node switch forwards to the self peer (router)
-	// The rest is ignored, but it's still part as the coords, so it affects switch queues
-	// This helps separate traffic streams (coords, flowlabel) to be queued independently
-	var coords []byte
-	addUint64 := func(bs []byte) {
-		// Converts bytes to a uint64
-		// Converts that back to variable length bytes
-		// Appends it to coords
-		var u uint64
-		for _, b := range bs {
-			u <<= 8
-			u |= uint64(b)
-		}
-		coords = append(coords, wire_encode_uint64(u)...)
 	}
-	coords = append(coords, sinfo.coords...) // Start with the real coords
-	coords = append(coords, 0)               // Then target the local switchport
-	flowlabel := append([]byte(nil), bs[1:4]...)
-	flowlabel[0] &= 0x0f
-	addUint64(flowlabel)
+	// code isn't multithreaded so appending to this is safe
+	coords := sinfo.coords
+	// Read IPv6 flowlabel field (20 bits).
+	// Assumes packet at least contains IPv6 header.
+	flowkey := uint64(bs[1]&0x0f)<<16 | uint64(bs[2])<<8 | uint64(bs[3])
+	// Check if the flowlabel was specified
+	if flowkey == 0 {
+		// Does the packet meet the minimum UDP packet size? (others are bigger)
+		if len(bs) >= 48 {
+			// Is the protocol TCP, UDP, SCTP?
+			if bs[6] == 0x06 || bs[6] == 0x11 || bs[6] == 0x84 {
+				// if flowlabel was unspecified (0), try to use known protocols' ports
+				// protokey: proto | sport | dport
+				flowkey = uint64(bs[6])<<32 /* proto */ |
+					uint64(bs[40])<<24 | uint64(bs[41])<<16 /* sport */ |
+					uint64(bs[42])<<8 | uint64(bs[43]) /* dport */
+			}
+		}
+	}
+	// If we have a flowkey, either through the IPv6 flowlabel field or through
+	// known TCP/UDP/SCTP proto-sport-dport triplet, then append it to the coords.
+	// Appending extra coords after a 0 ensures that we still target the local router
+	// but lets us send extra data (which is otherwise ignored) to help separate
+	// traffic streams into independent queues
+	if flowkey != 0 {
+		coords = append(coords, 0)                // First target the local switchport
+		coords = wire_put_uint64(flowkey, coords) // Then variable-length encoded flowkey
+	}
+	// Prepare the payload
 	payload, nonce := boxSeal(&sinfo.sharedSesKey, bs, &sinfo.myNonce)
 	defer util_putBytes(payload)
 	p := wire_trafficPacket{
