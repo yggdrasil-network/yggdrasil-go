@@ -97,7 +97,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv)
 	c.admin.init(c, nc.AdminListen)
 
-	if err := c.tcp.init(c, nc.Listen); err != nil {
+	if err := c.tcp.init(c, nc.Listen, nc.ReadTimeout); err != nil {
 		c.log.Println("Failed to start TCP interface")
 		return err
 	}

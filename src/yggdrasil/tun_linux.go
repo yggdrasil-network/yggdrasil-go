@@ -34,7 +34,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 	// that the MTU gets rounded down to 65521 instead of causing a panic.
 	if iftapmode {
 		if tun.mtu > 65535-tun_ETHER_HEADER_LENGTH {
-			tun.mtu = 65535-tun_ETHER_HEADER_LENGTH
+			tun.mtu = 65535 - tun_ETHER_HEADER_LENGTH
 		}
 	}
 	// Friendly output

@@ -25,6 +25,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.2.6] - 2018-07-31
+### Added
+- Configurable TCP timeouts to assist in peering over Tor/I2P
+- Prefer IPv6 flow label when extending coordinates to sort backpressure queues
+- `arm64` builds through CircleCI
+
+### Changed
+- Sort dot graph links by integer value
+
 ## [0.2.5] - 2018-07-19
 ### Changed
 - Make `yggdrasilctl` less case sensitive
