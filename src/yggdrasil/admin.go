@@ -656,6 +656,16 @@ func (a *admin) getResponse_dot() []byte {
 			newInfo.name = "?"
 			newInfo.key = key
 			newInfo.options = "fontname=\"sans serif\" style=dashed color=\"#999999\" fontcolor=\"#999999\""
+
+			coordsSplit := coordSlice(newInfo.key)
+			if len(coordsSplit) != 0 {
+				portStr := coordsSplit[len(coordsSplit)-1]
+				portUint, err := strconv.ParseUint(portStr, 10, 64)
+				if err == nil {
+					newInfo.port = switchPort(portUint)
+				}
+			}
+
 			infos[key] = newInfo
 		}
 	}
