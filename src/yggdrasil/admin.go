@@ -510,6 +510,8 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 			{"ip", net.IP(addr[:]).String()},
 			{"coords", fmt.Sprint(coords)},
 			{"port", elem.port},
+			{"bytes_sent", atomic.LoadUint64(&peer.bytesSent)},
+			{"bytes_recvd", atomic.LoadUint64(&peer.bytesRecvd)},
 		}
 		peerInfos = append(peerInfos, info)
 	}
