@@ -64,13 +64,13 @@ func (iface *tcpInterface) getAddr() *net.TCPAddr {
 }
 
 // Attempts to initiate a connection to the provided address.
-func (iface *tcpInterface) connect(addr string) {
-	iface.call(addr, nil)
+func (iface *tcpInterface) connect(addr string, intf string) {
+	iface.call(addr, nil, intf)
 }
 
 // Attempst to initiate a connection to the provided address, viathe provided socks proxy address.
 func (iface *tcpInterface) connectSOCKS(socksaddr, peeraddr string) {
-	iface.call(peeraddr, &socksaddr)
+	iface.call(peeraddr, &socksaddr, "")
 }
 
 // Initializes the struct.
@@ -110,20 +110,21 @@ func (iface *tcpInterface) listener() {
 // If the dial is successful, it launches the handler.
 // When finished, it removes the outgoing call, so reconnection attempts can be made later.
 // This all happens in a separate goroutine that it spawns.
-func (iface *tcpInterface) call(saddr string, socksaddr *string) {
+func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 	go func() {
+		callname := fmt.Sprintf("%s/%s", saddr, sintf)
 		quit := false
 		iface.mutex.Lock()
-		if _, isIn := iface.calls[saddr]; isIn {
+		if _, isIn := iface.calls[callname]; isIn {
 			quit = true
 		} else {
-			iface.calls[saddr] = struct{}{}
+			iface.calls[callname] = struct{}{}
 			defer func() {
 				// Block new calls for a little while, to mitigate livelock scenarios
 				time.Sleep(default_tcp_timeout)
 				time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
 				iface.mutex.Lock()
-				delete(iface.calls, saddr)
+				delete(iface.calls, callname)
 				iface.mutex.Unlock()
 			}()
 		}
@@ -151,7 +152,36 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string) {
 				},
 			}
 		} else {
-			conn, err = net.Dial("tcp", saddr)
+			dialer := net.Dialer{}
+			if sintf != "" {
+				ief, err := net.InterfaceByName(sintf)
+				if err == nil {
+					addrs, err := ief.Addrs()
+					if err == nil {
+						dst, err := net.ResolveTCPAddr("tcp", saddr)
+						if err != nil {
+							return
+						}
+						for _, addr := range addrs {
+							src, _, err := net.ParseCIDR(addr.String())
+							if err != nil {
+								continue
+							}
+							if (src.To4() != nil) == (dst.IP.To4() != nil) && src.IsGlobalUnicast() {
+								dialer.LocalAddr = &net.TCPAddr{
+									IP:   src,
+									Port: 0,
+								}
+							}
+						}
+						if dialer.LocalAddr == nil {
+							iface.core.log.Println("No valid source address found for interface", sintf)
+							return
+						}
+					}
+				}
+			}
+			conn, err = dialer.Dial("tcp", saddr)
 			if err != nil {
 				return
 			}
@@ -307,17 +337,18 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 		// Put all of our cleanup here...
 		p.core.peers.removePeer(p.port)
 	}()
+	us, _, _ := net.SplitHostPort(sock.LocalAddr().String())
 	them, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
 	themNodeID := getNodeID(&info.box)
 	themAddr := address_addrForNodeID(themNodeID)
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, them)
-	iface.core.log.Println("Connected:", themString)
+	iface.core.log.Println("Connected:", themString, "source", us)
 	err = iface.reader(sock, in) // In this goroutine, because of defers
 	if err == nil {
-		iface.core.log.Println("Disconnected:", themString)
+		iface.core.log.Println("Disconnected:", themString, "source", us)
 	} else {
-		iface.core.log.Println("Disconnected:", themString, "with error:", err)
+		iface.core.log.Println("Disconnected:", themString, "source", us, "with error:", err)
 	}
 	return
 }

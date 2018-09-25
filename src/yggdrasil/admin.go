@@ -395,7 +395,11 @@ func (a *admin) addPeer(addr string) error {
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "tcp":
-			a.core.tcp.connect(u.Host)
+			if len(u.Path) > 1 {
+				a.core.tcp.connect(u.Host, u.Path[1:])
+			} else {
+				a.core.tcp.connect(u.Host, "")
+			}
 		case "socks":
 			a.core.tcp.connectSOCKS(u.Host, u.Path[1:])
 		default:
@@ -407,7 +411,7 @@ func (a *admin) addPeer(addr string) error {
 		if strings.HasPrefix(addr, "tcp:") {
 			addr = addr[4:]
 		}
-		a.core.tcp.connect(addr)
+		a.core.tcp.connect(addr, "")
 		return nil
 	}
 	return nil
