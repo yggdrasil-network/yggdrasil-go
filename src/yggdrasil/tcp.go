@@ -138,6 +138,9 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 		var conn net.Conn
 		var err error
 		if socksaddr != nil {
+			if sintf != "" {
+				return
+			}
 			var dialer proxy.Dialer
 			dialer, err = proxy.SOCKS5("tcp", *socksaddr, nil, proxy.Direct)
 			if err != nil {
@@ -159,6 +162,9 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 			if sintf != "" {
 				ief, err := net.InterfaceByName(sintf)
 				if err == nil {
+					if ief.Flags & net.FlagUp == 0 {
+				    return
+					}
 					addrs, err := ief.Addrs()
 					if err == nil {
 						dst, err := net.ResolveTCPAddr("tcp", saddr)
@@ -175,10 +181,10 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 									IP:   src,
 									Port: 0,
 								}
+								break
 							}
 						}
 						if dialer.LocalAddr == nil {
-							iface.core.log.Println("No valid source address found for interface", sintf)
 							return
 						}
 					}
