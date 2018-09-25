@@ -112,17 +112,19 @@ func (a *admin) init(c *Core, listenaddr string) {
 		}
 		return admin_info{"sessions": sessions}, nil
 	})
-	a.addHandler("addPeer", []string{"uri"}, func(in admin_info) (admin_info, error) {
-		if a.addPeer(in["uri"].(string)) == nil {
+	a.addHandler("addPeer", []string{"uri", "[interface]"}, func(in admin_info) (admin_info, error) {
+		if a.addPeer(in["uri"].(string), in["interface"].(string)) == nil {
 			return admin_info{
 				"added": []string{
 					in["uri"].(string),
+					in["interface"].(string),
 				},
 			}, nil
 		} else {
 			return admin_info{
 				"not_added": []string{
 					in["uri"].(string),
+					in["interface"].(string),
 				},
 			}, errors.New("Failed to add peer")
 		}
@@ -390,16 +392,12 @@ func (a *admin) printInfos(infos []admin_nodeInfo) string {
 }
 
 // addPeer triggers a connection attempt to a node.
-func (a *admin) addPeer(addr string) error {
+func (a *admin) addPeer(addr string, sintf string) error {
 	u, err := url.Parse(addr)
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "tcp":
-			if len(u.Path) > 1 {
-				a.core.tcp.connect(u.Host, u.Path[1:])
-			} else {
-				a.core.tcp.connect(u.Host, "")
-			}
+			a.core.tcp.connect(u.Host, sintf)
 		case "socks":
 			a.core.tcp.connectSOCKS(u.Host, u.Path[1:])
 		default:
