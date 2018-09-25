@@ -113,18 +113,22 @@ func (a *admin) init(c *Core, listenaddr string) {
 		return admin_info{"sessions": sessions}, nil
 	})
 	a.addHandler("addPeer", []string{"uri", "[interface]"}, func(in admin_info) (admin_info, error) {
-		if a.addPeer(in["uri"].(string), in["interface"].(string)) == nil {
+		// Set sane defaults
+		intf := ""
+		// Has interface been specified?
+		if itf, ok := in["interface"]; ok {
+			intf = itf.(string)
+		}
+		if a.addPeer(in["uri"].(string), intf) == nil {
 			return admin_info{
 				"added": []string{
 					in["uri"].(string),
-					in["interface"].(string),
 				},
 			}, nil
 		} else {
 			return admin_info{
 				"not_added": []string{
 					in["uri"].(string),
-					in["interface"].(string),
 				},
 			}, errors.New("Failed to add peer")
 		}
