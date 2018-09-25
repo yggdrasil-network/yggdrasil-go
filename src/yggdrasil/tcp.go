@@ -112,7 +112,10 @@ func (iface *tcpInterface) listener() {
 // This all happens in a separate goroutine that it spawns.
 func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 	go func() {
-		callname := fmt.Sprintf("%s/%s", saddr, sintf)
+		callname := saddr
+		if sintf != "" {
+			callname = fmt.Sprintf("%s/%s", saddr, sintf)
+		}
 		quit := false
 		iface.mutex.Lock()
 		if _, isIn := iface.calls[callname]; isIn {
