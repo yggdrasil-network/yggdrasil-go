@@ -112,8 +112,14 @@ func (a *admin) init(c *Core, listenaddr string) {
 		}
 		return admin_info{"sessions": sessions}, nil
 	})
-	a.addHandler("addPeer", []string{"uri"}, func(in admin_info) (admin_info, error) {
-		if a.addPeer(in["uri"].(string)) == nil {
+	a.addHandler("addPeer", []string{"uri", "[interface]"}, func(in admin_info) (admin_info, error) {
+		// Set sane defaults
+		intf := ""
+		// Has interface been specified?
+		if itf, ok := in["interface"]; ok {
+			intf = itf.(string)
+		}
+		if a.addPeer(in["uri"].(string), intf) == nil {
 			return admin_info{
 				"added": []string{
 					in["uri"].(string),
@@ -390,12 +396,12 @@ func (a *admin) printInfos(infos []admin_nodeInfo) string {
 }
 
 // addPeer triggers a connection attempt to a node.
-func (a *admin) addPeer(addr string) error {
+func (a *admin) addPeer(addr string, sintf string) error {
 	u, err := url.Parse(addr)
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "tcp":
-			a.core.tcp.connect(u.Host)
+			a.core.tcp.connect(u.Host, sintf)
 		case "socks":
 			a.core.tcp.connectSOCKS(u.Host, u.Path[1:])
 		default:
@@ -407,7 +413,7 @@ func (a *admin) addPeer(addr string) error {
 		if strings.HasPrefix(addr, "tcp:") {
 			addr = addr[4:]
 		}
-		a.core.tcp.connect(addr)
+		a.core.tcp.connect(addr, "")
 		return nil
 	}
 	return nil
@@ -504,6 +510,8 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 			{"ip", net.IP(addr[:]).String()},
 			{"coords", fmt.Sprint(coords)},
 			{"port", elem.port},
+			{"bytes_sent", atomic.LoadUint64(&peer.bytesSent)},
+			{"bytes_recvd", atomic.LoadUint64(&peer.bytesRecvd)},
 		}
 		peerInfos = append(peerInfos, info)
 	}

@@ -182,8 +182,8 @@ func (c *Core) SetLogger(log *log.Logger) {
 
 // Adds a peer. This should be specified in the peer URI format, i.e.
 // tcp://a.b.c.d:e, udp://a.b.c.d:e, socks://a.b.c.d:e/f.g.h.i:j
-func (c *Core) AddPeer(addr string) error {
-	return c.admin.addPeer(addr)
+func (c *Core) AddPeer(addr string, sintf string) error {
+	return c.admin.addPeer(addr, sintf)
 }
 
 // Adds an expression to select multicast interfaces for peer discovery. This
