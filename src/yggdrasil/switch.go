@@ -161,13 +161,13 @@ type switchTable struct {
 	parent   switchPort          // Port of whatever peer is our parent, or self if we're root
 	drop     map[sigPubKey]int64 // Tstamp associated with a dropped root
 	mutex    sync.RWMutex        // Lock for reads/writes of switchData
-	data     switchData
-	updater  atomic.Value    //*sync.Once
-	table    atomic.Value    //lookupTable
-	packetIn chan []byte     // Incoming packets for the worker to handle
-	idleIn   chan switchPort // Incoming idle notifications from peer links
-	admin    chan func()     // pass a lambda for the admin socket to query stuff
-	queues   switch_buffers
+	data     switchData          //
+	updater  atomic.Value        // *sync.Once
+	table    atomic.Value        // lookupTable
+	packetIn chan []byte         // Incoming packets for the worker to handle
+	idleIn   chan switchPort     // Incoming idle notifications from peer links
+	admin    chan func()         // Pass a lambda for the admin socket to query stuff
+	queues   switch_buffers      // Queues - not atomic so ONLY use through admin chan
 }
 
 // Initializes the switchTable struct.
@@ -696,11 +696,15 @@ func (t *switchTable) doWorker() {
 				buf.packets = append(buf.packets, packet)
 				buf.size += uint64(len(packet.bytes))
 				t.queues.size += uint64(len(packet.bytes))
+				// Keep a track of the max total queue size
 				if t.queues.size > t.queues.maxsize {
 					t.queues.maxsize = t.queues.size
 				}
 				t.queues.bufs[streamID] = buf
 				if !bufExists {
+					// Keep a track of the max total queue count. Only recalculate this
+					// when the queue is new because otherwise repeating len(dict) might
+					// cause unnecessary processing overhead
 					if len(t.queues.bufs) > t.queues.maxbufs {
 						t.queues.maxbufs = len(t.queues.bufs)
 					}

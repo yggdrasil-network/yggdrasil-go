@@ -522,7 +522,7 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 	return peerInfos
 }
 
-// getData_getSwitchPeers returns info from Core.switchTable for an admin response.
+// getData_getSwitchQueues returns info from Core.switchTable for an queue data.
 func (a *admin) getData_getSwitchQueues() admin_nodeInfo {
 	var peerInfos admin_nodeInfo
 	switchTable := a.core.switchTable
