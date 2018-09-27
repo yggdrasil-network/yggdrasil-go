@@ -203,9 +203,9 @@ func main() {
 					return
 				} else {
 					fmt.Println("Active queues:")
-					for k, v := range queues {
-						fmt.Printf("[%d] - Queue '%v', size: %d, packets: %d\n", k+1,
-							v.(map[string]interface{})["queue_id"].([]byte),
+					for _, v := range queues {
+						fmt.Printf("- Stream ID: %v, size: %d, packets: %d\n",
+							[]byte(v.(map[string]interface{})["queue_id"].(string)),
 							uint(v.(map[string]interface{})["queue_size"].(float64)),
 							uint(v.(map[string]interface{})["queue_packets"].(float64)))
 					}
