@@ -541,6 +541,22 @@ func switch_getPacketStreamID(packet []byte) string {
 	return string(switch_getPacketCoords(packet))
 }
 
+// Find the best port for a given set of coords
+func (t *switchTable) bestPortForCoords(coords []byte) switchPort {
+	table := t.getTable()
+	var best switchPort
+	bestDist := table.self.dist(coords)
+	for to, elem := range table.elems {
+		dist := elem.locator.dist(coords)
+		if !(dist < bestDist) {
+			continue
+		}
+		best = to
+		bestDist = dist
+	}
+	return best
+}
+
 // Handle an incoming packet
 // Either send it to ourself, or to the first idle peer that's free
 // Returns true if the packet has been handled somehow, false if it should be queued

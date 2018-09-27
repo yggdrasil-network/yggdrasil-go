@@ -529,10 +529,12 @@ func (a *admin) getData_getSwitchQueues() admin_nodeInfo {
 	getSwitchQueues := func() {
 		queues := make([]map[string]interface{}, 0)
 		for k, v := range switchTable.queues.bufs {
+			nexthop := switchTable.bestPortForCoords([]byte(k))
 			queue := map[string]interface{}{
 				"queue_id":      k,
 				"queue_size":    v.size,
 				"queue_packets": len(v.packets),
+				"queue_port":    nexthop,
 			}
 			queues = append(queues, queue)
 		}
