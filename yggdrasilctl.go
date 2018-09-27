@@ -183,6 +183,20 @@ func main() {
 					fmt.Println("Coords:", coords)
 				}
 			}
+		case "getswitchqueues":
+			v := res["switchqueues"].(map[string]interface{})
+			if queuecount, ok := v["queues_count"].(float64); ok {
+				fmt.Printf("Total queue count: %d\n", uint(queuecount))
+			}
+			if queuesize, ok := v["queues_size"].(float64); ok {
+				fmt.Printf("Total queue size: %d\n", uint(queuesize))
+			}
+			if maxqueuecount, ok := v["max_queues_count"].(float64); ok {
+				fmt.Printf("Maximum queue count: %d\n", uint(maxqueuecount))
+			}
+			if maxqueuesize, ok := v["max_queues_size"].(float64); ok {
+				fmt.Printf("Maximum queue size: %d\n", uint(maxqueuesize))
+			}
 		case "addpeer", "removepeer", "addallowedencryptionpublickey", "removeallowedencryptionpublickey":
 			if _, ok := res["added"]; ok {
 				for _, v := range res["added"].([]interface{}) {

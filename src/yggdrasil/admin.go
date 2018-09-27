@@ -90,6 +90,10 @@ func (a *admin) init(c *Core, listenaddr string) {
 		}
 		return admin_info{"switchpeers": switchpeers}, nil
 	})
+	a.addHandler("getSwitchQueues", []string{}, func(in admin_info) (admin_info, error) {
+		queues := a.getData_getSwitchQueues()
+		return admin_info{"switchqueues": queues.asMap()}, nil
+	})
 	a.addHandler("getDHT", []string{}, func(in admin_info) (admin_info, error) {
 		sort := "ip"
 		dht := make(admin_info)
@@ -507,6 +511,22 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 		}
 		peerInfos = append(peerInfos, info)
 	}
+	return peerInfos
+}
+
+// getData_getSwitchPeers returns info from Core.switchTable for an admin response.
+func (a *admin) getData_getSwitchQueues() admin_nodeInfo {
+	var peerInfos admin_nodeInfo
+	switchTable := a.core.switchTable
+	getSwitchQueues := func() {
+		peerInfos = admin_nodeInfo{
+			{"queues_count", len(switchTable.queues.bufs)},
+			{"queues_size", switchTable.queues.size},
+			{"max_queues_count", switchTable.queues.maxbufs},
+			{"max_queues_size", switchTable.queues.maxsize},
+		}
+	}
+	a.core.switchTable.doAdmin(getSwitchQueues)
 	return peerInfos
 }
 
