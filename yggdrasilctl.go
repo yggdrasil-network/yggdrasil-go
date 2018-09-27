@@ -184,18 +184,20 @@ func main() {
 				}
 			}
 		case "getswitchqueues":
+			portqueuesize := make(map[float64]float64)
+			portqueuepackets := make(map[float64]float64)
 			v := res["switchqueues"].(map[string]interface{})
 			if queuecount, ok := v["queues_count"].(float64); ok {
-				fmt.Printf("Total queue count: %d\n", uint(queuecount))
+				fmt.Printf("Active queue count: %d\n", uint(queuecount))
 			}
 			if queuesize, ok := v["queues_size"].(float64); ok {
-				fmt.Printf("Total queue size: %d\n", uint(queuesize))
+				fmt.Printf("Active queue size: %d\n", uint(queuesize))
 			}
 			if maxqueuecount, ok := v["max_queues_count"].(float64); ok {
-				fmt.Printf("Maximum queue count: %d\n", uint(maxqueuecount))
+				fmt.Printf("Highest queue count: %d\n", uint(maxqueuecount))
 			}
 			if maxqueuesize, ok := v["max_queues_size"].(float64); ok {
-				fmt.Printf("Maximum queue size: %d\n", uint(maxqueuesize))
+				fmt.Printf("Highest queue size: %d\n", uint(maxqueuesize))
 			}
 			if queues, ok := v["queues"].([]interface{}); ok {
 				if len(queues) == 0 {
@@ -204,12 +206,22 @@ func main() {
 				} else {
 					fmt.Println("Active queues:")
 					for _, v := range queues {
+						queueport := v.(map[string]interface{})["queue_port"].(float64)
+						queuesize := v.(map[string]interface{})["queue_size"].(float64)
+						queuepackets := v.(map[string]interface{})["queue_packets"].(float64)
+						queueid := v.(map[string]interface{})["queue_id"].(string)
+						portqueuesize[queueport] += queuesize
+						portqueuepackets[queueport] += queuepackets
 						fmt.Printf("- Switch port %d, Stream ID: %v, size: %d, packets: %d\n",
-							uint(v.(map[string]interface{})["queue_port"].(float64)),
-							[]byte(v.(map[string]interface{})["queue_id"].(string)),
-							uint(v.(map[string]interface{})["queue_size"].(float64)),
-							uint(v.(map[string]interface{})["queue_packets"].(float64)))
+							uint(queueport), []byte(queueid), uint(queuesize), uint(queuepackets))
 					}
+				}
+			}
+			if len(portqueuesize) > 0 && len(portqueuepackets) > 0 {
+				fmt.Println("Queue statistics by switchport:")
+				for k, v := range portqueuesize {
+					fmt.Printf("- Switch port %d, size: %d, packets: %d\n",
+						uint(k), uint(v), uint(portqueuepackets[k]))
 				}
 			}
 		case "addpeer", "removepeer", "addallowedencryptionpublickey", "removeallowedencryptionpublickey":
