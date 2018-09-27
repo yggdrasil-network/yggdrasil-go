@@ -197,6 +197,20 @@ func main() {
 			if maxqueuesize, ok := v["max_queues_size"].(float64); ok {
 				fmt.Printf("Maximum queue size: %d\n", uint(maxqueuesize))
 			}
+			if queues, ok := v["queues"].([]interface{}); ok {
+				if len(queues) == 0 {
+					fmt.Println("No active queues")
+					return
+				} else {
+					fmt.Println("Active queues:")
+					for k, v := range queues {
+						fmt.Printf("[%d] - Queue '%v', size: %d, packets: %d\n", k+1,
+							v.(map[string]interface{})["queue_id"].([]byte),
+							uint(v.(map[string]interface{})["queue_size"].(float64)),
+							uint(v.(map[string]interface{})["queue_packets"].(float64)))
+					}
+				}
+			}
 		case "addpeer", "removepeer", "addallowedencryptionpublickey", "removeallowedencryptionpublickey":
 			if _, ok := res["added"]; ok {
 				for _, v := range res["added"].([]interface{}) {

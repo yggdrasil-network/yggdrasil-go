@@ -527,7 +527,17 @@ func (a *admin) getData_getSwitchQueues() admin_nodeInfo {
 	var peerInfos admin_nodeInfo
 	switchTable := a.core.switchTable
 	getSwitchQueues := func() {
+		queues := make([]map[string]interface{}, 0)
+		for k, v := range switchTable.queues.bufs {
+			queue := map[string]interface{}{
+				"queue_id":      k,
+				"queue_size":    v.size,
+				"queue_packets": len(v.packets),
+			}
+			queues = append(queues, queue)
+		}
 		peerInfos = admin_nodeInfo{
+			{"queues", queues},
 			{"queues_count", len(switchTable.queues.bufs)},
 			{"queues_size", switchTable.queues.size},
 			{"max_queues_count", switchTable.queues.maxbufs},

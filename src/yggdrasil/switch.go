@@ -699,12 +699,12 @@ func (t *switchTable) doWorker() {
 				if t.queues.size > t.queues.maxsize {
 					t.queues.maxsize = t.queues.size
 				}
+				t.queues.bufs[streamID] = buf
 				if !bufExists {
 					if len(t.queues.bufs) > t.queues.maxbufs {
 						t.queues.maxbufs = len(t.queues.bufs)
 					}
 				}
-				t.queues.bufs[streamID] = buf
 				t.queues.cleanup(t)
 			}
 		case port := <-t.idleIn:
