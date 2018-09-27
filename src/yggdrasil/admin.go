@@ -542,8 +542,9 @@ func (a *admin) getData_getSwitchQueues() admin_nodeInfo {
 			{"queues", queues},
 			{"queues_count", len(switchTable.queues.bufs)},
 			{"queues_size", switchTable.queues.size},
-			{"max_queues_count", switchTable.queues.maxbufs},
-			{"max_queues_size", switchTable.queues.maxsize},
+			{"highest_queues_count", switchTable.queues.maxbufs},
+			{"highest_queues_size", switchTable.queues.maxsize},
+			{"maximum_queues_size", switch_buffer_maxSize},
 		}
 	}
 	a.core.switchTable.doAdmin(getSwitchQueues)

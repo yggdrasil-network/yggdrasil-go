@@ -601,6 +601,8 @@ type switch_packetInfo struct {
 	time  time.Time // Timestamp of when the packet arrived
 }
 
+const switch_buffer_maxSize = 4 * 1048576 // Maximum 4 MB
+
 // Used to keep track of buffered packets
 type switch_buffer struct {
 	packets []switch_packetInfo // Currently buffered packets, which may be dropped if it grows too large
@@ -627,8 +629,8 @@ func (b *switch_buffers) cleanup(t *switchTable) {
 			delete(b.bufs, streamID)
 		}
 	}
-	const maxSize = 4 * 1048576 // Maximum 4 MB
-	for b.size > maxSize {
+
+	for b.size > switch_buffer_maxSize {
 		// Drop a random queue
 		target := rand.Uint64() % b.size
 		var size uint64 // running total
