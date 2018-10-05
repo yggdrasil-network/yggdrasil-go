@@ -5,7 +5,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: circleci/golang:1.9
+      - image: circleci/golang:1.11
 
     working_directory: /go/src/github.com/{{ORG_NAME}}/{{REPO_NAME}}
 
@@ -25,8 +25,15 @@ jobs:
               sudo apt-get install -y alien
 
       - run:
+          name: Test debug builds
+          command: |
+              ./build -d
+              test -f yggdrasil && test -f yggdrasilctl
+
+      - run:
           name: Build for Linux (including Debian packages and RPMs)
           command: |
+              rm -f {yggdrasil,yggdrasilctl}
               PKGARCH=amd64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-amd64;
               PKGARCH=i386 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-i386;
               PKGARCH=mipsel sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-mipsel && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-mipsel;
@@ -39,36 +46,42 @@ jobs:
       - run:
           name: Build for macOS
           command: |
+              rm -f {yggdrasil,yggdrasilctl}
               GOOS=darwin GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-darwin-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-darwin-amd64;
               GOOS=darwin GOARCH=386 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-darwin-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-darwin-i386;
 
       - run:
           name: Build for OpenBSD
           command: |
+              rm -f {yggdrasil,yggdrasilctl}
               GOOS=openbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-openbsd-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-openbsd-amd64;
               GOOS=openbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-openbsd-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-openbsd-i386;
 
       - run:
           name: Build for FreeBSD
           command: |
+              rm -f {yggdrasil,yggdrasilctl}
               GOOS=freebsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-freebsd-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-freebsd-amd64;
               GOOS=freebsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-freebsd-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-freebsd-i386;
 
       - run:
           name: Build for NetBSD
           command: |
+              rm -f {yggdrasil,yggdrasilctl}
               GOOS=netbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-netbsd-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-netbsd-amd64;
               GOOS=netbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-netbsd-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-netbsd-i386;
 
       - run:
           name: Build for Windows
           command: |
+              rm -f {yggdrasil,yggdrasilctl}
               GOOS=windows GOARCH=amd64 ./build && mv yggdrasil.exe /tmp/upload/$CINAME-$CIVERSION-windows-amd64.exe && mv yggdrasilctl.exe /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-windows-amd64.exe;
               GOOS=windows GOARCH=386 ./build && mv yggdrasil.exe /tmp/upload/$CINAME-$CIVERSION-windows-i386.exe && mv yggdrasilctl.exe /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-windows-i386.exe;
 
       - run:
           name: Build for EdgeRouter
           command: |
+              rm -f {yggdrasil,yggdrasilctl}
               git clone https://github.com/neilalexander/vyatta-yggdrasil /tmp/vyatta-yggdrasil;
               cd /tmp/vyatta-yggdrasil;
               BUILDDIR_YGG=$CIRCLE_WORKING_DIRECTORY ./build-edgerouter-x $CIRCLE_BRANCH;
