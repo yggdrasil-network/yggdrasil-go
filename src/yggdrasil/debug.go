@@ -399,7 +399,7 @@ func (c *Core) DEBUG_maybeSendUDPKeys(saddr string) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func (c *Core) DEBUG_addPeer(addr string) {
-	err := c.admin.addPeer(addr)
+	err := c.admin.addPeer(addr, "")
 	if err != nil {
 		panic(err)
 	}
@@ -438,7 +438,7 @@ func (c *Core) DEBUG_getGlobalTCPAddr() *net.TCPAddr {
 }
 
 func (c *Core) DEBUG_addTCPConn(saddr string) {
-	c.tcp.call(saddr, nil)
+	c.tcp.call(saddr, nil, "")
 }
 
 //*/
