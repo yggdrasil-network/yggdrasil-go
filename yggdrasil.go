@@ -66,6 +66,9 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	cfg.IfName = defaults.GetDefaults().DefaultIfName
 	cfg.IfMTU = defaults.GetDefaults().DefaultIfMTU
 	cfg.IfTAPMode = defaults.GetDefaults().DefaultIfTAPMode
+	cfg.SessionFirewall.Enable = false
+	cfg.SessionFirewall.AllowFromDirect = true
+	cfg.SessionFirewall.AllowFromRemote = true
 
 	return &cfg
 }

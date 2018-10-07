@@ -16,6 +16,7 @@ type NodeConfig struct {
 	IfName                      string              `comment:"Local network interface name for TUN/TAP adapter, or \"auto\" to select\nan interface automatically, or \"none\" to run without TUN/TAP."`
 	IfTAPMode                   bool                `comment:"Set local network interface to TAP mode rather than TUN mode if\nsupported by your platform - option will be ignored if not."`
 	IfMTU                       int                 `comment:"Maximux Transmission Unit (MTU) size for your local TUN/TAP interface.\nDefault is the largest supported size for your platform. The lowest\npossible value is 1280."`
+	SessionFirewall             SessionFirewall     `comment:"The session firewall controls who can send/receive network traffic\nto/from. This is useful if you want to protect this node without\nresorting to using a real firewall. This does not affect traffic\nbeing routed via this node to somewhere else."`
 	//Net                         NetConfig `comment:"Extended options for connecting to peers over other networks."`
 }
 
@@ -23,4 +24,12 @@ type NodeConfig struct {
 type NetConfig struct {
 	Tor TorConfig `comment:"Experimental options for configuring peerings over Tor."`
 	I2P I2PConfig `comment:"Experimental options for configuring peerings over I2P."`
+}
+
+type SessionFirewall struct {
+	Enable                        bool     `comment:"Enable or disable the session firewall. If disabled, network traffic\nfrom any node will be allowed. If enabled, the below rules apply."`
+	AllowFromDirect               bool     `comment:"Allow network traffic from directly connected peers."`
+	AllowFromRemote               bool     `comment:"Allow network traffic from remote nodes on the network that you are\nnot directly peered with."`
+	WhitelistEncryptionPublicKeys []string `comment:"List of public keys from which network traffic is always accepted,\nregardless of AllowFromDirect or AllowFromRemote."`
+	BlacklistEncryptionPublicKeys []string `comment:"List of public keys from which network traffic is always rejected,\nregardless of the whitelist, AllowFromDirect or AllowFromRemote."`
 }
