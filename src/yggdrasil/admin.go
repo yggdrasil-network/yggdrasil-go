@@ -90,6 +90,10 @@ func (a *admin) init(c *Core, listenaddr string) {
 		}
 		return admin_info{"switchpeers": switchpeers}, nil
 	})
+	a.addHandler("getSwitchQueues", []string{}, func(in admin_info) (admin_info, error) {
+		queues := a.getData_getSwitchQueues()
+		return admin_info{"switchqueues": queues.asMap()}, nil
+	})
 	a.addHandler("getDHT", []string{}, func(in admin_info) (admin_info, error) {
 		sort := "ip"
 		dht := make(admin_info)
@@ -515,6 +519,35 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 		}
 		peerInfos = append(peerInfos, info)
 	}
+	return peerInfos
+}
+
+// getData_getSwitchQueues returns info from Core.switchTable for an queue data.
+func (a *admin) getData_getSwitchQueues() admin_nodeInfo {
+	var peerInfos admin_nodeInfo
+	switchTable := a.core.switchTable
+	getSwitchQueues := func() {
+		queues := make([]map[string]interface{}, 0)
+		for k, v := range switchTable.queues.bufs {
+			nexthop := switchTable.bestPortForCoords([]byte(k))
+			queue := map[string]interface{}{
+				"queue_id":      k,
+				"queue_size":    v.size,
+				"queue_packets": len(v.packets),
+				"queue_port":    nexthop,
+			}
+			queues = append(queues, queue)
+		}
+		peerInfos = admin_nodeInfo{
+			{"queues", queues},
+			{"queues_count", len(switchTable.queues.bufs)},
+			{"queues_size", switchTable.queues.size},
+			{"highest_queues_count", switchTable.queues.maxbufs},
+			{"highest_queues_size", switchTable.queues.maxsize},
+			{"maximum_queues_size", switch_buffer_maxSize},
+		}
+	}
+	a.core.switchTable.doAdmin(getSwitchQueues)
 	return peerInfos
 }
 

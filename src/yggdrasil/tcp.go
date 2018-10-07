@@ -165,7 +165,7 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 					return
 				} else {
 					if ief.Flags & net.FlagUp == 0 {
-				    return
+						return
 					}
 					addrs, err := ief.Addrs()
 					if err == nil {
