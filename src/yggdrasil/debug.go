@@ -427,7 +427,7 @@ func (c *Core) DEBUG_addSOCKSConn(socksaddr, peeraddr string) {
 
 //*
 func (c *Core) DEBUG_setupAndStartGlobalTCPInterface(addrport string) {
-	if err := c.tcp.init(c, addrport, 0); err != nil {
+	if err := c.tcp.init(c, addrport, 0, 0); err != nil {
 		c.log.Println("Failed to start TCP interface:", err)
 		panic(err)
 	}
