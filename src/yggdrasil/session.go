@@ -109,11 +109,12 @@ type sessions struct {
 	addrToPerm   map[address]*boxPubKey
 	subnetToPerm map[subnet]*boxPubKey
 	// Options from the session firewall
-	sessionFirewallEnabled      bool
-	sessionFirewallAllowsDirect bool
-	sessionFirewallAllowsRemote bool
-	sessionFirewallWhitelist    []string
-	sessionFirewallBlacklist    []string
+	sessionFirewallEnabled              bool
+	sessionFirewallAllowsDirect         bool
+	sessionFirewallAllowsRemote         bool
+	sessionFirewallAlwaysAllowsOutbound bool
+	sessionFirewallWhitelist            []string
+	sessionFirewallBlacklist            []string
 }
 
 // Initializes the session struct.
@@ -135,9 +136,10 @@ func (ss *sessions) setSessionFirewallState(enabled bool) {
 
 // Set the session firewall defaults (first parameter is whether to allow
 // sessions from direct peers, second is whether to allow from remote nodes).
-func (ss *sessions) setSessionFirewallDefaults(allowsDirect bool, allowsRemote bool) {
+func (ss *sessions) setSessionFirewallDefaults(allowsDirect bool, allowsRemote bool, alwaysAllowsOutbound bool) {
 	ss.sessionFirewallAllowsDirect = allowsDirect
 	ss.sessionFirewallAllowsRemote = allowsRemote
+	ss.sessionFirewallAlwaysAllowsOutbound = alwaysAllowsOutbound
 }
 
 // Set the session firewall whitelist - nodes always allowed to open sessions.
@@ -152,7 +154,7 @@ func (ss *sessions) setSessionFirewallBlacklist(blacklist []string) {
 
 // Determines whether the session with a given publickey is allowed based on
 // session firewall rules.
-func (ss *sessions) isSessionAllowed(pubkey *boxPubKey) bool {
+func (ss *sessions) isSessionAllowed(pubkey *boxPubKey, initiator bool) bool {
 	// Allow by default if the session firewall is disabled
 	if !ss.sessionFirewallEnabled {
 		return true
@@ -177,6 +179,12 @@ func (ss *sessions) isSessionAllowed(pubkey *boxPubKey) bool {
 			if box == *pubkey {
 				return true
 			}
+		}
+	}
+	// Allow outbound sessions if appropriate
+	if ss.sessionFirewallAlwaysAllowsOutbound {
+		if initiator {
+			return true
 		}
 	}
 	// Look and see if the pubkey is that of a direct peer
@@ -252,6 +260,11 @@ func (ss *sessions) getByTheirSubnet(snet *subnet) (*sessionInfo, bool) {
 // Creates a new session and lazily cleans up old/timedout existing sessions.
 // This includse initializing session info to sane defaults (e.g. lowest supported MTU).
 func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
+	if ss.sessionFirewallEnabled {
+		if !ss.isSessionAllowed(theirPermKey, true) {
+			return nil
+		}
+	}
 	sinfo := sessionInfo{}
 	sinfo.core = ss.core
 	sinfo.theirPermPub = *theirPermKey
@@ -391,7 +404,7 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 	sinfo, isIn := ss.getByTheirPerm(&ping.SendPermPub)
 	// Check the session firewall
 	if !isIn && ss.sessionFirewallEnabled {
-		if !ss.isSessionAllowed(&ping.SendPermPub) {
+		if !ss.isSessionAllowed(&ping.SendPermPub, false) {
 			return
 		}
 	}

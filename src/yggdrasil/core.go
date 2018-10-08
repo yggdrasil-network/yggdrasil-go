@@ -108,7 +108,11 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	}
 
 	c.sessions.setSessionFirewallState(nc.SessionFirewall.Enable)
-	c.sessions.setSessionFirewallDefaults(nc.SessionFirewall.AllowFromDirect, nc.SessionFirewall.AllowFromRemote)
+	c.sessions.setSessionFirewallDefaults(
+		nc.SessionFirewall.AllowFromDirect,
+		nc.SessionFirewall.AllowFromRemote,
+		nc.SessionFirewall.AlwaysAllowOutbound,
+	)
 	c.sessions.setSessionFirewallWhitelist(nc.SessionFirewall.WhitelistEncryptionPublicKeys)
 	c.sessions.setSessionFirewallBlacklist(nc.SessionFirewall.BlacklistEncryptionPublicKeys)
 
