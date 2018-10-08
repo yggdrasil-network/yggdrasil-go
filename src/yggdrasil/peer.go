@@ -127,7 +127,7 @@ func (ps *peers) removePeer(port switchPort) {
 		return
 	} // Can't remove self peer
 	ps.core.router.doAdmin(func() {
-		ps.core.switchTable.unlockedRemovePeer(port)
+		ps.core.switchTable.forgetPeer(port)
 	})
 	ps.mutex.Lock()
 	oldPorts := ps.getPorts()
