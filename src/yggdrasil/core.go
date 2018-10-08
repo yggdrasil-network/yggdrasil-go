@@ -107,6 +107,15 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
+	c.sessions.setSessionFirewallState(nc.SessionFirewall.Enable)
+	c.sessions.setSessionFirewallDefaults(
+		nc.SessionFirewall.AllowFromDirect,
+		nc.SessionFirewall.AllowFromRemote,
+		nc.SessionFirewall.AlwaysAllowOutbound,
+	)
+	c.sessions.setSessionFirewallWhitelist(nc.SessionFirewall.WhitelistEncryptionPublicKeys)
+	c.sessions.setSessionFirewallBlacklist(nc.SessionFirewall.BlacklistEncryptionPublicKeys)
+
 	if err := c.router.start(); err != nil {
 		c.log.Println("Failed to start router")
 		return err

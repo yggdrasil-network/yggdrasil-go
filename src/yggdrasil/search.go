@@ -184,6 +184,10 @@ func (s *searches) checkDHTRes(info *searchInfo, res *dhtRes) bool {
 	sinfo, isIn := s.core.sessions.getByTheirPerm(&res.Key)
 	if !isIn {
 		sinfo = s.core.sessions.createSession(&res.Key)
+		if sinfo == nil {
+			// nil if the DHT search finished but the session wasn't allowed
+			return true
+		}
 		_, isIn := s.core.sessions.getByTheirPerm(&res.Key)
 		if !isIn {
 			panic("This should never happen")

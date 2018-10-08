@@ -17,7 +17,7 @@ import (
 type peers struct {
 	core                        *Core
 	mutex                       sync.Mutex   // Synchronize writes to atomic
-	ports                       atomic.Value //map[Port]*peer, use CoW semantics
+	ports                       atomic.Value //map[switchPort]*peer, use CoW semantics
 	authMutex                   sync.RWMutex
 	allowedEncryptionPublicKeys map[boxPubKey]struct{}
 }
