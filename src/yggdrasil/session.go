@@ -390,7 +390,7 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 	// Get the corresponding session (or create a new session)
 	sinfo, isIn := ss.getByTheirPerm(&ping.SendPermPub)
 	// Check the session firewall
-	if ss.sessionFirewallEnabled {
+	if !isIn && ss.sessionFirewallEnabled {
 		if !ss.isSessionAllowed(&ping.SendPermPub) {
 			return
 		}
