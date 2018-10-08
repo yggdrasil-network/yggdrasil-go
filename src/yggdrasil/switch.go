@@ -242,7 +242,9 @@ func (t *switchTable) cleanRoot() {
 // Removes a peer.
 // Must be called by the router mainLoop goroutine, e.g. call router.doAdmin with a lambda that calls this.
 // If the removed peer was this node's parent, it immediately tries to find a new parent.
-func (t *switchTable) unlockedRemovePeer(port switchPort) {
+func (t *switchTable) forgetPeer(port switchPort) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
 	delete(t.data.peers, port)
 	t.updater.Store(&sync.Once{})
 	if port != t.parent {
