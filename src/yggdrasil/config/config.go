@@ -7,6 +7,7 @@ type NodeConfig struct {
 	Peers                       []string            `comment:"List of connection strings for static peers in URI format, i.e.\ntcp://a.b.c.d:e or socks://a.b.c.d:e/f.g.h.i:j."`
 	InterfacePeers              map[string][]string `comment:"List of connection strings for static peers in URI format, arranged\nby source interface, i.e. { \"eth0\": [ tcp://a.b.c.d:e ] }. Note that\nSOCKS peerings will NOT be affected by this option and should go in\nthe \"Peers\" section instead."`
 	ReadTimeout                 int32               `comment:"Read timeout for connections, specified in milliseconds. If less\nthan 6000 and not negative, 6000 (the default) is used. If negative,\nreads won't time out."`
+	DSCPClassification          uint8               `comment:"DSCP classification, in decimal, for applying Quality of Service\n(QoS) markings to outbound peering traffic. This value will more\nthan likely be ignored if peering over the Internet."`
 	AllowedEncryptionPublicKeys []string            `comment:"List of peer encryption public keys to allow or incoming TCP\nconnections from. If left empty/undefined then all connections\nwill be allowed by default."`
 	EncryptionPublicKey         string              `comment:"Your public encryption key. Your peers may ask you for this to put\ninto their AllowedEncryptionPublicKeys configuration."`
 	EncryptionPrivateKey        string              `comment:"Your private encryption key. DO NOT share this with anyone!"`

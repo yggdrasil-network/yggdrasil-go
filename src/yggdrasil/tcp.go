@@ -24,6 +24,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/net/ipv4"
+	"golang.org/x/net/ipv6"
 	"golang.org/x/net/proxy"
 )
 
@@ -47,6 +49,7 @@ type tcpInterface struct {
 	mutex       sync.Mutex // Protecting the below
 	calls       map[string]struct{}
 	conns       map[tcpInfo](chan struct{})
+	dscp        uint8
 }
 
 // This is used as the key to a map that tracks existing connections, to prevent multiple connections to the same keys and local/remote address pair from occuring.
@@ -74,8 +77,13 @@ func (iface *tcpInterface) connectSOCKS(socksaddr, peeraddr string) {
 }
 
 // Initializes the struct.
-func (iface *tcpInterface) init(core *Core, addr string, readTimeout int32) (err error) {
+func (iface *tcpInterface) init(core *Core, addr string, readTimeout int32, dscp uint8) (err error) {
 	iface.core = core
+
+	// The DSCP value is 6-bit
+	if dscp >= 0 && dscp <= 63 {
+		iface.dscp = dscp
+	}
 
 	iface.tcp_timeout = time.Duration(readTimeout) * time.Millisecond
 	if iface.tcp_timeout >= 0 && iface.tcp_timeout < default_tcp_timeout {
@@ -197,6 +205,19 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 				return
 			}
 		}
+		// Configure DSCP on the connection, if set
+		if iface.dscp != 0 {
+			addr := conn.RemoteAddr().(*net.TCPAddr)
+			if addr.IP.To16() != nil && addr.IP.To4() == nil {
+				if err := ipv6.NewConn(conn).SetTrafficClass(int(iface.dscp << 2)); err != nil {
+					iface.core.log.Println("Failed to set traffic class:", err)
+				}
+			} else {
+				if err := ipv4.NewConn(conn).SetTOS(int(iface.dscp << 2)); err != nil {
+					iface.core.log.Println("Failed to set TOS:", err)
+				}
+			}
+		}
 		iface.handler(conn, false)
 	}()
 }
@@ -222,6 +243,19 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	_, err = sock.Read(metaBytes)
 	if err != nil {
 		return
+	}
+	// Configure DSCP on the connection, if set
+	if iface.dscp != 0 {
+		addr := sock.RemoteAddr().(*net.TCPAddr)
+		if addr.IP.To16() != nil && addr.IP.To4() == nil {
+			if err := ipv6.NewConn(sock).SetTrafficClass(int(iface.dscp << 2)); err != nil {
+				iface.core.log.Println("Failed to set traffic class:", err)
+			}
+		} else {
+			if err := ipv4.NewConn(sock).SetTOS(int(iface.dscp << 2)); err != nil {
+				iface.core.log.Println("Failed to set TOS:", err)
+			}
+		}
 	}
 	meta = version_metadata{} // Reset to zero value
 	if !meta.decode(metaBytes) || !meta.check() {
