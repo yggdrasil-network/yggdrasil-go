@@ -25,6 +25,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.2.7] - 2018-10-13
+### Added
+- Session firewall, which makes it possible to control who can open sessions with your node
+- Add `getSwitchQueues` to admin socket
+- Add `InterfacePeers` for configuring static peerings via specific network interfaces
+- More output shown in `getSwitchPeers`
+- FreeBSD service script in `contrib`
+
+## Changed
+- CircleCI builds are now built with Go 1.11 instead of Go 1.9
+
+## Fixed
+- Race condition in the switch table, reported by trn
+- Debug builds are now tested by CircleCI as well as platform release builds
+- Port number fixed on admin graph from unknown nodes
+
 ## [0.2.6] - 2018-07-31
 ### Added
 - Configurable TCP timeouts to assist in peering over Tor/I2P
