@@ -107,6 +107,15 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
+	c.sessions.setSessionFirewallState(nc.SessionFirewall.Enable)
+	c.sessions.setSessionFirewallDefaults(
+		nc.SessionFirewall.AllowFromDirect,
+		nc.SessionFirewall.AllowFromRemote,
+		nc.SessionFirewall.AlwaysAllowOutbound,
+	)
+	c.sessions.setSessionFirewallWhitelist(nc.SessionFirewall.WhitelistEncryptionPublicKeys)
+	c.sessions.setSessionFirewallBlacklist(nc.SessionFirewall.BlacklistEncryptionPublicKeys)
+
 	if err := c.router.start(); err != nil {
 		c.log.Println("Failed to start router")
 		return err
@@ -182,8 +191,8 @@ func (c *Core) SetLogger(log *log.Logger) {
 
 // Adds a peer. This should be specified in the peer URI format, i.e.
 // tcp://a.b.c.d:e, udp://a.b.c.d:e, socks://a.b.c.d:e/f.g.h.i:j
-func (c *Core) AddPeer(addr string) error {
-	return c.admin.addPeer(addr)
+func (c *Core) AddPeer(addr string, sintf string) error {
+	return c.admin.addPeer(addr, sintf)
 }
 
 // Adds an expression to select multicast interfaces for peer discovery. This

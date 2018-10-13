@@ -2,133 +2,145 @@
 
 Note: This is a very rough early draft.
 
-Yggdrasil is a routing protocol designed for scalable name-independent routing on internet-like graphs.
-The design is built around a name-dependent routing scheme which uses distance on a spanning tree as a metric for greedy routing, and a kademlia-like distributed hash table to facilitate lookups of metric space routing information from static cryptographically generated identifiers.
-This approach can find routes on any network, as it reduces to spanning tree routing in the worst case, but is observed to be particularly efficient on internet-like graphs.
-In an effort to mitigate many forms of attacks, the routing scheme only uses information which is either cryptographically verifiable or based on observed local network state.
-The implementation is distributed and runs on dynamic graphs, though this implementation may not converge quickly enough to be practical on networks with high node mobility.
-This document attempts to give a rough overview of how some of the key parts of the protocol are implemented, as well as an explanation of why a few subtle points are handled the way they are.
+Yggdrasil is an encrypted IPv6 network running in the [`200::/7` address range](https://en.wikipedia.org/wiki/Unique_local_address).
+It is an experimental/toy network, so failure is acceptable, as long as it's instructive to see how it breaks if/when everything falls apart.
+
+IP addresses are derived from cryptographic keys, to reduce the need for public key infrastructure.
+A form of locator/identifier separation (similar in goal to [LISP](https://en.wikipedia.org/wiki/Locator/Identifier_Separation_Protocol)) is used to map static identifiers (IP addresses) onto dynamic routing information (locators), using a [distributed hash table](https://en.wikipedia.org/wiki/Distributed_hash_table) (DHT).
+Locators are used to approximate the distance between nodes in the network, where the approximate distance is the length of a real worst-case-scenario path through the network.
+This is (arguably) easier to secure and requires less information about the network than commonly used routing schemes.
+
+While not technically a [compact routing scheme](https://arxiv.org/abs/0708.2309), tests on real-world networks suggest that routing in this style incurs stretch comparable to the name-dependent compact routing schemes designed for static networks.
+Compared to compact routing schemes, Yggdrasil appears to have smaller average routing table sizes, works on dynamic networks, and is name-independent.
+It currently lacks the provable bounds of compact routing schemes, and there's a serious argument to be made that it cheats by stretching the definition of some of the above terms, but the main point to be emphasized is that there are trade-offs between different concerns when trying to route traffic, and we'd rather make every part *good* than try to make any one part *perfect*.
+In that sense, Yggdrasil seems to be competitive, on what are supposedly realistic networks, with compact routing schemes.
 
 ## Addressing
 
-Addresses in Yggdrasil are derived from a truncated version of a `NodeID`.
-The `NodeID` itself is a sha512sum of a node's permanent public Curve25519 key.
-Each node's IPv6 address is then assigned from the lower half of the `fd00::/8` prefix using the following approach:
+Yggdrasil uses a truncated version of a `NodeID` to assign addresses.
+An address is assigned from the `200::/7` prefix, according to the following:
 
-1. Begin with `0xfd` as the first byte of the address.
+1. Begin with `0x02` as the first byte of the address, or `0x03` if it's a `/64` prefix.
 2. Count the number of leading `1` bits in the NodeID.
-3. Set the second byte of the address to the number of leading `1` bits, subject to the constraint that this is still in the lower half of the address range (it is unlikely that a node will have 128 or more leading `1` bits in a sha512sum hash, for the foreseeable future).
+3. Set the second byte of the address to the number of leading `1` bits in the NodeID (8 bit unsigned integer, at most 255).
 4. Append the NodeID to the remaining bits of the address, truncating the leading `1` bits and the first `0` bit, to a total address size of 128 bits.
+
+The last bit of the first byte is used to flag if an address is for a router (`200::/8`), or part of an advertised prefix (`300::/8`), where each router owns a `/64` that matches their address (except with the eight bit set to 1 instead of 0).
+This allows the prefix to be advertised to the router's LAN, so unsupported devices can still connect to the network (e.g. network printers).
+
+The NodeID is a [sha512sum](https://en.wikipedia.org/wiki/SHA-512) of a node's public encryption key.
+Addresses are checked that they match NodeID, to prevent address spoofing.
+As such, while a 128 bit IPv6 address is likely too short to be considered secure by cryptographer standards, there is a significant cost in attempting to cause an address collision.
+Addresses can be made more secure by brute force generating a large number of leading `1` bits in the NodeID.
 
 When connecting to a node, the IP address is unpacked into the known bits of the NodeID and a matching bitmask to track which bits are significant.
 A node is only communicated with if its `NodeID` matches its public key and the known `NodeID` bits from the address.
 
 It is important to note that only `NodeID` is used internally for routing, so the addressing scheme could in theory be changed without breaking compatibility with intermediate routers.
-This may become useful if the IPv6 address range ever needs to be changed, or if a new addressing format that allows for more significant bits is ever implemented by the OS.
+This has been done once, when moving the address range from the `fd00::/8` ULA range to the reserved-but-[deprecated](https://tools.ietf.org/html/rfc4048) `200::/7` range.
+Further addressing scheme changes could occur if, for example, an IPv7 format ever emerges.
 
 ### Cryptography
 
-Public key encryption is done using the `golang.org/x/crypto/nacl/box`, which uses Curve25519, XSalsa20, and Poly1305 for key exchange, encryption, and authentication.
+Public key encryption is done using the `golang.org/x/crypto/nacl/box`, which uses [Curve25519](https://en.wikipedia.org/wiki/Curve25519), [XSalsa20](https://en.wikipedia.org/wiki/Salsa20), and [Poly1305](https://en.wikipedia.org/wiki/Poly1305) for key exchange, encryption, and authentication (interoperable with [NaCl](https://en.wikipedia.org/wiki/NaCl_(software))).
 Permanent keys are used only for protocol traffic, with random nonces generated on a per-packet basis using `crypto/rand` from Go's standard library.
-Ephemeral session keys are generated for encapsulated IPv6 traffic, using the same set of primitives, with random initial nonces that are subsequently incremented.
+Ephemeral session keys (for [forward secrecy](https://en.wikipedia.org/wiki/Forward_secrecy)) are generated for encapsulated IPv6 traffic, using the same set of primitives, with random initial nonces that are subsequently incremented.
 A list of recently received session nonces is kept (as a bitmask) and checked to reject duplicated packets, in an effort to block duplicate packets and replay attacks.
-
-A separate private key is generated and used for signing with Ed25519, which is used by the name-dependent routing layer to secure construction of the spanning tree, with a TreeID hash of a node's public Ed key being used to select the highest TreeID as the root of the tree.
+A separate set of keys are generated and used for signing with [Ed25519](https://en.wikipedia.org/wiki/Ed25519), which is used by the routing layer to secure construction of a spanning tree.
 
 ### Prefixes
 
-Recall that each node's address is in the lower half of the address range, I.e. `fd00::/9`. A `/64` prefix is made available to each node under `fd80::/9`, where the remaining bits of the prefix match the node's address under `fd00::/9`.
+Recall that each node's address is in the lower half of the address range, I.e. `200::/8`. A `/64` prefix is made available to each node under `300::/8`, where the remaining bits of the prefix match the node's address under `200::/8`.
 A node may optionally advertise a prefix on their local area network, which allows unsupported or legacy devices with IPv6 support to connect to the network.
 Note that there are 64 fewer bits of `NodeID` available to check in each address from a routing prefix, so it makes sense to brute force a `NodeID` with more significant bits in the address if this approach is to be used.
 Running `genkeys.go` will do this by default.
 
-## Name-independent routing
+## Locators and Routing
 
-A distributed hash table is used to facilitate the lookup of a node's name-dependent routing `coords` from a `NodeID`.
-A kademlia-like peer structure and xor metric are used in the DHT layout, but only peering info is used--there is no key:value store.
-In contrast with standard kademlia, instead of using iterative parallel lookups, a recursive lookup strategy is used.
-This is an intentional design decision to make the DHT more fragile--the intent is for DHT inconsistencies to lead to lookup failures, because of concerns that the iterative parallel approach may hide DHT bugs.
+Locators are generated using information from a spanning tree (described below).
+The result is that each node has a set of [coordinates in a greedy metric space](https://en.wikipedia.org/wiki/Greedy_embedding).
+These coordinates are used as a distance label.
+Given the coordinates of any two nodes, it is possible to calculate the length of some real path through the network between the two nodes.
 
-In particular, the DHT is bootstrapped off of a node's one-hop neighbors, and I've observed that this causes a standard kademlia implementation to diverge in the general case.
-To get around this, buckets are updated more aggressively, and the least recently pinged node from each bucket is flushed to make room for new nodes as soon as a response is heard from them.
-This appears to fix the bootstrapping issues on all networks where they had been observed in testing, but recursive lookups are kept for the time being to continue monitoring the issue.
-However, recursive lookups require fewer round trips, so they are expected to be lower latency.
-As such, even if a switch to iterative parallel lookups was made, the recursive lookup functionality may be kept and used optimistically to minimize handshake time in stable networks.
+Traffic is forwarded using a [greedy routing](https://en.wikipedia.org/wiki/Small-world_routing#Greedy_routing) scheme, where each node forwards the packet to a one-hop neighbor that is closer to the destination (according to this distance metric) than the current node.
+In particular, when a packet needs to be forward, a node will forward it to whatever peer is closest to the destination in the greedy [metric space](https://en.wikipedia.org/wiki/Metric_space) used by the network, provided that the peer is closer to the destination than the current node.
 
-Other than these differences, the DHT is more-or-less what you might expect from a kad implementation.
+If no closer peers are idle, then the packet is queued in FIFO order, with separate queues per destination coords (currently, as a bit of a hack, IPv6 flow labels are embedeed after the end of the significant part of the coords, so queues distinguish between different traffic streams with the same destination).
+Whenever the node finishes forwarding a packet to a peer, it checks the queues, and will forward the first packet from the queue with the maximum `<age of first packet>/<queue size in bytes>`, i.e. the bandwidth the queue is attempting to use, subject to the constraint that the peer is a valid next hop (i.e. closer to the destination than the current node).
+If no non-empty queue is available, then the peer is added to the idle set, forward packets when the need arises.
 
-## Name-dependent routing
+This acts as a crude approximation of backpressure routing, where the remote queue sizes are assumed to be equal to the distance of a node from a destination (rather than communicating queue size information), and packets are never forwarded "backwards" through the network, but congestion on a local link is routed around when possible.
+The queue selection strategy behaves similar to shortest-queue-first, in that a larger fration of available bandwith to sessions that attempt to use less bandwidth, and is loosely based on the rationale behind some proposed solutions to the [cake-cutting](https://en.wikipedia.org/wiki/Fair_cake-cutting) problem.
 
-A spanning tree is constructed and used for name-dependent routing.
-The basic idea is to use the distance between nodes *on the tree* as a distance metric, and then perform greedy routing in that metric space.
-As the tree is constructed from a subset of the real links in the network, this distance metric (unlike the DHT's xor metric) has some relationship with the underlying physical network.
-In the worst case, greedy routing with this metric reduces to routing on the spanning tree, which should be comparable to ethernet.
-However, greedy routing can use any link, provided that the node on the other end of the link is closer to the destination, so this allows the use of off-tree shortcuts, with the possibility and effectiveness of this being topology dependent.
-The main assumption that Yggdrasil's performance hinges on, is that this distance metric is close to real network distance, on average, in realistic networks.
-
-The name dependent scheme is implemented in roughly the following way:
-
-1. Each node generates a set of Ed25519 keys for signing routing messages, with a `TreeID` defined as the sha512sum of a node's public signing key.
-2. If a node doesn't know a better (higher `TreeID`) root for the tree, then it makes itself the root of its own tree.
-3. Nodes periodically send announcement messages to neighbors, which specify a sequence number for that node's current locator in the tree.
-4. When a node A sees an unrecognized sequence number from a neighbor B, then A asks B to send them a locator.
-5. This locator is sent in the form of a path from the root, through B, and ending at A.
-6. Each hop in the path includes the public signing key of the next hop, and a signature for the full path from the root to the next hop, to prevent forgery of path information (similar to S-BGP).
-7. The first hop, from the root, includes a signed sequence number which must increase (implemented as a unix timestamp, for convenience), which is used to detect root timeouts and prevent replays.
-
-The highest `TreeID` approach to root selection is just to ensure that nodes select the same root, otherwise distance calculations wouldn't work.
-Root selection has a minor effect on the stretch of the paths selected by the network, but this effect was seen to be small compared to the minimum stretch, for nearly all choices of root.
-
-The current implementation tracks how long a neighbor has been advertising a locator for the same path, and it prefers to select a parent with a stable locator and a short distance to the root (maximize uptime/distance).
-When forwarding traffic, the next hop is selected taking bandwidth to the next hop and distance to the destination into account (maximize bandwidth/distance), subject to the requirement that distance must always decrease.
-The bandwidth estimation isn't very good, but it correlates well enough that e.g. when a slow wifi and a fast ethernet link to the same node are available, it typically uses the ethernet link.
-However, if the ethernet link comes up while the wifi link is under heavy use, then it tends to keep using the wifi link until things settle down, and only switches to ethernet after the wireless link is no longer overloaded.
-A better approach to bandwidth estimation could probably switch to the new link faster.
+The queue size is limited to 4 MB. If a packet is added to a queue and the total size of all queues is larger than this threshold, then a random queue is selected (with odds proportional to relative queue sizes), and the first packet from that queue is dropped, with the process repeated until the total queue size drops below the allowed threshold.
 
 Note that this forwarding procedure generalizes to nodes that are not one-hop neighbors, but the current implementation omits the use of more distant neighbors, as this is expected to be a minor optimization (it would add per-link control traffic to pass path-vector-like information about a subset of the network, which is a lot of overhead compared to the current setup).
 
-## Other implementation details
+### Spanning Tree
 
-In case you hadn't noticed, this implementation is written in Go.
-That decision was made because the designer and initial author (@Arceliar) felt like learning a new language when the implementation was started, and the Go language seemed like an OK choice for prototyping a network application.
-While Go's GC pauses are small, they do exist, so this implementation probably isn't suited to applications that require very low latency and jitter.
+A [spanning tree](https://en.wikipedia.org/wiki/Spanning_tree) is constructed with the tree rooted at the highest TreeID, where TreeID is equal to a sha512sum of a node's public [Ed25519](https://en.wikipedia.org/wiki/Ed25519) key (used for signing).
+A node sends periodic advertisement messages to each neighbor.
+The advertisement contains the coords that match the path from the root through the node, plus one additional hop from the node to the neighbor being advertised to.
+Each hop in this advertisement includes a matching ed25519 signature.
+These signatures prevent nodes from forging arbitrary routing advertisements.
 
-Aside from that, an effort was made to write each part of it to be as "bad" (i.e. fragile) as could be managed while still being technically correct.
-That's a decision made for debugging purposes: the intent is to make any bugs as obvious as possible, so they can more easily be found and fixed in a small or simulated network.
+The first hop, from the root, also includes a sequence number, which must be updated periodically.
+A node will blacklist the current root (keeping a record of the last sequence number observed) if the root fails to update for longer than some timeout (currently hard coded at 1 minute).
+Normally, a root node will update their sequence number for frequently than this (once every 30 seconds).
+Nodes are throttled to ignore updates with a new sequence number for some period after updating their most recently seen sequence number (currently this cooldown is 10 seconds).
+The implementation chooses to set the sequence number equal to the unix time on the root's clock, so that a new (higher) sequence number will be selected if the root is restarted and the clock is not set back.
 
-This implementation runs as an overlay network on top of regular IPv4 or IPv6 traffic.
-It uses link-local IPv6 multicast traffic to automatically connect to devices on the same network, but it can also be fed a list of address:port pairs to connect to.
-This can be used to e.g. set up two local networks and bridge them over the internet.
+Other than the root node, every other node in the network must select one of its neighbors to use as their parent.
+This selection is done by maximizing: `<uptime + timeout> / <distance to the root>`.
+Here, `uptime` is the time between when we first and last received a message from the node which advertised the node's current location in the tree (resetting to zero if the location changes), and timeout is the time we wait before dropping a root due to inactivity.
+This essentially means the numerator is at least as long as the amount of time between when the neighbor was first seen at its present location, and when the advertisement from the neighbor becomes invalid due to root timeout.
+Resetting the uptime with each coordinate change causes nodes to favor long-lived stable paths over short-lived unstable ones, for the purposes of tree construction (indirectly impacting route selection).
 
-## Performance
+The distance metric between nodes is simply the distance between the nodes if they routed on the spanning tree.
+This is equal to the sum of the distance from each node to the last common ancestor of the two nodes being compared.
+The locator then consists of a root's key, timestamp, and coordinates representing each hop in the path from the root to the node.
+In practice, only the coords are used for routing, while the root and timestamp, along with all the per-hop signatures, are needed to securely construct the spanning tree.
 
-This section compares Yggdrasil with the results in [arxiv:0708.2309](https://arxiv.org/abs/0708.2309) (specifically table 1) from tests on the 9204-node [skitter](https://www.caida.org/tools/measurement/skitter/) network maps from [caida](https://www.caida.org/).
+## Name-independent routing
 
-A [simplified version](misc/sim/treesim-forward.py) of this routing scheme was written (long before the Yggdrasil implementation was started), and tested for comparison with the results from the above paper.
-This version includes only the name-dependent part of the routing scheme, but the overhead of the name-independent portion is easy enough to check with the full implementation.
-In summary:
+A [Kademlia](https://en.wikipedia.org/wiki/Kademlia)-like Distributed Hash Table (DHT) is used as a distributed database that maps NodeIDs onto coordinates in the spanning tree metric space.
+The DHT is Kademlia-like in that it uses the `xor` metric and structures the hash table into k-buckets (with 2 nodes per bucket in the normal case, plus some additional slots for keyspace neighbors and one-hop neighbors at the router level).
+It differs from kademlia in that there are no values in the key:value store -- it only stores information about DHT peers.
 
-1. Multiplicative stretch is approximately 1.08 with Yggdrasil, using unweighted links undirected links, as in the paper.
-2. A modified version can get this as low as 1.01, but it depends on knowing the degree of each one-hop neighbor, which it is not obviously possible to cryptographically secure, and it requires using source routing to find a path from A to B and from B to A, and then have both nodes use whichever path was observed to be shorter.
-3. In either case, approximately 6 routing table entries are needed, on average, for the name-dependent routing scheme, where each node needs one routing table entry per one-hop neighbor.
-4. Approximately 30 DHT entries are needed to facilitate name-independent routing.
-This requires a lookup and caches the results, so old information needs to time out to work on dynamic networks.
-The schemes it's being compared to only work on static networks, where a similar approach would be fine, so this seems like a reasonably fair comparison.
-The stretch of that initial lookup can be *very* high, but it's only for a couple of round trips to look up keys and then do the ephemeral key exchange, so this may be an acceptable tradeoff (it's probably more expensive than a DNS lookup, but is similar in principle and effect).
-5. Both the name-dependent and name-independent routing table entries are of a size proportional to the length of the path between the root and the node, which is at most the diameter of the network after things have fully converged, but name-dependent routing table entries tend to be much larger in practice due to the size of cryptographic signatures (64 bytes for a signature + 32 for the signing key).
-6. The name-dependent routing scheme only sends messages about one-hop neighbors on the link between those neighbors, so if you measure things by per *link* overhead instead of per *node*, then this doesn't seem so bad to me.
-7. The name-independent routing scheme scales like a DHT running as an overlay on top of the router-level topology, so the per-link and per-node overhead are going to be topology dependent.
-This hasn't been studied in a lot of detail, but for realistic topologies, where yggdrasil routing seems to approximate shortest path routing, academic research has shown that shortest path routing does not lead to congestion.
+The main complication is that, when the DHT is bootstrapped off of a node's one-hop neighbors, with no special measures taken about which nodes are included in each bucket, then the network may diverge (settle into a stable bad state, where at least some lookups will always fail).
+The current strategy is to place additional preferences on which nodes are kept in each bucket -- in particular, we try to keep the closest nodes in xor space in each bucket.
+This seems to mitigate the issue in some quick tests, but it's a topic that could use additional study.
 
-The designer (@Arceliar) believes that the main reason Yggdrasil performs so well is because it stores information about all one-hop neighbors.
-Consider that, if Yggdrasil did not maintain state about all one-hop neighbors, but the protocol still had the ability to forward to all of them through some mechanism (i.e. source routing), then the OS still needs a way to forward traffic to them.
-In most cases, this would require some form of per-neighbor state to be stored by the OS, either because there's one dedicated interface per peer or because there are entries in an arp/NDP table to reach multiple devices over a shared switch.
-So while compact routing schemes have nice theoretical limits, which do not require even as much state as one entry per one-hop neighbor, that property does not seem realistic if the implementation is running at the router level (as opposed to the AS level).
-As such, keeping one entry per neighbor may be reasonable, especially if nodes with a high degree have proportionally more resources available to them, but it is possible that something may have been overlooked in the design.
+Other than these differences, the DHT is more-or-less what you might expect from a kad implementation.
 
-## Disclaimer
+To summarize the entire routing procedure, when given only a node's IP address, the goal is to find a route to the destination.
+That happens through 3 steps:
 
-This is a draft version of documentation for a work-in-progress protocol.
-The design and implementation should be considered pre-alpha, with any and all aspects subject to change in light of ongoing R&D.
-It is possible that this document and the code base may fall out of sync with eachother.
-Some details that are known to be likely to change, packet formats in particular, have been omitted.
+1. The address is unpacked into the known bits of a NodeID and a bitmask to signal which bits of the NodeID are known (the unknown bits are ignored).
+2. A DHT search is performed, which normally results in a response from the node closest in the DHT keyspace to the target `NodeID`. The response contains the node's curve25519 public key, which is checked to match the `NodeID` (and therefore the address), as well as the node's coordinates.
+3. Using the keys and coords from the above step, an ephemeral key exchange occurs between the source and destination nodes. These ephemeral session keys are used to encrypt any ordinary IPv6 traffic that may be encapsulated and sent between the nodes.
+
+From that point, the session keys and coords are cached and used to encrypt and send traffic between nodes. This is *mostly* transparent to the user: the initial DHT lookup and key exchange takes at least 2 round trips, so there's some delay before session setup completes and normal IPv6 traffic can flow. This is similar to the delay caused by a DNS lookup, although it generally takes longer, as a DHT lookup requires multiple iterations to reach the destination.
+
+## Project Status and Plans
+
+The current (Go) implementation is considered alpha, so compatibility with future versions is neither guaranteed nor expected.
+While users are discouraged from running anything truly critical on top of it, as of writing, it seems reliable enough for day-to-day use.
+
+As an "alpha" quality release, Yggdrasil *should* at least be able to detect incompatible versions when it sees them, and warn the users that an update may be needed.
+A "beta" quality release should know enough to be compatible in the face of wire format changes, and reasonably feature complete.
+A "stable" 1.0 release, if it ever happens, would probably be feature complete, with no expectation of future wire format changes, and free of known critical bugs.
+
+Roughly speaking, there are a few obvious ways the project could turn out:
+
+1. The developers could lose interest before it goes anywhere.
+2. The project could be reasonably complete (beta or stable), but never gain a significant number of users.
+3. The network may grow large enough that fundamental (non-fixable) design problems appear, which is hopefully a learning experience, but the project may die as a result.
+4. The network may grow large, but never hit any design problems, in which case we need to think about either moving the important parts into other projects ([cjdns](https://github.com/cjdelisle/cjdns)) or rewriting compatible implementations that are better optimized for the target platforms (e.g. a linux kernel module).
+
+That last one is probably impossible, because the speed of light would *eventually* become a problem, for a sufficiently large network.
+If the only thing limiting network growth turns out to be the underlying physics, then that arguably counts as a win.
+
+Also, note that some design decisions were made for ease-of-programming or ease-of-testing reasons, and likely need to be reconsidered at some point.
+In particular, Yggdrasil currently uses TCP for connections with one-hop neighbors, which introduces an additional layer of buffering that can lead to increased and/or unstable latency in congested areas of the network.
+

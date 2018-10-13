@@ -60,11 +60,15 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	cfg.SigningPublicKey = hex.EncodeToString(spub[:])
 	cfg.SigningPrivateKey = hex.EncodeToString(spriv[:])
 	cfg.Peers = []string{}
+	cfg.InterfacePeers = map[string][]string{}
 	cfg.AllowedEncryptionPublicKeys = []string{}
 	cfg.MulticastInterfaces = []string{".*"}
 	cfg.IfName = defaults.GetDefaults().DefaultIfName
 	cfg.IfMTU = defaults.GetDefaults().DefaultIfMTU
 	cfg.IfTAPMode = defaults.GetDefaults().DefaultIfTAPMode
+	cfg.SessionFirewall.Enable = false
+	cfg.SessionFirewall.AllowFromDirect = true
+	cfg.SessionFirewall.AllowFromRemote = true
 
 	return &cfg
 }
@@ -231,13 +235,19 @@ func main() {
 	// configure them. The loop ensures that disconnected peers will eventually
 	// be reconnected with.
 	go func() {
-		if len(cfg.Peers) == 0 {
+		if len(cfg.Peers) == 0 && len(cfg.InterfacePeers) == 0 {
 			return
 		}
 		for {
-			for _, p := range cfg.Peers {
-				n.core.AddPeer(p)
+			for _, peer := range cfg.Peers {
+				n.core.AddPeer(peer, "")
 				time.Sleep(time.Second)
+			}
+			for intf, intfpeers := range cfg.InterfacePeers {
+				for _, peer := range intfpeers {
+					n.core.AddPeer(peer, intf)
+					time.Sleep(time.Second)
+				}
 			}
 			time.Sleep(time.Minute)
 		}

@@ -6,6 +6,7 @@ package yggdrasil
 
 import (
 	"bytes"
+	"encoding/hex"
 	"time"
 )
 
@@ -107,6 +108,13 @@ type sessions struct {
 	byTheirPerm  map[boxPubKey]*handle
 	addrToPerm   map[address]*boxPubKey
 	subnetToPerm map[subnet]*boxPubKey
+	// Options from the session firewall
+	sessionFirewallEnabled              bool
+	sessionFirewallAllowsDirect         bool
+	sessionFirewallAllowsRemote         bool
+	sessionFirewallAlwaysAllowsOutbound bool
+	sessionFirewallWhitelist            []string
+	sessionFirewallBlacklist            []string
 }
 
 // Initializes the session struct.
@@ -119,6 +127,84 @@ func (ss *sessions) init(core *Core) {
 	ss.addrToPerm = make(map[address]*boxPubKey)
 	ss.subnetToPerm = make(map[subnet]*boxPubKey)
 	ss.lastCleanup = time.Now()
+}
+
+// Enable or disable the session firewall
+func (ss *sessions) setSessionFirewallState(enabled bool) {
+	ss.sessionFirewallEnabled = enabled
+}
+
+// Set the session firewall defaults (first parameter is whether to allow
+// sessions from direct peers, second is whether to allow from remote nodes).
+func (ss *sessions) setSessionFirewallDefaults(allowsDirect bool, allowsRemote bool, alwaysAllowsOutbound bool) {
+	ss.sessionFirewallAllowsDirect = allowsDirect
+	ss.sessionFirewallAllowsRemote = allowsRemote
+	ss.sessionFirewallAlwaysAllowsOutbound = alwaysAllowsOutbound
+}
+
+// Set the session firewall whitelist - nodes always allowed to open sessions.
+func (ss *sessions) setSessionFirewallWhitelist(whitelist []string) {
+	ss.sessionFirewallWhitelist = whitelist
+}
+
+// Set the session firewall blacklist - nodes never allowed to open sessions.
+func (ss *sessions) setSessionFirewallBlacklist(blacklist []string) {
+	ss.sessionFirewallBlacklist = blacklist
+}
+
+// Determines whether the session with a given publickey is allowed based on
+// session firewall rules.
+func (ss *sessions) isSessionAllowed(pubkey *boxPubKey, initiator bool) bool {
+	// Allow by default if the session firewall is disabled
+	if !ss.sessionFirewallEnabled {
+		return true
+	}
+	// Prepare for checking whitelist/blacklist
+	var box boxPubKey
+	// Reject blacklisted nodes
+	for _, b := range ss.sessionFirewallBlacklist {
+		key, err := hex.DecodeString(b)
+		if err == nil {
+			copy(box[:boxPubKeyLen], key)
+			if box == *pubkey {
+				return false
+			}
+		}
+	}
+	// Allow whitelisted nodes
+	for _, b := range ss.sessionFirewallWhitelist {
+		key, err := hex.DecodeString(b)
+		if err == nil {
+			copy(box[:boxPubKeyLen], key)
+			if box == *pubkey {
+				return true
+			}
+		}
+	}
+	// Allow outbound sessions if appropriate
+	if ss.sessionFirewallAlwaysAllowsOutbound {
+		if initiator {
+			return true
+		}
+	}
+	// Look and see if the pubkey is that of a direct peer
+	var isDirectPeer bool
+	for _, peer := range ss.core.peers.ports.Load().(map[switchPort]*peer) {
+		if peer.box == *pubkey {
+			isDirectPeer = true
+			break
+		}
+	}
+	// Allow direct peers if appropriate
+	if ss.sessionFirewallAllowsDirect && isDirectPeer {
+		return true
+	}
+	// Allow remote nodes if appropriate
+	if ss.sessionFirewallAllowsRemote && !isDirectPeer {
+		return true
+	}
+	// Finally, default-deny if not matching any of the above rules
+	return false
 }
 
 // Gets the session corresponding to a given handle.
@@ -174,6 +260,11 @@ func (ss *sessions) getByTheirSubnet(snet *subnet) (*sessionInfo, bool) {
 // Creates a new session and lazily cleans up old/timedout existing sessions.
 // This includse initializing session info to sane defaults (e.g. lowest supported MTU).
 func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
+	if ss.sessionFirewallEnabled {
+		if !ss.isSessionAllowed(theirPermKey, true) {
+			return nil
+		}
+	}
 	sinfo := sessionInfo{}
 	sinfo.core = ss.core
 	sinfo.theirPermPub = *theirPermKey
@@ -311,6 +402,12 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 func (ss *sessions) handlePing(ping *sessionPing) {
 	// Get the corresponding session (or create a new session)
 	sinfo, isIn := ss.getByTheirPerm(&ping.SendPermPub)
+	// Check the session firewall
+	if !isIn && ss.sessionFirewallEnabled {
+		if !ss.isSessionAllowed(&ping.SendPermPub, false) {
+			return
+		}
+	}
 	if !isIn || sinfo.timedout() {
 		if isIn {
 			sinfo.close()
