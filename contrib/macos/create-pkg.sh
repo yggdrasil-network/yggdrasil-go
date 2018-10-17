@@ -41,8 +41,23 @@ cp contrib/macos/yggdrasil.plist pkgbuild/root/Library/LaunchDaemons
 # Create the postinstall script
 cat > pkgbuild/scripts/postinstall << EOF
 #!/bin/sh
-test -f /etc/yggdrasil.conf || /usr/local/bin/yggdrasil -genconf > /etc/yggdrasil.conf
-test -f /Library/LaunchDaemons/yggdrasil.plist && launchctl unload /Library/LaunchDaemons/yggdrasil.plist
+
+# Normalise the config if it exists, generate it if it doesn't
+if [ -f /etc/yggdrasil.conf ];
+then
+  mkdir -p /Library/Preferences/Yggdrasil
+  echo "Backing up configuration file to /Library/Preferences/Yggdrasil/yggdrasil.conf.`date +%Y%m%d`"
+  cp /etc/yggdrasil.conf /Library/Preferences/Yggdrasil/yggdrasil.conf.`date +%Y%m%d`
+  echo "Normalising /etc/yggdrasil.conf"
+  /usr/local/bin/yggdrasil -useconffile /Library/Preferences/Yggdrasil/yggdrasil.conf.`date +%Y%m%d` -normaliseconf > /etc/yggdrasil.conf
+else
+  /usr/local/bin/yggdrasil -genconf > /etc/yggdrasil.conf
+fi
+
+# Unload existing Yggdrasil launchd service, if possible
+test -f /Library/LaunchDaemons/yggdrasil.plist && (launchctl unload /Library/LaunchDaemons/yggdrasil.plist || true)
+
+# Load Yggdrasil launchd service and start Yggdrasil
 launchctl load /Library/LaunchDaemons/yggdrasil.plist
 EOF
 
@@ -78,7 +93,7 @@ EOF
 cat > pkgbuild/flat/Distribution << EOF
 <?xml version="1.0" encoding="utf-8"?>
 <installer-script minSpecVersion="1.000000" authoringTool="com.apple.PackageMaker" authoringToolVersion="3.0.3" authoringToolBuild="174">
-    <title>Yggdrasil ${PKGVERSION}</title>
+    <title>Yggdrasil (${PKGNAME}-${PKGVERSION})</title>
     <options customize="never" allow-external-scripts="no"/>
     <domains enable_anywhere="true"/>
     <installation-check script="pm_install_check();"/>
