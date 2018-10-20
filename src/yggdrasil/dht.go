@@ -16,6 +16,7 @@ type dhtInfo struct {
 	send          time.Time // When we last sent a message
 	recv          time.Time // When we last received a message
 	throttle      time.Duration
+	pings         int // Time out if at least 3 consecutive maintenance pings drop
 }
 
 // Returns the *NodeID associated with dhtInfo.key, calculating it on the fly the first time or from a cache all subsequent times.
@@ -314,7 +315,7 @@ func (t *dht) doMaintenance() {
 	var successor *dhtInfo
 	now := time.Now()
 	for infoID, info := range t.table {
-		if now.Sub(info.recv) > time.Minute {
+		if now.Sub(info.recv) > time.Minute || info.pings > 3 {
 			delete(t.table, infoID)
 		} else if successor == nil || dht_ordered(&t.nodeID, &infoID, successor.getNodeID()) {
 			successor = info
@@ -324,5 +325,6 @@ func (t *dht) doMaintenance() {
 		now.Sub(successor.recv) > successor.throttle &&
 		now.Sub(successor.send) > 6*time.Second {
 		t.ping(successor, nil)
+		successor.pings++
 	}
 }
