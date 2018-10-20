@@ -53,20 +53,42 @@ type dht struct {
 	reqs   map[boxPubKey]map[NodeID]time.Time
 }
 
+// Initializes the DHT
 func (t *dht) init(c *Core) {
-	// TODO
 	t.core = c
 	t.nodeID = *t.core.GetNodeID()
 	t.peers = make(chan *dhtInfo, 1024)
 	t.reset()
 }
 
+// Resets the DHT in response to coord changes
+// This empties all info from the DHT and drops outstanding requests
+// It sends a ping to the old successor and predecessor, in case they're still around
 func (t *dht) reset() {
-	//fmt.Println("Resetting table:", t.nodeID)
+	var successor *dhtInfo
+	var predecessor *dhtInfo
+	for infoID, info := range t.table {
+		// Get current successor and predecessor
+		if successor == nil || dht_ordered(&t.nodeID, &infoID, successor.getNodeID()) {
+			successor = info
+		}
+		if predecessor == nil || dht_ordered(predecessor.getNodeID(), &infoID, &t.nodeID) {
+			predecessor = info
+		}
+	}
 	t.reqs = make(map[boxPubKey]map[NodeID]time.Time)
 	t.table = make(map[NodeID]*dhtInfo)
+	if successor != nil {
+		t.ping(successor, &t.nodeID)
+	}
+	if predecessor != nil {
+		t.ping(predecessor, &t.nodeID)
+	}
 }
 
+// Does a DHT lookup and returns up to dht_lookup_size results
+// If allowWorse = true, begins with best know predecessor for ID and works backwards, even if these nodes are worse predecessors than we are, to be used when intializing searches
+// If allowWorse = false, begins with the best known successor for ID and works backwards (next is predecessor, etc, inclusive of the ID if it's a known node)
 func (t *dht) lookup(nodeID *NodeID, allowWorse bool) []*dhtInfo {
 	var results []*dhtInfo
 	var successor *dhtInfo
