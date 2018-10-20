@@ -233,6 +233,7 @@ func (c *Core) DEBUG_getDHTSize() int {
 	c.router.doAdmin(func() {
 		total = len(c.dht.table)
 	})
+	fmt.Println("DEBUG_getDHTSize():", total)
 	return total
 }
 

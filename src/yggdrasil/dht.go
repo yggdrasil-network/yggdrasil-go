@@ -66,6 +66,7 @@ func (t *dht) init(c *Core) {
 }
 
 func (t *dht) reset() {
+	fmt.Println("Resetting table:", t.nodeID)
 	t.reqs = make(map[boxPubKey]map[NodeID]time.Time)
 	t.table = make(map[NodeID]*dhtInfo)
 }
@@ -98,7 +99,7 @@ func (t *dht) lookup(nodeID *NodeID, allowWorse bool) []*dhtInfo {
 // Insert into table, preserving the time we last sent a packet if the node was already in the table, otherwise setting that time to now
 func (t *dht) insert(info *dhtInfo) {
 	if *info.getNodeID() == t.nodeID {
-		// This shouldn't happen, but don't crash or add it in case it does
+		// This shouldn't happen, but don't add it in case it does
 		return
 		panic("FIXME")
 	}
@@ -152,6 +153,7 @@ func (t *dht) handleReq(req *dhtReq) {
 	}
 	// For bootstrapping to work, we need to add these nodes to the table
 	t.insert(&info)
+	info.send = info.send.Add(-time.Minute)
 }
 
 // Sends a lookup response to the specified node.
@@ -234,11 +236,19 @@ func (t *dht) handleRes(res *dhtRes) {
 		// We could try sending to only the best, but then packet loss matters more
 		if successor == nil || dht_ordered(&t.nodeID, info.getNodeID(), successor.getNodeID()) {
 			t.ping(info, &t.nodeID)
-			fmt.Println("pinging new successor", t.nodeID[:4], info.getNodeID()[:4], successor)
+			if successor != nil {
+				fmt.Println("pinging better successor", t.nodeID[:4], info.getNodeID()[:4], successor.getNodeID()[:4], len(t.table))
+			} else {
+				fmt.Println("pinging new successor", t.nodeID[:4], info.getNodeID()[:4], successor)
+			}
 		}
 		if predecessor == nil || dht_ordered(predecessor.getNodeID(), info.getNodeID(), &t.nodeID) {
 			t.ping(info, &t.nodeID)
-			fmt.Println("pinging new predecessor", t.nodeID[:4], info.getNodeID()[:4], predecessor)
+			if predecessor != nil {
+				fmt.Println("pinging better predecessor", t.nodeID[:4], info.getNodeID()[:4], predecessor.getNodeID()[:4], len(t.table))
+			} else {
+				fmt.Println("pinging new predecessor", t.nodeID[:4], info.getNodeID()[:4])
+			}
 		}
 	}
 	// TODO add everyting else to a rumor mill for later use? (when/how?)
@@ -290,15 +300,30 @@ func (t *dht) doMaintenance() {
 	// Ping successor, asking for their predecessor, and clean up old/expired info
 	var successor *dhtInfo
 	now := time.Now()
+	size := len(t.table)
 	for infoID, info := range t.table {
+		/*
+			if now.Sub(info.recv) > time.Minute {
+				delete(t.table, infoID)
+			} else if successor == nil || dht_ordered(&t.nodeID, &infoID, successor.getNodeID()) {
+				successor = info
+			}
+		*/
+		if successor == nil || dht_ordered(&t.nodeID, &infoID, successor.getNodeID()) {
+			successor = info
+		}
 		if now.Sub(info.recv) > time.Minute {
 			delete(t.table, infoID)
-		} else if successor == nil || dht_ordered(&t.nodeID, &infoID, successor.getNodeID()) {
-			successor = info
 		}
 	}
 	if successor != nil &&
 		now.Sub(successor.send) > 6*time.Second {
 		t.ping(successor, nil)
+	}
+	if successor != nil && t.table[*successor.getNodeID()] == nil {
+		fmt.Println("DEBUG:          successor timed out:", t.nodeID[:4], successor.getNodeID()[:4])
+	}
+	if len(t.table) != size {
+		fmt.Println("DEBUG:          timeouts:", t.nodeID[:4], size, len(t.table))
 	}
 }
