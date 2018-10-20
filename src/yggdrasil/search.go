@@ -92,7 +92,7 @@ func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 		if sinfo.visited[*info.getNodeID()] {
 			continue
 		}
-		if dht_firstCloserThanThird(info.getNodeID(), &res.Dest, from.getNodeID()) {
+		if dht_ordered(from.getNodeID(), info.getNodeID(), &res.Dest) {
 			sinfo.toVisit = append(sinfo.toVisit, info)
 		}
 	}
@@ -107,7 +107,7 @@ func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 	}
 	// Sort
 	sort.SliceStable(sinfo.toVisit, func(i, j int) bool {
-		return dht_firstCloserThanThird(sinfo.toVisit[i].getNodeID(), &res.Dest, sinfo.toVisit[j].getNodeID())
+		return dht_ordered(sinfo.toVisit[j].getNodeID(), sinfo.toVisit[i].getNodeID(), &res.Dest)
 	})
 	// Truncate to some maximum size
 	if len(sinfo.toVisit) > search_MAX_SEARCH_SIZE {
@@ -126,10 +126,10 @@ func (s *searches) doSearchStep(sinfo *searchInfo) {
 		// Send to the next search target
 		var next *dhtInfo
 		next, sinfo.toVisit = sinfo.toVisit[0], sinfo.toVisit[1:]
-		var oldPings int
-		oldPings, next.pings = next.pings, 0
+		//var oldPings int
+		//oldPings, next.pings = next.pings, 0
 		s.core.dht.ping(next, &sinfo.dest)
-		next.pings = oldPings // Don't evict a node for searching with it too much
+		//next.pings = oldPings // Don't evict a node for searching with it too much
 		sinfo.visited[*next.getNodeID()] = true
 	}
 }

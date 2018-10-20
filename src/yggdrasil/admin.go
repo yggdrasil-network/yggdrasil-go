@@ -554,26 +554,28 @@ func (a *admin) getData_getSwitchQueues() admin_nodeInfo {
 // getData_getDHT returns info from Core.dht for an admin response.
 func (a *admin) getData_getDHT() []admin_nodeInfo {
 	var infos []admin_nodeInfo
-	now := time.Now()
 	getDHT := func() {
-		for i := 0; i < a.core.dht.nBuckets(); i++ {
-			b := a.core.dht.getBucket(i)
-			getInfo := func(vs []*dhtInfo, isPeer bool) {
-				for _, v := range vs {
-					addr := *address_addrForNodeID(v.getNodeID())
-					info := admin_nodeInfo{
-						{"ip", net.IP(addr[:]).String()},
-						{"coords", fmt.Sprint(v.coords)},
-						{"bucket", i},
-						{"peer_only", isPeer},
-						{"last_seen", int(now.Sub(v.recv).Seconds())},
+		/* TODO fix this
+		  	now := time.Now()
+				for i := 0; i < a.core.dht.nBuckets(); i++ {
+					b := a.core.dht.getBucket(i)
+					getInfo := func(vs []*dhtInfo, isPeer bool) {
+						for _, v := range vs {
+							addr := *address_addrForNodeID(v.getNodeID())
+							info := admin_nodeInfo{
+								{"ip", net.IP(addr[:]).String()},
+								{"coords", fmt.Sprint(v.coords)},
+								{"bucket", i},
+								{"peer_only", isPeer},
+								{"last_seen", int(now.Sub(v.recv).Seconds())},
+							}
+							infos = append(infos, info)
+						}
 					}
-					infos = append(infos, info)
+					getInfo(b.other, false)
+					getInfo(b.peers, true)
 				}
-			}
-			getInfo(b.other, false)
-			getInfo(b.peers, true)
-		}
+		*/
 	}
 	a.core.router.doAdmin(getDHT)
 	return infos

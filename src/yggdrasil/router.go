@@ -91,8 +91,7 @@ func (r *router) mainLoop() {
 		case p := <-r.send:
 			r.sendPacket(p)
 		case info := <-r.core.dht.peers:
-			r.core.dht.insertIfNew(info, false) // Insert as a normal node
-			r.core.dht.insertIfNew(info, true)  // Insert as a peer
+			r.core.dht.insert(info)
 		case <-r.reset:
 			r.core.sessions.resetInits()
 			r.core.dht.reset()

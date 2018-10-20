@@ -358,7 +358,7 @@ func (ss *sessions) getSharedKey(myPriv *boxPrivKey,
 		return skey
 	}
 	// First do some cleanup
-	const maxKeys = dht_bucket_number * dht_bucket_size
+	const maxKeys = 1024
 	for key := range ss.permShared {
 		// Remove a random key until the store is small enough
 		if len(ss.permShared) < maxKeys {

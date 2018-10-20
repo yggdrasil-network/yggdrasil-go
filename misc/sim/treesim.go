@@ -386,7 +386,7 @@ func (n *Node) startTCP(listen string) {
 }
 
 func (n *Node) connectTCP(remoteAddr string) {
-	n.core.AddPeer(remoteAddr)
+	n.core.AddPeer(remoteAddr, remoteAddr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
