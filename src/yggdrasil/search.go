@@ -126,10 +126,7 @@ func (s *searches) doSearchStep(sinfo *searchInfo) {
 		// Send to the next search target
 		var next *dhtInfo
 		next, sinfo.toVisit = sinfo.toVisit[0], sinfo.toVisit[1:]
-		//var oldPings int
-		//oldPings, next.pings = next.pings, 0
 		s.core.dht.ping(next, &sinfo.dest)
-		//next.pings = oldPings // Don't evict a node for searching with it too much
 		sinfo.visited[*next.getNodeID()] = true
 	}
 }

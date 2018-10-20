@@ -15,6 +15,7 @@ type dhtInfo struct {
 	coords        []byte
 	send          time.Time // When we last sent a message
 	recv          time.Time // When we last received a message
+	throttle      time.Duration
 }
 
 // Returns the *NodeID associated with dhtInfo.key, calculating it on the fly the first time or from a cache all subsequent times.
@@ -101,8 +102,13 @@ func (t *dht) insert(info *dhtInfo) {
 	info.recv = time.Now()
 	if oldInfo, isIn := t.table[*info.getNodeID()]; isIn {
 		info.send = oldInfo.send
+		info.throttle = oldInfo.throttle
 	} else {
 		info.send = info.recv
+	}
+	info.throttle += time.Second
+	if info.throttle > 30*time.Second {
+		info.throttle = 30 * time.Second
 	}
 	t.table[*info.getNodeID()] = info
 }
@@ -293,6 +299,7 @@ func (t *dht) doMaintenance() {
 		}
 	}
 	if successor != nil &&
+		now.Sub(successor.recv) > successor.throttle &&
 		now.Sub(successor.send) > 6*time.Second {
 		t.ping(successor, nil)
 	}
