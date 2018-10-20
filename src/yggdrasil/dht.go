@@ -1,6 +1,7 @@
 package yggdrasil
 
 import (
+	"fmt"
 	"sort"
 	"time"
 )
@@ -65,11 +66,11 @@ func (t *dht) init(c *Core) {
 }
 
 func (t *dht) reset() {
+	t.reqs = make(map[boxPubKey]map[NodeID]time.Time)
 	t.table = make(map[NodeID]*dhtInfo)
 }
 
 func (t *dht) lookup(nodeID *NodeID, allowWorse bool) []*dhtInfo {
-	return nil
 	var results []*dhtInfo
 	var successor *dhtInfo
 	sTarget := t.nodeID.next()
@@ -96,6 +97,11 @@ func (t *dht) lookup(nodeID *NodeID, allowWorse bool) []*dhtInfo {
 
 // Insert into table, preserving the time we last sent a packet if the node was already in the table, otherwise setting that time to now
 func (t *dht) insert(info *dhtInfo) {
+	if *info.getNodeID() == t.nodeID {
+		// This shouldn't happen, but don't crash or add it in case it does
+		return
+		panic("FIXME")
+	}
 	info.recv = time.Now()
 	if oldInfo, isIn := t.table[*info.getNodeID()]; isIn {
 		info.send = oldInfo.send
@@ -139,14 +145,12 @@ func (t *dht) handleReq(req *dhtReq) {
 		Infos:  t.lookup(&req.Dest, false),
 	}
 	t.sendRes(&res, req)
-	// Also (possibly) add them to our DHT
+	// Also add them to our DHT
 	info := dhtInfo{
 		key:    req.Key,
 		coords: req.Coords,
 	}
 	// For bootstrapping to work, we need to add these nodes to the table
-	// Using insertIfNew, they can lie about coords, but searches will route around them
-	// Using the mill would mean trying to block off the mill becomes an attack vector
 	t.insert(&info)
 }
 
@@ -169,7 +173,7 @@ func (t *dht) sendRes(res *dhtRes, req *dhtReq) {
 
 // Returns nodeID + 1
 func (nodeID NodeID) next() NodeID {
-	for idx := len(nodeID); idx >= 0; idx-- {
+	for idx := len(nodeID) - 1; idx >= 0; idx-- {
 		nodeID[idx] += 1
 		if nodeID[idx] != 0 {
 			break
@@ -180,7 +184,7 @@ func (nodeID NodeID) next() NodeID {
 
 // Returns nodeID - 1
 func (nodeID NodeID) prev() NodeID {
-	for idx := len(nodeID); idx >= 0; idx-- {
+	for idx := len(nodeID) - 1; idx >= 0; idx-- {
 		nodeID[idx] -= 1
 		if nodeID[idx] != 0xff {
 			break
@@ -222,13 +226,19 @@ func (t *dht) handleRes(res *dhtRes) {
 		if *info.getNodeID() == t.nodeID {
 			continue
 		} // Skip self
+		if _, isIn := t.table[*info.getNodeID()]; isIn {
+			// TODO? don't skip if coords are different?
+			continue
+		}
 		// Send a request to all better successors or predecessors
 		// We could try sending to only the best, but then packet loss matters more
 		if successor == nil || dht_ordered(&t.nodeID, info.getNodeID(), successor.getNodeID()) {
-			// ping
+			t.ping(info, &t.nodeID)
+			fmt.Println("pinging new successor", t.nodeID[:4], info.getNodeID()[:4], successor)
 		}
 		if predecessor == nil || dht_ordered(predecessor.getNodeID(), info.getNodeID(), &t.nodeID) {
-			// ping
+			t.ping(info, &t.nodeID)
+			fmt.Println("pinging new predecessor", t.nodeID[:4], info.getNodeID()[:4], predecessor)
 		}
 	}
 	// TODO add everyting else to a rumor mill for later use? (when/how?)
@@ -288,7 +298,6 @@ func (t *dht) doMaintenance() {
 		}
 	}
 	if successor != nil &&
-		now.Sub(successor.recv) > 30*time.Second &&
 		now.Sub(successor.send) > 6*time.Second {
 		t.ping(successor, nil)
 	}

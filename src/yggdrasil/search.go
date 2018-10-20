@@ -89,7 +89,7 @@ func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 	// Add responses to toVisit if closer to dest than the res node
 	from := dhtInfo{key: res.Key, coords: res.Coords}
 	for _, info := range res.Infos {
-		if sinfo.visited[*info.getNodeID()] {
+		if *info.getNodeID() == s.core.dht.nodeID || sinfo.visited[*info.getNodeID()] {
 			continue
 		}
 		if dht_ordered(from.getNodeID(), info.getNodeID(), &res.Dest) {

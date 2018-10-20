@@ -229,14 +229,10 @@ func DEBUG_wire_encode_coords(coords []byte) []byte {
 // DHT, via core
 
 func (c *Core) DEBUG_getDHTSize() int {
-	total := 0
-	/* FIXME
-	for bidx := 0; bidx < c.dht.nBuckets(); bidx++ {
-		b := c.dht.getBucket(bidx)
-		total += len(b.peers)
-		total += len(b.other)
-	}
-	*/
+	var total int
+	c.router.doAdmin(func() {
+		total = len(c.dht.table)
+	})
 	return total
 }
 
