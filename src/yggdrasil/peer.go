@@ -183,7 +183,7 @@ func (p *peer) linkLoop() {
 			}
 			p.sendSwitchMsg()
 		case _ = <-tick.C:
-			break             // FIXME disabled the below completely to test something
+			//break             // FIXME disabled the below completely to test something
 			pdinfo := p.dinfo // FIXME this is a bad workarond NPE on the next line
 			if pdinfo != nil {
 				dinfo := *pdinfo

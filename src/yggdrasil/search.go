@@ -12,6 +12,7 @@ package yggdrasil
 //  A new search packet is sent periodically, once per second, in case a packet was dropped (this slowly causes the search to become parallel if the search doesn't timeout but also doesn't finish within 1 second for whatever reason)
 
 import (
+	"fmt"
 	"sort"
 	"time"
 )
@@ -73,6 +74,9 @@ func (s *searches) handleDHTRes(res *dhtRes) {
 	sinfo, isIn := s.searches[res.Dest]
 	if !isIn || s.checkDHTRes(sinfo, res) {
 		// Either we don't recognize this search, or we just finished it
+		if isIn {
+			fmt.Println("DEBUG: search finished, length:", len(sinfo.visited))
+		}
 		return
 	} else {
 		// Add to the search and continue
@@ -92,7 +96,7 @@ func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 		if *info.getNodeID() == s.core.dht.nodeID || sinfo.visited[*info.getNodeID()] {
 			continue
 		}
-		if dht_ordered(from.getNodeID(), info.getNodeID(), &res.Dest) {
+		if true || dht_ordered(from.getNodeID(), info.getNodeID(), &res.Dest) {
 			sinfo.toVisit = append(sinfo.toVisit, info)
 		}
 	}
@@ -107,11 +111,13 @@ func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 	}
 	// Sort
 	sort.SliceStable(sinfo.toVisit, func(i, j int) bool {
+		// Should return true if i is closer to the destination than j
+		// FIXME for some reason it works better backwards, why?!
 		return dht_ordered(sinfo.toVisit[j].getNodeID(), sinfo.toVisit[i].getNodeID(), &res.Dest)
 	})
 	// Truncate to some maximum size
 	if len(sinfo.toVisit) > search_MAX_SEARCH_SIZE {
-		sinfo.toVisit = sinfo.toVisit[:search_MAX_SEARCH_SIZE]
+		//sinfo.toVisit = sinfo.toVisit[:search_MAX_SEARCH_SIZE]
 	}
 }
 
@@ -121,6 +127,7 @@ func (s *searches) doSearchStep(sinfo *searchInfo) {
 	if len(sinfo.toVisit) == 0 {
 		// Dead end, do cleanup
 		delete(s.searches, sinfo.dest)
+		fmt.Println("DEBUG: search abandoned, length:", len(sinfo.visited))
 		return
 	} else {
 		// Send to the next search target

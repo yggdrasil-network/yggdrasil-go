@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const dht_lookup_size = 16
+const dht_lookup_size = 4
 
 // dhtInfo represents everything we know about a node in the DHT.
 // This includes its key, a cache of it's NodeID, coords, and timing/ping related info for deciding who/when to ping nodes for maintenance.
@@ -52,23 +52,11 @@ type dhtRes struct {
 
 // The main DHT struct.
 type dht struct {
-	core    *Core
-	nodeID  NodeID
-	table   map[NodeID]*dhtInfo
-	peers   chan *dhtInfo // other goroutines put incoming dht updates here
-	reqs    map[boxPubKey]map[NodeID]time.Time
-	targets [NodeIDLen*8 + 1]NodeID
-}
-
-func (nodeID NodeID) add(toAdd *NodeID) NodeID {
-	var accumulator uint16
-	for idx := len(nodeID) - 1; idx >= 0; idx-- {
-		accumulator += uint16(nodeID[idx])
-		accumulator += uint16(toAdd[idx])
-		nodeID[idx] = byte(accumulator)
-		accumulator >>= 8
-	}
-	return nodeID
+	core   *Core
+	nodeID NodeID
+	table  map[NodeID]*dhtInfo
+	peers  chan *dhtInfo // other goroutines put incoming dht updates here
+	reqs   map[boxPubKey]map[NodeID]time.Time
 }
 
 // Initializes the DHT
@@ -76,19 +64,6 @@ func (t *dht) init(c *Core) {
 	t.core = c
 	t.nodeID = *t.core.GetNodeID()
 	t.peers = make(chan *dhtInfo, 1024)
-	getDist := func(bit int) *NodeID {
-		nBits := NodeIDLen * 8
-		theByte := (nBits - bit) / 8
-		theBitmask := uint8(0x80) >> uint8(nBits-bit)
-		var nid NodeID
-		//fmt.Println("DEBUG: bit", bit, "theByte", theByte)
-		nid[theByte] = theBitmask
-		return &nid
-	}
-	for idx := range t.targets {
-		t.targets[idx] = t.nodeID.add(getDist(idx + 1))
-	}
-	t.targets[len(t.targets)-1] = t.nodeID // Last one wraps around to self
 	t.reset()
 }
 
@@ -103,11 +78,15 @@ func (t *dht) reset() {
 // If allowWorse = true, begins with best know predecessor for ID and works backwards, even if these nodes are worse predecessors than we are, to be used when intializing searches
 // If allowWorse = false, begins with the best known successor for ID and works backwards (next is predecessor, etc, inclusive of the ID if it's a known node)
 func (t *dht) lookup(nodeID *NodeID, everything bool) []*dhtInfo {
-	var results []*dhtInfo
-	for infoID, info := range t.table {
-		if everything || t.isImportant(&infoID) {
-			results = append(results, info)
-		}
+	results := make([]*dhtInfo, 0, len(t.table))
+	for _, info := range t.table {
+		results = append(results, info)
+	}
+	sort.SliceStable(results, func(i, j int) bool {
+		return dht_ordered(results[j].getNodeID(), results[i].getNodeID(), nodeID)
+	})
+	if len(results) > dht_lookup_size {
+		//results = results[:dht_lookup_size] //FIXME debug
 	}
 	return results
 }
@@ -277,6 +256,7 @@ func (t *dht) handleRes(res *dhtRes) {
 	if len(res.Infos) > dht_lookup_size {
 		//res.Infos = res.Infos[:dht_lookup_size] //FIXME debug
 	}
+	imp := t.getImportant()
 	for _, info := range res.Infos {
 		if *info.getNodeID() == t.nodeID {
 			continue
@@ -285,7 +265,7 @@ func (t *dht) handleRes(res *dhtRes) {
 			// TODO? don't skip if coords are different?
 			continue
 		}
-		if t.isImportant(info.getNodeID()) {
+		if t.isImportant(info, imp) {
 			t.ping(info, nil)
 		}
 	}
@@ -336,30 +316,18 @@ func (t *dht) ping(info *dhtInfo, target *NodeID) {
 func (t *dht) doMaintenance() {
 	toPing := make(map[NodeID]*dhtInfo)
 	now := time.Now()
+	imp := t.getImportant()
+	good := make(map[NodeID]*dhtInfo)
+	for _, info := range imp {
+		good[*info.getNodeID()] = info
+	}
 	for infoID, info := range t.table {
 		if now.Sub(info.recv) > time.Minute || info.pings > 3 {
 			delete(t.table, infoID)
-		} else if t.isImportant(info.getNodeID()) {
+		} else if t.isImportant(info, imp) {
 			toPing[infoID] = info
 		}
 	}
-	//////////////////////////////////////////////////////////////////////////////
-	t.core.switchTable.mutex.RLock()
-	parentPort := t.core.switchTable.parent
-	parentInfo := t.core.switchTable.data.peers[parentPort]
-	t.core.switchTable.mutex.RUnlock()
-	ports := t.core.peers.getPorts()
-	if parent, isIn := ports[parentPort]; isIn {
-		loc := parentInfo.locator.clone()
-		end := len(loc.coords)
-		if end > 0 {
-			end -= 1
-		}
-		loc.coords = loc.coords[:end]
-		pinfo := dhtInfo{key: parent.box, coords: loc.getCoords()}
-		t.insert(&pinfo)
-	}
-	//////////////////////////////////////////////////////////////////////////////
 	for _, info := range toPing {
 		if now.Sub(info.recv) > info.throttle {
 			t.ping(info, info.getNodeID())
@@ -368,28 +336,52 @@ func (t *dht) doMaintenance() {
 			if info.throttle > 30*time.Second {
 				info.throttle = 30 * time.Second
 			}
-			//continue
+			continue
 			fmt.Println("DEBUG self:", t.nodeID[:8], "throttle:", info.throttle, "nodeID:", info.getNodeID()[:8], "coords:", info.coords)
 		}
 	}
 }
 
-func (t *dht) isImportant(nodeID *NodeID) bool {
-	// TODO persistently store stuff about best nodes, so we don't need to keep doing this
-	//  Ideally switch to a better data structure... linked list?
-	for _, target := range t.targets {
-		// Get the best known node for this target
-		var best *dhtInfo
-		for _, info := range t.table {
-			if best == nil || dht_ordered(best.getNodeID(), info.getNodeID(), &target) {
-				best = info
-			}
+func (t *dht) getImportant() []*dhtInfo {
+	// Get a list of all known nodes
+	infos := make([]*dhtInfo, 0, len(t.table))
+	for _, info := range t.table {
+		infos = append(infos, info)
+	}
+	// Sort them by increasing order in distance along the ring
+	sort.SliceStable(infos, func(i, j int) bool {
+		// Sort in order of successors
+		return dht_ordered(&t.nodeID, infos[i].getNodeID(), infos[j].getNodeID())
+	})
+	// Keep the ones that are no further than the closest seen so far
+	minDist := ^uint64(0)
+	loc := t.core.switchTable.getLocator()
+	important := infos[:0]
+	for _, info := range infos {
+		dist := uint64(loc.dist(info.coords))
+		if dist < minDist {
+			minDist = dist
+			important = append(important, info)
 		}
-		if best != nil && dht_ordered(best.getNodeID(), nodeID, &target) {
-			// This is an equal or better finger table entry than what we currently have
+	}
+	return important
+}
+
+func (t *dht) isImportant(ninfo *dhtInfo, important []*dhtInfo) bool {
+	// Check if ninfo is of equal or greater importance to what we already know
+	loc := t.core.switchTable.getLocator()
+	ndist := uint64(loc.dist(ninfo.coords))
+	minDist := ^uint64(0)
+	for _, info := range important {
+		dist := uint64(loc.dist(info.coords))
+		if dist < minDist {
+			minDist = dist
+		}
+		if dht_ordered(&t.nodeID, ninfo.getNodeID(), info.getNodeID()) && ndist <= minDist {
+			// This node is at least as close in both key space and tree space
 			return true
 		}
 	}
-	// We didn't find anything where this is better, so it must be worse
+	// We didn't find any important node that ninfo is better than
 	return false
 }
