@@ -13,10 +13,8 @@ type dhtInfo struct {
 	nodeID_hidden *NodeID
 	key           boxPubKey
 	coords        []byte
-	send          time.Time // When we last sent a message
 	recv          time.Time // When we last received a message
-	throttle      time.Duration
-	pings         int // Time out if at least 3 consecutive maintenance pings drop
+	pings         int       // Time out if at least 3 consecutive maintenance pings drop
 }
 
 // Returns the *NodeID associated with dhtInfo.key, calculating it on the fly the first time or from a cache all subsequent times.
@@ -125,16 +123,6 @@ func (t *dht) insert(info *dhtInfo) {
 		panic("FIXME")
 	}
 	info.recv = time.Now()
-	if oldInfo, isIn := t.table[*info.getNodeID()]; isIn {
-		info.send = oldInfo.send
-		info.throttle = oldInfo.throttle
-	} else {
-		info.send = info.recv
-	}
-	info.throttle += time.Second
-	if info.throttle > 30*time.Second {
-		info.throttle = 30 * time.Second
-	}
 	t.table[*info.getNodeID()] = info
 }
 
@@ -179,7 +167,6 @@ func (t *dht) handleReq(req *dhtReq) {
 	}
 	// For bootstrapping to work, we need to add these nodes to the table
 	t.insert(&info)
-	info.send = info.send.Add(-time.Minute)
 }
 
 // Sends a lookup response to the specified node.
@@ -308,7 +295,6 @@ func (t *dht) ping(info *dhtInfo, target *NodeID) {
 		Coords: coords,
 		Dest:   *target,
 	}
-	info.send = time.Now()
 	t.sendReq(&req, info)
 }
 
@@ -323,39 +309,8 @@ func (t *dht) doMaintenance() {
 			successor = info
 		}
 	}
-	if successor != nil &&
-		now.Sub(successor.recv) > successor.throttle &&
-		now.Sub(successor.send) > 3*time.Second {
+	if successor != nil {
 		t.ping(successor, nil)
 		successor.pings++
-		if now.Sub(t.search) > time.Minute {
-			// Start a search for our successor, beginning at this node's parent
-			// This should (hopefully) help bootstrap
-			t.core.switchTable.mutex.RLock()
-			parentPort := t.core.switchTable.parent
-			t.core.switchTable.mutex.RUnlock()
-			ports := t.core.peers.getPorts()
-			if parent, isIn := ports[parentPort]; isIn {
-				t.search = now
-				target := successor.getNodeID().prev()
-				sinfo, isIn := t.core.searches.searches[target]
-				if !isIn {
-					var mask NodeID
-					for idx := range mask {
-						mask[idx] = 0xff
-					}
-					sinfo = t.core.searches.newIterSearch(&target, &mask)
-					toVisit := sinfo.toVisit
-					parentNodeID := getNodeID(&parent.box)
-					for _, ninfo := range toVisit {
-						if *ninfo.getNodeID() == *parentNodeID {
-							toVisit = append(toVisit, ninfo)
-						}
-					}
-					sinfo.toVisit = toVisit
-				}
-				t.core.searches.continueSearch(sinfo)
-			}
-		}
 	}
 }
