@@ -16,31 +16,31 @@ import (
 // object for each Yggdrasil node you plan to run.
 type Core struct {
 	// This is the main data structure that holds everything else for a node
-	boxPub       boxPubKey
-	boxPriv      boxPrivKey
-	sigPub       sigPubKey
-	sigPriv      sigPrivKey
-	friendlyName string
-	switchTable  switchTable
-	peers        peers
-	sigs         sigManager
-	sessions     sessions
-	router       router
-	dht          dht
-	tun          tunDevice
-	admin        admin
-	searches     searches
-	multicast    multicast
-	tcp          tcpInterface
-	log          *log.Logger
-	ifceExpr     []*regexp.Regexp // the zone of link-local IPv6 peers must match this
+	boxPub      boxPubKey
+	boxPriv     boxPrivKey
+	sigPub      sigPubKey
+	sigPriv     sigPrivKey
+	metadata    metadata
+	switchTable switchTable
+	peers       peers
+	sigs        sigManager
+	sessions    sessions
+	router      router
+	dht         dht
+	tun         tunDevice
+	admin       admin
+	searches    searches
+	multicast   multicast
+	tcp         tcpInterface
+	log         *log.Logger
+	ifceExpr    []*regexp.Regexp // the zone of link-local IPv6 peers must match this
 }
 
 func (c *Core) init(bpub *boxPubKey,
 	bpriv *boxPrivKey,
 	spub *sigPubKey,
 	spriv *sigPrivKey,
-	friendlyname string) {
+	metadata metadata) {
 	// TODO separate init and start functions
 	//  Init sets up structs
 	//  Start launches goroutines that depend on structs being set up
@@ -51,7 +51,7 @@ func (c *Core) init(bpub *boxPubKey,
 	}
 	c.boxPub, c.boxPriv = *bpub, *bpriv
 	c.sigPub, c.sigPriv = *spub, *spriv
-	c.friendlyName = friendlyname
+	c.metadata = metadata
 	c.admin.core = c
 	c.sigs.init()
 	c.searches.init(c)
@@ -65,11 +65,8 @@ func (c *Core) init(bpub *boxPubKey,
 }
 
 // Gets the friendly name of this node, as specified in the NodeConfig.
-func (c *Core) GetFriendlyName() string {
-	if c.friendlyName == "" {
-		return "(none)"
-	}
-	return c.friendlyName
+func (c *Core) GetMeta() metadata {
+	return c.metadata
 }
 
 // Starts up Yggdrasil using the provided NodeConfig, and outputs debug logging
@@ -105,7 +102,13 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	copy(sigPub[:], sigPubHex)
 	copy(sigPriv[:], sigPrivHex)
 
-	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv, nc.FriendlyName)
+	meta := metadata{
+		name:     nc.Metadata.Name,
+		location: nc.Metadata.Location,
+		contact:  nc.Metadata.Contact,
+	}
+
+	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv, meta)
 	c.admin.init(c, nc.AdminListen)
 
 	if err := c.tcp.init(c, nc.Listen, nc.ReadTimeout); err != nil {

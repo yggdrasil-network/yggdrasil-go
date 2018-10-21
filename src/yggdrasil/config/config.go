@@ -2,7 +2,7 @@ package config
 
 // NodeConfig defines all configuration values needed to run a signle yggdrasil node
 type NodeConfig struct {
-	FriendlyName                string              `comment:"Friendly name for this node. It is visible to direct peers."`
+	Metadata                    Metadata            `comment:"Optional node metadata. Entirely optional but visible to all\npeers and nodes with open sessions."`
 	Listen                      string              `comment:"Listen address for peer connections. Default is to listen for all\nTCP connections over IPv4 and IPv6 with a random port."`
 	AdminListen                 string              `comment:"Listen address for admin connections Default is to listen for local\nconnections either on TCP/9001 or a UNIX socket depending on your\nplatform. Use this value for yggdrasilctl -endpoint=X."`
 	Peers                       []string            `comment:"List of connection strings for static peers in URI format, i.e.\ntcp://a.b.c.d:e or socks://a.b.c.d:e/f.g.h.i:j."`
@@ -34,4 +34,10 @@ type SessionFirewall struct {
 	AlwaysAllowOutbound           bool     `comment:"Allow outbound network traffic regardless of AllowFromDirect or\nAllowFromRemote. This does allow a remote node to send unsolicited\ntraffic back to you for the length of the session."`
 	WhitelistEncryptionPublicKeys []string `comment:"List of public keys from which network traffic is always accepted,\nregardless of AllowFromDirect or AllowFromRemote."`
 	BlacklistEncryptionPublicKeys []string `comment:"List of public keys from which network traffic is always rejected,\nregardless of the whitelist, AllowFromDirect or AllowFromRemote."`
+}
+
+type Metadata struct {
+	Name     string
+	Location string
+	Contact  string
 }

@@ -13,34 +13,37 @@ import (
 // All the information we know about an active session.
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
 type sessionInfo struct {
-	core         *Core
-	theirAddr    address
-	theirSubnet  subnet
-	theirPermPub boxPubKey
-	theirSesPub  boxPubKey
-	mySesPub     boxPubKey
-	mySesPriv    boxPrivKey
-	sharedSesKey boxSharedKey // derived from session keys
-	theirHandle  handle
-	myHandle     handle
-	theirNonce   boxNonce
-	myNonce      boxNonce
-	theirMTU     uint16
-	myMTU        uint16
-	wasMTUFixed  bool      // Was the MTU fixed by a receive error?
-	time         time.Time // Time we last received a packet
-	coords       []byte    // coords of destination
-	packet       []byte    // a buffered packet, sent immediately on ping/pong
-	init         bool      // Reset if coords change
-	send         chan []byte
-	recv         chan *wire_trafficPacket
-	nonceMask    uint64
-	tstamp       int64     // tstamp from their last session ping, replay attack mitigation
-	mtuTime      time.Time // time myMTU was last changed
-	pingTime     time.Time // time the first ping was sent since the last received packet
-	pingSend     time.Time // time the last ping was sent
-	bytesSent    uint64    // Bytes of real traffic sent in this session
-	bytesRecvd   uint64    // Bytes of real traffic received in this session
+	core          *Core
+	theirAddr     address
+	theirSubnet   subnet
+	theirPermPub  boxPubKey
+	theirSesPub   boxPubKey
+	mySesPub      boxPubKey
+	mySesPriv     boxPrivKey
+	sharedSesKey  boxSharedKey // derived from session keys
+	theirHandle   handle
+	myHandle      handle
+	theirNonce    boxNonce
+	myNonce       boxNonce
+	metaReqTime   time.Time
+	metaResTime   time.Time
+	theirMetadata metadata
+	theirMTU      uint16
+	myMTU         uint16
+	wasMTUFixed   bool      // Was the MTU fixed by a receive error?
+	time          time.Time // Time we last received a packet
+	coords        []byte    // coords of destination
+	packet        []byte    // a buffered packet, sent immediately on ping/pong
+	init          bool      // Reset if coords change
+	send          chan []byte
+	recv          chan *wire_trafficPacket
+	nonceMask     uint64
+	tstamp        int64     // tstamp from their last session ping, replay attack mitigation
+	mtuTime       time.Time // time myMTU was last changed
+	pingTime      time.Time // time the first ping was sent since the last received packet
+	pingSend      time.Time // time the last ping was sent
+	bytesSent     uint64    // Bytes of real traffic sent in this session
+	bytesRecvd    uint64    // Bytes of real traffic received in this session
 }
 
 // Represents a session ping/pong packet, andincludes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
@@ -52,6 +55,13 @@ type sessionPing struct {
 	Tstamp      int64 // unix time, but the only real requirement is that it increases
 	IsPong      bool
 	MTU         uint16
+}
+
+// Represents a session metadata packet.
+type sessionMeta struct {
+	SendPermPub boxPubKey // Sender's permanent key
+	IsResponse  bool
+	Metadata    metadata
 }
 
 // Updates session info in response to a ping, after checking that the ping is OK.
@@ -430,6 +440,66 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 		var bs []byte
 		bs, sinfo.packet = sinfo.packet, nil
 		ss.core.router.sendPacket(bs)
+	}
+	if time.Since(sinfo.metaResTime).Minutes() > 15 {
+		if time.Since(sinfo.metaReqTime).Minutes() > 1 {
+			ss.sendMeta(sinfo, false)
+		}
+	}
+}
+
+func (ss *sessions) sendMeta(sinfo *sessionInfo, isResponse bool) {
+	meta := sessionMeta{
+		IsResponse: isResponse,
+		Metadata: metadata{
+			name:     "some.name.com", //[]byte(ss.core.friendlyName)[0:len(ss.core.friendlyName):32],
+			location: "Some Place",
+			contact:  "someone@somewhere.com",
+		},
+	}
+	bs := meta.encode()
+	shared := ss.getSharedKey(&ss.core.boxPriv, &sinfo.theirPermPub)
+	payload, nonce := boxSeal(shared, bs, nil)
+	p := wire_protoTrafficPacket{
+		Coords:  sinfo.coords,
+		ToKey:   sinfo.theirPermPub,
+		FromKey: ss.core.boxPub,
+		Nonce:   *nonce,
+		Payload: payload,
+	}
+	packet := p.encode()
+	ss.core.router.out(packet)
+	if isResponse {
+		ss.core.log.Println("Sent meta response to", sinfo.theirAddr)
+	} else {
+		ss.core.log.Println("Sent meta request to", sinfo.theirAddr)
+		sinfo.metaReqTime = time.Now()
+	}
+}
+
+// Handles a meta request/response.
+func (ss *sessions) handleMeta(meta *sessionMeta) {
+	// Get the corresponding session (or create a new session)
+	sinfo, isIn := ss.getByTheirPerm(&meta.SendPermPub)
+	// Check the session firewall
+	if !isIn && ss.sessionFirewallEnabled {
+		if !ss.isSessionAllowed(&meta.SendPermPub, false) {
+			return
+		}
+	}
+	if !isIn || sinfo.timedout() {
+		return
+	}
+	if meta.IsResponse {
+		ss.core.log.Println("Received meta response", string(meta.Metadata.name), "from", sinfo.theirAddr)
+		sinfo.theirMetadata = meta.Metadata
+		sinfo.metaResTime = time.Now()
+		ss.core.log.Println("- name:", meta.Metadata.name)
+		ss.core.log.Println("- contact:", meta.Metadata.contact)
+		ss.core.log.Println("- location:", meta.Metadata.location)
+	} else {
+		ss.core.log.Println("Received meta request", string(meta.Metadata.name), "from", sinfo.theirAddr)
+		ss.sendMeta(sinfo, true)
 	}
 }
 

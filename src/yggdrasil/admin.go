@@ -470,7 +470,9 @@ func (a *admin) getData_getSelf() *admin_nodeInfo {
 		{"ip", a.core.GetAddress().String()},
 		{"subnet", a.core.GetSubnet().String()},
 		{"coords", fmt.Sprint(coords)},
-		{"friendly_name", a.core.friendlyName},
+		{"name", a.core.metadata.name},
+		{"location", a.core.metadata.location},
+		{"contact", a.core.metadata.contact},
 	}
 	return &self
 }
@@ -494,7 +496,6 @@ func (a *admin) getData_getPeers() []admin_nodeInfo {
 			{"bytes_sent", atomic.LoadUint64(&p.bytesSent)},
 			{"bytes_recvd", atomic.LoadUint64(&p.bytesRecvd)},
 			{"endpoint", p.endpoint},
-			{"friendly_name", p.friendlyName},
 		}
 		peerInfos = append(peerInfos, info)
 	}
@@ -520,7 +521,6 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 			{"bytes_sent", atomic.LoadUint64(&peer.bytesSent)},
 			{"bytes_recvd", atomic.LoadUint64(&peer.bytesRecvd)},
 			{"endpoint", peer.endpoint},
-			{"friendly_name", peer.friendlyName},
 		}
 		peerInfos = append(peerInfos, info)
 	}

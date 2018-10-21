@@ -16,6 +16,8 @@ const (
 	wire_SessionPong                // inside protocol traffic header
 	wire_DHTLookupRequest           // inside protocol traffic header
 	wire_DHTLookupResponse          // inside protocol traffic header
+	wire_SessionMetaRequest         // inside protocol traffic header
+	wire_SessionMetaResponse        // inside protocol traffic header
 )
 
 // Calls wire_put_uint64 on a nil slice.
@@ -348,6 +350,48 @@ func (p *sessionPing) decode(bs []byte) bool {
 		p.IsPong = true
 	}
 	p.MTU = uint16(mtu)
+	return true
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Encodes a sessionPing into its wire format.
+func (p *sessionMeta) encode() []byte {
+	var pTypeVal uint64
+	if p.IsResponse {
+		pTypeVal = wire_SessionMetaResponse
+	} else {
+		pTypeVal = wire_SessionMetaRequest
+	}
+	bs := wire_encode_uint64(pTypeVal)
+	if p.IsResponse {
+		bs = append(bs, p.Metadata.name...)
+		bs = append(bs, p.Metadata.location...)
+		bs = append(bs, p.Metadata.contact...)
+	}
+	return bs
+}
+
+// Decodes an encoded sessionPing into the struct, returning true if successful.
+func (p *sessionMeta) decode(bs []byte) bool {
+	var pType uint64
+	switch {
+	case !wire_chop_uint64(&pType, &bs):
+		return false
+	case pType != wire_SessionMetaRequest && pType != wire_SessionMetaResponse:
+		return false
+	}
+	p.IsResponse = pType == wire_SessionMetaResponse
+	if p.IsResponse {
+		switch {
+		case !wire_chop_slice([]byte(p.Metadata.name), &bs):
+			return false
+		case !wire_chop_slice([]byte(p.Metadata.location), &bs):
+			return false
+		case !wire_chop_slice([]byte(p.Metadata.contact), &bs):
+			return false
+		}
+	}
 	return true
 }
 

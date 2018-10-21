@@ -79,34 +79,34 @@ type peer struct {
 	bytesSent  uint64 // To track bandwidth usage for getPeers
 	bytesRecvd uint64 // To track bandwidth usage for getPeers
 	// BUG: sync/atomic, 32 bit platforms need the above to be the first element
-	core         *Core
-	port         switchPort
-	box          boxPubKey
-	sig          sigPubKey
-	shared       boxSharedKey
-	linkShared   boxSharedKey
-	endpoint     string
-	friendlyName string
-	firstSeen    time.Time       // To track uptime for getPeers
-	linkOut      (chan []byte)   // used for protocol traffic (to bypass queues)
-	doSend       (chan struct{}) // tell the linkLoop to send a switchMsg
-	dinfo        *dhtInfo        // used to keep the DHT working
-	out          func([]byte)    // Set up by whatever created the peers struct, used to send packets to other nodes
-	close        func()          // Called when a peer is removed, to close the underlying connection, or via admin api
+	core       *Core
+	port       switchPort
+	box        boxPubKey
+	sig        sigPubKey
+	shared     boxSharedKey
+	linkShared boxSharedKey
+	endpoint   string
+	metadata   metadata
+	firstSeen  time.Time       // To track uptime for getPeers
+	linkOut    (chan []byte)   // used for protocol traffic (to bypass queues)
+	doSend     (chan struct{}) // tell the linkLoop to send a switchMsg
+	dinfo      *dhtInfo        // used to keep the DHT working
+	out        func([]byte)    // Set up by whatever created the peers struct, used to send packets to other nodes
+	close      func()          // Called when a peer is removed, to close the underlying connection, or via admin api
 }
 
 // Creates a new peer with the specified box, sig, and linkShared keys, using the lowest unocupied port number.
-func (ps *peers) newPeer(box *boxPubKey, sig *sigPubKey, linkShared *boxSharedKey, endpoint string, friendlyname string) *peer {
+func (ps *peers) newPeer(box *boxPubKey, sig *sigPubKey, linkShared *boxSharedKey, endpoint string, metadata metadata) *peer {
 	now := time.Now()
 	p := peer{box: *box,
-		sig:          *sig,
-		shared:       *getSharedKey(&ps.core.boxPriv, box),
-		linkShared:   *linkShared,
-		endpoint:     endpoint,
-		friendlyName: friendlyname,
-		firstSeen:    now,
-		doSend:       make(chan struct{}, 1),
-		core:         ps.core}
+		sig:        *sig,
+		shared:     *getSharedKey(&ps.core.boxPriv, box),
+		linkShared: *linkShared,
+		endpoint:   endpoint,
+		metadata:   metadata,
+		firstSeen:  now,
+		doSend:     make(chan struct{}, 1),
+		core:       ps.core}
 	ps.mutex.Lock()
 	defer ps.mutex.Unlock()
 	oldPorts := ps.getPorts()
