@@ -183,8 +183,10 @@ func (p *peer) linkLoop() {
 			}
 			p.sendSwitchMsg()
 		case _ = <-tick.C:
-			if p.dinfo != nil {
-				p.core.dht.peers <- p.dinfo
+			pdinfo := p.dinfo // FIXME this is a bad workarond NPE on the next line
+			if pdinfo != nil {
+				dinfo := *pdinfo
+				p.core.dht.peers <- &dinfo
 			}
 		}
 	}

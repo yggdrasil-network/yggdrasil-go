@@ -1,6 +1,12 @@
 package yggdrasil
 
+// TODO signal to predecessor when we replace them?
+//  Sending a ping with an extra 0 at the end of our coords should be enough to reset our throttle in their table
+//  That should encorage them to ping us again sooner, and then we can reply with new info
+//  Maybe remember old predecessor and check this during maintenance?
+
 import (
+	"fmt"
 	"sort"
 	"time"
 )
@@ -146,22 +152,32 @@ func (t *dht) insert(info *dhtInfo) {
 // Return true if first/second/third are (partially) ordered correctly
 //  FIXME? maybe total ordering makes more sense
 func dht_ordered(first, second, third *NodeID) bool {
-	var ordered bool
-	for idx := 0; idx < NodeIDLen; idx++ {
-		f, s, t := first[idx], second[idx], third[idx]
-		switch {
-		case f == s && s == t:
-			continue
-		case f <= s && s <= t:
-			ordered = true // nothing wrapped around 0
-		case t <= f && f <= s:
-			ordered = true // 0 is between second and third
-		case s <= t && t <= f:
-			ordered = true // 0 is between first and second
+	lessOrEqual := func(first, second *NodeID) bool {
+		for idx := 0; idx < NodeIDLen; idx++ {
+			if first[idx] > second[idx] {
+				return false
+			}
+			if first[idx] < second[idx] {
+				return true
+			}
 		}
-		break
+		return true
 	}
-	return ordered
+	firstLessThanSecond := lessOrEqual(first, second)
+	secondLessThanThird := lessOrEqual(second, third)
+	thirdLessThanFirst := lessOrEqual(third, first)
+	switch {
+	case firstLessThanSecond && secondLessThanThird:
+		// Nothing wrapped around 0, the easy case
+		return true
+	case thirdLessThanFirst && firstLessThanSecond:
+		// Third wrapped around 0
+		return true
+	case secondLessThanThird && thirdLessThanFirst:
+		// Second (and third) wrapped around 0
+		return true
+	}
+	return false
 }
 
 // Reads a request, performs a lookup, and responds.
@@ -254,6 +270,9 @@ func (t *dht) handleRes(res *dhtRes) {
 			predecessor = info
 		}
 	}
+	if len(res.Infos) > dht_lookup_size {
+		res.Infos = res.Infos[:dht_lookup_size]
+	}
 	for _, info := range res.Infos {
 		if *info.getNodeID() == t.nodeID {
 			continue
@@ -331,8 +350,29 @@ func (t *dht) doMaintenance() {
 		t.ping(successor, nil)
 		successor.pings++
 		successor.throttle += time.Second
+		/////
+		if now.Sub(t.search) > 30*time.Second {
+			t.search = now
+			target := successor.getNodeID().prev()
+			sinfo, isIn := t.core.searches.searches[target]
+			if !isIn {
+				var mask NodeID
+				for idx := range mask {
+					mask[idx] = 0xff
+				}
+				sinfo = t.core.searches.newIterSearch(&target, &mask)
+			}
+			t.core.searches.continueSearch(sinfo)
+		}
+		/////
+		return
+		fmt.Println("DEBUG self:", t.nodeID[:8], "throttle:", successor.throttle, "nodeID:", successor.getNodeID()[:8], "coords:", successor.coords)
+		for infoID := range t.table {
+			fmt.Println("DEBUG other info:", infoID[:8], "ordered", dht_ordered(&t.nodeID, &infoID, successor.getNodeID()), "swapped:", dht_ordered(&t.nodeID, successor.getNodeID(), &infoID))
+		}
 		if successor.throttle > 30*time.Second {
 			successor.throttle = 30 * time.Second
 		}
+		fmt.Println("Table size:", len(t.table))
 	}
 }

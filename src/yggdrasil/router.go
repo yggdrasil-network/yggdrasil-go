@@ -92,6 +92,7 @@ func (r *router) mainLoop() {
 			r.sendPacket(p)
 		case info := <-r.core.dht.peers:
 			r.core.dht.insert(info)
+			info.throttle = 0
 		case <-r.reset:
 			r.core.sessions.resetInits()
 			r.core.dht.reset()
