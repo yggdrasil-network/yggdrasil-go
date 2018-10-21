@@ -16,29 +16,31 @@ import (
 // object for each Yggdrasil node you plan to run.
 type Core struct {
 	// This is the main data structure that holds everything else for a node
-	boxPub      boxPubKey
-	boxPriv     boxPrivKey
-	sigPub      sigPubKey
-	sigPriv     sigPrivKey
-	switchTable switchTable
-	peers       peers
-	sigs        sigManager
-	sessions    sessions
-	router      router
-	dht         dht
-	tun         tunDevice
-	admin       admin
-	searches    searches
-	multicast   multicast
-	tcp         tcpInterface
-	log         *log.Logger
-	ifceExpr    []*regexp.Regexp // the zone of link-local IPv6 peers must match this
+	boxPub       boxPubKey
+	boxPriv      boxPrivKey
+	sigPub       sigPubKey
+	sigPriv      sigPrivKey
+	friendlyName string
+	switchTable  switchTable
+	peers        peers
+	sigs         sigManager
+	sessions     sessions
+	router       router
+	dht          dht
+	tun          tunDevice
+	admin        admin
+	searches     searches
+	multicast    multicast
+	tcp          tcpInterface
+	log          *log.Logger
+	ifceExpr     []*regexp.Regexp // the zone of link-local IPv6 peers must match this
 }
 
 func (c *Core) init(bpub *boxPubKey,
 	bpriv *boxPrivKey,
 	spub *sigPubKey,
-	spriv *sigPrivKey) {
+	spriv *sigPrivKey,
+	friendlyname string) {
 	// TODO separate init and start functions
 	//  Init sets up structs
 	//  Start launches goroutines that depend on structs being set up
@@ -49,6 +51,7 @@ func (c *Core) init(bpub *boxPubKey,
 	}
 	c.boxPub, c.boxPriv = *bpub, *bpriv
 	c.sigPub, c.sigPriv = *spub, *spriv
+	c.friendlyName = friendlyname
 	c.admin.core = c
 	c.sigs.init()
 	c.searches.init(c)
@@ -59,6 +62,14 @@ func (c *Core) init(bpub *boxPubKey,
 	c.router.init(c)
 	c.switchTable.init(c, c.sigPub) // TODO move before peers? before router?
 	c.tun.init(c)
+}
+
+// Gets the friendly name of this node, as specified in the NodeConfig.
+func (c *Core) GetFriendlyName() string {
+	if c.friendlyName == "" {
+		return "(none)"
+	}
+	return c.friendlyName
 }
 
 // Starts up Yggdrasil using the provided NodeConfig, and outputs debug logging
@@ -94,7 +105,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	copy(sigPub[:], sigPubHex)
 	copy(sigPriv[:], sigPrivHex)
 
-	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv)
+	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv, nc.FriendlyName)
 	c.admin.init(c, nc.AdminListen)
 
 	if err := c.tcp.init(c, nc.Listen, nc.ReadTimeout); err != nil {
