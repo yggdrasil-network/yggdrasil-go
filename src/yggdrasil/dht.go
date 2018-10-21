@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const dht_lookup_size = 4
+const dht_lookup_size = 16
 
 // dhtInfo represents everything we know about a node in the DHT.
 // This includes its key, a cache of it's NodeID, coords, and timing/ping related info for deciding who/when to ping nodes for maintenance.
@@ -75,43 +75,16 @@ func (t *dht) reset() {
 }
 
 // Does a DHT lookup and returns up to dht_lookup_size results
-// If allowWorse = true, begins with best know predecessor for ID and works backwards, even if these nodes are worse predecessors than we are, to be used when intializing searches
-// If allowWorse = false, begins with the best known successor for ID and works backwards (next is predecessor, etc, inclusive of the ID if it's a known node)
 func (t *dht) lookup(nodeID *NodeID, everything bool) []*dhtInfo {
 	results := make([]*dhtInfo, 0, len(t.table))
 	for _, info := range t.table {
 		results = append(results, info)
 	}
 	sort.SliceStable(results, func(i, j int) bool {
-		return dht_ordered(results[j].getNodeID(), results[i].getNodeID(), nodeID)
+		return dht_ordered(nodeID, results[i].getNodeID(), results[j].getNodeID())
 	})
 	if len(results) > dht_lookup_size {
-		//results = results[:dht_lookup_size] //FIXME debug
-	}
-	return results
-}
-
-func (t *dht) old_lookup(nodeID *NodeID, allowWorse bool) []*dhtInfo {
-	var results []*dhtInfo
-	var successor *dhtInfo
-	sTarget := t.nodeID.next()
-	for infoID, info := range t.table {
-		if true || allowWorse || dht_ordered(&t.nodeID, &infoID, nodeID) {
-			results = append(results, info)
-		} else {
-			if successor == nil || dht_ordered(&sTarget, &infoID, successor.getNodeID()) {
-				successor = info
-			}
-		}
-	}
-	sort.SliceStable(results, func(i, j int) bool {
-		return dht_ordered(results[j].getNodeID(), results[i].getNodeID(), nodeID)
-	})
-	if successor != nil {
-		results = append([]*dhtInfo{successor}, results...)
-	}
-	if len(results) > dht_lookup_size {
-		//results = results[:dht_lookup_size] //FIXME debug
+		results = results[:dht_lookup_size]
 	}
 	return results
 }
@@ -350,8 +323,9 @@ func (t *dht) getImportant() []*dhtInfo {
 	}
 	// Sort them by increasing order in distance along the ring
 	sort.SliceStable(infos, func(i, j int) bool {
-		// Sort in order of successors
-		return dht_ordered(&t.nodeID, infos[i].getNodeID(), infos[j].getNodeID())
+		// Sort in order of predecessors (!), reverse from chord normal, becuase it plays nicer with zero bits for unknown parts of target addresses
+		return dht_ordered(infos[j].getNodeID(), infos[i].getNodeID(), &t.nodeID)
+		//return dht_ordered(&t.nodeID, infos[i].getNodeID(), infos[j].getNodeID())
 	})
 	// Keep the ones that are no further than the closest seen so far
 	minDist := ^uint64(0)
@@ -377,7 +351,8 @@ func (t *dht) isImportant(ninfo *dhtInfo, important []*dhtInfo) bool {
 		if dist < minDist {
 			minDist = dist
 		}
-		if dht_ordered(&t.nodeID, ninfo.getNodeID(), info.getNodeID()) && ndist <= minDist {
+		//if dht_ordered(&t.nodeID, ninfo.getNodeID(), info.getNodeID()) && ndist <= minDist {
+		if dht_ordered(info.getNodeID(), ninfo.getNodeID(), &t.nodeID) && ndist <= minDist {
 			// This node is at least as close in both key space and tree space
 			return true
 		}
