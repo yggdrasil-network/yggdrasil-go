@@ -155,12 +155,6 @@ func main() {
 							minutes := uint(preformatted.(float64)/60) % 60
 							hours := uint(preformatted.(float64) / 60 / 60)
 							formatted = fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds)
-						case "friendly_name":
-							if len(preformatted.(string)) > 32 {
-								formatted = fmt.Sprintf("%s...", preformatted.(string)[:32])
-							} else {
-								formatted = preformatted.(string)
-							}
 						default:
 							formatted = fmt.Sprint(preformatted)
 						}

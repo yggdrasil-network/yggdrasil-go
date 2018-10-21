@@ -96,17 +96,16 @@ type peer struct {
 }
 
 // Creates a new peer with the specified box, sig, and linkShared keys, using the lowest unocupied port number.
-func (ps *peers) newPeer(box *boxPubKey, sig *sigPubKey, linkShared *boxSharedKey, endpoint string, friendlyname string) *peer {
+func (ps *peers) newPeer(box *boxPubKey, sig *sigPubKey, linkShared *boxSharedKey, endpoint string) *peer {
 	now := time.Now()
 	p := peer{box: *box,
-		sig:          *sig,
-		shared:       *getSharedKey(&ps.core.boxPriv, box),
-		linkShared:   *linkShared,
-		endpoint:     endpoint,
-		friendlyName: friendlyname,
-		firstSeen:    now,
-		doSend:       make(chan struct{}, 1),
-		core:         ps.core}
+		sig:        *sig,
+		shared:     *getSharedKey(&ps.core.boxPriv, box),
+		linkShared: *linkShared,
+		endpoint:   endpoint,
+		firstSeen:  now,
+		doSend:     make(chan struct{}, 1),
+		core:       ps.core}
 	ps.mutex.Lock()
 	defer ps.mutex.Unlock()
 	oldPorts := ps.getPorts()
