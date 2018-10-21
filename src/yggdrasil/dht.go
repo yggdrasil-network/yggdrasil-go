@@ -52,6 +52,7 @@ type dht struct {
 	table  map[NodeID]*dhtInfo
 	peers  chan *dhtInfo // other goroutines put incoming dht updates here
 	reqs   map[boxPubKey]map[NodeID]time.Time
+	search time.Time
 }
 
 // Initializes the DHT
@@ -79,6 +80,7 @@ func (t *dht) reset() {
 	}
 	t.reqs = make(map[boxPubKey]map[NodeID]time.Time)
 	t.table = make(map[NodeID]*dhtInfo)
+	t.search = time.Now().Add(-time.Minute)
 	if successor != nil {
 		t.ping(successor, &t.nodeID)
 	}
@@ -323,8 +325,37 @@ func (t *dht) doMaintenance() {
 	}
 	if successor != nil &&
 		now.Sub(successor.recv) > successor.throttle &&
-		now.Sub(successor.send) > 6*time.Second {
+		now.Sub(successor.send) > 3*time.Second {
 		t.ping(successor, nil)
 		successor.pings++
+		if now.Sub(t.search) > time.Minute {
+			// Start a search for our successor, beginning at this node's parent
+			// This should (hopefully) help bootstrap
+			t.core.switchTable.mutex.RLock()
+			parentPort := t.core.switchTable.parent
+			t.core.switchTable.mutex.RUnlock()
+			ports := t.core.peers.getPorts()
+			if parent, isIn := ports[parentPort]; isIn {
+				t.search = now
+				target := successor.getNodeID().prev()
+				sinfo, isIn := t.core.searches.searches[target]
+				if !isIn {
+					var mask NodeID
+					for idx := range mask {
+						mask[idx] = 0xff
+					}
+					sinfo = t.core.searches.newIterSearch(&target, &mask)
+					toVisit := sinfo.toVisit
+					parentNodeID := getNodeID(&parent.box)
+					for _, ninfo := range toVisit {
+						if *ninfo.getNodeID() == *parentNodeID {
+							toVisit = append(toVisit, ninfo)
+						}
+					}
+					sinfo.toVisit = toVisit
+				}
+				t.core.searches.continueSearch(sinfo)
+			}
+		}
 	}
 }

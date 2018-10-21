@@ -158,9 +158,9 @@ type switchTable struct {
 	core     *Core
 	key      sigPubKey           // Our own key
 	time     time.Time           // Time when locator.tstamp was last updated
-	parent   switchPort          // Port of whatever peer is our parent, or self if we're root
 	drop     map[sigPubKey]int64 // Tstamp associated with a dropped root
 	mutex    sync.RWMutex        // Lock for reads/writes of switchData
+	parent   switchPort          // Port of whatever peer is our parent, or self if we're root
 	data     switchData          //
 	updater  atomic.Value        // *sync.Once
 	table    atomic.Value        // lookupTable
