@@ -102,12 +102,22 @@ func (t *dht) reset() {
 // Does a DHT lookup and returns up to dht_lookup_size results
 // If allowWorse = true, begins with best know predecessor for ID and works backwards, even if these nodes are worse predecessors than we are, to be used when intializing searches
 // If allowWorse = false, begins with the best known successor for ID and works backwards (next is predecessor, etc, inclusive of the ID if it's a known node)
-func (t *dht) lookup(nodeID *NodeID, allowWorse bool) []*dhtInfo {
+func (t *dht) lookup(nodeID *NodeID, everything bool) []*dhtInfo {
+	var results []*dhtInfo
+	for infoID, info := range t.table {
+		if everything || t.isImportant(&infoID) {
+			results = append(results, info)
+		}
+	}
+	return results
+}
+
+func (t *dht) old_lookup(nodeID *NodeID, allowWorse bool) []*dhtInfo {
 	var results []*dhtInfo
 	var successor *dhtInfo
 	sTarget := t.nodeID.next()
 	for infoID, info := range t.table {
-		if allowWorse || dht_ordered(&t.nodeID, &infoID, nodeID) {
+		if true || allowWorse || dht_ordered(&t.nodeID, &infoID, nodeID) {
 			results = append(results, info)
 		} else {
 			if successor == nil || dht_ordered(&sTarget, &infoID, successor.getNodeID()) {
@@ -122,7 +132,7 @@ func (t *dht) lookup(nodeID *NodeID, allowWorse bool) []*dhtInfo {
 		results = append([]*dhtInfo{successor}, results...)
 	}
 	if len(results) > dht_lookup_size {
-		results = results[:dht_lookup_size]
+		//results = results[:dht_lookup_size] //FIXME debug
 	}
 	return results
 }
@@ -265,7 +275,7 @@ func (t *dht) handleRes(res *dhtRes) {
 	}
 	t.insert(&rinfo) // Or at the end, after checking successor/predecessor?
 	if len(res.Infos) > dht_lookup_size {
-		res.Infos = res.Infos[:dht_lookup_size]
+		//res.Infos = res.Infos[:dht_lookup_size] //FIXME debug
 	}
 	for _, info := range res.Infos {
 		if *info.getNodeID() == t.nodeID {
