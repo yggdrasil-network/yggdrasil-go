@@ -181,6 +181,13 @@ func main() {
 			}
 		case "getself":
 			for k, v := range res["self"].(map[string]interface{}) {
+				if friendlyname, ok := v.(map[string]interface{})["friendly_name"].(string); ok {
+					if friendlyname == "" {
+						fmt.Println("Friendly name: (none)")
+					} else {
+						fmt.Println("Friendly name:", friendlyname)
+					}
+				}
 				fmt.Println("IPv6 address:", k)
 				if subnet, ok := v.(map[string]interface{})["subnet"].(string); ok {
 					fmt.Println("IPv6 subnet:", subnet)
