@@ -15,6 +15,7 @@ type dhtInfo struct {
 	coords        []byte
 	recv          time.Time // When we last received a message
 	pings         int       // Time out if at least 3 consecutive maintenance pings drop
+	throttle      time.Duration
 }
 
 // Returns the *NodeID associated with dhtInfo.key, calculating it on the fly the first time or from a cache all subsequent times.
@@ -123,6 +124,22 @@ func (t *dht) insert(info *dhtInfo) {
 		panic("FIXME")
 	}
 	info.recv = time.Now()
+	if oldInfo, isIn := t.table[*info.getNodeID()]; isIn {
+		sameCoords := true
+		if len(info.coords) != len(oldInfo.coords) {
+			sameCoords = false
+		} else {
+			for idx := 0; idx < len(info.coords); idx++ {
+				if info.coords[idx] != oldInfo.coords[idx] {
+					sameCoords = false
+					break
+				}
+			}
+		}
+		if sameCoords {
+			info.throttle = oldInfo.throttle
+		}
+	}
 	t.table[*info.getNodeID()] = info
 }
 
@@ -309,8 +326,13 @@ func (t *dht) doMaintenance() {
 			successor = info
 		}
 	}
-	if successor != nil {
+	if successor != nil &&
+		now.Sub(successor.recv) > successor.throttle {
 		t.ping(successor, nil)
 		successor.pings++
+		successor.throttle += time.Second
+		if successor.throttle > 30*time.Second {
+			successor.throttle = 30 * time.Second
+		}
 	}
 }
