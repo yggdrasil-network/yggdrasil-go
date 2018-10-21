@@ -50,7 +50,7 @@ func StartProfiler(log *log.Logger) error {
 func (c *Core) Init() {
 	bpub, bpriv := newBoxKeys()
 	spub, spriv := newSigKeys()
-	c.init(bpub, bpriv, spub, spriv)
+	c.init(bpub, bpriv, spub, spriv, "(simulator)")
 	c.switchTable.start()
 	c.router.start()
 }
@@ -84,7 +84,7 @@ func (c *Core) DEBUG_getPeers() *peers {
 func (ps *peers) DEBUG_newPeer(box boxPubKey, sig sigPubKey, link boxSharedKey) *peer {
 	//in <-chan []byte,
 	//out chan<- []byte) *peer {
-	return ps.newPeer(&box, &sig, &link) //, in, out)
+	return ps.newPeer(&box, &sig, &link, "(simulator)", "(simulator)") //, in, out)
 }
 
 /*
@@ -358,7 +358,7 @@ func (c *Core) DEBUG_init(bpub []byte,
 	copy(boxPriv[:], bpriv)
 	copy(sigPub[:], spub)
 	copy(sigPriv[:], spriv)
-	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv)
+	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv, "(simulator)")
 
 	if err := c.router.start(); err != nil {
 		panic(err)
