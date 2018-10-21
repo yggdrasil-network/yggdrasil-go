@@ -183,6 +183,7 @@ func (p *peer) linkLoop() {
 			}
 			p.sendSwitchMsg()
 		case _ = <-tick.C:
+			break             // FIXME disabled the below completely to test something
 			pdinfo := p.dinfo // FIXME this is a bad workarond NPE on the next line
 			if pdinfo != nil {
 				dinfo := *pdinfo
@@ -332,7 +333,7 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 		key:    p.box,
 		coords: loc.getCoords(),
 	}
-	p.core.dht.peers <- &dinfo
+	//p.core.dht.peers <- &dinfo
 	p.dinfo = &dinfo
 }
 

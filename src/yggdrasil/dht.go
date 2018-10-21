@@ -57,7 +57,6 @@ type dht struct {
 	table  map[NodeID]*dhtInfo
 	peers  chan *dhtInfo // other goroutines put incoming dht updates here
 	reqs   map[boxPubKey]map[NodeID]time.Time
-	search time.Time
 }
 
 // Initializes the DHT
@@ -85,12 +84,11 @@ func (t *dht) reset() {
 	}
 	t.reqs = make(map[boxPubKey]map[NodeID]time.Time)
 	t.table = make(map[NodeID]*dhtInfo)
-	t.search = time.Now().Add(-time.Minute)
 	if successor != nil {
-		t.ping(successor, &t.nodeID)
+		t.ping(successor, nil)
 	}
 	if predecessor != nil {
-		t.ping(predecessor, &t.nodeID)
+		t.ping(predecessor, nil)
 	}
 }
 
@@ -199,7 +197,24 @@ func (t *dht) handleReq(req *dhtReq) {
 		coords: req.Coords,
 	}
 	// For bootstrapping to work, we need to add these nodes to the table
-	t.insert(&info)
+	//t.insert(&info)
+	// FIXME? DEBUG testing what happens if we only add better predecessors/successors
+	var successor *dhtInfo
+	var predecessor *dhtInfo
+	for infoID, v := range t.table {
+		// Get current successor and predecessor
+		if successor == nil || dht_ordered(&t.nodeID, &infoID, successor.getNodeID()) {
+			successor = v
+		}
+		if predecessor == nil || dht_ordered(predecessor.getNodeID(), &infoID, &t.nodeID) {
+			predecessor = v
+		}
+	}
+	if successor != nil && dht_ordered(&t.nodeID, info.getNodeID(), successor.getNodeID()) {
+		t.insert(&info)
+	} else if predecessor != nil && dht_ordered(predecessor.getNodeID(), info.getNodeID(), &t.nodeID) {
+		t.insert(&info)
+	}
 }
 
 // Sends a lookup response to the specified node.
@@ -263,10 +278,10 @@ func (t *dht) handleRes(res *dhtRes) {
 	var predecessor *dhtInfo
 	for infoID, info := range t.table {
 		// Get current successor and predecessor
-		if successor == nil || dht_ordered(&t.nodeID, &infoID, successor.getNodeID()) {
+		if successor != nil && dht_ordered(&t.nodeID, &infoID, successor.getNodeID()) {
 			successor = info
 		}
-		if predecessor == nil || dht_ordered(predecessor.getNodeID(), &infoID, &t.nodeID) {
+		if predecessor != nil && dht_ordered(predecessor.getNodeID(), &infoID, &t.nodeID) {
 			predecessor = info
 		}
 	}
@@ -284,10 +299,9 @@ func (t *dht) handleRes(res *dhtRes) {
 		// Send a request to all better successors or predecessors
 		// We could try sending to only the best, but then packet loss matters more
 		if successor == nil || dht_ordered(&t.nodeID, info.getNodeID(), successor.getNodeID()) {
-			t.ping(info, &t.nodeID)
-		}
-		if predecessor == nil || dht_ordered(predecessor.getNodeID(), info.getNodeID(), &t.nodeID) {
-			t.ping(info, &t.nodeID)
+			t.ping(info, nil)
+		} else if predecessor == nil || dht_ordered(predecessor.getNodeID(), info.getNodeID(), &t.nodeID) {
+			t.ping(info, nil)
 		}
 	}
 	// TODO add everyting else to a rumor mill for later use? (when/how?)
@@ -322,7 +336,7 @@ func (t *dht) sendReq(req *dhtReq, dest *dhtInfo) {
 func (t *dht) ping(info *dhtInfo, target *NodeID) {
 	// Creates a req for the node at dhtInfo, asking them about the target (if one is given) or themself (if no target is given)
 	if target == nil {
-		target = info.getNodeID()
+		target = &t.nodeID
 	}
 	loc := t.core.switchTable.getLocator()
 	coords := loc.getCoords()
@@ -337,42 +351,67 @@ func (t *dht) ping(info *dhtInfo, target *NodeID) {
 func (t *dht) doMaintenance() {
 	// Ping successor, asking for their predecessor, and clean up old/expired info
 	var successor *dhtInfo
+	var predecessor *dhtInfo
+	toPing := make(map[NodeID]*dhtInfo)
 	now := time.Now()
 	for infoID, info := range t.table {
 		if now.Sub(info.recv) > time.Minute || info.pings > 3 {
 			delete(t.table, infoID)
 		} else if successor == nil || dht_ordered(&t.nodeID, &infoID, successor.getNodeID()) {
 			successor = info
+		} else if predecessor == nil || dht_ordered(predecessor.getNodeID(), &infoID, &t.nodeID) {
+			predecessor = info
 		}
 	}
+	//////////////////////////////////////////////////////////////////////////////
+	t.core.switchTable.mutex.RLock()
+	parentPort := t.core.switchTable.parent
+	parentInfo := t.core.switchTable.data.peers[parentPort]
+	t.core.switchTable.mutex.RUnlock()
+	ports := t.core.peers.getPorts()
+	if parent, isIn := ports[parentPort]; isIn {
+		loc := parentInfo.locator.clone()
+		end := len(loc.coords)
+		if end > 0 {
+			end -= 1
+		}
+		loc.coords = loc.coords[:end]
+		pinfo := dhtInfo{key: parent.box, coords: loc.getCoords()}
+		t.insert(&pinfo)
+	}
+	//////////////////////////////////////////////////////////////////////////////
+	if successor != nil {
+		toPing[*successor.getNodeID()] = successor
+	}
+	if predecessor != nil {
+		toPing[*predecessor.getNodeID()] = predecessor
+	}
+	for _, info := range toPing {
+		if now.Sub(info.recv) > info.throttle {
+			t.ping(info, nil)
+			info.pings++
+			info.throttle += time.Second
+			if info.throttle > 30*time.Second {
+				info.throttle = 30 * time.Second
+			}
+			//fmt.Println("DEBUG self:", t.nodeID[:8], "throttle:", info.throttle, "nodeID:", info.getNodeID()[:8], "coords:", info.coords)
+		}
+	}
+	return
+	//////////////////////////////////////////////////////////////////////////////
 	if successor != nil &&
 		now.Sub(successor.recv) > successor.throttle {
 		t.ping(successor, nil)
 		successor.pings++
 		successor.throttle += time.Second
-		/////
-		if now.Sub(t.search) > 30*time.Second {
-			t.search = now
-			target := successor.getNodeID().prev()
-			sinfo, isIn := t.core.searches.searches[target]
-			if !isIn {
-				var mask NodeID
-				for idx := range mask {
-					mask[idx] = 0xff
-				}
-				sinfo = t.core.searches.newIterSearch(&target, &mask)
-			}
-			t.core.searches.continueSearch(sinfo)
-		}
-		/////
-		return
+		//return
 		fmt.Println("DEBUG self:", t.nodeID[:8], "throttle:", successor.throttle, "nodeID:", successor.getNodeID()[:8], "coords:", successor.coords)
-		for infoID := range t.table {
-			fmt.Println("DEBUG other info:", infoID[:8], "ordered", dht_ordered(&t.nodeID, &infoID, successor.getNodeID()), "swapped:", dht_ordered(&t.nodeID, successor.getNodeID(), &infoID))
-		}
+		//for infoID := range t.table {
+		//	fmt.Println("DEBUG other info:", infoID[:8], "ordered", dht_ordered(&t.nodeID, &infoID, successor.getNodeID()), "swapped:", dht_ordered(&t.nodeID, successor.getNodeID(), &infoID))
+		//}
 		if successor.throttle > 30*time.Second {
 			successor.throttle = 30 * time.Second
 		}
-		fmt.Println("Table size:", len(t.table))
+		//fmt.Println("Table size:", len(t.table))
 	}
 }
