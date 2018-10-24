@@ -492,6 +492,7 @@ func (a *admin) getData_getPeers() []admin_nodeInfo {
 			{"uptime", int(time.Since(p.firstSeen).Seconds())},
 			{"bytes_sent", atomic.LoadUint64(&p.bytesSent)},
 			{"bytes_recvd", atomic.LoadUint64(&p.bytesRecvd)},
+			{"endpoint", p.endpoint},
 		}
 		peerInfos = append(peerInfos, info)
 	}
@@ -516,6 +517,7 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 			{"port", elem.port},
 			{"bytes_sent", atomic.LoadUint64(&peer.bytesSent)},
 			{"bytes_recvd", atomic.LoadUint64(&peer.bytesRecvd)},
+			{"endpoint", peer.endpoint},
 		}
 		peerInfos = append(peerInfos, info)
 	}

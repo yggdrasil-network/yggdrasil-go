@@ -84,7 +84,7 @@ func (c *Core) DEBUG_getPeers() *peers {
 func (ps *peers) DEBUG_newPeer(box boxPubKey, sig sigPubKey, link boxSharedKey) *peer {
 	//in <-chan []byte,
 	//out chan<- []byte) *peer {
-	return ps.newPeer(&box, &sig, &link) //, in, out)
+	return ps.newPeer(&box, &sig, &link, "(simulator)") //, in, out)
 }
 
 /*
