@@ -5,6 +5,16 @@ package yggdrasil
 //  That should encorage them to ping us again sooner, and then we can reply with new info
 //  Maybe remember old predecessor and check this during maintenance?
 
+// TODO make sure that, if your peer is your successor or predecessor, you still bother to ping them and ask for better nodes
+//  Basically, don't automatically reset the dhtInfo.recv to time.Now() whenever updating them from the outside
+//  But *do* set it to something that won't instantly time them out or make them get pingspammed?
+//  Could set throttle to 0, but that's imperfect at best... pingspam
+
+// TODO? cache all nodes we ping (from e.g. searches), not just the important ones
+//  But only send maintenance pings to the important ones
+
+// TODO reoptimize search stuff (size, timeouts, etc) to play nicer with DHT churn
+
 import (
 	"fmt"
 	"sort"
@@ -77,8 +87,12 @@ func (t *dht) reset() {
 // Does a DHT lookup and returns up to dht_lookup_size results
 func (t *dht) lookup(nodeID *NodeID, everything bool) []*dhtInfo {
 	results := make([]*dhtInfo, 0, len(t.table))
+	//imp := t.getImportant()
 	for _, info := range t.table {
 		results = append(results, info)
+		//if t.isImportant(info, imp) {
+		//	results = append(results, info)
+		//}
 	}
 	sort.SliceStable(results, func(i, j int) bool {
 		return dht_ordered(nodeID, results[i].getNodeID(), results[j].getNodeID())
@@ -165,8 +179,10 @@ func (t *dht) handleReq(req *dhtReq) {
 		key:    req.Key,
 		coords: req.Coords,
 	}
-	// For bootstrapping to work, we need to add these nodes to the table
-	t.insert(&info)
+	imp := t.getImportant()
+	if t.isImportant(&info, imp) {
+		t.insert(&info)
+	}
 }
 
 // Sends a lookup response to the specified node.
@@ -186,28 +202,6 @@ func (t *dht) sendRes(res *dhtRes, req *dhtReq) {
 	t.core.router.out(packet)
 }
 
-// Returns nodeID + 1
-func (nodeID NodeID) next() NodeID {
-	for idx := len(nodeID) - 1; idx >= 0; idx-- {
-		nodeID[idx] += 1
-		if nodeID[idx] != 0 {
-			break
-		}
-	}
-	return nodeID
-}
-
-// Returns nodeID - 1
-func (nodeID NodeID) prev() NodeID {
-	for idx := len(nodeID) - 1; idx >= 0; idx-- {
-		nodeID[idx] -= 1
-		if nodeID[idx] != 0xff {
-			break
-		}
-	}
-	return nodeID
-}
-
 // Reads a lookup response, checks that we had sent a matching request, and processes the response info.
 // This mainly consists of updating the node we asked in our DHT (they responded, so we know they're still alive), and deciding if we want to do anything with their responses
 func (t *dht) handleRes(res *dhtRes) {
@@ -225,11 +219,14 @@ func (t *dht) handleRes(res *dhtRes) {
 		key:    res.Key,
 		coords: res.Coords,
 	}
-	t.insert(&rinfo) // Or at the end, after checking successor/predecessor?
+	imp := t.getImportant()
+	if t.isImportant(&rinfo, imp) {
+		t.insert(&rinfo)
+	}
+	//t.insert(&rinfo) // Or at the end, after checking successor/predecessor?
 	if len(res.Infos) > dht_lookup_size {
 		//res.Infos = res.Infos[:dht_lookup_size] //FIXME debug
 	}
-	imp := t.getImportant()
 	for _, info := range res.Infos {
 		if *info.getNodeID() == t.nodeID {
 			continue
@@ -313,6 +310,14 @@ func (t *dht) doMaintenance() {
 			fmt.Println("DEBUG self:", t.nodeID[:8], "throttle:", info.throttle, "nodeID:", info.getNodeID()[:8], "coords:", info.coords)
 		}
 	}
+	return // Skip printing debug info
+	var out []interface{}
+	out = append(out, "DEBUG important:")
+	out = append(out, t.nodeID[:8])
+	for _, info := range imp {
+		out = append(out, info.getNodeID()[:8])
+	}
+	fmt.Println(out...)
 }
 
 func (t *dht) getImportant() []*dhtInfo {
@@ -323,9 +328,8 @@ func (t *dht) getImportant() []*dhtInfo {
 	}
 	// Sort them by increasing order in distance along the ring
 	sort.SliceStable(infos, func(i, j int) bool {
-		// Sort in order of predecessors (!), reverse from chord normal, becuase it plays nicer with zero bits for unknown parts of target addresses
+		// Sort in order of predecessors (!), reverse from chord normal, because it plays nicer with zero bits for unknown parts of target addresses
 		return dht_ordered(infos[j].getNodeID(), infos[i].getNodeID(), &t.nodeID)
-		//return dht_ordered(&t.nodeID, infos[i].getNodeID(), infos[j].getNodeID())
 	})
 	// Keep the ones that are no further than the closest seen so far
 	minDist := ^uint64(0)
@@ -338,6 +342,19 @@ func (t *dht) getImportant() []*dhtInfo {
 			important = append(important, info)
 		}
 	}
+	var temp []*dhtInfo
+	minDist = ^uint64(0)
+	for idx := len(infos) - 1; idx >= 0; idx-- {
+		info := infos[idx]
+		dist := uint64(loc.dist(info.coords))
+		if dist < minDist {
+			minDist = dist
+			temp = append(temp, info)
+		}
+	}
+	for idx := len(temp) - 1; idx >= 0; idx-- {
+		important = append(important, temp[idx])
+	}
 	return important
 }
 
@@ -347,14 +364,27 @@ func (t *dht) isImportant(ninfo *dhtInfo, important []*dhtInfo) bool {
 	ndist := uint64(loc.dist(ninfo.coords))
 	minDist := ^uint64(0)
 	for _, info := range important {
+		if (*info.getNodeID() == *ninfo.getNodeID()) ||
+			(ndist < minDist && dht_ordered(info.getNodeID(), ninfo.getNodeID(), &t.nodeID)) {
+			// Either the same node, or a better one
+			return true
+		}
 		dist := uint64(loc.dist(info.coords))
 		if dist < minDist {
 			minDist = dist
 		}
-		//if dht_ordered(&t.nodeID, ninfo.getNodeID(), info.getNodeID()) && ndist <= minDist {
-		if dht_ordered(info.getNodeID(), ninfo.getNodeID(), &t.nodeID) && ndist <= minDist {
-			// This node is at least as close in both key space and tree space
+	}
+	minDist = ^uint64(0)
+	for idx := len(important) - 1; idx >= 0; idx-- {
+		info := important[idx]
+		if (*info.getNodeID() == *ninfo.getNodeID()) ||
+			(ndist < minDist && dht_ordered(&t.nodeID, ninfo.getNodeID(), info.getNodeID())) {
+			// Either the same node, or a better one
 			return true
+		}
+		dist := uint64(loc.dist(info.coords))
+		if dist < minDist {
+			minDist = dist
 		}
 	}
 	// We didn't find any important node that ninfo is better than

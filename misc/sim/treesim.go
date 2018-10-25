@@ -300,6 +300,7 @@ func pingNodes(store map[[32]byte]*Node) {
 					}
 				case <-ch:
 					sendTo(payload, destAddr)
+					//dumpDHTSize(store) // note that this uses racey functions to read things...
 				}
 			}
 			ticker.Stop()

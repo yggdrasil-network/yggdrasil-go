@@ -96,7 +96,8 @@ func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 		if *info.getNodeID() == s.core.dht.nodeID || sinfo.visited[*info.getNodeID()] {
 			continue
 		}
-		if true || dht_ordered(from.getNodeID(), info.getNodeID(), &res.Dest) {
+		if dht_ordered(&sinfo.dest, info.getNodeID(), from.getNodeID()) {
+			// Response is closer to the destination
 			sinfo.toVisit = append(sinfo.toVisit, info)
 		}
 	}
@@ -118,7 +119,7 @@ func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 	})
 	// Truncate to some maximum size
 	if len(sinfo.toVisit) > search_MAX_SEARCH_SIZE {
-		sinfo.toVisit = sinfo.toVisit[:search_MAX_SEARCH_SIZE]
+		sinfo.toVisit = sinfo.toVisit[:search_MAX_SEARCH_SIZE] //FIXME debug
 	}
 }
 
