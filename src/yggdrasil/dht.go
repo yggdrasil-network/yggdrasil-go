@@ -180,7 +180,7 @@ func (t *dht) handleReq(req *dhtReq) {
 		coords: req.Coords,
 	}
 	imp := t.getImportant()
-	if t.isImportant(&info, imp) {
+	if _, isIn := t.table[*info.getNodeID()]; !isIn || t.isImportant(&info, imp) {
 		t.insert(&info)
 	}
 }

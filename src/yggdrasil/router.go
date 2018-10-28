@@ -91,8 +91,12 @@ func (r *router) mainLoop() {
 		case p := <-r.send:
 			r.sendPacket(p)
 		case info := <-r.core.dht.peers:
+			now := time.Now()
+			oldInfo, isIn := r.core.dht.table[*info.getNodeID()]
 			r.core.dht.insert(info)
-			info.throttle = 0
+			if isIn && now.Sub(oldInfo.recv) < 45*time.Second {
+				info.recv = oldInfo.recv
+			}
 		case <-r.reset:
 			r.core.sessions.resetInits()
 			r.core.dht.reset()
