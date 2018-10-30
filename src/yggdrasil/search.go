@@ -11,8 +11,10 @@ package yggdrasil
 //  A new search packet is sent immediately after receiving a response
 //  A new search packet is sent periodically, once per second, in case a packet was dropped (this slowly causes the search to become parallel if the search doesn't timeout but also doesn't finish within 1 second for whatever reason)
 
+// TODO?
+//  Some kind of max search steps, in case the node is offline, so we don't crawl through too much of the network looking for a destination that isn't there?
+
 import (
-	"fmt"
 	"sort"
 	"time"
 )
@@ -74,9 +76,6 @@ func (s *searches) handleDHTRes(res *dhtRes) {
 	sinfo, isIn := s.searches[res.Dest]
 	if !isIn || s.checkDHTRes(sinfo, res) {
 		// Either we don't recognize this search, or we just finished it
-		if isIn {
-			fmt.Println("DEBUG: search finished, length:", len(sinfo.visited))
-		}
 		return
 	} else {
 		// Add to the search and continue
@@ -92,6 +91,7 @@ func (s *searches) handleDHTRes(res *dhtRes) {
 func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 	// Add responses to toVisit if closer to dest than the res node
 	from := dhtInfo{key: res.Key, coords: res.Coords}
+	sinfo.visited[*from.getNodeID()] = true
 	for _, info := range res.Infos {
 		if *info.getNodeID() == s.core.dht.nodeID || sinfo.visited[*info.getNodeID()] {
 			continue
@@ -129,14 +129,12 @@ func (s *searches) doSearchStep(sinfo *searchInfo) {
 	if len(sinfo.toVisit) == 0 {
 		// Dead end, do cleanup
 		delete(s.searches, sinfo.dest)
-		fmt.Println("DEBUG: search abandoned, length:", len(sinfo.visited))
 		return
 	} else {
 		// Send to the next search target
 		var next *dhtInfo
 		next, sinfo.toVisit = sinfo.toVisit[0], sinfo.toVisit[1:]
 		s.core.dht.ping(next, &sinfo.dest)
-		sinfo.visited[*next.getNodeID()] = true
 	}
 }
 
