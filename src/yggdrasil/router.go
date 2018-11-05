@@ -253,7 +253,7 @@ func (r *router) sendPacket(bs []byte) {
 
 // Called for incoming traffic by the session worker for that connection.
 // Checks that the IP address is correct (matches the session) and passes the packet to the tun/tap.
-func (r *router) recvPacket(bs []byte, theirAddr *address, theirSubnet *subnet) {
+func (r *router) recvPacket(bs []byte, sinfo *sessionInfo) {
 	// Note: called directly by the session worker, not the router goroutine
 	if len(bs) < 24 {
 		util_putBytes(bs)
@@ -264,11 +264,14 @@ func (r *router) recvPacket(bs []byte, theirAddr *address, theirSubnet *subnet) 
 	var snet subnet
 	copy(snet[:], bs[8:])
 	switch {
-	case source.isValid() && source == *theirAddr:
-	case snet.isValid() && snet == *theirSubnet:
+	case source.isValid() && source == sinfo.theirAddr:
+	case snet.isValid() && snet == sinfo.theirSubnet:
 	default:
-		util_putBytes(bs)
-		return
+		key, err := r.cryptokey.getPublicKeyForAddress(source)
+		if err != nil || key != sinfo.theirPermPub {
+			util_putBytes(bs)
+			return
+		}
 	}
 	//go func() { r.recv<-bs }()
 	r.recv <- bs
