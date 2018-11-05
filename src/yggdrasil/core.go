@@ -121,6 +121,14 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
+	if nc.TunnelRouting.Enable {
+		for ipv6, pubkey := range nc.TunnelRouting.IPv6Routes {
+			if err := c.router.cryptokey.addRoute(ipv6, pubkey); err != nil {
+				panic(err)
+			}
+		}
+	}
+
 	if err := c.admin.start(); err != nil {
 		c.log.Println("Failed to start admin socket")
 		return err

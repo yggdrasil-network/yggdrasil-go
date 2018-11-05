@@ -32,14 +32,15 @@ import (
 // The router struct has channels to/from the tun/tap device and a self peer (0), which is how messages are passed between this node and the peers/switch layer.
 // The router's mainLoop goroutine is responsible for managing all information related to the dht, searches, and crypto sessions.
 type router struct {
-	core  *Core
-	addr  address
-	in    <-chan []byte // packets we received from the network, link to peer's "out"
-	out   func([]byte)  // packets we're sending to the network, link to peer's "in"
-	recv  chan<- []byte // place where the tun pulls received packets from
-	send  <-chan []byte // place where the tun puts outgoing packets
-	reset chan struct{} // signal that coords changed (re-init sessions/dht)
-	admin chan func()   // pass a lambda for the admin socket to query stuff
+	core      *Core
+	addr      address
+	in        <-chan []byte // packets we received from the network, link to peer's "out"
+	out       func([]byte)  // packets we're sending to the network, link to peer's "in"
+	recv      chan<- []byte // place where the tun pulls received packets from
+	send      <-chan []byte // place where the tun puts outgoing packets
+	reset     chan struct{} // signal that coords changed (re-init sessions/dht)
+	admin     chan func()   // pass a lambda for the admin socket to query stuff
+	cryptokey cryptokey
 }
 
 // Initializes the router struct, which includes setting up channels to/from the tun/tap.
@@ -67,6 +68,7 @@ func (r *router) init(core *Core) {
 	r.core.tun.send = send
 	r.reset = make(chan struct{}, 1)
 	r.admin = make(chan func())
+	r.cryptokey.init(r.core)
 	// go r.mainLoop()
 }
 
