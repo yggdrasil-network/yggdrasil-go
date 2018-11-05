@@ -3,6 +3,7 @@ package yggdrasil
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net"
 	"sort"
 )
@@ -34,22 +35,28 @@ func (c *cryptokey) isEnabled() bool {
 
 func (c *cryptokey) addRoute(cidr string, dest string) error {
 	// Is the CIDR we've been given valid?
-	_, ipnet, err := net.ParseCIDR(cidr)
+	ipaddr, ipnet, err := net.ParseCIDR(cidr)
 	if err != nil {
 		return err
 	}
 
 	// Get the prefix length and size
-	prefixlen, prefixsize := ipnet.Mask.Size()
+	_, prefixsize := ipnet.Mask.Size()
 
 	// Check if the prefix is IPv4 or IPv6
 	if prefixsize == net.IPv6len*8 {
-		// IPv6
+		// Is the route an Yggdrasil destination?
+		var addr address
+		var snet subnet
+		copy(addr[:], ipaddr)
+		copy(snet[:], ipnet.IP)
+		if addr.isValid() || snet.isValid() {
+			return errors.New("Can't specify Yggdrasil destination as crypto-key route")
+		}
+		// Do we already have a route for this subnet?
 		for _, route := range c.ipv6routes {
-			// Do we already have a route for this subnet?
-			routeprefixlen, _ := route.subnet.Mask.Size()
-			if route.subnet.IP.Equal(ipnet.IP) && routeprefixlen == prefixlen {
-				return errors.New("IPv6 route already exists")
+			if route.subnet.String() == ipnet.String() {
+				return errors.New(fmt.Sprintf("Route already exists for %s", cidr))
 			}
 		}
 		// Decode the public key
@@ -99,6 +106,5 @@ func (c *cryptokey) getPublicKeyForAddress(addr string) (boxPubKey, error) {
 					}
 		*/
 	}
-
-	return boxPubKey{}, errors.New("No route")
+	return boxPubKey{}, errors.New(fmt.Sprintf("No route to %s", addr))
 }
