@@ -134,7 +134,16 @@ func (r *router) sendPacket(bs []byte) {
 	var snet subnet
 	copy(snet[:], bs[24:])
 	if !dest.isValid() && !snet.isValid() {
-		return
+		if key, err := r.cryptokey.getPublicKeyForAddress(dest); err == nil {
+			addr := *address_addrForNodeID(getNodeID(&key))
+			copy(dest[:], addr[:])
+			copy(snet[:], addr[:])
+			if !dest.isValid() && !snet.isValid() {
+				return
+			}
+		} else {
+			return
+		}
 	}
 	doSearch := func(packet []byte) {
 		var nodeID, mask *NodeID
