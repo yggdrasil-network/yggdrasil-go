@@ -99,7 +99,7 @@ func (c *cryptokey) getPublicKeyForAddress(addr address) (boxPubKey, error) {
 	// Check if the address is a valid Yggdrasil address - if so it
 	// is exempt from all CKR checking
 	if addr.isValid() {
-		return
+		return boxPubKey{}, errors.New("Cannot look up CKR for Yggdrasil addresses")
 	}
 
 	// Check if there's a cache entry for this addr

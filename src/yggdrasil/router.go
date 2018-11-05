@@ -124,14 +124,11 @@ func (r *router) sendPacket(bs []byte) {
 	}
 	var sourceAddr address
 	var sourceSubnet subnet
+	var dest address
+	var snet subnet
 	copy(sourceAddr[:], bs[8:])
 	copy(sourceSubnet[:], bs[8:])
-	if !sourceAddr.isValid() && !sourceSubnet.isValid() {
-		return
-	}
-	var dest address
 	copy(dest[:], bs[24:])
-	var snet subnet
 	copy(snet[:], bs[24:])
 	if !dest.isValid() && !snet.isValid() {
 		if key, err := r.cryptokey.getPublicKeyForAddress(dest); err == nil {
@@ -142,6 +139,10 @@ func (r *router) sendPacket(bs []byte) {
 				return
 			}
 		} else {
+			return
+		}
+	} else {
+		if !sourceAddr.isValid() && !sourceSubnet.isValid() {
 			return
 		}
 	}
