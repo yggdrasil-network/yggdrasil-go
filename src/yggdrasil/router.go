@@ -34,6 +34,7 @@ import (
 type router struct {
 	core      *Core
 	addr      address
+	subnet    subnet
 	in        <-chan []byte // packets we received from the network, link to peer's "out"
 	out       func([]byte)  // packets we're sending to the network, link to peer's "in"
 	recv      chan<- []byte // place where the tun pulls received packets from
@@ -47,6 +48,7 @@ type router struct {
 func (r *router) init(core *Core) {
 	r.core = core
 	r.addr = *address_addrForNodeID(&r.core.dht.nodeID)
+	r.subnet = *address_subnetForNodeID(&r.core.dht.nodeID)
 	in := make(chan []byte, 32) // TODO something better than this...
 	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &boxSharedKey{}, "(self)")
 	p.out = func(packet []byte) {
@@ -128,6 +130,9 @@ func (r *router) sendPacket(bs []byte) {
 	var snet subnet
 	copy(sourceAddr[:], bs[8:])
 	copy(sourceSubnet[:], bs[8:])
+	if !r.cryptokey.isValidSource(sourceAddr) {
+		return
+	}
 	copy(dest[:], bs[24:])
 	copy(snet[:], bs[24:])
 	if !dest.isValid() && !snet.isValid() {
@@ -139,10 +144,6 @@ func (r *router) sendPacket(bs []byte) {
 				return
 			}
 		} else {
-			return
-		}
-	} else {
-		if !sourceAddr.isValid() && !sourceSubnet.isValid() {
 			return
 		}
 	}

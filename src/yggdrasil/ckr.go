@@ -12,12 +12,14 @@ import (
 // allow traffic for non-Yggdrasil ranges to be routed over Yggdrasil.
 
 type cryptokey struct {
-	core       *Core
-	enabled    bool
-	ipv4routes []cryptokey_route
-	ipv6routes []cryptokey_route
-	ipv4cache  map[address]cryptokey_route
-	ipv6cache  map[address]cryptokey_route
+	core        *Core
+	enabled     bool
+	ipv4routes  []cryptokey_route
+	ipv6routes  []cryptokey_route
+	ipv4cache   map[address]cryptokey_route
+	ipv6cache   map[address]cryptokey_route
+	ipv4sources []net.IPNet
+	ipv6sources []net.IPNet
 }
 
 type cryptokey_route struct {
@@ -31,10 +33,58 @@ func (c *cryptokey) init(core *Core) {
 	c.ipv6routes = make([]cryptokey_route, 0)
 	c.ipv4cache = make(map[address]cryptokey_route, 0)
 	c.ipv6cache = make(map[address]cryptokey_route, 0)
+	c.ipv4sources = make([]net.IPNet, 0)
+	c.ipv6sources = make([]net.IPNet, 0)
 }
 
 func (c *cryptokey) isEnabled() bool {
 	return c.enabled
+}
+
+func (c *cryptokey) isValidSource(addr address) bool {
+	ip := net.IP(addr[:])
+
+	// Does this match our node's address?
+	if addr == c.core.router.addr {
+		return true
+	}
+
+	// Does this match our node's subnet?
+	var subnet net.IPNet
+	copy(subnet.IP, c.core.router.subnet[:])
+	copy(subnet.Mask, net.CIDRMask(64, 128))
+	if subnet.Contains(ip) {
+		return true
+	}
+
+	// Does it match a configured CKR source?
+	for _, subnet := range c.ipv6sources {
+		if subnet.Contains(ip) {
+			return true
+		}
+	}
+
+	// Doesn't match any of the above
+	return false
+}
+
+func (c *cryptokey) addSourceSubnet(cidr string) error {
+	// Is the CIDR we've been given valid?
+	_, ipnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return err
+	}
+
+	// Check if we already have this CIDR
+	for _, subnet := range c.ipv6sources {
+		if subnet.String() == ipnet.String() {
+			return errors.New("Source subnet already configured")
+		}
+	}
+
+	// Add the source subnet
+	c.ipv6sources = append(c.ipv6sources, *ipnet)
+	return nil
 }
 
 func (c *cryptokey) addRoute(cidr string, dest string) error {
