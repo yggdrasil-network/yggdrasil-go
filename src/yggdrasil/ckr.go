@@ -96,6 +96,12 @@ func (c *cryptokey) addRoute(cidr string, dest string) error {
 }
 
 func (c *cryptokey) getPublicKeyForAddress(addr address) (boxPubKey, error) {
+	// Check if the address is a valid Yggdrasil address - if so it
+	// is exempt from all CKR checking
+	if addr.isValid() {
+		return
+	}
+
 	// Check if there's a cache entry for this addr
 	if route, ok := c.ipv6cache[addr]; ok {
 		var box boxPubKey
