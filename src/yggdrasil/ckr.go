@@ -86,6 +86,7 @@ func (c *cryptokey) addSourceSubnet(cidr string) error {
 
 	// Add the source subnet
 	c.ipv6sources = append(c.ipv6sources, *ipnet)
+	c.core.log.Println("Added CKR source subnet", cidr)
 	return nil
 }
 
@@ -138,6 +139,7 @@ func (c *cryptokey) addRoute(cidr string, dest string) error {
 				delete(c.ipv6cache, k)
 			}
 
+			c.core.log.Println("Added CKR destination subnet", cidr)
 			return nil
 		}
 	} else if prefixsize == net.IPv4len*8 {
