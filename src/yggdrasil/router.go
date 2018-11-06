@@ -127,14 +127,26 @@ func (r *router) sendPacket(bs []byte) {
 	var sourceAddr address
 	var dest address
 	var snet subnet
-	copy(sourceAddr[:], bs[8:])
-	if !r.cryptokey.isValidSource(sourceAddr) {
+	var addrlen int
+	if bs[0]&0xf0 == 0x60 {
+		// IPv6 address
+		addrlen = 16
+		copy(sourceAddr[:addrlen], bs[8:])
+		copy(dest[:addrlen], bs[24:])
+		copy(snet[:addrlen/2], bs[24:])
+	} else if bs[0]&0xf0 == 0x40 {
+		// IPv4 address
+		addrlen = 4
+		copy(sourceAddr[:addrlen], bs[12:])
+		copy(dest[:addrlen], bs[16:])
+	} else {
 		return
 	}
-	copy(dest[:], bs[24:])
-	copy(snet[:], bs[24:])
+	if !r.cryptokey.isValidSource(sourceAddr, addrlen) {
+		return
+	}
 	if !dest.isValid() && !snet.isValid() {
-		if key, err := r.cryptokey.getPublicKeyForAddress(dest, 16); err == nil {
+		if key, err := r.cryptokey.getPublicKeyForAddress(dest, addrlen); err == nil {
 			addr := *address_addrForNodeID(getNodeID(&key))
 			copy(dest[:], addr[:])
 			copy(snet[:], addr[:])
@@ -259,21 +271,33 @@ func (r *router) recvPacket(bs []byte, sinfo *sessionInfo) {
 		util_putBytes(bs)
 		return
 	}
+	var sourceAddr address
 	var dest address
-	copy(dest[:], bs[24:])
-	if !r.cryptokey.isValidSource(dest) {
+	var snet subnet
+	var addrlen int
+	if bs[0]&0xf0 == 0x60 {
+		// IPv6 address
+		addrlen = 16
+		copy(sourceAddr[:addrlen], bs[8:])
+		copy(dest[:addrlen], bs[24:])
+		copy(snet[:addrlen/2], bs[24:])
+	} else if bs[0]&0xf0 == 0x40 {
+		// IPv4 address
+		addrlen = 4
+		copy(sourceAddr[:addrlen], bs[12:])
+		copy(dest[:addrlen], bs[16:])
+	} else {
+		return
+	}
+	if !r.cryptokey.isValidSource(dest, addrlen) {
 		util_putBytes(bs)
 		return
 	}
-	var source address
-	copy(source[:], bs[8:])
-	var snet subnet
-	copy(snet[:], bs[8:])
 	switch {
-	case source.isValid() && source == sinfo.theirAddr:
+	case sourceAddr.isValid() && sourceAddr == sinfo.theirAddr:
 	case snet.isValid() && snet == sinfo.theirSubnet:
 	default:
-		key, err := r.cryptokey.getPublicKeyForAddress(source, 16)
+		key, err := r.cryptokey.getPublicKeyForAddress(sourceAddr, addrlen)
 		if err != nil || key != sinfo.theirPermPub {
 			util_putBytes(bs)
 			return

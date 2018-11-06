@@ -105,7 +105,7 @@ func (tun *tunDevice) read() error {
 			n != 256*int(buf[o+4])+int(buf[o+5])+tun_IPv6_HEADER_LENGTH+o {
 			// Either not an IPv6 packet or not the complete packet for some reason
 			//panic("Should not happen in testing")
-			continue
+			//continue
 		}
 		if buf[o+6] == 58 {
 			// Found an ICMPv6 packet

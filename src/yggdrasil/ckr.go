@@ -46,22 +46,36 @@ func (c *cryptokey) isEnabled() bool {
 	return c.enabled
 }
 
-func (c *cryptokey) isValidSource(addr address) bool {
-	ip := net.IP(addr[:])
+func (c *cryptokey) isValidSource(addr address, addrlen int) bool {
+	ip := net.IP(addr[:addrlen])
 
-	// Does this match our node's address?
-	if bytes.Equal(addr[:16], c.core.router.addr[:16]) {
-		return true
-	}
+	if addrlen == net.IPv6len {
+		// Does this match our node's address?
+		if bytes.Equal(addr[:16], c.core.router.addr[:16]) {
+			return true
+		}
 
-	// Does this match our node's subnet?
-	if bytes.Equal(addr[:8], c.core.router.subnet[:8]) {
-		return true
+		// Does this match our node's subnet?
+		if bytes.Equal(addr[:8], c.core.router.subnet[:8]) {
+			return true
+		}
 	}
 
 	// Does it match a configured CKR source?
 	if c.isEnabled() {
-		for _, subnet := range c.ipv6sources {
+		// Build our references to the routing sources
+		var routingsources *[]net.IPNet
+
+		// Check if the prefix is IPv4 or IPv6
+		if addrlen == net.IPv6len {
+			routingsources = &c.ipv6sources
+		} else if addrlen == net.IPv4len {
+			routingsources = &c.ipv4sources
+		} else {
+			return false
+		}
+
+		for _, subnet := range *routingsources {
 			if subnet.Contains(ip) {
 				return true
 			}
