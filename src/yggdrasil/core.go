@@ -127,6 +127,11 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 				panic(err)
 			}
 		}
+		for _, source := range nc.TunnelRouting.IPv6Sources {
+			if c.router.cryptokey.addSourceSubnet(source); err != nil {
+				panic(err)
+			}
+		}
 	}
 
 	if err := c.admin.start(); err != nil {
