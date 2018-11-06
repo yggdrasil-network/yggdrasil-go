@@ -140,6 +140,7 @@ func (r *router) sendPacket(bs []byte) {
 		copy(sourceAddr[:addrlen], bs[12:])
 		copy(dest[:addrlen], bs[16:])
 	} else {
+		// Unknown address length
 		return
 	}
 	if !r.cryptokey.isValidSource(sourceAddr, addrlen) {
@@ -287,6 +288,7 @@ func (r *router) recvPacket(bs []byte, sinfo *sessionInfo) {
 		copy(sourceAddr[:addrlen], bs[12:])
 		copy(dest[:addrlen], bs[16:])
 	} else {
+		// Unknown address length
 		return
 	}
 	if !r.cryptokey.isValidSource(dest, addrlen) {

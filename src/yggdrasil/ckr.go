@@ -28,6 +28,7 @@ type cryptokey_route struct {
 	destination []byte
 }
 
+// Initialise crypto-key routing. This must be done before any other CKR calls.
 func (c *cryptokey) init(core *Core) {
 	c.core = core
 	c.ipv4routes = make([]cryptokey_route, 0)
@@ -38,14 +39,19 @@ func (c *cryptokey) init(core *Core) {
 	c.ipv6sources = make([]net.IPNet, 0)
 }
 
+// Enable or disable crypto-key routing.
 func (c *cryptokey) setEnabled(enabled bool) {
 	c.enabled = enabled
 }
 
+// Check if crypto-key routing is enabled.
 func (c *cryptokey) isEnabled() bool {
 	return c.enabled
 }
 
+// Check whether the given address (with the address length specified in bytes)
+// matches either the current node's address, the node's routed subnet or the
+// list of subnets specified in IPv4Sources/IPv6Sources.
 func (c *cryptokey) isValidSource(addr address, addrlen int) bool {
 	ip := net.IP(addr[:addrlen])
 
@@ -86,6 +92,8 @@ func (c *cryptokey) isValidSource(addr address, addrlen int) bool {
 	return false
 }
 
+// Adds a source subnet, which allows traffic with these source addresses to
+// be tunnelled using crypto-key routing.
 func (c *cryptokey) addSourceSubnet(cidr string) error {
 	// Is the CIDR we've been given valid?
 	_, ipnet, err := net.ParseCIDR(cidr)
@@ -121,6 +129,8 @@ func (c *cryptokey) addSourceSubnet(cidr string) error {
 	return nil
 }
 
+// Adds a destination route for the given CIDR to be tunnelled to the node
+// with the given BoxPubKey.
 func (c *cryptokey) addRoute(cidr string, dest string) error {
 	// Is the CIDR we've been given valid?
 	ipaddr, ipnet, err := net.ParseCIDR(cidr)
@@ -190,6 +200,9 @@ func (c *cryptokey) addRoute(cidr string, dest string) error {
 	return errors.New("Unspecified error")
 }
 
+// Looks up the most specific route for the given address (with the address
+// length specified in bytes) from the crypto-key routing table. An error is
+// returned if the address is not suitable or no route was found.
 func (c *cryptokey) getPublicKeyForAddress(addr address, addrlen int) (boxPubKey, error) {
 	// Check if the address is a valid Yggdrasil address - if so it
 	// is exempt from all CKR checking
