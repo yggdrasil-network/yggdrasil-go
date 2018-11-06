@@ -37,6 +37,10 @@ func (c *cryptokey) init(core *Core) {
 	c.ipv6sources = make([]net.IPNet, 0)
 }
 
+func (c *cryptokey) setEnabled(enabled bool) {
+	c.enabled = enabled
+}
+
 func (c *cryptokey) isEnabled() bool {
 	return c.enabled
 }

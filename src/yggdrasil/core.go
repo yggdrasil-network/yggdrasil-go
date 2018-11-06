@@ -121,7 +121,8 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
-	if nc.TunnelRouting.Enable {
+	c.router.cryptokey.setEnabled(nc.TunnelRouting.Enable)
+	if c.router.cryptokey.isEnabled() {
 		c.log.Println("Crypto-key routing enabled")
 		for ipv6, pubkey := range nc.TunnelRouting.IPv6Destinations {
 			if err := c.router.cryptokey.addRoute(ipv6, pubkey); err != nil {
