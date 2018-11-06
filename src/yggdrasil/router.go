@@ -125,11 +125,9 @@ func (r *router) sendPacket(bs []byte) {
 		panic("Tried to send a packet shorter than a header...")
 	}
 	var sourceAddr address
-	var sourceSubnet subnet
 	var dest address
 	var snet subnet
 	copy(sourceAddr[:], bs[8:])
-	copy(sourceSubnet[:], bs[8:])
 	if !r.cryptokey.isValidSource(sourceAddr) {
 		return
 	}
