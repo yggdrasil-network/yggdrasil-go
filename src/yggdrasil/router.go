@@ -259,6 +259,12 @@ func (r *router) recvPacket(bs []byte, sinfo *sessionInfo) {
 		util_putBytes(bs)
 		return
 	}
+	var dest address
+	copy(dest[:], bs[24:])
+	if !r.cryptokey.isValidSource(dest) {
+		util_putBytes(bs)
+		return
+	}
 	var source address
 	copy(source[:], bs[8:])
 	var snet subnet
