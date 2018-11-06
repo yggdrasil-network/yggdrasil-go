@@ -101,11 +101,11 @@ func (tun *tunDevice) read() error {
 		if tun.iface.IsTAP() {
 			o = tun_ETHER_HEADER_LENGTH
 		}
-		if buf[o]&0xf0 != 0x60 ||
-			n != 256*int(buf[o+4])+int(buf[o+5])+tun_IPv6_HEADER_LENGTH+o {
-			// Either not an IPv6 packet or not the complete packet for some reason
-			//panic("Should not happen in testing")
-			//continue
+		switch {
+		case buf[o]&0xf0 == 0x60 && n == 256*int(buf[o+4])+int(buf[o+5])+tun_IPv6_HEADER_LENGTH+o:
+		case buf[o]&0xf0 == 0x40 && n == 256*int(buf[o+2])+int(buf[o+3])+o:
+		default:
+			continue
 		}
 		if buf[o+6] == 58 {
 			// Found an ICMPv6 packet
