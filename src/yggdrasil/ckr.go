@@ -1,6 +1,7 @@
 package yggdrasil
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -49,15 +50,12 @@ func (c *cryptokey) isValidSource(addr address) bool {
 	ip := net.IP(addr[:])
 
 	// Does this match our node's address?
-	if addr == c.core.router.addr {
+	if bytes.Equal(addr[:16], c.core.router.addr[:16]) {
 		return true
 	}
 
 	// Does this match our node's subnet?
-	var subnet net.IPNet
-	copy(subnet.IP, c.core.router.subnet[:])
-	copy(subnet.Mask, net.CIDRMask(64, 128))
-	if subnet.Contains(ip) {
+	if bytes.Equal(addr[:8], c.core.router.subnet[:8]) {
 		return true
 	}
 
