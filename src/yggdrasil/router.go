@@ -134,7 +134,7 @@ func (r *router) sendPacket(bs []byte) {
 	copy(dest[:], bs[24:])
 	copy(snet[:], bs[24:])
 	if !dest.isValid() && !snet.isValid() {
-		if key, err := r.cryptokey.getPublicKeyForAddress(dest); err == nil {
+		if key, err := r.cryptokey.getPublicKeyForAddress(dest, 16); err == nil {
 			addr := *address_addrForNodeID(getNodeID(&key))
 			copy(dest[:], addr[:])
 			copy(snet[:], addr[:])
@@ -273,7 +273,7 @@ func (r *router) recvPacket(bs []byte, sinfo *sessionInfo) {
 	case source.isValid() && source == sinfo.theirAddr:
 	case snet.isValid() && snet == sinfo.theirSubnet:
 	default:
-		key, err := r.cryptokey.getPublicKeyForAddress(source)
+		key, err := r.cryptokey.getPublicKeyForAddress(source, 16)
 		if err != nil || key != sinfo.theirPermPub {
 			util_putBytes(bs)
 			return

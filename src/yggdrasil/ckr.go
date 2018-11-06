@@ -79,15 +79,30 @@ func (c *cryptokey) addSourceSubnet(cidr string) error {
 		return err
 	}
 
+	// Get the prefix length and size
+	_, prefixsize := ipnet.Mask.Size()
+
+	// Build our references to the routing sources
+	var routingsources *[]net.IPNet
+
+	// Check if the prefix is IPv4 or IPv6
+	if prefixsize == net.IPv6len*8 {
+		routingsources = &c.ipv6sources
+	} else if prefixsize == net.IPv4len*8 {
+		routingsources = &c.ipv4sources
+	} else {
+		return errors.New("Unexpected prefix size")
+	}
+
 	// Check if we already have this CIDR
-	for _, subnet := range c.ipv6sources {
+	for _, subnet := range *routingsources {
 		if subnet.String() == ipnet.String() {
 			return errors.New("Source subnet already configured")
 		}
 	}
 
 	// Add the source subnet
-	c.ipv6sources = append(c.ipv6sources, *ipnet)
+	*routingsources = append(*routingsources, *ipnet)
 	c.core.log.Println("Added CKR source subnet", cidr)
 	return nil
 }
@@ -102,92 +117,111 @@ func (c *cryptokey) addRoute(cidr string, dest string) error {
 	// Get the prefix length and size
 	_, prefixsize := ipnet.Mask.Size()
 
+	// Build our references to the routing table and cache
+	var routingtable *[]cryptokey_route
+	var routingcache *map[address]cryptokey_route
+
 	// Check if the prefix is IPv4 or IPv6
 	if prefixsize == net.IPv6len*8 {
-		// Is the route an Yggdrasil destination?
-		var addr address
-		var snet subnet
-		copy(addr[:], ipaddr)
-		copy(snet[:], ipnet.IP)
-		if addr.isValid() || snet.isValid() {
-			return errors.New("Can't specify Yggdrasil destination as crypto-key route")
-		}
-		// Do we already have a route for this subnet?
-		for _, route := range c.ipv6routes {
-			if route.subnet.String() == ipnet.String() {
-				return errors.New(fmt.Sprintf("Route already exists for %s", cidr))
-			}
-		}
-		// Decode the public key
-		if boxPubKey, err := hex.DecodeString(dest); err != nil {
-			return err
-		} else {
-			// Add the new crypto-key route
-			c.ipv6routes = append(c.ipv6routes, cryptokey_route{
-				subnet:      *ipnet,
-				destination: boxPubKey,
-			})
-
-			// Sort so most specific routes are first
-			sort.Slice(c.ipv6routes, func(i, j int) bool {
-				im, _ := c.ipv6routes[i].subnet.Mask.Size()
-				jm, _ := c.ipv6routes[j].subnet.Mask.Size()
-				return im > jm
-			})
-
-			// Clear the cache as this route might change future routing
-			// Setting an empty slice keeps the memory whereas nil invokes GC
-			for k := range c.ipv6cache {
-				delete(c.ipv6cache, k)
-			}
-
-			c.core.log.Println("Added CKR destination subnet", cidr)
-			return nil
-		}
+		routingtable = &c.ipv6routes
+		routingcache = &c.ipv6cache
 	} else if prefixsize == net.IPv4len*8 {
-		// IPv4
-		return errors.New("IPv4 not supported at this time")
+		routingtable = &c.ipv4routes
+		routingcache = &c.ipv4cache
+	} else {
+		return errors.New("Unexpected prefix size")
 	}
+
+	// Is the route an Yggdrasil destination?
+	var addr address
+	var snet subnet
+	copy(addr[:], ipaddr)
+	copy(snet[:], ipnet.IP)
+	if addr.isValid() || snet.isValid() {
+		return errors.New("Can't specify Yggdrasil destination as crypto-key route")
+	}
+	// Do we already have a route for this subnet?
+	for _, route := range *routingtable {
+		if route.subnet.String() == ipnet.String() {
+			return errors.New(fmt.Sprintf("Route already exists for %s", cidr))
+		}
+	}
+	// Decode the public key
+	if boxPubKey, err := hex.DecodeString(dest); err != nil {
+		return err
+	} else {
+		// Add the new crypto-key route
+		*routingtable = append(*routingtable, cryptokey_route{
+			subnet:      *ipnet,
+			destination: boxPubKey,
+		})
+
+		// Sort so most specific routes are first
+		sort.Slice(*routingtable, func(i, j int) bool {
+			im, _ := (*routingtable)[i].subnet.Mask.Size()
+			jm, _ := (*routingtable)[j].subnet.Mask.Size()
+			return im > jm
+		})
+
+		// Clear the cache as this route might change future routing
+		// Setting an empty slice keeps the memory whereas nil invokes GC
+		for k := range *routingcache {
+			delete(*routingcache, k)
+		}
+
+		c.core.log.Println("Added CKR destination subnet", cidr)
+		return nil
+	}
+
 	return errors.New("Unspecified error")
 }
 
-func (c *cryptokey) getPublicKeyForAddress(addr address) (boxPubKey, error) {
+func (c *cryptokey) getPublicKeyForAddress(addr address, addrlen int) (boxPubKey, error) {
 	// Check if the address is a valid Yggdrasil address - if so it
 	// is exempt from all CKR checking
 	if addr.isValid() {
 		return boxPubKey{}, errors.New("Cannot look up CKR for Yggdrasil addresses")
 	}
 
+	// Build our references to the routing table and cache
+	var routingtable *[]cryptokey_route
+	var routingcache *map[address]cryptokey_route
+
+	// Check if the prefix is IPv4 or IPv6
+	if addrlen == net.IPv6len {
+		routingtable = &c.ipv6routes
+		routingcache = &c.ipv6cache
+	} else if addrlen == net.IPv4len {
+		routingtable = &c.ipv4routes
+		routingcache = &c.ipv4cache
+	} else {
+		return boxPubKey{}, errors.New("Unexpected prefix size")
+	}
+
 	// Check if there's a cache entry for this addr
-	if route, ok := c.ipv6cache[addr]; ok {
+	if route, ok := (*routingcache)[addr]; ok {
 		var box boxPubKey
 		copy(box[:boxPubKeyLen], route.destination)
 		return box, nil
 	}
 
 	// No cache was found - start by converting the address into a net.IP
-	ip := make(net.IP, 16)
-	copy(ip[:16], addr[:])
+	ip := make(net.IP, addrlen)
+	copy(ip[:addrlen], addr[:])
 
-	// Check whether it's an IPv4 or an IPv6 address
-	if ip.To4() == nil {
-		// Check if we have a route. At this point c.ipv6routes should be
-		// pre-sorted so that the most specific routes are first
-		for _, route := range c.ipv6routes {
-			// Does this subnet match the given IP?
-			if route.subnet.Contains(ip) {
-				// Cache the entry for future packets to get a faster lookup
-				c.ipv6cache[addr] = route
+	// Check if we have a route. At this point c.ipv6routes should be
+	// pre-sorted so that the most specific routes are first
+	for _, route := range *routingtable {
+		// Does this subnet match the given IP?
+		if route.subnet.Contains(ip) {
+			// Cache the entry for future packets to get a faster lookup
+			(*routingcache)[addr] = route
 
-				// Return the boxPubKey
-				var box boxPubKey
-				copy(box[:boxPubKeyLen], route.destination)
-				return box, nil
-			}
+			// Return the boxPubKey
+			var box boxPubKey
+			copy(box[:boxPubKeyLen], route.destination)
+			return box, nil
 		}
-	} else {
-		// IPv4 isn't supported yet
-		return boxPubKey{}, errors.New("IPv4 not supported at this time")
 	}
 
 	// No route was found if we got to this point

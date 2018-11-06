@@ -134,6 +134,16 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 				panic(err)
 			}
 		}
+		for ipv4, pubkey := range nc.TunnelRouting.IPv4Destinations {
+			if err := c.router.cryptokey.addRoute(ipv4, pubkey); err != nil {
+				panic(err)
+			}
+		}
+		for _, source := range nc.TunnelRouting.IPv4Sources {
+			if c.router.cryptokey.addSourceSubnet(source); err != nil {
+				panic(err)
+			}
+		}
 	}
 
 	if err := c.admin.start(); err != nil {

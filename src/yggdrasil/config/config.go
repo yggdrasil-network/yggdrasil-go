@@ -42,4 +42,6 @@ type TunnelRouting struct {
 	Enable           bool              `comment:"Enable or disable tunneling."`
 	IPv6Destinations map[string]string `comment:"IPv6 subnets, mapped to the EncryptionPublicKey to which they should\nbe routed to."`
 	IPv6Sources      []string          `comment:"Optional IPv6 subnets which are allowed to be used as source addresses\nin addition to this node's Yggdrasil address/subnet."`
+	IPv4Destinations map[string]string `comment:"IPv4 subnets, mapped to the EncryptionPublicKey to which they should\nbe routed to."`
+	IPv4Sources      []string          `comment:"Optional IPv4 subnets which are allowed to be used as source addresses."`
 }
