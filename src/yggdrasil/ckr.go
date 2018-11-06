@@ -58,9 +58,11 @@ func (c *cryptokey) isValidSource(addr address) bool {
 	}
 
 	// Does it match a configured CKR source?
-	for _, subnet := range c.ipv6sources {
-		if subnet.Contains(ip) {
-			return true
+	if c.isEnabled() {
+		for _, subnet := range c.ipv6sources {
+			if subnet.Contains(ip) {
+				return true
+			}
 		}
 	}
 

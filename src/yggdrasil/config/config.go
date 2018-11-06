@@ -39,7 +39,7 @@ type SessionFirewall struct {
 
 // TunnelRouting contains the crypto-key routing tables for tunneling
 type TunnelRouting struct {
-	Enable      bool              `comment:"Enable or disable tunneling."`
-	IPv6Routes  map[string]string `comment:"IPv6 subnets, mapped to the public keys to which they should be routed."`
-	IPv6Sources []string          `comment:"Allow source addresses in these subnets."`
+	Enable           bool              `comment:"Enable or disable tunneling."`
+	IPv6Destinations map[string]string `comment:"IPv6 subnets, mapped to the EncryptionPublicKey to which they should\nbe routed to."`
+	IPv6Sources      []string          `comment:"Optional IPv6 subnets which are allowed to be used as source addresses\nin addition to this node's Yggdrasil address/subnet."`
 }
