@@ -122,9 +122,6 @@ func (r *router) mainLoop() {
 // If the session hasn't responded recently, it triggers a ping or search to keep things alive or deal with broken coords *relatively* quickly.
 // It also deals with oversized packets if there are MTU issues by calling into icmpv6.go to spoof PacketTooBig traffic, or DestinationUnreachable if the other side has their tun/tap disabled.
 func (r *router) sendPacket(bs []byte) {
-	if len(bs) < 40 {
-		panic("Tried to send a packet shorter than a header...")
-	}
 	var sourceAddr address
 	var destAddr address
 	var destSnet subnet
@@ -132,12 +129,20 @@ func (r *router) sendPacket(bs []byte) {
 	var destNodeID *NodeID
 	var addrlen int
 	if bs[0]&0xf0 == 0x60 {
+		// Check if we have a fully-sized header
+		if len(bs) < 40 {
+			panic("Tried to send a packet shorter than an IPv6 header...")
+		}
 		// IPv6 address
 		addrlen = 16
 		copy(sourceAddr[:addrlen], bs[8:])
 		copy(destAddr[:addrlen], bs[24:])
 		copy(destSnet[:addrlen/2], bs[24:])
 	} else if bs[0]&0xf0 == 0x40 {
+		// Check if we have a fully-sized header
+		if len(bs) < 20 {
+			panic("Tried to send a packet shorter than an IPv4 header...")
+		}
 		// IPv4 address
 		addrlen = 4
 		copy(sourceAddr[:addrlen], bs[12:])
@@ -147,12 +152,19 @@ func (r *router) sendPacket(bs []byte) {
 		return
 	}
 	if !r.cryptokey.isValidSource(sourceAddr, addrlen) {
+		// The packet had a source address that doesn't belong to us or our
+		// configured crypto-key routing source subnets
 		return
 	}
 	if !destAddr.isValid() && !destSnet.isValid() {
+		// The addresses didn't match valid Yggdrasil node addresses so let's see
+		// whether it matches a crypto-key routing range instead
 		if key, err := r.cryptokey.getPublicKeyForAddress(destAddr, addrlen); err == nil {
+			// A public key was found, get the node ID for the search
 			destPubKey = &key
 			destNodeID = getNodeID(destPubKey)
+			// Do a quick check to ensure that the node ID refers to a vaild Yggdrasil
+			// address or subnet - this might be superfluous
 			addr := *address_addrForNodeID(destNodeID)
 			copy(destAddr[:], addr[:])
 			copy(destSnet[:], addr[:])
@@ -160,6 +172,7 @@ func (r *router) sendPacket(bs []byte) {
 				return
 			}
 		} else {
+			// No public key was found in the CKR table so we've exhausted our options
 			return
 		}
 	}
@@ -320,10 +333,13 @@ func (r *router) recvPacket(bs []byte, sinfo *sessionInfo) {
 		// Unknown address length
 		return
 	}
+	// Check that the packet is destined for either our Yggdrasil address or
+	// subnet, or that it matches one of the crypto-key routing source routes
 	if !r.cryptokey.isValidSource(dest, addrlen) {
 		util_putBytes(bs)
 		return
 	}
+	// See whether the packet they sent should have originated from this session
 	switch {
 	case sourceAddr.isValid() && sourceAddr == sinfo.theirAddr:
 	case snet.isValid() && snet == sinfo.theirSubnet:
