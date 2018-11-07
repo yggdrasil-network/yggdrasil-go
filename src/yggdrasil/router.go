@@ -23,6 +23,7 @@ package yggdrasil
 //  The router then runs some sanity checks before passing it to the tun
 
 import (
+	"bytes"
 	"time"
 
 	"golang.org/x/net/icmp"
@@ -127,6 +128,7 @@ func (r *router) sendPacket(bs []byte) {
 	var sourceAddr address
 	var destAddr address
 	var destSnet subnet
+	var destPubKey *boxPubKey
 	var destNodeID *NodeID
 	var addrlen int
 	if bs[0]&0xf0 == 0x60 {
@@ -149,7 +151,8 @@ func (r *router) sendPacket(bs []byte) {
 	}
 	if !destAddr.isValid() && !destSnet.isValid() {
 		if key, err := r.cryptokey.getPublicKeyForAddress(destAddr, addrlen); err == nil {
-			destNodeID = getNodeID(&key)
+			destPubKey = &key
+			destNodeID = getNodeID(destPubKey)
 			addr := *address_addrForNodeID(destNodeID)
 			copy(destAddr[:], addr[:])
 			copy(destSnet[:], addr[:])
@@ -227,6 +230,14 @@ func (r *router) sendPacket(bs []byte) {
 		}
 		fallthrough // Also send the packet
 	default:
+		// If we know the public key ahead of time (i.e. a CKR route) then check
+		// if the session perm pub key matches before we send the packet to it
+		if destPubKey != nil {
+			if !bytes.Equal((*destPubKey)[:], sinfo.theirPermPub[:]) {
+				return
+			}
+		}
+
 		// Drop packets if the session MTU is 0 - this means that one or other
 		// side probably has their TUN adapter disabled
 		if sinfo.getMTU() == 0 {
@@ -277,6 +288,7 @@ func (r *router) sendPacket(bs []byte) {
 			// Don't continue - drop the packet
 			return
 		}
+
 		sinfo.send <- bs
 	}
 }
