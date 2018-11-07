@@ -125,20 +125,21 @@ func (r *router) sendPacket(bs []byte) {
 		panic("Tried to send a packet shorter than a header...")
 	}
 	var sourceAddr address
-	var dest address
-	var snet subnet
+	var destAddr address
+	var destSnet subnet
+	var destNodeID *NodeID
 	var addrlen int
 	if bs[0]&0xf0 == 0x60 {
 		// IPv6 address
 		addrlen = 16
 		copy(sourceAddr[:addrlen], bs[8:])
-		copy(dest[:addrlen], bs[24:])
-		copy(snet[:addrlen/2], bs[24:])
+		copy(destAddr[:addrlen], bs[24:])
+		copy(destSnet[:addrlen/2], bs[24:])
 	} else if bs[0]&0xf0 == 0x40 {
 		// IPv4 address
 		addrlen = 4
 		copy(sourceAddr[:addrlen], bs[12:])
-		copy(dest[:addrlen], bs[16:])
+		copy(destAddr[:addrlen], bs[16:])
 	} else {
 		// Unknown address length
 		return
@@ -146,12 +147,13 @@ func (r *router) sendPacket(bs []byte) {
 	if !r.cryptokey.isValidSource(sourceAddr, addrlen) {
 		return
 	}
-	if !dest.isValid() && !snet.isValid() {
-		if key, err := r.cryptokey.getPublicKeyForAddress(dest, addrlen); err == nil {
-			addr := *address_addrForNodeID(getNodeID(&key))
-			copy(dest[:], addr[:])
-			copy(snet[:], addr[:])
-			if !dest.isValid() && !snet.isValid() {
+	if !destAddr.isValid() && !destSnet.isValid() {
+		if key, err := r.cryptokey.getPublicKeyForAddress(destAddr, addrlen); err == nil {
+			destNodeID = getNodeID(&key)
+			addr := *address_addrForNodeID(destNodeID)
+			copy(destAddr[:], addr[:])
+			copy(destSnet[:], addr[:])
+			if !destAddr.isValid() && !destSnet.isValid() {
 				return
 			}
 		} else {
@@ -160,11 +162,26 @@ func (r *router) sendPacket(bs []byte) {
 	}
 	doSearch := func(packet []byte) {
 		var nodeID, mask *NodeID
-		if dest.isValid() {
-			nodeID, mask = dest.getNodeIDandMask()
-		}
-		if snet.isValid() {
-			nodeID, mask = snet.getNodeIDandMask()
+		switch {
+		case destNodeID != nil:
+			// We already know the full node ID, probably because it's from a CKR
+			// route in which the public key is known ahead of time
+			nodeID = destNodeID
+			var m NodeID
+			for i := range m {
+				m[i] = 0xFF
+			}
+			mask = &m
+		case destAddr.isValid():
+			// We don't know the full node ID - try and use the address to generate
+			// a truncated node ID
+			nodeID, mask = destAddr.getNodeIDandMask()
+		case destSnet.isValid():
+			// We don't know the full node ID - try and use the subnet to generate
+			// a truncated node ID
+			nodeID, mask = destSnet.getNodeIDandMask()
+		default:
+			return
 		}
 		sinfo, isIn := r.core.searches.searches[*nodeID]
 		if !isIn {
@@ -177,11 +194,11 @@ func (r *router) sendPacket(bs []byte) {
 	}
 	var sinfo *sessionInfo
 	var isIn bool
-	if dest.isValid() {
-		sinfo, isIn = r.core.sessions.getByTheirAddr(&dest)
+	if destAddr.isValid() {
+		sinfo, isIn = r.core.sessions.getByTheirAddr(&destAddr)
 	}
-	if snet.isValid() {
-		sinfo, isIn = r.core.sessions.getByTheirSubnet(&snet)
+	if destSnet.isValid() {
+		sinfo, isIn = r.core.sessions.getByTheirSubnet(&destSnet)
 	}
 	switch {
 	case !isIn || !sinfo.init:
