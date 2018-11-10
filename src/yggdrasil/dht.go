@@ -1,19 +1,9 @@
 package yggdrasil
 
-// TODO signal to predecessor when we replace them?
-//  Sending a ping with an extra 0 at the end of our coords should be enough to reset our throttle in their table
-//  That should encorage them to ping us again sooner, and then we can reply with new info
-//  Maybe remember old predecessor and check this during maintenance?
-
-// TODO make sure that, if your peer is your successor or predecessor, you still bother to ping them and ask for better nodes
-//  Basically, don't automatically reset the dhtInfo.recv to time.Now() whenever updating them from the outside
-//  But *do* set it to something that won't instantly time them out or make them get pingspammed?
-//  Could set throttle to 0, but that's imperfect at best... pingspam
-
-// TODO? cache all nodes we ping (from e.g. searches), not just the important ones
-//  But only send maintenance pings to the important ones
-
-// TODO reoptimize search stuff (size, timeouts, etc) to play nicer with DHT churn
+// A chord-like Distributed Hash Table (DHT).
+// Used to look up coords given a NodeID and bitmask (taken from an IPv6 address).
+// Keeps track of immediate successor, predecessor, and all peers.
+// Also keeps track of other nodes if they're closer in tree space than all other known nodes encountered when heading in either direction to that point, under the hypothesis that, for the kinds of networks we care about, this should probabilistically include the node needed to keep lookups to near O(logn) steps.
 
 import (
 	"sort"
@@ -70,7 +60,7 @@ type dht struct {
 	imp   []*dhtInfo
 }
 
-// Initializes the DHT
+// Initializes the DHT.
 func (t *dht) init(c *Core) {
 	t.core = c
 	t.nodeID = *t.core.GetNodeID()
@@ -78,23 +68,19 @@ func (t *dht) init(c *Core) {
 	t.reset()
 }
 
-// Resets the DHT in response to coord changes
-// This empties all info from the DHT and drops outstanding requests
+// Resets the DHT in response to coord changes.
+// This empties all info from the DHT and drops outstanding requests.
 func (t *dht) reset() {
 	t.reqs = make(map[boxPubKey]map[NodeID]time.Time)
 	t.table = make(map[NodeID]*dhtInfo)
 	t.imp = nil
 }
 
-// Does a DHT lookup and returns up to dht_lookup_size results
+// Does a DHT lookup and returns up to dht_lookup_size results.
 func (t *dht) lookup(nodeID *NodeID, everything bool) []*dhtInfo {
 	results := make([]*dhtInfo, 0, len(t.table))
-	//imp := t.getImportant()
 	for _, info := range t.table {
 		results = append(results, info)
-		//if t.isImportant(info, imp) {
-		//	results = append(results, info)
-		//}
 	}
 	sort.SliceStable(results, func(i, j int) bool {
 		return dht_ordered(nodeID, results[i].getNodeID(), results[j].getNodeID())
@@ -105,7 +91,7 @@ func (t *dht) lookup(nodeID *NodeID, everything bool) []*dhtInfo {
 	return results
 }
 
-// Insert into table, preserving the time we last sent a packet if the node was already in the table, otherwise setting that time to now
+// Insert into table, preserving the time we last sent a packet if the node was already in the table, otherwise setting that time to now.
 func (t *dht) insert(info *dhtInfo) {
 	if *info.getNodeID() == t.nodeID {
 		// This shouldn't happen, but don't add it if it does
@@ -133,8 +119,7 @@ func (t *dht) insert(info *dhtInfo) {
 	t.table[*info.getNodeID()] = info
 }
 
-// Return true if first/second/third are (partially) ordered correctly
-//  FIXME? maybe total ordering makes more sense
+// Return true if first/second/third are (partially) ordered correctly.
 func dht_ordered(first, second, third *NodeID) bool {
 	lessOrEqual := func(first, second *NodeID) bool {
 		for idx := 0; idx < NodeIDLen; idx++ {
@@ -182,8 +167,7 @@ func (t *dht) handleReq(req *dhtReq) {
 		key:    req.Key,
 		coords: req.Coords,
 	}
-	imp := t.getImportant()
-	if _, isIn := t.table[*info.getNodeID()]; !isIn && t.isImportant(&info, imp) {
+	if _, isIn := t.table[*info.getNodeID()]; !isIn && t.isImportant(&info) {
 		t.insert(&info)
 	}
 }
@@ -222,8 +206,7 @@ func (t *dht) handleRes(res *dhtRes) {
 		key:    res.Key,
 		coords: res.Coords,
 	}
-	imp := t.getImportant()
-	if t.isImportant(&rinfo, imp) {
+	if t.isImportant(&rinfo) {
 		t.insert(&rinfo)
 	}
 	for _, info := range res.Infos {
@@ -234,11 +217,10 @@ func (t *dht) handleRes(res *dhtRes) {
 			// TODO? don't skip if coords are different?
 			continue
 		}
-		if t.isImportant(info, imp) {
+		if t.isImportant(info) {
 			t.ping(info, nil)
 		}
 	}
-	// TODO add everyting else to a rumor mill for later use? (when/how?)
 }
 
 // Sends a lookup request to the specified node.
@@ -267,6 +249,7 @@ func (t *dht) sendReq(req *dhtReq, dest *dhtInfo) {
 	reqsToDest[req.Dest] = time.Now()
 }
 
+// Sends a lookup to this info, looking for the target.
 func (t *dht) ping(info *dhtInfo, target *NodeID) {
 	// Creates a req for the node at dhtInfo, asking them about the target (if one is given) or themself (if no target is given)
 	if target == nil {
@@ -282,6 +265,7 @@ func (t *dht) ping(info *dhtInfo, target *NodeID) {
 	t.sendReq(&req, info)
 }
 
+// Periodic maintenance work to keep important DHT nodes alive.
 func (t *dht) doMaintenance() {
 	now := time.Now()
 	for infoID, info := range t.table {
@@ -302,6 +286,7 @@ func (t *dht) doMaintenance() {
 	}
 }
 
+// Gets a list of important nodes, used by isImportant.
 func (t *dht) getImportant() []*dhtInfo {
 	if t.imp == nil {
 		// Get a list of all known nodes
@@ -343,7 +328,9 @@ func (t *dht) getImportant() []*dhtInfo {
 	return t.imp
 }
 
-func (t *dht) isImportant(ninfo *dhtInfo, important []*dhtInfo) bool {
+// Returns true if this is a node we need to keep track of for the DHT to work.
+func (t *dht) isImportant(ninfo *dhtInfo) bool {
+	important := t.getImportant()
 	// Check if ninfo is of equal or greater importance to what we already know
 	loc := t.core.switchTable.getLocator()
 	ndist := uint64(loc.dist(ninfo.coords))

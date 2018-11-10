@@ -113,13 +113,11 @@ func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 	// Sort
 	sort.SliceStable(sinfo.toVisit, func(i, j int) bool {
 		// Should return true if i is closer to the destination than j
-		// FIXME for some reason it works better backwards, why?!
-		//return dht_ordered(sinfo.toVisit[j].getNodeID(), sinfo.toVisit[i].getNodeID(), &res.Dest)
 		return dht_ordered(&res.Dest, sinfo.toVisit[i].getNodeID(), sinfo.toVisit[j].getNodeID())
 	})
 	// Truncate to some maximum size
 	if len(sinfo.toVisit) > search_MAX_SEARCH_SIZE {
-		sinfo.toVisit = sinfo.toVisit[:search_MAX_SEARCH_SIZE] //FIXME debug
+		sinfo.toVisit = sinfo.toVisit[:search_MAX_SEARCH_SIZE]
 	}
 }
 
