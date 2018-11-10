@@ -4,6 +4,7 @@ package yggdrasil
 
 import (
 	"errors"
+	"time"
 	"yggdrasil/defaults"
 
 	"github.com/songgao/packets/ethernet"
@@ -49,6 +50,21 @@ func (tun *tunDevice) start(ifname string, iftapmode bool, addr string, mtu int)
 	}
 	go func() { panic(tun.read()) }()
 	go func() { panic(tun.write()) }()
+	go func() {
+		for {
+			if _, ok := tun.icmpv6.peermacs[tun.core.router.addr]; ok {
+				break
+			}
+			request, err := tun.icmpv6.create_ndp_tap(tun.core.router.addr)
+			if err != nil {
+				panic(err)
+			}
+			if _, err := tun.iface.Write(request); err != nil {
+				panic(err)
+			}
+			time.Sleep(time.Second)
+		}
+	}()
 	return nil
 }
 
@@ -76,7 +92,35 @@ func (tun *tunDevice) write() error {
 			} else {
 				return errors.New("Invalid address family")
 			}
-			if peermac, ok := tun.icmpv6.peermacs[destAddr]; ok {
+			sendndp := func(destAddr address) {
+				neigh, known := tun.icmpv6.peermacs[destAddr]
+				known = known && (time.Since(neigh.lastsolicitation).Seconds() < 30)
+				if !known {
+					request, err := tun.icmpv6.create_ndp_tap(destAddr)
+					if err != nil {
+						panic(err)
+					}
+					if _, err := tun.iface.Write(request); err != nil {
+						panic(err)
+					}
+					tun.icmpv6.peermacs[destAddr] = neighbor{
+						lastsolicitation: time.Now(),
+					}
+				}
+			}
+			var peermac macAddress
+			var peerknown bool
+			if neighbor, ok := tun.icmpv6.peermacs[destAddr]; ok && neighbor.learned {
+				peermac = neighbor.mac
+				peerknown = true
+			} else if neighbor, ok := tun.icmpv6.peermacs[tun.core.router.addr]; ok && neighbor.learned {
+				peermac = neighbor.mac
+				peerknown = true
+				sendndp(destAddr)
+			} else {
+				sendndp(tun.core.router.addr)
+			}
+			if peerknown {
 				var frame ethernet.Frame
 				frame.Prepare(
 					peermac[:6],          // Destination MAC address
@@ -88,16 +132,7 @@ func (tun *tunDevice) write() error {
 				if _, err := tun.iface.Write(frame); err != nil {
 					panic(err)
 				}
-			} else {
-				request, err := tun.icmpv6.create_ndp_tap(data)
-				if err != nil {
-					panic(err)
-				}
-				if _, err := tun.iface.Write(request); err != nil {
-					panic(err)
-				}
 			}
-
 		} else {
 			if _, err := tun.iface.Write(data); err != nil {
 				panic(err)

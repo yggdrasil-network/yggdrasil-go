@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"net"
+	"time"
 
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv6"
@@ -26,7 +27,14 @@ type icmpv6 struct {
 	tun      *tunDevice
 	mylladdr net.IP
 	mymac    macAddress
-	peermacs map[address]macAddress
+	peermacs map[address]neighbor
+}
+
+type neighbor struct {
+	mac               macAddress
+	learned           bool
+	lastadvertisement time.Time
+	lastsolicitation  time.Time
 }
 
 // Marshal returns the binary encoding of h.
@@ -51,7 +59,7 @@ func ipv6Header_Marshal(h *ipv6.Header) ([]byte, error) {
 // addresses.
 func (i *icmpv6) init(t *tunDevice) {
 	i.tun = t
-	i.peermacs = make(map[address]macAddress)
+	i.peermacs = make(map[address]neighbor)
 
 	// Our MAC address and link-local address
 	i.mymac = macAddress{
@@ -168,7 +176,11 @@ func (i *icmpv6) parse_packet_tun(datain []byte, datamac *[]byte) ([]byte, error
 			var mac macAddress
 			copy(addr[:], ipv6Header.Src[:])
 			copy(mac[:], (*datamac)[:])
-			i.peermacs[addr] = mac
+			neighbor := i.peermacs[addr]
+			neighbor.mac = mac
+			neighbor.learned = true
+			neighbor.lastadvertisement = time.Now()
+			i.peermacs[addr] = neighbor
 		}
 		return nil, errors.New("No response needed")
 	}
@@ -242,27 +254,11 @@ func (i *icmpv6) create_icmpv6_tun(dst net.IP, src net.IP, mtype ipv6.ICMPType, 
 	return responsePacket, nil
 }
 
-func (i *icmpv6) create_ndp_tap(in []byte) ([]byte, error) {
-	// Parse the IPv6 packet headers
-	ipv6Header, err := ipv6.ParseHeader(in[:ipv6.HeaderLen])
-	if err != nil {
-		return nil, err
-	}
-
-	// Check if the packet is IPv6
-	if ipv6Header.Version != ipv6.Version {
-		return nil, err
-	}
-
-	// Check if the packet is ICMPv6
-	if ipv6Header.NextHeader != 58 {
-		return nil, err
-	}
-
+func (i *icmpv6) create_ndp_tap(dst address) ([]byte, error) {
 	// Create the ND payload
 	var payload [28]byte
 	copy(payload[:4], []byte{0x00, 0x00, 0x00, 0x00})
-	copy(payload[4:20], ipv6Header.Dst[:])
+	copy(payload[4:20], dst[:])
 	copy(payload[20:22], []byte{0x01, 0x01})
 	copy(payload[22:28], i.mymac[:6])
 
@@ -272,7 +268,7 @@ func (i *icmpv6) create_ndp_tap(in []byte) ([]byte, error) {
 		0xFF, 0x02, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x01, 0xFF})
-	copy(dstaddr[13:], ipv6Header.Dst[13:16])
+	copy(dstaddr[13:], dst[13:16])
 
 	// Create the multicast MAC
 	var dstmac macAddress
@@ -287,6 +283,9 @@ func (i *icmpv6) create_ndp_tap(in []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	neighbor := i.peermacs[dstaddr]
+	neighbor.lastsolicitation = time.Now()
+	i.peermacs[dstaddr] = neighbor
 
 	return requestPacket, nil
 }
