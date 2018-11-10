@@ -3,6 +3,7 @@ package yggdrasil
 // This manages the tun driver to send/recv packets to/from applications
 
 import (
+	"bytes"
 	"errors"
 	"time"
 	"yggdrasil/defaults"
@@ -110,6 +111,13 @@ func (tun *tunDevice) write() error {
 			}
 			var peermac macAddress
 			var peerknown bool
+			if data[0]&0xf0 == 0x40 {
+				destAddr = tun.core.router.addr
+			} else if data[0]&0xf0 == 0x60 {
+				if !bytes.Equal(tun.core.router.addr[:16], destAddr[:16]) && !bytes.Equal(tun.core.router.subnet[:8], destAddr[:8]) {
+					destAddr = tun.core.router.addr
+				}
+			}
 			if neighbor, ok := tun.icmpv6.peermacs[destAddr]; ok && neighbor.learned {
 				peermac = neighbor.mac
 				peerknown = true
@@ -121,12 +129,19 @@ func (tun *tunDevice) write() error {
 				sendndp(tun.core.router.addr)
 			}
 			if peerknown {
+				var proto ethernet.Ethertype
+				switch {
+				case data[0]&0xf0 == 0x60:
+					proto = ethernet.IPv6
+				case data[0]&0xf0 == 0x40:
+					proto = ethernet.IPv4
+				}
 				var frame ethernet.Frame
 				frame.Prepare(
 					peermac[:6],          // Destination MAC address
 					tun.icmpv6.mymac[:6], // Source MAC address
 					ethernet.NotTagged,   // VLAN tagging
-					ethernet.IPv6,        // Ethertype
+					proto,                // Ethertype
 					len(data))            // Payload length
 				copy(frame[tun_ETHER_HEADER_LENGTH:], data[:])
 				if _, err := tun.iface.Write(frame); err != nil {

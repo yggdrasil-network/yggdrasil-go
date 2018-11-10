@@ -67,8 +67,8 @@ func (i *icmpv6) init(t *tunDevice) {
 	i.mylladdr = net.IP{
 		0xFE, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xFE}
-	copy(i.mymac[1:], i.tun.core.boxPub[:])
-	copy(i.mylladdr[9:], i.tun.core.boxPub[:])
+	copy(i.mymac[:], i.tun.core.router.addr[:])
+	copy(i.mylladdr[9:], i.tun.core.router.addr[1:])
 }
 
 // Parses an incoming ICMPv6 packet. The packet provided may be either an
