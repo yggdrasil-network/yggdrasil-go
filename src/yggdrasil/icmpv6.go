@@ -23,11 +23,10 @@ type macAddress [6]byte
 const len_ETHER = 14
 
 type icmpv6 struct {
-	tun        *tunDevice
-	peermac    macAddress
-	peerlladdr net.IP
-	mylladdr   net.IP
-	mymac      macAddress
+	tun      *tunDevice
+	mylladdr net.IP
+	mymac    macAddress
+	peermacs map[address]macAddress
 }
 
 // Marshal returns the binary encoding of h.
@@ -52,13 +51,16 @@ func ipv6Header_Marshal(h *ipv6.Header) ([]byte, error) {
 // addresses.
 func (i *icmpv6) init(t *tunDevice) {
 	i.tun = t
+	i.peermacs = make(map[address]macAddress)
 
 	// Our MAC address and link-local address
-	copy(i.mymac[:], []byte{
-		0x02, 0x00, 0x00, 0x00, 0x00, 0x02})
+	i.mymac = macAddress{
+		0x02, 0x00, 0x00, 0x00, 0x00, 0x02}
 	i.mylladdr = net.IP{
 		0xFE, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xFE}
+	copy(i.mymac[1:], i.tun.core.boxPub[:])
+	copy(i.mylladdr[9:], i.tun.core.boxPub[:])
 }
 
 // Parses an incoming ICMPv6 packet. The packet provided may be either an
@@ -73,7 +75,7 @@ func (i *icmpv6) parse_packet(datain []byte) {
 	if i.tun.iface.IsTAP() {
 		response, err = i.parse_packet_tap(datain)
 	} else {
-		response, err = i.parse_packet_tun(datain)
+		response, err = i.parse_packet_tun(datain, nil)
 	}
 
 	if err != nil {
@@ -89,16 +91,14 @@ func (i *icmpv6) parse_packet(datain []byte) {
 // A response buffer is also created for the response message, also complete
 // with ethernet headers.
 func (i *icmpv6) parse_packet_tap(datain []byte) ([]byte, error) {
-	// Store the peer MAC address
-	copy(i.peermac[:6], datain[6:12])
-
 	// Ignore non-IPv6 frames
 	if binary.BigEndian.Uint16(datain[12:14]) != uint16(0x86DD) {
 		return nil, nil
 	}
 
 	// Hand over to parse_packet_tun to interpret the IPv6 packet
-	ipv6packet, err := i.parse_packet_tun(datain[len_ETHER:])
+	mac := datain[6:12]
+	ipv6packet, err := i.parse_packet_tun(datain[len_ETHER:], &mac)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (i *icmpv6) parse_packet_tap(datain []byte) ([]byte, error) {
 // sanity checks on the packet - i.e. is the packet an ICMPv6 packet, does the
 // ICMPv6 message match a known expected type. The relevant handler function
 // is then called and a response packet may be returned.
-func (i *icmpv6) parse_packet_tun(datain []byte) ([]byte, error) {
+func (i *icmpv6) parse_packet_tun(datain []byte, datamac *[]byte) ([]byte, error) {
 	// Parse the IPv6 packet headers
 	ipv6Header, err := ipv6.ParseHeader(datain[:ipv6.HeaderLen])
 	if err != nil {
@@ -137,9 +137,6 @@ func (i *icmpv6) parse_packet_tun(datain []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	// Store the peer link local address, it will come in useful later
-	copy(i.peerlladdr[:], ipv6Header.Src[:])
-
 	// Parse the ICMPv6 message contents
 	icmpv6Header, err := icmp.ParseMessage(58, datain[ipv6.HeaderLen:])
 	if err != nil {
@@ -149,24 +146,31 @@ func (i *icmpv6) parse_packet_tun(datain []byte) ([]byte, error) {
 	// Check for a supported message type
 	switch icmpv6Header.Type {
 	case ipv6.ICMPTypeNeighborSolicitation:
-		{
-			response, err := i.handle_ndp(datain[ipv6.HeaderLen:])
-			if err == nil {
-				// Create our ICMPv6 response
-				responsePacket, err := i.create_icmpv6_tun(
-					ipv6Header.Src, i.mylladdr,
-					ipv6.ICMPTypeNeighborAdvertisement, 0,
-					&icmp.DefaultMessageBody{Data: response})
-				if err != nil {
-					return nil, err
-				}
-
-				// Send it back
-				return responsePacket, nil
-			} else {
+		response, err := i.handle_ndp(datain[ipv6.HeaderLen:])
+		if err == nil {
+			// Create our ICMPv6 response
+			responsePacket, err := i.create_icmpv6_tun(
+				ipv6Header.Src, i.mylladdr,
+				ipv6.ICMPTypeNeighborAdvertisement, 0,
+				&icmp.DefaultMessageBody{Data: response})
+			if err != nil {
 				return nil, err
 			}
+
+			// Send it back
+			return responsePacket, nil
+		} else {
+			return nil, err
 		}
+	case ipv6.ICMPTypeNeighborAdvertisement:
+		if datamac != nil {
+			var addr address
+			var mac macAddress
+			copy(addr[:], ipv6Header.Src[:])
+			copy(mac[:], (*datamac)[:])
+			i.peermacs[addr] = mac
+		}
+		return nil, errors.New("No response needed")
 	}
 
 	return nil, errors.New("ICMPv6 type not matched")
@@ -236,6 +240,55 @@ func (i *icmpv6) create_icmpv6_tun(dst net.IP, src net.IP, mtype ipv6.ICMPType, 
 
 	// Send it back
 	return responsePacket, nil
+}
+
+func (i *icmpv6) create_ndp_tap(in []byte) ([]byte, error) {
+	// Parse the IPv6 packet headers
+	ipv6Header, err := ipv6.ParseHeader(in[:ipv6.HeaderLen])
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if the packet is IPv6
+	if ipv6Header.Version != ipv6.Version {
+		return nil, err
+	}
+
+	// Check if the packet is ICMPv6
+	if ipv6Header.NextHeader != 58 {
+		return nil, err
+	}
+
+	// Create the ND payload
+	var payload [28]byte
+	copy(payload[:4], []byte{0x00, 0x00, 0x00, 0x00})
+	copy(payload[4:20], ipv6Header.Dst[:])
+	copy(payload[20:22], []byte{0x01, 0x01})
+	copy(payload[22:28], i.mymac[:6])
+
+	// Create the ICMPv6 solicited-node address
+	var dstaddr address
+	copy(dstaddr[:13], []byte{
+		0xFF, 0x02, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x01, 0xFF})
+	copy(dstaddr[13:], ipv6Header.Dst[13:16])
+
+	// Create the multicast MAC
+	var dstmac macAddress
+	copy(dstmac[:2], []byte{0x33, 0x33})
+	copy(dstmac[2:6], dstaddr[12:16])
+
+	// Create the ND request
+	requestPacket, err := i.create_icmpv6_tap(
+		dstmac, dstaddr[:], i.mylladdr,
+		ipv6.ICMPTypeNeighborSolicitation, 0,
+		&icmp.DefaultMessageBody{Data: payload[:]})
+	if err != nil {
+		return nil, err
+	}
+
+	return requestPacket, nil
 }
 
 // Generates a response to an NDP discovery packet. This is effectively called

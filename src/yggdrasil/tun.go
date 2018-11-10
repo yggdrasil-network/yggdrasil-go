@@ -3,6 +3,7 @@ package yggdrasil
 // This manages the tun driver to send/recv packets to/from applications
 
 import (
+	"errors"
 	"yggdrasil/defaults"
 
 	"github.com/songgao/packets/ethernet"
@@ -61,17 +62,42 @@ func (tun *tunDevice) write() error {
 			continue
 		}
 		if tun.iface.IsTAP() {
-			var frame ethernet.Frame
-			frame.Prepare(
-				tun.icmpv6.peermac[:6], // Destination MAC address
-				tun.icmpv6.mymac[:6],   // Source MAC address
-				ethernet.NotTagged,     // VLAN tagging
-				ethernet.IPv6,          // Ethertype
-				len(data))              // Payload length
-			copy(frame[tun_ETHER_HEADER_LENGTH:], data[:])
-			if _, err := tun.iface.Write(frame); err != nil {
-				panic(err)
+			var destAddr address
+			if data[0]&0xf0 == 0x60 {
+				if len(data) < 40 {
+					panic("Tried to send a packet shorter than an IPv6 header...")
+				}
+				copy(destAddr[:16], data[24:])
+			} else if data[0]&0xf0 == 0x40 {
+				if len(data) < 20 {
+					panic("Tried to send a packet shorter than an IPv4 header...")
+				}
+				copy(destAddr[:4], data[16:])
+			} else {
+				return errors.New("Invalid address family")
 			}
+			if peermac, ok := tun.icmpv6.peermacs[destAddr]; ok {
+				var frame ethernet.Frame
+				frame.Prepare(
+					peermac[:6],          // Destination MAC address
+					tun.icmpv6.mymac[:6], // Source MAC address
+					ethernet.NotTagged,   // VLAN tagging
+					ethernet.IPv6,        // Ethertype
+					len(data))            // Payload length
+				copy(frame[tun_ETHER_HEADER_LENGTH:], data[:])
+				if _, err := tun.iface.Write(frame); err != nil {
+					panic(err)
+				}
+			} else {
+				request, err := tun.icmpv6.create_ndp_tap(data)
+				if err != nil {
+					panic(err)
+				}
+				if _, err := tun.iface.Write(request); err != nil {
+					panic(err)
+				}
+			}
+
 		} else {
 			if _, err := tun.iface.Write(data); err != nil {
 				panic(err)
