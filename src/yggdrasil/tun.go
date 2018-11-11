@@ -51,21 +51,23 @@ func (tun *tunDevice) start(ifname string, iftapmode bool, addr string, mtu int)
 	}
 	go func() { panic(tun.read()) }()
 	go func() { panic(tun.write()) }()
-	go func() {
-		for {
-			if _, ok := tun.icmpv6.peermacs[tun.core.router.addr]; ok {
-				break
+	if iftapmode {
+		go func() {
+			for {
+				if _, ok := tun.icmpv6.peermacs[tun.core.router.addr]; ok {
+					break
+				}
+				request, err := tun.icmpv6.create_ndp_tap(tun.core.router.addr)
+				if err != nil {
+					panic(err)
+				}
+				if _, err := tun.iface.Write(request); err != nil {
+					panic(err)
+				}
+				time.Sleep(time.Second)
 			}
-			request, err := tun.icmpv6.create_ndp_tap(tun.core.router.addr)
-			if err != nil {
-				panic(err)
-			}
-			if _, err := tun.iface.Write(request); err != nil {
-				panic(err)
-			}
-			time.Sleep(time.Second)
-		}
-	}()
+		}()
+	}
 	return nil
 }
 
