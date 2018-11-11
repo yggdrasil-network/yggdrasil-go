@@ -323,7 +323,7 @@ func (r *router) recvPacket(bs []byte, sinfo *sessionInfo) {
 		addrlen = 16
 		copy(sourceAddr[:addrlen], bs[8:])
 		copy(dest[:addrlen], bs[24:])
-		copy(snet[:addrlen/2], bs[24:])
+		copy(snet[:addrlen/2], bs[8:])
 	} else if bs[0]&0xf0 == 0x40 {
 		// IPv4 address
 		addrlen = 4
