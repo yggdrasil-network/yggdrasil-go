@@ -300,6 +300,7 @@ func pingNodes(store map[[32]byte]*Node) {
 					}
 				case <-ch:
 					sendTo(payload, destAddr)
+					//dumpDHTSize(store) // note that this uses racey functions to read things...
 				}
 			}
 			ticker.Stop()
@@ -386,7 +387,7 @@ func (n *Node) startTCP(listen string) {
 }
 
 func (n *Node) connectTCP(remoteAddr string) {
-	n.core.AddPeer(remoteAddr)
+	n.core.AddPeer(remoteAddr, remoteAddr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -437,7 +438,7 @@ func main() {
 	pingNodes(kstore)
 	//pingBench(kstore) // Only after disabling debug output
 	//stressTest(kstore)
-	//time.Sleep(120*time.Second)
+	time.Sleep(120 * time.Second)
 	dumpDHTSize(kstore) // note that this uses racey functions to read things...
 	if false {
 		// This connects the sim to the local network
