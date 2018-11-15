@@ -267,6 +267,7 @@ func pingNodes(store map[[32]byte]*Node) {
 			copy(packet[8:24], sourceAddr)
 			copy(packet[24:40], destAddr)
 			copy(packet[40:], bs)
+			packet[0] = 6 << 4
 			source.send <- packet
 		}
 		destCount := 0
