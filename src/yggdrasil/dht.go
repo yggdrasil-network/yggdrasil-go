@@ -82,10 +82,16 @@ func (t *dht) lookup(nodeID *NodeID, everything bool) []*dhtInfo {
 	for _, info := range t.table {
 		results = append(results, info)
 	}
-	sort.SliceStable(results, func(i, j int) bool {
-		return dht_ordered(nodeID, results[i].getNodeID(), results[j].getNodeID())
-	})
 	if len(results) > dht_lookup_size {
+		// Drop the middle part, so we keep some nodes before and after.
+		// This should help to bootstrap / recover more quickly.
+		sort.SliceStable(results, func(i, j int) bool {
+			return dht_ordered(nodeID, results[i].getNodeID(), results[j].getNodeID())
+		})
+		newRes := make([]*dhtInfo, 0, len(results))
+		newRes = append(newRes, results[len(results)-dht_lookup_size/2:]...)
+		newRes = append(newRes, results[:len(results)-dht_lookup_size/2]...)
+		results = newRes
 		results = results[:dht_lookup_size]
 	}
 	return results
@@ -168,7 +174,7 @@ func (t *dht) handleReq(req *dhtReq) {
 		coords: req.Coords,
 	}
 	if _, isIn := t.table[*info.getNodeID()]; !isIn && t.isImportant(&info) {
-		t.insert(&info)
+		t.ping(&info, nil)
 	}
 }
 
@@ -276,7 +282,7 @@ func (t *dht) doMaintenance() {
 	}
 	for _, info := range t.getImportant() {
 		if now.Sub(info.recv) > info.throttle {
-			t.ping(info, info.getNodeID())
+			t.ping(info, nil)
 			info.pings++
 			info.throttle += time.Second
 			if info.throttle > 30*time.Second {

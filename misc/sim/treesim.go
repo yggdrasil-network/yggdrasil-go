@@ -267,6 +267,7 @@ func pingNodes(store map[[32]byte]*Node) {
 			copy(packet[8:24], sourceAddr)
 			copy(packet[24:40], destAddr)
 			copy(packet[40:], bs)
+			packet[0] = 6 << 4
 			source.send <- packet
 		}
 		destCount := 0
@@ -438,7 +439,7 @@ func main() {
 	pingNodes(kstore)
 	//pingBench(kstore) // Only after disabling debug output
 	//stressTest(kstore)
-	time.Sleep(120 * time.Second)
+	//time.Sleep(120 * time.Second)
 	dumpDHTSize(kstore) // note that this uses racey functions to read things...
 	if false {
 		// This connects the sim to the local network
