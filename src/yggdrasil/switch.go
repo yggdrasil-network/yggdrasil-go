@@ -118,13 +118,13 @@ func (x *switchLocator) isAncestorOf(y *switchLocator) bool {
 
 // Information about a peer, used by the switch to build the tree and eventually make routing decisions.
 type peerInfo struct {
-	key       sigPubKey     // ID of this peer
-	locator   switchLocator // Should be able to respond with signatures upon request
-	degree    uint64        // Self-reported degree
-	time      time.Time     // Time this node was last seen
-	firstSeen time.Time
-	port      switchPort // Interface number of this peer
-	msg       switchMsg  // The wire switchMsg used
+	key     sigPubKey     // ID of this peer
+	locator switchLocator // Should be able to respond with signatures upon request
+	degree  uint64        // Self-reported degree
+	time    time.Time     // Time this node was last seen
+	cost    time.Duration // Exponentially weighted average latency relative to the current parent, initialized to 1 hour
+	port    switchPort    // Interface number of this peer
+	msg     switchMsg     // The wire switchMsg used
 }
 
 // This is just a uint64 with a named type for clarity reasons.
@@ -251,7 +251,7 @@ func (t *switchTable) forgetPeer(port switchPort) {
 		return
 	}
 	for _, info := range t.data.peers {
-		t.unlockedHandleMsg(&info.msg, info.port)
+		t.unlockedHandleMsg(&info.msg, info.port, true)
 	}
 }
 
@@ -325,7 +325,7 @@ func (t *switchTable) checkRoot(msg *switchMsg) bool {
 func (t *switchTable) handleMsg(msg *switchMsg, fromPort switchPort) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	t.unlockedHandleMsg(msg, fromPort)
+	t.unlockedHandleMsg(msg, fromPort, false)
 }
 
 // This updates the switch with information about a peer.
@@ -333,7 +333,7 @@ func (t *switchTable) handleMsg(msg *switchMsg, fromPort switchPort) {
 // That happens if this node is already our parent, or is advertising a better root, or is advertising a better path to the same root, etc...
 // There are a lot of very delicate order sensitive checks here, so its' best to just read the code if you need to understand what it's doing.
 // It's very important to not change the order of the statements in the case function unless you're absolutely sure that it's safe, including safe if used along side nodes that used the previous order.
-func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
+func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, replace bool) {
 	// TODO directly use a switchMsg instead of switchMessage + sigs
 	now := time.Now()
 	// Set up the sender peerInfo
@@ -348,11 +348,6 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 		prevKey = hop.Next
 	}
 	sender.msg = *msg
-	oldSender, isIn := t.data.peers[fromPort]
-	if !isIn {
-		oldSender.firstSeen = now
-	}
-	sender.firstSeen = oldSender.firstSeen
 	sender.port = fromPort
 	sender.time = now
 	// Decide what to do
@@ -371,9 +366,27 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 		return true
 	}
 	doUpdate := false
+	oldSender, isIn := t.data.peers[fromPort]
+	if !isIn || oldSender.locator.root != msg.Root {
+		// Reset the cost
+		sender.cost = time.Hour
+	} else if sender.locator.tstamp > oldSender.locator.tstamp {
+		var lag time.Duration
+		if sender.locator.tstamp > t.data.locator.tstamp {
+			// Let latency based on how early the last message arrived before the parent's
+			lag = oldSender.time.Sub(t.time)
+		} else {
+			// Waiting this long cost us something
+			lag = now.Sub(t.time)
+		}
+		// Exponentially weighted average latency from last 8 updates
+		sender.cost -= sender.cost / 8
+		sender.cost += lag / 8
+	}
 	if !equiv(&sender.locator, &oldSender.locator) {
 		doUpdate = true
-		sender.firstSeen = now
+		// Penalize flappy routes by resetting cost
+		sender.cost = time.Hour
 	}
 	t.data.peers[fromPort] = sender
 	updateRoot := false
@@ -390,26 +403,32 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 		}
 		return true
 	}()
-	sTime := now.Sub(sender.firstSeen)
-	pTime := oldParent.time.Sub(oldParent.firstSeen) + switch_timeout
-	// Really want to compare sLen/sTime and pLen/pTime
-	// Cross multiplied to avoid divide-by-zero
-	cost := len(sender.locator.coords) * int(pTime.Seconds())
-	pCost := len(t.data.locator.coords) * int(sTime.Seconds())
 	dropTstamp, isIn := t.drop[sender.locator.root]
 	// Here be dragons
 	switch {
-	case !noLoop: // do nothing
-	case isIn && dropTstamp >= sender.locator.tstamp: // do nothing
+	case !noLoop:
+		// This route loops, so we can't use the sender as our parent.
+	case isIn && dropTstamp >= sender.locator.tstamp:
+		// This is a known root with a timestamp older than a known timeout, so we can't trust it not to be a replay.
 	case firstIsBetter(&sender.locator.root, &t.data.locator.root):
+		// This is a better root than what we're currently using, so we should update.
 		updateRoot = true
-	case t.data.locator.root != sender.locator.root: // do nothing
-	case t.data.locator.tstamp > sender.locator.tstamp: // do nothing
+	case t.data.locator.root != sender.locator.root:
+		// This is not the same root, and it's apparently not better (from the above), so we should ignore it.
+	case t.data.locator.tstamp > sender.locator.tstamp:
+		// This timetsamp is older than the most recently seen one from this root, so we should ignore it.
+	case now.Sub(t.time) < switch_throttle:
+		// We've already gotten an update from this root recently, so ignore this one to avoid flooding.
 	case noParent:
+		// We currently have no working parent, so update.
 		updateRoot = true
-	case cost < pCost:
+	case replace && sender.cost < oldParent.cost:
+		// The sender is strictly better than the parent, switch to it.
+		// Note that the parent and all "better" nodes are expected to tie at 0.
+		// So this should mostly matter if we lose our parent or coords change upstream.
 		updateRoot = true
-	case sender.port != t.parent: // do nothing
+	case sender.port != t.parent:
+		// Ignore further cases if the sender isn't our parent.
 	case !equiv(&sender.locator, &t.data.locator):
 		// Special case
 		// If coords changed, then this may now be a worse parent than before
@@ -417,12 +436,12 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 		// Then reprocess *all* messages to look for a better parent
 		// This is so we don't keep using this node as our parent if there's something better
 		t.parent = 0
-		t.unlockedHandleMsg(msg, fromPort)
+		t.unlockedHandleMsg(msg, fromPort, true)
 		for _, info := range t.data.peers {
-			t.unlockedHandleMsg(&info.msg, info.port)
+			t.unlockedHandleMsg(&info.msg, info.port, true)
 		}
-	case now.Sub(t.time) < switch_throttle: // do nothing
 	case sender.locator.tstamp > t.data.locator.tstamp:
+		// The timestamp was updated, so we need to update locally and send to our peers.
 		updateRoot = true
 	}
 	if updateRoot {
