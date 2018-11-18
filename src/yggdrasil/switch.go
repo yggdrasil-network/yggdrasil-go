@@ -21,6 +21,7 @@ import (
 const switch_timeout = time.Minute
 const switch_updateInterval = switch_timeout / 2
 const switch_throttle = switch_updateInterval / 2
+const switch_parent_threshold = time.Second
 
 // The switch locator represents the topology and network state dependent info about a node, minus the signatures that go with it.
 // Nodes will pick the best root they see, provided that the root continues to push out updates with new timestamps.
@@ -369,28 +370,30 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 	oldSender, isIn := t.data.peers[fromPort]
 	if !isIn || oldSender.locator.root != msg.Root {
 		// Reset the cost
-		sender.cost = time.Hour
+		sender.cost = 0
 	} else if sender.locator.tstamp > oldSender.locator.tstamp {
-		var lag time.Duration
 		if sender.locator.tstamp > t.data.locator.tstamp {
-			// Let latency based on how early the last message arrived before the parent's
-			lag = oldSender.time.Sub(t.time)
+			// Latency based on how early the last message arrived before the parent's
+			sender.cost += oldSender.time.Sub(t.time)
 		} else {
 			// Waiting this long cost us something
-			lag = now.Sub(t.time)
+			sender.cost += now.Sub(t.time)
 		}
-		// Exponentially weighted average latency from last 8 updates
-		sender.cost *= 7 / 8
-		sender.cost += lag / 8
+		if sender.cost < -switch_parent_threshold {
+			sender.cost = -switch_parent_threshold
+		}
+		if sender.cost > switch_parent_threshold {
+			sender.cost = switch_parent_threshold
+		}
 	}
 	if !equiv(&sender.locator, &oldSender.locator) {
 		doUpdate = true
 		// Penalize flappy routes by resetting cost
-		sender.cost = time.Hour
+		sender.cost = 0
 	}
 	t.data.peers[fromPort] = sender
 	updateRoot := false
-	oldParent, isIn := t.data.peers[t.parent]
+	_, isIn = t.data.peers[t.parent]
 	noParent := !isIn
 	noLoop := func() bool {
 		for idx := 0; idx < len(msg.Hops)-1; idx++ {
@@ -420,14 +423,12 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 	case noParent:
 		// We currently have no working parent, so update.
 		updateRoot = true
-	case replace && sender.cost < oldParent.cost:
-		// The sender is strictly better than the parent, switch to it.
-		// Note that the parent and all "better" nodes are expected to tie at 0.
-		// So this should mostly matter if we lose our parent or coords change upstream.
+	case sender.cost <= -switch_parent_threshold:
+		// Cumulatively faster by a significant margin.
 		updateRoot = true
 	case sender.port != t.parent:
 		// Ignore further cases if the sender isn't our parent.
-	case sender.port == t.parent && !equiv(&sender.locator, &t.data.locator):
+	case !equiv(&sender.locator, &t.data.locator):
 		// Special case
 		// If coords changed, then this may now be a worse parent than before
 		// Re-parent the node (de-parent and reprocess the message)
@@ -440,10 +441,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		}
 	case now.Sub(t.time) < switch_throttle:
 	// We've already gotten an update from this root recently, so ignore this one to avoid flooding.
-	case sender.cost <= oldParent.cost && len(sender.locator.coords) < len(oldParent.locator.coords):
-		// The latency is at least as good and the sender's path is shorter.
-		updateRoot = true
-	case sender.port == t.parent && sender.locator.tstamp > t.data.locator.tstamp:
+	case sender.locator.tstamp > t.data.locator.tstamp:
 		// The timestamp was updated, so we need to update locally and send to our peers.
 		updateRoot = true
 	}
