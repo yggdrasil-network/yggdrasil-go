@@ -372,18 +372,32 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		// Reset the cost
 		sender.cost = 0
 	} else if sender.locator.tstamp > oldSender.locator.tstamp {
+		var lag time.Duration
 		if sender.locator.tstamp > t.data.locator.tstamp {
 			// Latency based on how early the last message arrived before the parent's
-			sender.cost += oldSender.time.Sub(t.time)
+			lag = oldSender.time.Sub(t.time)
 		} else {
 			// Waiting this long cost us something
-			sender.cost += now.Sub(t.time)
+			lag = now.Sub(t.time)
 		}
+		// Limit how much lag can affect things from a single packet
+		if lag > switch_parent_threshold/8 {
+			lag = switch_parent_threshold / 8
+		}
+		if lag < -switch_parent_threshold/8 {
+			lag = -switch_parent_threshold / 8
+		}
+		sender.cost += lag
+		// Limit how much the cost can move in total
 		if sender.cost < -switch_parent_threshold {
 			sender.cost = -switch_parent_threshold
 		}
 		if sender.cost > switch_parent_threshold {
 			sender.cost = switch_parent_threshold
+		}
+		if sender.port == t.parent {
+			// But always reset the parent's cost to 0, by definition
+			sender.cost = 0
 		}
 	}
 	if !equiv(&sender.locator, &oldSender.locator) {
