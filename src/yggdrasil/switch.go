@@ -463,6 +463,10 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		if !equiv(&sender.locator, &t.data.locator) {
 			doUpdate = true
 			t.data.seq++
+			for port, peer := range t.data.peers {
+				peer.cost = 0
+				t.data.peers[port] = peer
+			}
 			select {
 			case t.core.router.reset <- struct{}{}:
 			default:
