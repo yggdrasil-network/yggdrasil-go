@@ -380,7 +380,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 			lag = now.Sub(t.time)
 		}
 		// Exponentially weighted average latency from last 8 updates
-		sender.cost -= sender.cost / 8
+		sender.cost *= 7 / 8
 		sender.cost += lag / 8
 	}
 	if !equiv(&sender.locator, &oldSender.locator) {
@@ -417,8 +417,6 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		// This is not the same root, and it's apparently not better (from the above), so we should ignore it.
 	case t.data.locator.tstamp > sender.locator.tstamp:
 		// This timetsamp is older than the most recently seen one from this root, so we should ignore it.
-	case now.Sub(t.time) < switch_throttle:
-		// We've already gotten an update from this root recently, so ignore this one to avoid flooding.
 	case noParent:
 		// We currently have no working parent, so update.
 		updateRoot = true
@@ -429,7 +427,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		updateRoot = true
 	case sender.port != t.parent:
 		// Ignore further cases if the sender isn't our parent.
-	case !equiv(&sender.locator, &t.data.locator):
+	case sender.port == t.parent && !equiv(&sender.locator, &t.data.locator):
 		// Special case
 		// If coords changed, then this may now be a worse parent than before
 		// Re-parent the node (de-parent and reprocess the message)
@@ -440,7 +438,12 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		for _, info := range t.data.peers {
 			t.unlockedHandleMsg(&info.msg, info.port, true)
 		}
-	case sender.locator.tstamp > t.data.locator.tstamp:
+	case now.Sub(t.time) < switch_throttle:
+	// We've already gotten an update from this root recently, so ignore this one to avoid flooding.
+	case sender.cost <= oldParent.cost && len(sender.locator.coords) < len(oldParent.locator.coords):
+		// The latency is at least as good and the sender's path is shorter.
+		updateRoot = true
+	case sender.port == t.parent && sender.locator.tstamp > t.data.locator.tstamp:
 		// The timestamp was updated, so we need to update locally and send to our peers.
 		updateRoot = true
 	}
