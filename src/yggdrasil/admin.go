@@ -232,6 +232,54 @@ func (a *admin) init(c *Core, listenaddr string) {
 			}, errors.New("Failed to remove allowed key")
 		}
 	})
+	a.addHandler("addSourceSubnet", []string{"subnet"}, func(in admin_info) (admin_info, error) {
+		var err error
+		a.core.router.doAdmin(func() {
+			err = a.core.router.cryptokey.addSourceSubnet(in["subnet"].(string))
+		})
+		if err == nil {
+			return admin_info{"added": []string{in["subnet"].(string)}}, nil
+		} else {
+			return admin_info{"not_added": []string{in["subnet"].(string)}}, errors.New("Failed to add source subnet")
+		}
+	})
+	a.addHandler("addRoute", []string{"subnet", "destPubKey"}, func(in admin_info) (admin_info, error) {
+		var err error
+		a.core.router.doAdmin(func() {
+			err = a.core.router.cryptokey.addRoute(in["subnet"].(string), in["destPubKey"].(string))
+		})
+		if err == nil {
+			return admin_info{"added": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["destPubKey"].(string))}}, nil
+		} else {
+			return admin_info{"not_added": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["destPubKey"].(string))}}, errors.New("Failed to add route")
+		}
+	})
+	a.addHandler("getSourceSubnets", []string{}, func(in admin_info) (admin_info, error) {
+		var subnets []string
+		a.core.router.doAdmin(func() {
+			getSourceSubnets := func(snets []net.IPNet) {
+				for _, subnet := range snets {
+					subnets = append(subnets, subnet.String())
+				}
+			}
+			getSourceSubnets(a.core.router.cryptokey.ipv4sources)
+			getSourceSubnets(a.core.router.cryptokey.ipv6sources)
+		})
+		return admin_info{"source_subnets": subnets}, nil
+	})
+	a.addHandler("getRoutes", []string{}, func(in admin_info) (admin_info, error) {
+		var routes []string
+		a.core.router.doAdmin(func() {
+			getRoutes := func(ckrs []cryptokey_route) {
+				for _, ckr := range ckrs {
+					routes = append(routes, fmt.Sprintf("%s via %s", ckr.subnet.String(), hex.EncodeToString(ckr.destination[:])))
+				}
+			}
+			getRoutes(a.core.router.cryptokey.ipv4routes)
+			getRoutes(a.core.router.cryptokey.ipv6routes)
+		})
+		return admin_info{"routes": routes}, nil
+	})
 }
 
 // start runs the admin API socket to listen for / respond to admin API calls.

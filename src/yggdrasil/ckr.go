@@ -25,7 +25,7 @@ type cryptokey struct {
 
 type cryptokey_route struct {
 	subnet      net.IPNet
-	destination []byte
+	destination boxPubKey
 }
 
 // Initialise crypto-key routing. This must be done before any other CKR calls.
@@ -171,13 +171,15 @@ func (c *cryptokey) addRoute(cidr string, dest string) error {
 		}
 	}
 	// Decode the public key
-	if boxPubKey, err := hex.DecodeString(dest); err != nil {
+	if bpk, err := hex.DecodeString(dest); err != nil && len(bpk) == boxPubKeyLen {
 		return err
 	} else {
 		// Add the new crypto-key route
+		var key boxPubKey
+		copy(key[:], bpk)
 		*routingtable = append(*routingtable, cryptokey_route{
 			subnet:      *ipnet,
-			destination: boxPubKey,
+			destination: key,
 		})
 
 		// Sort so most specific routes are first
@@ -227,9 +229,7 @@ func (c *cryptokey) getPublicKeyForAddress(addr address, addrlen int) (boxPubKey
 
 	// Check if there's a cache entry for this addr
 	if route, ok := (*routingcache)[addr]; ok {
-		var box boxPubKey
-		copy(box[:boxPubKeyLen], route.destination)
-		return box, nil
+		return route.destination, nil
 	}
 
 	// No cache was found - start by converting the address into a net.IP
@@ -245,9 +245,7 @@ func (c *cryptokey) getPublicKeyForAddress(addr address, addrlen int) (boxPubKey
 			(*routingcache)[addr] = route
 
 			// Return the boxPubKey
-			var box boxPubKey
-			copy(box[:boxPubKeyLen], route.destination)
-			return box, nil
+			return route.destination, nil
 		}
 	}
 
