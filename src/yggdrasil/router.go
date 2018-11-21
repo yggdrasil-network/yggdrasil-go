@@ -36,13 +36,20 @@ type router struct {
 	core      *Core
 	addr      address
 	subnet    subnet
-	in        <-chan []byte // packets we received from the network, link to peer's "out"
-	out       func([]byte)  // packets we're sending to the network, link to peer's "in"
-	recv      chan<- []byte // place where the tun pulls received packets from
-	send      <-chan []byte // place where the tun puts outgoing packets
-	reset     chan struct{} // signal that coords changed (re-init sessions/dht)
-	admin     chan func()   // pass a lambda for the admin socket to query stuff
+	in        <-chan []byte          // packets we received from the network, link to peer's "out"
+	out       func([]byte)           // packets we're sending to the network, link to peer's "in"
+	toRecv    chan router_recvPacket // packets to handle via recvPacket()
+	recv      chan<- []byte          // place where the tun pulls received packets from
+	send      <-chan []byte          // place where the tun puts outgoing packets
+	reset     chan struct{}          // signal that coords changed (re-init sessions/dht)
+	admin     chan func()            // pass a lambda for the admin socket to query stuff
 	cryptokey cryptokey
+}
+
+// Packet and session info, used to check that the packet matches a valid IP range or CKR prefix before sending to the tun.
+type router_recvPacket struct {
+	bs    []byte
+	sinfo *sessionInfo
 }
 
 // Initializes the router struct, which includes setting up channels to/from the tun/tap.
@@ -63,6 +70,7 @@ func (r *router) init(core *Core) {
 	}
 	r.in = in
 	r.out = func(packet []byte) { p.handlePacket(packet) } // The caller is responsible for go-ing if it needs to not block
+	r.toRecv = make(chan router_recvPacket, 32)
 	recv := make(chan []byte, 32)
 	send := make(chan []byte, 32)
 	r.recv = recv
@@ -70,7 +78,7 @@ func (r *router) init(core *Core) {
 	r.core.tun.recv = recv
 	r.core.tun.send = send
 	r.reset = make(chan struct{}, 1)
-	r.admin = make(chan func())
+	r.admin = make(chan func(), 32)
 	r.cryptokey.init(r.core)
 	// go r.mainLoop()
 }
@@ -91,6 +99,8 @@ func (r *router) mainLoop() {
 	defer ticker.Stop()
 	for {
 		select {
+		case rp := <-r.toRecv:
+			r.recvPacket(rp.bs, rp.sinfo)
 		case p := <-r.in:
 			r.handleIn(p)
 		case p := <-r.send:
