@@ -280,6 +280,28 @@ func (a *admin) init(c *Core, listenaddr string) {
 		})
 		return admin_info{"routes": routes}, nil
 	})
+	a.addHandler("removeSourceSubnet", []string{"subnet"}, func(in admin_info) (admin_info, error) {
+		var err error
+		a.core.router.doAdmin(func() {
+			err = a.core.router.cryptokey.removeSourceSubnet(in["subnet"].(string))
+		})
+		if err == nil {
+			return admin_info{"removed": []string{in["subnet"].(string)}}, nil
+		} else {
+			return admin_info{"not_removed": []string{in["subnet"].(string)}}, errors.New("Failed to remove source subnet")
+		}
+	})
+	a.addHandler("removeRoute", []string{"subnet", "destPubKey"}, func(in admin_info) (admin_info, error) {
+		var err error
+		a.core.router.doAdmin(func() {
+			err = a.core.router.cryptokey.removeRoute(in["subnet"].(string), in["destPubKey"].(string))
+		})
+		if err == nil {
+			return admin_info{"removed": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["destPubKey"].(string))}}, nil
+		} else {
+			return admin_info{"not_removed": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["destPubKey"].(string))}}, errors.New("Failed to remove route")
+		}
+	})
 }
 
 // start runs the admin API socket to listen for / respond to admin API calls.

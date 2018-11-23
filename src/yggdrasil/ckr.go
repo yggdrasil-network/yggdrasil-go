@@ -171,8 +171,10 @@ func (c *cryptokey) addRoute(cidr string, dest string) error {
 		}
 	}
 	// Decode the public key
-	if bpk, err := hex.DecodeString(dest); err != nil && len(bpk) == boxPubKeyLen {
+	if bpk, err := hex.DecodeString(dest); err != nil {
 		return err
+	} else if len(bpk) != boxPubKeyLen {
+		return errors.New(fmt.Sprintf("Incorrect key length for %s", dest))
 	} else {
 		// Add the new crypto-key route
 		var key boxPubKey
@@ -251,4 +253,88 @@ func (c *cryptokey) getPublicKeyForAddress(addr address, addrlen int) (boxPubKey
 
 	// No route was found if we got to this point
 	return boxPubKey{}, errors.New(fmt.Sprintf("No route to %s", ip.String()))
+}
+
+// Removes a source subnet, which allows traffic with these source addresses to
+// be tunnelled using crypto-key routing.
+func (c *cryptokey) removeSourceSubnet(cidr string) error {
+	// Is the CIDR we've been given valid?
+	_, ipnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return err
+	}
+
+	// Get the prefix length and size
+	_, prefixsize := ipnet.Mask.Size()
+
+	// Build our references to the routing sources
+	var routingsources *[]net.IPNet
+
+	// Check if the prefix is IPv4 or IPv6
+	if prefixsize == net.IPv6len*8 {
+		routingsources = &c.ipv6sources
+	} else if prefixsize == net.IPv4len*8 {
+		routingsources = &c.ipv4sources
+	} else {
+		return errors.New("Unexpected prefix size")
+	}
+
+	// Check if we already have this CIDR
+	for idx, subnet := range *routingsources {
+		if subnet.String() == ipnet.String() {
+			*routingsources = append((*routingsources)[:idx], (*routingsources)[idx+1:]...)
+			c.core.log.Println("Removed CKR source subnet", cidr)
+			return nil
+		}
+	}
+	return errors.New("Source subnet not found")
+}
+
+// Removes a destination route for the given CIDR to be tunnelled to the node
+// with the given BoxPubKey.
+func (c *cryptokey) removeRoute(cidr string, dest string) error {
+	// Is the CIDR we've been given valid?
+	_, ipnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return err
+	}
+
+	// Get the prefix length and size
+	_, prefixsize := ipnet.Mask.Size()
+
+	// Build our references to the routing table and cache
+	var routingtable *[]cryptokey_route
+	var routingcache *map[address]cryptokey_route
+
+	// Check if the prefix is IPv4 or IPv6
+	if prefixsize == net.IPv6len*8 {
+		routingtable = &c.ipv6routes
+		routingcache = &c.ipv6cache
+	} else if prefixsize == net.IPv4len*8 {
+		routingtable = &c.ipv4routes
+		routingcache = &c.ipv4cache
+	} else {
+		return errors.New("Unexpected prefix size")
+	}
+
+	// Decode the public key
+	bpk, err := hex.DecodeString(dest)
+	if err != nil {
+		return err
+	} else if len(bpk) != boxPubKeyLen {
+		return errors.New(fmt.Sprintf("Incorrect key length for %s", dest))
+	}
+	netStr := ipnet.String()
+
+	for idx, route := range *routingtable {
+		if bytes.Equal(route.destination[:], bpk) && route.subnet.String() == netStr {
+			*routingtable = append((*routingtable)[:idx], (*routingtable)[idx+1:]...)
+			for k := range *routingcache {
+				delete(*routingcache, k)
+			}
+			c.core.log.Println("Removed CKR destination subnet %s via %s", cidr, dest)
+			return nil
+		}
+	}
+	return errors.New(fmt.Sprintf("Route does not exists for %s", cidr))
 }

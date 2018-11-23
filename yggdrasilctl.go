@@ -231,7 +231,7 @@ func main() {
 						uint(k), uint(v), uint(queuesizepercent), uint(portqueuepackets[k]))
 				}
 			}
-		case "addpeer", "removepeer", "addallowedencryptionpublickey", "removeallowedencryptionpublickey", "addsourcesubnet", "addroute":
+		case "addpeer", "removepeer", "addallowedencryptionpublickey", "removeallowedencryptionpublickey", "addsourcesubnet", "addroute", "removesourcesubnet", "removeroute":
 			if _, ok := res["added"]; ok {
 				for _, v := range res["added"].([]interface{}) {
 					fmt.Println("Added:", fmt.Sprint(v))
