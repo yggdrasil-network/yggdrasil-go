@@ -274,6 +274,28 @@ func main() {
 					fmt.Println("-", v)
 				}
 			}
+		case "getsourcesubnets":
+			if _, ok := res["source_subnets"]; !ok {
+				fmt.Println("No source subnets found")
+			} else if res["source_subnets"] == nil {
+				fmt.Println("No source subnets found")
+			} else {
+				fmt.Println("Source subnets:")
+				for _, v := range res["source_subnets"].([]interface{}) {
+					fmt.Println("-", v)
+				}
+			}
+		case "getroutes":
+			if _, ok := res["routes"]; !ok {
+				fmt.Println("No routes found")
+			} else if res["routes"] == nil {
+				fmt.Println("No routes found")
+			} else {
+				fmt.Println("Routes:")
+				for _, v := range res["routes"].([]interface{}) {
+					fmt.Println("-", v)
+				}
+			}
 		default:
 			if json, err := json.MarshalIndent(recv["response"], "", "  "); err == nil {
 				fmt.Println(string(json))
