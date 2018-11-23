@@ -456,7 +456,6 @@ func (n *admin_nodeInfo) toString() string {
 		out = append(out, fmt.Sprintf("%v: %v", p.key, p.val))
 	}
 	return strings.Join(out, ", ")
-	return fmt.Sprint(*n)
 }
 
 // printInfos returns a newline separated list of strings from admin_nodeInfos, e.g. a printable string of info about all peers.
@@ -597,7 +596,7 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 // getData_getSwitchQueues returns info from Core.switchTable for an queue data.
 func (a *admin) getData_getSwitchQueues() admin_nodeInfo {
 	var peerInfos admin_nodeInfo
-	switchTable := a.core.switchTable
+	switchTable := &a.core.switchTable
 	getSwitchQueues := func() {
 		queues := make([]map[string]interface{}, 0)
 		for k, v := range switchTable.queues.bufs {

@@ -102,7 +102,6 @@ func (t *dht) insert(info *dhtInfo) {
 	if *info.getNodeID() == t.nodeID {
 		// This shouldn't happen, but don't add it if it does
 		return
-		panic("FIXME")
 	}
 	info.recv = time.Now()
 	if oldInfo, isIn := t.table[*info.getNodeID()]; isIn {

@@ -200,8 +200,6 @@ func (c *cryptokey) addRoute(cidr string, dest string) error {
 		c.core.log.Println("Added CKR destination subnet", cidr)
 		return nil
 	}
-
-	return errors.New("Unspecified error")
 }
 
 // Looks up the most specific route for the given address (with the address
@@ -332,7 +330,7 @@ func (c *cryptokey) removeRoute(cidr string, dest string) error {
 			for k := range *routingcache {
 				delete(*routingcache, k)
 			}
-			c.core.log.Println("Removed CKR destination subnet %s via %s", cidr, dest)
+			c.core.log.Printf("Removed CKR destination subnet %s via %s\n", cidr, dest)
 			return nil
 		}
 	}
