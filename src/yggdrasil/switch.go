@@ -21,6 +21,7 @@ import (
 const switch_timeout = time.Minute
 const switch_updateInterval = switch_timeout / 2
 const switch_throttle = switch_updateInterval / 2
+const switch_max_time = time.Hour
 
 // The switch locator represents the topology and network state dependent info about a node, minus the signatures that go with it.
 // Nodes will pick the best root they see, provided that the root continues to push out updates with new timestamps.
@@ -390,39 +391,55 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 		}
 		return true
 	}()
+	// Get the time we've known about the sender (or old parent's) current coords, up to a maximum of `switch_max_time`.
 	sTime := now.Sub(sender.firstSeen)
-	pTime := oldParent.time.Sub(oldParent.firstSeen) + switch_timeout
+	if sTime > switch_max_time {
+		sTime = switch_max_time
+	}
+	pTime := now.Sub(oldParent.firstSeen)
+	if pTime > switch_max_time {
+		pTime = switch_max_time
+	}
 	// Really want to compare sLen/sTime and pLen/pTime
 	// Cross multiplied to avoid divide-by-zero
-	cost := len(sender.locator.coords) * int(pTime.Seconds())
-	pCost := len(t.data.locator.coords) * int(sTime.Seconds())
+	cost := float64(len(sender.locator.coords)) * pTime.Seconds()
+	pCost := float64(len(t.data.locator.coords)) * sTime.Seconds()
 	dropTstamp, isIn := t.drop[sender.locator.root]
-	// Here be dragons
 	switch {
-	case !noLoop: // do nothing
-	case isIn && dropTstamp >= sender.locator.tstamp: // do nothing
+	case !noLoop:
+		// This route loops, so we can't use the sender as our parent.
+	case isIn && dropTstamp >= sender.locator.tstamp:
+		// This is a known root with a timestamp older than a known timeout, so we can't trust it to be a new announcement.
 	case firstIsBetter(&sender.locator.root, &t.data.locator.root):
+		// This is a better root than what we're currently using, so we should update.
 		updateRoot = true
-	case t.data.locator.root != sender.locator.root: // do nothing
-	case t.data.locator.tstamp > sender.locator.tstamp: // do nothing
+	case t.data.locator.root != sender.locator.root:
+		// This is not the same root, and it's apparently not better (from the above), so we should ignore it.
+	case t.data.locator.tstamp > sender.locator.tstamp:
+		// This timetsamp is older than the most recently seen one from this root, so we should ignore it.
 	case noParent:
+		// We currently have no working parent, and at this point in the switch statement, anything is better than nothing.
 		updateRoot = true
 	case cost < pCost:
+		// The sender has a better combination of path length and reliability than the current parent.
 		updateRoot = true
-	case sender.port != t.parent: // do nothing
+	case sender.port != t.parent:
+		// Ignore further cases if the sender isn't our parent.
 	case !equiv(&sender.locator, &t.data.locator):
-		// Special case
-		// If coords changed, then this may now be a worse parent than before
-		// Re-parent the node (de-parent and reprocess the message)
-		// Then reprocess *all* messages to look for a better parent
-		// This is so we don't keep using this node as our parent if there's something better
+		// Special case:
+		// If coords changed, then this may now be a worse parent than before.
+		// Re-parent the node (de-parent and reprocess the message).
+		// Then reprocess *all* messages to look for a better parent.
+		// This is so we don't keep using this node as our parent if there's something better.
 		t.parent = 0
 		t.unlockedHandleMsg(msg, fromPort)
 		for _, info := range t.data.peers {
 			t.unlockedHandleMsg(&info.msg, info.port)
 		}
-	case now.Sub(t.time) < switch_throttle: // do nothing
+	case now.Sub(t.time) < switch_throttle:
+		// We've already gotten an update from this root recently, so ignore this one to avoid flooding.
 	case sender.locator.tstamp > t.data.locator.tstamp:
+		// The timestamp was updated, so we need to update locally and send to our peers.
 		updateRoot = true
 	}
 	if updateRoot {
