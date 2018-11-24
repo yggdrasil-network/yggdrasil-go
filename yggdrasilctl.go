@@ -231,7 +231,7 @@ func main() {
 						uint(k), uint(v), uint(queuesizepercent), uint(portqueuepackets[k]))
 				}
 			}
-		case "addpeer", "removepeer", "addallowedencryptionpublickey", "removeallowedencryptionpublickey":
+		case "addpeer", "removepeer", "addallowedencryptionpublickey", "removeallowedencryptionpublickey", "addsourcesubnet", "addroute", "removesourcesubnet", "removeroute":
 			if _, ok := res["added"]; ok {
 				for _, v := range res["added"].([]interface{}) {
 					fmt.Println("Added:", fmt.Sprint(v))
@@ -271,6 +271,28 @@ func main() {
 			} else {
 				fmt.Println("Multicast peer discovery is active on:")
 				for _, v := range res["multicast_interfaces"].([]interface{}) {
+					fmt.Println("-", v)
+				}
+			}
+		case "getsourcesubnets":
+			if _, ok := res["source_subnets"]; !ok {
+				fmt.Println("No source subnets found")
+			} else if res["source_subnets"] == nil {
+				fmt.Println("No source subnets found")
+			} else {
+				fmt.Println("Source subnets:")
+				for _, v := range res["source_subnets"].([]interface{}) {
+					fmt.Println("-", v)
+				}
+			}
+		case "getroutes":
+			if _, ok := res["routes"]; !ok {
+				fmt.Println("No routes found")
+			} else if res["routes"] == nil {
+				fmt.Println("No routes found")
+			} else {
+				fmt.Println("Routes:")
+				for _, v := range res["routes"].([]interface{}) {
 					fmt.Println("-", v)
 				}
 			}

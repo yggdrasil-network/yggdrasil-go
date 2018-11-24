@@ -589,5 +589,5 @@ func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
 	sinfo.updateNonce(&p.Nonce)
 	sinfo.time = time.Now()
 	sinfo.bytesRecvd += uint64(len(bs))
-	sinfo.core.router.recvPacket(bs, sinfo)
+	sinfo.core.router.toRecv <- router_recvPacket{bs, sinfo}
 }
