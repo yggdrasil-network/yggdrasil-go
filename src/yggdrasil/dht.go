@@ -278,9 +278,6 @@ func (t *dht) doMaintenance() {
 		newDests := make(map[NodeID]time.Time, len(dests))
 		for nodeID, start := range dests {
 			if now.Sub(start) > 6*time.Second {
-				if info, isIn := t.table[*getNodeID(&key)]; isIn {
-					info.pings++
-				}
 				continue
 			}
 			newDests[nodeID] = start
