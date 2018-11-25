@@ -86,5 +86,10 @@ func (m *sigManager) cleanup() {
 			delete(m.checked, s)
 		}
 	}
+	newChecked := make(map[sigBytes]knownSig, len(m.checked))
+	for s, k := range m.checked {
+		newChecked[s] = k
+	}
+	m.checked = newChecked
 	m.lastCleaned = time.Now()
 }

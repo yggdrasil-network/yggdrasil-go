@@ -8,6 +8,7 @@ import "strconv"
 import "time"
 import "log"
 
+import "runtime"
 import "runtime/pprof"
 import "flag"
 
@@ -280,17 +281,7 @@ func pingNodes(store map[[32]byte]*Node) {
 			}
 			destAddr := dest.core.DEBUG_getAddr()[:]
 			ticker := time.NewTicker(150 * time.Millisecond)
-			ch := make(chan bool, 1)
-			ch <- true
-			doTicker := func() {
-				for range ticker.C {
-					select {
-					case ch <- true:
-					default:
-					}
-				}
-			}
-			go doTicker()
+			sendTo(payload, destAddr)
 			for loop := true; loop; {
 				select {
 				case packet := <-dest.recv:
@@ -299,7 +290,7 @@ func pingNodes(store map[[32]byte]*Node) {
 							loop = false
 						}
 					}
-				case <-ch:
+				case <-ticker.C:
 					sendTo(payload, destAddr)
 					//dumpDHTSize(store) // note that this uses racey functions to read things...
 				}
@@ -458,4 +449,5 @@ func main() {
 		var block chan struct{}
 		<-block
 	}
+	runtime.GC()
 }

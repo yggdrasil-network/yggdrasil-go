@@ -175,7 +175,6 @@ func (p *peer) doSendSwitchMsgs() {
 // This must be launched in a separate goroutine by whatever sets up the peer struct.
 // It handles link protocol traffic.
 func (p *peer) linkLoop() {
-	go p.doSendSwitchMsgs()
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
 	for {

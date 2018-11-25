@@ -311,6 +311,11 @@ func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
 
 func (ss *sessions) cleanup() {
 	// Time thresholds almost certainly could use some adjusting
+	for k := range ss.permShared {
+		// Delete a key, to make sure this eventually shrinks to 0
+		delete(ss.permShared, k)
+		break
+	}
 	if time.Since(ss.lastCleanup) < time.Minute {
 		return
 	}
@@ -319,6 +324,36 @@ func (ss *sessions) cleanup() {
 			s.close()
 		}
 	}
+	permShared := make(map[boxPubKey]*boxSharedKey, len(ss.permShared))
+	for k, v := range ss.permShared {
+		permShared[k] = v
+	}
+	ss.permShared = permShared
+	sinfos := make(map[handle]*sessionInfo, len(ss.sinfos))
+	for k, v := range ss.sinfos {
+		sinfos[k] = v
+	}
+	ss.sinfos = sinfos
+	byMySes := make(map[boxPubKey]*handle, len(ss.byMySes))
+	for k, v := range ss.byMySes {
+		byMySes[k] = v
+	}
+	ss.byMySes = byMySes
+	byTheirPerm := make(map[boxPubKey]*handle, len(ss.byTheirPerm))
+	for k, v := range ss.byTheirPerm {
+		byTheirPerm[k] = v
+	}
+	ss.byTheirPerm = byTheirPerm
+	addrToPerm := make(map[address]*boxPubKey, len(ss.addrToPerm))
+	for k, v := range ss.addrToPerm {
+		addrToPerm[k] = v
+	}
+	ss.addrToPerm = addrToPerm
+	subnetToPerm := make(map[subnet]*boxPubKey, len(ss.subnetToPerm))
+	for k, v := range ss.subnetToPerm {
+		subnetToPerm[k] = v
+	}
+	ss.subnetToPerm = subnetToPerm
 	ss.lastCleanup = time.Now()
 }
 

@@ -1,4 +1,4 @@
 #!/bin/bash
 export GOPATH=$PWD
 go get -d yggdrasil
-go run -tags debug misc/sim/treesim.go
+go run -tags debug misc/sim/treesim.go "$@"
