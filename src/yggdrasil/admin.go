@@ -308,11 +308,12 @@ func (a *admin) init(c *Core, listenaddr string) {
 		}
 		result, err := a.admin_dhtPing(in["key"].(string), in["coords"].(string), in["target"].(string))
 		if err == nil {
-			var infos []map[string]string
+			infos := make([]map[string]string, 0, len(result.Infos))
 			for _, dinfo := range result.Infos {
-				info := make(map[string]string)
-				info["key"] = hex.EncodeToString(dinfo.key[:])
-				info["coords"] = fmt.Sprintf("%v", dinfo.coords)
+				info := map[string]string{
+					"key":    hex.EncodeToString(dinfo.key[:]),
+					"coords": fmt.Sprintf("%v", dinfo.coords),
+				}
 				infos = append(infos, info)
 			}
 			return admin_info{"nodes": infos}, nil
