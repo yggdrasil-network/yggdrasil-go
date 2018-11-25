@@ -303,7 +303,7 @@ func main() {
 				fmt.Println("No nodes found")
 			} else {
 				for _, v := range res["nodes"].([]interface{}) {
-          m := v.(map[string]interface{})
+					m := v.(map[string]interface{})
 					fmt.Println("-", m["key"], m["coords"])
 				}
 			}

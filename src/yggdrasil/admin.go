@@ -738,7 +738,7 @@ func (a *admin) admin_dhtPing(keyString, coordString, targetString string) (dhtR
 			coords = append(coords, uint8(u64))
 		}
 	}
-	resCh := make(chan *dhtRes)
+	resCh := make(chan *dhtRes, 1)
 	info := dhtInfo{
 		key:    key,
 		coords: coords,
