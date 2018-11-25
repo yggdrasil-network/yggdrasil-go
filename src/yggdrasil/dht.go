@@ -293,6 +293,11 @@ func (t *dht) doMaintenance() {
 		}
 	}
 	t.reqs = newReqs
+	newCallbacks := make(map[dhtReqKey][]func(*dhtRes), len(t.callbacks))
+	for key, callback := range t.callbacks {
+		newCallbacks[key] = callback
+	}
+	t.callbacks = newCallbacks
 	for infoID, info := range t.table {
 		if now.Sub(info.recv) > time.Minute || info.pings > 3 {
 			delete(t.table, infoID)
