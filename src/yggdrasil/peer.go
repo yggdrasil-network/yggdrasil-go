@@ -175,7 +175,6 @@ func (p *peer) doSendSwitchMsgs() {
 // This must be launched in a separate goroutine by whatever sets up the peer struct.
 // It handles link protocol traffic.
 func (p *peer) linkLoop() {
-	go p.doSendSwitchMsgs()
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
 	for {
@@ -317,7 +316,7 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 		sigMsg.Hops = msg.Hops[:idx]
 		loc.coords = append(loc.coords, hop.Port)
 		bs := getBytesForSig(&hop.Next, &sigMsg)
-		if !p.core.sigs.check(&prevKey, &hop.Sig, bs) {
+		if !verify(&prevKey, bs, &hop.Sig) {
 			p.core.peers.removePeer(p.port)
 		}
 		prevKey = hop.Next
