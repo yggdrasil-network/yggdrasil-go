@@ -316,7 +316,7 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 		sigMsg.Hops = msg.Hops[:idx]
 		loc.coords = append(loc.coords, hop.Port)
 		bs := getBytesForSig(&hop.Next, &sigMsg)
-		if !p.core.sigs.check(&prevKey, &hop.Sig, bs) {
+		if !verify(&prevKey, bs, &hop.Sig) {
 			p.core.peers.removePeer(p.port)
 		}
 		prevKey = hop.Next

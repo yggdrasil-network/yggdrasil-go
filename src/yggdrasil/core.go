@@ -22,7 +22,6 @@ type Core struct {
 	sigPriv     sigPrivKey
 	switchTable switchTable
 	peers       peers
-	sigs        sigManager
 	sessions    sessions
 	router      router
 	dht         dht
@@ -50,7 +49,6 @@ func (c *Core) init(bpub *boxPubKey,
 	c.boxPub, c.boxPriv = *bpub, *bpriv
 	c.sigPub, c.sigPriv = *spub, *spriv
 	c.admin.core = c
-	c.sigs.init()
 	c.searches.init(c)
 	c.dht.init(c)
 	c.sessions.init(c)
