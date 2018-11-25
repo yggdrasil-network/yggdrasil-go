@@ -302,6 +302,24 @@ func (a *admin) init(c *Core, listenaddr string) {
 			return admin_info{"not_removed": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["destPubKey"].(string))}}, errors.New("Failed to remove route")
 		}
 	})
+	a.addHandler("dhtPing", []string{"key", "coords", "[target]"}, func(in admin_info) (admin_info, error) {
+		if in["target"] == nil {
+			in["target"] = "none"
+		}
+		result, err := a.admin_dhtPing(in["key"].(string), in["coords"].(string), in["target"].(string))
+		if err == nil {
+			var infos []map[string]string
+			for _, dinfo := range result.Infos {
+				info := make(map[string]string)
+				info["key"] = hex.EncodeToString(dinfo.key[:])
+				info["coords"] = fmt.Sprintf("%v", dinfo.coords)
+				infos = append(infos, info)
+			}
+			return admin_info{"nodes": infos}, nil
+		} else {
+			return admin_info{}, err
+		}
+	})
 }
 
 // start runs the admin API socket to listen for / respond to admin API calls.
@@ -536,6 +554,7 @@ func (a *admin) getData_getSelf() *admin_nodeInfo {
 	table := a.core.switchTable.table.Load().(lookupTable)
 	coords := table.self.getCoords()
 	self := admin_nodeInfo{
+		{"key", hex.EncodeToString(a.core.boxPub[:])},
 		{"ip", a.core.GetAddress().String()},
 		{"subnet", a.core.GetSubnet().String()},
 		{"coords", fmt.Sprint(coords)},
@@ -700,6 +719,60 @@ func (a *admin) removeAllowedEncryptionPublicKey(bstr string) (err error) {
 		a.core.peers.removeAllowedEncryptionPublicKey(&box)
 	}
 	return
+}
+
+// Send a DHT ping to the node with the provided key and coords, optionally looking up the specified target NodeID.
+func (a *admin) admin_dhtPing(keyString, coordString, targetString string) (dhtRes, error) {
+	var key boxPubKey
+	if keyBytes, err := hex.DecodeString(keyString); err != nil {
+		return dhtRes{}, err
+	} else {
+		copy(key[:], keyBytes)
+	}
+	var coords []byte
+	for _, cstr := range strings.Split(strings.Trim(coordString, "[]"), " ") {
+		if u64, err := strconv.ParseUint(cstr, 10, 8); err != nil {
+			return dhtRes{}, err
+		} else {
+			coords = append(coords, uint8(u64))
+		}
+	}
+	resCh := make(chan *dhtRes)
+	info := dhtInfo{
+		key:    key,
+		coords: coords,
+	}
+	target := *info.getNodeID()
+	if targetString == "none" {
+		// Leave the default target in place
+	} else if targetBytes, err := hex.DecodeString(targetString); err != nil {
+		return dhtRes{}, err
+	} else if len(targetBytes) != len(target) {
+		return dhtRes{}, errors.New("Incorrect target NodeID length")
+	} else {
+		target = NodeID{}
+		copy(target[:], targetBytes)
+	}
+	rq := dhtReqKey{info.key, target}
+	sendPing := func() {
+		a.core.dht.addCallback(&rq, func(res *dhtRes) {
+			defer func() { recover() }()
+			select {
+			case resCh <- res:
+			default:
+			}
+		})
+		a.core.dht.ping(&info, &target)
+	}
+	a.core.router.doAdmin(sendPing)
+	go func() {
+		time.Sleep(6 * time.Second)
+		close(resCh)
+	}()
+	for res := range resCh {
+		return *res, nil
+	}
+	return dhtRes{}, errors.New(fmt.Sprintf("DHT ping timeout: %s", keyString))
 }
 
 // getResponse_dot returns a response for a graphviz dot formatted representation of the known parts of the network.

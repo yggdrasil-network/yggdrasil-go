@@ -132,6 +132,8 @@ func (s *searches) doSearchStep(sinfo *searchInfo) {
 		// Send to the next search target
 		var next *dhtInfo
 		next, sinfo.toVisit = sinfo.toVisit[0], sinfo.toVisit[1:]
+		rq := dhtReqKey{next.key, sinfo.dest}
+		s.core.dht.addCallback(&rq, s.handleDHTRes)
 		s.core.dht.ping(next, &sinfo.dest)
 	}
 }

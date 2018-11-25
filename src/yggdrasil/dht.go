@@ -49,12 +49,19 @@ type dhtRes struct {
 	Infos  []*dhtInfo // response
 }
 
+// Parts of a DHT req usable as a key in a map.
+type dhtReqKey struct {
+	key  boxPubKey
+	dest NodeID
+}
+
 // The main DHT struct.
 type dht struct {
-	core   *Core
-	nodeID NodeID
-	peers  chan *dhtInfo // other goroutines put incoming dht updates here
-	reqs   map[boxPubKey]map[NodeID]time.Time
+	core      *Core
+	nodeID    NodeID
+	peers     chan *dhtInfo                 // other goroutines put incoming dht updates here
+	reqs      map[dhtReqKey]time.Time       // Keeps track of recent outstanding requests
+	callbacks map[dhtReqKey][]func(*dhtRes) // Search and admin lookup callbacks
 	// These next two could be replaced by a single linked list or similar...
 	table map[NodeID]*dhtInfo
 	imp   []*dhtInfo
@@ -65,13 +72,14 @@ func (t *dht) init(c *Core) {
 	t.core = c
 	t.nodeID = *t.core.GetNodeID()
 	t.peers = make(chan *dhtInfo, 1024)
+	t.callbacks = make(map[dhtReqKey][]func(*dhtRes))
 	t.reset()
 }
 
 // Resets the DHT in response to coord changes.
 // This empties all info from the DHT and drops outstanding requests.
 func (t *dht) reset() {
-	t.reqs = make(map[boxPubKey]map[NodeID]time.Time)
+	t.reqs = make(map[dhtReqKey]time.Time)
 	t.table = make(map[NodeID]*dhtInfo)
 	t.imp = nil
 }
@@ -194,19 +202,31 @@ func (t *dht) sendRes(res *dhtRes, req *dhtReq) {
 	t.core.router.out(packet)
 }
 
+// Adds a callback and removes it after some timeout.
+func (t *dht) addCallback(rq *dhtReqKey, callback func(*dhtRes)) {
+	t.callbacks[*rq] = append(t.callbacks[*rq], callback)
+	go func() {
+		time.Sleep(6 * time.Second)
+		t.core.router.admin <- func() {
+			delete(t.callbacks, *rq)
+		}
+	}()
+}
+
 // Reads a lookup response, checks that we had sent a matching request, and processes the response info.
 // This mainly consists of updating the node we asked in our DHT (they responded, so we know they're still alive), and deciding if we want to do anything with their responses
 func (t *dht) handleRes(res *dhtRes) {
+	rq := dhtReqKey{res.Key, res.Dest}
+	for _, callback := range t.callbacks[rq] {
+		callback(res)
+	}
+	delete(t.callbacks, rq)
 	t.core.searches.handleDHTRes(res)
-	reqs, isIn := t.reqs[res.Key]
+	_, isIn := t.reqs[rq]
 	if !isIn {
 		return
 	}
-	_, isIn = reqs[res.Dest]
-	if !isIn {
-		return
-	}
-	delete(reqs, res.Dest)
+	delete(t.reqs, rq)
 	rinfo := dhtInfo{
 		key:    res.Key,
 		coords: res.Coords,
@@ -243,15 +263,8 @@ func (t *dht) sendReq(req *dhtReq, dest *dhtInfo) {
 	}
 	packet := p.encode()
 	t.core.router.out(packet)
-	reqsToDest, isIn := t.reqs[dest.key]
-	if !isIn {
-		t.reqs[dest.key] = make(map[NodeID]time.Time)
-		reqsToDest, isIn = t.reqs[dest.key]
-		if !isIn {
-			panic("This should never happen")
-		}
-	}
-	reqsToDest[req.Dest] = time.Now()
+	rq := dhtReqKey{req.Key, req.Dest}
+	t.reqs[rq] = time.Now()
 }
 
 // Sends a lookup to this info, looking for the target.
@@ -273,17 +286,10 @@ func (t *dht) ping(info *dhtInfo, target *NodeID) {
 // Periodic maintenance work to keep important DHT nodes alive.
 func (t *dht) doMaintenance() {
 	now := time.Now()
-	newReqs := make(map[boxPubKey]map[NodeID]time.Time, len(t.reqs))
-	for key, dests := range t.reqs {
-		newDests := make(map[NodeID]time.Time, len(dests))
-		for nodeID, start := range dests {
-			if now.Sub(start) > 6*time.Second {
-				continue
-			}
-			newDests[nodeID] = start
-		}
-		if len(newDests) > 0 {
-			newReqs[key] = newDests
+	newReqs := make(map[dhtReqKey]time.Time, len(t.reqs))
+	for key, start := range t.reqs {
+		if now.Sub(start) < 6*time.Second {
+			newReqs[key] = start
 		}
 	}
 	t.reqs = newReqs
