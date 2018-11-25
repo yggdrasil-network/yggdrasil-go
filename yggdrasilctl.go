@@ -296,6 +296,17 @@ func main() {
 					fmt.Println("-", v)
 				}
 			}
+		case "dhtping":
+			if _, ok := res["nodes"]; !ok {
+				fmt.Println("No nodes found")
+			} else if res["nodes"] == nil {
+				fmt.Println("No nodes found")
+			} else {
+				for _, v := range res["nodes"].([]interface{}) {
+          m := v.(map[string]interface{})
+					fmt.Println("-", m["key"], m["coords"])
+				}
+			}
 		default:
 			if json, err := json.MarshalIndent(recv["response"], "", "  "); err == nil {
 				fmt.Println(string(json))
