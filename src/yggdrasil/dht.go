@@ -273,6 +273,19 @@ func (t *dht) ping(info *dhtInfo, target *NodeID) {
 // Periodic maintenance work to keep important DHT nodes alive.
 func (t *dht) doMaintenance() {
 	now := time.Now()
+	for key, dests := range t.reqs {
+		for nodeID, start := range dests {
+			if now.Sub(start) > 6*time.Second {
+				if info, isIn := t.table[*getNodeID(&key)]; isIn {
+					info.pings++
+				}
+				delete(dests, nodeID)
+			}
+			if len(dests) == 0 {
+				delete(t.reqs, key)
+			}
+		}
+	}
 	for infoID, info := range t.table {
 		if now.Sub(info.recv) > time.Minute || info.pings > 3 {
 			delete(t.table, infoID)
