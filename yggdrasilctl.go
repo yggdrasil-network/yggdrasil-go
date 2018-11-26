@@ -23,7 +23,7 @@ func main() {
 	args := flag.Args()
 
 	if len(args) == 0 {
-		fmt.Println("usage:", os.Args[0], "[-endpoint=proto://server] [-verbose] [-json] command [key=value] [...]")
+		fmt.Println("usage:", os.Args[0], "[-endpoint=proto://server] [-v] [-json] command [key=value] [...]")
 		fmt.Println("example:", os.Args[0], "getPeers")
 		fmt.Println("example:", os.Args[0], "setTunTap name=auto mtu=1500 tap_mode=false")
 		fmt.Println("example:", os.Args[0], "-endpoint=tcp://localhost:9001 getDHT")
