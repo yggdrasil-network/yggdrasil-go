@@ -361,6 +361,9 @@ func (t *dht) getImportant() []*dhtInfo {
 
 // Returns true if this is a node we need to keep track of for the DHT to work.
 func (t *dht) isImportant(ninfo *dhtInfo) bool {
+	if ninfo.key == t.core.boxPub {
+		return false
+	}
 	important := t.getImportant()
 	// Check if ninfo is of equal or greater importance to what we already know
 	loc := t.core.switchTable.getLocator()
