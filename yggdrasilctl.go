@@ -107,7 +107,7 @@ func main() {
 		switch strings.ToLower(req["request"].(string)) {
 		case "dot":
 			fmt.Println(res["dot"])
-		case "help", "getpeers", "getswitchpeers", "getdht", "getsessions", "dhtping":
+		case "list", "getpeers", "getswitchpeers", "getdht", "getsessions", "dhtping":
 			maxWidths := make(map[string]int)
 			var keyOrder []string
 			keysOrdered := false
