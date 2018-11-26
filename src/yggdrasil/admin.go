@@ -202,32 +202,32 @@ func (a *admin) init(c *Core, listenaddr string) {
 	a.addHandler("getAllowedEncryptionPublicKeys", []string{}, func(in admin_info) (admin_info, error) {
 		return admin_info{"allowed_box_pubs": a.getAllowedEncryptionPublicKeys()}, nil
 	})
-	a.addHandler("addAllowedEncryptionPublicKey", []string{"key"}, func(in admin_info) (admin_info, error) {
-		if a.addAllowedEncryptionPublicKey(in["key"].(string)) == nil {
+	a.addHandler("addAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in admin_info) (admin_info, error) {
+		if a.addAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
 			return admin_info{
 				"added": []string{
-					in["key"].(string),
+					in["box_pub_key"].(string),
 				},
 			}, nil
 		} else {
 			return admin_info{
 				"not_added": []string{
-					in["key"].(string),
+					in["box_pub_key"].(string),
 				},
 			}, errors.New("Failed to add allowed key")
 		}
 	})
-	a.addHandler("removeAllowedEncryptionPublicKey", []string{"key"}, func(in admin_info) (admin_info, error) {
-		if a.removeAllowedEncryptionPublicKey(in["key"].(string)) == nil {
+	a.addHandler("removeAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in admin_info) (admin_info, error) {
+		if a.removeAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
 			return admin_info{
 				"removed": []string{
-					in["key"].(string),
+					in["box_pub_key"].(string),
 				},
 			}, nil
 		} else {
 			return admin_info{
 				"not_removed": []string{
-					in["key"].(string),
+					in["box_pub_key"].(string),
 				},
 			}, errors.New("Failed to remove allowed key")
 		}
@@ -302,17 +302,17 @@ func (a *admin) init(c *Core, listenaddr string) {
 			return admin_info{"not_removed": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["destPubKey"].(string))}}, errors.New("Failed to remove route")
 		}
 	})
-	a.addHandler("dhtPing", []string{"key", "coords", "[target]"}, func(in admin_info) (admin_info, error) {
+	a.addHandler("dhtPing", []string{"box_pub_key", "coords", "[target]"}, func(in admin_info) (admin_info, error) {
 		if in["target"] == nil {
 			in["target"] = "none"
 		}
-		result, err := a.admin_dhtPing(in["key"].(string), in["coords"].(string), in["target"].(string))
+		result, err := a.admin_dhtPing(in["box_pub_key"].(string), in["coords"].(string), in["target"].(string))
 		if err == nil {
 			infos := make(map[string]map[string]string, len(result.Infos))
 			for _, dinfo := range result.Infos {
 				info := map[string]string{
-					"key":    hex.EncodeToString(dinfo.key[:]),
-					"coords": fmt.Sprintf("%v", dinfo.coords),
+					"box_pub_key": hex.EncodeToString(dinfo.key[:]),
+					"coords":      fmt.Sprintf("%v", dinfo.coords),
 				}
 				addr := net.IP(address_addrForNodeID(getNodeID(&dinfo.key))[:]).String()
 				infos[addr] = info
@@ -556,7 +556,7 @@ func (a *admin) getData_getSelf() *admin_nodeInfo {
 	table := a.core.switchTable.table.Load().(lookupTable)
 	coords := table.self.getCoords()
 	self := admin_nodeInfo{
-		{"key", hex.EncodeToString(a.core.boxPub[:])},
+		{"box_pub_key", hex.EncodeToString(a.core.boxPub[:])},
 		{"ip", a.core.GetAddress().String()},
 		{"subnet", a.core.GetSubnet().String()},
 		{"coords", fmt.Sprint(coords)},
