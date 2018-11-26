@@ -116,6 +116,9 @@ func main() {
 				for slk, slv := range tlv.(map[string]interface{}) {
 					if !keysOrdered {
 						for k := range slv.(map[string]interface{}) {
+							if k == "box_pub_key" || k == "box_sig_key" {
+								continue
+							}
 							keyOrder = append(keyOrder, fmt.Sprint(k))
 						}
 						sort.Strings(keyOrder)
@@ -181,6 +184,12 @@ func main() {
 				}
 				if coords, ok := v.(map[string]interface{})["coords"].(string); ok {
 					fmt.Println("Coords:", coords)
+				}
+				if boxPubKey, ok := v.(map[string]interface{})["box_pub_key"].(string); ok {
+					fmt.Println("Public encryption key:", boxPubKey)
+				}
+				if boxSigKey, ok := v.(map[string]interface{})["box_sig_key"].(string); ok {
+					fmt.Println("Public signing key:", boxPubKey)
 				}
 			}
 		case "getswitchqueues":
