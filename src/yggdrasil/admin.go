@@ -583,6 +583,7 @@ func (a *admin) getData_getPeers() []admin_nodeInfo {
 			{"bytes_sent", atomic.LoadUint64(&p.bytesSent)},
 			{"bytes_recvd", atomic.LoadUint64(&p.bytesRecvd)},
 			{"endpoint", p.endpoint},
+			{"box_pub_key", hex.EncodeToString(p.box[:])},
 		}
 		peerInfos = append(peerInfos, info)
 	}
@@ -608,6 +609,7 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 			{"bytes_sent", atomic.LoadUint64(&peer.bytesSent)},
 			{"bytes_recvd", atomic.LoadUint64(&peer.bytesRecvd)},
 			{"endpoint", peer.endpoint},
+			{"box_pub_key", hex.EncodeToString(peer.box[:])},
 		}
 		peerInfos = append(peerInfos, info)
 	}
@@ -661,6 +663,7 @@ func (a *admin) getData_getDHT() []admin_nodeInfo {
 				{"ip", net.IP(addr[:]).String()},
 				{"coords", fmt.Sprint(v.coords)},
 				{"last_seen", int(now.Sub(v.recv).Seconds())},
+				{"box_pub_key", hex.EncodeToString(v.key[:])},
 			}
 			infos = append(infos, info)
 		}
@@ -682,6 +685,7 @@ func (a *admin) getData_getSessions() []admin_nodeInfo {
 				{"was_mtu_fixed", sinfo.wasMTUFixed},
 				{"bytes_sent", sinfo.bytesSent},
 				{"bytes_recvd", sinfo.bytesRecvd},
+				{"box_pub_key", hex.EncodeToString(sinfo.theirPermPub[:])},
 			}
 			infos = append(infos, info)
 		}
