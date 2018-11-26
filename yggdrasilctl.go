@@ -18,11 +18,12 @@ type admin_info map[string]interface{}
 func main() {
 	server := flag.String("endpoint", defaults.GetDefaults().DefaultAdminListen, "Admin socket endpoint")
 	injson := flag.Bool("json", false, "Output in JSON format")
+	verbose := flag.Bool("v", false, "Verbose output (includes public keys)")
 	flag.Parse()
 	args := flag.Args()
 
 	if len(args) == 0 {
-		fmt.Println("usage:", os.Args[0], "[-endpoint=proto://server] [-json] command [key=value] [...]")
+		fmt.Println("usage:", os.Args[0], "[-endpoint=proto://server] [-verbose] [-json] command [key=value] [...]")
 		fmt.Println("example:", os.Args[0], "getPeers")
 		fmt.Println("example:", os.Args[0], "setTunTap name=auto mtu=1500 tap_mode=false")
 		fmt.Println("example:", os.Args[0], "-endpoint=tcp://localhost:9001 getDHT")
@@ -116,8 +117,10 @@ func main() {
 				for slk, slv := range tlv.(map[string]interface{}) {
 					if !keysOrdered {
 						for k := range slv.(map[string]interface{}) {
-							if k == "box_pub_key" || k == "box_sig_key" {
-								continue
+							if !*verbose {
+								if k == "box_pub_key" || k == "box_sig_key" {
+									continue
+								}
 							}
 							keyOrder = append(keyOrder, fmt.Sprint(k))
 						}
@@ -185,11 +188,13 @@ func main() {
 				if coords, ok := v.(map[string]interface{})["coords"].(string); ok {
 					fmt.Println("Coords:", coords)
 				}
-				if boxPubKey, ok := v.(map[string]interface{})["box_pub_key"].(string); ok {
-					fmt.Println("Public encryption key:", boxPubKey)
-				}
-				if boxSigKey, ok := v.(map[string]interface{})["box_sig_key"].(string); ok {
-					fmt.Println("Public signing key:", boxPubKey)
+				if *verbose {
+					if boxPubKey, ok := v.(map[string]interface{})["box_pub_key"].(string); ok {
+						fmt.Println("Public encryption key:", boxPubKey)
+					}
+					if boxSigKey, ok := v.(map[string]interface{})["box_sig_key"].(string); ok {
+						fmt.Println("Public signing key:", boxSigKey)
+					}
 				}
 			}
 		case "getswitchqueues":
