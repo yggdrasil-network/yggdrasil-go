@@ -243,15 +243,15 @@ func (a *admin) init(c *Core, listenaddr string) {
 			return admin_info{"not_added": []string{in["subnet"].(string)}}, errors.New("Failed to add source subnet")
 		}
 	})
-	a.addHandler("addRoute", []string{"subnet", "destPubKey"}, func(in admin_info) (admin_info, error) {
+	a.addHandler("addRoute", []string{"subnet", "box_pub_key"}, func(in admin_info) (admin_info, error) {
 		var err error
 		a.core.router.doAdmin(func() {
-			err = a.core.router.cryptokey.addRoute(in["subnet"].(string), in["destPubKey"].(string))
+			err = a.core.router.cryptokey.addRoute(in["subnet"].(string), in["box_pub_key"].(string))
 		})
 		if err == nil {
-			return admin_info{"added": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["destPubKey"].(string))}}, nil
+			return admin_info{"added": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, nil
 		} else {
-			return admin_info{"not_added": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["destPubKey"].(string))}}, errors.New("Failed to add route")
+			return admin_info{"not_added": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, errors.New("Failed to add route")
 		}
 	})
 	a.addHandler("getSourceSubnets", []string{}, func(in admin_info) (admin_info, error) {
@@ -291,15 +291,15 @@ func (a *admin) init(c *Core, listenaddr string) {
 			return admin_info{"not_removed": []string{in["subnet"].(string)}}, errors.New("Failed to remove source subnet")
 		}
 	})
-	a.addHandler("removeRoute", []string{"subnet", "destPubKey"}, func(in admin_info) (admin_info, error) {
+	a.addHandler("removeRoute", []string{"subnet", "box_pub_key"}, func(in admin_info) (admin_info, error) {
 		var err error
 		a.core.router.doAdmin(func() {
-			err = a.core.router.cryptokey.removeRoute(in["subnet"].(string), in["destPubKey"].(string))
+			err = a.core.router.cryptokey.removeRoute(in["subnet"].(string), in["box_pub_key"].(string))
 		})
 		if err == nil {
-			return admin_info{"removed": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["destPubKey"].(string))}}, nil
+			return admin_info{"removed": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, nil
 		} else {
-			return admin_info{"not_removed": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["destPubKey"].(string))}}, errors.New("Failed to remove route")
+			return admin_info{"not_removed": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, errors.New("Failed to remove route")
 		}
 	})
 	a.addHandler("dhtPing", []string{"box_pub_key", "coords", "[target]"}, func(in admin_info) (admin_info, error) {
