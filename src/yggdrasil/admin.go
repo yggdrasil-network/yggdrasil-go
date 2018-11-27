@@ -52,7 +52,7 @@ func (a *admin) addHandler(name string, args []string, handler func(admin_info) 
 func (a *admin) init(c *Core, listenaddr string) {
 	a.core = c
 	a.listenaddr = listenaddr
-	a.addHandler("list", nil, func(in admin_info) (admin_info, error) {
+	a.addHandler("list", []string{}, func(in admin_info) (admin_info, error) {
 		handlers := make(map[string]interface{})
 		for _, handler := range a.handlers {
 			handlers[handler.name] = admin_info{"fields": handler.args}
