@@ -292,6 +292,10 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	in := func(bs []byte) {
 		p.handlePacket(bs)
 	}
+	// Set priority
+	if _, isSocks := sock.(*wrappedConn); !isSocks {
+		p.priority = 1
+	}
 	out := make(chan []byte, 1)
 	defer close(out)
 	go func() {

@@ -88,6 +88,7 @@ type peer struct {
 	endpoint     string
 	friendlyName string
 	firstSeen    time.Time       // To track uptime for getPeers
+	priority     uint8           // Higher priority -> prefer as a parent in the tree
 	linkOut      (chan []byte)   // used for protocol traffic (to bypass queues)
 	doSend       (chan struct{}) // tell the linkLoop to send a switchMsg
 	dinfo        *dhtInfo        // used to keep the DHT working
@@ -321,7 +322,7 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 		}
 		prevKey = hop.Next
 	}
-	p.core.switchTable.handleMsg(&msg, p.port)
+	p.core.switchTable.handleMsg(&msg, p.port, p.priority)
 	if !p.core.switchTable.checkRoot(&msg) {
 		// Bad switch message
 		// Stop forwarding traffic from it

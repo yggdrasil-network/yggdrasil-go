@@ -125,6 +125,7 @@ type peerInfo struct {
 	time      time.Time     // Time this node was last seen
 	firstSeen time.Time
 	port      switchPort // Interface number of this peer
+	priority  uint8      // Prefer to use nodes with a higher priority as a parent
 	msg       switchMsg  // The wire switchMsg used
 }
 
@@ -252,7 +253,7 @@ func (t *switchTable) forgetPeer(port switchPort) {
 		return
 	}
 	for _, info := range t.data.peers {
-		t.unlockedHandleMsg(&info.msg, info.port)
+		t.unlockedHandleMsg(&info.msg, info.port, info.priority)
 	}
 }
 
@@ -323,10 +324,10 @@ func (t *switchTable) checkRoot(msg *switchMsg) bool {
 }
 
 // This is a mutexed wrapper to unlockedHandleMsg, and is called by the peer structs in peers.go to pass a switchMsg for that peer into the switch.
-func (t *switchTable) handleMsg(msg *switchMsg, fromPort switchPort) {
+func (t *switchTable) handleMsg(msg *switchMsg, fromPort switchPort, priority uint8) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	t.unlockedHandleMsg(msg, fromPort)
+	t.unlockedHandleMsg(msg, fromPort, priority)
 }
 
 // This updates the switch with information about a peer.
@@ -334,7 +335,7 @@ func (t *switchTable) handleMsg(msg *switchMsg, fromPort switchPort) {
 // That happens if this node is already our parent, or is advertising a better root, or is advertising a better path to the same root, etc...
 // There are a lot of very delicate order sensitive checks here, so its' best to just read the code if you need to understand what it's doing.
 // It's very important to not change the order of the statements in the case function unless you're absolutely sure that it's safe, including safe if used along side nodes that used the previous order.
-func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
+func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, priority uint8) {
 	// TODO directly use a switchMsg instead of switchMessage + sigs
 	now := time.Now()
 	// Set up the sender peerInfo
@@ -355,6 +356,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 	}
 	sender.firstSeen = oldSender.firstSeen
 	sender.port = fromPort
+	sender.priority = priority
 	sender.time = now
 	// Decide what to do
 	equiv := func(x *switchLocator, y *switchLocator) bool {
@@ -420,6 +422,11 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 	case noParent:
 		// We currently have no working parent, and at this point in the switch statement, anything is better than nothing.
 		updateRoot = true
+  case priority > oldParent.priority:
+    // We're supposed to prefer this node due to the kind of connection it is, e.g. direct instead of an outgoing socks connection.
+    updateRoot = true
+  case priority < oldParent.priority:
+    // We're supposed to avoid this node due to the kind of connection it is, e.g. an outgoing socks connection instead of direct.
 	case cost < pCost:
 		// The sender has a better combination of path length and reliability than the current parent.
 		updateRoot = true
@@ -432,9 +439,9 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 		// Then reprocess *all* messages to look for a better parent.
 		// This is so we don't keep using this node as our parent if there's something better.
 		t.parent = 0
-		t.unlockedHandleMsg(msg, fromPort)
+		t.unlockedHandleMsg(msg, fromPort, priority)
 		for _, info := range t.data.peers {
-			t.unlockedHandleMsg(&info.msg, info.port)
+			t.unlockedHandleMsg(&info.msg, info.port, info.priority)
 		}
 	case now.Sub(t.time) < switch_throttle:
 		// We've already gotten an update from this root recently, so ignore this one to avoid flooding.
