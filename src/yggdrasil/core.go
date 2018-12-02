@@ -100,6 +100,10 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
+	if nc.SwitchOptions.MaxTotalQueueSize >= SwitchQueueTotalMinSize {
+		c.switchTable.queueTotalMaxSize = nc.SwitchOptions.MaxTotalQueueSize
+	}
+
 	if err := c.switchTable.start(); err != nil {
 		c.log.Println("Failed to start switch")
 		return err

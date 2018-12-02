@@ -216,8 +216,8 @@ func main() {
 				fmt.Printf("Highest queue size: %d bytes\n", uint(highestqueuesize))
 			}
 			if m, ok := v["maximum_queues_size"].(float64); ok {
-				fmt.Printf("Maximum queue size: %d bytes\n", uint(maximumqueuesize))
 				maximumqueuesize = m
+				fmt.Printf("Maximum queue size: %d bytes\n", uint(maximumqueuesize))
 			}
 			if queues, ok := v["queues"].([]interface{}); ok {
 				if len(queues) != 0 {
