@@ -169,8 +169,11 @@ type switchTable struct {
 	idleIn            chan switchPort     // Incoming idle notifications from peer links
 	admin             chan func()         // Pass a lambda for the admin socket to query stuff
 	queues            switch_buffers      // Queues - not atomic so ONLY use through admin chan
-	queuetotalmaxsize uint64              // Maximum combined size of queues
+	queueTotalMaxSize uint64              // Maximum combined size of queues
 }
+
+// Minimum allowed total size of switch queues.
+const SwitchQueueTotalMinSize = 4 * 1024 * 1024
 
 // Initializes the switchTable struct.
 func (t *switchTable) init(core *Core, key sigPubKey) {
@@ -186,6 +189,7 @@ func (t *switchTable) init(core *Core, key sigPubKey) {
 	t.packetIn = make(chan []byte, 1024)
 	t.idleIn = make(chan switchPort, 1024)
 	t.admin = make(chan func())
+	t.queueTotalMaxSize = SwitchQueueTotalMinSize
 }
 
 // Safely gets a copy of this node's locator.
@@ -649,7 +653,7 @@ func (b *switch_buffers) cleanup(t *switchTable) {
 		}
 	}
 
-	for b.size > b.switchTable.queuetotalmaxsize {
+	for b.size > b.switchTable.queueTotalMaxSize {
 		// Drop a random queue
 		target := rand.Uint64() % b.size
 		var size uint64 // running total

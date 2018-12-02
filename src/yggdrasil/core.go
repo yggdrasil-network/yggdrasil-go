@@ -105,9 +105,11 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
-	c.switchTable.doAdmin(func() {
-		c.switchTable.queuetotalmaxsize = nc.SwitchOptions.MaxTotalQueueSize
-	})
+	if nc.SwitchOptions.MaxTotalQueueSize >= SwitchQueueTotalMinSize {
+		c.switchTable.doAdmin(func() {
+			c.switchTable.queueTotalMaxSize = nc.SwitchOptions.MaxTotalQueueSize
+		})
+	}
 
 	c.sessions.setSessionFirewallState(nc.SessionFirewall.Enable)
 	c.sessions.setSessionFirewallDefaults(
