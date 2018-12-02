@@ -18,10 +18,12 @@ import (
 	"time"
 )
 
-const switch_timeout = time.Minute
-const switch_updateInterval = switch_timeout / 2
-const switch_throttle = switch_updateInterval / 2
-const switch_max_time = time.Hour
+const (
+	switch_timeout          = time.Minute
+	switch_updateInterval   = switch_timeout / 2
+	switch_throttle         = switch_updateInterval / 2
+	switch_faster_threshold = 240 //Number of switch updates before switching to a faster parent
+)
 
 // The switch locator represents the topology and network state dependent info about a node, minus the signatures that go with it.
 // Nodes will pick the best root they see, provided that the root continues to push out updates with new timestamps.
@@ -119,13 +121,13 @@ func (x *switchLocator) isAncestorOf(y *switchLocator) bool {
 
 // Information about a peer, used by the switch to build the tree and eventually make routing decisions.
 type peerInfo struct {
-	key       sigPubKey     // ID of this peer
-	locator   switchLocator // Should be able to respond with signatures upon request
-	degree    uint64        // Self-reported degree
-	time      time.Time     // Time this node was last seen
-	firstSeen time.Time
-	port      switchPort // Interface number of this peer
-	msg       switchMsg  // The wire switchMsg used
+	key     sigPubKey             // ID of this peer
+	locator switchLocator         // Should be able to respond with signatures upon request
+	degree  uint64                // Self-reported degree
+	time    time.Time             // Time this node was last seen
+	faster  map[switchPort]uint64 // Counter of how often a node is faster than the current parent, penalized extra if slower
+	port    switchPort            // Interface number of this peer
+	msg     switchMsg             // The wire switchMsg used
 }
 
 // This is just a uint64 with a named type for clarity reasons.
@@ -257,7 +259,7 @@ func (t *switchTable) forgetPeer(port switchPort) {
 		return
 	}
 	for _, info := range t.data.peers {
-		t.unlockedHandleMsg(&info.msg, info.port)
+		t.unlockedHandleMsg(&info.msg, info.port, true)
 	}
 }
 
@@ -331,7 +333,7 @@ func (t *switchTable) checkRoot(msg *switchMsg) bool {
 func (t *switchTable) handleMsg(msg *switchMsg, fromPort switchPort) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	t.unlockedHandleMsg(msg, fromPort)
+	t.unlockedHandleMsg(msg, fromPort, false)
 }
 
 // This updates the switch with information about a peer.
@@ -339,7 +341,8 @@ func (t *switchTable) handleMsg(msg *switchMsg, fromPort switchPort) {
 // That happens if this node is already our parent, or is advertising a better root, or is advertising a better path to the same root, etc...
 // There are a lot of very delicate order sensitive checks here, so its' best to just read the code if you need to understand what it's doing.
 // It's very important to not change the order of the statements in the case function unless you're absolutely sure that it's safe, including safe if used along side nodes that used the previous order.
-func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
+// Set the third arg to true if you're reprocessing an old message, e.g. to find a new parent after one disconnects, to avoid updating some timing related things.
+func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, reprocessing bool) {
 	// TODO directly use a switchMsg instead of switchMessage + sigs
 	now := time.Now()
 	// Set up the sender peerInfo
@@ -354,11 +357,6 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 		prevKey = hop.Next
 	}
 	sender.msg = *msg
-	oldSender, isIn := t.data.peers[fromPort]
-	if !isIn {
-		oldSender.firstSeen = now
-	}
-	sender.firstSeen = oldSender.firstSeen
 	sender.port = fromPort
 	sender.time = now
 	// Decide what to do
@@ -377,11 +375,43 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 		return true
 	}
 	doUpdate := false
+	oldSender := t.data.peers[fromPort]
 	if !equiv(&sender.locator, &oldSender.locator) {
 		doUpdate = true
-		sender.firstSeen = now
 	}
+	// Update the matrix of peer "faster" thresholds
+	if reprocessing {
+		sender.faster = oldSender.faster
+	} else {
+		sender.faster = make(map[switchPort]uint64, len(oldSender.faster))
+		for port, peer := range t.data.peers {
+			if port == fromPort {
+				continue
+			}
+			switch {
+			case msg.Root != peer.locator.root:
+				// Different roots, blindly guess that the relationships will stay the same?
+				sender.faster[port] = oldSender.faster[peer.port]
+			case sender.locator.tstamp <= peer.locator.tstamp:
+				// Slower than this node, penalize (more than the reward amount)
+				if oldSender.faster[port] > 1 {
+					sender.faster[port] = oldSender.faster[peer.port] - 2
+				} else {
+					sender.faster[port] = 0
+				}
+			default:
+				// We were faster than this node, so increment, as long as we don't overflow because of it
+				if oldSender.faster[peer.port] < switch_faster_threshold {
+					sender.faster[port] = oldSender.faster[peer.port] + 1
+				} else {
+					sender.faster[port] = switch_faster_threshold
+				}
+			}
+		}
+	}
+	// Update sender
 	t.data.peers[fromPort] = sender
+	// Decide if we should also update our root info to make the sender our parent
 	updateRoot := false
 	oldParent, isIn := t.data.peers[t.parent]
 	noParent := !isIn
@@ -396,20 +426,8 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 		}
 		return true
 	}()
-	// Get the time we've known about the sender (or old parent's) current coords, up to a maximum of `switch_max_time`.
-	sTime := now.Sub(sender.firstSeen)
-	if sTime > switch_max_time {
-		sTime = switch_max_time
-	}
-	pTime := now.Sub(oldParent.firstSeen)
-	if pTime > switch_max_time {
-		pTime = switch_max_time
-	}
-	// Really want to compare sLen/sTime and pLen/pTime
-	// Cross multiplied to avoid divide-by-zero
-	cost := float64(len(sender.locator.coords)) * pTime.Seconds()
-	pCost := float64(len(t.data.locator.coords)) * sTime.Seconds()
 	dropTstamp, isIn := t.drop[sender.locator.root]
+	// Decide if we need to update info about the root or change parents.
 	switch {
 	case !noLoop:
 		// This route loops, so we can't use the sender as our parent.
@@ -425,22 +443,30 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort) {
 	case noParent:
 		// We currently have no working parent, and at this point in the switch statement, anything is better than nothing.
 		updateRoot = true
-	case cost < pCost:
-		// The sender has a better combination of path length and reliability than the current parent.
+	case sender.faster[t.parent] >= switch_faster_threshold:
+		// The is reliably faster than the current parent.
+		updateRoot = true
+	case reprocessing && sender.faster[t.parent] > oldParent.faster[sender.port]:
+		// The sender seems to be reliably faster than the current parent, so switch to them instead.
 		updateRoot = true
 	case sender.port != t.parent:
 		// Ignore further cases if the sender isn't our parent.
-	case !equiv(&sender.locator, &t.data.locator):
+	case !reprocessing && !equiv(&sender.locator, &t.data.locator):
 		// Special case:
-		// If coords changed, then this may now be a worse parent than before.
-		// Re-parent the node (de-parent and reprocess the message).
-		// Then reprocess *all* messages to look for a better parent.
-		// This is so we don't keep using this node as our parent if there's something better.
+		// If coords changed, then we need to penalize this node somehow, to prevent flapping.
+		// First, reset all faster-related info to 0.
+		// Then, de-parent the node and reprocess all messages to find a new parent.
 		t.parent = 0
-		t.unlockedHandleMsg(msg, fromPort)
-		for _, info := range t.data.peers {
-			t.unlockedHandleMsg(&info.msg, info.port)
+		sender.faster = nil
+		for _, peer := range t.data.peers {
+			if peer.port == sender.port {
+				continue
+			}
+			delete(peer.faster, sender.port)
+			t.unlockedHandleMsg(&peer.msg, peer.port, true)
 		}
+		// Process the sender last, to avoid keeping them as a parent if at all possible.
+		t.unlockedHandleMsg(&sender.msg, sender.port, true)
 	case now.Sub(t.time) < switch_throttle:
 		// We've already gotten an update from this root recently, so ignore this one to avoid flooding.
 	case sender.locator.tstamp > t.data.locator.tstamp:
