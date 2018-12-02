@@ -95,8 +95,8 @@ func doGenconf(isjson bool) string {
 func main() {
 	// Configure the command line parameters.
 	genconf := flag.Bool("genconf", false, "print a new config to stdout")
-	useconf := flag.Bool("useconf", false, "read config from stdin")
-	useconffile := flag.String("useconffile", "", "read config from specified file path")
+	useconf := flag.Bool("useconf", false, "read HJSON/JSON config from stdin")
+	useconffile := flag.String("useconffile", "", "read HJSON/JSON config from specified file path")
 	normaliseconf := flag.Bool("normaliseconf", false, "use in combination with either -useconf or -useconffile, outputs your configuration normalised")
 	confjson := flag.Bool("json", false, "print configuration from -genconf or -normaliseconf as JSON instead of HJSON")
 	autoconf := flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
