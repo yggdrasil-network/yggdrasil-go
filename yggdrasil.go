@@ -69,6 +69,7 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	cfg.SessionFirewall.Enable = false
 	cfg.SessionFirewall.AllowFromDirect = true
 	cfg.SessionFirewall.AllowFromRemote = true
+	cfg.SwitchOptions.MaxTotalQueueSize = 4 * 1048576
 
 	return &cfg
 }

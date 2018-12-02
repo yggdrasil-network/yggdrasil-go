@@ -18,6 +18,7 @@ type NodeConfig struct {
 	IfMTU                       int                 `comment:"Maximux Transmission Unit (MTU) size for your local TUN/TAP interface.\nDefault is the largest supported size for your platform. The lowest\npossible value is 1280."`
 	SessionFirewall             SessionFirewall     `comment:"The session firewall controls who can send/receive network traffic\nto/from. This is useful if you want to protect this node without\nresorting to using a real firewall. This does not affect traffic\nbeing routed via this node to somewhere else. Rules are prioritised as\nfollows: blacklist, whitelist, always allow outgoing, direct, remote."`
 	TunnelRouting               TunnelRouting       `comment:"Allow tunneling non-Yggdrasil traffic over Yggdrasil. This effectively\nallows you to use Yggdrasil to route to, or to bridge other networks,\nsimilar to a VPN tunnel. Tunnelling works between any two nodes and\ndoes not require them to be directly peered."`
+	SwitchOptions               SwitchOptions       `comment:"Advanced options for tuning the switch. Normally you will not need\nto edit these options."`
 	//Net                         NetConfig `comment:"Extended options for connecting to peers over other networks."`
 }
 
@@ -44,4 +45,9 @@ type TunnelRouting struct {
 	IPv6Sources      []string          `comment:"Optional IPv6 source subnets which are allowed to be tunnelled in\naddition to this node's Yggdrasil address/subnet. If not\nspecified, only traffic originating from this node's Yggdrasil\naddress or subnet will be tunnelled."`
 	IPv4Destinations map[string]string `comment:"IPv4 CIDR subnets, mapped to the EncryptionPublicKey to which they\nshould be routed, e.g. { \"a.b.c.d/e\": \"boxpubkey\", ... }"`
 	IPv4Sources      []string          `comment:"IPv4 source subnets which are allowed to be tunnelled. Unlike for\nIPv6, this option is required for bridging IPv4 traffic. Only\ntraffic with a source matching these subnets will be tunnelled."`
+}
+
+// SwitchOptions contains tuning options for the switch
+type SwitchOptions struct {
+	MaxTotalQueueSize uint64 `comment:"Maximum size of all switch queues combined."`
 }
