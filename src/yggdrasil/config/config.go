@@ -49,5 +49,5 @@ type TunnelRouting struct {
 
 // SwitchOptions contains tuning options for the switch
 type SwitchOptions struct {
-	MaxTotalQueueSize uint64 `comment:"Maximum size of all switch queues combined."`
+	MaxTotalQueueSize uint64 `comment:"Maximum size of all switch queues combined (in bytes)."`
 }
