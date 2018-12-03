@@ -31,7 +31,7 @@ MINOR=$(echo $TAG | cut -c 2- | cut -d "." -f 2)
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
 # Output in the desired format
-if [ $PATCH == 0 ]; then
+if [ $PATCH = 0 ]; then
   if [ ! -z $FULL ]; then
     printf 'v%d.%d.0' "$MAJOR" "$MINOR"
   else
