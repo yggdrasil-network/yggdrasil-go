@@ -504,27 +504,43 @@ func (c *Core) DEBUG_addAllowedEncryptionPublicKey(boxStr string) {
 
 func DEBUG_simLinkPeers(p, q *peer) {
 	// Sets q.out() to point to p and starts p.linkLoop()
-	p.linkOut, q.linkOut = make(chan []byte, 1), make(chan []byte, 1)
-	go func() {
-		for bs := range p.linkOut {
-			q.handlePacket(bs)
+	goWorkers := func(source, dest *peer) {
+		source.linkOut = make(chan []byte, 1)
+		send := make(chan []byte, 1)
+		source.out = func(bs []byte) {
+			send <- bs
 		}
-	}()
-	go func() {
-		for bs := range q.linkOut {
-			p.handlePacket(bs)
-		}
-	}()
-	p.out = func(bs []byte) {
-		p.core.switchTable.idleIn <- p.port
-		go q.handlePacket(bs)
+		go source.linkLoop()
+		go func() {
+			var packets [][]byte
+			for {
+				select {
+				case packet := <-source.linkOut:
+					packets = append(packets, packet)
+					continue
+				case packet := <-send:
+					packets = append(packets, packet)
+					source.core.switchTable.idleIn <- source.port
+					continue
+				default:
+				}
+				if len(packets) > 0 {
+					dest.handlePacket(packets[0])
+					packets = packets[1:]
+					continue
+				}
+				select {
+				case packet := <-source.linkOut:
+					packets = append(packets, packet)
+				case packet := <-send:
+					packets = append(packets, packet)
+					source.core.switchTable.idleIn <- source.port
+				}
+			}
+		}()
 	}
-	q.out = func(bs []byte) {
-		q.core.switchTable.idleIn <- q.port
-		go p.handlePacket(bs)
-	}
-	go p.linkLoop()
-	go q.linkLoop()
+	goWorkers(p, q)
+	goWorkers(q, p)
 	p.core.switchTable.idleIn <- p.port
 	q.core.switchTable.idleIn <- q.port
 }
