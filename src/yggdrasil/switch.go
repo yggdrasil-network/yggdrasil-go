@@ -377,6 +377,11 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 	doUpdate := false
 	oldSender := t.data.peers[fromPort]
 	if !equiv(&sender.locator, &oldSender.locator) {
+		// Reset faster info, we'll start refilling it right after this
+		sender.faster = nil
+		for _, peer := range t.data.peers {
+			delete(peer.faster, sender.port)
+		}
 		doUpdate = true
 	}
 	// Update the matrix of peer "faster" thresholds
@@ -387,24 +392,19 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		for port, peer := range t.data.peers {
 			if port == fromPort {
 				continue
-			}
-			switch {
-			case msg.Root != peer.locator.root:
-				// Different roots, blindly guess that the relationships will stay the same?
-				sender.faster[port] = oldSender.faster[peer.port]
-			case sender.locator.tstamp <= peer.locator.tstamp:
-				// Slower than this node, penalize (more than the reward amount)
-				if oldSender.faster[port] > 1 {
-					sender.faster[port] = oldSender.faster[peer.port] - 2
-				} else {
-					sender.faster[port] = 0
-				}
-			default:
+			} else if sender.locator.root != peer.locator.root || sender.locator.tstamp > peer.locator.tstamp {
 				// We were faster than this node, so increment, as long as we don't overflow because of it
 				if oldSender.faster[peer.port] < switch_faster_threshold {
 					sender.faster[port] = oldSender.faster[peer.port] + 1
 				} else {
 					sender.faster[port] = switch_faster_threshold
+				}
+			} else {
+				// Slower than this node, penalize (more than the reward amount)
+				if oldSender.faster[port] > 1 {
+					sender.faster[port] = oldSender.faster[peer.port] - 2
+				} else {
+					sender.faster[port] = 0
 				}
 			}
 		}
@@ -457,12 +457,10 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		// First, reset all faster-related info to 0.
 		// Then, de-parent the node and reprocess all messages to find a new parent.
 		t.parent = 0
-		sender.faster = nil
 		for _, peer := range t.data.peers {
 			if peer.port == sender.port {
 				continue
 			}
-			delete(peer.faster, sender.port)
 			t.unlockedHandleMsg(&peer.msg, peer.port, true)
 		}
 		// Process the sender last, to avoid keeping them as a parent if at all possible.
