@@ -25,6 +25,25 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.x.x] - TBD
+### Added
+- Crypto-key routing support for both IPv4 and IPv6
+- Add `SwitchOptions` in configuration file for tuning the switch
+- Add `dhtPing` to the admin socket to aid in crawling the network
+- New macOS .pkgs built automatically by CircleCI
+- Add Docker support
+- Add `-json` command line flag for generating and normalising configuration in plain JSON
+
+### Changed
+- Switched to Chord DHT (instead of Kademlia, although protocol-compatible)
+- Admin socket clean-up (making some names consistent)
+- Latency-based parent selection for the switch instead of uptime-based
+- Real peering endpoints now shown in the admin socket `getPeers` call
+
+### Fixed
+- Memory leaks in the DHT fixed
+- Crash where ICMPv6 NDP goroutine would incorrectly start in TUN mode fixed
+
 ## [0.2.7] - 2018-10-13
 ### Added
 - Session firewall, which makes it possible to control who can open sessions with your node
