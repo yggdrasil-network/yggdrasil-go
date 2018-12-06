@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 - Memory leaks in the DHT fixed
 - Crash where ICMPv6 NDP goroutine would incorrectly start in TUN mode fixed
+- Remove peers from the switch table of they stop sending switch messages but keep the TCP connection alive
 
 ## [0.2.7] - 2018-10-13
 ### Added
