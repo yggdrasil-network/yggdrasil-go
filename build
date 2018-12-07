@@ -14,10 +14,11 @@ go get -d -v yggdrasil
 for file in *.go ; do
   echo "Building: $file"
   #go build $@ $file
+  IMPRINT="-X yggdrasil.buildName=$(sh contrib/semver/name.sh) -X yggdrasil.buildVersion=$(sh contrib/semver/version.sh)"
   if [ $DEBUG ]; then
-    go build -tags debug -v $file
+    go build -ldflags="$IMPRINT" -tags debug -v $file
   else
-    go build -ldflags="-s -w" -v $file
+    go build -ldflags="$IMPRINT -s -w" -v $file
   fi
   if [ $UPX ]; then
     upx --brute ${file%.go}
