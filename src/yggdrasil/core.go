@@ -86,6 +86,14 @@ func GetBuildVersion() string {
 // DHT node.
 func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	c.log = log
+
+	if buildName != "" {
+		c.log.Println("Build name:", buildName)
+	}
+	if buildVersion != "" {
+		c.log.Println("Build version:", buildVersion)
+	}
+
 	c.log.Println("Starting up...")
 
 	var boxPub boxPubKey
