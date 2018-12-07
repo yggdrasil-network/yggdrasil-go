@@ -556,6 +556,8 @@ func (a *admin) getData_getSelf() *admin_nodeInfo {
 	table := a.core.switchTable.table.Load().(lookupTable)
 	coords := table.self.getCoords()
 	self := admin_nodeInfo{
+		{"build_name", GetBuildName()},
+		{"build_version", GetBuildVersion()},
 		{"box_pub_key", hex.EncodeToString(a.core.boxPub[:])},
 		{"ip", a.core.GetAddress().String()},
 		{"subnet", a.core.GetSubnet().String()},

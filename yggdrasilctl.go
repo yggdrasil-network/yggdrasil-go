@@ -181,6 +181,12 @@ func main() {
 			}
 		case "getself":
 			for k, v := range res["self"].(map[string]interface{}) {
+				if buildname, ok := v.(map[string]interface{})["build_name"].(string); ok {
+					fmt.Println("Build name:", buildname)
+				}
+				if buildversion, ok := v.(map[string]interface{})["build_version"].(string); ok {
+					fmt.Println("Build version:", buildversion)
+				}
 				fmt.Println("IPv6 address:", k)
 				if subnet, ok := v.(map[string]interface{})["subnet"].(string); ok {
 					fmt.Println("IPv6 subnet:", subnet)
