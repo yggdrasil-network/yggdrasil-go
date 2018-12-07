@@ -1,10 +1,19 @@
 #!/bin/sh
 
-# Get the branch name, removing any "/" characters from pull requests
-BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null | tr -d "/")
+# Get the current branch name
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
+
+# Complain if the git history is not available
+if [ $? != 0 ]; then
+  printf "unknown"
+  exit -1
+fi
+
+# Remove "/" characters from the branch name if present
+BRANCH=$(echo $BRANCH | tr -d "/")
 
 # Check if the branch name is not master
-if [ "$BRANCH" = "master" ] || [ $? != 0 ]; then
+if [ "$BRANCH" = "master" ]; then
   printf "yggdrasil"
   exit 0
 fi
