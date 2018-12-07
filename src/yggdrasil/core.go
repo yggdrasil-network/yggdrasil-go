@@ -12,6 +12,9 @@ import (
 	"yggdrasil/defaults"
 )
 
+var buildName string
+var buildVersion string
+
 // The Core object represents the Yggdrasil node. You should create a Core
 // object for each Yggdrasil node you plan to run.
 type Core struct {
@@ -59,12 +62,38 @@ func (c *Core) init(bpub *boxPubKey,
 	c.tun.init(c)
 }
 
+// Get the current build name. This is usually injected if built from git,
+// or returns "unknown" otherwise.
+func GetBuildName() string {
+	if buildName == "" {
+		return "unknown"
+	}
+	return buildName
+}
+
+// Get the current build version. This is usually injected if built from git,
+// or returns "unknown" otherwise.
+func GetBuildVersion() string {
+	if buildVersion == "" {
+		return "unknown"
+	}
+	return buildVersion
+}
+
 // Starts up Yggdrasil using the provided NodeConfig, and outputs debug logging
 // through the provided log.Logger. The started stack will include TCP and UDP
 // sockets, a multicast discovery socket, an admin socket, router, switch and
 // DHT node.
 func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	c.log = log
+
+	if buildName != "" {
+		c.log.Println("Build name:", buildName)
+	}
+	if buildVersion != "" {
+		c.log.Println("Build version:", buildVersion)
+	}
+
 	c.log.Println("Starting up...")
 
 	var boxPub boxPubKey

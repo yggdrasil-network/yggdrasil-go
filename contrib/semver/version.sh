@@ -16,6 +16,12 @@ PATCH=$(git rev-list $TAG..master --count --merges --grep="from $DEVELOPBRANCH" 
 if [ $? != 0 ]; then
   PATCH=$(git rev-list HEAD --count 2>/dev/null)
 
+  # Complain if the git history is not available
+  if [ $? != 0 ]; then
+    printf 'unknown'
+    exit -1
+  fi
+
   printf 'v0.0.%d' "$PATCH"
   exit -1
 fi
