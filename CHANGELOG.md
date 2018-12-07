@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - New macOS .pkgs built automatically by CircleCI
 - Add Docker support
 - Add `-json` command line flag for generating and normalising configuration in plain JSON
-- Build nae and version numbers are now imprinted onto the build, accessible through `yggdrasil -version` and `yggdrasilctl getSelf`
+- Build name and version numbers are now imprinted onto the build, accessible through `yggdrasil -version` and `yggdrasilctl getSelf`
 
 ### Changed
 - Switched to Chord DHT (instead of Kademlia, although protocol-compatible)
