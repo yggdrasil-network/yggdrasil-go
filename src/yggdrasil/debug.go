@@ -22,7 +22,7 @@ import "net/http"
 import "runtime"
 import "os"
 
-import "yggdrasil/defaults"
+import "github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 
 // Start the profiler in debug builds, if the required environment variable is set.
 func init() {

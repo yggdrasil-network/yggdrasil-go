@@ -19,11 +19,11 @@ if [ $? != 0 ]; then
   # Complain if the git history is not available
   if [ $? != 0 ]; then
     printf 'unknown'
-    exit -1
+    exit 1
   fi
 
   printf 'v0.0.%d' "$PATCH"
-  exit -1
+  exit 1
 fi
 
 # Get the number of merges on the current branch since the last tag

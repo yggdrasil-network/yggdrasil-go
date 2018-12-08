@@ -1,17 +1,19 @@
 package main
 
-import "errors"
-import "flag"
-import "fmt"
-import "strings"
-import "net"
-import "net/url"
-import "sort"
-import "encoding/json"
-import "strconv"
-import "os"
+import (
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"net"
+	"net/url"
+	"os"
+	"sort"
+	"strconv"
+	"strings"
 
-import "yggdrasil/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+)
 
 type admin_info map[string]interface{}
 

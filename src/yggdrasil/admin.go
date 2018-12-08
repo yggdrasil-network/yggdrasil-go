@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"yggdrasil/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 
 // TODO: Add authentication
@@ -739,6 +739,10 @@ func (a *admin) admin_dhtPing(keyString, coordString, targetString string) (dhtR
 	}
 	var coords []byte
 	for _, cstr := range strings.Split(strings.Trim(coordString, "[]"), " ") {
+		if cstr == "" {
+			// Special case, happens if trimmed is the empty string, e.g. this is the root
+			continue
+		}
 		if u64, err := strconv.ParseUint(cstr, 10, 8); err != nil {
 			return dhtRes{}, err
 		} else {

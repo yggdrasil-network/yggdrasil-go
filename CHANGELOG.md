@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Admin socket clean-up (making some names consistent)
 - Latency-based parent selection for the switch instead of uptime-based
 - Real peering endpoints now shown in the admin socket `getPeers` call
+- Reuse the multicast port on supported platforms so that multiple Yggdrasil processes can run
 
 ### Fixed
 - Memory leaks in the DHT fixed

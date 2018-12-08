@@ -15,7 +15,7 @@ You're encouraged to play with it, but it is strongly advised not to use it for 
 
 ## Building
 
-1. Install Go (tested on 1.9+, [godeb](https://github.com/niemeyer/godeb) is recommended for debian-based linux distributions).
+1. Install Go (requires 1.11 or later, [godeb](https://github.com/niemeyer/godeb) is recommended for Debian-based Linux distributions).
 2. Clone this repository.
 2. `./build`
 

@@ -7,7 +7,7 @@
 if [ `pwd` != `git rev-parse --show-toplevel` ]
 then
   echo "You should run this script from the top-level directory of the git repo"
-  exit -1
+  exit 1
 fi
 
 PKGBRANCH=$(basename `git name-rev --name-only HEAD`)
@@ -29,7 +29,7 @@ elif [ $PKGARCH = "armhf" ]; then GOARCH=arm GOOS=linux GOARM=7 ./build
 elif [ $PKGARCH = "arm64" ]; then GOARCH=arm64 GOOS=linux ./build
 else
   echo "Specify PKGARCH=amd64,i386,mips,mipsel,armhf,arm64"
-  exit -1
+  exit 1
 fi
 
 echo "Building $PKGFILE"

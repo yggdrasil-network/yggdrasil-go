@@ -21,9 +21,9 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/neilalexander/hjson-go"
 
-	"yggdrasil"
-	"yggdrasil/config"
-	"yggdrasil/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
 type nodeConfig = config.NodeConfig

@@ -8,8 +8,8 @@ import (
 	"net"
 	"regexp"
 
-	"yggdrasil/config"
-	"yggdrasil/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 
 var buildName string

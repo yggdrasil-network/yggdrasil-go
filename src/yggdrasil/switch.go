@@ -268,7 +268,7 @@ func (t *switchTable) forgetPeer(port switchPort) {
 // Clean all unresponsive peers from the table, needed in case a peer stops updating.
 // Needed in case a non-parent peer keeps the connection open but stops sending updates.
 // Also reclaims space from deleted peers by copying the map.
-func (t switchTable) cleanPeers() {
+func (t *switchTable) cleanPeers() {
 	now := time.Now()
 	for port, peer := range t.data.peers {
 		if now.Sub(peer.time) > switch_timeout+switch_throttle {
