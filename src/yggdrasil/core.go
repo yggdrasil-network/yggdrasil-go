@@ -87,11 +87,11 @@ func GetBuildVersion() string {
 func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	c.log = log
 
-	if buildName != "" {
-		c.log.Println("Build name:", buildName)
+	if name := GetBuildName(); name != "unknown" {
+		c.log.Println("Build name:", name)
 	}
-	if buildVersion != "" {
-		c.log.Println("Build version:", buildVersion)
+	if version := GetBuildVersion(); version != "unknown" {
+		c.log.Println("Build version:", version)
 	}
 
 	c.log.Println("Starting up...")
