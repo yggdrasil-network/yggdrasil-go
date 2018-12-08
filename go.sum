@@ -4,8 +4,8 @@ github.com/kardianos/minwinsvc v0.0.0-20151122163309-cad6b2b879b0 h1:YnZmFjg0Nvk
 github.com/kardianos/minwinsvc v0.0.0-20151122163309-cad6b2b879b0/go.mod h1:rUi0/YffDo1oXBOGn1KRq7Fr07LX48XEBecQnmwjsAo=
 github.com/mitchellh/mapstructure v1.1.2 h1:fmNYVwqnSfB9mZU6OS2O6GsXM+wcskZDuKQzvN1EDeE=
 github.com/mitchellh/mapstructure v1.1.2/go.mod h1:FVVH3fgwuzCH5S8UJGiWEs2h04kUh9fWfEaFds41c1Y=
-github.com/neilalexander/hjson-go v3.0.0+incompatible h1:MRqki7QoLwAe9kD12DF4yy6r04KKxvjBcMGvVGNNQ8g=
-github.com/neilalexander/hjson-go v3.0.0+incompatible/go.mod h1:l+Zao6IpQ+6d/y7LnYnOfbfOeU/9xRiTi4HLVpnkcTg=
+github.com/neilalexander/hjson-go v0.0.0-20180509131856-23267a251165 h1:Oo7Yfu5lEQLGvvh2p9Z8FRHJIsl7fdOCK9xXFNBkqmQ=
+github.com/neilalexander/hjson-go v0.0.0-20180509131856-23267a251165/go.mod h1:l+Zao6IpQ+6d/y7LnYnOfbfOeU/9xRiTi4HLVpnkcTg=
 github.com/songgao/packets v0.0.0-20160404182456-549a10cd4091 h1:1zN6ImoqhSJhN8hGXFaJlSC8msLmIbX8bFqOfWLKw0w=
 github.com/songgao/packets v0.0.0-20160404182456-549a10cd4091/go.mod h1:N20Z5Y8oye9a7HmytmZ+tr8Q2vlP0tAHP13kTHzwvQY=
 github.com/yggdrasil-network/water v0.0.0-20180615095340-f732c88f34ae h1:MYCANF1kehCG6x6G+/9txLfq6n3lS5Vp0Mxn1hdiBAc=
