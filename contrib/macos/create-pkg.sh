@@ -72,7 +72,7 @@ chmod +x pkgbuild/root/usr/local/bin/yggdrasilctl
 
 # Work out metadata for the package info
 PKGNAME=$(sh contrib/semver/name.sh)
-PKGVERSION=$(sh contrib/semver/version.sh | cut -c 2-)
+PKGVERSION=$(sh contrib/semver/version.sh --bare)
 PKGARCH=${PKGARCH-amd64}
 PAYLOADSIZE=$(( $(wc -c pkgbuild/flat/base.pkg/Payload | awk '{ print $1 }') / 1024 ))
 
