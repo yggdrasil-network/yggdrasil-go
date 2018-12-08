@@ -12,6 +12,13 @@ MERGE=$(git rev-list $TAG..master --grep "from $DEVELOPBRANCH" 2>/dev/null | hea
 # Get the number of merges since the last merge to master
 PATCH=$(git rev-list $TAG..master --count --merges --grep="from $DEVELOPBRANCH" 2>/dev/null)
 
+# Decide whether we should prepend the version with "v" - the default is that
+# we do because we use it in git tags, but we might not always need it
+PREPEND="v"
+if [ "$1" == "--bare" ]; then
+  PREPEND=""
+fi
+
 # If it fails then there's no last tag - go from the first commit
 if [ $? != 0 ]; then
   PATCH=$(git rev-list HEAD --count 2>/dev/null)
@@ -22,7 +29,7 @@ if [ $? != 0 ]; then
     exit 1
   fi
 
-  printf 'v0.0.%d' "$PATCH"
+  printf '%s0.0.%d' "$PREPEND" "$PATCH"
   exit 1
 fi
 
@@ -39,12 +46,12 @@ BRANCH=$(git rev-parse --abbrev-ref HEAD)
 # Output in the desired format
 if [ $PATCH = 0 ]; then
   if [ ! -z $FULL ]; then
-    printf 'v%d.%d.0' "$MAJOR" "$MINOR"
+    printf '%s%d.%d.0' "$PREPEND" "$MAJOR" "$MINOR"
   else
-    printf 'v%d.%d' "$MAJOR" "$MINOR"
+    printf '%s%d.%d' "$PREPEND" "$MAJOR" "$MINOR"
   fi
 else
-  printf 'v%d.%d.%d' "$MAJOR" "$MINOR" "$PATCH"
+  printf '%s%d.%d.%d' "$PREPEND" "$MAJOR" "$MINOR" "$PATCH"
 fi
 
 # Add the build tag on non-master branches

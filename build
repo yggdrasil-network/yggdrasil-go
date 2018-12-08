@@ -10,7 +10,7 @@ done
 echo "Downloading..."
 for CMD in `ls cmd/` ; do
   echo "Building: $CMD"
-  IMPRINT="-X github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil.buildName=$(sh contrib/semver/name.sh) -X github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil.buildVersion=$(sh contrib/semver/version.sh)"
+  IMPRINT="-X github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil.buildName=$(sh contrib/semver/name.sh) -X github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil.buildVersion=$(sh contrib/semver/version.sh --bare)"
   if [ $DEBUG ]; then
     go build -ldflags="$IMPRINT" -tags debug -v ./cmd/$CMD
   else
