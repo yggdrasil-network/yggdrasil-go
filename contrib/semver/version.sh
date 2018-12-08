@@ -15,7 +15,7 @@ PATCH=$(git rev-list $TAG..master --count --merges --grep="from $DEVELOPBRANCH" 
 # Decide whether we should prepend the version with "v" - the default is that
 # we do because we use it in git tags, but we might not always need it
 PREPEND="v"
-if [ "$1" == "--bare" ]; then
+if [ "$1" = "--bare" ]; then
   PREPEND=""
 fi
 
