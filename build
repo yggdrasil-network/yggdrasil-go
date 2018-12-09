@@ -1,23 +1,34 @@
 #!/bin/sh
+
 PKGSRC=${PKGSRC:-github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil}
 PKGNAME=${PKGNAME:-$(sh contrib/semver/name.sh)}
 PKGVER=${PKGVER:-$(sh contrib/semver/version.sh --bare)}
-while getopts "ud" option
+
+LDFLAGS="-X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
+
+while getopts "udtc:l:" option
 do
   case "${option}"
   in
   u) UPX=true;;
   d) DEBUG=true;;
+  t) TABLES=true;;
+  c) GCFLAGS="$GCFLAGS $OPTARG";;
+  l) LDFLAGS="$LDFLAGS $OPTARG";;
   esac
 done
-echo "Downloading..."
+
+if [ -z $TABLES ]; then
+  STRIP="-s -w"
+fi
+
 for CMD in `ls cmd/` ; do
   echo "Building: $CMD"
-  IMPRINT="-X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
+
   if [ $DEBUG ]; then
-    go build -ldflags="$IMPRINT" -tags debug -v ./cmd/$CMD
+    go build -ldflags="$LDFLAGS" -gcflags="$GCFLAGS" -tags debug -v ./cmd/$CMD
   else
-    go build -ldflags="$IMPRINT -s -w" -v ./cmd/$CMD
+    go build -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" -v ./cmd/$CMD
   fi
   if [ $UPX ]; then
     upx --brute $CMD
