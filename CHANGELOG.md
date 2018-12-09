@@ -25,29 +25,29 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
-## [0.x.x] - TBD
+## [0.3.0] - 2018-12-12
 ### Added
-- Crypto-key routing support for both IPv4 and IPv6
-- Add `SwitchOptions` in configuration file for tuning the switch
+- Crypto-key routing support for tunnelling both IPv4 and IPv6 over Yggdrasil
+- Add advanced `SwitchOptions` in configuration file for tuning the switch
 - Add `dhtPing` to the admin socket to aid in crawling the network
 - New macOS .pkgs built automatically by CircleCI
-- Add Docker support
-- Add `-json` command line flag for generating and normalising configuration in plain JSON
+- Add Dockerfile to repository for Docker support
+- Add `-json` command line flag for generating and normalising configuration in plain JSON instead of HJSON
 - Build name and version numbers are now imprinted onto the build, accessible through `yggdrasil -version` and `yggdrasilctl getSelf`
 - Add ability to disable admin socket by setting `AdminListen` to `"none"`
 
 ### Changed
-- Switched to Chord DHT (instead of Kademlia, although protocol-compatible)
-- Admin socket clean-up (making some names consistent)
-- Latency-based parent selection for the switch instead of uptime-based
-- Real peering endpoints now shown in the admin socket `getPeers` call
+- Switched to Chord DHT (instead of Kademlia, although still compatible at the protocol level)
+- Cleaned up some of the parameter naming in the admin socket
+- Latency-based parent selection for the switch instead of uptime-based (should help to avoid high latency links somewhat)
+- Real peering endpoints now shown in the admin socket `getPeers` call to help identify peerings
 - Reuse the multicast port on supported platforms so that multiple Yggdrasil processes can run
 - `yggdrasilctl` now has more useful help text (with `-help` or when no arguments passed)
 
 ### Fixed
 - Memory leaks in the DHT fixed
-- Crash where ICMPv6 NDP goroutine would incorrectly start in TUN mode fixed
-- Remove peers from the switch table of they stop sending switch messages but keep the TCP connection alive
+- Crash fixed where the ICMPv6 NDP goroutine would incorrectly start in TUN mode
+- Removing peers from the switch table if they stop sending switch messages but keep the TCP connection alive
 
 ## [0.2.7] - 2018-10-13
 ### Added
