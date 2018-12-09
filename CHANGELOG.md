@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Add Docker support
 - Add `-json` command line flag for generating and normalising configuration in plain JSON
 - Build name and version numbers are now imprinted onto the build, accessible through `yggdrasil -version` and `yggdrasilctl getSelf`
+- Add ability to disable admin socket by setting `AdminListen` to `"none"`
 
 ### Changed
 - Switched to Chord DHT (instead of Kademlia, although protocol-compatible)
