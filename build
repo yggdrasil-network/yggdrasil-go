@@ -1,5 +1,8 @@
 #!/bin/sh
-while getopts ud option
+PKGSRC=${PKGSRC:-github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil}
+PKGNAME=${PKGNAME:-$(sh contrib/semver/name.sh)}
+PKGVER=${PKGVER:-$(sh contrib/semver/version.sh --bare)}
+while getopts "ud" option
 do
   case "${option}"
   in
@@ -10,7 +13,7 @@ done
 echo "Downloading..."
 for CMD in `ls cmd/` ; do
   echo "Building: $CMD"
-  IMPRINT="-X github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil.buildName=$(sh contrib/semver/name.sh) -X github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil.buildVersion=$(sh contrib/semver/version.sh --bare)"
+  IMPRINT="-X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
   if [ $DEBUG ]; then
     go build -ldflags="$IMPRINT" -tags debug -v ./cmd/$CMD
   else
