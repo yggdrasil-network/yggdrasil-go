@@ -326,7 +326,7 @@ func (a *admin) init(c *Core, listenaddr string) {
 
 // start runs the admin API socket to listen for / respond to admin API calls.
 func (a *admin) start() error {
-	if a.listenaddr != "none" {
+	if a.listenaddr != "none" && a.listenaddr != "" {
 		go a.listen()
 	}
 	return nil
