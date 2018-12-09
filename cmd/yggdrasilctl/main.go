@@ -18,18 +18,26 @@ import (
 type admin_info map[string]interface{}
 
 func main() {
+	flag.Usage = func() {
+    fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n", os.Args[0])
+		fmt.Println("Options:")
+    flag.PrintDefaults()
+		fmt.Println("Commands:\n  - Use \"list\" for a list of available commands")
+		fmt.Println("Examples:")
+		fmt.Println("  - ", os.Args[0], "list")
+		fmt.Println("  - ", os.Args[0], "getPeers")
+		fmt.Println("  - ", os.Args[0], "setTunTap name=auto mtu=1500 tap_mode=false")
+		fmt.Println("  - ", os.Args[0], "-endpoint=tcp://localhost:9001 getDHT")
+		fmt.Println("  - ", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getDHT")
+	}
 	server := flag.String("endpoint", defaults.GetDefaults().DefaultAdminListen, "Admin socket endpoint")
-	injson := flag.Bool("json", false, "Output in JSON format")
+	injson := flag.Bool("json", false, "Output in JSON format (as opposed to pretty-print)")
 	verbose := flag.Bool("v", false, "Verbose output (includes public keys)")
 	flag.Parse()
 	args := flag.Args()
 
 	if len(args) == 0 {
-		fmt.Println("usage:", os.Args[0], "[-endpoint=proto://server] [-v] [-json] command [key=value] [...]")
-		fmt.Println("example:", os.Args[0], "getPeers")
-		fmt.Println("example:", os.Args[0], "setTunTap name=auto mtu=1500 tap_mode=false")
-		fmt.Println("example:", os.Args[0], "-endpoint=tcp://localhost:9001 getDHT")
-		fmt.Println("example:", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getDHT")
+		flag.Usage()
 		return
 	}
 
