@@ -343,11 +343,14 @@ func (a *admin) listen() {
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "unix":
+			if _, err := os.Stat(a.listenaddr[7:]); err == nil {
+				a.core.log.Println("WARNING:", a.listenaddr[7:], "already exists and may be in use by another process")
+			}
 			a.listener, err = net.Listen("unix", a.listenaddr[7:])
 			if err == nil {
 				if err := os.Chmod(a.listenaddr[7:], 0660); err != nil {
-      		a.core.log.Printf("WARNING:", a.listenaddr[:7], "may have unsafe permissions!")
-      	}
+					a.core.log.Println("WARNING:", a.listenaddr[:7], "may have unsafe permissions!")
+				}
 			}
 		case "tcp":
 			a.listener, err = net.Listen("tcp", u.Host)
