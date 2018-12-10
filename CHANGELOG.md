@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 - Switched to Chord DHT (instead of Kademlia, although still compatible at the protocol level)
+- The `AdminListen` option and `yggdrasilctl` now default to `unix:///var/run/yggdrasil.sock` on BSDs, macOS and Linux
 - Cleaned up some of the parameter naming in the admin socket
 - Latency-based parent selection for the switch instead of uptime-based (should help to avoid high latency links somewhat)
 - Real peering endpoints now shown in the admin socket `getPeers` call to help identify peerings
