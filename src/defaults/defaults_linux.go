@@ -9,6 +9,9 @@ func GetDefaults() platformDefaultParameters {
 		// Admin
 		DefaultAdminListen: "unix:///var/run/yggdrasil.sock",
 
+		// Configuration (used for yggdrasilctl)
+		DefaultConfigFile: "/etc/yggdrasil.conf",
+
 		// TUN/TAP
 		MaximumIfMTU:     65535,
 		DefaultIfMTU:     65535,
