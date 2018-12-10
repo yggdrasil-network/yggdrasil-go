@@ -348,8 +348,12 @@ func (a *admin) listen() {
 			}
 			a.listener, err = net.Listen("unix", a.listenaddr[7:])
 			if err == nil {
-				if err := os.Chmod(a.listenaddr[7:], 0660); err != nil {
-					a.core.log.Println("WARNING:", a.listenaddr[:7], "may have unsafe permissions!")
+				switch a.listenaddr[7:8] {
+				case "@": // maybe abstract namespace
+				default:
+					if err := os.Chmod(a.listenaddr[7:], 0660); err != nil {
+						a.core.log.Println("WARNING:", a.listenaddr[:7], "may have unsafe permissions!")
+					}
 				}
 			}
 		case "tcp":
