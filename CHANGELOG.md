@@ -35,9 +35,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Add `-json` command line flag for generating and normalising configuration in plain JSON instead of HJSON
 - Build name and version numbers are now imprinted onto the build, accessible through `yggdrasil -version` and `yggdrasilctl getSelf`
 - Add ability to disable admin socket by setting `AdminListen` to `"none"`
+- `yggdrasilctl` now tries to look for the default configuration file to find `AdminListen` if `-endpoint` is not specified
+- `yggdrasilctl` now returns more useful logging in the event of a fatal error
 
 ### Changed
 - Switched to Chord DHT (instead of Kademlia, although still compatible at the protocol level)
+- The `AdminListen` option and `yggdrasilctl` now default to `unix:///var/run/yggdrasil.sock` on BSDs, macOS and Linux
 - Cleaned up some of the parameter naming in the admin socket
 - Latency-based parent selection for the switch instead of uptime-based (should help to avoid high latency links somewhat)
 - Real peering endpoints now shown in the admin socket `getPeers` call to help identify peerings

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net"
 	"net/url"
 	"os"
@@ -12,16 +15,31 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/text/encoding/unicode"
+
+	"github.com/neilalexander/hjson-go"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 
 type admin_info map[string]interface{}
 
 func main() {
+	logbuffer := &bytes.Buffer{}
+	logger := log.New(logbuffer, "", log.Flags())
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Println("Fatal error:", r)
+			fmt.Print(logbuffer)
+			os.Exit(1)
+		}
+	}()
+
+	endpoint := defaults.GetDefaults().DefaultAdminListen
+
 	flag.Usage = func() {
-    fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n", os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n", os.Args[0])
 		fmt.Println("Options:")
-    flag.PrintDefaults()
+		flag.PrintDefaults()
 		fmt.Println("Commands:\n  - Use \"list\" for a list of available commands")
 		fmt.Println("Examples:")
 		fmt.Println("  - ", os.Args[0], "list")
@@ -30,7 +48,7 @@ func main() {
 		fmt.Println("  - ", os.Args[0], "-endpoint=tcp://localhost:9001 getDHT")
 		fmt.Println("  - ", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getDHT")
 	}
-	server := flag.String("endpoint", defaults.GetDefaults().DefaultAdminListen, "Admin socket endpoint")
+	server := flag.String("endpoint", endpoint, "Admin socket endpoint")
 	injson := flag.Bool("json", false, "Output in JSON format (as opposed to pretty-print)")
 	verbose := flag.Bool("v", false, "Verbose output (includes public keys)")
 	flag.Parse()
@@ -41,23 +59,59 @@ func main() {
 		return
 	}
 
+	if *server == endpoint {
+		if config, err := ioutil.ReadFile(defaults.GetDefaults().DefaultConfigFile); err == nil {
+			if bytes.Compare(config[0:2], []byte{0xFF, 0xFE}) == 0 ||
+				bytes.Compare(config[0:2], []byte{0xFE, 0xFF}) == 0 {
+				utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
+				decoder := utf.NewDecoder()
+				config, err = decoder.Bytes(config)
+				if err != nil {
+					panic(err)
+				}
+			}
+			var dat map[string]interface{}
+			if err := hjson.Unmarshal(config, &dat); err != nil {
+				panic(err)
+			}
+			if ep, ok := dat["AdminListen"].(string); ok && (ep != "none" && ep != "") {
+				endpoint = ep
+				logger.Println("Found platform default config file", defaults.GetDefaults().DefaultConfigFile)
+				logger.Println("Using endpoint", endpoint, "from AdminListen")
+			} else {
+				logger.Println("Configuration file doesn't contain appropriate AdminListen option")
+				logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
+			}
+		} else {
+			logger.Println("Can't open config file from default location", defaults.GetDefaults().DefaultConfigFile)
+			logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
+		}
+	} else {
+		logger.Println("Using endpoint", endpoint, "from command line")
+	}
+
 	var conn net.Conn
-	u, err := url.Parse(*server)
+	u, err := url.Parse(endpoint)
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "unix":
-			conn, err = net.Dial("unix", (*server)[7:])
+			logger.Println("Connecting to UNIX socket", endpoint[7:])
+			conn, err = net.Dial("unix", endpoint[7:])
 		case "tcp":
+			logger.Println("Connecting to TCP socket", u.Host)
 			conn, err = net.Dial("tcp", u.Host)
 		default:
+			logger.Println("Unknown protocol or malformed address - check your endpoint")
 			err = errors.New("protocol not supported")
 		}
 	} else {
-		conn, err = net.Dial("tcp", *server)
+		logger.Println("Connecting to TCP socket", u.Host)
+		conn, err = net.Dial("tcp", endpoint)
 	}
 	if err != nil {
 		panic(err)
 	}
+	logger.Println("Connected")
 	defer conn.Close()
 
 	decoder := json.NewDecoder(conn)
@@ -67,11 +121,13 @@ func main() {
 
 	for c, a := range args {
 		if c == 0 {
+			logger.Printf("Sending request: %v\n", a)
 			send["request"] = a
 			continue
 		}
 		tokens := strings.Split(a, "=")
 		if i, err := strconv.Atoi(tokens[1]); err == nil {
+			logger.Printf("Sending parameter %s: %d\n", tokens[0], i)
 			send[tokens[0]] = i
 		} else {
 			switch strings.ToLower(tokens[1]) {
@@ -82,28 +138,31 @@ func main() {
 			default:
 				send[tokens[0]] = tokens[1]
 			}
+			logger.Printf("Sending parameter %s: %v\n", tokens[0], send[tokens[0]])
 		}
 	}
 
 	if err := encoder.Encode(&send); err != nil {
 		panic(err)
 	}
+	logger.Printf("Request sent")
 	if err := decoder.Decode(&recv); err == nil {
+		logger.Printf("Response received")
 		if recv["status"] == "error" {
 			if err, ok := recv["error"]; ok {
-				fmt.Println("Error:", err)
+				fmt.Println("Admin socket returned an error:", err)
 			} else {
-				fmt.Println("Unspecified error occured")
+				fmt.Println("Admin socket returned an error but didn't specify any error text")
 			}
 			os.Exit(1)
 		}
 		if _, ok := recv["request"]; !ok {
 			fmt.Println("Missing request in response (malformed response?)")
-			return
+			os.Exit(1)
 		}
 		if _, ok := recv["response"]; !ok {
 			fmt.Println("Missing response body (malformed response?)")
-			return
+			os.Exit(1)
 		}
 		req := recv["request"].(map[string]interface{})
 		res := recv["response"].(map[string]interface{})
@@ -243,7 +302,7 @@ func main() {
 						queuesize := v.(map[string]interface{})["queue_size"].(float64)
 						queuepackets := v.(map[string]interface{})["queue_packets"].(float64)
 						queueid := v.(map[string]interface{})["queue_id"].(string)
-						portqueues[queueport] += 1
+						portqueues[queueport]++
 						portqueuesize[queueport] += queuesize
 						portqueuepackets[queueport] += queuepackets
 						queuesizepercent := (100 / maximumqueuesize) * queuesize
@@ -331,9 +390,11 @@ func main() {
 				fmt.Println(string(json))
 			}
 		}
+	} else {
+		logger.Println("Error receiving response:", err)
 	}
 
-	if v, ok := recv["status"]; ok && v == "error" {
+	if v, ok := recv["status"]; ok && v != "success" {
 		os.Exit(1)
 	}
 	os.Exit(0)
