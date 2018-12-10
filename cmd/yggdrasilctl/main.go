@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"net/url"
 	"os"
@@ -18,10 +20,15 @@ import (
 type admin_info map[string]interface{}
 
 func main() {
+	logbuffer := &bytes.Buffer{}
+	logger := log.New(logbuffer, "", log.Flags())
+
+	defaultEndpoint := defaults.GetDefaults().DefaultAdminListen
+
 	flag.Usage = func() {
-    fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n", os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n", os.Args[0])
 		fmt.Println("Options:")
-    flag.PrintDefaults()
+		flag.PrintDefaults()
 		fmt.Println("Commands:\n  - Use \"list\" for a list of available commands")
 		fmt.Println("Examples:")
 		fmt.Println("  - ", os.Args[0], "list")
@@ -30,7 +37,7 @@ func main() {
 		fmt.Println("  - ", os.Args[0], "-endpoint=tcp://localhost:9001 getDHT")
 		fmt.Println("  - ", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getDHT")
 	}
-	server := flag.String("endpoint", defaults.GetDefaults().DefaultAdminListen, "Admin socket endpoint")
+	server := flag.String("endpoint", defaultEndpoint, "Admin socket endpoint")
 	injson := flag.Bool("json", false, "Output in JSON format (as opposed to pretty-print)")
 	verbose := flag.Bool("v", false, "Verbose output (includes public keys)")
 	flag.Parse()
@@ -46,18 +53,24 @@ func main() {
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "unix":
+			logger.Println("Connecting to UNIX socket", (*server)[7:])
 			conn, err = net.Dial("unix", (*server)[7:])
 		case "tcp":
+			logger.Println("Connecting to TCP socket", u.Host)
 			conn, err = net.Dial("tcp", u.Host)
 		default:
+			logger.Println("Unknown protocol", u.Scheme, "- please check your endpoint")
 			err = errors.New("protocol not supported")
 		}
 	} else {
+		logger.Println("Connecting to TCP socket", u.Host)
 		conn, err = net.Dial("tcp", *server)
 	}
 	if err != nil {
+		fmt.Print(logbuffer)
 		panic(err)
 	}
+	logger.Println("Connected")
 	defer conn.Close()
 
 	decoder := json.NewDecoder(conn)
@@ -67,11 +80,13 @@ func main() {
 
 	for c, a := range args {
 		if c == 0 {
+			logger.Printf("Sending request: %v\n", a)
 			send["request"] = a
 			continue
 		}
 		tokens := strings.Split(a, "=")
 		if i, err := strconv.Atoi(tokens[1]); err == nil {
+			logger.Printf("Sending parameter %s: %d\n", tokens[0], i)
 			send[tokens[0]] = i
 		} else {
 			switch strings.ToLower(tokens[1]) {
@@ -82,28 +97,32 @@ func main() {
 			default:
 				send[tokens[0]] = tokens[1]
 			}
+			logger.Printf("Sending parameter %s: %v\n", tokens[0], send[tokens[0]])
 		}
 	}
 
 	if err := encoder.Encode(&send); err != nil {
+		fmt.Print(logbuffer)
 		panic(err)
 	}
+	logger.Printf("Request sent")
 	if err := decoder.Decode(&recv); err == nil {
+		logger.Printf("Response received")
 		if recv["status"] == "error" {
 			if err, ok := recv["error"]; ok {
-				fmt.Println("Error:", err)
+				fmt.Println("Admin socket returned an error:", err)
 			} else {
-				fmt.Println("Unspecified error occured")
+				fmt.Println("Admin socket returned an error but didn't specify any error text")
 			}
 			os.Exit(1)
 		}
 		if _, ok := recv["request"]; !ok {
 			fmt.Println("Missing request in response (malformed response?)")
-			return
+			os.Exit(1)
 		}
 		if _, ok := recv["response"]; !ok {
 			fmt.Println("Missing response body (malformed response?)")
-			return
+			os.Exit(1)
 		}
 		req := recv["request"].(map[string]interface{})
 		res := recv["response"].(map[string]interface{})
@@ -243,7 +262,7 @@ func main() {
 						queuesize := v.(map[string]interface{})["queue_size"].(float64)
 						queuepackets := v.(map[string]interface{})["queue_packets"].(float64)
 						queueid := v.(map[string]interface{})["queue_id"].(string)
-						portqueues[queueport] += 1
+						portqueues[queueport]++
 						portqueuesize[queueport] += queuesize
 						portqueuepackets[queueport] += queuepackets
 						queuesizepercent := (100 / maximumqueuesize) * queuesize
@@ -331,9 +350,11 @@ func main() {
 				fmt.Println(string(json))
 			}
 		}
+	} else {
+		logger.Println("Error receiving response:", err)
 	}
 
-	if v, ok := recv["status"]; ok && v == "error" {
+	if v, ok := recv["status"]; ok && v != "success" {
 		os.Exit(1)
 	}
 	os.Exit(0)
