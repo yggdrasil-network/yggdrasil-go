@@ -26,6 +26,13 @@ type admin_info map[string]interface{}
 func main() {
 	logbuffer := &bytes.Buffer{}
 	logger := log.New(logbuffer, "", log.Flags())
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Println("Fatal error:", r)
+			fmt.Print(logbuffer)
+			os.Exit(1)
+		}
+	}()
 
 	endpoint := defaults.GetDefaults().DefaultAdminListen
 
@@ -102,7 +109,6 @@ func main() {
 		conn, err = net.Dial("tcp", endpoint)
 	}
 	if err != nil {
-		fmt.Print(logbuffer)
 		panic(err)
 	}
 	logger.Println("Connected")
@@ -137,7 +143,6 @@ func main() {
 	}
 
 	if err := encoder.Encode(&send); err != nil {
-		fmt.Print(logbuffer)
 		panic(err)
 	}
 	logger.Printf("Request sent")
