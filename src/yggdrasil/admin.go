@@ -268,11 +268,11 @@ func (a *admin) init(c *Core, listenaddr string) {
 		return admin_info{"source_subnets": subnets}, nil
 	})
 	a.addHandler("getRoutes", []string{}, func(in admin_info) (admin_info, error) {
-		var routes []string
+		routes := make(admin_info)
 		a.core.router.doAdmin(func() {
 			getRoutes := func(ckrs []cryptokey_route) {
 				for _, ckr := range ckrs {
-					routes = append(routes, fmt.Sprintf("%s via %s", ckr.subnet.String(), hex.EncodeToString(ckr.destination[:])))
+					routes[ckr.subnet.String()] = hex.EncodeToString(ckr.destination[:])
 				}
 			}
 			getRoutes(a.core.router.cryptokey.ipv4routes)
