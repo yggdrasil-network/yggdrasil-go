@@ -7,7 +7,7 @@ package defaults
 func GetDefaults() platformDefaultParameters {
 	return platformDefaultParameters{
 		// Admin
-		DefaultAdminListen: "tcp://localhost:9001",
+		DefaultAdminListen: "unix:///var/run/yggdrasil.sock",
 
 		// TUN/TAP
 		MaximumIfMTU:     9000,
