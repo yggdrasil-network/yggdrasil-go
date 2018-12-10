@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/url"
@@ -14,6 +15,9 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/text/encoding/unicode"
+
+	"github.com/neilalexander/hjson-go"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 
@@ -48,6 +52,37 @@ func main() {
 		return
 	}
 
+	if *server == defaultEndpoint {
+		if config, err := ioutil.ReadFile(defaults.GetDefaults().DefaultConfigFile); err == nil {
+			if bytes.Compare(config[0:2], []byte{0xFF, 0xFE}) == 0 ||
+				bytes.Compare(config[0:2], []byte{0xFE, 0xFF}) == 0 {
+				utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
+				decoder := utf.NewDecoder()
+				config, err = decoder.Bytes(config)
+				if err != nil {
+					panic(err)
+				}
+			}
+			var dat map[string]interface{}
+			if err := hjson.Unmarshal(config, &dat); err != nil {
+				panic(err)
+			}
+			if ep, ok := dat["AdminListen"].(string); ok && (ep != "none" && ep != "") {
+				defaultEndpoint = ep
+				logger.Println("Found platform default config file", defaults.GetDefaults().DefaultConfigFile)
+				logger.Println("Using endpoint", defaultEndpoint, "from AdminListen")
+			} else {
+				logger.Println("Configuration file doesn't contain appropriate AdminListen option")
+				logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
+			}
+		} else {
+			logger.Println("Can't open config file from default location", defaults.GetDefaults().DefaultConfigFile)
+			logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
+		}
+	} else {
+		logger.Println("Using endpoint", *server, "from command line")
+	}
+
 	var conn net.Conn
 	u, err := url.Parse(*server)
 	if err == nil {
@@ -59,7 +94,7 @@ func main() {
 			logger.Println("Connecting to TCP socket", u.Host)
 			conn, err = net.Dial("tcp", u.Host)
 		default:
-			logger.Println("Unknown protocol", u.Scheme, "- please check your endpoint")
+			logger.Println("Unknown protocol or malformed address - check your endpoint")
 			err = errors.New("protocol not supported")
 		}
 	} else {
