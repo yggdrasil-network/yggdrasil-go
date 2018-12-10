@@ -27,7 +27,7 @@ func main() {
 	logbuffer := &bytes.Buffer{}
 	logger := log.New(logbuffer, "", log.Flags())
 
-	defaultEndpoint := defaults.GetDefaults().DefaultAdminListen
+	endpoint := defaults.GetDefaults().DefaultAdminListen
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n", os.Args[0])
@@ -41,7 +41,7 @@ func main() {
 		fmt.Println("  - ", os.Args[0], "-endpoint=tcp://localhost:9001 getDHT")
 		fmt.Println("  - ", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getDHT")
 	}
-	server := flag.String("endpoint", defaultEndpoint, "Admin socket endpoint")
+	server := flag.String("endpoint", endpoint, "Admin socket endpoint")
 	injson := flag.Bool("json", false, "Output in JSON format (as opposed to pretty-print)")
 	verbose := flag.Bool("v", false, "Verbose output (includes public keys)")
 	flag.Parse()
@@ -52,7 +52,7 @@ func main() {
 		return
 	}
 
-	if *server == defaultEndpoint {
+	if *server == endpoint {
 		if config, err := ioutil.ReadFile(defaults.GetDefaults().DefaultConfigFile); err == nil {
 			if bytes.Compare(config[0:2], []byte{0xFF, 0xFE}) == 0 ||
 				bytes.Compare(config[0:2], []byte{0xFE, 0xFF}) == 0 {
@@ -68,9 +68,9 @@ func main() {
 				panic(err)
 			}
 			if ep, ok := dat["AdminListen"].(string); ok && (ep != "none" && ep != "") {
-				defaultEndpoint = ep
+				endpoint = ep
 				logger.Println("Found platform default config file", defaults.GetDefaults().DefaultConfigFile)
-				logger.Println("Using endpoint", defaultEndpoint, "from AdminListen")
+				logger.Println("Using endpoint", endpoint, "from AdminListen")
 			} else {
 				logger.Println("Configuration file doesn't contain appropriate AdminListen option")
 				logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
@@ -80,16 +80,16 @@ func main() {
 			logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
 		}
 	} else {
-		logger.Println("Using endpoint", *server, "from command line")
+		logger.Println("Using endpoint", endpoint, "from command line")
 	}
 
 	var conn net.Conn
-	u, err := url.Parse(*server)
+	u, err := url.Parse(endpoint)
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "unix":
-			logger.Println("Connecting to UNIX socket", (*server)[7:])
-			conn, err = net.Dial("unix", (*server)[7:])
+			logger.Println("Connecting to UNIX socket", endpoint[7:])
+			conn, err = net.Dial("unix", endpoint[7:])
 		case "tcp":
 			logger.Println("Connecting to TCP socket", u.Host)
 			conn, err = net.Dial("tcp", u.Host)
@@ -99,7 +99,7 @@ func main() {
 		}
 	} else {
 		logger.Println("Connecting to TCP socket", u.Host)
-		conn, err = net.Dial("tcp", *server)
+		conn, err = net.Dial("tcp", endpoint)
 	}
 	if err != nil {
 		fmt.Print(logbuffer)
