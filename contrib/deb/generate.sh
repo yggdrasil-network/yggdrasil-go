@@ -52,8 +52,11 @@ Architecture: $PKGARCH
 Replaces: $PKGREPLACES
 Conflicts: $PKGREPLACES
 Maintainer: Neil Alexander <neilalexander@users.noreply.github.com>
-Description: Debian yggdrasil package
- Binary yggdrasil package for Debian and Ubuntu
+Description: Yggdrasil Network
+ Yggdrasil is an early-stage implementation of a fully end-to-end encrypted IPv6
+ network. It is lightweight, self-arranging, supported on multiple platforms and
+ allows pretty much any IPv6-capable application to communicate securely with
+ other Yggdrasil nodes.
 EOF
 cat > /tmp/$PKGNAME/debian/copyright << EOF
 Please see https://github.com/yggdrasil-network/yggdrasil-go/
@@ -76,13 +79,22 @@ then
   echo "Normalising /etc/yggdrasil.conf"
   /usr/bin/yggdrasil -useconffile /var/backups/yggdrasil.conf.`date +%Y%m%d` -normaliseconf > /etc/yggdrasil.conf
 fi
-systemctl enable yggdrasil
-systemctl start yggdrasil
+if command -v systemctl >/dev/null; then
+  systemctl daemon-reload >/dev/null || true
+  if [ -f /etc/systemd/system/multi-user.target.wants/yggdrasil.service ]; then
+    echo "Starting Yggdrasil"
+    systemctl start yggdrasil || true
+  fi
+fi
 EOF
 cat > /tmp/$PKGNAME/debian/prerm << EOF
 #!/bin/sh
-systemctl disable yggdrasil
-systemctl stop yggdrasil
+if command -v systemctl >/dev/null; then
+  if systemctl is-active --quiet yggdrasil; then
+    echo "Stopping Yggdrasil"
+    systemctl stop yggdrasil || true
+  fi
+fi
 EOF
 
 cp yggdrasil /tmp/$PKGNAME/usr/bin/
