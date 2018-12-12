@@ -364,10 +364,8 @@ func (p *sessionMeta) encode() []byte {
 		pTypeVal = wire_SessionMetaRequest
 	}
 	bs := wire_encode_uint64(pTypeVal)
-	if p.IsResponse {
-		bs = append(bs, p.Metadata.name...)
-		bs = append(bs, p.Metadata.location...)
-		bs = append(bs, p.Metadata.contact...)
+	if pTypeVal == wire_SessionMetaResponse {
+		bs = append(bs, p.Metadata...)
 	}
 	return bs
 }
@@ -381,14 +379,9 @@ func (p *sessionMeta) decode(bs []byte) bool {
 	case pType != wire_SessionMetaRequest && pType != wire_SessionMetaResponse:
 		return false
 	}
-	p.IsResponse = pType == wire_SessionMetaResponse
-	if p.IsResponse {
-		switch {
-		case !wire_chop_slice([]byte(p.Metadata.name), &bs):
-			return false
-		case !wire_chop_slice([]byte(p.Metadata.location), &bs):
-			return false
-		case !wire_chop_slice([]byte(p.Metadata.contact), &bs):
+	if p.IsResponse = pType == wire_SessionMetaResponse; p.IsResponse {
+		p.Metadata = make(metadata, len(bs))
+		if !wire_chop_slice(p.Metadata[:], &bs) {
 			return false
 		}
 	}

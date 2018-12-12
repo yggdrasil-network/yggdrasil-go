@@ -23,7 +23,6 @@ type Core struct {
 	boxPriv     boxPrivKey
 	sigPub      sigPubKey
 	sigPriv     sigPrivKey
-	metadata    metadata
 	switchTable switchTable
 	peers       peers
 	sessions    sessions
@@ -41,8 +40,7 @@ type Core struct {
 func (c *Core) init(bpub *boxPubKey,
 	bpriv *boxPrivKey,
 	spub *sigPubKey,
-	spriv *sigPrivKey,
-	metadata metadata) {
+	spriv *sigPrivKey) {
 	// TODO separate init and start functions
 	//  Init sets up structs
 	//  Start launches goroutines that depend on structs being set up
@@ -53,7 +51,6 @@ func (c *Core) init(bpub *boxPubKey,
 	}
 	c.boxPub, c.boxPriv = *bpub, *bpriv
 	c.sigPub, c.sigPriv = *spub, *spriv
-	c.metadata = metadata
 	c.admin.core = c
 	c.searches.init(c)
 	c.dht.init(c)
@@ -85,7 +82,7 @@ func GetBuildVersion() string {
 
 // Gets the friendly name of this node, as specified in the NodeConfig.
 func (c *Core) GetMeta() metadata {
-	return c.metadata
+	return c.sessions.myMetadata
 }
 
 // Starts up Yggdrasil using the provided NodeConfig, and outputs debug logging
@@ -129,13 +126,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	copy(sigPub[:], sigPubHex)
 	copy(sigPriv[:], sigPrivHex)
 
-	meta := metadata{
-		name:     nc.Metadata.Name,
-		location: nc.Metadata.Location,
-		contact:  nc.Metadata.Contact,
-	}
-
-	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv, meta)
+	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv)
 	c.admin.init(c, nc.AdminListen)
 
 	if err := c.tcp.init(c, nc.Listen, nc.ReadTimeout); err != nil {
@@ -152,6 +143,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
+	c.sessions.setMetadata(metadata("HIYA, THIS IS METADATA"))
 	c.sessions.setSessionFirewallState(nc.SessionFirewall.Enable)
 	c.sessions.setSessionFirewallDefaults(
 		nc.SessionFirewall.AllowFromDirect,

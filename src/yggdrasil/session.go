@@ -64,6 +64,8 @@ type sessionMeta struct {
 	Metadata    metadata
 }
 
+type metadata []byte
+
 // Updates session info in response to a ping, after checking that the ping is OK.
 // Returns true if the session was updated, or false otherwise.
 func (s *sessionInfo) update(p *sessionPing) bool {
@@ -125,6 +127,8 @@ type sessions struct {
 	sessionFirewallAlwaysAllowsOutbound bool
 	sessionFirewallWhitelist            []string
 	sessionFirewallBlacklist            []string
+	// Metadata for this node
+	myMetadata metadata
 }
 
 // Initializes the session struct.
@@ -137,6 +141,11 @@ func (ss *sessions) init(core *Core) {
 	ss.addrToPerm = make(map[address]*boxPubKey)
 	ss.subnetToPerm = make(map[subnet]*boxPubKey)
 	ss.lastCleanup = time.Now()
+}
+
+// Enable or disable the session firewall
+func (ss *sessions) setMetadata(meta metadata) {
+	ss.myMetadata = meta
 }
 
 // Enable or disable the session firewall
@@ -486,11 +495,7 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 func (ss *sessions) sendMeta(sinfo *sessionInfo, isResponse bool) {
 	meta := sessionMeta{
 		IsResponse: isResponse,
-		Metadata: metadata{
-			name:     "some.name.com", //[]byte(ss.core.friendlyName)[0:len(ss.core.friendlyName):32],
-			location: "Some Place",
-			contact:  "someone@somewhere.com",
-		},
+		Metadata:   ss.myMetadata,
 	}
 	bs := meta.encode()
 	shared := ss.getSharedKey(&ss.core.boxPriv, &sinfo.theirPermPub)
@@ -504,10 +509,7 @@ func (ss *sessions) sendMeta(sinfo *sessionInfo, isResponse bool) {
 	}
 	packet := p.encode()
 	ss.core.router.out(packet)
-	if isResponse {
-		ss.core.log.Println("Sent meta response to", sinfo.theirAddr)
-	} else {
-		ss.core.log.Println("Sent meta request to", sinfo.theirAddr)
+	if !isResponse {
 		sinfo.metaReqTime = time.Now()
 	}
 }
@@ -526,14 +528,9 @@ func (ss *sessions) handleMeta(meta *sessionMeta) {
 		return
 	}
 	if meta.IsResponse {
-		ss.core.log.Println("Received meta response", string(meta.Metadata.name), "from", sinfo.theirAddr)
 		sinfo.theirMetadata = meta.Metadata
 		sinfo.metaResTime = time.Now()
-		ss.core.log.Println("- name:", meta.Metadata.name)
-		ss.core.log.Println("- contact:", meta.Metadata.contact)
-		ss.core.log.Println("- location:", meta.Metadata.location)
 	} else {
-		ss.core.log.Println("Received meta request", string(meta.Metadata.name), "from", sinfo.theirAddr)
 		ss.sendMeta(sinfo, true)
 	}
 }
