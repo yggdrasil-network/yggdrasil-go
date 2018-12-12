@@ -355,7 +355,7 @@ func (p *sessionPing) decode(bs []byte) bool {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Encodes a sessionPing into its wire format.
+// Encodes a sessionMeta into its wire format.
 func (p *sessionMeta) encode() []byte {
 	var pTypeVal uint64
 	if p.IsResponse {
@@ -370,7 +370,7 @@ func (p *sessionMeta) encode() []byte {
 	return bs
 }
 
-// Decodes an encoded sessionPing into the struct, returning true if successful.
+// Decodes an encoded sessionMeta into the struct, returning true if successful.
 func (p *sessionMeta) decode(bs []byte) bool {
 	var pType uint64
 	switch {
@@ -380,6 +380,9 @@ func (p *sessionMeta) decode(bs []byte) bool {
 		return false
 	}
 	if p.IsResponse = pType == wire_SessionMetaResponse; p.IsResponse {
+		if len(bs) == 0 {
+			return false
+		}
 		p.Metadata = make(metadata, len(bs))
 		if !wire_chop_slice(p.Metadata[:], &bs) {
 			return false

@@ -58,7 +58,9 @@ func (r *router) init(core *Core) {
 	r.addr = *address_addrForNodeID(&r.core.dht.nodeID)
 	r.subnet = *address_subnetForNodeID(&r.core.dht.nodeID)
 	in := make(chan []byte, 32) // TODO something better than this...
+	r.core.sessions.myMetadataMutex.RLock()
 	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &boxSharedKey{}, "(self)", r.core.sessions.myMetadata)
+	r.core.sessions.myMetadataMutex.RUnlock()
 	p.out = func(packet []byte) {
 		// This is to make very sure it never blocks
 		select {

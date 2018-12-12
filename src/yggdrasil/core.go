@@ -80,11 +80,6 @@ func GetBuildVersion() string {
 	return buildVersion
 }
 
-// Gets the friendly name of this node, as specified in the NodeConfig.
-func (c *Core) GetMeta() metadata {
-	return c.sessions.myMetadata
-}
-
 // Starts up Yggdrasil using the provided NodeConfig, and outputs debug logging
 // through the provided log.Logger. The started stack will include TCP and UDP
 // sockets, a multicast discovery socket, an admin socket, router, switch and
@@ -243,6 +238,16 @@ func (c *Core) GetSubnet() *net.IPNet {
 	subnet := address_subnetForNodeID(c.GetNodeID())[:]
 	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
 	return &net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
+}
+
+// Gets the node metadata.
+func (c *Core) GetMetadata() metadata {
+	return c.sessions.getMetadata()
+}
+
+// Sets the node metadata.
+func (c *Core) SetMetadata(meta metadata) {
+	c.sessions.setMetadata(meta)
 }
 
 // Sets the output logger of the Yggdrasil node after startup. This may be

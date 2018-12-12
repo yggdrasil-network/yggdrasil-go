@@ -7,6 +7,7 @@ package yggdrasil
 import (
 	"bytes"
 	"encoding/hex"
+	"sync"
 	"time"
 )
 
@@ -128,7 +129,8 @@ type sessions struct {
 	sessionFirewallWhitelist            []string
 	sessionFirewallBlacklist            []string
 	// Metadata for this node
-	myMetadata metadata
+	myMetadata      metadata
+	myMetadataMutex sync.RWMutex
 }
 
 // Initializes the session struct.
@@ -143,8 +145,17 @@ func (ss *sessions) init(core *Core) {
 	ss.lastCleanup = time.Now()
 }
 
-// Enable or disable the session firewall
+// Get the metadata
+func (ss *sessions) getMetadata() metadata {
+	ss.myMetadataMutex.RLock()
+	defer ss.myMetadataMutex.RUnlock()
+	return ss.myMetadata
+}
+
+// Set the metadata
 func (ss *sessions) setMetadata(meta metadata) {
+	ss.myMetadataMutex.Lock()
+	defer ss.myMetadataMutex.Unlock()
 	ss.myMetadata = meta
 }
 
@@ -485,18 +496,23 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 		bs, sinfo.packet = sinfo.packet, nil
 		ss.core.router.sendPacket(bs)
 	}
-	if time.Since(sinfo.metaResTime).Minutes() > 15 {
-		if time.Since(sinfo.metaReqTime).Minutes() > 1 {
-			ss.sendMeta(sinfo, false)
-		}
-	}
+	// This requests metadata from the remote side fairly quickly after
+	// establishing the session, and if other time constraints apply (no more
+	// often than 15 minutes since receiving the last metadata)
+	//if time.Since(sinfo.metaResTime).Minutes() > 15 {
+	//	if time.Since(sinfo.metaReqTime).Minutes() > 1 {
+	//		ss.sendMeta(sinfo, false)
+	//	}
+	//}
 }
 
 func (ss *sessions) sendMeta(sinfo *sessionInfo, isResponse bool) {
+	ss.myMetadataMutex.RLock()
 	meta := sessionMeta{
 		IsResponse: isResponse,
 		Metadata:   ss.myMetadata,
 	}
+	ss.myMetadataMutex.RUnlock()
 	bs := meta.encode()
 	shared := ss.getSharedKey(&ss.core.boxPriv, &sinfo.theirPermPub)
 	payload, nonce := boxSeal(shared, bs, nil)
