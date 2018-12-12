@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"yggdrasil/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 
 // TODO: Add authentication
@@ -268,11 +268,11 @@ func (a *admin) init(c *Core, listenaddr string) {
 		return admin_info{"source_subnets": subnets}, nil
 	})
 	a.addHandler("getRoutes", []string{}, func(in admin_info) (admin_info, error) {
-		var routes []string
+		routes := make(admin_info)
 		a.core.router.doAdmin(func() {
 			getRoutes := func(ckrs []cryptokey_route) {
 				for _, ckr := range ckrs {
-					routes = append(routes, fmt.Sprintf("%s via %s", ckr.subnet.String(), hex.EncodeToString(ckr.destination[:])))
+					routes[ckr.subnet.String()] = hex.EncodeToString(ckr.destination[:])
 				}
 			}
 			getRoutes(a.core.router.cryptokey.ipv4routes)
@@ -326,7 +326,9 @@ func (a *admin) init(c *Core, listenaddr string) {
 
 // start runs the admin API socket to listen for / respond to admin API calls.
 func (a *admin) start() error {
-	go a.listen()
+	if a.listenaddr != "none" && a.listenaddr != "" {
+		go a.listen()
+	}
 	return nil
 }
 
@@ -341,7 +343,19 @@ func (a *admin) listen() {
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "unix":
+			if _, err := os.Stat(a.listenaddr[7:]); err == nil {
+				a.core.log.Println("WARNING:", a.listenaddr[7:], "already exists and may be in use by another process")
+			}
 			a.listener, err = net.Listen("unix", a.listenaddr[7:])
+			if err == nil {
+				switch a.listenaddr[7:8] {
+				case "@": // maybe abstract namespace
+				default:
+					if err := os.Chmod(a.listenaddr[7:], 0660); err != nil {
+						a.core.log.Println("WARNING:", a.listenaddr[:7], "may have unsafe permissions!")
+					}
+				}
+			}
 		case "tcp":
 			a.listener, err = net.Listen("tcp", u.Host)
 		default:
@@ -561,6 +575,13 @@ func (a *admin) getData_getSelf() *admin_nodeInfo {
 		{"subnet", a.core.GetSubnet().String()},
 		{"coords", fmt.Sprint(coords)},
 	}
+	if name := GetBuildName(); name != "unknown" {
+		self = append(self, admin_pair{"build_name", name})
+	}
+	if version := GetBuildVersion(); version != "unknown" {
+		self = append(self, admin_pair{"build_version", version})
+	}
+
 	return &self
 }
 
@@ -737,6 +758,10 @@ func (a *admin) admin_dhtPing(keyString, coordString, targetString string) (dhtR
 	}
 	var coords []byte
 	for _, cstr := range strings.Split(strings.Trim(coordString, "[]"), " ") {
+		if cstr == "" {
+			// Special case, happens if trimmed is the empty string, e.g. this is the root
+			continue
+		}
 		if u64, err := strconv.ParseUint(cstr, 10, 8); err != nil {
 			return dhtRes{}, err
 		} else {

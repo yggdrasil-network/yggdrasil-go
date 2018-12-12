@@ -1,13 +1,16 @@
-// +build darwin
+// +build linux
 
 package defaults
 
-// Sane defaults for the macOS/Darwin platform. The "default" options may be
+// Sane defaults for the Linux platform. The "default" options may be
 // may be replaced by the running configuration.
 func GetDefaults() platformDefaultParameters {
 	return platformDefaultParameters{
 		// Admin
-		DefaultAdminListen: "tcp://localhost:9001",
+		DefaultAdminListen: "unix:///var/run/yggdrasil.sock",
+
+		// Configuration (used for yggdrasilctl)
+		DefaultConfigFile: "/etc/yggdrasil.conf",
 
 		// TUN/TAP
 		MaximumIfMTU:     65535,

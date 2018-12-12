@@ -208,6 +208,7 @@ func (t *switchTable) doMaintenance() {
 	defer t.mutex.Unlock() // Release lock when we're done
 	t.cleanRoot()
 	t.cleanDropped()
+	t.cleanPeers()
 }
 
 // Updates the root periodically if it is ourself, or promotes ourself to root if we're better than the current root or if the current root has timed out.
@@ -258,8 +259,30 @@ func (t *switchTable) forgetPeer(port switchPort) {
 	if port != t.parent {
 		return
 	}
+	t.parent = 0
 	for _, info := range t.data.peers {
 		t.unlockedHandleMsg(&info.msg, info.port, true)
+	}
+}
+
+// Clean all unresponsive peers from the table, needed in case a peer stops updating.
+// Needed in case a non-parent peer keeps the connection open but stops sending updates.
+// Also reclaims space from deleted peers by copying the map.
+func (t *switchTable) cleanPeers() {
+	now := time.Now()
+	for port, peer := range t.data.peers {
+		if now.Sub(peer.time) > switch_timeout+switch_throttle {
+			// Longer than switch_timeout to make sure we don't remove a working peer because the root stopped responding.
+			delete(t.data.peers, port)
+		}
+	}
+	if _, isIn := t.data.peers[t.parent]; !isIn {
+		// The root timestamp would probably time out before this happens, but better safe than sorry.
+		// We removed the current parent, so find a new one.
+		t.parent = 0
+		for _, peer := range t.data.peers {
+			t.unlockedHandleMsg(&peer.msg, peer.port, true)
+		}
 	}
 }
 
@@ -377,6 +400,8 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 	doUpdate := false
 	oldSender := t.data.peers[fromPort]
 	if !equiv(&sender.locator, &oldSender.locator) {
+		// Reset faster info, we'll start refilling it right after this
+		sender.faster = nil
 		doUpdate = true
 	}
 	// Update the matrix of peer "faster" thresholds
@@ -387,24 +412,19 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		for port, peer := range t.data.peers {
 			if port == fromPort {
 				continue
-			}
-			switch {
-			case msg.Root != peer.locator.root:
-				// Different roots, blindly guess that the relationships will stay the same?
-				sender.faster[port] = oldSender.faster[peer.port]
-			case sender.locator.tstamp <= peer.locator.tstamp:
-				// Slower than this node, penalize (more than the reward amount)
-				if oldSender.faster[port] > 1 {
-					sender.faster[port] = oldSender.faster[peer.port] - 2
-				} else {
-					sender.faster[port] = 0
-				}
-			default:
+			} else if sender.locator.root != peer.locator.root || sender.locator.tstamp > peer.locator.tstamp {
 				// We were faster than this node, so increment, as long as we don't overflow because of it
 				if oldSender.faster[peer.port] < switch_faster_threshold {
 					sender.faster[port] = oldSender.faster[peer.port] + 1
 				} else {
 					sender.faster[port] = switch_faster_threshold
+				}
+			} else {
+				// Slower than this node, penalize (more than the reward amount)
+				if oldSender.faster[port] > 1 {
+					sender.faster[port] = oldSender.faster[peer.port] - 2
+				} else {
+					sender.faster[port] = 0
 				}
 			}
 		}
@@ -457,12 +477,10 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		// First, reset all faster-related info to 0.
 		// Then, de-parent the node and reprocess all messages to find a new parent.
 		t.parent = 0
-		sender.faster = nil
 		for _, peer := range t.data.peers {
 			if peer.port == sender.port {
 				continue
 			}
-			delete(peer.faster, sender.port)
 			t.unlockedHandleMsg(&peer.msg, peer.port, true)
 		}
 		// Process the sender last, to avoid keeping them as a parent if at all possible.

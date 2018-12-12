@@ -241,6 +241,16 @@ func (c *cryptokey) getPublicKeyForAddress(addr address, addrlen int) (boxPubKey
 	for _, route := range *routingtable {
 		// Does this subnet match the given IP?
 		if route.subnet.Contains(ip) {
+			// Check if the routing cache is above a certain size, if it is evict
+			// a random entry so we can make room for this one. We take advantage
+			// of the fact that the iteration order is random here
+			for k := range *routingcache {
+				if len(*routingcache) < 1024 {
+					break
+				}
+				delete(*routingcache, k)
+			}
+
 			// Cache the entry for future packets to get a faster lookup
 			(*routingcache)[addr] = route
 

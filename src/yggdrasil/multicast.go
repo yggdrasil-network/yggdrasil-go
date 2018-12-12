@@ -1,6 +1,7 @@
 package yggdrasil
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"time"
@@ -35,7 +36,10 @@ func (m *multicast) start() error {
 			return err
 		}
 		listenString := fmt.Sprintf("[::]:%v", addr.Port)
-		conn, err := net.ListenPacket("udp6", listenString)
+		lc := net.ListenConfig{
+			Control: multicastReuse,
+		}
+		conn, err := lc.ListenPacket(context.Background(), "udp6", listenString)
 		if err != nil {
 			return err
 		}

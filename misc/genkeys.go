@@ -16,7 +16,7 @@ import "encoding/hex"
 import "flag"
 import "fmt"
 import "runtime"
-import . "yggdrasil"
+import . "github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 
 var doSig = flag.Bool("sig", false, "generate new signing keys instead")
 

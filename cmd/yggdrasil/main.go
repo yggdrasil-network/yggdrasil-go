@@ -21,9 +21,9 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/neilalexander/hjson-go"
 
-	"yggdrasil"
-	"yggdrasil/config"
-	"yggdrasil/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
 type nodeConfig = config.NodeConfig
@@ -100,10 +100,15 @@ func main() {
 	normaliseconf := flag.Bool("normaliseconf", false, "use in combination with either -useconf or -useconffile, outputs your configuration normalised")
 	confjson := flag.Bool("json", false, "print configuration from -genconf or -normaliseconf as JSON instead of HJSON")
 	autoconf := flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
+	version := flag.Bool("version", false, "prints the version of this build")
 	flag.Parse()
 
 	var cfg *nodeConfig
 	switch {
+	case *version:
+		fmt.Println("Build name:", yggdrasil.GetBuildName())
+		fmt.Println("Build version:", yggdrasil.GetBuildVersion())
+		os.Exit(0)
 	case *autoconf:
 		// Use an autoconf-generated config, this will give us random keys and
 		// port numbers, and will use an automatically selected TUN/TAP interface.

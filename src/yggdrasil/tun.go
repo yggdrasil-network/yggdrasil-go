@@ -6,10 +6,11 @@ import (
 	"bytes"
 	"errors"
 	"time"
-	"yggdrasil/defaults"
 
 	"github.com/songgao/packets/ethernet"
 	"github.com/yggdrasil-network/water"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 
 const tun_IPv6_HEADER_LENGTH = 40

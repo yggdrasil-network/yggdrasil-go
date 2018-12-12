@@ -1,4 +1,4 @@
-// +build freebsd
+// +build netbsd
 
 package defaults
 
@@ -7,11 +7,14 @@ package defaults
 func GetDefaults() platformDefaultParameters {
 	return platformDefaultParameters{
 		// Admin
-		DefaultAdminListen: "tcp://localhost:9001",
+		DefaultAdminListen: "unix:///var/run/yggdrasil.sock",
+
+		// Configuration (used for yggdrasilctl)
+		DefaultConfigFile: "/etc/yggdrasil.conf",
 
 		// TUN/TAP
-		MaximumIfMTU:     32767,
-		DefaultIfMTU:     32767,
+		MaximumIfMTU:     9000,
+		DefaultIfMTU:     9000,
 		DefaultIfName:    "/dev/tap0",
 		DefaultIfTAPMode: true,
 	}
