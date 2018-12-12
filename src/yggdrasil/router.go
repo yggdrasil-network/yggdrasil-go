@@ -433,7 +433,7 @@ func (r *router) handleProto(packet []byte) {
 	case wire_SessionMetaRequest:
 		fallthrough
 	case wire_SessionMetaResponse:
-		r.handleMeta(bs, &p.FromKey)
+		r.handleMetadata(bs, &p.FromKey)
 	case wire_DHTLookupRequest:
 		r.handleDHTReq(bs, &p.FromKey)
 	case wire_DHTLookupResponse:
@@ -479,13 +479,13 @@ func (r *router) handleDHTRes(bs []byte, fromKey *boxPubKey) {
 }
 
 // Decodes meta request
-func (r *router) handleMeta(bs []byte, fromKey *boxPubKey) {
+func (r *router) handleMetadata(bs []byte, fromKey *boxPubKey) {
 	req := sessionMeta{}
 	if !req.decode(bs) {
 		return
 	}
 	req.SendPermPub = *fromKey
-	r.core.sessions.handleMeta(&req)
+	r.core.sessions.handleMetadata(&req)
 }
 
 // Passed a function to call.

@@ -501,12 +501,12 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 	// often than 15 minutes since receiving the last metadata)
 	//if time.Since(sinfo.metaResTime).Minutes() > 15 {
 	//	if time.Since(sinfo.metaReqTime).Minutes() > 1 {
-	//		ss.sendMeta(sinfo, false)
+	//		ss.sendMetadata(sinfo, false)
 	//	}
 	//}
 }
 
-func (ss *sessions) sendMeta(sinfo *sessionInfo, isResponse bool) {
+func (ss *sessions) sendMetadata(sinfo *sessionInfo, isResponse bool) {
 	ss.myMetadataMutex.RLock()
 	meta := sessionMeta{
 		IsResponse: isResponse,
@@ -531,7 +531,7 @@ func (ss *sessions) sendMeta(sinfo *sessionInfo, isResponse bool) {
 }
 
 // Handles a meta request/response.
-func (ss *sessions) handleMeta(meta *sessionMeta) {
+func (ss *sessions) handleMetadata(meta *sessionMeta) {
 	// Get the corresponding session (or create a new session)
 	sinfo, isIn := ss.getByTheirPerm(&meta.SendPermPub)
 	// Check the session firewall
@@ -547,7 +547,7 @@ func (ss *sessions) handleMeta(meta *sessionMeta) {
 		sinfo.theirMetadata = meta.Metadata
 		sinfo.metaResTime = time.Now()
 	} else {
-		ss.sendMeta(sinfo, true)
+		ss.sendMetadata(sinfo, true)
 	}
 }
 
