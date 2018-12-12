@@ -8,10 +8,11 @@ import "strconv"
 import "time"
 import "log"
 
+import "runtime"
 import "runtime/pprof"
 import "flag"
 
-import . "yggdrasil"
+import . "github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -267,6 +268,7 @@ func pingNodes(store map[[32]byte]*Node) {
 			copy(packet[8:24], sourceAddr)
 			copy(packet[24:40], destAddr)
 			copy(packet[40:], bs)
+			packet[0] = 6 << 4
 			source.send <- packet
 		}
 		destCount := 0
@@ -279,17 +281,7 @@ func pingNodes(store map[[32]byte]*Node) {
 			}
 			destAddr := dest.core.DEBUG_getAddr()[:]
 			ticker := time.NewTicker(150 * time.Millisecond)
-			ch := make(chan bool, 1)
-			ch <- true
-			doTicker := func() {
-				for range ticker.C {
-					select {
-					case ch <- true:
-					default:
-					}
-				}
-			}
-			go doTicker()
+			sendTo(payload, destAddr)
 			for loop := true; loop; {
 				select {
 				case packet := <-dest.recv:
@@ -298,8 +290,9 @@ func pingNodes(store map[[32]byte]*Node) {
 							loop = false
 						}
 					}
-				case <-ch:
+				case <-ticker.C:
 					sendTo(payload, destAddr)
+					//dumpDHTSize(store) // note that this uses racey functions to read things...
 				}
 			}
 			ticker.Stop()
@@ -386,7 +379,7 @@ func (n *Node) startTCP(listen string) {
 }
 
 func (n *Node) connectTCP(remoteAddr string) {
-	n.core.AddPeer(remoteAddr)
+	n.core.AddPeer(remoteAddr, remoteAddr)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -437,7 +430,7 @@ func main() {
 	pingNodes(kstore)
 	//pingBench(kstore) // Only after disabling debug output
 	//stressTest(kstore)
-	//time.Sleep(120*time.Second)
+	//time.Sleep(120 * time.Second)
 	dumpDHTSize(kstore) // note that this uses racey functions to read things...
 	if false {
 		// This connects the sim to the local network
@@ -456,4 +449,5 @@ func main() {
 		var block chan struct{}
 		<-block
 	}
+	runtime.GC()
 }

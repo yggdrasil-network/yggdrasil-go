@@ -23,6 +23,7 @@ package yggdrasil
 //  The router then runs some sanity checks before passing it to the tun
 
 import (
+	"bytes"
 	"time"
 
 	"golang.org/x/net/icmp"
@@ -32,22 +33,32 @@ import (
 // The router struct has channels to/from the tun/tap device and a self peer (0), which is how messages are passed between this node and the peers/switch layer.
 // The router's mainLoop goroutine is responsible for managing all information related to the dht, searches, and crypto sessions.
 type router struct {
-	core  *Core
-	addr  address
-	in    <-chan []byte // packets we received from the network, link to peer's "out"
-	out   func([]byte)  // packets we're sending to the network, link to peer's "in"
-	recv  chan<- []byte // place where the tun pulls received packets from
-	send  <-chan []byte // place where the tun puts outgoing packets
-	reset chan struct{} // signal that coords changed (re-init sessions/dht)
-	admin chan func()   // pass a lambda for the admin socket to query stuff
+	core      *Core
+	addr      address
+	subnet    subnet
+	in        <-chan []byte          // packets we received from the network, link to peer's "out"
+	out       func([]byte)           // packets we're sending to the network, link to peer's "in"
+	toRecv    chan router_recvPacket // packets to handle via recvPacket()
+	recv      chan<- []byte          // place where the tun pulls received packets from
+	send      <-chan []byte          // place where the tun puts outgoing packets
+	reset     chan struct{}          // signal that coords changed (re-init sessions/dht)
+	admin     chan func()            // pass a lambda for the admin socket to query stuff
+	cryptokey cryptokey
+}
+
+// Packet and session info, used to check that the packet matches a valid IP range or CKR prefix before sending to the tun.
+type router_recvPacket struct {
+	bs    []byte
+	sinfo *sessionInfo
 }
 
 // Initializes the router struct, which includes setting up channels to/from the tun/tap.
 func (r *router) init(core *Core) {
 	r.core = core
 	r.addr = *address_addrForNodeID(&r.core.dht.nodeID)
+	r.subnet = *address_subnetForNodeID(&r.core.dht.nodeID)
 	in := make(chan []byte, 32) // TODO something better than this...
-	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &boxSharedKey{})
+	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &boxSharedKey{}, "(self)")
 	p.out = func(packet []byte) {
 		// This is to make very sure it never blocks
 		select {
@@ -59,6 +70,7 @@ func (r *router) init(core *Core) {
 	}
 	r.in = in
 	r.out = func(packet []byte) { p.handlePacket(packet) } // The caller is responsible for go-ing if it needs to not block
+	r.toRecv = make(chan router_recvPacket, 32)
 	recv := make(chan []byte, 32)
 	send := make(chan []byte, 32)
 	r.recv = recv
@@ -66,7 +78,8 @@ func (r *router) init(core *Core) {
 	r.core.tun.recv = recv
 	r.core.tun.send = send
 	r.reset = make(chan struct{}, 1)
-	r.admin = make(chan func())
+	r.admin = make(chan func(), 32)
+	r.cryptokey.init(r.core)
 	// go r.mainLoop()
 }
 
@@ -86,13 +99,19 @@ func (r *router) mainLoop() {
 	defer ticker.Stop()
 	for {
 		select {
+		case rp := <-r.toRecv:
+			r.recvPacket(rp.bs, rp.sinfo)
 		case p := <-r.in:
 			r.handleIn(p)
 		case p := <-r.send:
 			r.sendPacket(p)
 		case info := <-r.core.dht.peers:
-			r.core.dht.insertIfNew(info, false) // Insert as a normal node
-			r.core.dht.insertIfNew(info, true)  // Insert as a peer
+			now := time.Now()
+			oldInfo, isIn := r.core.dht.table[*info.getNodeID()]
+			r.core.dht.insert(info)
+			if isIn && now.Sub(oldInfo.recv) < 45*time.Second {
+				info.recv = oldInfo.recv
+			}
 		case <-r.reset:
 			r.core.sessions.resetInits()
 			r.core.dht.reset()
@@ -102,7 +121,6 @@ func (r *router) mainLoop() {
 				r.core.switchTable.doMaintenance()
 				r.core.dht.doMaintenance()
 				r.core.sessions.cleanup()
-				r.core.sigs.cleanup()
 				util_getBytes() // To slowly drain things
 			}
 		case f := <-r.admin:
@@ -117,30 +135,82 @@ func (r *router) mainLoop() {
 // If the session hasn't responded recently, it triggers a ping or search to keep things alive or deal with broken coords *relatively* quickly.
 // It also deals with oversized packets if there are MTU issues by calling into icmpv6.go to spoof PacketTooBig traffic, or DestinationUnreachable if the other side has their tun/tap disabled.
 func (r *router) sendPacket(bs []byte) {
-	if len(bs) < 40 {
-		panic("Tried to send a packet shorter than a header...")
-	}
 	var sourceAddr address
-	var sourceSubnet subnet
-	copy(sourceAddr[:], bs[8:])
-	copy(sourceSubnet[:], bs[8:])
-	if !sourceAddr.isValid() && !sourceSubnet.isValid() {
+	var destAddr address
+	var destSnet subnet
+	var destPubKey *boxPubKey
+	var destNodeID *NodeID
+	var addrlen int
+	if bs[0]&0xf0 == 0x60 {
+		// Check if we have a fully-sized header
+		if len(bs) < 40 {
+			panic("Tried to send a packet shorter than an IPv6 header...")
+		}
+		// IPv6 address
+		addrlen = 16
+		copy(sourceAddr[:addrlen], bs[8:])
+		copy(destAddr[:addrlen], bs[24:])
+		copy(destSnet[:addrlen/2], bs[24:])
+	} else if bs[0]&0xf0 == 0x40 {
+		// Check if we have a fully-sized header
+		if len(bs) < 20 {
+			panic("Tried to send a packet shorter than an IPv4 header...")
+		}
+		// IPv4 address
+		addrlen = 4
+		copy(sourceAddr[:addrlen], bs[12:])
+		copy(destAddr[:addrlen], bs[16:])
+	} else {
+		// Unknown address length
 		return
 	}
-	var dest address
-	copy(dest[:], bs[24:])
-	var snet subnet
-	copy(snet[:], bs[24:])
-	if !dest.isValid() && !snet.isValid() {
+	if !r.cryptokey.isValidSource(sourceAddr, addrlen) {
+		// The packet had a source address that doesn't belong to us or our
+		// configured crypto-key routing source subnets
 		return
+	}
+	if !destAddr.isValid() && !destSnet.isValid() {
+		// The addresses didn't match valid Yggdrasil node addresses so let's see
+		// whether it matches a crypto-key routing range instead
+		if key, err := r.cryptokey.getPublicKeyForAddress(destAddr, addrlen); err == nil {
+			// A public key was found, get the node ID for the search
+			destPubKey = &key
+			destNodeID = getNodeID(destPubKey)
+			// Do a quick check to ensure that the node ID refers to a vaild Yggdrasil
+			// address or subnet - this might be superfluous
+			addr := *address_addrForNodeID(destNodeID)
+			copy(destAddr[:], addr[:])
+			copy(destSnet[:], addr[:])
+			if !destAddr.isValid() && !destSnet.isValid() {
+				return
+			}
+		} else {
+			// No public key was found in the CKR table so we've exhausted our options
+			return
+		}
 	}
 	doSearch := func(packet []byte) {
 		var nodeID, mask *NodeID
-		if dest.isValid() {
-			nodeID, mask = dest.getNodeIDandMask()
-		}
-		if snet.isValid() {
-			nodeID, mask = snet.getNodeIDandMask()
+		switch {
+		case destNodeID != nil:
+			// We already know the full node ID, probably because it's from a CKR
+			// route in which the public key is known ahead of time
+			nodeID = destNodeID
+			var m NodeID
+			for i := range m {
+				m[i] = 0xFF
+			}
+			mask = &m
+		case destAddr.isValid():
+			// We don't know the full node ID - try and use the address to generate
+			// a truncated node ID
+			nodeID, mask = destAddr.getNodeIDandMask()
+		case destSnet.isValid():
+			// We don't know the full node ID - try and use the subnet to generate
+			// a truncated node ID
+			nodeID, mask = destSnet.getNodeIDandMask()
+		default:
+			return
 		}
 		sinfo, isIn := r.core.searches.searches[*nodeID]
 		if !isIn {
@@ -153,11 +223,11 @@ func (r *router) sendPacket(bs []byte) {
 	}
 	var sinfo *sessionInfo
 	var isIn bool
-	if dest.isValid() {
-		sinfo, isIn = r.core.sessions.getByTheirAddr(&dest)
+	if destAddr.isValid() {
+		sinfo, isIn = r.core.sessions.getByTheirAddr(&destAddr)
 	}
-	if snet.isValid() {
-		sinfo, isIn = r.core.sessions.getByTheirSubnet(&snet)
+	if destSnet.isValid() {
+		sinfo, isIn = r.core.sessions.getByTheirSubnet(&destSnet)
 	}
 	switch {
 	case !isIn || !sinfo.init:
@@ -186,6 +256,14 @@ func (r *router) sendPacket(bs []byte) {
 		}
 		fallthrough // Also send the packet
 	default:
+		// If we know the public key ahead of time (i.e. a CKR route) then check
+		// if the session perm pub key matches before we send the packet to it
+		if destPubKey != nil {
+			if !bytes.Equal((*destPubKey)[:], sinfo.theirPermPub[:]) {
+				return
+			}
+		}
+
 		// Drop packets if the session MTU is 0 - this means that one or other
 		// side probably has their TUN adapter disabled
 		if sinfo.getMTU() == 0 {
@@ -236,28 +314,54 @@ func (r *router) sendPacket(bs []byte) {
 			// Don't continue - drop the packet
 			return
 		}
+
 		sinfo.send <- bs
 	}
 }
 
 // Called for incoming traffic by the session worker for that connection.
 // Checks that the IP address is correct (matches the session) and passes the packet to the tun/tap.
-func (r *router) recvPacket(bs []byte, theirAddr *address, theirSubnet *subnet) {
+func (r *router) recvPacket(bs []byte, sinfo *sessionInfo) {
 	// Note: called directly by the session worker, not the router goroutine
 	if len(bs) < 24 {
 		util_putBytes(bs)
 		return
 	}
-	var source address
-	copy(source[:], bs[8:])
+	var sourceAddr address
+	var dest address
 	var snet subnet
-	copy(snet[:], bs[8:])
-	switch {
-	case source.isValid() && source == *theirAddr:
-	case snet.isValid() && snet == *theirSubnet:
-	default:
+	var addrlen int
+	if bs[0]&0xf0 == 0x60 {
+		// IPv6 address
+		addrlen = 16
+		copy(sourceAddr[:addrlen], bs[8:])
+		copy(dest[:addrlen], bs[24:])
+		copy(snet[:addrlen/2], bs[8:])
+	} else if bs[0]&0xf0 == 0x40 {
+		// IPv4 address
+		addrlen = 4
+		copy(sourceAddr[:addrlen], bs[12:])
+		copy(dest[:addrlen], bs[16:])
+	} else {
+		// Unknown address length
+		return
+	}
+	// Check that the packet is destined for either our Yggdrasil address or
+	// subnet, or that it matches one of the crypto-key routing source routes
+	if !r.cryptokey.isValidSource(dest, addrlen) {
 		util_putBytes(bs)
 		return
+	}
+	// See whether the packet they sent should have originated from this session
+	switch {
+	case sourceAddr.isValid() && sourceAddr == sinfo.theirAddr:
+	case snet.isValid() && snet == sinfo.theirSubnet:
+	default:
+		key, err := r.cryptokey.getPublicKeyForAddress(sourceAddr, addrlen)
+		if err != nil || key != sinfo.theirPermPub {
+			util_putBytes(bs)
+			return
+		}
 	}
 	//go func() { r.recv<-bs }()
 	r.recv <- bs

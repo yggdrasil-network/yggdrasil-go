@@ -21,9 +21,9 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"github.com/neilalexander/hjson-go"
 
-	"yggdrasil"
-	"yggdrasil/config"
-	"yggdrasil/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
 type nodeConfig = config.NodeConfig
@@ -69,15 +69,22 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	cfg.SessionFirewall.Enable = false
 	cfg.SessionFirewall.AllowFromDirect = true
 	cfg.SessionFirewall.AllowFromRemote = true
+	cfg.SwitchOptions.MaxTotalQueueSize = yggdrasil.SwitchQueueTotalMinSize
 
 	return &cfg
 }
 
 // Generates a new configuration and returns it in HJSON format. This is used
 // with -genconf.
-func doGenconf() string {
+func doGenconf(isjson bool) string {
 	cfg := generateConfig(false)
-	bs, err := hjson.Marshal(cfg)
+	var bs []byte
+	var err error
+	if isjson {
+		bs, err = json.MarshalIndent(cfg, "", "  ")
+	} else {
+		bs, err = hjson.Marshal(cfg)
+	}
 	if err != nil {
 		panic(err)
 	}
@@ -88,14 +95,20 @@ func doGenconf() string {
 func main() {
 	// Configure the command line parameters.
 	genconf := flag.Bool("genconf", false, "print a new config to stdout")
-	useconf := flag.Bool("useconf", false, "read config from stdin")
-	useconffile := flag.String("useconffile", "", "read config from specified file path")
+	useconf := flag.Bool("useconf", false, "read HJSON/JSON config from stdin")
+	useconffile := flag.String("useconffile", "", "read HJSON/JSON config from specified file path")
 	normaliseconf := flag.Bool("normaliseconf", false, "use in combination with either -useconf or -useconffile, outputs your configuration normalised")
+	confjson := flag.Bool("json", false, "print configuration from -genconf or -normaliseconf as JSON instead of HJSON")
 	autoconf := flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
+	version := flag.Bool("version", false, "prints the version of this build")
 	flag.Parse()
 
 	var cfg *nodeConfig
 	switch {
+	case *version:
+		fmt.Println("Build name:", yggdrasil.GetBuildName())
+		fmt.Println("Build version:", yggdrasil.GetBuildVersion())
+		os.Exit(0)
 	case *autoconf:
 		// Use an autoconf-generated config, this will give us random keys and
 		// port numbers, and will use an automatically selected TUN/TAP interface.
@@ -185,7 +198,12 @@ func main() {
 		// their configuration file with newly mapped names (like above) or to
 		// convert from plain JSON to commented HJSON.
 		if *normaliseconf {
-			bs, err := hjson.Marshal(cfg)
+			var bs []byte
+			if *confjson {
+				bs, err = json.MarshalIndent(cfg, "", "  ")
+			} else {
+				bs, err = hjson.Marshal(cfg)
+			}
 			if err != nil {
 				panic(err)
 			}
@@ -194,7 +212,7 @@ func main() {
 		}
 	case *genconf:
 		// Generate a new configuration and print it to stdout.
-		fmt.Println(doGenconf())
+		fmt.Println(doGenconf(*confjson))
 	default:
 		// No flags were provided, therefore print the list of flags to stdout.
 		flag.PrintDefaults()

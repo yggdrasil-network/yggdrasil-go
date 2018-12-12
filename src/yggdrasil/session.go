@@ -311,6 +311,11 @@ func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
 
 func (ss *sessions) cleanup() {
 	// Time thresholds almost certainly could use some adjusting
+	for k := range ss.permShared {
+		// Delete a key, to make sure this eventually shrinks to 0
+		delete(ss.permShared, k)
+		break
+	}
 	if time.Since(ss.lastCleanup) < time.Minute {
 		return
 	}
@@ -319,6 +324,36 @@ func (ss *sessions) cleanup() {
 			s.close()
 		}
 	}
+	permShared := make(map[boxPubKey]*boxSharedKey, len(ss.permShared))
+	for k, v := range ss.permShared {
+		permShared[k] = v
+	}
+	ss.permShared = permShared
+	sinfos := make(map[handle]*sessionInfo, len(ss.sinfos))
+	for k, v := range ss.sinfos {
+		sinfos[k] = v
+	}
+	ss.sinfos = sinfos
+	byMySes := make(map[boxPubKey]*handle, len(ss.byMySes))
+	for k, v := range ss.byMySes {
+		byMySes[k] = v
+	}
+	ss.byMySes = byMySes
+	byTheirPerm := make(map[boxPubKey]*handle, len(ss.byTheirPerm))
+	for k, v := range ss.byTheirPerm {
+		byTheirPerm[k] = v
+	}
+	ss.byTheirPerm = byTheirPerm
+	addrToPerm := make(map[address]*boxPubKey, len(ss.addrToPerm))
+	for k, v := range ss.addrToPerm {
+		addrToPerm[k] = v
+	}
+	ss.addrToPerm = addrToPerm
+	subnetToPerm := make(map[subnet]*boxPubKey, len(ss.subnetToPerm))
+	for k, v := range ss.subnetToPerm {
+		subnetToPerm[k] = v
+	}
+	ss.subnetToPerm = subnetToPerm
 	ss.lastCleanup = time.Now()
 }
 
@@ -358,7 +393,7 @@ func (ss *sessions) getSharedKey(myPriv *boxPrivKey,
 		return skey
 	}
 	// First do some cleanup
-	const maxKeys = dht_bucket_number * dht_bucket_size
+	const maxKeys = 1024
 	for key := range ss.permShared {
 		// Remove a random key until the store is small enough
 		if len(ss.permShared) < maxKeys {
@@ -589,5 +624,5 @@ func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
 	sinfo.updateNonce(&p.Nonce)
 	sinfo.time = time.Now()
 	sinfo.bytesRecvd += uint64(len(bs))
-	sinfo.core.router.recvPacket(bs, &sinfo.theirAddr, &sinfo.theirSubnet)
+	sinfo.core.router.toRecv <- router_recvPacket{bs, sinfo}
 }

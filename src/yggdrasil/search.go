@@ -11,6 +11,9 @@ package yggdrasil
 //  A new search packet is sent immediately after receiving a response
 //  A new search packet is sent periodically, once per second, in case a packet was dropped (this slowly causes the search to become parallel if the search doesn't timeout but also doesn't finish within 1 second for whatever reason)
 
+// TODO?
+//  Some kind of max search steps, in case the node is offline, so we don't crawl through too much of the network looking for a destination that isn't there?
+
 import (
 	"sort"
 	"time"
@@ -88,11 +91,13 @@ func (s *searches) handleDHTRes(res *dhtRes) {
 func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 	// Add responses to toVisit if closer to dest than the res node
 	from := dhtInfo{key: res.Key, coords: res.Coords}
+	sinfo.visited[*from.getNodeID()] = true
 	for _, info := range res.Infos {
-		if sinfo.visited[*info.getNodeID()] {
+		if *info.getNodeID() == s.core.dht.nodeID || sinfo.visited[*info.getNodeID()] {
 			continue
 		}
-		if dht_firstCloserThanThird(info.getNodeID(), &res.Dest, from.getNodeID()) {
+		if dht_ordered(&sinfo.dest, info.getNodeID(), from.getNodeID()) {
+			// Response is closer to the destination
 			sinfo.toVisit = append(sinfo.toVisit, info)
 		}
 	}
@@ -107,7 +112,8 @@ func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 	}
 	// Sort
 	sort.SliceStable(sinfo.toVisit, func(i, j int) bool {
-		return dht_firstCloserThanThird(sinfo.toVisit[i].getNodeID(), &res.Dest, sinfo.toVisit[j].getNodeID())
+		// Should return true if i is closer to the destination than j
+		return dht_ordered(&res.Dest, sinfo.toVisit[i].getNodeID(), sinfo.toVisit[j].getNodeID())
 	})
 	// Truncate to some maximum size
 	if len(sinfo.toVisit) > search_MAX_SEARCH_SIZE {
@@ -126,11 +132,9 @@ func (s *searches) doSearchStep(sinfo *searchInfo) {
 		// Send to the next search target
 		var next *dhtInfo
 		next, sinfo.toVisit = sinfo.toVisit[0], sinfo.toVisit[1:]
-		var oldPings int
-		oldPings, next.pings = next.pings, 0
+		rq := dhtReqKey{next.key, sinfo.dest}
+		s.core.dht.addCallback(&rq, s.handleDHTRes)
 		s.core.dht.ping(next, &sinfo.dest)
-		next.pings = oldPings // Don't evict a node for searching with it too much
-		sinfo.visited[*next.getNodeID()] = true
 	}
 }
 

@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"yggdrasil/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 
 // TODO: Add authentication
@@ -52,12 +52,12 @@ func (a *admin) addHandler(name string, args []string, handler func(admin_info) 
 func (a *admin) init(c *Core, listenaddr string) {
 	a.core = c
 	a.listenaddr = listenaddr
-	a.addHandler("help", nil, func(in admin_info) (admin_info, error) {
+	a.addHandler("list", []string{}, func(in admin_info) (admin_info, error) {
 		handlers := make(map[string]interface{})
 		for _, handler := range a.handlers {
 			handlers[handler.name] = admin_info{"fields": handler.args}
 		}
-		return admin_info{"help": handlers}, nil
+		return admin_info{"list": handlers}, nil
 	})
 	a.addHandler("dot", []string{}, func(in admin_info) (admin_info, error) {
 		return admin_info{"dot": string(a.getResponse_dot())}, nil
@@ -202,41 +202,133 @@ func (a *admin) init(c *Core, listenaddr string) {
 	a.addHandler("getAllowedEncryptionPublicKeys", []string{}, func(in admin_info) (admin_info, error) {
 		return admin_info{"allowed_box_pubs": a.getAllowedEncryptionPublicKeys()}, nil
 	})
-	a.addHandler("addAllowedEncryptionPublicKey", []string{"key"}, func(in admin_info) (admin_info, error) {
-		if a.addAllowedEncryptionPublicKey(in["key"].(string)) == nil {
+	a.addHandler("addAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in admin_info) (admin_info, error) {
+		if a.addAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
 			return admin_info{
 				"added": []string{
-					in["key"].(string),
+					in["box_pub_key"].(string),
 				},
 			}, nil
 		} else {
 			return admin_info{
 				"not_added": []string{
-					in["key"].(string),
+					in["box_pub_key"].(string),
 				},
 			}, errors.New("Failed to add allowed key")
 		}
 	})
-	a.addHandler("removeAllowedEncryptionPublicKey", []string{"key"}, func(in admin_info) (admin_info, error) {
-		if a.removeAllowedEncryptionPublicKey(in["key"].(string)) == nil {
+	a.addHandler("removeAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in admin_info) (admin_info, error) {
+		if a.removeAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
 			return admin_info{
 				"removed": []string{
-					in["key"].(string),
+					in["box_pub_key"].(string),
 				},
 			}, nil
 		} else {
 			return admin_info{
 				"not_removed": []string{
-					in["key"].(string),
+					in["box_pub_key"].(string),
 				},
 			}, errors.New("Failed to remove allowed key")
+		}
+	})
+	a.addHandler("addSourceSubnet", []string{"subnet"}, func(in admin_info) (admin_info, error) {
+		var err error
+		a.core.router.doAdmin(func() {
+			err = a.core.router.cryptokey.addSourceSubnet(in["subnet"].(string))
+		})
+		if err == nil {
+			return admin_info{"added": []string{in["subnet"].(string)}}, nil
+		} else {
+			return admin_info{"not_added": []string{in["subnet"].(string)}}, errors.New("Failed to add source subnet")
+		}
+	})
+	a.addHandler("addRoute", []string{"subnet", "box_pub_key"}, func(in admin_info) (admin_info, error) {
+		var err error
+		a.core.router.doAdmin(func() {
+			err = a.core.router.cryptokey.addRoute(in["subnet"].(string), in["box_pub_key"].(string))
+		})
+		if err == nil {
+			return admin_info{"added": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, nil
+		} else {
+			return admin_info{"not_added": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, errors.New("Failed to add route")
+		}
+	})
+	a.addHandler("getSourceSubnets", []string{}, func(in admin_info) (admin_info, error) {
+		var subnets []string
+		a.core.router.doAdmin(func() {
+			getSourceSubnets := func(snets []net.IPNet) {
+				for _, subnet := range snets {
+					subnets = append(subnets, subnet.String())
+				}
+			}
+			getSourceSubnets(a.core.router.cryptokey.ipv4sources)
+			getSourceSubnets(a.core.router.cryptokey.ipv6sources)
+		})
+		return admin_info{"source_subnets": subnets}, nil
+	})
+	a.addHandler("getRoutes", []string{}, func(in admin_info) (admin_info, error) {
+		routes := make(admin_info)
+		a.core.router.doAdmin(func() {
+			getRoutes := func(ckrs []cryptokey_route) {
+				for _, ckr := range ckrs {
+					routes[ckr.subnet.String()] = hex.EncodeToString(ckr.destination[:])
+				}
+			}
+			getRoutes(a.core.router.cryptokey.ipv4routes)
+			getRoutes(a.core.router.cryptokey.ipv6routes)
+		})
+		return admin_info{"routes": routes}, nil
+	})
+	a.addHandler("removeSourceSubnet", []string{"subnet"}, func(in admin_info) (admin_info, error) {
+		var err error
+		a.core.router.doAdmin(func() {
+			err = a.core.router.cryptokey.removeSourceSubnet(in["subnet"].(string))
+		})
+		if err == nil {
+			return admin_info{"removed": []string{in["subnet"].(string)}}, nil
+		} else {
+			return admin_info{"not_removed": []string{in["subnet"].(string)}}, errors.New("Failed to remove source subnet")
+		}
+	})
+	a.addHandler("removeRoute", []string{"subnet", "box_pub_key"}, func(in admin_info) (admin_info, error) {
+		var err error
+		a.core.router.doAdmin(func() {
+			err = a.core.router.cryptokey.removeRoute(in["subnet"].(string), in["box_pub_key"].(string))
+		})
+		if err == nil {
+			return admin_info{"removed": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, nil
+		} else {
+			return admin_info{"not_removed": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, errors.New("Failed to remove route")
+		}
+	})
+	a.addHandler("dhtPing", []string{"box_pub_key", "coords", "[target]"}, func(in admin_info) (admin_info, error) {
+		if in["target"] == nil {
+			in["target"] = "none"
+		}
+		result, err := a.admin_dhtPing(in["box_pub_key"].(string), in["coords"].(string), in["target"].(string))
+		if err == nil {
+			infos := make(map[string]map[string]string, len(result.Infos))
+			for _, dinfo := range result.Infos {
+				info := map[string]string{
+					"box_pub_key": hex.EncodeToString(dinfo.key[:]),
+					"coords":      fmt.Sprintf("%v", dinfo.coords),
+				}
+				addr := net.IP(address_addrForNodeID(getNodeID(&dinfo.key))[:]).String()
+				infos[addr] = info
+			}
+			return admin_info{"nodes": infos}, nil
+		} else {
+			return admin_info{}, err
 		}
 	})
 }
 
 // start runs the admin API socket to listen for / respond to admin API calls.
 func (a *admin) start() error {
-	go a.listen()
+	if a.listenaddr != "none" && a.listenaddr != "" {
+		go a.listen()
+	}
 	return nil
 }
 
@@ -251,7 +343,19 @@ func (a *admin) listen() {
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "unix":
+			if _, err := os.Stat(a.listenaddr[7:]); err == nil {
+				a.core.log.Println("WARNING:", a.listenaddr[7:], "already exists and may be in use by another process")
+			}
 			a.listener, err = net.Listen("unix", a.listenaddr[7:])
+			if err == nil {
+				switch a.listenaddr[7:8] {
+				case "@": // maybe abstract namespace
+				default:
+					if err := os.Chmod(a.listenaddr[7:], 0660); err != nil {
+						a.core.log.Println("WARNING:", a.listenaddr[:7], "may have unsafe permissions!")
+					}
+				}
+			}
 		case "tcp":
 			a.listener, err = net.Listen("tcp", u.Host)
 		default:
@@ -386,7 +490,6 @@ func (n *admin_nodeInfo) toString() string {
 		out = append(out, fmt.Sprintf("%v: %v", p.key, p.val))
 	}
 	return strings.Join(out, ", ")
-	return fmt.Sprint(*n)
 }
 
 // printInfos returns a newline separated list of strings from admin_nodeInfos, e.g. a printable string of info about all peers.
@@ -467,10 +570,18 @@ func (a *admin) getData_getSelf() *admin_nodeInfo {
 	table := a.core.switchTable.table.Load().(lookupTable)
 	coords := table.self.getCoords()
 	self := admin_nodeInfo{
+		{"box_pub_key", hex.EncodeToString(a.core.boxPub[:])},
 		{"ip", a.core.GetAddress().String()},
 		{"subnet", a.core.GetSubnet().String()},
 		{"coords", fmt.Sprint(coords)},
 	}
+	if name := GetBuildName(); name != "unknown" {
+		self = append(self, admin_pair{"build_name", name})
+	}
+	if version := GetBuildVersion(); version != "unknown" {
+		self = append(self, admin_pair{"build_version", version})
+	}
+
 	return &self
 }
 
@@ -492,6 +603,8 @@ func (a *admin) getData_getPeers() []admin_nodeInfo {
 			{"uptime", int(time.Since(p.firstSeen).Seconds())},
 			{"bytes_sent", atomic.LoadUint64(&p.bytesSent)},
 			{"bytes_recvd", atomic.LoadUint64(&p.bytesRecvd)},
+			{"endpoint", p.endpoint},
+			{"box_pub_key", hex.EncodeToString(p.box[:])},
 		}
 		peerInfos = append(peerInfos, info)
 	}
@@ -516,6 +629,8 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 			{"port", elem.port},
 			{"bytes_sent", atomic.LoadUint64(&peer.bytesSent)},
 			{"bytes_recvd", atomic.LoadUint64(&peer.bytesRecvd)},
+			{"endpoint", peer.endpoint},
+			{"box_pub_key", hex.EncodeToString(peer.box[:])},
 		}
 		peerInfos = append(peerInfos, info)
 	}
@@ -525,7 +640,7 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 // getData_getSwitchQueues returns info from Core.switchTable for an queue data.
 func (a *admin) getData_getSwitchQueues() admin_nodeInfo {
 	var peerInfos admin_nodeInfo
-	switchTable := a.core.switchTable
+	switchTable := &a.core.switchTable
 	getSwitchQueues := func() {
 		queues := make([]map[string]interface{}, 0)
 		for k, v := range switchTable.queues.bufs {
@@ -544,7 +659,7 @@ func (a *admin) getData_getSwitchQueues() admin_nodeInfo {
 			{"queues_size", switchTable.queues.size},
 			{"highest_queues_count", switchTable.queues.maxbufs},
 			{"highest_queues_size", switchTable.queues.maxsize},
-			{"maximum_queues_size", switch_buffer_maxSize},
+			{"maximum_queues_size", switchTable.queueTotalMaxSize},
 		}
 	}
 	a.core.switchTable.doAdmin(getSwitchQueues)
@@ -554,25 +669,24 @@ func (a *admin) getData_getSwitchQueues() admin_nodeInfo {
 // getData_getDHT returns info from Core.dht for an admin response.
 func (a *admin) getData_getDHT() []admin_nodeInfo {
 	var infos []admin_nodeInfo
-	now := time.Now()
 	getDHT := func() {
-		for i := 0; i < a.core.dht.nBuckets(); i++ {
-			b := a.core.dht.getBucket(i)
-			getInfo := func(vs []*dhtInfo, isPeer bool) {
-				for _, v := range vs {
-					addr := *address_addrForNodeID(v.getNodeID())
-					info := admin_nodeInfo{
-						{"ip", net.IP(addr[:]).String()},
-						{"coords", fmt.Sprint(v.coords)},
-						{"bucket", i},
-						{"peer_only", isPeer},
-						{"last_seen", int(now.Sub(v.recv).Seconds())},
-					}
-					infos = append(infos, info)
-				}
+		now := time.Now()
+		var dhtInfos []*dhtInfo
+		for _, v := range a.core.dht.table {
+			dhtInfos = append(dhtInfos, v)
+		}
+		sort.SliceStable(dhtInfos, func(i, j int) bool {
+			return dht_ordered(&a.core.dht.nodeID, dhtInfos[i].getNodeID(), dhtInfos[j].getNodeID())
+		})
+		for _, v := range dhtInfos {
+			addr := *address_addrForNodeID(v.getNodeID())
+			info := admin_nodeInfo{
+				{"ip", net.IP(addr[:]).String()},
+				{"coords", fmt.Sprint(v.coords)},
+				{"last_seen", int(now.Sub(v.recv).Seconds())},
+				{"box_pub_key", hex.EncodeToString(v.key[:])},
 			}
-			getInfo(b.other, false)
-			getInfo(b.peers, true)
+			infos = append(infos, info)
 		}
 	}
 	a.core.router.doAdmin(getDHT)
@@ -592,6 +706,7 @@ func (a *admin) getData_getSessions() []admin_nodeInfo {
 				{"was_mtu_fixed", sinfo.wasMTUFixed},
 				{"bytes_sent", sinfo.bytesSent},
 				{"bytes_recvd", sinfo.bytesRecvd},
+				{"box_pub_key", hex.EncodeToString(sinfo.theirPermPub[:])},
 			}
 			infos = append(infos, info)
 		}
@@ -631,6 +746,64 @@ func (a *admin) removeAllowedEncryptionPublicKey(bstr string) (err error) {
 		a.core.peers.removeAllowedEncryptionPublicKey(&box)
 	}
 	return
+}
+
+// Send a DHT ping to the node with the provided key and coords, optionally looking up the specified target NodeID.
+func (a *admin) admin_dhtPing(keyString, coordString, targetString string) (dhtRes, error) {
+	var key boxPubKey
+	if keyBytes, err := hex.DecodeString(keyString); err != nil {
+		return dhtRes{}, err
+	} else {
+		copy(key[:], keyBytes)
+	}
+	var coords []byte
+	for _, cstr := range strings.Split(strings.Trim(coordString, "[]"), " ") {
+		if cstr == "" {
+			// Special case, happens if trimmed is the empty string, e.g. this is the root
+			continue
+		}
+		if u64, err := strconv.ParseUint(cstr, 10, 8); err != nil {
+			return dhtRes{}, err
+		} else {
+			coords = append(coords, uint8(u64))
+		}
+	}
+	resCh := make(chan *dhtRes, 1)
+	info := dhtInfo{
+		key:    key,
+		coords: coords,
+	}
+	target := *info.getNodeID()
+	if targetString == "none" {
+		// Leave the default target in place
+	} else if targetBytes, err := hex.DecodeString(targetString); err != nil {
+		return dhtRes{}, err
+	} else if len(targetBytes) != len(target) {
+		return dhtRes{}, errors.New("Incorrect target NodeID length")
+	} else {
+		target = NodeID{}
+		copy(target[:], targetBytes)
+	}
+	rq := dhtReqKey{info.key, target}
+	sendPing := func() {
+		a.core.dht.addCallback(&rq, func(res *dhtRes) {
+			defer func() { recover() }()
+			select {
+			case resCh <- res:
+			default:
+			}
+		})
+		a.core.dht.ping(&info, &target)
+	}
+	a.core.router.doAdmin(sendPing)
+	go func() {
+		time.Sleep(6 * time.Second)
+		close(resCh)
+	}()
+	for res := range resCh {
+		return *res, nil
+	}
+	return dhtRes{}, errors.New(fmt.Sprintf("DHT ping timeout: %s", keyString))
 }
 
 // getResponse_dot returns a response for a graphviz dot formatted representation of the known parts of the network.

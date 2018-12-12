@@ -17,7 +17,7 @@ import (
 	"github.com/neilalexander/hjson-go"
 	"golang.org/x/text/encoding/unicode"
 
-	"yggdrasil/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 )
 
 type nodeConfig = config.NodeConfig

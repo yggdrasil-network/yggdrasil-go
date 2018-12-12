@@ -1,25 +1,36 @@
 #!/bin/sh
-while getopts ud option
+
+PKGSRC=${PKGSRC:-github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil}
+PKGNAME=${PKGNAME:-$(sh contrib/semver/name.sh)}
+PKGVER=${PKGVER:-$(sh contrib/semver/version.sh --bare)}
+
+LDFLAGS="-X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
+
+while getopts "udtc:l:" option
 do
   case "${option}"
   in
   u) UPX=true;;
   d) DEBUG=true;;
+  t) TABLES=true;;
+  c) GCFLAGS="$GCFLAGS $OPTARG";;
+  l) LDFLAGS="$LDFLAGS $OPTARG";;
   esac
 done
-export GOPATH=$PWD
-echo "Downloading..."
-go get -d -v
-go get -d -v yggdrasil
-for file in *.go ; do
-  echo "Building: $file"
-  #go build $@ $file
+
+if [ -z $TABLES ]; then
+  STRIP="-s -w"
+fi
+
+for CMD in `ls cmd/` ; do
+  echo "Building: $CMD"
+
   if [ $DEBUG ]; then
-    go build -tags debug -v $file
+    go build -ldflags="$LDFLAGS" -gcflags="$GCFLAGS" -tags debug -v ./cmd/$CMD
   else
-    go build -ldflags="-s -w" -v $file
+    go build -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" -v ./cmd/$CMD
   fi
   if [ $UPX ]; then
-    upx --brute ${file%.go}
+    upx --brute $CMD
   fi
 done

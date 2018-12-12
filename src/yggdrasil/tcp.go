@@ -287,7 +287,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	}()
 	// Note that multiple connections to the same node are allowed
 	//  E.g. over different interfaces
-	p := iface.core.peers.newPeer(&info.box, &info.sig, getSharedKey(myLinkPriv, &meta.link))
+	p := iface.core.peers.newPeer(&info.box, &info.sig, getSharedKey(myLinkPriv, &meta.link), sock.RemoteAddr().String())
 	p.linkOut = make(chan []byte, 1)
 	in := func(bs []byte) {
 		p.handlePacket(bs)

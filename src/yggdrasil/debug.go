@@ -22,7 +22,7 @@ import "net/http"
 import "runtime"
 import "os"
 
-import "yggdrasil/defaults"
+import "github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 
 // Start the profiler in debug builds, if the required environment variable is set.
 func init() {
@@ -84,7 +84,7 @@ func (c *Core) DEBUG_getPeers() *peers {
 func (ps *peers) DEBUG_newPeer(box boxPubKey, sig sigPubKey, link boxSharedKey) *peer {
 	//in <-chan []byte,
 	//out chan<- []byte) *peer {
-	return ps.newPeer(&box, &sig, &link) //, in, out)
+	return ps.newPeer(&box, &sig, &link, "(simulator)") //, in, out)
 }
 
 /*
@@ -229,12 +229,10 @@ func DEBUG_wire_encode_coords(coords []byte) []byte {
 // DHT, via core
 
 func (c *Core) DEBUG_getDHTSize() int {
-	total := 0
-	for bidx := 0; bidx < c.dht.nBuckets(); bidx++ {
-		b := c.dht.getBucket(bidx)
-		total += len(b.peers)
-		total += len(b.other)
-	}
+	var total int
+	c.router.doAdmin(func() {
+		total = len(c.dht.table)
+	})
 	return total
 }
 
@@ -506,27 +504,43 @@ func (c *Core) DEBUG_addAllowedEncryptionPublicKey(boxStr string) {
 
 func DEBUG_simLinkPeers(p, q *peer) {
 	// Sets q.out() to point to p and starts p.linkLoop()
-	p.linkOut, q.linkOut = make(chan []byte, 1), make(chan []byte, 1)
-	go func() {
-		for bs := range p.linkOut {
-			q.handlePacket(bs)
+	goWorkers := func(source, dest *peer) {
+		source.linkOut = make(chan []byte, 1)
+		send := make(chan []byte, 1)
+		source.out = func(bs []byte) {
+			send <- bs
 		}
-	}()
-	go func() {
-		for bs := range q.linkOut {
-			p.handlePacket(bs)
-		}
-	}()
-	p.out = func(bs []byte) {
-		p.core.switchTable.idleIn <- p.port
-		go q.handlePacket(bs)
+		go source.linkLoop()
+		go func() {
+			var packets [][]byte
+			for {
+				select {
+				case packet := <-source.linkOut:
+					packets = append(packets, packet)
+					continue
+				case packet := <-send:
+					packets = append(packets, packet)
+					source.core.switchTable.idleIn <- source.port
+					continue
+				default:
+				}
+				if len(packets) > 0 {
+					dest.handlePacket(packets[0])
+					packets = packets[1:]
+					continue
+				}
+				select {
+				case packet := <-source.linkOut:
+					packets = append(packets, packet)
+				case packet := <-send:
+					packets = append(packets, packet)
+					source.core.switchTable.idleIn <- source.port
+				}
+			}
+		}()
 	}
-	q.out = func(bs []byte) {
-		q.core.switchTable.idleIn <- q.port
-		go p.handlePacket(bs)
-	}
-	go p.linkLoop()
-	go q.linkLoop()
+	goWorkers(p, q)
+	goWorkers(q, p)
 	p.core.switchTable.idleIn <- p.port
 	q.core.switchTable.idleIn <- q.port
 }

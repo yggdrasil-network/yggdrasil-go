@@ -7,6 +7,9 @@ type platformDefaultParameters struct {
 	// Admin socket
 	DefaultAdminListen string
 
+	// Configuration (used for yggdrasilctl)
+	DefaultConfigFile string
+
 	// TUN/TAP
 	MaximumIfMTU     int
 	DefaultIfMTU     int

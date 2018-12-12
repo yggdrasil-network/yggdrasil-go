@@ -1,52 +1,117 @@
 package main
 
-import "errors"
-import "flag"
-import "fmt"
-import "strings"
-import "net"
-import "net/url"
-import "sort"
-import "encoding/json"
-import "strconv"
-import "os"
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net"
+	"net/url"
+	"os"
+	"sort"
+	"strconv"
+	"strings"
 
-import "yggdrasil/defaults"
+	"golang.org/x/text/encoding/unicode"
+
+	"github.com/neilalexander/hjson-go"
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+)
 
 type admin_info map[string]interface{}
 
 func main() {
-	server := flag.String("endpoint", defaults.GetDefaults().DefaultAdminListen, "Admin socket endpoint")
-	injson := flag.Bool("json", false, "Output in JSON format")
+	logbuffer := &bytes.Buffer{}
+	logger := log.New(logbuffer, "", log.Flags())
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Println("Fatal error:", r)
+			fmt.Print(logbuffer)
+			os.Exit(1)
+		}
+	}()
+
+	endpoint := defaults.GetDefaults().DefaultAdminListen
+
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n", os.Args[0])
+		fmt.Println("Options:")
+		flag.PrintDefaults()
+		fmt.Println("Commands:\n  - Use \"list\" for a list of available commands")
+		fmt.Println("Examples:")
+		fmt.Println("  - ", os.Args[0], "list")
+		fmt.Println("  - ", os.Args[0], "getPeers")
+		fmt.Println("  - ", os.Args[0], "setTunTap name=auto mtu=1500 tap_mode=false")
+		fmt.Println("  - ", os.Args[0], "-endpoint=tcp://localhost:9001 getDHT")
+		fmt.Println("  - ", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getDHT")
+	}
+	server := flag.String("endpoint", endpoint, "Admin socket endpoint")
+	injson := flag.Bool("json", false, "Output in JSON format (as opposed to pretty-print)")
+	verbose := flag.Bool("v", false, "Verbose output (includes public keys)")
 	flag.Parse()
 	args := flag.Args()
 
 	if len(args) == 0 {
-		fmt.Println("usage:", os.Args[0], "[-endpoint=proto://server] [-json] command [key=value] [...]")
-		fmt.Println("example:", os.Args[0], "getPeers")
-		fmt.Println("example:", os.Args[0], "setTunTap name=auto mtu=1500 tap_mode=false")
-		fmt.Println("example:", os.Args[0], "-endpoint=tcp://localhost:9001 getDHT")
-		fmt.Println("example:", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getDHT")
+		flag.Usage()
 		return
 	}
 
+	if *server == endpoint {
+		if config, err := ioutil.ReadFile(defaults.GetDefaults().DefaultConfigFile); err == nil {
+			if bytes.Compare(config[0:2], []byte{0xFF, 0xFE}) == 0 ||
+				bytes.Compare(config[0:2], []byte{0xFE, 0xFF}) == 0 {
+				utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
+				decoder := utf.NewDecoder()
+				config, err = decoder.Bytes(config)
+				if err != nil {
+					panic(err)
+				}
+			}
+			var dat map[string]interface{}
+			if err := hjson.Unmarshal(config, &dat); err != nil {
+				panic(err)
+			}
+			if ep, ok := dat["AdminListen"].(string); ok && (ep != "none" && ep != "") {
+				endpoint = ep
+				logger.Println("Found platform default config file", defaults.GetDefaults().DefaultConfigFile)
+				logger.Println("Using endpoint", endpoint, "from AdminListen")
+			} else {
+				logger.Println("Configuration file doesn't contain appropriate AdminListen option")
+				logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
+			}
+		} else {
+			logger.Println("Can't open config file from default location", defaults.GetDefaults().DefaultConfigFile)
+			logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
+		}
+	} else {
+		logger.Println("Using endpoint", endpoint, "from command line")
+	}
+
 	var conn net.Conn
-	u, err := url.Parse(*server)
+	u, err := url.Parse(endpoint)
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "unix":
-			conn, err = net.Dial("unix", (*server)[7:])
+			logger.Println("Connecting to UNIX socket", endpoint[7:])
+			conn, err = net.Dial("unix", endpoint[7:])
 		case "tcp":
+			logger.Println("Connecting to TCP socket", u.Host)
 			conn, err = net.Dial("tcp", u.Host)
 		default:
+			logger.Println("Unknown protocol or malformed address - check your endpoint")
 			err = errors.New("protocol not supported")
 		}
 	} else {
-		conn, err = net.Dial("tcp", *server)
+		logger.Println("Connecting to TCP socket", u.Host)
+		conn, err = net.Dial("tcp", endpoint)
 	}
 	if err != nil {
 		panic(err)
 	}
+	logger.Println("Connected")
 	defer conn.Close()
 
 	decoder := json.NewDecoder(conn)
@@ -56,11 +121,13 @@ func main() {
 
 	for c, a := range args {
 		if c == 0 {
+			logger.Printf("Sending request: %v\n", a)
 			send["request"] = a
 			continue
 		}
 		tokens := strings.Split(a, "=")
 		if i, err := strconv.Atoi(tokens[1]); err == nil {
+			logger.Printf("Sending parameter %s: %d\n", tokens[0], i)
 			send[tokens[0]] = i
 		} else {
 			switch strings.ToLower(tokens[1]) {
@@ -71,28 +138,31 @@ func main() {
 			default:
 				send[tokens[0]] = tokens[1]
 			}
+			logger.Printf("Sending parameter %s: %v\n", tokens[0], send[tokens[0]])
 		}
 	}
 
 	if err := encoder.Encode(&send); err != nil {
 		panic(err)
 	}
+	logger.Printf("Request sent")
 	if err := decoder.Decode(&recv); err == nil {
+		logger.Printf("Response received")
 		if recv["status"] == "error" {
 			if err, ok := recv["error"]; ok {
-				fmt.Println("Error:", err)
+				fmt.Println("Admin socket returned an error:", err)
 			} else {
-				fmt.Println("Unspecified error occured")
+				fmt.Println("Admin socket returned an error but didn't specify any error text")
 			}
 			os.Exit(1)
 		}
 		if _, ok := recv["request"]; !ok {
 			fmt.Println("Missing request in response (malformed response?)")
-			return
+			os.Exit(1)
 		}
 		if _, ok := recv["response"]; !ok {
 			fmt.Println("Missing response body (malformed response?)")
-			return
+			os.Exit(1)
 		}
 		req := recv["request"].(map[string]interface{})
 		res := recv["response"].(map[string]interface{})
@@ -107,7 +177,7 @@ func main() {
 		switch strings.ToLower(req["request"].(string)) {
 		case "dot":
 			fmt.Println(res["dot"])
-		case "help", "getpeers", "getswitchpeers", "getdht", "getsessions":
+		case "list", "getpeers", "getswitchpeers", "getdht", "getsessions", "dhtping":
 			maxWidths := make(map[string]int)
 			var keyOrder []string
 			keysOrdered := false
@@ -116,6 +186,11 @@ func main() {
 				for slk, slv := range tlv.(map[string]interface{}) {
 					if !keysOrdered {
 						for k := range slv.(map[string]interface{}) {
+							if !*verbose {
+								if k == "box_pub_key" || k == "box_sig_key" {
+									continue
+								}
+							}
 							keyOrder = append(keyOrder, fmt.Sprint(k))
 						}
 						sort.Strings(keyOrder)
@@ -175,12 +250,26 @@ func main() {
 			}
 		case "getself":
 			for k, v := range res["self"].(map[string]interface{}) {
+				if buildname, ok := v.(map[string]interface{})["build_name"].(string); ok && buildname != "unknown" {
+					fmt.Println("Build name:", buildname)
+				}
+				if buildversion, ok := v.(map[string]interface{})["build_version"].(string); ok && buildversion != "unknown" {
+					fmt.Println("Build version:", buildversion)
+				}
 				fmt.Println("IPv6 address:", k)
 				if subnet, ok := v.(map[string]interface{})["subnet"].(string); ok {
 					fmt.Println("IPv6 subnet:", subnet)
 				}
 				if coords, ok := v.(map[string]interface{})["coords"].(string); ok {
 					fmt.Println("Coords:", coords)
+				}
+				if *verbose {
+					if boxPubKey, ok := v.(map[string]interface{})["box_pub_key"].(string); ok {
+						fmt.Println("Public encryption key:", boxPubKey)
+					}
+					if boxSigKey, ok := v.(map[string]interface{})["box_sig_key"].(string); ok {
+						fmt.Println("Public signing key:", boxSigKey)
+					}
 				}
 			}
 		case "getswitchqueues":
@@ -202,8 +291,8 @@ func main() {
 				fmt.Printf("Highest queue size: %d bytes\n", uint(highestqueuesize))
 			}
 			if m, ok := v["maximum_queues_size"].(float64); ok {
-				fmt.Printf("Maximum queue size: %d bytes\n", uint(maximumqueuesize))
 				maximumqueuesize = m
+				fmt.Printf("Maximum queue size: %d bytes\n", uint(maximumqueuesize))
 			}
 			if queues, ok := v["queues"].([]interface{}); ok {
 				if len(queues) != 0 {
@@ -213,7 +302,7 @@ func main() {
 						queuesize := v.(map[string]interface{})["queue_size"].(float64)
 						queuepackets := v.(map[string]interface{})["queue_packets"].(float64)
 						queueid := v.(map[string]interface{})["queue_id"].(string)
-						portqueues[queueport] += 1
+						portqueues[queueport]++
 						portqueuesize[queueport] += queuesize
 						portqueuepackets[queueport] += queuepackets
 						queuesizepercent := (100 / maximumqueuesize) * queuesize
@@ -231,7 +320,7 @@ func main() {
 						uint(k), uint(v), uint(queuesizepercent), uint(portqueuepackets[k]))
 				}
 			}
-		case "addpeer", "removepeer", "addallowedencryptionpublickey", "removeallowedencryptionpublickey":
+		case "addpeer", "removepeer", "addallowedencryptionpublickey", "removeallowedencryptionpublickey", "addsourcesubnet", "addroute", "removesourcesubnet", "removeroute":
 			if _, ok := res["added"]; ok {
 				for _, v := range res["added"].([]interface{}) {
 					fmt.Println("Added:", fmt.Sprint(v))
@@ -274,14 +363,38 @@ func main() {
 					fmt.Println("-", v)
 				}
 			}
+		case "getsourcesubnets":
+			if _, ok := res["source_subnets"]; !ok {
+				fmt.Println("No source subnets found")
+			} else if res["source_subnets"] == nil {
+				fmt.Println("No source subnets found")
+			} else {
+				fmt.Println("Source subnets:")
+				for _, v := range res["source_subnets"].([]interface{}) {
+					fmt.Println("-", v)
+				}
+			}
+		case "getroutes":
+			if _, ok := res["routes"]; !ok {
+				fmt.Println("No routes found")
+			} else if res["routes"] == nil {
+				fmt.Println("No routes found")
+			} else {
+				fmt.Println("Routes:")
+				for _, v := range res["routes"].([]interface{}) {
+					fmt.Println("-", v)
+				}
+			}
 		default:
 			if json, err := json.MarshalIndent(recv["response"], "", "  "); err == nil {
 				fmt.Println(string(json))
 			}
 		}
+	} else {
+		logger.Println("Error receiving response:", err)
 	}
 
-	if v, ok := recv["status"]; ok && v == "error" {
+	if v, ok := recv["status"]; ok && v != "success" {
 		os.Exit(1)
 	}
 	os.Exit(0)

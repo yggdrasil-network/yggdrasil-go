@@ -8,9 +8,12 @@ import (
 	"net"
 	"regexp"
 
-	"yggdrasil/config"
-	"yggdrasil/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
+
+var buildName string
+var buildVersion string
 
 // The Core object represents the Yggdrasil node. You should create a Core
 // object for each Yggdrasil node you plan to run.
@@ -22,7 +25,6 @@ type Core struct {
 	sigPriv     sigPrivKey
 	switchTable switchTable
 	peers       peers
-	sigs        sigManager
 	sessions    sessions
 	router      router
 	dht         dht
@@ -50,7 +52,6 @@ func (c *Core) init(bpub *boxPubKey,
 	c.boxPub, c.boxPriv = *bpub, *bpriv
 	c.sigPub, c.sigPriv = *spub, *spriv
 	c.admin.core = c
-	c.sigs.init()
 	c.searches.init(c)
 	c.dht.init(c)
 	c.sessions.init(c)
@@ -61,12 +62,38 @@ func (c *Core) init(bpub *boxPubKey,
 	c.tun.init(c)
 }
 
+// Get the current build name. This is usually injected if built from git,
+// or returns "unknown" otherwise.
+func GetBuildName() string {
+	if buildName == "" {
+		return "unknown"
+	}
+	return buildName
+}
+
+// Get the current build version. This is usually injected if built from git,
+// or returns "unknown" otherwise.
+func GetBuildVersion() string {
+	if buildVersion == "" {
+		return "unknown"
+	}
+	return buildVersion
+}
+
 // Starts up Yggdrasil using the provided NodeConfig, and outputs debug logging
 // through the provided log.Logger. The started stack will include TCP and UDP
 // sockets, a multicast discovery socket, an admin socket, router, switch and
 // DHT node.
 func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	c.log = log
+
+	if name := GetBuildName(); name != "unknown" {
+		c.log.Println("Build name:", name)
+	}
+	if version := GetBuildVersion(); version != "unknown" {
+		c.log.Println("Build version:", version)
+	}
+
 	c.log.Println("Starting up...")
 
 	var boxPub boxPubKey
@@ -102,6 +129,10 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
+	if nc.SwitchOptions.MaxTotalQueueSize >= SwitchQueueTotalMinSize {
+		c.switchTable.queueTotalMaxSize = nc.SwitchOptions.MaxTotalQueueSize
+	}
+
 	if err := c.switchTable.start(); err != nil {
 		c.log.Println("Failed to start switch")
 		return err
@@ -119,6 +150,31 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	if err := c.router.start(); err != nil {
 		c.log.Println("Failed to start router")
 		return err
+	}
+
+	c.router.cryptokey.setEnabled(nc.TunnelRouting.Enable)
+	if c.router.cryptokey.isEnabled() {
+		c.log.Println("Crypto-key routing enabled")
+		for ipv6, pubkey := range nc.TunnelRouting.IPv6Destinations {
+			if err := c.router.cryptokey.addRoute(ipv6, pubkey); err != nil {
+				panic(err)
+			}
+		}
+		for _, source := range nc.TunnelRouting.IPv6Sources {
+			if c.router.cryptokey.addSourceSubnet(source); err != nil {
+				panic(err)
+			}
+		}
+		for ipv4, pubkey := range nc.TunnelRouting.IPv4Destinations {
+			if err := c.router.cryptokey.addRoute(ipv4, pubkey); err != nil {
+				panic(err)
+			}
+		}
+		for _, source := range nc.TunnelRouting.IPv4Sources {
+			if c.router.cryptokey.addSourceSubnet(source); err != nil {
+				panic(err)
+			}
+		}
 	}
 
 	if err := c.admin.start(); err != nil {

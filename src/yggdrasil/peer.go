@@ -79,27 +79,30 @@ type peer struct {
 	bytesSent  uint64 // To track bandwidth usage for getPeers
 	bytesRecvd uint64 // To track bandwidth usage for getPeers
 	// BUG: sync/atomic, 32 bit platforms need the above to be the first element
-	core       *Core
-	port       switchPort
-	box        boxPubKey
-	sig        sigPubKey
-	shared     boxSharedKey
-	linkShared boxSharedKey
-	firstSeen  time.Time       // To track uptime for getPeers
-	linkOut    (chan []byte)   // used for protocol traffic (to bypass queues)
-	doSend     (chan struct{}) // tell the linkLoop to send a switchMsg
-	dinfo      *dhtInfo        // used to keep the DHT working
-	out        func([]byte)    // Set up by whatever created the peers struct, used to send packets to other nodes
-	close      func()          // Called when a peer is removed, to close the underlying connection, or via admin api
+	core         *Core
+	port         switchPort
+	box          boxPubKey
+	sig          sigPubKey
+	shared       boxSharedKey
+	linkShared   boxSharedKey
+	endpoint     string
+	friendlyName string
+	firstSeen    time.Time       // To track uptime for getPeers
+	linkOut      (chan []byte)   // used for protocol traffic (to bypass queues)
+	doSend       (chan struct{}) // tell the linkLoop to send a switchMsg
+	dinfo        *dhtInfo        // used to keep the DHT working
+	out          func([]byte)    // Set up by whatever created the peers struct, used to send packets to other nodes
+	close        func()          // Called when a peer is removed, to close the underlying connection, or via admin api
 }
 
 // Creates a new peer with the specified box, sig, and linkShared keys, using the lowest unocupied port number.
-func (ps *peers) newPeer(box *boxPubKey, sig *sigPubKey, linkShared *boxSharedKey) *peer {
+func (ps *peers) newPeer(box *boxPubKey, sig *sigPubKey, linkShared *boxSharedKey, endpoint string) *peer {
 	now := time.Now()
 	p := peer{box: *box,
 		sig:        *sig,
 		shared:     *getSharedKey(&ps.core.boxPriv, box),
 		linkShared: *linkShared,
+		endpoint:   endpoint,
 		firstSeen:  now,
 		doSend:     make(chan struct{}, 1),
 		core:       ps.core}
@@ -172,7 +175,6 @@ func (p *peer) doSendSwitchMsgs() {
 // This must be launched in a separate goroutine by whatever sets up the peer struct.
 // It handles link protocol traffic.
 func (p *peer) linkLoop() {
-	go p.doSendSwitchMsgs()
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
 	for {
@@ -183,8 +185,11 @@ func (p *peer) linkLoop() {
 			}
 			p.sendSwitchMsg()
 		case _ = <-tick.C:
-			if p.dinfo != nil {
-				p.core.dht.peers <- p.dinfo
+			//break             // FIXME disabled the below completely to test something
+			pdinfo := p.dinfo // FIXME this is a bad workarond NPE on the next line
+			if pdinfo != nil {
+				dinfo := *pdinfo
+				p.core.dht.peers <- &dinfo
 			}
 		}
 	}
@@ -311,7 +316,7 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 		sigMsg.Hops = msg.Hops[:idx]
 		loc.coords = append(loc.coords, hop.Port)
 		bs := getBytesForSig(&hop.Next, &sigMsg)
-		if !p.core.sigs.check(&prevKey, &hop.Sig, bs) {
+		if !verify(&prevKey, bs, &hop.Sig) {
 			p.core.peers.removePeer(p.port)
 		}
 		prevKey = hop.Next
@@ -330,7 +335,7 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 		key:    p.box,
 		coords: loc.getCoords(),
 	}
-	p.core.dht.peers <- &dinfo
+	//p.core.dht.peers <- &dinfo
 	p.dinfo = &dinfo
 }
 
