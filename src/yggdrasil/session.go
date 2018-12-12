@@ -546,6 +546,7 @@ func (ss *sessions) handleMetadata(meta *sessionMeta) {
 	if meta.IsResponse {
 		sinfo.theirMetadata = meta.Metadata
 		sinfo.metaResTime = time.Now()
+
 	} else {
 		ss.sendMetadata(sinfo, true)
 	}

@@ -86,7 +86,6 @@ type peer struct {
 	shared     boxSharedKey
 	linkShared boxSharedKey
 	endpoint   string
-	metadata   metadata
 	firstSeen  time.Time       // To track uptime for getPeers
 	linkOut    (chan []byte)   // used for protocol traffic (to bypass queues)
 	doSend     (chan struct{}) // tell the linkLoop to send a switchMsg
@@ -96,14 +95,13 @@ type peer struct {
 }
 
 // Creates a new peer with the specified box, sig, and linkShared keys, using the lowest unocupied port number.
-func (ps *peers) newPeer(box *boxPubKey, sig *sigPubKey, linkShared *boxSharedKey, endpoint string, metadata metadata) *peer {
+func (ps *peers) newPeer(box *boxPubKey, sig *sigPubKey, linkShared *boxSharedKey, endpoint string) *peer {
 	now := time.Now()
 	p := peer{box: *box,
 		sig:        *sig,
 		shared:     *getSharedKey(&ps.core.boxPriv, box),
 		linkShared: *linkShared,
 		endpoint:   endpoint,
-		metadata:   metadata,
 		firstSeen:  now,
 		doSend:     make(chan struct{}, 1),
 		core:       ps.core}
