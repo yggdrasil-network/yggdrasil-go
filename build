@@ -5,6 +5,7 @@ PKGNAME=${PKGNAME:-$(sh contrib/semver/name.sh)}
 PKGVER=${PKGVER:-$(sh contrib/semver/version.sh --bare)}
 
 LDFLAGS="-X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
+LDFLAGS="$LDFLAGS -extldflags '-static -no-pie'"
 
 while getopts "udtc:l:" option
 do
