@@ -58,7 +58,7 @@ func (r *router) init(core *Core) {
 	r.addr = *address_addrForNodeID(&r.core.dht.nodeID)
 	r.subnet = *address_subnetForNodeID(&r.core.dht.nodeID)
 	in := make(chan []byte, 32) // TODO something better than this...
-	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &boxSharedKey{}, "(self)")
+	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &boxSharedKey{}, "(self)", r.core.metadata)
 	p.out = func(packet []byte) {
 		// This is to make very sure it never blocks
 		select {
@@ -428,6 +428,10 @@ func (r *router) handleProto(packet []byte) {
 		r.handlePing(bs, &p.FromKey)
 	case wire_SessionPong:
 		r.handlePong(bs, &p.FromKey)
+	case wire_SessionMetaRequest:
+		fallthrough
+	case wire_SessionMetaResponse:
+		r.handleMeta(bs, &p.FromKey)
 	case wire_DHTLookupRequest:
 		r.handleDHTReq(bs, &p.FromKey)
 	case wire_DHTLookupResponse:
@@ -470,6 +474,17 @@ func (r *router) handleDHTRes(bs []byte, fromKey *boxPubKey) {
 	}
 	res.Key = *fromKey
 	r.core.dht.handleRes(&res)
+}
+
+// Decodes meta request
+func (r *router) handleMeta(bs []byte, fromKey *boxPubKey) {
+	req := sessionMeta{}
+	if !req.decode(bs) {
+		return
+	}
+	req.SendPermPub = *fromKey
+	r.core.log.Printf("handleMeta: %+v\n", req)
+	r.core.sessions.handleMeta(&req)
 }
 
 // Passed a function to call.

@@ -574,6 +574,9 @@ func (a *admin) getData_getSelf() *admin_nodeInfo {
 		{"ip", a.core.GetAddress().String()},
 		{"subnet", a.core.GetSubnet().String()},
 		{"coords", fmt.Sprint(coords)},
+		{"name", a.core.metadata.name},
+		{"location", a.core.metadata.location},
+		{"contact", a.core.metadata.contact},
 	}
 	if name := GetBuildName(); name != "unknown" {
 		self = append(self, admin_pair{"build_name", name})
