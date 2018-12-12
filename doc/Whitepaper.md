@@ -87,14 +87,17 @@ These signatures prevent nodes from forging arbitrary routing advertisements.
 The first hop, from the root, also includes a sequence number, which must be updated periodically.
 A node will blacklist the current root (keeping a record of the last sequence number observed) if the root fails to update for longer than some timeout (currently hard coded at 1 minute).
 Normally, a root node will update their sequence number for frequently than this (once every 30 seconds).
-Nodes are throttled to ignore updates with a new sequence number for some period after updating their most recently seen sequence number (currently this cooldown is 10 seconds).
+Nodes are throttled to ignore updates with a new sequence number for some period after updating their most recently seen sequence number (currently this cooldown is 15 seconds).
 The implementation chooses to set the sequence number equal to the unix time on the root's clock, so that a new (higher) sequence number will be selected if the root is restarted and the clock is not set back.
 
 Other than the root node, every other node in the network must select one of its neighbors to use as their parent.
-This selection is done by maximizing: `<uptime + timeout> / <distance to the root>`.
-Here, `uptime` is the time between when we first and last received a message from the node which advertised the node's current location in the tree (resetting to zero if the location changes), and timeout is the time we wait before dropping a root due to inactivity.
-This essentially means the numerator is at least as long as the amount of time between when the neighbor was first seen at its present location, and when the advertisement from the neighbor becomes invalid due to root timeout.
-Resetting the uptime with each coordinate change causes nodes to favor long-lived stable paths over short-lived unstable ones, for the purposes of tree construction (indirectly impacting route selection).
+This selection is done by tracking when each neighbor first sends us a message with a new timestamp from the root, to determine the ordering of the latency of each path from the root, to each neighbor, and then to the node that's searching for a parent.
+These relative latencies are tracked by, for each neighbor, keeping a score vs each other neighbor.
+If a neighbor sends a message with an updated timestamp before another neighbor, then the faster neighbor's score is increased by 1.
+If the neighbor sends a message slower, then the score is decreased by 2, to make sure that a node must be reliably faster (at least 2/3 of the time) to see a net score increase over time.
+If a node begins to advertise new coordinates, then its score vs all other nodes is reset to 0.
+A node switches to a new parent if a neighbor's score (vs the current parent) reaches some threshold, currently 240, which corresponds to about 2 hours of being a reliably faster path.
+The intended outcome of this process is that stable connections from fixed infrastructure near the "core" of the network should (eventually) select parents that minimize latency from the root to themselves, while the more dynamic parts of the network, presumably more towards the edges, will try to favor reliability when selecting a parent.
 
 The distance metric between nodes is simply the distance between the nodes if they routed on the spanning tree.
 This is equal to the sum of the distance from each node to the last common ancestor of the two nodes being compared.
@@ -103,15 +106,14 @@ In practice, only the coords are used for routing, while the root and timestamp,
 
 ## Name-independent routing
 
-A [Kademlia](https://en.wikipedia.org/wiki/Kademlia)-like Distributed Hash Table (DHT) is used as a distributed database that maps NodeIDs onto coordinates in the spanning tree metric space.
-The DHT is Kademlia-like in that it uses the `xor` metric and structures the hash table into k-buckets (with 2 nodes per bucket in the normal case, plus some additional slots for keyspace neighbors and one-hop neighbors at the router level).
-It differs from kademlia in that there are no values in the key:value store -- it only stores information about DHT peers.
+A [Chord](https://en.wikipedia.org/wiki/Chord_(peer-to-peer))-like Distributed Hash Table (DHT) is used as a distributed database that maps NodeIDs onto coordinates in the spanning tree metric space.
+The DHT is Chord-like in that it uses a successor/predecessor structure to do lookups in `O(n)` time with `O(1)` entries, then augments this with some additional information, adding roughly `O(logn)` additional entries, to reduce the lookup time to something around `O(logn)`.
+In the long term, the idea is to favor spending our bandwidth making sure the minimum `O(1)` part is right, to prioritize correctness, and then try to conserve bandwidth (and power) by being a bit lazy about checking the remaining `O(logn)` portion when it's not in use.
 
-The main complication is that, when the DHT is bootstrapped off of a node's one-hop neighbors, with no special measures taken about which nodes are included in each bucket, then the network may diverge (settle into a stable bad state, where at least some lookups will always fail).
-The current strategy is to place additional preferences on which nodes are kept in each bucket -- in particular, we try to keep the closest nodes in xor space in each bucket.
-This seems to mitigate the issue in some quick tests, but it's a topic that could use additional study.
-
-Other than these differences, the DHT is more-or-less what you might expect from a kad implementation.
+To be specific, the DHT stores the immediate successor of a node, plus the next node it manages to find which is strictly closer (by the tree hop-count metric) than all previous nodes.
+The same process is repeated for predecessor nodes, and lookups walk the network in the predecessor direction, with each key being owned by its successor (to make sure defaulting to 0 for unknown bits of a `NodeID` doesn't cause us to overshoot the target during a lookup).
+In addition, all of a node's one-hop neighbors are included in the DHT, since we get this information "for free", and we must include it in our DHT to ensure that the network doesn't diverge to a broken state (though I suspect that only adding parents or parent-child relationships may be sufficient -- worth trying to prove or disprove, if somebody's bored).
+The DHT differs from Chord in that there are no values in the key:value store -- it only stores information about DHT peers -- and that it uses a [Kademlia](https://en.wikipedia.org/wiki/Kademlia)-inspired iterative-parallel lookup process.
 
 To summarize the entire routing procedure, when given only a node's IP address, the goal is to find a route to the destination.
 That happens through 3 steps:
