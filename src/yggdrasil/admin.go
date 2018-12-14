@@ -515,13 +515,7 @@ func (a *admin) addPeer(addr string, sintf string) error {
 			return errors.New("invalid peer: " + addr)
 		}
 	} else {
-		// no url scheme provided
-		addr = strings.ToLower(addr)
-		if strings.HasPrefix(addr, "tcp:") {
-			addr = addr[4:]
-		}
-		a.core.tcp.connect(addr, "")
-		return nil
+		return errors.New("invalid peer: " + addr)
 	}
 	return nil
 }
