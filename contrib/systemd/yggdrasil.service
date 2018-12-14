@@ -4,6 +4,7 @@ Wants=network.target
 After=network.target
 
 [Service]
+Group=yggdrasil
 ProtectHome=true
 ProtectSystem=true
 SyslogIdentifier=yggdrasil
@@ -12,7 +13,7 @@ ExecStartPre=/bin/sh -ec "if ! test -s /etc/yggdrasil.conf; \
                 yggdrasil -genconf > /etc/yggdrasil.conf; \
                 echo 'WARNING: A new /etc/yggdrasil.conf file has been generated.'; \
             fi"
-ExecStart=/bin/sh -c "exec yggdrasil -useconf < /etc/yggdrasil.conf"
+ExecStart=/usr/bin/yggdrasil -useconffile /etc/yggdrasil.conf
 Restart=always
 
 [Install]
