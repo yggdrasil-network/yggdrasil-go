@@ -18,7 +18,7 @@ const tun_ETHER_HEADER_LENGTH = 14
 
 // Represents a running TUN/TAP interface.
 type tunAdapter struct {
-	adapter
+	Adapter
 	icmpv6 icmpv6
 	mtu    int
 	iface  *water.Interface
@@ -35,10 +35,8 @@ func getSupportedMTU(mtu int) int {
 
 // Initialises the TUN/TAP adapter.
 func (tun *tunAdapter) init(core *Core, send chan<- []byte, recv <-chan []byte) {
-	tun.core = core
+	tun.Adapter.init(core, send, recv)
 	tun.icmpv6.init(tun)
-	tun.send = send
-	tun.recv = recv
 }
 
 // Starts the setup process for the TUN/TAP adapter, and if successful, starts

@@ -30,12 +30,6 @@ import (
 	"golang.org/x/net/ipv6"
 )
 
-type adapter struct {
-	core *Core
-	send chan<- []byte
-	recv <-chan []byte
-}
-
 // The router struct has channels to/from the tun/tap device and a self peer (0), which is how messages are passed between this node and the peers/switch layer.
 // The router's mainLoop goroutine is responsible for managing all information related to the dht, searches, and crypto sessions.
 type router struct {
@@ -45,8 +39,8 @@ type router struct {
 	in        <-chan []byte          // packets we received from the network, link to peer's "out"
 	out       func([]byte)           // packets we're sending to the network, link to peer's "in"
 	toRecv    chan router_recvPacket // packets to handle via recvPacket()
-	tun       tunAdapter              // TUN/TAP adapter
-	adapters  []adapter              // Other adapters
+	tun       tunAdapter             // TUN/TAP adapter
+	adapters  []Adapter              // Other adapters
 	recv      chan<- []byte          // place where the tun pulls received packets from
 	send      <-chan []byte          // place where the tun puts outgoing packets
 	reset     chan struct{}          // signal that coords changed (re-init sessions/dht)
