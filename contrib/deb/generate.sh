@@ -52,8 +52,11 @@ Architecture: $PKGARCH
 Replaces: $PKGREPLACES
 Conflicts: $PKGREPLACES
 Maintainer: Neil Alexander <neilalexander@users.noreply.github.com>
-Description: Debian yggdrasil package
- Binary yggdrasil package for Debian and Ubuntu
+Description: Yggdrasil Network
+ Yggdrasil is an early-stage implementation of a fully end-to-end encrypted IPv6
+ network. It is lightweight, self-arranging, supported on multiple platforms and
+ allows pretty much any IPv6-capable application to communicate securely with
+ other Yggdrasil nodes.
 EOF
 cat > /tmp/$PKGNAME/debian/copyright << EOF
 Please see https://github.com/yggdrasil-network/yggdrasil-go/
@@ -68,21 +71,40 @@ etc/systemd/system/*.service etc/systemd/system
 EOF
 cat > /tmp/$PKGNAME/debian/postinst << EOF
 #!/bin/sh
+
+if ! getent group yggdrasil 2>&1 > /dev/null; then
+  addgroup --system --quiet yggdrasil
+fi
+
 if [ -f /etc/yggdrasil.conf ];
 then
   mkdir -p /var/backups
   echo "Backing up configuration file to /var/backups/yggdrasil.conf.`date +%Y%m%d`"
   cp /etc/yggdrasil.conf /var/backups/yggdrasil.conf.`date +%Y%m%d`
-  echo "Normalising /etc/yggdrasil.conf"
+  echo "Normalising and updating /etc/yggdrasil.conf"
   /usr/bin/yggdrasil -useconffile /var/backups/yggdrasil.conf.`date +%Y%m%d` -normaliseconf > /etc/yggdrasil.conf
+  chgrp yggdrasil /etc/yggdrasil.conf
+
+  if command -v systemctl >/dev/null; then
+    systemctl daemon-reload >/dev/null || true
+    systemctl enable yggdrasil || true
+    systemctl start yggdrasil || true
+  fi
+else
+  echo "Generating initial configuration file /etc/yggdrasil.conf"
+  echo "Please familiarise yourself with this file before starting Yggdrasil"
+  /usr/bin/yggdrasil -genconf > /etc/yggdrasil.conf
+  chgrp yggdrasil /etc/yggdrasil.conf
 fi
-systemctl enable yggdrasil
-systemctl start yggdrasil
 EOF
 cat > /tmp/$PKGNAME/debian/prerm << EOF
 #!/bin/sh
-systemctl disable yggdrasil
-systemctl stop yggdrasil
+if command -v systemctl >/dev/null; then
+  if systemctl is-active --quiet yggdrasil; then
+    systemctl stop yggdrasil || true
+  fi
+  systemctl disable yggdrasil || true
+fi
 EOF
 
 cp yggdrasil /tmp/$PKGNAME/usr/bin/
