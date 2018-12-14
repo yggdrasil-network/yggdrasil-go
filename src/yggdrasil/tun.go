@@ -36,9 +36,11 @@ func getSupportedMTU(mtu int) int {
 }
 
 // Initialises the TUN/TAP adapter.
-func (tun *tunDevice) init(core *Core) {
+func (tun *tunDevice) init(core *Core, send chan<- []byte, recv <-chan []byte) {
 	tun.core = core
 	tun.icmpv6.init(tun)
+	tun.send = send
+	tun.recv = recv
 }
 
 // Starts the setup process for the TUN/TAP adapter, and if successful, starts

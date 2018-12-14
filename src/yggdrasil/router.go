@@ -80,13 +80,10 @@ func (r *router) init(core *Core) {
 	send := make(chan []byte, 32)
 	r.recv = recv
 	r.send = send
-	r.tun.recv = recv
-	r.tun.send = send
 	r.reset = make(chan struct{}, 1)
 	r.admin = make(chan func(), 32)
 	r.cryptokey.init(r.core)
-	r.tun.init(r.core)
-	// go r.mainLoop()
+	r.tun.init(r.core, send, recv)
 }
 
 // Starts the mainLoop goroutine.
