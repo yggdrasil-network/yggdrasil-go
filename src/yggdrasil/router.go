@@ -31,7 +31,9 @@ import (
 )
 
 type adapter struct {
-	tunDevice
+	core *Core
+	send chan<- []byte
+	recv <-chan []byte
 }
 
 // The router struct has channels to/from the tun/tap device and a self peer (0), which is how messages are passed between this node and the peers/switch layer.
@@ -43,7 +45,8 @@ type router struct {
 	in        <-chan []byte          // packets we received from the network, link to peer's "out"
 	out       func([]byte)           // packets we're sending to the network, link to peer's "in"
 	toRecv    chan router_recvPacket // packets to handle via recvPacket()
-	tun       tunDevice              // TUN/TAP adapter
+	tun       tunAdapter              // TUN/TAP adapter
+	adapters  []adapter              // Other adapters
 	recv      chan<- []byte          // place where the tun pulls received packets from
 	send      <-chan []byte          // place where the tun puts outgoing packets
 	reset     chan struct{}          // signal that coords changed (re-init sessions/dht)

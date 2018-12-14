@@ -77,7 +77,7 @@ type in6_ifreq_lifetime struct {
 // a system socket and making syscalls to the kernel. This is not refined though
 // and often doesn't work (if at all), therefore if a call fails, it resorts
 // to calling "ifconfig" instead.
-func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
+func (tun *tunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	var config water.Config
 	if ifname[:4] == "auto" {
 		ifname = "/dev/tap0"
@@ -103,7 +103,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 	return tun.setupAddress(addr)
 }
 
-func (tun *tunDevice) setupAddress(addr string) error {
+func (tun *tunAdapter) setupAddress(addr string) error {
 	var sfd int
 	var err error
 
