@@ -68,11 +68,11 @@ func (c *Core) DEBUG_getEncryptionPublicKey() boxPubKey {
 }
 
 func (c *Core) DEBUG_getSend() chan<- []byte {
-	return c.tun.send
+	return c.router.tun.send
 }
 
 func (c *Core) DEBUG_getRecv() <-chan []byte {
-	return c.tun.recv
+	return c.router.tun.recv
 }
 
 // Peer
@@ -304,18 +304,18 @@ func (c *Core) DEBUG_startTunWithMTU(ifname string, iftapmode bool, mtu int) {
 	addr := c.DEBUG_getAddr()
 	straddr := fmt.Sprintf("%s/%v", net.IP(addr[:]).String(), 8*len(address_prefix))
 	if ifname != "none" {
-		err := c.tun.setup(ifname, iftapmode, straddr, mtu)
+		err := c.router.tun.setup(ifname, iftapmode, straddr, mtu)
 		if err != nil {
 			panic(err)
 		}
-		c.log.Println("Setup TUN/TAP:", c.tun.iface.Name(), straddr)
-		go func() { panic(c.tun.read()) }()
+		c.log.Println("Setup TUN/TAP:", c.router.tun.iface.Name(), straddr)
+		go func() { panic(c.router.tun.read()) }()
 	}
-	go func() { panic(c.tun.write()) }()
+	go func() { panic(c.router.tun.write()) }()
 }
 
 func (c *Core) DEBUG_stopTun() {
-	c.tun.close()
+	c.router.tun.close()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -546,7 +546,7 @@ func DEBUG_simLinkPeers(p, q *peer) {
 }
 
 func (c *Core) DEBUG_simFixMTU() {
-	c.tun.mtu = 65535
+	c.router.tun.mtu = 65535
 }
 
 ////////////////////////////////////////////////////////////////////////////////

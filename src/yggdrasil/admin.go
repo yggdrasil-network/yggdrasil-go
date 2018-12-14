@@ -160,9 +160,9 @@ func (a *admin) init(c *Core, listenaddr string) {
 		}()
 
 		return admin_info{
-			a.core.tun.iface.Name(): admin_info{
-				"tap_mode": a.core.tun.iface.IsTAP(),
-				"mtu":      a.core.tun.mtu,
+			a.core.router.tun.iface.Name(): admin_info{
+				"tap_mode": a.core.router.tun.iface.IsTAP(),
+				"mtu":      a.core.router.tun.mtu,
 			},
 		}, nil
 	})
@@ -185,8 +185,8 @@ func (a *admin) init(c *Core, listenaddr string) {
 			return admin_info{}, errors.New("Failed to configure adapter")
 		} else {
 			return admin_info{
-				a.core.tun.iface.Name(): admin_info{
-					"tap_mode": a.core.tun.iface.IsTAP(),
+				a.core.router.tun.iface.Name(): admin_info{
+					"tap_mode": a.core.router.tun.iface.IsTAP(),
 					"mtu":      ifmtu,
 				},
 			}, nil
@@ -515,13 +515,7 @@ func (a *admin) addPeer(addr string, sintf string) error {
 			return errors.New("invalid peer: " + addr)
 		}
 	} else {
-		// no url scheme provided
-		addr = strings.ToLower(addr)
-		if strings.HasPrefix(addr, "tcp:") {
-			addr = addr[4:]
-		}
-		a.core.tcp.connect(addr, "")
-		return nil
+		return errors.New("invalid peer: " + addr)
 	}
 	return nil
 }
@@ -539,12 +533,12 @@ func (a *admin) removePeer(p string) error {
 // startTunWithMTU creates the tun/tap device, sets its address, and sets the MTU to the provided value.
 func (a *admin) startTunWithMTU(ifname string, iftapmode bool, ifmtu int) error {
 	// Close the TUN first if open
-	_ = a.core.tun.close()
+	_ = a.core.router.tun.close()
 	// Then reconfigure and start it
 	addr := a.core.router.addr
 	straddr := fmt.Sprintf("%s/%v", net.IP(addr[:]).String(), 8*len(address_prefix)-1)
 	if ifname != "none" {
-		err := a.core.tun.setup(ifname, iftapmode, straddr, ifmtu)
+		err := a.core.router.tun.setup(ifname, iftapmode, straddr, ifmtu)
 		if err != nil {
 			return err
 		}
@@ -559,9 +553,9 @@ func (a *admin) startTunWithMTU(ifname string, iftapmode bool, ifmtu int) error 
 			a.core.sessions.sendPingPong(sinfo, false)
 		}
 		// Aaaaand... go!
-		go a.core.tun.read()
+		go a.core.router.tun.read()
 	}
-	go a.core.tun.write()
+	go a.core.router.tun.write()
 	return nil
 }
 
