@@ -28,7 +28,6 @@ type Core struct {
 	sessions    sessions
 	router      router
 	dht         dht
-	tun         tunDevice
 	admin       admin
 	searches    searches
 	multicast   multicast
@@ -59,7 +58,6 @@ func (c *Core) init(bpub *boxPubKey,
 	c.peers.init(c)
 	c.router.init(c)
 	c.switchTable.init(c, c.sigPub) // TODO move before peers? before router?
-	c.tun.init(c)
 }
 
 // Get the current build name. This is usually injected if built from git,
@@ -188,7 +186,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	}
 
 	ip := net.IP(c.router.addr[:]).String()
-	if err := c.tun.start(nc.IfName, nc.IfTAPMode, fmt.Sprintf("%s/%d", ip, 8*len(address_prefix)-1), nc.IfMTU); err != nil {
+	if err := c.router.tun.start(nc.IfName, nc.IfTAPMode, fmt.Sprintf("%s/%d", ip, 8*len(address_prefix)-1), nc.IfMTU); err != nil {
 		c.log.Println("Failed to start TUN/TAP")
 		return err
 	}
@@ -200,7 +198,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 // Stops the Yggdrasil node.
 func (c *Core) Stop() {
 	c.log.Println("Stopping...")
-	c.tun.close()
+	c.router.tun.close()
 	c.admin.close()
 }
 
@@ -293,10 +291,10 @@ func (c *Core) GetTUNDefaultIfTAPMode() bool {
 
 // Gets the current TUN/TAP interface name.
 func (c *Core) GetTUNIfName() string {
-	return c.tun.iface.Name()
+	return c.router.tun.iface.Name()
 }
 
 // Gets the current TUN/TAP interface MTU.
 func (c *Core) GetTUNIfMTU() int {
-	return c.tun.mtu
+	return c.router.tun.mtu
 }

@@ -30,6 +30,10 @@ import (
 	"golang.org/x/net/ipv6"
 )
 
+type adapter struct {
+	tunDevice
+}
+
 // The router struct has channels to/from the tun/tap device and a self peer (0), which is how messages are passed between this node and the peers/switch layer.
 // The router's mainLoop goroutine is responsible for managing all information related to the dht, searches, and crypto sessions.
 type router struct {
@@ -39,6 +43,7 @@ type router struct {
 	in        <-chan []byte          // packets we received from the network, link to peer's "out"
 	out       func([]byte)           // packets we're sending to the network, link to peer's "in"
 	toRecv    chan router_recvPacket // packets to handle via recvPacket()
+	tun       tunDevice              // TUN/TAP adapter
 	recv      chan<- []byte          // place where the tun pulls received packets from
 	send      <-chan []byte          // place where the tun puts outgoing packets
 	reset     chan struct{}          // signal that coords changed (re-init sessions/dht)
@@ -75,11 +80,12 @@ func (r *router) init(core *Core) {
 	send := make(chan []byte, 32)
 	r.recv = recv
 	r.send = send
-	r.core.tun.recv = recv
-	r.core.tun.send = send
+	r.tun.recv = recv
+	r.tun.send = send
 	r.reset = make(chan struct{}, 1)
 	r.admin = make(chan func(), 32)
 	r.cryptokey.init(r.core)
+	r.tun.init(r.core)
 	// go r.mainLoop()
 }
 
@@ -279,7 +285,7 @@ func (r *router) sendPacket(bs []byte) {
 			}
 
 			// Create the ICMPv6 response from it
-			icmpv6Buf, err := r.core.tun.icmpv6.create_icmpv6_tun(
+			icmpv6Buf, err := r.tun.icmpv6.create_icmpv6_tun(
 				bs[8:24], bs[24:40],
 				ipv6.ICMPTypeDestinationUnreachable, 1, ptb)
 			if err == nil {
@@ -304,7 +310,7 @@ func (r *router) sendPacket(bs []byte) {
 			}
 
 			// Create the ICMPv6 response from it
-			icmpv6Buf, err := r.core.tun.icmpv6.create_icmpv6_tun(
+			icmpv6Buf, err := r.tun.icmpv6.create_icmpv6_tun(
 				bs[8:24], bs[24:40],
 				ipv6.ICMPTypePacketTooBig, 0, ptb)
 			if err == nil {

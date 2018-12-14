@@ -273,7 +273,7 @@ func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
 	sinfo.mySesPriv = *priv
 	sinfo.myNonce = *newBoxNonce()
 	sinfo.theirMTU = 1280
-	sinfo.myMTU = uint16(ss.core.tun.mtu)
+	sinfo.myMTU = uint16(ss.core.router.tun.mtu)
 	now := time.Now()
 	sinfo.time = now
 	sinfo.mtuTime = now
