@@ -2,11 +2,13 @@ package yggdrasil
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
 	"regexp"
+	"runtime"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
@@ -124,7 +126,15 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	c.admin.init(c, nc.AdminListen)
 
 	c.metadata.init(c)
-	c.metadata.setMetadata(metadataPayload("HIYA, THIS IS METADATA"))
+	m := map[string]string{
+		"buildname":     GetBuildName(),
+		"buildversion":  GetBuildVersion(),
+		"buildplatform": runtime.GOOS,
+		"buildarch":     runtime.GOARCH,
+	}
+	if json, err := json.Marshal(m); err == nil {
+		c.metadata.setMetadata(json)
+	}
 
 	if err := c.tcp.init(c, nc.Listen, nc.ReadTimeout); err != nil {
 		c.log.Println("Failed to start TCP interface")

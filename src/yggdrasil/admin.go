@@ -325,7 +325,12 @@ func (a *admin) init(c *Core, listenaddr string) {
 	a.addHandler("getMeta", []string{"box_pub_key", "coords"}, func(in admin_info) (admin_info, error) {
 		result, err := a.admin_getMeta(in["box_pub_key"].(string), in["coords"].(string))
 		if err == nil {
-			return admin_info{"metadata": string(result)}, nil
+			var m map[string]interface{}
+			if err = json.Unmarshal(result, &m); err == nil {
+				return admin_info{"metadata": m}, nil
+			} else {
+				return admin_info{}, err
+			}
 		} else {
 			return admin_info{}, err
 		}
