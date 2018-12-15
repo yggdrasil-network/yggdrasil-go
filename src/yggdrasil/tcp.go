@@ -57,10 +57,8 @@ func (iface *tcpInterface) setExtraOptions(c net.Conn) {
 		sock.SetNoDelay(true)
 		sock.SetKeepAlive(true)
 		sock.SetKeepAlivePeriod(iface.tcp_timeout)
-		panic("DEBUG testing")
 	// TODO something for socks5
 	default:
-		iface.core.log.Println("Unrecognized connection type: %v", sock)
 	}
 }
 
