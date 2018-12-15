@@ -322,6 +322,23 @@ func (a *admin) init(c *Core, listenaddr string) {
 			return admin_info{}, err
 		}
 	})
+	a.addHandler("getNodeInfo", []string{"box_pub_key", "coords", "[nocache]"}, func(in admin_info) (admin_info, error) {
+		var nocache bool
+		if in["nocache"] != nil {
+			nocache = in["nocache"].(string) == "true"
+		}
+		result, err := a.admin_getNodeInfo(in["box_pub_key"].(string), in["coords"].(string), nocache)
+		if err == nil {
+			var m map[string]interface{}
+			if err = json.Unmarshal(result, &m); err == nil {
+				return admin_info{"nodeinfo": m}, nil
+			} else {
+				return admin_info{}, err
+			}
+		} else {
+			return admin_info{}, err
+		}
+	})
 }
 
 // start runs the admin API socket to listen for / respond to admin API calls.
@@ -798,6 +815,52 @@ func (a *admin) admin_dhtPing(keyString, coordString, targetString string) (dhtR
 		return *res, nil
 	}
 	return dhtRes{}, errors.New(fmt.Sprintf("DHT ping timeout: %s", keyString))
+}
+
+func (a *admin) admin_getNodeInfo(keyString, coordString string, nocache bool) (nodeinfoPayload, error) {
+	var key boxPubKey
+	if keyBytes, err := hex.DecodeString(keyString); err != nil {
+		return nodeinfoPayload{}, err
+	} else {
+		copy(key[:], keyBytes)
+	}
+	if !nocache {
+		if response, err := a.core.nodeinfo.getCachedNodeInfo(key); err == nil {
+			return response, nil
+		}
+	}
+	var coords []byte
+	for _, cstr := range strings.Split(strings.Trim(coordString, "[]"), " ") {
+		if cstr == "" {
+			// Special case, happens if trimmed is the empty string, e.g. this is the root
+			continue
+		}
+		if u64, err := strconv.ParseUint(cstr, 10, 8); err != nil {
+			return nodeinfoPayload{}, err
+		} else {
+			coords = append(coords, uint8(u64))
+		}
+	}
+	response := make(chan *nodeinfoPayload, 1)
+	sendNodeInfoRequest := func() {
+		a.core.nodeinfo.addCallback(key, func(nodeinfo *nodeinfoPayload) {
+			defer func() { recover() }()
+			select {
+			case response <- nodeinfo:
+			default:
+			}
+		})
+		a.core.nodeinfo.sendNodeInfo(key, coords, false)
+	}
+	a.core.router.doAdmin(sendNodeInfoRequest)
+	go func() {
+		time.Sleep(6 * time.Second)
+		close(response)
+	}()
+	for res := range response {
+		return *res, nil
+	}
+	return nodeinfoPayload{}, errors.New(fmt.Sprintf("getNodeInfo timeout: %s", keyString))
 }
 
 // getResponse_dot returns a response for a graphviz dot formatted representation of the known parts of the network.
