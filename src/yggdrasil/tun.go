@@ -10,7 +10,9 @@ import (
 	"github.com/songgao/packets/ethernet"
 	"github.com/yggdrasil-network/water"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 const tun_IPv6_HEADER_LENGTH = 40
@@ -80,7 +82,7 @@ func (tun *tunAdapter) write() error {
 			continue
 		}
 		if tun.iface.IsTAP() {
-			var destAddr address
+			var destAddr address.Address
 			if data[0]&0xf0 == 0x60 {
 				if len(data) < 40 {
 					panic("Tried to send a packet shorter than an IPv6 header...")
@@ -94,7 +96,7 @@ func (tun *tunAdapter) write() error {
 			} else {
 				return errors.New("Invalid address family")
 			}
-			sendndp := func(destAddr address) {
+			sendndp := func(destAddr address.Address) {
 				neigh, known := tun.icmpv6.peermacs[destAddr]
 				known = known && (time.Since(neigh.lastsolicitation).Seconds() < 30)
 				if !known {
@@ -154,7 +156,7 @@ func (tun *tunAdapter) write() error {
 				panic(err)
 			}
 		}
-		util_putBytes(data)
+		util.PutBytes(data)
 	}
 }
 
@@ -191,7 +193,7 @@ func (tun *tunAdapter) read() error {
 			// tun.icmpv6.recv <- b
 			go tun.icmpv6.parse_packet(b)
 		}
-		packet := append(util_getBytes(), buf[o:n]...)
+		packet := append(util.GetBytes(), buf[o:n]...)
 		tun.send <- packet
 	}
 }

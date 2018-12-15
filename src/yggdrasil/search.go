@@ -17,6 +17,8 @@ package yggdrasil
 import (
 	"sort"
 	"time"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 )
 
 // This defines the maximum number of dhtInfo that we keep track of for nodes to query in an ongoing search.
@@ -30,28 +32,28 @@ const search_RETRY_TIME = time.Second
 // Information about an ongoing search.
 // Includes the targed NodeID, the bitmask to match it to an IP, and the list of nodes to visit / already visited.
 type searchInfo struct {
-	dest    NodeID
-	mask    NodeID
+	dest    crypto.NodeID
+	mask    crypto.NodeID
 	time    time.Time
 	packet  []byte
 	toVisit []*dhtInfo
-	visited map[NodeID]bool
+	visited map[crypto.NodeID]bool
 }
 
 // This stores a map of active searches.
 type searches struct {
 	core     *Core
-	searches map[NodeID]*searchInfo
+	searches map[crypto.NodeID]*searchInfo
 }
 
 // Intializes the searches struct.
 func (s *searches) init(core *Core) {
 	s.core = core
-	s.searches = make(map[NodeID]*searchInfo)
+	s.searches = make(map[crypto.NodeID]*searchInfo)
 }
 
 // Creates a new search info, adds it to the searches struct, and returns a pointer to the info.
-func (s *searches) createSearch(dest *NodeID, mask *NodeID) *searchInfo {
+func (s *searches) createSearch(dest *crypto.NodeID, mask *crypto.NodeID) *searchInfo {
 	now := time.Now()
 	for dest, sinfo := range s.searches {
 		if now.Sub(sinfo.time) > time.Minute {
@@ -102,7 +104,7 @@ func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 		}
 	}
 	// Deduplicate
-	vMap := make(map[NodeID]*dhtInfo)
+	vMap := make(map[crypto.NodeID]*dhtInfo)
 	for _, info := range sinfo.toVisit {
 		vMap[*info.getNodeID()] = info
 	}
@@ -163,10 +165,10 @@ func (s *searches) continueSearch(sinfo *searchInfo) {
 }
 
 // Calls create search, and initializes the iterative search parts of the struct before returning it.
-func (s *searches) newIterSearch(dest *NodeID, mask *NodeID) *searchInfo {
+func (s *searches) newIterSearch(dest *crypto.NodeID, mask *crypto.NodeID) *searchInfo {
 	sinfo := s.createSearch(dest, mask)
 	sinfo.toVisit = s.core.dht.lookup(dest, true)
-	sinfo.visited = make(map[NodeID]bool)
+	sinfo.visited = make(map[crypto.NodeID]bool)
 	return sinfo
 }
 
@@ -174,10 +176,10 @@ func (s *searches) newIterSearch(dest *NodeID, mask *NodeID) *searchInfo {
 // If the response is from the target, get/create a session, trigger a session ping, and return true.
 // Otherwise return false.
 func (s *searches) checkDHTRes(info *searchInfo, res *dhtRes) bool {
-	them := getNodeID(&res.Key)
-	var destMasked NodeID
-	var themMasked NodeID
-	for idx := 0; idx < NodeIDLen; idx++ {
+	them := crypto.GetNodeID(&res.Key)
+	var destMasked crypto.NodeID
+	var themMasked crypto.NodeID
+	for idx := 0; idx < crypto.NodeIDLen; idx++ {
 		destMasked[idx] = info.dest[idx] & info.mask[idx]
 		themMasked[idx] = them[idx] & info.mask[idx]
 	}

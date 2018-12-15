@@ -7,6 +7,11 @@ package yggdrasil
 
 // Packet types, as wire_encode_uint64(type) at the start of each packet
 
+import (
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
+)
+
 const (
 	wire_Traffic             = iota // data being routed somewhere, handle for crypto
 	wire_ProtocolTraffic            // protocol traffic, pub keys for crypto
@@ -191,14 +196,14 @@ func wire_chop_uint64(toUInt64 *uint64, fromSlice *[]byte) bool {
 // The wire format for ordinary IPv6 traffic encapsulated by the network.
 type wire_trafficPacket struct {
 	Coords  []byte
-	Handle  handle
-	Nonce   boxNonce
+	Handle  crypto.Handle
+	Nonce   crypto.BoxNonce
 	Payload []byte
 }
 
 // Encodes a wire_trafficPacket into its wire format.
 func (p *wire_trafficPacket) encode() []byte {
-	bs := util_getBytes()
+	bs := util.GetBytes()
 	bs = wire_put_uint64(wire_Traffic, bs)
 	bs = wire_put_coords(p.Coords, bs)
 	bs = append(bs, p.Handle[:]...)
@@ -222,16 +227,16 @@ func (p *wire_trafficPacket) decode(bs []byte) bool {
 	case !wire_chop_slice(p.Nonce[:], &bs):
 		return false
 	}
-	p.Payload = append(util_getBytes(), bs...)
+	p.Payload = append(util.GetBytes(), bs...)
 	return true
 }
 
 // The wire format for protocol traffic, such as dht req/res or session ping/pong packets.
 type wire_protoTrafficPacket struct {
 	Coords  []byte
-	ToKey   boxPubKey
-	FromKey boxPubKey
-	Nonce   boxNonce
+	ToKey   crypto.BoxPubKey
+	FromKey crypto.BoxPubKey
+	Nonce   crypto.BoxNonce
 	Payload []byte
 }
 
@@ -273,7 +278,7 @@ func (p *wire_protoTrafficPacket) decode(bs []byte) bool {
 // The keys themselves are exchanged as part of the connection setup, and then omitted from the packets.
 // The two layer logic is handled in peers.go, but it's kind of ugly.
 type wire_linkProtoTrafficPacket struct {
-	Nonce   boxNonce
+	Nonce   crypto.BoxNonce
 	Payload []byte
 }
 

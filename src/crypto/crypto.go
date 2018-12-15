@@ -1,4 +1,4 @@
-package yggdrasil
+package crypto
 
 /*
 
@@ -16,6 +16,8 @@ import (
 
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/nacl/box"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,20 +30,20 @@ const handleLen = 8
 
 type NodeID [NodeIDLen]byte
 type TreeID [TreeIDLen]byte
-type handle [handleLen]byte
+type Handle [handleLen]byte
 
-func getNodeID(pub *boxPubKey) *NodeID {
+func GetNodeID(pub *BoxPubKey) *NodeID {
 	h := sha512.Sum512(pub[:])
 	return (*NodeID)(&h)
 }
 
-func getTreeID(pub *sigPubKey) *TreeID {
+func GetTreeID(pub *SigPubKey) *TreeID {
 	h := sha512.Sum512(pub[:])
 	return (*TreeID)(&h)
 }
 
-func newHandle() *handle {
-	var h handle
+func NewHandle() *Handle {
+	var h Handle
 	_, err := rand.Read(h[:])
 	if err != nil {
 		panic(err)
@@ -53,17 +55,17 @@ func newHandle() *handle {
 
 // Signatures
 
-const sigPubKeyLen = ed25519.PublicKeySize
-const sigPrivKeyLen = ed25519.PrivateKeySize
-const sigLen = ed25519.SignatureSize
+const SigPubKeyLen = ed25519.PublicKeySize
+const SigPrivKeyLen = ed25519.PrivateKeySize
+const SigLen = ed25519.SignatureSize
 
-type sigPubKey [sigPubKeyLen]byte
-type sigPrivKey [sigPrivKeyLen]byte
-type sigBytes [sigLen]byte
+type SigPubKey [SigPubKeyLen]byte
+type SigPrivKey [SigPrivKeyLen]byte
+type SigBytes [SigLen]byte
 
-func newSigKeys() (*sigPubKey, *sigPrivKey) {
-	var pub sigPubKey
-	var priv sigPrivKey
+func NewSigKeys() (*SigPubKey, *SigPrivKey) {
+	var pub SigPubKey
+	var priv SigPrivKey
 	pubSlice, privSlice, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		panic(err)
@@ -73,14 +75,14 @@ func newSigKeys() (*sigPubKey, *sigPrivKey) {
 	return &pub, &priv
 }
 
-func sign(priv *sigPrivKey, msg []byte) *sigBytes {
-	var sig sigBytes
+func Sign(priv *SigPrivKey, msg []byte) *SigBytes {
+	var sig SigBytes
 	sigSlice := ed25519.Sign(priv[:], msg)
 	copy(sig[:], sigSlice)
 	return &sig
 }
 
-func verify(pub *sigPubKey, msg []byte, sig *sigBytes) bool {
+func Verify(pub *SigPubKey, msg []byte, sig *SigBytes) bool {
 	// Should sig be an array instead of a slice?...
 	// It's fixed size, but
 	return ed25519.Verify(pub[:], msg, sig[:])
@@ -90,60 +92,60 @@ func verify(pub *sigPubKey, msg []byte, sig *sigBytes) bool {
 
 // NaCl-like crypto "box" (curve25519+xsalsa20+poly1305)
 
-const boxPubKeyLen = 32
-const boxPrivKeyLen = 32
-const boxSharedKeyLen = 32
-const boxNonceLen = 24
-const boxOverhead = box.Overhead
+const BoxPubKeyLen = 32
+const BoxPrivKeyLen = 32
+const BoxSharedKeyLen = 32
+const BoxNonceLen = 24
+const BoxOverhead = box.Overhead
 
-type boxPubKey [boxPubKeyLen]byte
-type boxPrivKey [boxPrivKeyLen]byte
-type boxSharedKey [boxSharedKeyLen]byte
-type boxNonce [boxNonceLen]byte
+type BoxPubKey [BoxPubKeyLen]byte
+type BoxPrivKey [BoxPrivKeyLen]byte
+type BoxSharedKey [BoxSharedKeyLen]byte
+type BoxNonce [BoxNonceLen]byte
 
-func newBoxKeys() (*boxPubKey, *boxPrivKey) {
+func NewBoxKeys() (*BoxPubKey, *BoxPrivKey) {
 	pubBytes, privBytes, err := box.GenerateKey(rand.Reader)
 	if err != nil {
 		panic(err)
 	}
-	pub := (*boxPubKey)(pubBytes)
-	priv := (*boxPrivKey)(privBytes)
+	pub := (*BoxPubKey)(pubBytes)
+	priv := (*BoxPrivKey)(privBytes)
 	return pub, priv
 }
 
-func getSharedKey(myPrivKey *boxPrivKey,
-	othersPubKey *boxPubKey) *boxSharedKey {
-	var shared [boxSharedKeyLen]byte
-	priv := (*[boxPrivKeyLen]byte)(myPrivKey)
-	pub := (*[boxPubKeyLen]byte)(othersPubKey)
+func GetSharedKey(myPrivKey *BoxPrivKey,
+	othersPubKey *BoxPubKey) *BoxSharedKey {
+	var shared [BoxSharedKeyLen]byte
+	priv := (*[BoxPrivKeyLen]byte)(myPrivKey)
+	pub := (*[BoxPubKeyLen]byte)(othersPubKey)
 	box.Precompute(&shared, pub, priv)
-	return (*boxSharedKey)(&shared)
+	return (*BoxSharedKey)(&shared)
 }
 
-func boxOpen(shared *boxSharedKey,
+func BoxOpen(shared *BoxSharedKey,
 	boxed []byte,
-	nonce *boxNonce) ([]byte, bool) {
-	out := util_getBytes()
-	s := (*[boxSharedKeyLen]byte)(shared)
-	n := (*[boxNonceLen]byte)(nonce)
+	nonce *BoxNonce) ([]byte, bool) {
+	out := util.GetBytes()
+	s := (*[BoxSharedKeyLen]byte)(shared)
+	n := (*[BoxNonceLen]byte)(nonce)
 	unboxed, success := box.OpenAfterPrecomputation(out, boxed, n, s)
 	return unboxed, success
 }
 
-func boxSeal(shared *boxSharedKey, unboxed []byte, nonce *boxNonce) ([]byte, *boxNonce) {
+func BoxSeal(shared *BoxSharedKey, unboxed []byte, nonce *BoxNonce) ([]byte, *BoxNonce) {
 	if nonce == nil {
-		nonce = newBoxNonce()
+		nonce = NewBoxNonce()
 	}
-	nonce.update()
-	out := util_getBytes()
-	s := (*[boxSharedKeyLen]byte)(shared)
-	n := (*[boxNonceLen]byte)(nonce)
+	nonce.Increment()
+	out := util.GetBytes()
+	s := (*[BoxSharedKeyLen]byte)(shared)
+	n := (*[BoxNonceLen]byte)(nonce)
 	boxed := box.SealAfterPrecomputation(out, unboxed, n, s)
 	return boxed, nonce
 }
 
-func newBoxNonce() *boxNonce {
-	var nonce boxNonce
+func NewBoxNonce() *BoxNonce {
+	var nonce BoxNonce
 	_, err := rand.Read(nonce[:])
 	for ; err == nil && nonce[0] == 0xff; _, err = rand.Read(nonce[:]) {
 		// Make sure nonce isn't too high
@@ -156,7 +158,7 @@ func newBoxNonce() *boxNonce {
 	return &nonce
 }
 
-func (n *boxNonce) update() {
+func (n *BoxNonce) Increment() {
 	oldNonce := *n
 	n[len(n)-1] += 2
 	for i := len(n) - 2; i >= 0; i-- {
@@ -164,4 +166,22 @@ func (n *boxNonce) update() {
 			n[i] += 1
 		}
 	}
+}
+
+// Used to subtract one nonce from another, staying in the range +- 64.
+// This is used by the nonce progression machinery to advance the bitmask of recently received packets (indexed by nonce), or to check the appropriate bit of the bitmask.
+// It's basically part of the machinery that prevents replays and duplicate packets.
+func (n *BoxNonce) Minus(m *BoxNonce) int64 {
+	diff := int64(0)
+	for idx := range n {
+		diff *= 256
+		diff += int64(n[idx]) - int64(m[idx])
+		if diff > 64 {
+			diff = 64
+		}
+		if diff < -64 {
+			diff = -64
+		}
+	}
+	return diff
 }

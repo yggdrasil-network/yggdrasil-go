@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 
@@ -314,7 +316,7 @@ func (a *admin) init(c *Core, listenaddr string) {
 					"box_pub_key": hex.EncodeToString(dinfo.key[:]),
 					"coords":      fmt.Sprintf("%v", dinfo.coords),
 				}
-				addr := net.IP(address_addrForNodeID(getNodeID(&dinfo.key))[:]).String()
+				addr := net.IP(address.AddrForNodeID(crypto.GetNodeID(&dinfo.key))[:]).String()
 				infos[addr] = info
 			}
 			return admin_info{"nodes": infos}, nil
@@ -536,7 +538,7 @@ func (a *admin) startTunWithMTU(ifname string, iftapmode bool, ifmtu int) error 
 	_ = a.core.router.tun.close()
 	// Then reconfigure and start it
 	addr := a.core.router.addr
-	straddr := fmt.Sprintf("%s/%v", net.IP(addr[:]).String(), 8*len(address_prefix)-1)
+	straddr := fmt.Sprintf("%s/%v", net.IP(addr[:]).String(), 8*len(address.GetPrefix())-1)
 	if ifname != "none" {
 		err := a.core.router.tun.setup(ifname, iftapmode, straddr, ifmtu)
 		if err != nil {
@@ -590,7 +592,7 @@ func (a *admin) getData_getPeers() []admin_nodeInfo {
 	sort.Slice(ps, func(i, j int) bool { return ps[i] < ps[j] })
 	for _, port := range ps {
 		p := ports[port]
-		addr := *address_addrForNodeID(getNodeID(&p.box))
+		addr := *address.AddrForNodeID(crypto.GetNodeID(&p.box))
 		info := admin_nodeInfo{
 			{"ip", net.IP(addr[:]).String()},
 			{"port", port},
@@ -615,7 +617,7 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 		if !isIn {
 			continue
 		}
-		addr := *address_addrForNodeID(getNodeID(&peer.box))
+		addr := *address.AddrForNodeID(crypto.GetNodeID(&peer.box))
 		coords := elem.locator.getCoords()
 		info := admin_nodeInfo{
 			{"ip", net.IP(addr[:]).String()},
@@ -673,7 +675,7 @@ func (a *admin) getData_getDHT() []admin_nodeInfo {
 			return dht_ordered(&a.core.dht.nodeID, dhtInfos[i].getNodeID(), dhtInfos[j].getNodeID())
 		})
 		for _, v := range dhtInfos {
-			addr := *address_addrForNodeID(v.getNodeID())
+			addr := *address.AddrForNodeID(v.getNodeID())
 			info := admin_nodeInfo{
 				{"ip", net.IP(addr[:]).String()},
 				{"coords", fmt.Sprint(v.coords)},
@@ -723,7 +725,7 @@ func (a *admin) getAllowedEncryptionPublicKeys() []string {
 func (a *admin) addAllowedEncryptionPublicKey(bstr string) (err error) {
 	boxBytes, err := hex.DecodeString(bstr)
 	if err == nil {
-		var box boxPubKey
+		var box crypto.BoxPubKey
 		copy(box[:], boxBytes)
 		a.core.peers.addAllowedEncryptionPublicKey(&box)
 	}
@@ -735,7 +737,7 @@ func (a *admin) addAllowedEncryptionPublicKey(bstr string) (err error) {
 func (a *admin) removeAllowedEncryptionPublicKey(bstr string) (err error) {
 	boxBytes, err := hex.DecodeString(bstr)
 	if err == nil {
-		var box boxPubKey
+		var box crypto.BoxPubKey
 		copy(box[:], boxBytes)
 		a.core.peers.removeAllowedEncryptionPublicKey(&box)
 	}
@@ -744,7 +746,7 @@ func (a *admin) removeAllowedEncryptionPublicKey(bstr string) (err error) {
 
 // Send a DHT ping to the node with the provided key and coords, optionally looking up the specified target NodeID.
 func (a *admin) admin_dhtPing(keyString, coordString, targetString string) (dhtRes, error) {
-	var key boxPubKey
+	var key crypto.BoxPubKey
 	if keyBytes, err := hex.DecodeString(keyString); err != nil {
 		return dhtRes{}, err
 	} else {
@@ -775,7 +777,7 @@ func (a *admin) admin_dhtPing(keyString, coordString, targetString string) (dhtR
 	} else if len(targetBytes) != len(target) {
 		return dhtRes{}, errors.New("Incorrect target NodeID length")
 	} else {
-		target = NodeID{}
+		var target crypto.NodeID
 		copy(target[:], targetBytes)
 	}
 	rq := dhtReqKey{info.key, target}
