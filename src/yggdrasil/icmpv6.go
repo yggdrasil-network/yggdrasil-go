@@ -24,7 +24,7 @@ type macAddress [6]byte
 const len_ETHER = 14
 
 type icmpv6 struct {
-	tun      *tunDevice
+	tun      *tunAdapter
 	mylladdr net.IP
 	mymac    macAddress
 	peermacs map[address]neighbor
@@ -57,7 +57,7 @@ func ipv6Header_Marshal(h *ipv6.Header) ([]byte, error) {
 // Initialises the ICMPv6 module by assigning our link-local IPv6 address and
 // our MAC address. ICMPv6 messages will always appear to originate from these
 // addresses.
-func (i *icmpv6) init(t *tunDevice) {
+func (i *icmpv6) init(t *tunAdapter) {
 	i.tun = t
 	i.peermacs = make(map[address]neighbor)
 

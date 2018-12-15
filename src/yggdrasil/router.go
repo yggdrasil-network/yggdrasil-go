@@ -39,6 +39,8 @@ type router struct {
 	in        <-chan []byte          // packets we received from the network, link to peer's "out"
 	out       func([]byte)           // packets we're sending to the network, link to peer's "in"
 	toRecv    chan router_recvPacket // packets to handle via recvPacket()
+	tun       tunAdapter             // TUN/TAP adapter
+	adapters  []Adapter              // Other adapters
 	recv      chan<- []byte          // place where the tun pulls received packets from
 	send      <-chan []byte          // place where the tun puts outgoing packets
 	reset     chan struct{}          // signal that coords changed (re-init sessions/dht)
@@ -75,12 +77,10 @@ func (r *router) init(core *Core) {
 	send := make(chan []byte, 32)
 	r.recv = recv
 	r.send = send
-	r.core.tun.recv = recv
-	r.core.tun.send = send
 	r.reset = make(chan struct{}, 1)
 	r.admin = make(chan func(), 32)
 	r.cryptokey.init(r.core)
-	// go r.mainLoop()
+	r.tun.init(r.core, send, recv)
 }
 
 // Starts the mainLoop goroutine.
@@ -267,25 +267,6 @@ func (r *router) sendPacket(bs []byte) {
 		// Drop packets if the session MTU is 0 - this means that one or other
 		// side probably has their TUN adapter disabled
 		if sinfo.getMTU() == 0 {
-			// Get the size of the oversized payload, up to a max of 900 bytes
-			window := 900
-			if len(bs) < window {
-				window = len(bs)
-			}
-
-			// Create the Destination Unreachable response
-			ptb := &icmp.DstUnreach{
-				Data: bs[:window],
-			}
-
-			// Create the ICMPv6 response from it
-			icmpv6Buf, err := r.core.tun.icmpv6.create_icmpv6_tun(
-				bs[8:24], bs[24:40],
-				ipv6.ICMPTypeDestinationUnreachable, 1, ptb)
-			if err == nil {
-				r.recv <- icmpv6Buf
-			}
-
 			// Don't continue - drop the packet
 			return
 		}
@@ -304,7 +285,7 @@ func (r *router) sendPacket(bs []byte) {
 			}
 
 			// Create the ICMPv6 response from it
-			icmpv6Buf, err := r.core.tun.icmpv6.create_icmpv6_tun(
+			icmpv6Buf, err := r.tun.icmpv6.create_icmpv6_tun(
 				bs[8:24], bs[24:40],
 				ipv6.ICMPTypePacketTooBig, 0, ptb)
 			if err == nil {
@@ -428,6 +409,10 @@ func (r *router) handleProto(packet []byte) {
 		r.handlePing(bs, &p.FromKey)
 	case wire_SessionPong:
 		r.handlePong(bs, &p.FromKey)
+	case wire_NodeInfoRequest:
+		fallthrough
+	case wire_NodeInfoResponse:
+		r.handleNodeInfo(bs, &p.FromKey)
 	case wire_DHTLookupRequest:
 		r.handleDHTReq(bs, &p.FromKey)
 	case wire_DHTLookupResponse:
@@ -470,6 +455,16 @@ func (r *router) handleDHTRes(bs []byte, fromKey *boxPubKey) {
 	}
 	res.Key = *fromKey
 	r.core.dht.handleRes(&res)
+}
+
+// Decodes nodeinfo request
+func (r *router) handleNodeInfo(bs []byte, fromKey *boxPubKey) {
+	req := nodeinfoReqRes{}
+	if !req.decode(bs) {
+		return
+	}
+	req.SendPermPub = *fromKey
+	r.core.nodeinfo.handleNodeInfo(&req)
 }
 
 // Passed a function to call.

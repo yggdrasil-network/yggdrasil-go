@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"strings"
 	"syscall"
 	"time"
 
@@ -185,6 +186,35 @@ func main() {
 					if _, ok := dat[to]; !ok {
 						dat[to] = dat[from]
 					}
+				}
+			}
+		}
+		// Check to see if the peers are in a parsable format, if not then default
+		// them to the TCP scheme
+		if peers, ok := dat["Peers"].([]interface{}); ok {
+			for index, peer := range peers {
+				uri := peer.(string)
+				if strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, "socks://") {
+					continue
+				}
+				if strings.HasPrefix(uri, "tcp:") {
+					uri = uri[4:]
+				}
+				(dat["Peers"].([]interface{}))[index] = "tcp://" + uri
+			}
+		}
+		// Now do the same with the interface peers
+		if interfacepeers, ok := dat["InterfacePeers"].(map[string]interface{}); ok {
+			for intf, peers := range interfacepeers {
+				for index, peer := range peers.([]interface{}) {
+					uri := peer.(string)
+					if strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, "socks://") {
+						continue
+					}
+					if strings.HasPrefix(uri, "tcp:") {
+						uri = uri[4:]
+					}
+					((dat["InterfacePeers"].(map[string]interface{}))[intf]).([]interface{})[index] = "tcp://" + uri
 				}
 			}
 		}

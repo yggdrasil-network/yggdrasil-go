@@ -13,7 +13,7 @@ import (
 )
 
 // Configures the TAP adapter with the correct IPv6 address and MTU.
-func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
+func (tun *tunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	var config water.Config
 	if iftapmode {
 		config = water.Config{DeviceType: water.TAP}
@@ -48,7 +48,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 // is used to do this, so there is not a hard requirement on "ip" or "ifconfig"
 // to exist on the system, but this will fail if Netlink is not present in the
 // kernel (it nearly always is).
-func (tun *tunDevice) setupAddress(addr string) error {
+func (tun *tunAdapter) setupAddress(addr string) error {
 	// Set address
 	var netIF *net.Interface
 	ifces, err := net.Interfaces()

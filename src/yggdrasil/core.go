@@ -28,10 +28,10 @@ type Core struct {
 	sessions    sessions
 	router      router
 	dht         dht
-	tun         tunDevice
 	admin       admin
 	searches    searches
 	multicast   multicast
+	nodeinfo    nodeinfo
 	tcp         tcpInterface
 	log         *log.Logger
 	ifceExpr    []*regexp.Regexp // the zone of link-local IPv6 peers must match this
@@ -59,7 +59,6 @@ func (c *Core) init(bpub *boxPubKey,
 	c.peers.init(c)
 	c.router.init(c)
 	c.switchTable.init(c, c.sigPub) // TODO move before peers? before router?
-	c.tun.init(c)
 }
 
 // Get the current build name. This is usually injected if built from git,
@@ -123,6 +122,9 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 
 	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv)
 	c.admin.init(c, nc.AdminListen)
+
+	c.nodeinfo.init(c)
+	c.nodeinfo.setNodeInfo(nc.NodeInfo)
 
 	if err := c.tcp.init(c, nc.Listen, nc.ReadTimeout); err != nil {
 		c.log.Println("Failed to start TCP interface")
@@ -188,7 +190,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	}
 
 	ip := net.IP(c.router.addr[:]).String()
-	if err := c.tun.start(nc.IfName, nc.IfTAPMode, fmt.Sprintf("%s/%d", ip, 8*len(address_prefix)-1), nc.IfMTU); err != nil {
+	if err := c.router.tun.start(nc.IfName, nc.IfTAPMode, fmt.Sprintf("%s/%d", ip, 8*len(address_prefix)-1), nc.IfMTU); err != nil {
 		c.log.Println("Failed to start TUN/TAP")
 		return err
 	}
@@ -200,7 +202,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 // Stops the Yggdrasil node.
 func (c *Core) Stop() {
 	c.log.Println("Stopping...")
-	c.tun.close()
+	c.router.tun.close()
 	c.admin.close()
 }
 
@@ -237,6 +239,16 @@ func (c *Core) GetSubnet() *net.IPNet {
 	subnet := address_subnetForNodeID(c.GetNodeID())[:]
 	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
 	return &net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
+}
+
+// Gets the nodeinfo.
+func (c *Core) GetNodeInfo() nodeinfoPayload {
+	return c.nodeinfo.getNodeInfo()
+}
+
+// Sets the nodeinfo.
+func (c *Core) SetNodeInfo(nodeinfo interface{}) {
+	c.nodeinfo.setNodeInfo(nodeinfo)
 }
 
 // Sets the output logger of the Yggdrasil node after startup. This may be
@@ -293,10 +305,10 @@ func (c *Core) GetTUNDefaultIfTAPMode() bool {
 
 // Gets the current TUN/TAP interface name.
 func (c *Core) GetTUNIfName() string {
-	return c.tun.iface.Name()
+	return c.router.tun.iface.Name()
 }
 
 // Gets the current TUN/TAP interface MTU.
 func (c *Core) GetTUNIfMTU() int {
-	return c.tun.mtu
+	return c.router.tun.mtu
 }
