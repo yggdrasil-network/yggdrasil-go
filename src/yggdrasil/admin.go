@@ -322,12 +322,12 @@ func (a *admin) init(c *Core, listenaddr string) {
 			return admin_info{}, err
 		}
 	})
-	a.addHandler("getMeta", []string{"box_pub_key", "coords", "[nocache]"}, func(in admin_info) (admin_info, error) {
+	a.addHandler("getMetadata", []string{"box_pub_key", "coords", "[nocache]"}, func(in admin_info) (admin_info, error) {
 		var nocache bool
 		if in["nocache"] != nil {
 			nocache = in["nocache"].(string) == "true"
 		}
-		result, err := a.admin_getMeta(in["box_pub_key"].(string), in["coords"].(string), nocache)
+		result, err := a.admin_getMetadata(in["box_pub_key"].(string), in["coords"].(string), nocache)
 		if err == nil {
 			var m map[string]interface{}
 			if err = json.Unmarshal(result, &m); err == nil {
@@ -817,7 +817,7 @@ func (a *admin) admin_dhtPing(keyString, coordString, targetString string) (dhtR
 	return dhtRes{}, errors.New(fmt.Sprintf("DHT ping timeout: %s", keyString))
 }
 
-func (a *admin) admin_getMeta(keyString, coordString string, nocache bool) (metadataPayload, error) {
+func (a *admin) admin_getMetadata(keyString, coordString string, nocache bool) (metadataPayload, error) {
 	var key boxPubKey
 	if keyBytes, err := hex.DecodeString(keyString); err != nil {
 		return metadataPayload{}, err
@@ -860,7 +860,7 @@ func (a *admin) admin_getMeta(keyString, coordString string, nocache bool) (meta
 	for res := range response {
 		return *res, nil
 	}
-	return metadataPayload{}, errors.New(fmt.Sprintf("getMeta timeout: %s", keyString))
+	return metadataPayload{}, errors.New(fmt.Sprintf("getMetadata timeout: %s", keyString))
 }
 
 // getResponse_dot returns a response for a graphviz dot formatted representation of the known parts of the network.
