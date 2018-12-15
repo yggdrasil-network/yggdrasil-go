@@ -54,14 +54,6 @@ type sessionPing struct {
 	MTU         uint16
 }
 
-// Represents a session metadata packet.
-type sessionMeta struct {
-	SendPermPub boxPubKey // Sender's permanent key
-	SendCoords  []byte    // Sender's coords
-	IsResponse  bool
-	Metadata    metadataPayload
-}
-
 // Updates session info in response to a ping, after checking that the ping is OK.
 // Returns true if the session was updated, or false otherwise.
 func (s *sessionInfo) update(p *sessionPing) bool {

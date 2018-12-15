@@ -16,8 +16,8 @@ const (
 	wire_SessionPong                // inside protocol traffic header
 	wire_DHTLookupRequest           // inside protocol traffic header
 	wire_DHTLookupResponse          // inside protocol traffic header
-	wire_SessionMetaRequest         // inside protocol traffic header
-	wire_SessionMetaResponse        // inside protocol traffic header
+	wire_NodeInfoRequest            // inside protocol traffic header
+	wire_NodeInfoResponse           // inside protocol traffic header
 )
 
 // Calls wire_put_uint64 on a nil slice.
@@ -355,39 +355,39 @@ func (p *sessionPing) decode(bs []byte) bool {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Encodes a sessionMeta into its wire format.
-func (p *sessionMeta) encode() []byte {
+// Encodes a nodeinfoReqRes into its wire format.
+func (p *nodeinfoReqRes) encode() []byte {
 	var pTypeVal uint64
 	if p.IsResponse {
-		pTypeVal = wire_SessionMetaResponse
+		pTypeVal = wire_NodeInfoResponse
 	} else {
-		pTypeVal = wire_SessionMetaRequest
+		pTypeVal = wire_NodeInfoRequest
 	}
 	bs := wire_encode_uint64(pTypeVal)
 	bs = wire_put_coords(p.SendCoords, bs)
-	if pTypeVal == wire_SessionMetaResponse {
-		bs = append(bs, p.Metadata...)
+	if pTypeVal == wire_NodeInfoResponse {
+		bs = append(bs, p.NodeInfo...)
 	}
 	return bs
 }
 
-// Decodes an encoded sessionMeta into the struct, returning true if successful.
-func (p *sessionMeta) decode(bs []byte) bool {
+// Decodes an encoded nodeinfoReqRes into the struct, returning true if successful.
+func (p *nodeinfoReqRes) decode(bs []byte) bool {
 	var pType uint64
 	switch {
 	case !wire_chop_uint64(&pType, &bs):
 		return false
-	case pType != wire_SessionMetaRequest && pType != wire_SessionMetaResponse:
+	case pType != wire_NodeInfoRequest && pType != wire_NodeInfoResponse:
 		return false
 	case !wire_chop_coords(&p.SendCoords, &bs):
 		return false
 	}
-	if p.IsResponse = pType == wire_SessionMetaResponse; p.IsResponse {
+	if p.IsResponse = pType == wire_NodeInfoResponse; p.IsResponse {
 		if len(bs) == 0 {
 			return false
 		}
-		p.Metadata = make(metadataPayload, len(bs))
-		if !wire_chop_slice(p.Metadata[:], &bs) {
+		p.NodeInfo = make(nodeinfoPayload, len(bs))
+		if !wire_chop_slice(p.NodeInfo[:], &bs) {
 			return false
 		}
 	}

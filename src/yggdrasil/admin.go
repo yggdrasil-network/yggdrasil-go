@@ -322,16 +322,16 @@ func (a *admin) init(c *Core, listenaddr string) {
 			return admin_info{}, err
 		}
 	})
-	a.addHandler("getMetadata", []string{"box_pub_key", "coords", "[nocache]"}, func(in admin_info) (admin_info, error) {
+	a.addHandler("getNodeInfo", []string{"box_pub_key", "coords", "[nocache]"}, func(in admin_info) (admin_info, error) {
 		var nocache bool
 		if in["nocache"] != nil {
 			nocache = in["nocache"].(string) == "true"
 		}
-		result, err := a.admin_getMetadata(in["box_pub_key"].(string), in["coords"].(string), nocache)
+		result, err := a.admin_getNodeInfo(in["box_pub_key"].(string), in["coords"].(string), nocache)
 		if err == nil {
 			var m map[string]interface{}
 			if err = json.Unmarshal(result, &m); err == nil {
-				return admin_info{"metadata": m}, nil
+				return admin_info{"nodeinfo": m}, nil
 			} else {
 				return admin_info{}, err
 			}
@@ -817,15 +817,15 @@ func (a *admin) admin_dhtPing(keyString, coordString, targetString string) (dhtR
 	return dhtRes{}, errors.New(fmt.Sprintf("DHT ping timeout: %s", keyString))
 }
 
-func (a *admin) admin_getMetadata(keyString, coordString string, nocache bool) (metadataPayload, error) {
+func (a *admin) admin_getNodeInfo(keyString, coordString string, nocache bool) (nodeinfoPayload, error) {
 	var key boxPubKey
 	if keyBytes, err := hex.DecodeString(keyString); err != nil {
-		return metadataPayload{}, err
+		return nodeinfoPayload{}, err
 	} else {
 		copy(key[:], keyBytes)
 	}
 	if !nocache {
-		if response, err := a.core.metadata.getCachedMetadata(key); err == nil {
+		if response, err := a.core.nodeinfo.getCachedNodeInfo(key); err == nil {
 			return response, nil
 		}
 	}
@@ -836,23 +836,23 @@ func (a *admin) admin_getMetadata(keyString, coordString string, nocache bool) (
 			continue
 		}
 		if u64, err := strconv.ParseUint(cstr, 10, 8); err != nil {
-			return metadataPayload{}, err
+			return nodeinfoPayload{}, err
 		} else {
 			coords = append(coords, uint8(u64))
 		}
 	}
-	response := make(chan *metadataPayload, 1)
-	sendMetaRequest := func() {
-		a.core.metadata.addCallback(key, func(meta *metadataPayload) {
+	response := make(chan *nodeinfoPayload, 1)
+	sendNodeInfoRequest := func() {
+		a.core.nodeinfo.addCallback(key, func(nodeinfo *nodeinfoPayload) {
 			defer func() { recover() }()
 			select {
-			case response <- meta:
+			case response <- nodeinfo:
 			default:
 			}
 		})
-		a.core.metadata.sendMetadata(key, coords, false)
+		a.core.nodeinfo.sendNodeInfo(key, coords, false)
 	}
-	a.core.router.doAdmin(sendMetaRequest)
+	a.core.router.doAdmin(sendNodeInfoRequest)
 	go func() {
 		time.Sleep(6 * time.Second)
 		close(response)
@@ -860,7 +860,7 @@ func (a *admin) admin_getMetadata(keyString, coordString string, nocache bool) (
 	for res := range response {
 		return *res, nil
 	}
-	return metadataPayload{}, errors.New(fmt.Sprintf("getMetadata timeout: %s", keyString))
+	return nodeinfoPayload{}, errors.New(fmt.Sprintf("getNodeInfo timeout: %s", keyString))
 }
 
 // getResponse_dot returns a response for a graphviz dot formatted representation of the known parts of the network.

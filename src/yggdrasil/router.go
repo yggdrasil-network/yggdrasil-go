@@ -409,10 +409,10 @@ func (r *router) handleProto(packet []byte) {
 		r.handlePing(bs, &p.FromKey)
 	case wire_SessionPong:
 		r.handlePong(bs, &p.FromKey)
-	case wire_SessionMetaRequest:
+	case wire_NodeInfoRequest:
 		fallthrough
-	case wire_SessionMetaResponse:
-		r.handleMetadata(bs, &p.FromKey)
+	case wire_NodeInfoResponse:
+		r.handleNodeInfo(bs, &p.FromKey)
 	case wire_DHTLookupRequest:
 		r.handleDHTReq(bs, &p.FromKey)
 	case wire_DHTLookupResponse:
@@ -457,14 +457,14 @@ func (r *router) handleDHTRes(bs []byte, fromKey *boxPubKey) {
 	r.core.dht.handleRes(&res)
 }
 
-// Decodes meta request
-func (r *router) handleMetadata(bs []byte, fromKey *boxPubKey) {
-	req := sessionMeta{}
+// Decodes nodeinfo request
+func (r *router) handleNodeInfo(bs []byte, fromKey *boxPubKey) {
+	req := nodeinfoReqRes{}
 	if !req.decode(bs) {
 		return
 	}
 	req.SendPermPub = *fromKey
-	r.core.metadata.handleMetadata(&req)
+	r.core.nodeinfo.handleNodeInfo(&req)
 }
 
 // Passed a function to call.
