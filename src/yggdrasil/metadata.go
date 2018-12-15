@@ -10,7 +10,9 @@ type metadata struct {
 	myMetadata      metadataPayload
 	myMetadataMutex sync.RWMutex
 	callbacks       map[boxPubKey]metadataCallback
+	callbacksMutex  sync.Mutex
 	cache           map[boxPubKey]metadataPayload
+	cacheMutex      sync.RWMutex
 }
 
 type metadataPayload []byte
@@ -38,8 +40,20 @@ func (m *metadata) init(core *Core) {
 	}()
 }
 
+// Add a callback
+func (m *metadata) addCallback(sender boxPubKey, call func(meta *metadataPayload)) {
+	m.callbacksMutex.Lock()
+	defer m.callbacksMutex.Unlock()
+	m.callbacks[sender] = metadataCallback{
+		created: time.Now(),
+		call:    call,
+	}
+}
+
 // Handles the callback, if there is one
 func (m *metadata) callback(sender boxPubKey, meta metadataPayload) {
+	m.callbacksMutex.Lock()
+	defer m.callbacksMutex.Unlock()
 	if callback, ok := m.callbacks[sender]; ok {
 		callback.call(&meta)
 		delete(m.callbacks, sender)
@@ -60,10 +74,28 @@ func (m *metadata) setMetadata(meta metadataPayload) {
 	m.myMetadata = meta
 }
 
+// Add metadata into the cache for a node
+func (m *metadata) addCachedMetadata(key boxPubKey, payload metadataPayload) {
+	m.cacheMutex.Lock()
+	defer m.cacheMutex.Unlock()
+	m.cache[key] = payload
+}
+
+// Get a metadata entry from the cache
+func (m *metadata) getCachedMetadata(key boxPubKey) metadataPayload {
+	m.cacheMutex.RLock()
+	defer m.cacheMutex.RUnlock()
+	if meta, ok := m.cache[key]; ok {
+		return meta
+	}
+	return metadataPayload{}
+}
+
 // Handles a meta request/response.
 func (m *metadata) handleMetadata(meta *sessionMeta) {
 	if meta.IsResponse {
-		m.core.metadata.callback(meta.SendPermPub, meta.Metadata)
+		m.callback(meta.SendPermPub, meta.Metadata)
+		m.addCachedMetadata(meta.SendPermPub, meta.Metadata)
 	} else {
 		m.sendMetadata(meta.SendPermPub, meta.SendCoords, true)
 	}

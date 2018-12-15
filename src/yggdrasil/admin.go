@@ -829,16 +829,13 @@ func (a *admin) admin_getMeta(keyString, coordString string) (metadataPayload, e
 	}
 	response := make(chan *metadataPayload, 1)
 	sendMetaRequest := func() {
-		a.core.metadata.callbacks[key] = metadataCallback{
-			created: time.Now(),
-			call: func(meta *metadataPayload) {
-				defer func() { recover() }()
-				select {
-				case response <- meta:
-				default:
-				}
-			},
-		}
+		a.core.metadata.addCallback(key, func(meta *metadataPayload) {
+			defer func() { recover() }()
+			select {
+			case response <- meta:
+			default:
+			}
+		})
 		a.core.metadata.sendMetadata(key, coords, false)
 	}
 	a.core.router.doAdmin(sendMetaRequest)
