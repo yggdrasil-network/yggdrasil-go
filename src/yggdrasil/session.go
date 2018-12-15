@@ -7,44 +7,40 @@ package yggdrasil
 import (
 	"bytes"
 	"encoding/hex"
-	"sync"
 	"time"
 )
 
 // All the information we know about an active session.
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
 type sessionInfo struct {
-	core          *Core
-	theirAddr     address
-	theirSubnet   subnet
-	theirPermPub  boxPubKey
-	theirSesPub   boxPubKey
-	mySesPub      boxPubKey
-	mySesPriv     boxPrivKey
-	sharedSesKey  boxSharedKey // derived from session keys
-	theirHandle   handle
-	myHandle      handle
-	theirNonce    boxNonce
-	myNonce       boxNonce
-	metaReqTime   time.Time
-	metaResTime   time.Time
-	theirMetadata metadata
-	theirMTU      uint16
-	myMTU         uint16
-	wasMTUFixed   bool      // Was the MTU fixed by a receive error?
-	time          time.Time // Time we last received a packet
-	coords        []byte    // coords of destination
-	packet        []byte    // a buffered packet, sent immediately on ping/pong
-	init          bool      // Reset if coords change
-	send          chan []byte
-	recv          chan *wire_trafficPacket
-	nonceMask     uint64
-	tstamp        int64     // tstamp from their last session ping, replay attack mitigation
-	mtuTime       time.Time // time myMTU was last changed
-	pingTime      time.Time // time the first ping was sent since the last received packet
-	pingSend      time.Time // time the last ping was sent
-	bytesSent     uint64    // Bytes of real traffic sent in this session
-	bytesRecvd    uint64    // Bytes of real traffic received in this session
+	core         *Core
+	theirAddr    address
+	theirSubnet  subnet
+	theirPermPub boxPubKey
+	theirSesPub  boxPubKey
+	mySesPub     boxPubKey
+	mySesPriv    boxPrivKey
+	sharedSesKey boxSharedKey // derived from session keys
+	theirHandle  handle
+	myHandle     handle
+	theirNonce   boxNonce
+	myNonce      boxNonce
+	theirMTU     uint16
+	myMTU        uint16
+	wasMTUFixed  bool      // Was the MTU fixed by a receive error?
+	time         time.Time // Time we last received a packet
+	coords       []byte    // coords of destination
+	packet       []byte    // a buffered packet, sent immediately on ping/pong
+	init         bool      // Reset if coords change
+	send         chan []byte
+	recv         chan *wire_trafficPacket
+	nonceMask    uint64
+	tstamp       int64     // tstamp from their last session ping, replay attack mitigation
+	mtuTime      time.Time // time myMTU was last changed
+	pingTime     time.Time // time the first ping was sent since the last received packet
+	pingSend     time.Time // time the last ping was sent
+	bytesSent    uint64    // Bytes of real traffic sent in this session
+	bytesRecvd   uint64    // Bytes of real traffic received in this session
 }
 
 // Represents a session ping/pong packet, andincludes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
@@ -61,11 +57,10 @@ type sessionPing struct {
 // Represents a session metadata packet.
 type sessionMeta struct {
 	SendPermPub boxPubKey // Sender's permanent key
+	SendCoords  []byte    // Sender's coords
 	IsResponse  bool
-	Metadata    metadata
+	Metadata    metadataPayload
 }
-
-type metadata []byte
 
 // Updates session info in response to a ping, after checking that the ping is OK.
 // Returns true if the session was updated, or false otherwise.
@@ -128,9 +123,6 @@ type sessions struct {
 	sessionFirewallAlwaysAllowsOutbound bool
 	sessionFirewallWhitelist            []string
 	sessionFirewallBlacklist            []string
-	// Metadata for this node
-	myMetadata      metadata
-	myMetadataMutex sync.RWMutex
 }
 
 // Initializes the session struct.
@@ -143,20 +135,6 @@ func (ss *sessions) init(core *Core) {
 	ss.addrToPerm = make(map[address]*boxPubKey)
 	ss.subnetToPerm = make(map[subnet]*boxPubKey)
 	ss.lastCleanup = time.Now()
-}
-
-// Get the metadata
-func (ss *sessions) getMetadata() metadata {
-	ss.myMetadataMutex.RLock()
-	defer ss.myMetadataMutex.RUnlock()
-	return ss.myMetadata
-}
-
-// Set the metadata
-func (ss *sessions) setMetadata(meta metadata) {
-	ss.myMetadataMutex.Lock()
-	defer ss.myMetadataMutex.Unlock()
-	ss.myMetadata = meta
 }
 
 // Enable or disable the session firewall
@@ -495,60 +473,6 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 		var bs []byte
 		bs, sinfo.packet = sinfo.packet, nil
 		ss.core.router.sendPacket(bs)
-	}
-	// This requests metadata from the remote side fairly quickly after
-	// establishing the session, and if other time constraints apply (no more
-	// often than 15 minutes since receiving the last metadata)
-	//if time.Since(sinfo.metaResTime).Minutes() > 15 {
-	//	if time.Since(sinfo.metaReqTime).Minutes() > 1 {
-	//		ss.sendMetadata(sinfo, false)
-	//	}
-	//}
-}
-
-func (ss *sessions) sendMetadata(sinfo *sessionInfo, isResponse bool) {
-	ss.myMetadataMutex.RLock()
-	meta := sessionMeta{
-		IsResponse: isResponse,
-		Metadata:   ss.myMetadata,
-	}
-	ss.myMetadataMutex.RUnlock()
-	bs := meta.encode()
-	shared := ss.getSharedKey(&ss.core.boxPriv, &sinfo.theirPermPub)
-	payload, nonce := boxSeal(shared, bs, nil)
-	p := wire_protoTrafficPacket{
-		Coords:  sinfo.coords,
-		ToKey:   sinfo.theirPermPub,
-		FromKey: ss.core.boxPub,
-		Nonce:   *nonce,
-		Payload: payload,
-	}
-	packet := p.encode()
-	ss.core.router.out(packet)
-	if !isResponse {
-		sinfo.metaReqTime = time.Now()
-	}
-}
-
-// Handles a meta request/response.
-func (ss *sessions) handleMetadata(meta *sessionMeta) {
-	// Get the corresponding session (or create a new session)
-	sinfo, isIn := ss.getByTheirPerm(&meta.SendPermPub)
-	// Check the session firewall
-	if !isIn && ss.sessionFirewallEnabled {
-		if !ss.isSessionAllowed(&meta.SendPermPub, false) {
-			return
-		}
-	}
-	if !isIn || sinfo.timedout() {
-		return
-	}
-	if meta.IsResponse {
-		sinfo.theirMetadata = meta.Metadata
-		sinfo.metaResTime = time.Now()
-
-	} else {
-		ss.sendMetadata(sinfo, true)
 	}
 }
 

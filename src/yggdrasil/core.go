@@ -32,6 +32,7 @@ type Core struct {
 	admin       admin
 	searches    searches
 	multicast   multicast
+	metadata    metadata
 	tcp         tcpInterface
 	log         *log.Logger
 	ifceExpr    []*regexp.Regexp // the zone of link-local IPv6 peers must match this
@@ -124,6 +125,9 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv)
 	c.admin.init(c, nc.AdminListen)
 
+	c.metadata.init(c)
+	c.metadata.setMetadata(metadataPayload("HIYA, THIS IS METADATA"))
+
 	if err := c.tcp.init(c, nc.Listen, nc.ReadTimeout); err != nil {
 		c.log.Println("Failed to start TCP interface")
 		return err
@@ -138,7 +142,6 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
-	c.sessions.setMetadata(metadata("HIYA, THIS IS METADATA"))
 	c.sessions.setSessionFirewallState(nc.SessionFirewall.Enable)
 	c.sessions.setSessionFirewallDefaults(
 		nc.SessionFirewall.AllowFromDirect,
@@ -241,13 +244,13 @@ func (c *Core) GetSubnet() *net.IPNet {
 }
 
 // Gets the node metadata.
-func (c *Core) GetMetadata() metadata {
-	return c.sessions.getMetadata()
+func (c *Core) GetMetadata() metadataPayload {
+	return c.metadata.getMetadata()
 }
 
 // Sets the node metadata.
-func (c *Core) SetMetadata(meta metadata) {
-	c.sessions.setMetadata(meta)
+func (c *Core) SetMetadata(meta metadataPayload) {
+	c.metadata.setMetadata(meta)
 }
 
 // Sets the output logger of the Yggdrasil node after startup. This may be

@@ -483,7 +483,7 @@ func (r *router) handleMetadata(bs []byte, fromKey *boxPubKey) {
 		return
 	}
 	req.SendPermPub = *fromKey
-	r.core.sessions.handleMetadata(&req)
+	r.core.metadata.handleMetadata(&req)
 }
 
 // Passed a function to call.

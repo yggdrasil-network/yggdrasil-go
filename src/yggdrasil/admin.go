@@ -322,6 +322,14 @@ func (a *admin) init(c *Core, listenaddr string) {
 			return admin_info{}, err
 		}
 	})
+	a.addHandler("getMeta", []string{"box_pub_key", "coords"}, func(in admin_info) (admin_info, error) {
+		result, err := a.admin_getMeta(in["box_pub_key"].(string), in["coords"].(string))
+		if err == nil {
+			return admin_info{"metadata": string(result)}, nil
+		} else {
+			return admin_info{}, err
+		}
+	})
 }
 
 // start runs the admin API socket to listen for / respond to admin API calls.
@@ -804,6 +812,50 @@ func (a *admin) admin_dhtPing(keyString, coordString, targetString string) (dhtR
 		return *res, nil
 	}
 	return dhtRes{}, errors.New(fmt.Sprintf("DHT ping timeout: %s", keyString))
+}
+
+func (a *admin) admin_getMeta(keyString, coordString string) (metadataPayload, error) {
+	var key boxPubKey
+	if keyBytes, err := hex.DecodeString(keyString); err != nil {
+		return metadataPayload{}, err
+	} else {
+		copy(key[:], keyBytes)
+	}
+	var coords []byte
+	for _, cstr := range strings.Split(strings.Trim(coordString, "[]"), " ") {
+		if cstr == "" {
+			// Special case, happens if trimmed is the empty string, e.g. this is the root
+			continue
+		}
+		if u64, err := strconv.ParseUint(cstr, 10, 8); err != nil {
+			return metadataPayload{}, err
+		} else {
+			coords = append(coords, uint8(u64))
+		}
+	}
+	response := make(chan *metadataPayload, 1)
+	sendMetaRequest := func() {
+		a.core.metadata.callbacks[key] = metadataCallback{
+			created: time.Now(),
+			call: func(meta *metadataPayload) {
+				defer func() { recover() }()
+				select {
+				case response <- meta:
+				default:
+				}
+			},
+		}
+		a.core.metadata.sendMetadata(key, coords, false)
+	}
+	a.core.router.doAdmin(sendMetaRequest)
+	go func() {
+		time.Sleep(6 * time.Second)
+		close(response)
+	}()
+	for res := range response {
+		return *res, nil
+	}
+	return metadataPayload{}, errors.New(fmt.Sprintf("getMeta timeout: %s", keyString))
 }
 
 // getResponse_dot returns a response for a graphviz dot formatted representation of the known parts of the network.
