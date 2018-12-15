@@ -247,7 +247,7 @@ func (c *Core) GetMetadata() metadataPayload {
 }
 
 // Sets the node metadata.
-func (c *Core) SetMetadata(meta metadataPayload) {
+func (c *Core) SetMetadata(meta interface{}) {
 	c.metadata.setMetadata(meta)
 }
 
