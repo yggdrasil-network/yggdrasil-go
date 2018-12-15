@@ -177,6 +177,7 @@ func (p *peer) doSendSwitchMsgs() {
 func (p *peer) linkLoop() {
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
+	p.doSendSwitchMsgs()
 	for {
 		select {
 		case _, ok := <-p.doSend:
@@ -185,11 +186,9 @@ func (p *peer) linkLoop() {
 			}
 			p.sendSwitchMsg()
 		case _ = <-tick.C:
-			//break             // FIXME disabled the below completely to test something
-			pdinfo := p.dinfo // FIXME this is a bad workarond NPE on the next line
-			if pdinfo != nil {
-				dinfo := *pdinfo
-				p.core.dht.peers <- &dinfo
+			dinfo := p.dinfo // FIXME? are pointer reads *always* atomic?
+			if dinfo != nil {
+				p.core.dht.peers <- dinfo
 			}
 		}
 	}

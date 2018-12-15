@@ -31,14 +31,6 @@ const tcp_msgSize = 2048 + 65535 // TODO figure out what makes sense
 const default_tcp_timeout = 6 * time.Second
 const tcp_ping_interval = (default_tcp_timeout * 2 / 3)
 
-// Wrapper function for non tcp/ip connections.
-func setNoDelay(c net.Conn, delay bool) {
-	tcp, ok := c.(*net.TCPConn)
-	if ok {
-		tcp.SetNoDelay(delay)
-	}
-}
-
 // The TCP listener and information about active TCP connections, to avoid duplication.
 type tcpInterface struct {
 	core        *Core
@@ -56,6 +48,20 @@ type tcpInfo struct {
 	sig        sigPubKey
 	localAddr  string
 	remoteAddr string
+}
+
+// Wrapper function to set additional options for specific connection types.
+func (iface *tcpInterface) setExtraOptions(c net.Conn) {
+	switch sock := c.(type) {
+	case *net.TCPConn:
+		sock.SetNoDelay(true)
+		sock.SetKeepAlive(true)
+		sock.SetKeepAlivePeriod(iface.tcp_timeout)
+		panic("DEBUG testing")
+	// TODO something for socks5
+	default:
+		iface.core.log.Println("Unrecognized connection type: %v", sock)
+	}
 }
 
 // Returns the address of the listener.
@@ -205,6 +211,7 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 // It defers a bunch of cleanup stuff to tear down all of these things when the reader exists (e.g. due to a closed connection or a timeout).
 func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	defer sock.Close()
+	iface.setExtraOptions(sock)
 	// Get our keys
 	myLinkPub, myLinkPriv := newBoxKeys() // ephemeral link keys
 	meta := version_getBaseMetadata()
@@ -342,7 +349,6 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 		out <- msg
 	}
 	p.close = func() { sock.Close() }
-	setNoDelay(sock, true)
 	go p.linkLoop()
 	defer func() {
 		// Put all of our cleanup here...
