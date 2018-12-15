@@ -1,7 +1,9 @@
 package yggdrasil
 
 import (
+	"encoding/json"
 	"errors"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -84,10 +86,29 @@ func (m *metadata) getMetadata() metadataPayload {
 }
 
 // Set the current node's metadata
-func (m *metadata) setMetadata(meta metadataPayload) {
+func (m *metadata) setMetadata(given interface{}) error {
 	m.myMetadataMutex.Lock()
 	defer m.myMetadataMutex.Unlock()
-	m.myMetadata = meta
+	newmeta := map[string]interface{}{
+		"buildname":     GetBuildName(),
+		"buildversion":  GetBuildVersion(),
+		"buildplatform": runtime.GOOS,
+		"buildarch":     runtime.GOARCH,
+	}
+	if metamap, ok := given.(map[string]interface{}); ok {
+		for key, value := range metamap {
+			if _, ok := newmeta[key]; ok {
+				continue
+			}
+			newmeta[key] = value
+		}
+	}
+	if newjson, err := json.Marshal(newmeta); err == nil {
+		m.myMetadata = newjson
+		return nil
+	} else {
+		return err
+	}
 }
 
 // Add metadata into the cache for a node
