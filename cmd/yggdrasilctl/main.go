@@ -87,6 +87,7 @@ func main() {
 			logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
 		}
 	} else {
+		endpoint = *server
 		logger.Println("Using endpoint", endpoint, "from command line")
 	}
 
