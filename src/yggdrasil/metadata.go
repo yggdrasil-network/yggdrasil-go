@@ -104,6 +104,9 @@ func (m *metadata) setMetadata(given interface{}) error {
 		}
 	}
 	if newjson, err := json.Marshal(newmeta); err == nil {
+		if len(newjson) > 16384 {
+			return errors.New("Metadata exceeds max length of 16384 bytes")
+		}
 		m.myMetadata = newjson
 		return nil
 	} else {
