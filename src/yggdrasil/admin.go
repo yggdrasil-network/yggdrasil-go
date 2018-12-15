@@ -322,8 +322,12 @@ func (a *admin) init(c *Core, listenaddr string) {
 			return admin_info{}, err
 		}
 	})
-	a.addHandler("getMeta", []string{"box_pub_key", "coords"}, func(in admin_info) (admin_info, error) {
-		result, err := a.admin_getMeta(in["box_pub_key"].(string), in["coords"].(string))
+	a.addHandler("getMeta", []string{"box_pub_key", "coords", "[nocache]"}, func(in admin_info) (admin_info, error) {
+		var nocache bool
+		if in["nocache"] != nil {
+			nocache = in["nocache"].(string) == "true"
+		}
+		result, err := a.admin_getMeta(in["box_pub_key"].(string), in["coords"].(string), nocache)
 		if err == nil {
 			var m map[string]interface{}
 			if err = json.Unmarshal(result, &m); err == nil {
@@ -813,12 +817,17 @@ func (a *admin) admin_dhtPing(keyString, coordString, targetString string) (dhtR
 	return dhtRes{}, errors.New(fmt.Sprintf("DHT ping timeout: %s", keyString))
 }
 
-func (a *admin) admin_getMeta(keyString, coordString string) (metadataPayload, error) {
+func (a *admin) admin_getMeta(keyString, coordString string, nocache bool) (metadataPayload, error) {
 	var key boxPubKey
 	if keyBytes, err := hex.DecodeString(keyString); err != nil {
 		return metadataPayload{}, err
 	} else {
 		copy(key[:], keyBytes)
+	}
+	if !nocache {
+		if response, err := a.core.metadata.getCachedMetadata(key); err == nil {
+			return response, nil
+		}
 	}
 	var coords []byte
 	for _, cstr := range strings.Split(strings.Trim(coordString, "[]"), " ") {
