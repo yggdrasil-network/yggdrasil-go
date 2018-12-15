@@ -17,11 +17,9 @@ const tun_IPv6_HEADER_LENGTH = 40
 const tun_ETHER_HEADER_LENGTH = 14
 
 // Represents a running TUN/TAP interface.
-type tunDevice struct {
-	core   *Core
+type tunAdapter struct {
+	Adapter
 	icmpv6 icmpv6
-	send   chan<- []byte
-	recv   <-chan []byte
 	mtu    int
 	iface  *water.Interface
 }
@@ -36,14 +34,14 @@ func getSupportedMTU(mtu int) int {
 }
 
 // Initialises the TUN/TAP adapter.
-func (tun *tunDevice) init(core *Core) {
-	tun.core = core
+func (tun *tunAdapter) init(core *Core, send chan<- []byte, recv <-chan []byte) {
+	tun.Adapter.init(core, send, recv)
 	tun.icmpv6.init(tun)
 }
 
 // Starts the setup process for the TUN/TAP adapter, and if successful, starts
 // the read/write goroutines to handle packets on that interface.
-func (tun *tunDevice) start(ifname string, iftapmode bool, addr string, mtu int) error {
+func (tun *tunAdapter) start(ifname string, iftapmode bool, addr string, mtu int) error {
 	if ifname == "none" {
 		return nil
 	}
@@ -75,7 +73,7 @@ func (tun *tunDevice) start(ifname string, iftapmode bool, addr string, mtu int)
 // Writes a packet to the TUN/TAP adapter. If the adapter is running in TAP
 // mode then additional ethernet encapsulation is added for the benefit of the
 // host operating system.
-func (tun *tunDevice) write() error {
+func (tun *tunAdapter) write() error {
 	for {
 		data := <-tun.recv
 		if tun.iface == nil {
@@ -164,7 +162,7 @@ func (tun *tunDevice) write() error {
 // is running in TAP mode then the ethernet headers will automatically be
 // processed and stripped if necessary. If an ICMPv6 packet is found, then
 // the relevant helper functions in icmpv6.go are called.
-func (tun *tunDevice) read() error {
+func (tun *tunAdapter) read() error {
 	mtu := tun.mtu
 	if tun.iface.IsTAP() {
 		mtu += tun_ETHER_HEADER_LENGTH
@@ -201,7 +199,7 @@ func (tun *tunDevice) read() error {
 // Closes the TUN/TAP adapter. This is only usually called when the Yggdrasil
 // process stops. Typically this operation will happen quickly, but on macOS
 // it can block until a read operation is completed.
-func (tun *tunDevice) close() error {
+func (tun *tunAdapter) close() error {
 	if tun.iface == nil {
 		return nil
 	}

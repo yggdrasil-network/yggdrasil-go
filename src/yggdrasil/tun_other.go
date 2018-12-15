@@ -9,7 +9,7 @@ import water "github.com/yggdrasil-network/water"
 
 // Creates the TUN/TAP adapter, if supported by the Water library. Note that
 // no guarantees are made at this point on an unsupported platform.
-func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
+func (tun *tunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	var config water.Config
 	if iftapmode {
 		config = water.Config{DeviceType: water.TAP}
@@ -27,7 +27,7 @@ func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int)
 
 // We don't know how to set the IPv6 address on an unknown platform, therefore
 // write about it to stdout and don't try to do anything further.
-func (tun *tunDevice) setupAddress(addr string) error {
+func (tun *tunAdapter) setupAddress(addr string) error {
 	tun.core.log.Println("Platform not supported, you must set the address of", tun.iface.Name(), "to", addr)
 	return nil
 }
