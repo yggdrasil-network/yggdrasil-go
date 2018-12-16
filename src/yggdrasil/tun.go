@@ -56,8 +56,8 @@ func (tun *tunAdapter) start(ifname string, iftapmode bool, addr string, mtu int
 	tun.mutex.Lock()
 	tun.isOpen = true
 	tun.mutex.Unlock()
-	go func() { panic(tun.read()) }()
-	go func() { panic(tun.write()) }()
+	go func() { tun.core.log.Println("WARNING: tun.read() exited with error:", tun.read()) }()
+	go func() { tun.core.log.Println("WARNING: tun.write() exited with error:", tun.write()) }()
 	if iftapmode {
 		go func() {
 			for {
