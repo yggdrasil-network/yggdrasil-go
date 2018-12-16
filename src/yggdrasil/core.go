@@ -8,7 +8,9 @@ import (
 	"net"
 	"regexp"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 
@@ -19,10 +21,10 @@ var buildVersion string
 // object for each Yggdrasil node you plan to run.
 type Core struct {
 	// This is the main data structure that holds everything else for a node
-	boxPub      boxPubKey
-	boxPriv     boxPrivKey
-	sigPub      sigPubKey
-	sigPriv     sigPrivKey
+	boxPub      crypto.BoxPubKey
+	boxPriv     crypto.BoxPrivKey
+	sigPub      crypto.SigPubKey
+	sigPriv     crypto.SigPrivKey
 	switchTable switchTable
 	peers       peers
 	sessions    sessions
@@ -37,15 +39,14 @@ type Core struct {
 	ifceExpr    []*regexp.Regexp // the zone of link-local IPv6 peers must match this
 }
 
-func (c *Core) init(bpub *boxPubKey,
-	bpriv *boxPrivKey,
-	spub *sigPubKey,
-	spriv *sigPrivKey) {
+func (c *Core) init(bpub *crypto.BoxPubKey,
+	bpriv *crypto.BoxPrivKey,
+	spub *crypto.SigPubKey,
+	spriv *crypto.SigPrivKey) {
 	// TODO separate init and start functions
 	//  Init sets up structs
 	//  Start launches goroutines that depend on structs being set up
 	// This is pretty much required to completely avoid race conditions
-	util_initByteStore()
 	if c.log == nil {
 		c.log = log.New(ioutil.Discard, "", 0)
 	}
@@ -95,10 +96,10 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 
 	c.log.Println("Starting up...")
 
-	var boxPub boxPubKey
-	var boxPriv boxPrivKey
-	var sigPub sigPubKey
-	var sigPriv sigPrivKey
+	var boxPub crypto.BoxPubKey
+	var boxPriv crypto.BoxPrivKey
+	var sigPub crypto.SigPubKey
+	var sigPriv crypto.SigPrivKey
 	boxPubHex, err := hex.DecodeString(nc.EncryptionPublicKey)
 	if err != nil {
 		return err
@@ -190,7 +191,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	}
 
 	ip := net.IP(c.router.addr[:]).String()
-	if err := c.router.tun.start(nc.IfName, nc.IfTAPMode, fmt.Sprintf("%s/%d", ip, 8*len(address_prefix)-1), nc.IfMTU); err != nil {
+	if err := c.router.tun.start(nc.IfName, nc.IfTAPMode, fmt.Sprintf("%s/%d", ip, 8*len(address.GetPrefix())-1), nc.IfMTU); err != nil {
 		c.log.Println("Failed to start TUN/TAP")
 		return err
 	}
@@ -208,35 +209,35 @@ func (c *Core) Stop() {
 
 // Generates a new encryption keypair. The encryption keys are used to
 // encrypt traffic and to derive the IPv6 address/subnet of the node.
-func (c *Core) NewEncryptionKeys() (*boxPubKey, *boxPrivKey) {
-	return newBoxKeys()
+func (c *Core) NewEncryptionKeys() (*crypto.BoxPubKey, *crypto.BoxPrivKey) {
+	return crypto.NewBoxKeys()
 }
 
 // Generates a new signing keypair. The signing keys are used to derive the
 // structure of the spanning tree.
-func (c *Core) NewSigningKeys() (*sigPubKey, *sigPrivKey) {
-	return newSigKeys()
+func (c *Core) NewSigningKeys() (*crypto.SigPubKey, *crypto.SigPrivKey) {
+	return crypto.NewSigKeys()
 }
 
 // Gets the node ID.
-func (c *Core) GetNodeID() *NodeID {
-	return getNodeID(&c.boxPub)
+func (c *Core) GetNodeID() *crypto.NodeID {
+	return crypto.GetNodeID(&c.boxPub)
 }
 
 // Gets the tree ID.
-func (c *Core) GetTreeID() *TreeID {
-	return getTreeID(&c.sigPub)
+func (c *Core) GetTreeID() *crypto.TreeID {
+	return crypto.GetTreeID(&c.sigPub)
 }
 
 // Gets the IPv6 address of the Yggdrasil node. This is always a /128.
 func (c *Core) GetAddress() *net.IP {
-	address := net.IP(address_addrForNodeID(c.GetNodeID())[:])
+	address := net.IP(address.AddrForNodeID(c.GetNodeID())[:])
 	return &address
 }
 
 // Gets the routed IPv6 subnet of the Yggdrasil node. This is always a /64.
 func (c *Core) GetSubnet() *net.IPNet {
-	subnet := address_subnetForNodeID(c.GetNodeID())[:]
+	subnet := address.SubnetForNodeID(c.GetNodeID())[:]
 	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
 	return &net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
 }

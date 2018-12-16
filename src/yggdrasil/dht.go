@@ -8,6 +8,8 @@ package yggdrasil
 import (
 	"sort"
 	"time"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 )
 
 const dht_lookup_size = 16
@@ -15,8 +17,8 @@ const dht_lookup_size = 16
 // dhtInfo represents everything we know about a node in the DHT.
 // This includes its key, a cache of it's NodeID, coords, and timing/ping related info for deciding who/when to ping nodes for maintenance.
 type dhtInfo struct {
-	nodeID_hidden *NodeID
-	key           boxPubKey
+	nodeID_hidden *crypto.NodeID
+	key           crypto.BoxPubKey
 	coords        []byte
 	recv          time.Time // When we last received a message
 	pings         int       // Time out if at least 3 consecutive maintenance pings drop
@@ -24,9 +26,9 @@ type dhtInfo struct {
 }
 
 // Returns the *NodeID associated with dhtInfo.key, calculating it on the fly the first time or from a cache all subsequent times.
-func (info *dhtInfo) getNodeID() *NodeID {
+func (info *dhtInfo) getNodeID() *crypto.NodeID {
 	if info.nodeID_hidden == nil {
-		info.nodeID_hidden = getNodeID(&info.key)
+		info.nodeID_hidden = crypto.GetNodeID(&info.key)
 	}
 	return info.nodeID_hidden
 }
@@ -34,36 +36,36 @@ func (info *dhtInfo) getNodeID() *NodeID {
 // Request for a node to do a lookup.
 // Includes our key and coords so they can send a response back, and the destination NodeID we want to ask about.
 type dhtReq struct {
-	Key    boxPubKey // Key of whoever asked
-	Coords []byte    // Coords of whoever asked
-	Dest   NodeID    // NodeID they're asking about
+	Key    crypto.BoxPubKey // Key of whoever asked
+	Coords []byte           // Coords of whoever asked
+	Dest   crypto.NodeID    // NodeID they're asking about
 }
 
 // Response to a DHT lookup.
 // Includes the key and coords of the node that's responding, and the destination they were asked about.
 // The main part is Infos []*dhtInfo, the lookup response.
 type dhtRes struct {
-	Key    boxPubKey // key of the sender
-	Coords []byte    // coords of the sender
-	Dest   NodeID
+	Key    crypto.BoxPubKey // key of the sender
+	Coords []byte           // coords of the sender
+	Dest   crypto.NodeID
 	Infos  []*dhtInfo // response
 }
 
 // Parts of a DHT req usable as a key in a map.
 type dhtReqKey struct {
-	key  boxPubKey
-	dest NodeID
+	key  crypto.BoxPubKey
+	dest crypto.NodeID
 }
 
 // The main DHT struct.
 type dht struct {
 	core      *Core
-	nodeID    NodeID
+	nodeID    crypto.NodeID
 	peers     chan *dhtInfo                  // other goroutines put incoming dht updates here
 	reqs      map[dhtReqKey]time.Time        // Keeps track of recent outstanding requests
 	callbacks map[dhtReqKey]dht_callbackInfo // Search and admin lookup callbacks
 	// These next two could be replaced by a single linked list or similar...
-	table map[NodeID]*dhtInfo
+	table map[crypto.NodeID]*dhtInfo
 	imp   []*dhtInfo
 }
 
@@ -80,12 +82,12 @@ func (t *dht) init(c *Core) {
 // This empties all info from the DHT and drops outstanding requests.
 func (t *dht) reset() {
 	t.reqs = make(map[dhtReqKey]time.Time)
-	t.table = make(map[NodeID]*dhtInfo)
+	t.table = make(map[crypto.NodeID]*dhtInfo)
 	t.imp = nil
 }
 
 // Does a DHT lookup and returns up to dht_lookup_size results.
-func (t *dht) lookup(nodeID *NodeID, everything bool) []*dhtInfo {
+func (t *dht) lookup(nodeID *crypto.NodeID, everything bool) []*dhtInfo {
 	results := make([]*dhtInfo, 0, len(t.table))
 	for _, info := range t.table {
 		results = append(results, info)
@@ -133,9 +135,9 @@ func (t *dht) insert(info *dhtInfo) {
 }
 
 // Return true if first/second/third are (partially) ordered correctly.
-func dht_ordered(first, second, third *NodeID) bool {
-	lessOrEqual := func(first, second *NodeID) bool {
-		for idx := 0; idx < NodeIDLen; idx++ {
+func dht_ordered(first, second, third *crypto.NodeID) bool {
+	lessOrEqual := func(first, second *crypto.NodeID) bool {
+		for idx := 0; idx < crypto.NodeIDLen; idx++ {
 			if first[idx] > second[idx] {
 				return false
 			}
@@ -190,7 +192,7 @@ func (t *dht) sendRes(res *dhtRes, req *dhtReq) {
 	// Send a reply for a dhtReq
 	bs := res.encode()
 	shared := t.core.sessions.getSharedKey(&t.core.boxPriv, &req.Key)
-	payload, nonce := boxSeal(shared, bs, nil)
+	payload, nonce := crypto.BoxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
 		Coords:  req.Coords,
 		ToKey:   req.Key,
@@ -252,7 +254,7 @@ func (t *dht) sendReq(req *dhtReq, dest *dhtInfo) {
 	// Send a dhtReq to the node in dhtInfo
 	bs := req.encode()
 	shared := t.core.sessions.getSharedKey(&t.core.boxPriv, &dest.key)
-	payload, nonce := boxSeal(shared, bs, nil)
+	payload, nonce := crypto.BoxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
 		Coords:  dest.coords,
 		ToKey:   dest.key,
@@ -267,7 +269,7 @@ func (t *dht) sendReq(req *dhtReq, dest *dhtInfo) {
 }
 
 // Sends a lookup to this info, looking for the target.
-func (t *dht) ping(info *dhtInfo, target *NodeID) {
+func (t *dht) ping(info *dhtInfo, target *crypto.NodeID) {
 	// Creates a req for the node at dhtInfo, asking them about the target (if one is given) or themself (if no target is given)
 	if target == nil {
 		target = &t.nodeID

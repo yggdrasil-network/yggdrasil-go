@@ -28,14 +28,18 @@ import (
 
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv6"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 // The router struct has channels to/from the tun/tap device and a self peer (0), which is how messages are passed between this node and the peers/switch layer.
 // The router's mainLoop goroutine is responsible for managing all information related to the dht, searches, and crypto sessions.
 type router struct {
 	core      *Core
-	addr      address
-	subnet    subnet
+	addr      address.Address
+	subnet    address.Subnet
 	in        <-chan []byte          // packets we received from the network, link to peer's "out"
 	out       func([]byte)           // packets we're sending to the network, link to peer's "in"
 	toRecv    chan router_recvPacket // packets to handle via recvPacket()
@@ -57,17 +61,17 @@ type router_recvPacket struct {
 // Initializes the router struct, which includes setting up channels to/from the tun/tap.
 func (r *router) init(core *Core) {
 	r.core = core
-	r.addr = *address_addrForNodeID(&r.core.dht.nodeID)
-	r.subnet = *address_subnetForNodeID(&r.core.dht.nodeID)
+	r.addr = *address.AddrForNodeID(&r.core.dht.nodeID)
+	r.subnet = *address.SubnetForNodeID(&r.core.dht.nodeID)
 	in := make(chan []byte, 32) // TODO something better than this...
-	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &boxSharedKey{}, "(self)")
+	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, "(self)")
 	p.out = func(packet []byte) {
 		// This is to make very sure it never blocks
 		select {
 		case in <- packet:
 			return
 		default:
-			util_putBytes(packet)
+			util.PutBytes(packet)
 		}
 	}
 	r.in = in
@@ -121,7 +125,7 @@ func (r *router) mainLoop() {
 				r.core.switchTable.doMaintenance()
 				r.core.dht.doMaintenance()
 				r.core.sessions.cleanup()
-				util_getBytes() // To slowly drain things
+				util.GetBytes() // To slowly drain things
 			}
 		case f := <-r.admin:
 			f()
@@ -135,11 +139,11 @@ func (r *router) mainLoop() {
 // If the session hasn't responded recently, it triggers a ping or search to keep things alive or deal with broken coords *relatively* quickly.
 // It also deals with oversized packets if there are MTU issues by calling into icmpv6.go to spoof PacketTooBig traffic, or DestinationUnreachable if the other side has their tun/tap disabled.
 func (r *router) sendPacket(bs []byte) {
-	var sourceAddr address
-	var destAddr address
-	var destSnet subnet
-	var destPubKey *boxPubKey
-	var destNodeID *NodeID
+	var sourceAddr address.Address
+	var destAddr address.Address
+	var destSnet address.Subnet
+	var destPubKey *crypto.BoxPubKey
+	var destNodeID *crypto.NodeID
 	var addrlen int
 	if bs[0]&0xf0 == 0x60 {
 		// Check if we have a fully-sized header
@@ -169,19 +173,19 @@ func (r *router) sendPacket(bs []byte) {
 		// configured crypto-key routing source subnets
 		return
 	}
-	if !destAddr.isValid() && !destSnet.isValid() {
+	if !destAddr.IsValid() && !destSnet.IsValid() {
 		// The addresses didn't match valid Yggdrasil node addresses so let's see
 		// whether it matches a crypto-key routing range instead
 		if key, err := r.cryptokey.getPublicKeyForAddress(destAddr, addrlen); err == nil {
 			// A public key was found, get the node ID for the search
 			destPubKey = &key
-			destNodeID = getNodeID(destPubKey)
+			destNodeID = crypto.GetNodeID(destPubKey)
 			// Do a quick check to ensure that the node ID refers to a vaild Yggdrasil
 			// address or subnet - this might be superfluous
-			addr := *address_addrForNodeID(destNodeID)
+			addr := *address.AddrForNodeID(destNodeID)
 			copy(destAddr[:], addr[:])
 			copy(destSnet[:], addr[:])
-			if !destAddr.isValid() && !destSnet.isValid() {
+			if !destAddr.IsValid() && !destSnet.IsValid() {
 				return
 			}
 		} else {
@@ -190,25 +194,25 @@ func (r *router) sendPacket(bs []byte) {
 		}
 	}
 	doSearch := func(packet []byte) {
-		var nodeID, mask *NodeID
+		var nodeID, mask *crypto.NodeID
 		switch {
 		case destNodeID != nil:
 			// We already know the full node ID, probably because it's from a CKR
 			// route in which the public key is known ahead of time
 			nodeID = destNodeID
-			var m NodeID
+			var m crypto.NodeID
 			for i := range m {
 				m[i] = 0xFF
 			}
 			mask = &m
-		case destAddr.isValid():
+		case destAddr.IsValid():
 			// We don't know the full node ID - try and use the address to generate
 			// a truncated node ID
-			nodeID, mask = destAddr.getNodeIDandMask()
-		case destSnet.isValid():
+			nodeID, mask = destAddr.GetNodeIDandMask()
+		case destSnet.IsValid():
 			// We don't know the full node ID - try and use the subnet to generate
 			// a truncated node ID
-			nodeID, mask = destSnet.getNodeIDandMask()
+			nodeID, mask = destSnet.GetNodeIDandMask()
 		default:
 			return
 		}
@@ -223,10 +227,10 @@ func (r *router) sendPacket(bs []byte) {
 	}
 	var sinfo *sessionInfo
 	var isIn bool
-	if destAddr.isValid() {
+	if destAddr.IsValid() {
 		sinfo, isIn = r.core.sessions.getByTheirAddr(&destAddr)
 	}
-	if destSnet.isValid() {
+	if destSnet.IsValid() {
 		sinfo, isIn = r.core.sessions.getByTheirSubnet(&destSnet)
 	}
 	switch {
@@ -305,12 +309,12 @@ func (r *router) sendPacket(bs []byte) {
 func (r *router) recvPacket(bs []byte, sinfo *sessionInfo) {
 	// Note: called directly by the session worker, not the router goroutine
 	if len(bs) < 24 {
-		util_putBytes(bs)
+		util.PutBytes(bs)
 		return
 	}
-	var sourceAddr address
-	var dest address
-	var snet subnet
+	var sourceAddr address.Address
+	var dest address.Address
+	var snet address.Subnet
 	var addrlen int
 	if bs[0]&0xf0 == 0x60 {
 		// IPv6 address
@@ -330,17 +334,17 @@ func (r *router) recvPacket(bs []byte, sinfo *sessionInfo) {
 	// Check that the packet is destined for either our Yggdrasil address or
 	// subnet, or that it matches one of the crypto-key routing source routes
 	if !r.cryptokey.isValidSource(dest, addrlen) {
-		util_putBytes(bs)
+		util.PutBytes(bs)
 		return
 	}
 	// See whether the packet they sent should have originated from this session
 	switch {
-	case sourceAddr.isValid() && sourceAddr == sinfo.theirAddr:
-	case snet.isValid() && snet == sinfo.theirSubnet:
+	case sourceAddr.IsValid() && sourceAddr == sinfo.theirAddr:
+	case snet.IsValid() && snet == sinfo.theirSubnet:
 	default:
 		key, err := r.cryptokey.getPublicKeyForAddress(sourceAddr, addrlen)
 		if err != nil || key != sinfo.theirPermPub {
-			util_putBytes(bs)
+			util.PutBytes(bs)
 			return
 		}
 	}
@@ -366,7 +370,7 @@ func (r *router) handleIn(packet []byte) {
 // Handles incoming traffic, i.e. encapuslated ordinary IPv6 packets.
 // Passes them to the crypto session worker to be decrypted and sent to the tun/tap.
 func (r *router) handleTraffic(packet []byte) {
-	defer util_putBytes(packet)
+	defer util.PutBytes(packet)
 	p := wire_trafficPacket{}
 	if !p.decode(packet) {
 		return
@@ -386,14 +390,14 @@ func (r *router) handleProto(packet []byte) {
 		return
 	}
 	// Now try to open the payload
-	var sharedKey *boxSharedKey
+	var sharedKey *crypto.BoxSharedKey
 	if p.ToKey == r.core.boxPub {
 		// Try to open using our permanent key
 		sharedKey = r.core.sessions.getSharedKey(&r.core.boxPriv, &p.FromKey)
 	} else {
 		return
 	}
-	bs, isOK := boxOpen(sharedKey, p.Payload, &p.Nonce)
+	bs, isOK := crypto.BoxOpen(sharedKey, p.Payload, &p.Nonce)
 	if !isOK {
 		return
 	}
@@ -418,12 +422,12 @@ func (r *router) handleProto(packet []byte) {
 	case wire_DHTLookupResponse:
 		r.handleDHTRes(bs, &p.FromKey)
 	default:
-		util_putBytes(packet)
+		util.PutBytes(packet)
 	}
 }
 
 // Decodes session pings from wire format and passes them to sessions.handlePing where they either create or update a session.
-func (r *router) handlePing(bs []byte, fromKey *boxPubKey) {
+func (r *router) handlePing(bs []byte, fromKey *crypto.BoxPubKey) {
 	ping := sessionPing{}
 	if !ping.decode(bs) {
 		return
@@ -433,12 +437,12 @@ func (r *router) handlePing(bs []byte, fromKey *boxPubKey) {
 }
 
 // Handles session pongs (which are really pings with an extra flag to prevent acknowledgement).
-func (r *router) handlePong(bs []byte, fromKey *boxPubKey) {
+func (r *router) handlePong(bs []byte, fromKey *crypto.BoxPubKey) {
 	r.handlePing(bs, fromKey)
 }
 
 // Decodes dht requests and passes them to dht.handleReq to trigger a lookup/response.
-func (r *router) handleDHTReq(bs []byte, fromKey *boxPubKey) {
+func (r *router) handleDHTReq(bs []byte, fromKey *crypto.BoxPubKey) {
 	req := dhtReq{}
 	if !req.decode(bs) {
 		return
@@ -448,7 +452,7 @@ func (r *router) handleDHTReq(bs []byte, fromKey *boxPubKey) {
 }
 
 // Decodes dht responses and passes them to dht.handleRes to update the DHT table and further pass them to the search code (if applicable).
-func (r *router) handleDHTRes(bs []byte, fromKey *boxPubKey) {
+func (r *router) handleDHTRes(bs []byte, fromKey *crypto.BoxPubKey) {
 	res := dhtRes{}
 	if !res.decode(bs) {
 		return
@@ -458,7 +462,7 @@ func (r *router) handleDHTRes(bs []byte, fromKey *boxPubKey) {
 }
 
 // Decodes nodeinfo request
-func (r *router) handleNodeInfo(bs []byte, fromKey *boxPubKey) {
+func (r *router) handleNodeInfo(bs []byte, fromKey *crypto.BoxPubKey) {
 	req := nodeinfoReqRes{}
 	if !req.decode(bs) {
 		return

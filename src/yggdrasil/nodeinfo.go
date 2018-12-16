@@ -6,15 +6,17 @@ import (
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 )
 
 type nodeinfo struct {
 	core            *Core
 	myNodeInfo      nodeinfoPayload
 	myNodeInfoMutex sync.RWMutex
-	callbacks       map[boxPubKey]nodeinfoCallback
+	callbacks       map[crypto.BoxPubKey]nodeinfoCallback
 	callbacksMutex  sync.Mutex
-	cache           map[boxPubKey]nodeinfoCached
+	cache           map[crypto.BoxPubKey]nodeinfoCached
 	cacheMutex      sync.RWMutex
 }
 
@@ -32,8 +34,8 @@ type nodeinfoCallback struct {
 
 // Represents a session nodeinfo packet.
 type nodeinfoReqRes struct {
-	SendPermPub boxPubKey // Sender's permanent key
-	SendCoords  []byte    // Sender's coords
+	SendPermPub crypto.BoxPubKey // Sender's permanent key
+	SendCoords  []byte           // Sender's coords
 	IsResponse  bool
 	NodeInfo    nodeinfoPayload
 }
@@ -42,8 +44,8 @@ type nodeinfoReqRes struct {
 // the cache/callback maps clean of stale entries
 func (m *nodeinfo) init(core *Core) {
 	m.core = core
-	m.callbacks = make(map[boxPubKey]nodeinfoCallback)
-	m.cache = make(map[boxPubKey]nodeinfoCached)
+	m.callbacks = make(map[crypto.BoxPubKey]nodeinfoCallback)
+	m.cache = make(map[crypto.BoxPubKey]nodeinfoCached)
 
 	go func() {
 		for {
@@ -67,7 +69,7 @@ func (m *nodeinfo) init(core *Core) {
 }
 
 // Add a callback for a nodeinfo lookup
-func (m *nodeinfo) addCallback(sender boxPubKey, call func(nodeinfo *nodeinfoPayload)) {
+func (m *nodeinfo) addCallback(sender crypto.BoxPubKey, call func(nodeinfo *nodeinfoPayload)) {
 	m.callbacksMutex.Lock()
 	defer m.callbacksMutex.Unlock()
 	m.callbacks[sender] = nodeinfoCallback{
@@ -77,7 +79,7 @@ func (m *nodeinfo) addCallback(sender boxPubKey, call func(nodeinfo *nodeinfoPay
 }
 
 // Handles the callback, if there is one
-func (m *nodeinfo) callback(sender boxPubKey, nodeinfo nodeinfoPayload) {
+func (m *nodeinfo) callback(sender crypto.BoxPubKey, nodeinfo nodeinfoPayload) {
 	m.callbacksMutex.Lock()
 	defer m.callbacksMutex.Unlock()
 	if callback, ok := m.callbacks[sender]; ok {
@@ -123,7 +125,7 @@ func (m *nodeinfo) setNodeInfo(given interface{}) error {
 }
 
 // Add nodeinfo into the cache for a node
-func (m *nodeinfo) addCachedNodeInfo(key boxPubKey, payload nodeinfoPayload) {
+func (m *nodeinfo) addCachedNodeInfo(key crypto.BoxPubKey, payload nodeinfoPayload) {
 	m.cacheMutex.Lock()
 	defer m.cacheMutex.Unlock()
 	m.cache[key] = nodeinfoCached{
@@ -133,7 +135,7 @@ func (m *nodeinfo) addCachedNodeInfo(key boxPubKey, payload nodeinfoPayload) {
 }
 
 // Get a nodeinfo entry from the cache
-func (m *nodeinfo) getCachedNodeInfo(key boxPubKey) (nodeinfoPayload, error) {
+func (m *nodeinfo) getCachedNodeInfo(key crypto.BoxPubKey) (nodeinfoPayload, error) {
 	m.cacheMutex.RLock()
 	defer m.cacheMutex.RUnlock()
 	if nodeinfo, ok := m.cache[key]; ok {
@@ -153,7 +155,7 @@ func (m *nodeinfo) handleNodeInfo(nodeinfo *nodeinfoReqRes) {
 }
 
 // Send nodeinfo request or response - called from the router
-func (m *nodeinfo) sendNodeInfo(key boxPubKey, coords []byte, isResponse bool) {
+func (m *nodeinfo) sendNodeInfo(key crypto.BoxPubKey, coords []byte, isResponse bool) {
 	table := m.core.switchTable.table.Load().(lookupTable)
 	nodeinfo := nodeinfoReqRes{
 		SendCoords: table.self.getCoords(),
@@ -162,7 +164,7 @@ func (m *nodeinfo) sendNodeInfo(key boxPubKey, coords []byte, isResponse bool) {
 	}
 	bs := nodeinfo.encode()
 	shared := m.core.sessions.getSharedKey(&m.core.boxPriv, &key)
-	payload, nonce := boxSeal(shared, bs, nil)
+	payload, nonce := crypto.BoxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
 		Coords:  coords,
 		ToKey:   key,

@@ -22,6 +22,8 @@ import "net/http"
 import "runtime"
 import "os"
 
+import "github.com/yggdrasil-network/yggdrasil-go/src/address"
+import "github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 import "github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 
 // Start the profiler in debug builds, if the required environment variable is set.
@@ -48,8 +50,8 @@ func StartProfiler(log *log.Logger) error {
 // This function is only called by the simulator to set up a node with random
 // keys. It should not be used and may be removed in the future.
 func (c *Core) Init() {
-	bpub, bpriv := newBoxKeys()
-	spub, spriv := newSigKeys()
+	bpub, bpriv := crypto.NewBoxKeys()
+	spub, spriv := crypto.NewSigKeys()
 	c.init(bpub, bpriv, spub, spriv)
 	c.switchTable.start()
 	c.router.start()
@@ -59,12 +61,12 @@ func (c *Core) Init() {
 
 // Core
 
-func (c *Core) DEBUG_getSigningPublicKey() sigPubKey {
-	return (sigPubKey)(c.sigPub)
+func (c *Core) DEBUG_getSigningPublicKey() crypto.SigPubKey {
+	return (crypto.SigPubKey)(c.sigPub)
 }
 
-func (c *Core) DEBUG_getEncryptionPublicKey() boxPubKey {
-	return (boxPubKey)(c.boxPub)
+func (c *Core) DEBUG_getEncryptionPublicKey() crypto.BoxPubKey {
+	return (crypto.BoxPubKey)(c.boxPub)
 }
 
 func (c *Core) DEBUG_getSend() chan<- []byte {
@@ -81,7 +83,7 @@ func (c *Core) DEBUG_getPeers() *peers {
 	return &c.peers
 }
 
-func (ps *peers) DEBUG_newPeer(box boxPubKey, sig sigPubKey, link boxSharedKey) *peer {
+func (ps *peers) DEBUG_newPeer(box crypto.BoxPubKey, sig crypto.SigPubKey, link crypto.BoxSharedKey) *peer {
 	//in <-chan []byte,
 	//out chan<- []byte) *peer {
 	return ps.newPeer(&box, &sig, &link, "(simulator)") //, in, out)
@@ -98,7 +100,7 @@ func (ps *peers) DEBUG_startPeers() {
 }
 */
 
-func (ps *peers) DEBUG_hasPeer(key sigPubKey) bool {
+func (ps *peers) DEBUG_hasPeer(key crypto.SigPubKey) bool {
 	ports := ps.ports.Load().(map[switchPort]*peer)
 	for _, p := range ports {
 		if p == nil {
@@ -120,7 +122,7 @@ func (ps *peers) DEBUG_getPorts() map[switchPort]*peer {
 	return newPeers
 }
 
-func (p *peer) DEBUG_getSigKey() sigPubKey {
+func (p *peer) DEBUG_getSigKey() crypto.SigPubKey {
 	return p.sig
 }
 
@@ -292,8 +294,8 @@ func (c *Core) DEBUG_startLoopbackUDPInterface() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-func (c *Core) DEBUG_getAddr() *address {
-	return address_addrForNodeID(&c.dht.nodeID)
+func (c *Core) DEBUG_getAddr() *address.Address {
+	return address.AddrForNodeID(&c.dht.nodeID)
 }
 
 func (c *Core) DEBUG_startTun(ifname string, iftapmode bool) {
@@ -302,7 +304,7 @@ func (c *Core) DEBUG_startTun(ifname string, iftapmode bool) {
 
 func (c *Core) DEBUG_startTunWithMTU(ifname string, iftapmode bool, mtu int) {
 	addr := c.DEBUG_getAddr()
-	straddr := fmt.Sprintf("%s/%v", net.IP(addr[:]).String(), 8*len(address_prefix))
+	straddr := fmt.Sprintf("%s/%v", net.IP(addr[:]).String(), 8*len(address.GetPrefix()))
 	if ifname != "none" {
 		err := c.router.tun.setup(ifname, iftapmode, straddr, mtu)
 		if err != nil {
@@ -320,38 +322,38 @@ func (c *Core) DEBUG_stopTun() {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-func (c *Core) DEBUG_newBoxKeys() (*boxPubKey, *boxPrivKey) {
-	return newBoxKeys()
+func (c *Core) DEBUG_newBoxKeys() (*crypto.BoxPubKey, *crypto.BoxPrivKey) {
+	return crypto.NewBoxKeys()
 }
 
-func (c *Core) DEBUG_getSharedKey(myPrivKey *boxPrivKey, othersPubKey *boxPubKey) *boxSharedKey {
-	return getSharedKey(myPrivKey, othersPubKey)
+func (c *Core) DEBUG_getSharedKey(myPrivKey *crypto.BoxPrivKey, othersPubKey *crypto.BoxPubKey) *crypto.BoxSharedKey {
+	return crypto.GetSharedKey(myPrivKey, othersPubKey)
 }
 
-func (c *Core) DEBUG_newSigKeys() (*sigPubKey, *sigPrivKey) {
-	return newSigKeys()
+func (c *Core) DEBUG_newSigKeys() (*crypto.SigPubKey, *crypto.SigPrivKey) {
+	return crypto.NewSigKeys()
 }
 
-func (c *Core) DEBUG_getNodeID(pub *boxPubKey) *NodeID {
-	return getNodeID(pub)
+func (c *Core) DEBUG_getNodeID(pub *crypto.BoxPubKey) *crypto.NodeID {
+	return crypto.GetNodeID(pub)
 }
 
-func (c *Core) DEBUG_getTreeID(pub *sigPubKey) *TreeID {
-	return getTreeID(pub)
+func (c *Core) DEBUG_getTreeID(pub *crypto.SigPubKey) *crypto.TreeID {
+	return crypto.GetTreeID(pub)
 }
 
-func (c *Core) DEBUG_addrForNodeID(nodeID *NodeID) string {
-	return net.IP(address_addrForNodeID(nodeID)[:]).String()
+func (c *Core) DEBUG_addrForNodeID(nodeID *crypto.NodeID) string {
+	return net.IP(address.AddrForNodeID(nodeID)[:]).String()
 }
 
 func (c *Core) DEBUG_init(bpub []byte,
 	bpriv []byte,
 	spub []byte,
 	spriv []byte) {
-	var boxPub boxPubKey
-	var boxPriv boxPrivKey
-	var sigPub sigPubKey
-	var sigPriv sigPrivKey
+	var boxPub crypto.BoxPubKey
+	var boxPriv crypto.BoxPrivKey
+	var sigPub crypto.SigPubKey
+	var sigPriv crypto.SigPrivKey
 	copy(boxPub[:], bpub)
 	copy(boxPriv[:], bpriv)
 	copy(sigPub[:], spub)
@@ -553,13 +555,13 @@ func (c *Core) DEBUG_simFixMTU() {
 
 func Util_testAddrIDMask() {
 	for idx := 0; idx < 16; idx++ {
-		var orig NodeID
+		var orig crypto.NodeID
 		orig[8] = 42
 		for bidx := 0; bidx < idx; bidx++ {
 			orig[bidx/8] |= (0x80 >> uint8(bidx%8))
 		}
-		addr := address_addrForNodeID(&orig)
-		nid, mask := addr.getNodeIDandMask()
+		addr := address.AddrForNodeID(&orig)
+		nid, mask := addr.GetNodeIDandMask()
 		for b := 0; b < len(mask); b++ {
 			nid[b] &= mask[b]
 			orig[b] &= mask[b]
