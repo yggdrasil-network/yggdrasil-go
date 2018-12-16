@@ -413,6 +413,10 @@ func (r *router) handleProto(packet []byte) {
 		r.handlePing(bs, &p.FromKey)
 	case wire_SessionPong:
 		r.handlePong(bs, &p.FromKey)
+	case wire_NodeInfoRequest:
+		fallthrough
+	case wire_NodeInfoResponse:
+		r.handleNodeInfo(bs, &p.FromKey)
 	case wire_DHTLookupRequest:
 		r.handleDHTReq(bs, &p.FromKey)
 	case wire_DHTLookupResponse:
@@ -455,6 +459,16 @@ func (r *router) handleDHTRes(bs []byte, fromKey *crypto.BoxPubKey) {
 	}
 	res.Key = *fromKey
 	r.core.dht.handleRes(&res)
+}
+
+// Decodes nodeinfo request
+func (r *router) handleNodeInfo(bs []byte, fromKey *crypto.BoxPubKey) {
+	req := nodeinfoReqRes{}
+	if !req.decode(bs) {
+		return
+	}
+	req.SendPermPub = *fromKey
+	r.core.nodeinfo.handleNodeInfo(&req)
 }
 
 // Passed a function to call.
