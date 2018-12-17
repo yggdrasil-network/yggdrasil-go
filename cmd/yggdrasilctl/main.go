@@ -30,7 +30,6 @@ func main() {
 		if r := recover(); r != nil {
 			logger.Println("Fatal error:", r)
 			fmt.Print(logbuffer)
-			panic(r)
 			os.Exit(1)
 		}
 	}()
@@ -201,7 +200,7 @@ func main() {
 					if !keysOrdered {
 						for k := range slv.(map[string]interface{}) {
 							if !*verbose {
-								if k == "box_pub_key" || k == "box_sig_key" {
+								if k == "box_pub_key" || k == "box_sig_key" || k == "nodeinfo" {
 									continue
 								}
 							}
