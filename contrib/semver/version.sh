@@ -3,7 +3,7 @@
 # Merge commits from this branch are counted
 DEVELOPBRANCH="yggdrasil-network/develop"
 
-# Get the last tag that denotes moving to a major version number
+# Get the last tag
 TAG=$(git describe --abbrev=0 --tags --match="v[0-9]*\.[0-9]*\.0" 2>/dev/null)
 
 # Get last merge to master
@@ -33,6 +33,9 @@ if [ $? != 0 ]; then
   exit 1
 fi
 
+# Get the number of merges on the current branch since the last tag
+BUILD=$(git rev-list $TAG..HEAD --count --merges)
+
 # Split out into major, minor and patch numbers
 MAJOR=$(echo $TAG | cut -c 2- | cut -d "." -f 1)
 MINOR=$(echo $TAG | cut -c 2- | cut -d "." -f 2)
@@ -53,10 +56,6 @@ fi
 
 # Add the build tag on non-master branches
 if [ $BRANCH != "master" ]; then
-  # Get the number of merges on the current branch since the last tag
-  BUILDTAG=$(git describe --abbrev=0 --tags --match="v[0-9]*\.[0-9]*\.[0-9]*" 2>/dev/null)
-  BUILD=$(git rev-list $BUILDTAG..HEAD --count --merges)
-
   if [ $BUILD != 0 ]; then
     printf -- "-%04d" "$BUILD"
   fi
