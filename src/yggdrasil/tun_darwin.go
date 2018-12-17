@@ -14,7 +14,7 @@ import (
 )
 
 // Configures the "utun" adapter with the correct IPv6 address and MTU.
-func (tun *tunDevice) setup(ifname string, iftapmode bool, addr string, mtu int) error {
+func (tun *tunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	if iftapmode {
 		tun.core.log.Printf("TAP mode is not supported on this platform, defaulting to TUN")
 	}
@@ -62,7 +62,7 @@ type ifreq struct {
 
 // Sets the IPv6 address of the utun adapter. On Darwin/macOS this is done using
 // a system socket and making direct syscalls to the kernel.
-func (tun *tunDevice) setupAddress(addr string) error {
+func (tun *tunAdapter) setupAddress(addr string) error {
 	var fd int
 	var err error
 

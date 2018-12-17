@@ -25,19 +25,15 @@ import (
 	"time"
 
 	"golang.org/x/net/proxy"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 const tcp_msgSize = 2048 + 65535 // TODO figure out what makes sense
 const default_tcp_timeout = 6 * time.Second
 const tcp_ping_interval = (default_tcp_timeout * 2 / 3)
-
-// Wrapper function for non tcp/ip connections.
-func setNoDelay(c net.Conn, delay bool) {
-	tcp, ok := c.(*net.TCPConn)
-	if ok {
-		tcp.SetNoDelay(delay)
-	}
-}
 
 // The TCP listener and information about active TCP connections, to avoid duplication.
 type tcpInterface struct {
@@ -52,10 +48,22 @@ type tcpInterface struct {
 // This is used as the key to a map that tracks existing connections, to prevent multiple connections to the same keys and local/remote address pair from occuring.
 // Different address combinations are allowed, so multi-homing is still technically possible (but not necessarily advisable).
 type tcpInfo struct {
-	box        boxPubKey
-	sig        sigPubKey
+	box        crypto.BoxPubKey
+	sig        crypto.SigPubKey
 	localAddr  string
 	remoteAddr string
+}
+
+// Wrapper function to set additional options for specific connection types.
+func (iface *tcpInterface) setExtraOptions(c net.Conn) {
+	switch sock := c.(type) {
+	case *net.TCPConn:
+		sock.SetNoDelay(true)
+		sock.SetKeepAlive(true)
+		sock.SetKeepAlivePeriod(iface.tcp_timeout)
+	// TODO something for socks5
+	default:
+	}
 }
 
 // Returns the address of the listener.
@@ -205,8 +213,9 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 // It defers a bunch of cleanup stuff to tear down all of these things when the reader exists (e.g. due to a closed connection or a timeout).
 func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	defer sock.Close()
+	iface.setExtraOptions(sock)
 	// Get our keys
-	myLinkPub, myLinkPriv := newBoxKeys() // ephemeral link keys
+	myLinkPub, myLinkPriv := crypto.NewBoxKeys() // ephemeral link keys
 	meta := version_getBaseMetadata()
 	meta.box = iface.core.boxPub
 	meta.sig = iface.core.sigPub
@@ -287,7 +296,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	}()
 	// Note that multiple connections to the same node are allowed
 	//  E.g. over different interfaces
-	p := iface.core.peers.newPeer(&info.box, &info.sig, getSharedKey(myLinkPriv, &meta.link), sock.RemoteAddr().String())
+	p := iface.core.peers.newPeer(&info.box, &info.sig, crypto.GetSharedKey(myLinkPriv, &meta.link), sock.RemoteAddr().String())
 	p.linkOut = make(chan []byte, 1)
 	in := func(bs []byte) {
 		p.handlePacket(bs)
@@ -301,7 +310,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 			buf := net.Buffers{tcp_msg[:], msgLen, msg}
 			buf.WriteTo(sock)
 			atomic.AddUint64(&p.bytesSent, uint64(len(tcp_msg)+len(msgLen)+len(msg)))
-			util_putBytes(msg)
+			util.PutBytes(msg)
 		}
 		timerInterval := tcp_ping_interval
 		timer := time.NewTimer(timerInterval)
@@ -342,7 +351,6 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 		out <- msg
 	}
 	p.close = func() { sock.Close() }
-	setNoDelay(sock, true)
 	go p.linkLoop()
 	defer func() {
 		// Put all of our cleanup here...
@@ -350,8 +358,8 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	}()
 	us, _, _ := net.SplitHostPort(sock.LocalAddr().String())
 	them, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
-	themNodeID := getNodeID(&info.box)
-	themAddr := address_addrForNodeID(themNodeID)
+	themNodeID := crypto.GetNodeID(&info.box)
+	themAddr := address.AddrForNodeID(themNodeID)
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, them)
 	iface.core.log.Println("Connected:", themString, "source", us)
@@ -386,9 +394,9 @@ func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) error {
 					// We didn't get the whole message yet
 					break
 				}
-				newMsg := append(util_getBytes(), msg...)
+				newMsg := append(util.GetBytes(), msg...)
 				in(newMsg)
-				util_yield()
+				util.Yield()
 			}
 			frag = append(bs[:0], frag...)
 		}

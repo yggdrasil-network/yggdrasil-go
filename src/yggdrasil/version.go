@@ -4,6 +4,8 @@ package yggdrasil
 // Used in the inital connection setup and key exchange
 // Some of this could arguably go in wire.go instead
 
+import "github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+
 // This is the version-specific metadata exchanged at the start of a connection.
 // It must always beign with the 4 bytes "meta" and a wire formatted uint64 major version number.
 // The current version also includes a minor version number, and the box/sig/link keys that need to be exchanged to open an connection.
@@ -12,9 +14,9 @@ type version_metadata struct {
 	ver  uint64 // 1 byte in this version
 	// Everything after this point potentially depends on the version number, and is subject to change in future versions
 	minorVer uint64 // 1 byte in this version
-	box      boxPubKey
-	sig      sigPubKey
-	link     boxPubKey
+	box      crypto.BoxPubKey
+	sig      crypto.SigPubKey
+	link     crypto.BoxPubKey
 }
 
 // Gets a base metadata with no keys set, but with the correct version numbers.
@@ -28,12 +30,12 @@ func version_getBaseMetadata() version_metadata {
 
 // Gest the length of the metadata for this version, used to know how many bytes to read from the start of a connection.
 func version_getMetaLength() (mlen int) {
-	mlen += 4            // meta
-	mlen += 1            // ver, as long as it's < 127, which it is in this version
-	mlen += 1            // minorVer, as long as it's < 127, which it is in this version
-	mlen += boxPubKeyLen // box
-	mlen += sigPubKeyLen // sig
-	mlen += boxPubKeyLen // link
+	mlen += 4                   // meta
+	mlen += 1                   // ver, as long as it's < 127, which it is in this version
+	mlen += 1                   // minorVer, as long as it's < 127, which it is in this version
+	mlen += crypto.BoxPubKeyLen // box
+	mlen += crypto.SigPubKeyLen // sig
+	mlen += crypto.BoxPubKeyLen // link
 	return
 }
 

@@ -12,11 +12,16 @@ This only matters if it's high enough to make you the root of the tree.
 */
 package main
 
-import "encoding/hex"
-import "flag"
-import "fmt"
-import "runtime"
-import . "github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
+import (
+	"encoding/hex"
+	"flag"
+	"fmt"
+	"net"
+	"runtime"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+)
 
 var doSig = flag.Bool("sig", false, "generate new signing keys instead")
 
@@ -82,12 +87,7 @@ func isBetter(oldID, newID []byte) bool {
 }
 
 func doBoxKeys(out chan<- keySet, in <-chan []byte) {
-	c := Core{}
-	pub, _ := c.DEBUG_newBoxKeys()
-	bestID := c.DEBUG_getNodeID(pub)
-	for idx := range bestID {
-		bestID[idx] = 0
-	}
+	var bestID crypto.NodeID
 	for {
 		select {
 		case newBestID := <-in:
@@ -95,22 +95,20 @@ func doBoxKeys(out chan<- keySet, in <-chan []byte) {
 				copy(bestID[:], newBestID)
 			}
 		default:
-			pub, priv := c.DEBUG_newBoxKeys()
-			id := c.DEBUG_getNodeID(pub)
+			pub, priv := crypto.NewBoxKeys()
+			id := crypto.GetNodeID(pub)
 			if !isBetter(bestID[:], id[:]) {
 				continue
 			}
-			bestID = id
-			ip := c.DEBUG_addrForNodeID(id)
+			bestID = *id
+			ip := net.IP(address.AddrForNodeID(id)[:]).String()
 			out <- keySet{priv[:], pub[:], id[:], ip}
 		}
 	}
 }
 
 func doSigKeys(out chan<- keySet, in <-chan []byte) {
-	c := Core{}
-	pub, _ := c.DEBUG_newSigKeys()
-	bestID := c.DEBUG_getTreeID(pub)
+	var bestID crypto.TreeID
 	for idx := range bestID {
 		bestID[idx] = 0
 	}
@@ -122,12 +120,12 @@ func doSigKeys(out chan<- keySet, in <-chan []byte) {
 			}
 		default:
 		}
-		pub, priv := c.DEBUG_newSigKeys()
-		id := c.DEBUG_getTreeID(pub)
+		pub, priv := crypto.NewSigKeys()
+		id := crypto.GetTreeID(pub)
 		if !isBetter(bestID[:], id[:]) {
 			continue
 		}
-		bestID = id
+		bestID = *id
 		out <- keySet{priv[:], pub[:], id[:], ""}
 	}
 }
