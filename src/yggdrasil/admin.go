@@ -395,7 +395,7 @@ func (a *admin) listen() {
 	for {
 		conn, err := a.listener.Accept()
 		if err == nil {
-			a.handleRequest(conn)
+			go a.handleRequest(conn)
 		}
 	}
 }
