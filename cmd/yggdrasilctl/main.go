@@ -17,7 +17,7 @@ import (
 
 	"golang.org/x/text/encoding/unicode"
 
-	"github.com/neilalexander/hjson-go"
+	"github.com/hjson/hjson-go"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 

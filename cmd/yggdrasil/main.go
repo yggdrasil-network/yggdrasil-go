@@ -18,9 +18,9 @@ import (
 
 	"golang.org/x/text/encoding/unicode"
 
+	"github.com/hjson/hjson-go"
 	"github.com/kardianos/minwinsvc"
 	"github.com/mitchellh/mapstructure"
-	"github.com/neilalexander/hjson-go"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
