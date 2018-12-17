@@ -5,6 +5,7 @@ package yggdrasil
 import (
 	"bytes"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/songgao/packets/ethernet"
@@ -24,6 +25,8 @@ type tunAdapter struct {
 	icmpv6 icmpv6
 	mtu    int
 	iface  *water.Interface
+	mutex  sync.RWMutex // Protects the below
+	isOpen bool
 }
 
 // Gets the maximum supported MTU for the platform based on the defaults in
@@ -50,8 +53,11 @@ func (tun *tunAdapter) start(ifname string, iftapmode bool, addr string, mtu int
 	if err := tun.setup(ifname, iftapmode, addr, mtu); err != nil {
 		return err
 	}
-	go func() { panic(tun.read()) }()
-	go func() { panic(tun.write()) }()
+	tun.mutex.Lock()
+	tun.isOpen = true
+	tun.mutex.Unlock()
+	go func() { tun.core.log.Println("WARNING: tun.read() exited with error:", tun.read()) }()
+	go func() { tun.core.log.Println("WARNING: tun.write() exited with error:", tun.write()) }()
 	if iftapmode {
 		go func() {
 			for {
@@ -148,12 +154,26 @@ func (tun *tunAdapter) write() error {
 					len(data))            // Payload length
 				copy(frame[tun_ETHER_HEADER_LENGTH:], data[:])
 				if _, err := tun.iface.Write(frame); err != nil {
-					panic(err)
+					tun.mutex.RLock()
+					open := tun.isOpen
+					tun.mutex.RUnlock()
+					if !open {
+						return nil
+					} else {
+						panic(err)
+					}
 				}
 			}
 		} else {
 			if _, err := tun.iface.Write(data); err != nil {
-				panic(err)
+				tun.mutex.RLock()
+				open := tun.isOpen
+				tun.mutex.RUnlock()
+				if !open {
+					return nil
+				} else {
+					panic(err)
+				}
 			}
 		}
 		util.PutBytes(data)
@@ -173,8 +193,15 @@ func (tun *tunAdapter) read() error {
 	for {
 		n, err := tun.iface.Read(buf)
 		if err != nil {
-			// panic(err)
-			return err
+			tun.mutex.RLock()
+			open := tun.isOpen
+			tun.mutex.RUnlock()
+			if !open {
+				return nil
+			} else {
+				// panic(err)
+				return err
+			}
 		}
 		o := 0
 		if tun.iface.IsTAP() {
@@ -202,6 +229,9 @@ func (tun *tunAdapter) read() error {
 // process stops. Typically this operation will happen quickly, but on macOS
 // it can block until a read operation is completed.
 func (tun *tunAdapter) close() error {
+	tun.mutex.Lock()
+	tun.isOpen = false
+	tun.mutex.Unlock()
 	if tun.iface == nil {
 		return nil
 	}
