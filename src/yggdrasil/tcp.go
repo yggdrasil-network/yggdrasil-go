@@ -59,8 +59,6 @@ func (iface *tcpInterface) setExtraOptions(c net.Conn) {
 	switch sock := c.(type) {
 	case *net.TCPConn:
 		sock.SetNoDelay(true)
-		sock.SetKeepAlive(true)
-		sock.SetKeepAlivePeriod(iface.tcp_timeout)
 	// TODO something for socks5
 	default:
 	}
