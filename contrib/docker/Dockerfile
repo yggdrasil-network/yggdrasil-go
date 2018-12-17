@@ -2,6 +2,9 @@ FROM docker.io/golang:alpine as builder
 
 COPY . /src
 WORKDIR /src
+
+ENV CGO_ENABLED=0
+
 RUN apk add git && ./build 
 
 FROM docker.io/alpine
