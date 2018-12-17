@@ -25,6 +25,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.3.1] - 2018-12-17
+### Added
+- Build name and version is now imprinted onto the binaries if available/specified during build
+- Ability to disable admin socket with `AdminListen: none`
+- `AF_UNIX` domain sockets for the admin socket
+- Cache size restriction for crypto-key routes
+- `NodeInfo` support for specifying node information, e.g. node name or contact, which can be used in network crawls or surveys
+- `getNodeInfo` request added to admin socket
+- Adds flags `-c`, `-l` and `-t` to `build` script for specifying `GCFLAGS`, `LDFLAGS` or whether to keep symbol/DWARF tables
+
+### Changed
+- Default `AdminListen` in newly generated config is now `unix:///var/run/yggdrasil.sock`
+- Formatting of `getRoutes` in the admin socket has been improved
+- Debian package now adds `yggdrasil` group to assist with `AF_UNIX` admin socket permissions
+- Crypto, address and other utility code refactored into separate Go packages
+
+### Fixed
+- Switch peer convergence is now much faster again (previously it was taking up to a minute once the peering was established)
+- `yggdrasilctl` is now less prone to crashing when parameters are specified incorrectly
+- Panic fixed when `Peers` or `InterfacePeers` was commented out
+
 ## [0.3.0] - 2018-12-12
 ### Added
 - Crypto-key routing support for tunnelling both IPv4 and IPv6 over Yggdrasil
