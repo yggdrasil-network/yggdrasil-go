@@ -30,6 +30,7 @@ func main() {
 		if r := recover(); r != nil {
 			logger.Println("Fatal error:", r)
 			fmt.Print(logbuffer)
+			panic(r)
 			os.Exit(1)
 		}
 	}()
@@ -37,13 +38,15 @@ func main() {
 	endpoint := defaults.GetDefaults().DefaultAdminListen
 
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n", os.Args[0])
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n\n", os.Args[0])
 		fmt.Println("Options:")
 		flag.PrintDefaults()
-		fmt.Println("Commands:\n  - Use \"list\" for a list of available commands")
+		fmt.Println("\nPlease note that options must always specified BEFORE the command\non the command line or they will be ignored.\n")
+		fmt.Println("Commands:\n  - Use \"list\" for a list of available commands\n")
 		fmt.Println("Examples:")
 		fmt.Println("  - ", os.Args[0], "list")
 		fmt.Println("  - ", os.Args[0], "getPeers")
+		fmt.Println("  - ", os.Args[0], "-v getSelf")
 		fmt.Println("  - ", os.Args[0], "setTunTap name=auto mtu=1500 tap_mode=false")
 		fmt.Println("  - ", os.Args[0], "-endpoint=tcp://localhost:9001 getDHT")
 		fmt.Println("  - ", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getDHT")
@@ -122,24 +125,34 @@ func main() {
 
 	for c, a := range args {
 		if c == 0 {
+			if strings.HasPrefix(a, "-") {
+				logger.Printf("Ignoring flag %s as it should be specified before other parameters\n", a)
+				continue
+			}
 			logger.Printf("Sending request: %v\n", a)
 			send["request"] = a
 			continue
 		}
 		tokens := strings.Split(a, "=")
-		if i, err := strconv.Atoi(tokens[1]); err == nil {
-			logger.Printf("Sending parameter %s: %d\n", tokens[0], i)
-			send[tokens[0]] = i
-		} else {
-			switch strings.ToLower(tokens[1]) {
-			case "true":
-				send[tokens[0]] = true
-			case "false":
-				send[tokens[0]] = false
-			default:
-				send[tokens[0]] = tokens[1]
+		if len(tokens) == 1 {
+			send[tokens[0]] = true
+		} else if len(tokens) > 2 {
+			send[tokens[0]] = strings.Join(tokens[1:], "=")
+		} else if len(tokens) == 2 {
+			if i, err := strconv.Atoi(tokens[1]); err == nil {
+				logger.Printf("Sending parameter %s: %d\n", tokens[0], i)
+				send[tokens[0]] = i
+			} else {
+				switch strings.ToLower(tokens[1]) {
+				case "true":
+					send[tokens[0]] = true
+				case "false":
+					send[tokens[0]] = false
+				default:
+					send[tokens[0]] = tokens[1]
+				}
+				logger.Printf("Sending parameter %s: %v\n", tokens[0], send[tokens[0]])
 			}
-			logger.Printf("Sending parameter %s: %v\n", tokens[0], send[tokens[0]])
 		}
 	}
 
