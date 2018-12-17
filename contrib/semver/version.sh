@@ -10,7 +10,7 @@ TAG=$(git describe --abbrev=0 --tags --match="v[0-9]*\.[0-9]*\.0" 2>/dev/null)
 MERGE=$(git rev-list $TAG..master --grep "from $DEVELOPBRANCH" 2>/dev/null | head -n 1)
 
 # Get the number of merges since the last merge to master
-PATCH=$(git rev-list $TAG..master --count --merges --grep="from $DEVELOPBRANCH" 2>/dev/null)
+PATCH=$(git rev-list $TAG..master --count --merges --grep="from $DEVELOPBRANCH" --first-parent master 2>/dev/null)
 
 # Decide whether we should prepend the version with "v" - the default is that
 # we do because we use it in git tags, but we might not always need it
