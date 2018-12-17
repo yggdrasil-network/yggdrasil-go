@@ -14,7 +14,7 @@ import (
 	"io/ioutil"
 	"strconv"
 
-	"github.com/neilalexander/hjson-go"
+	"github.com/hjson/hjson-go"
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"

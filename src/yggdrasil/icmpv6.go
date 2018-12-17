@@ -17,6 +17,8 @@ import (
 
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv6"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 )
 
 type macAddress [6]byte
@@ -24,10 +26,10 @@ type macAddress [6]byte
 const len_ETHER = 14
 
 type icmpv6 struct {
-	tun      *tunDevice
+	tun      *tunAdapter
 	mylladdr net.IP
 	mymac    macAddress
-	peermacs map[address]neighbor
+	peermacs map[address.Address]neighbor
 }
 
 type neighbor struct {
@@ -57,9 +59,9 @@ func ipv6Header_Marshal(h *ipv6.Header) ([]byte, error) {
 // Initialises the ICMPv6 module by assigning our link-local IPv6 address and
 // our MAC address. ICMPv6 messages will always appear to originate from these
 // addresses.
-func (i *icmpv6) init(t *tunDevice) {
+func (i *icmpv6) init(t *tunAdapter) {
 	i.tun = t
-	i.peermacs = make(map[address]neighbor)
+	i.peermacs = make(map[address.Address]neighbor)
 
 	// Our MAC address and link-local address
 	i.mymac = macAddress{
@@ -172,7 +174,7 @@ func (i *icmpv6) parse_packet_tun(datain []byte, datamac *[]byte) ([]byte, error
 		}
 	case ipv6.ICMPTypeNeighborAdvertisement:
 		if datamac != nil {
-			var addr address
+			var addr address.Address
 			var mac macAddress
 			copy(addr[:], ipv6Header.Src[:])
 			copy(mac[:], (*datamac)[:])
@@ -254,7 +256,7 @@ func (i *icmpv6) create_icmpv6_tun(dst net.IP, src net.IP, mtype ipv6.ICMPType, 
 	return responsePacket, nil
 }
 
-func (i *icmpv6) create_ndp_tap(dst address) ([]byte, error) {
+func (i *icmpv6) create_ndp_tap(dst address.Address) ([]byte, error) {
 	// Create the ND payload
 	var payload [28]byte
 	copy(payload[:4], []byte{0x00, 0x00, 0x00, 0x00})
@@ -263,7 +265,7 @@ func (i *icmpv6) create_ndp_tap(dst address) ([]byte, error) {
 	copy(payload[22:28], i.mymac[:6])
 
 	// Create the ICMPv6 solicited-node address
-	var dstaddr address
+	var dstaddr address.Address
 	copy(dstaddr[:13], []byte{
 		0xFF, 0x02, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00,
@@ -296,13 +298,13 @@ func (i *icmpv6) create_ndp_tap(dst address) ([]byte, error) {
 // to the Yggdrasil TAP adapter.
 func (i *icmpv6) handle_ndp(in []byte) ([]byte, error) {
 	// Ignore NDP requests for anything outside of fd00::/8
-	var source address
+	var source address.Address
 	copy(source[:], in[8:])
-	var snet subnet
+	var snet address.Subnet
 	copy(snet[:], in[8:])
 	switch {
-	case source.isValid():
-	case snet.isValid():
+	case source.IsValid():
+	case snet.IsValid():
 	default:
 		return nil, errors.New("Not an NDP for 0200::/7")
 	}

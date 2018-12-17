@@ -8,6 +8,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 // The peers struct represents peers with an active connection.
@@ -19,7 +22,7 @@ type peers struct {
 	mutex                       sync.Mutex   // Synchronize writes to atomic
 	ports                       atomic.Value //map[switchPort]*peer, use CoW semantics
 	authMutex                   sync.RWMutex
-	allowedEncryptionPublicKeys map[boxPubKey]struct{}
+	allowedEncryptionPublicKeys map[crypto.BoxPubKey]struct{}
 }
 
 // Initializes the peers struct.
@@ -28,11 +31,11 @@ func (ps *peers) init(c *Core) {
 	defer ps.mutex.Unlock()
 	ps.putPorts(make(map[switchPort]*peer))
 	ps.core = c
-	ps.allowedEncryptionPublicKeys = make(map[boxPubKey]struct{})
+	ps.allowedEncryptionPublicKeys = make(map[crypto.BoxPubKey]struct{})
 }
 
 // Returns true if an incoming peer connection to a key is allowed, either because the key is in the whitelist or because the whitelist is empty.
-func (ps *peers) isAllowedEncryptionPublicKey(box *boxPubKey) bool {
+func (ps *peers) isAllowedEncryptionPublicKey(box *crypto.BoxPubKey) bool {
 	ps.authMutex.RLock()
 	defer ps.authMutex.RUnlock()
 	_, isIn := ps.allowedEncryptionPublicKeys[*box]
@@ -40,24 +43,24 @@ func (ps *peers) isAllowedEncryptionPublicKey(box *boxPubKey) bool {
 }
 
 // Adds a key to the whitelist.
-func (ps *peers) addAllowedEncryptionPublicKey(box *boxPubKey) {
+func (ps *peers) addAllowedEncryptionPublicKey(box *crypto.BoxPubKey) {
 	ps.authMutex.Lock()
 	defer ps.authMutex.Unlock()
 	ps.allowedEncryptionPublicKeys[*box] = struct{}{}
 }
 
 // Removes a key from the whitelist.
-func (ps *peers) removeAllowedEncryptionPublicKey(box *boxPubKey) {
+func (ps *peers) removeAllowedEncryptionPublicKey(box *crypto.BoxPubKey) {
 	ps.authMutex.Lock()
 	defer ps.authMutex.Unlock()
 	delete(ps.allowedEncryptionPublicKeys, *box)
 }
 
 // Gets the whitelist of allowed keys for incoming connections.
-func (ps *peers) getAllowedEncryptionPublicKeys() []boxPubKey {
+func (ps *peers) getAllowedEncryptionPublicKeys() []crypto.BoxPubKey {
 	ps.authMutex.RLock()
 	defer ps.authMutex.RUnlock()
-	keys := make([]boxPubKey, 0, len(ps.allowedEncryptionPublicKeys))
+	keys := make([]crypto.BoxPubKey, 0, len(ps.allowedEncryptionPublicKeys))
 	for key := range ps.allowedEncryptionPublicKeys {
 		keys = append(keys, key)
 	}
@@ -79,32 +82,32 @@ type peer struct {
 	bytesSent  uint64 // To track bandwidth usage for getPeers
 	bytesRecvd uint64 // To track bandwidth usage for getPeers
 	// BUG: sync/atomic, 32 bit platforms need the above to be the first element
-	core         *Core
-	port         switchPort
-	box          boxPubKey
-	sig          sigPubKey
-	shared       boxSharedKey
-	linkShared   boxSharedKey
-	endpoint     string
-	friendlyName string
-	firstSeen    time.Time       // To track uptime for getPeers
-	linkOut      (chan []byte)   // used for protocol traffic (to bypass queues)
-	doSend       (chan struct{}) // tell the linkLoop to send a switchMsg
-	dinfo        *dhtInfo        // used to keep the DHT working
-	out          func([]byte)    // Set up by whatever created the peers struct, used to send packets to other nodes
-	close        func()          // Called when a peer is removed, to close the underlying connection, or via admin api
+	core       *Core
+	port       switchPort
+	box        crypto.BoxPubKey
+	sig        crypto.SigPubKey
+	shared     crypto.BoxSharedKey
+	linkShared crypto.BoxSharedKey
+	endpoint   string
+	firstSeen  time.Time       // To track uptime for getPeers
+	linkOut    (chan []byte)   // used for protocol traffic (to bypass queues)
+	doSend     (chan struct{}) // tell the linkLoop to send a switchMsg
+	dinfo      (chan *dhtInfo) // used to keep the DHT working
+	out        func([]byte)    // Set up by whatever created the peers struct, used to send packets to other nodes
+	close      func()          // Called when a peer is removed, to close the underlying connection, or via admin api
 }
 
 // Creates a new peer with the specified box, sig, and linkShared keys, using the lowest unocupied port number.
-func (ps *peers) newPeer(box *boxPubKey, sig *sigPubKey, linkShared *boxSharedKey, endpoint string) *peer {
+func (ps *peers) newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShared *crypto.BoxSharedKey, endpoint string) *peer {
 	now := time.Now()
 	p := peer{box: *box,
 		sig:        *sig,
-		shared:     *getSharedKey(&ps.core.boxPriv, box),
+		shared:     *crypto.GetSharedKey(&ps.core.boxPriv, box),
 		linkShared: *linkShared,
 		endpoint:   endpoint,
 		firstSeen:  now,
 		doSend:     make(chan struct{}, 1),
+		dinfo:      make(chan *dhtInfo, 1),
 		core:       ps.core}
 	ps.mutex.Lock()
 	defer ps.mutex.Unlock()
@@ -177,6 +180,8 @@ func (p *peer) doSendSwitchMsgs() {
 func (p *peer) linkLoop() {
 	tick := time.NewTicker(time.Second)
 	defer tick.Stop()
+	p.doSendSwitchMsgs()
+	var dinfo *dhtInfo
 	for {
 		select {
 		case _, ok := <-p.doSend:
@@ -184,12 +189,10 @@ func (p *peer) linkLoop() {
 				return
 			}
 			p.sendSwitchMsg()
+		case dinfo = <-p.dinfo:
 		case _ = <-tick.C:
-			//break             // FIXME disabled the below completely to test something
-			pdinfo := p.dinfo // FIXME this is a bad workarond NPE on the next line
-			if pdinfo != nil {
-				dinfo := *pdinfo
-				p.core.dht.peers <- &dinfo
+			if dinfo != nil {
+				p.core.dht.peers <- dinfo
 			}
 		}
 	}
@@ -212,15 +215,16 @@ func (p *peer) handlePacket(packet []byte) {
 	case wire_LinkProtocolTraffic:
 		p.handleLinkTraffic(packet)
 	default:
-		util_putBytes(packet)
+		util.PutBytes(packet)
 	}
 }
 
 // Called to handle traffic or protocolTraffic packets.
 // In either case, this reads from the coords of the packet header, does a switch lookup, and forwards to the next node.
 func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
-	if p.port != 0 && p.dinfo == nil {
-		// Drop traffic until the peer manages to send us at least one good switchMsg
+	table := p.core.switchTable.getTable()
+	if _, isIn := table.elems[p.port]; !isIn && p.port != 0 {
+		// Drop traffic if the peer isn't in the switch
 		return
 	}
 	p.core.switchTable.packetIn <- packet
@@ -236,13 +240,13 @@ func (p *peer) sendPacket(packet []byte) {
 // This wraps the packet in the inner (ephemeral) and outer (permanent) crypto layers.
 // It sends it to p.linkOut, which bypasses the usual packet queues.
 func (p *peer) sendLinkPacket(packet []byte) {
-	innerPayload, innerNonce := boxSeal(&p.linkShared, packet, nil)
+	innerPayload, innerNonce := crypto.BoxSeal(&p.linkShared, packet, nil)
 	innerLinkPacket := wire_linkProtoTrafficPacket{
 		Nonce:   *innerNonce,
 		Payload: innerPayload,
 	}
 	outerPayload := innerLinkPacket.encode()
-	bs, nonce := boxSeal(&p.shared, outerPayload, nil)
+	bs, nonce := crypto.BoxSeal(&p.shared, outerPayload, nil)
 	linkPacket := wire_linkProtoTrafficPacket{
 		Nonce:   *nonce,
 		Payload: bs,
@@ -258,7 +262,7 @@ func (p *peer) handleLinkTraffic(bs []byte) {
 	if !packet.decode(bs) {
 		return
 	}
-	outerPayload, isOK := boxOpen(&p.shared, packet.Payload, &packet.Nonce)
+	outerPayload, isOK := crypto.BoxOpen(&p.shared, packet.Payload, &packet.Nonce)
 	if !isOK {
 		return
 	}
@@ -266,7 +270,7 @@ func (p *peer) handleLinkTraffic(bs []byte) {
 	if !innerPacket.decode(outerPayload) {
 		return
 	}
-	payload, isOK := boxOpen(&p.linkShared, innerPacket.Payload, &innerPacket.Nonce)
+	payload, isOK := crypto.BoxOpen(&p.linkShared, innerPacket.Payload, &innerPacket.Nonce)
 	if !isOK {
 		return
 	}
@@ -278,7 +282,7 @@ func (p *peer) handleLinkTraffic(bs []byte) {
 	case wire_SwitchMsg:
 		p.handleSwitchMsg(payload)
 	default:
-		util_putBytes(bs)
+		util.PutBytes(bs)
 	}
 }
 
@@ -292,7 +296,7 @@ func (p *peer) sendSwitchMsg() {
 	msg.Hops = append(msg.Hops, switchMsgHop{
 		Port: p.port,
 		Next: p.sig,
-		Sig:  *sign(&p.core.sigPriv, bs),
+		Sig:  *crypto.Sign(&p.core.sigPriv, bs),
 	})
 	packet := msg.encode()
 	p.sendLinkPacket(packet)
@@ -316,7 +320,7 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 		sigMsg.Hops = msg.Hops[:idx]
 		loc.coords = append(loc.coords, hop.Port)
 		bs := getBytesForSig(&hop.Next, &sigMsg)
-		if !verify(&prevKey, bs, &hop.Sig) {
+		if !crypto.Verify(&prevKey, bs, &hop.Sig) {
 			p.core.peers.removePeer(p.port)
 		}
 		prevKey = hop.Next
@@ -324,9 +328,7 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 	p.core.switchTable.handleMsg(&msg, p.port)
 	if !p.core.switchTable.checkRoot(&msg) {
 		// Bad switch message
-		// Stop forwarding traffic from it
-		// Stop refreshing it in the DHT
-		p.dinfo = nil
+		p.dinfo <- nil
 		return
 	}
 	// Pass a mesage to the dht informing it that this peer (still) exists
@@ -335,13 +337,12 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 		key:    p.box,
 		coords: loc.getCoords(),
 	}
-	//p.core.dht.peers <- &dinfo
-	p.dinfo = &dinfo
+	p.dinfo <- &dinfo
 }
 
 // This generates the bytes that we sign or check the signature of for a switchMsg.
 // It begins with the next node's key, followed by the root and the timetsamp, followed by coords being advertised to the next node.
-func getBytesForSig(next *sigPubKey, msg *switchMsg) []byte {
+func getBytesForSig(next *crypto.SigPubKey, msg *switchMsg) []byte {
 	var loc switchLocator
 	for _, hop := range msg.Hops {
 		loc.coords = append(loc.coords, hop.Port)

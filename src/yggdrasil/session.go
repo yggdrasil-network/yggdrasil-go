@@ -8,23 +8,27 @@ import (
 	"bytes"
 	"encoding/hex"
 	"time"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 // All the information we know about an active session.
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
 type sessionInfo struct {
 	core         *Core
-	theirAddr    address
-	theirSubnet  subnet
-	theirPermPub boxPubKey
-	theirSesPub  boxPubKey
-	mySesPub     boxPubKey
-	mySesPriv    boxPrivKey
-	sharedSesKey boxSharedKey // derived from session keys
-	theirHandle  handle
-	myHandle     handle
-	theirNonce   boxNonce
-	myNonce      boxNonce
+	theirAddr    address.Address
+	theirSubnet  address.Subnet
+	theirPermPub crypto.BoxPubKey
+	theirSesPub  crypto.BoxPubKey
+	mySesPub     crypto.BoxPubKey
+	mySesPriv    crypto.BoxPrivKey
+	sharedSesKey crypto.BoxSharedKey // derived from session keys
+	theirHandle  crypto.Handle
+	myHandle     crypto.Handle
+	theirNonce   crypto.BoxNonce
+	myNonce      crypto.BoxNonce
 	theirMTU     uint16
 	myMTU        uint16
 	wasMTUFixed  bool      // Was the MTU fixed by a receive error?
@@ -45,9 +49,9 @@ type sessionInfo struct {
 
 // Represents a session ping/pong packet, andincludes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
 type sessionPing struct {
-	SendPermPub boxPubKey // Sender's permanent key
-	Handle      handle    // Random number to ID session
-	SendSesPub  boxPubKey // Session key to use
+	SendPermPub crypto.BoxPubKey // Sender's permanent key
+	Handle      crypto.Handle    // Random number to ID session
+	SendSesPub  crypto.BoxPubKey // Session key to use
 	Coords      []byte
 	Tstamp      int64 // unix time, but the only real requirement is that it increases
 	IsPong      bool
@@ -69,8 +73,8 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 	if p.SendSesPub != s.theirSesPub {
 		s.theirSesPub = p.SendSesPub
 		s.theirHandle = p.Handle
-		s.sharedSesKey = *getSharedKey(&s.mySesPriv, &s.theirSesPub)
-		s.theirNonce = boxNonce{}
+		s.sharedSesKey = *crypto.GetSharedKey(&s.mySesPriv, &s.theirSesPub)
+		s.theirNonce = crypto.BoxNonce{}
 		s.nonceMask = 0
 	}
 	if p.MTU >= 1280 || p.MTU == 0 {
@@ -99,15 +103,15 @@ type sessions struct {
 	core        *Core
 	lastCleanup time.Time
 	// Maps known permanent keys to their shared key, used by DHT a lot
-	permShared map[boxPubKey]*boxSharedKey
+	permShared map[crypto.BoxPubKey]*crypto.BoxSharedKey
 	// Maps (secret) handle onto session info
-	sinfos map[handle]*sessionInfo
+	sinfos map[crypto.Handle]*sessionInfo
 	// Maps mySesPub onto handle
-	byMySes map[boxPubKey]*handle
+	byMySes map[crypto.BoxPubKey]*crypto.Handle
 	// Maps theirPermPub onto handle
-	byTheirPerm  map[boxPubKey]*handle
-	addrToPerm   map[address]*boxPubKey
-	subnetToPerm map[subnet]*boxPubKey
+	byTheirPerm  map[crypto.BoxPubKey]*crypto.Handle
+	addrToPerm   map[address.Address]*crypto.BoxPubKey
+	subnetToPerm map[address.Subnet]*crypto.BoxPubKey
 	// Options from the session firewall
 	sessionFirewallEnabled              bool
 	sessionFirewallAllowsDirect         bool
@@ -120,12 +124,12 @@ type sessions struct {
 // Initializes the session struct.
 func (ss *sessions) init(core *Core) {
 	ss.core = core
-	ss.permShared = make(map[boxPubKey]*boxSharedKey)
-	ss.sinfos = make(map[handle]*sessionInfo)
-	ss.byMySes = make(map[boxPubKey]*handle)
-	ss.byTheirPerm = make(map[boxPubKey]*handle)
-	ss.addrToPerm = make(map[address]*boxPubKey)
-	ss.subnetToPerm = make(map[subnet]*boxPubKey)
+	ss.permShared = make(map[crypto.BoxPubKey]*crypto.BoxSharedKey)
+	ss.sinfos = make(map[crypto.Handle]*sessionInfo)
+	ss.byMySes = make(map[crypto.BoxPubKey]*crypto.Handle)
+	ss.byTheirPerm = make(map[crypto.BoxPubKey]*crypto.Handle)
+	ss.addrToPerm = make(map[address.Address]*crypto.BoxPubKey)
+	ss.subnetToPerm = make(map[address.Subnet]*crypto.BoxPubKey)
 	ss.lastCleanup = time.Now()
 }
 
@@ -154,18 +158,18 @@ func (ss *sessions) setSessionFirewallBlacklist(blacklist []string) {
 
 // Determines whether the session with a given publickey is allowed based on
 // session firewall rules.
-func (ss *sessions) isSessionAllowed(pubkey *boxPubKey, initiator bool) bool {
+func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) bool {
 	// Allow by default if the session firewall is disabled
 	if !ss.sessionFirewallEnabled {
 		return true
 	}
 	// Prepare for checking whitelist/blacklist
-	var box boxPubKey
+	var box crypto.BoxPubKey
 	// Reject blacklisted nodes
 	for _, b := range ss.sessionFirewallBlacklist {
 		key, err := hex.DecodeString(b)
 		if err == nil {
-			copy(box[:boxPubKeyLen], key)
+			copy(box[:crypto.BoxPubKeyLen], key)
 			if box == *pubkey {
 				return false
 			}
@@ -175,7 +179,7 @@ func (ss *sessions) isSessionAllowed(pubkey *boxPubKey, initiator bool) bool {
 	for _, b := range ss.sessionFirewallWhitelist {
 		key, err := hex.DecodeString(b)
 		if err == nil {
-			copy(box[:boxPubKeyLen], key)
+			copy(box[:crypto.BoxPubKeyLen], key)
 			if box == *pubkey {
 				return true
 			}
@@ -208,7 +212,7 @@ func (ss *sessions) isSessionAllowed(pubkey *boxPubKey, initiator bool) bool {
 }
 
 // Gets the session corresponding to a given handle.
-func (ss *sessions) getSessionForHandle(handle *handle) (*sessionInfo, bool) {
+func (ss *sessions) getSessionForHandle(handle *crypto.Handle) (*sessionInfo, bool) {
 	sinfo, isIn := ss.sinfos[*handle]
 	if isIn && sinfo.timedout() {
 		// We have a session, but it has timed out
@@ -218,7 +222,7 @@ func (ss *sessions) getSessionForHandle(handle *handle) (*sessionInfo, bool) {
 }
 
 // Gets a session corresponding to an ephemeral session key used by this node.
-func (ss *sessions) getByMySes(key *boxPubKey) (*sessionInfo, bool) {
+func (ss *sessions) getByMySes(key *crypto.BoxPubKey) (*sessionInfo, bool) {
 	h, isIn := ss.byMySes[*key]
 	if !isIn {
 		return nil, false
@@ -228,7 +232,7 @@ func (ss *sessions) getByMySes(key *boxPubKey) (*sessionInfo, bool) {
 }
 
 // Gets a session corresponding to a permanent key used by the remote node.
-func (ss *sessions) getByTheirPerm(key *boxPubKey) (*sessionInfo, bool) {
+func (ss *sessions) getByTheirPerm(key *crypto.BoxPubKey) (*sessionInfo, bool) {
 	h, isIn := ss.byTheirPerm[*key]
 	if !isIn {
 		return nil, false
@@ -238,7 +242,7 @@ func (ss *sessions) getByTheirPerm(key *boxPubKey) (*sessionInfo, bool) {
 }
 
 // Gets a session corresponding to an IPv6 address used by the remote node.
-func (ss *sessions) getByTheirAddr(addr *address) (*sessionInfo, bool) {
+func (ss *sessions) getByTheirAddr(addr *address.Address) (*sessionInfo, bool) {
 	p, isIn := ss.addrToPerm[*addr]
 	if !isIn {
 		return nil, false
@@ -248,7 +252,7 @@ func (ss *sessions) getByTheirAddr(addr *address) (*sessionInfo, bool) {
 }
 
 // Gets a session corresponding to an IPv6 /64 subnet used by the remote node/network.
-func (ss *sessions) getByTheirSubnet(snet *subnet) (*sessionInfo, bool) {
+func (ss *sessions) getByTheirSubnet(snet *address.Subnet) (*sessionInfo, bool) {
 	p, isIn := ss.subnetToPerm[*snet]
 	if !isIn {
 		return nil, false
@@ -259,7 +263,7 @@ func (ss *sessions) getByTheirSubnet(snet *subnet) (*sessionInfo, bool) {
 
 // Creates a new session and lazily cleans up old/timedout existing sessions.
 // This includse initializing session info to sane defaults (e.g. lowest supported MTU).
-func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
+func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	if ss.sessionFirewallEnabled {
 		if !ss.isSessionAllowed(theirPermKey, true) {
 			return nil
@@ -268,12 +272,12 @@ func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
 	sinfo := sessionInfo{}
 	sinfo.core = ss.core
 	sinfo.theirPermPub = *theirPermKey
-	pub, priv := newBoxKeys()
+	pub, priv := crypto.NewBoxKeys()
 	sinfo.mySesPub = *pub
 	sinfo.mySesPriv = *priv
-	sinfo.myNonce = *newBoxNonce()
+	sinfo.myNonce = *crypto.NewBoxNonce()
 	sinfo.theirMTU = 1280
-	sinfo.myMTU = uint16(ss.core.tun.mtu)
+	sinfo.myMTU = uint16(ss.core.router.tun.mtu)
 	now := time.Now()
 	sinfo.time = now
 	sinfo.mtuTime = now
@@ -295,9 +299,9 @@ func (ss *sessions) createSession(theirPermKey *boxPubKey) *sessionInfo {
 		// lower => even nonce
 		sinfo.myNonce[len(sinfo.myNonce)-1] &= 0xfe
 	}
-	sinfo.myHandle = *newHandle()
-	sinfo.theirAddr = *address_addrForNodeID(getNodeID(&sinfo.theirPermPub))
-	sinfo.theirSubnet = *address_subnetForNodeID(getNodeID(&sinfo.theirPermPub))
+	sinfo.myHandle = *crypto.NewHandle()
+	sinfo.theirAddr = *address.AddrForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
+	sinfo.theirSubnet = *address.SubnetForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
 	sinfo.send = make(chan []byte, 32)
 	sinfo.recv = make(chan *wire_trafficPacket, 32)
 	go sinfo.doWorker()
@@ -324,32 +328,32 @@ func (ss *sessions) cleanup() {
 			s.close()
 		}
 	}
-	permShared := make(map[boxPubKey]*boxSharedKey, len(ss.permShared))
+	permShared := make(map[crypto.BoxPubKey]*crypto.BoxSharedKey, len(ss.permShared))
 	for k, v := range ss.permShared {
 		permShared[k] = v
 	}
 	ss.permShared = permShared
-	sinfos := make(map[handle]*sessionInfo, len(ss.sinfos))
+	sinfos := make(map[crypto.Handle]*sessionInfo, len(ss.sinfos))
 	for k, v := range ss.sinfos {
 		sinfos[k] = v
 	}
 	ss.sinfos = sinfos
-	byMySes := make(map[boxPubKey]*handle, len(ss.byMySes))
+	byMySes := make(map[crypto.BoxPubKey]*crypto.Handle, len(ss.byMySes))
 	for k, v := range ss.byMySes {
 		byMySes[k] = v
 	}
 	ss.byMySes = byMySes
-	byTheirPerm := make(map[boxPubKey]*handle, len(ss.byTheirPerm))
+	byTheirPerm := make(map[crypto.BoxPubKey]*crypto.Handle, len(ss.byTheirPerm))
 	for k, v := range ss.byTheirPerm {
 		byTheirPerm[k] = v
 	}
 	ss.byTheirPerm = byTheirPerm
-	addrToPerm := make(map[address]*boxPubKey, len(ss.addrToPerm))
+	addrToPerm := make(map[address.Address]*crypto.BoxPubKey, len(ss.addrToPerm))
 	for k, v := range ss.addrToPerm {
 		addrToPerm[k] = v
 	}
 	ss.addrToPerm = addrToPerm
-	subnetToPerm := make(map[subnet]*boxPubKey, len(ss.subnetToPerm))
+	subnetToPerm := make(map[address.Subnet]*crypto.BoxPubKey, len(ss.subnetToPerm))
 	for k, v := range ss.subnetToPerm {
 		subnetToPerm[k] = v
 	}
@@ -380,15 +384,15 @@ func (ss *sessions) getPing(sinfo *sessionInfo) sessionPing {
 		Coords:      coords,
 		MTU:         sinfo.myMTU,
 	}
-	sinfo.myNonce.update()
+	sinfo.myNonce.Increment()
 	return ref
 }
 
 // Gets the shared key for a pair of box keys.
 // Used to cache recently used shared keys for protocol traffic.
 // This comes up with dht req/res and session ping/pong traffic.
-func (ss *sessions) getSharedKey(myPriv *boxPrivKey,
-	theirPub *boxPubKey) *boxSharedKey {
+func (ss *sessions) getSharedKey(myPriv *crypto.BoxPrivKey,
+	theirPub *crypto.BoxPubKey) *crypto.BoxSharedKey {
 	if skey, isIn := ss.permShared[*theirPub]; isIn {
 		return skey
 	}
@@ -401,7 +405,7 @@ func (ss *sessions) getSharedKey(myPriv *boxPrivKey,
 		}
 		delete(ss.permShared, key)
 	}
-	ss.permShared[*theirPub] = getSharedKey(myPriv, theirPub)
+	ss.permShared[*theirPub] = crypto.GetSharedKey(myPriv, theirPub)
 	return ss.permShared[*theirPub]
 }
 
@@ -417,7 +421,7 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 	ping.IsPong = isPong
 	bs := ping.encode()
 	shared := ss.getSharedKey(&ss.core.boxPriv, &sinfo.theirPermPub)
-	payload, nonce := boxSeal(shared, bs, nil)
+	payload, nonce := crypto.BoxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
 		Coords:  sinfo.coords,
 		ToKey:   sinfo.theirPermPub,
@@ -468,24 +472,6 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 	}
 }
 
-// Used to subtract one nonce from another, staying in the range +- 64.
-// This is used by the nonce progression machinery to advance the bitmask of recently received packets (indexed by nonce), or to check the appropriate bit of the bitmask.
-// It's basically part of the machinery that prevents replays and duplicate packets.
-func (n *boxNonce) minus(m *boxNonce) int64 {
-	diff := int64(0)
-	for idx := range n {
-		diff *= 256
-		diff += int64(n[idx]) - int64(m[idx])
-		if diff > 64 {
-			diff = 64
-		}
-		if diff < -64 {
-			diff = -64
-		}
-	}
-	return diff
-}
-
 // Get the MTU of the session.
 // Will be equal to the smaller of this node's MTU or the remote node's MTU.
 // If sending over links with a maximum message size (this was a thing with the old UDP code), it could be further lowered, to a minimum of 1280.
@@ -500,9 +486,9 @@ func (sinfo *sessionInfo) getMTU() uint16 {
 }
 
 // Checks if a packet's nonce is recent enough to fall within the window of allowed packets, and not already received.
-func (sinfo *sessionInfo) nonceIsOK(theirNonce *boxNonce) bool {
+func (sinfo *sessionInfo) nonceIsOK(theirNonce *crypto.BoxNonce) bool {
 	// The bitmask is to allow for some non-duplicate out-of-order packets
-	diff := theirNonce.minus(&sinfo.theirNonce)
+	diff := theirNonce.Minus(&sinfo.theirNonce)
 	if diff > 0 {
 		return true
 	}
@@ -510,10 +496,10 @@ func (sinfo *sessionInfo) nonceIsOK(theirNonce *boxNonce) bool {
 }
 
 // Updates the nonce mask by (possibly) shifting the bitmask and setting the bit corresponding to this nonce to 1, and then updating the most recent nonce
-func (sinfo *sessionInfo) updateNonce(theirNonce *boxNonce) {
+func (sinfo *sessionInfo) updateNonce(theirNonce *crypto.BoxNonce) {
 	// Shift nonce mask if needed
 	// Set bit
-	diff := theirNonce.minus(&sinfo.theirNonce)
+	diff := theirNonce.Minus(&sinfo.theirNonce)
 	if diff > 0 {
 		// This nonce is newer, so shift the window before setting the bit, and update theirNonce in the session info.
 		sinfo.nonceMask <<= uint64(diff)
@@ -559,7 +545,7 @@ func (sinfo *sessionInfo) doWorker() {
 
 // This encrypts a packet, creates a trafficPacket struct, encodes it, and sends it to router.out to pass it to the switch layer.
 func (sinfo *sessionInfo) doSend(bs []byte) {
-	defer util_putBytes(bs)
+	defer util.PutBytes(bs)
 	if !sinfo.init {
 		// To prevent using empty session keys
 		return
@@ -593,8 +579,8 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 		coords = wire_put_uint64(flowkey, coords) // Then variable-length encoded flowkey
 	}
 	// Prepare the payload
-	payload, nonce := boxSeal(&sinfo.sharedSesKey, bs, &sinfo.myNonce)
-	defer util_putBytes(payload)
+	payload, nonce := crypto.BoxSeal(&sinfo.sharedSesKey, bs, &sinfo.myNonce)
+	defer util.PutBytes(payload)
 	p := wire_trafficPacket{
 		Coords:  coords,
 		Handle:  sinfo.theirHandle,
@@ -612,13 +598,13 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 // If a packet does not decrypt successfully, it assumes the packet was truncated, and updates the MTU accordingly.
 // TODO? remove the MTU updating part? That should never happen with TCP peers, and the old UDP code that caused it was removed (and if replaced, should be replaced with something that can reliably send messages with an arbitrary size).
 func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
-	defer util_putBytes(p.Payload)
+	defer util.PutBytes(p.Payload)
 	if !sinfo.nonceIsOK(&p.Nonce) {
 		return
 	}
-	bs, isOK := boxOpen(&sinfo.sharedSesKey, p.Payload, &p.Nonce)
+	bs, isOK := crypto.BoxOpen(&sinfo.sharedSesKey, p.Payload, &p.Nonce)
 	if !isOK {
-		util_putBytes(bs)
+		util.PutBytes(bs)
 		return
 	}
 	sinfo.updateNonce(&p.Nonce)

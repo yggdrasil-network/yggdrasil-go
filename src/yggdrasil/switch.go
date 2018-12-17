@@ -16,6 +16,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 const (
@@ -30,16 +33,16 @@ const (
 // The coords represent a path from the root to a node.
 // This path is generally part of a spanning tree, except possibly the last hop (it can loop when sending coords to your parent, but they see this and know not to use a looping path).
 type switchLocator struct {
-	root   sigPubKey
+	root   crypto.SigPubKey
 	tstamp int64
 	coords []switchPort
 }
 
 // Returns true if the first sigPubKey has a higher TreeID.
-func firstIsBetter(first, second *sigPubKey) bool {
+func firstIsBetter(first, second *crypto.SigPubKey) bool {
 	// Higher TreeID is better
-	ftid := getTreeID(first)
-	stid := getTreeID(second)
+	ftid := crypto.GetTreeID(first)
+	stid := crypto.GetTreeID(second)
 	for idx := 0; idx < len(ftid); idx++ {
 		if ftid[idx] == stid[idx] {
 			continue
@@ -121,7 +124,7 @@ func (x *switchLocator) isAncestorOf(y *switchLocator) bool {
 
 // Information about a peer, used by the switch to build the tree and eventually make routing decisions.
 type peerInfo struct {
-	key     sigPubKey             // ID of this peer
+	key     crypto.SigPubKey      // ID of this peer
 	locator switchLocator         // Should be able to respond with signatures upon request
 	degree  uint64                // Self-reported degree
 	time    time.Time             // Time this node was last seen
@@ -159,26 +162,26 @@ type switchData struct {
 // All the information stored by the switch.
 type switchTable struct {
 	core              *Core
-	key               sigPubKey           // Our own key
-	time              time.Time           // Time when locator.tstamp was last updated
-	drop              map[sigPubKey]int64 // Tstamp associated with a dropped root
-	mutex             sync.RWMutex        // Lock for reads/writes of switchData
-	parent            switchPort          // Port of whatever peer is our parent, or self if we're root
-	data              switchData          //
-	updater           atomic.Value        // *sync.Once
-	table             atomic.Value        // lookupTable
-	packetIn          chan []byte         // Incoming packets for the worker to handle
-	idleIn            chan switchPort     // Incoming idle notifications from peer links
-	admin             chan func()         // Pass a lambda for the admin socket to query stuff
-	queues            switch_buffers      // Queues - not atomic so ONLY use through admin chan
-	queueTotalMaxSize uint64              // Maximum combined size of queues
+	key               crypto.SigPubKey           // Our own key
+	time              time.Time                  // Time when locator.tstamp was last updated
+	drop              map[crypto.SigPubKey]int64 // Tstamp associated with a dropped root
+	mutex             sync.RWMutex               // Lock for reads/writes of switchData
+	parent            switchPort                 // Port of whatever peer is our parent, or self if we're root
+	data              switchData                 //
+	updater           atomic.Value               // *sync.Once
+	table             atomic.Value               // lookupTable
+	packetIn          chan []byte                // Incoming packets for the worker to handle
+	idleIn            chan switchPort            // Incoming idle notifications from peer links
+	admin             chan func()                // Pass a lambda for the admin socket to query stuff
+	queues            switch_buffers             // Queues - not atomic so ONLY use through admin chan
+	queueTotalMaxSize uint64                     // Maximum combined size of queues
 }
 
 // Minimum allowed total size of switch queues.
 const SwitchQueueTotalMinSize = 4 * 1024 * 1024
 
 // Initializes the switchTable struct.
-func (t *switchTable) init(core *Core, key sigPubKey) {
+func (t *switchTable) init(core *Core, key crypto.SigPubKey) {
 	now := time.Now()
 	t.core = core
 	t.key = key
@@ -187,7 +190,7 @@ func (t *switchTable) init(core *Core, key sigPubKey) {
 	t.data = switchData{locator: locator, peers: peers}
 	t.updater.Store(&sync.Once{})
 	t.table.Store(lookupTable{})
-	t.drop = make(map[sigPubKey]int64)
+	t.drop = make(map[crypto.SigPubKey]int64)
 	t.packetIn = make(chan []byte, 1024)
 	t.idleIn = make(chan switchPort, 1024)
 	t.admin = make(chan func())
@@ -302,7 +305,7 @@ func (t *switchTable) cleanDropped() {
 // This is exchanged with peers to construct the spanning tree.
 // A subset of this information, excluding the signatures, is used to construct locators that are used elsewhere in the code.
 type switchMsg struct {
-	Root   sigPubKey
+	Root   crypto.SigPubKey
 	TStamp int64
 	Hops   []switchMsgHop
 }
@@ -310,8 +313,8 @@ type switchMsg struct {
 // This represents the signed information about the path leading from the root the Next node, via the Port specified here.
 type switchMsgHop struct {
 	Port switchPort
-	Next sigPubKey
-	Sig  sigBytes
+	Next crypto.SigPubKey
+	Sig  crypto.SigBytes
 }
 
 // This returns a *switchMsg to a copy of this node's current switchMsg, which can safely have additional information appended to Hops and sent to a peer.
@@ -690,7 +693,7 @@ func (b *switch_buffers) cleanup(t *switchTable) {
 		coords := switch_getPacketCoords(packet.bytes)
 		if t.selfIsClosest(coords) {
 			for _, packet := range buf.packets {
-				util_putBytes(packet.bytes)
+				util.PutBytes(packet.bytes)
 			}
 			b.size -= buf.size
 			delete(b.bufs, streamID)
@@ -710,7 +713,7 @@ func (b *switch_buffers) cleanup(t *switchTable) {
 			packet, buf.packets = buf.packets[0], buf.packets[1:]
 			buf.size -= uint64(len(packet.bytes))
 			b.size -= uint64(len(packet.bytes))
-			util_putBytes(packet.bytes)
+			util.PutBytes(packet.bytes)
 			if len(buf.packets) == 0 {
 				delete(b.bufs, streamID)
 			} else {
