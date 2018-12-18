@@ -73,7 +73,7 @@ cat > /tmp/$PKGNAME/debian/postinst << EOF
 #!/bin/sh
 
 if ! getent group yggdrasil 2>&1 > /dev/null; then
-  addgroup --system --quiet yggdrasil
+  groupadd --system --force yggdrasil || echo "Failed to create group 'yggdrasil' - please create it manually and reinstall"
 fi
 
 if [ -f /etc/yggdrasil.conf ];
