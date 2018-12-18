@@ -59,4 +59,8 @@ if [ $BRANCH != "master" ]; then
   if [ $BUILD != 0 ]; then
     printf -- "-%04d" "$BUILD"
   fi
+else
+  if [ $BUILD != 0 ]; then
+    printf -- "-%d" "$BUILD"
+  fi
 fi
