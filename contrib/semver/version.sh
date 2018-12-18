@@ -33,9 +33,6 @@ if [ $? != 0 ]; then
   exit 1
 fi
 
-# Get the number of merges on the current branch since the last tag
-BUILD=$(git rev-list $TAG..HEAD --count --merges)
-
 # Split out into major, minor and patch numbers
 MAJOR=$(echo $TAG | cut -c 2- | cut -d "." -f 1)
 MINOR=$(echo $TAG | cut -c 2- | cut -d "." -f 2)
@@ -53,6 +50,10 @@ if [ $PATCH = 0 ]; then
 else
   printf '%s%d.%d.%d' "$PREPEND" "$MAJOR" "$MINOR" "$PATCH"
 fi
+
+# Get the number of merges on the current branch since the last tag
+TAG=$(git describe --abbrev=0 --tags --match="v[0-9]*\.[0-9]*\.[0-9]*" 2>/dev/null)
+BUILD=$(git rev-list $TAG..$BRANCH --count)
 
 # Add the build tag on non-master branches
 if [ $BRANCH != "master" ]; then
