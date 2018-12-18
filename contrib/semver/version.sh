@@ -52,8 +52,8 @@ else
 fi
 
 # Get the number of merges on the current branch since the last tag
-TAG=$(git describe --abbrev=0 --tags --match="v[0-9]*\.[0-9]*\.[0-9]*" 2>/dev/null)
-BUILD=$(git rev-list $TAG..$BRANCH --count)
+TAG=$(git describe --abbrev=0 --tags --match="v[0-9]*\.[0-9]*\.[0-9]*" --first-parent master 2>/dev/null)
+BUILD=$(git rev-list $TAG.. --count)
 
 # Add the build tag on non-master branches
 if [ $BRANCH != "master" ]; then
@@ -62,6 +62,6 @@ if [ $BRANCH != "master" ]; then
   fi
 else
   if [ $BUILD != 0 ]; then
-    printf -- "-%d" "$BUILD"
+    printf -- "-%d" "$(($BUILD+1))"
   fi
 fi
