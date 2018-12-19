@@ -25,7 +25,7 @@ if [ $PKGARCH = "amd64" ]; then GOARCH=amd64 GOOS=linux ./build
 elif [ $PKGARCH = "i386" ]; then GOARCH=386 GOOS=linux ./build
 elif [ $PKGARCH = "mipsel" ]; then GOARCH=mipsle GOOS=linux ./build
 elif [ $PKGARCH = "mips" ]; then GOARCH=mips64 GOOS=linux ./build
-elif [ $PKGARCH = "armhf" ]; then GOARCH=arm GOOS=linux GOARM=7 ./build
+elif [ $PKGARCH = "armhf" ]; then GOARCH=arm GOOS=linux GOARM=6 ./build
 elif [ $PKGARCH = "arm64" ]; then GOARCH=arm64 GOOS=linux ./build
 else
   echo "Specify PKGARCH=amd64,i386,mips,mipsel,armhf,arm64"
@@ -73,7 +73,7 @@ cat > /tmp/$PKGNAME/debian/postinst << EOF
 #!/bin/sh
 
 if ! getent group yggdrasil 2>&1 > /dev/null; then
-  addgroup --system --quiet yggdrasil
+  groupadd --system --force yggdrasil || echo "Failed to create group 'yggdrasil' - please create it manually and reinstall"
 fi
 
 if [ -f /etc/yggdrasil.conf ];

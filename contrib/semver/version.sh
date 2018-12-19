@@ -3,14 +3,14 @@
 # Merge commits from this branch are counted
 DEVELOPBRANCH="yggdrasil-network/develop"
 
-# Get the last tag that denotes moving to a major version number
+# Get the last tag
 TAG=$(git describe --abbrev=0 --tags --match="v[0-9]*\.[0-9]*\.0" 2>/dev/null)
 
 # Get last merge to master
 MERGE=$(git rev-list $TAG..master --grep "from $DEVELOPBRANCH" 2>/dev/null | head -n 1)
 
 # Get the number of merges since the last merge to master
-PATCH=$(git rev-list $TAG..master --count --merges --grep="from $DEVELOPBRANCH" 2>/dev/null)
+PATCH=$(git rev-list $TAG..master --count --merges --grep="from $DEVELOPBRANCH" --first-parent master 2>/dev/null)
 
 # Decide whether we should prepend the version with "v" - the default is that
 # we do because we use it in git tags, but we might not always need it
@@ -51,13 +51,17 @@ else
   printf '%s%d.%d.%d' "$PREPEND" "$MAJOR" "$MINOR" "$PATCH"
 fi
 
+# Get the number of merges on the current branch since the last tag
+TAG=$(git describe --abbrev=0 --tags --match="v[0-9]*\.[0-9]*\.[0-9]*" --first-parent master 2>/dev/null)
+BUILD=$(git rev-list $TAG.. --count)
+
 # Add the build tag on non-master branches
 if [ $BRANCH != "master" ]; then
-  # Get the number of merges on the current branch since the last tag
-  BUILDTAG=$(git describe --abbrev=0 --tags --match="v[0-9]*\.[0-9]*\.[0-9]*" 2>/dev/null)
-  BUILD=$(git rev-list $BUILDTAG..HEAD --count --merges)
-
   if [ $BUILD != 0 ]; then
     printf -- "-%04d" "$BUILD"
+  fi
+else
+  if [ $BUILD != 0 ]; then
+    printf -- "-%d" "$(($BUILD+1))"
   fi
 fi
