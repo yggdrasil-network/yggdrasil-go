@@ -134,6 +134,15 @@ func (t *dht) insert(info *dhtInfo) {
 	t.table[*info.getNodeID()] = info
 }
 
+// Insert a peer into the table if it hasn't been pinged lately, to keep peers from dropping
+func (t *dht) insertPeer(info *dhtInfo) {
+	oldInfo, isIn := t.table[*info.getNodeID()]
+	if !isIn || time.Since(oldInfo.recv) > 45*time.Second {
+		// TODO? also check coords?
+		t.insert(info)
+	}
+}
+
 // Return true if first/second/third are (partially) ordered correctly.
 func dht_ordered(first, second, third *crypto.NodeID) bool {
 	lessOrEqual := func(first, second *crypto.NodeID) bool {
