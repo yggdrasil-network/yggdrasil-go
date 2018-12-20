@@ -108,9 +108,14 @@ func (m *nodeinfo) setNodeInfo(given interface{}) error {
 	if nodeinfomap, ok := given.(map[string]interface{}); ok {
 		for key, value := range nodeinfomap {
 			if _, ok := newnodeinfo[key]; ok {
+				if value == "hide" {
+					delete(newnodeinfo, key)
+				}
 				continue
 			}
-			newnodeinfo[key] = value
+			if value != "hide" {
+				newnodeinfo[key] = value
+			}
 		}
 	}
 	if newjson, err := json.Marshal(newnodeinfo); err == nil {
