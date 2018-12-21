@@ -325,7 +325,15 @@ func (t *dht) doMaintenance() {
 	}
 	t.callbacks = newCallbacks
 	for infoID, info := range t.table {
-		if now.Sub(info.recv) > dht_timeout || info.pings > 6 {
+		switch {
+		case info.pings > 6:
+			// It failed to respond to too many pings
+			fallthrough
+		case now.Sub(info.recv) > dht_timeout:
+			// It's too old
+			fallthrough
+		case info.dirty && now.Sub(info.recv) > dht_max_delay_dirty && !t.isImportant(info):
+			// We won't ping it to refresh it, so just drop it
 			delete(t.table, infoID)
 			t.imp = nil
 		}
