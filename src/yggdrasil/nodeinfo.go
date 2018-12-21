@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -114,7 +115,7 @@ func (m *nodeinfo) setNodeInfo(given interface{}, privacy bool) error {
 	if nodeinfomap, ok := given.(map[string]interface{}); ok {
 		for key, value := range nodeinfomap {
 			if _, ok := defaults[key]; ok {
-				if strvalue, strok := value.(string); strok && strvalue == "null" || value == nil {
+				if strvalue, strok := value.(string); strok && strings.EqualFold(strvalue, "null") || value == nil {
 					delete(newnodeinfo, key)
 				}
 				continue
@@ -123,7 +124,6 @@ func (m *nodeinfo) setNodeInfo(given interface{}, privacy bool) error {
 		}
 	}
 	if newjson, err := json.Marshal(newnodeinfo); err == nil {
-		m.core.log.Println(string(newjson))
 		if len(newjson) > 16384 {
 			return errors.New("NodeInfo exceeds max length of 16384 bytes")
 		}
