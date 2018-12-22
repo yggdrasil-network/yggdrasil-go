@@ -41,7 +41,7 @@ type nodeinfoReqRes struct {
 	NodeInfo    nodeinfoPayload
 }
 
-// Initialises the nodeinfo cache/callback maps, and starts a goroutine to keep
+// Initializes the nodeinfo cache/callback maps, and starts a goroutine to keep
 // the cache/callback maps clean of stale entries
 func (m *nodeinfo) init(core *Core) {
 	m.core = core

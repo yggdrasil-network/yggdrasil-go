@@ -10,9 +10,9 @@ package yggdrasil
 //  Could be used to DoS (connect, give someone else's keys, spew garbage)
 //  I guess the "peer" part should watch for link packets, disconnect?
 
-// TCP connections start with a metadata exchange.
+// TCP connections start with a meta data exchange.
 //  It involves exchanging version numbers and crypto keys
-//  See version.go for version metadata format
+//  See version.go for version meta data format
 
 import (
 	"errors"
@@ -74,7 +74,7 @@ func (iface *tcpInterface) connect(addr string, intf string) {
 	iface.call(addr, nil, intf)
 }
 
-// Attempst to initiate a connection to the provided address, viathe provided socks proxy address.
+// Attempts to initiate a connection to the provided address, via the provided socks proxy address.
 func (iface *tcpInterface) connectSOCKS(socksaddr, peeraddr string) {
 	iface.call(peeraddr, &socksaddr, "")
 }
@@ -370,7 +370,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	return
 }
 
-// This reads from the socket into a []byte buffer for incomping messages.
+// This reads from the socket into a []byte buffer for incoming messages.
 // It copies completed messages out of the cache into a new slice, and passes them to the peer struct via the provided `in func([]byte)` argument.
 // Then it shifts the incomplete fragments of data forward so future reads won't overwrite it.
 func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) error {

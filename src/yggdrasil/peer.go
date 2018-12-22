@@ -14,7 +14,7 @@ import (
 )
 
 // The peers struct represents peers with an active connection.
-// Incomping packets are passed to the corresponding peer, which handles them somehow.
+// Incoming packets are passed to the corresponding peer, which handles them somehow.
 // In most cases, this involves passing the packet to the handler for outgoing traffic to another peer.
 // In other cases, it's link protocol traffic used to build the spanning tree, in which case this checks signatures and passes the message along to the switch.
 type peers struct {
@@ -341,7 +341,7 @@ func (p *peer) handleSwitchMsg(packet []byte) {
 }
 
 // This generates the bytes that we sign or check the signature of for a switchMsg.
-// It begins with the next node's key, followed by the root and the timetsamp, followed by coords being advertised to the next node.
+// It begins with the next node's key, followed by the root and the timestamp, followed by coords being advertised to the next node.
 func getBytesForSig(next *crypto.SigPubKey, msg *switchMsg) []byte {
 	var loc switchLocator
 	for _, hop := range msg.Hops {

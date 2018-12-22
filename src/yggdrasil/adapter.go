@@ -17,7 +17,7 @@ type Adapter struct {
 	recv <-chan []byte
 }
 
-// Initialises the adapter.
+// Initializes the adapter.
 func (adapter *Adapter) init(core *Core, send chan<- []byte, recv <-chan []byte) {
 	adapter.core = core
 	adapter.send = send
