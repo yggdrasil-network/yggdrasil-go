@@ -12,7 +12,12 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 )
 
-const dht_lookup_size = 16
+const (
+	dht_lookup_size     = 16
+	dht_timeout         = 6 * time.Minute
+	dht_max_delay       = 5 * time.Minute
+	dht_max_delay_dirty = 30 * time.Second
+)
 
 // dhtInfo represents everything we know about a node in the DHT.
 // This includes its key, a cache of it's NodeID, coords, and timing/ping related info for deciding who/when to ping nodes for maintenance.
@@ -23,6 +28,7 @@ type dhtInfo struct {
 	recv          time.Time // When we last received a message
 	pings         int       // Time out if at least 3 consecutive maintenance pings drop
 	throttle      time.Duration
+	dirty         bool // Set to true if we've used this node in ping responses (for queries about someone other than the person doing the asking, i.e. real searches) since the last time we heard from the node
 }
 
 // Returns the *NodeID associated with dhtInfo.key, calculating it on the fly the first time or from a cache all subsequent times.
@@ -134,6 +140,15 @@ func (t *dht) insert(info *dhtInfo) {
 	t.table[*info.getNodeID()] = info
 }
 
+// Insert a peer into the table if it hasn't been pinged lately, to keep peers from dropping
+func (t *dht) insertPeer(info *dhtInfo) {
+	oldInfo, isIn := t.table[*info.getNodeID()]
+	if !isIn || time.Since(oldInfo.recv) > dht_max_delay+30*time.Second {
+		// TODO? also check coords?
+		t.insert(info)
+	}
+}
+
 // Return true if first/second/third are (partially) ordered correctly.
 func dht_ordered(first, second, third *crypto.NodeID) bool {
 	lessOrEqual := func(first, second *crypto.NodeID) bool {
@@ -184,6 +199,14 @@ func (t *dht) handleReq(req *dhtReq) {
 	}
 	if _, isIn := t.table[*info.getNodeID()]; !isIn && t.isImportant(&info) {
 		t.ping(&info, nil)
+	}
+	// Maybe mark nodes from lookup as dirty
+	if req.Dest != *info.getNodeID() {
+		// This node asked about someone other than themself, so this wasn't just idle traffic.
+		for _, info := range res.Infos {
+			// Mark nodes dirty so we're sure to check up on them again later
+			info.dirty = true
+		}
 	}
 }
 
@@ -302,19 +325,32 @@ func (t *dht) doMaintenance() {
 	}
 	t.callbacks = newCallbacks
 	for infoID, info := range t.table {
-		if now.Sub(info.recv) > time.Minute || info.pings > 3 {
+		switch {
+		case info.pings > 6:
+			// It failed to respond to too many pings
+			fallthrough
+		case now.Sub(info.recv) > dht_timeout:
+			// It's too old
+			fallthrough
+		case info.dirty && now.Sub(info.recv) > dht_max_delay_dirty && !t.isImportant(info):
+			// We won't ping it to refresh it, so just drop it
 			delete(t.table, infoID)
 			t.imp = nil
 		}
 	}
 	for _, info := range t.getImportant() {
-		if now.Sub(info.recv) > info.throttle {
+		switch {
+		case now.Sub(info.recv) > info.throttle:
+			info.throttle *= 2
+			if info.throttle < time.Second {
+				info.throttle = time.Second
+			} else if info.throttle > dht_max_delay {
+				info.throttle = dht_max_delay
+			}
+			fallthrough
+		case info.dirty && now.Sub(info.recv) > dht_max_delay_dirty:
 			t.ping(info, nil)
 			info.pings++
-			info.throttle += time.Second
-			if info.throttle > 30*time.Second {
-				info.throttle = 30 * time.Second
-			}
 		}
 	}
 }
