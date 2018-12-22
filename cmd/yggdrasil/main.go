@@ -71,6 +71,7 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	cfg.SessionFirewall.AllowFromDirect = true
 	cfg.SessionFirewall.AllowFromRemote = true
 	cfg.SwitchOptions.MaxTotalQueueSize = yggdrasil.SwitchQueueTotalMinSize
+	cfg.NodeInfoPrivacy = false
 
 	return &cfg
 }
