@@ -214,11 +214,12 @@ func (tun *tunAdapter) read() error {
 			continue
 		}
 		if buf[o+6] == 58 {
-			// Found an ICMPv6 packet
-			b := make([]byte, n)
-			copy(b, buf)
-			// tun.icmpv6.recv <- b
-			go tun.icmpv6.parse_packet(b)
+			if tun.iface.IsTAP() {
+				// Found an ICMPv6 packet
+				b := make([]byte, n)
+				copy(b, buf)
+				go tun.icmpv6.parse_packet(b)
+			}
 		}
 		packet := append(util.GetBytes(), buf[o:n]...)
 		tun.send <- packet
