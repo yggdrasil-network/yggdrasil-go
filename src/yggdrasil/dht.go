@@ -145,7 +145,8 @@ func (t *dht) insertPeer(info *dhtInfo) {
 	oldInfo, isIn := t.table[*info.getNodeID()]
 	if !isIn || time.Since(oldInfo.recv) > dht_max_delay+30*time.Second {
 		// TODO? also check coords?
-		t.insert(info)
+		newInfo := *info // Insert a copy
+		t.insert(&newInfo)
 	}
 }
 
