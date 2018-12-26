@@ -175,10 +175,13 @@ func (i *icmpv6) parse_packet_tun(datain []byte, datamac *[]byte) ([]byte, error
 	case ipv6.ICMPTypeNeighborAdvertisement:
 		if datamac != nil {
 			var addr address.Address
+			var target address.Address
 			var mac macAddress
 			copy(addr[:], ipv6Header.Src[:])
+			copy(target[:], datain[48:64])
 			copy(mac[:], (*datamac)[:])
-			neighbor := i.peermacs[addr]
+			// i.tun.core.log.Println("Learning peer MAC", mac, "for", target)
+			neighbor := i.peermacs[target]
 			neighbor.mac = mac
 			neighbor.learned = true
 			neighbor.lastadvertisement = time.Now()
