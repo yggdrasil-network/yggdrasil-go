@@ -25,6 +25,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.3.2] - 2018-12-26
+### Added
+- The admin socket is now multithreaded, greatly improving performance of the crawler and allowing concurrent lookups to take place
+- The ability to hide NodeInfo defaults through either setting the `NodeInfoPrivacy` option or through setting individual `NodeInfo` attributes to `null`
+
+### Changed
+- The `armhf` build now targets ARMv6 instead of ARMv7, adding support for Raspberry Pi Zero and other older models, amongst others
+
+### Fixed
+- DHT entries are now populated using a copy in memory to fix various potential DHT bugs
+- DHT traffic should now throttle back exponentially to reduce idle traffic
+- Adjust how nodes are inserted into the DHT which should help to reduce some incorrect DHT traffic
+- In TAP mode, the NDP target address is now correctly used when populating the peer MAC table. This fixes serious connectivity problems when in TAP mode, particularly on BSD
+- In TUN mode, ICMPv6 packets are now ignored whereas they were incorrectly processed before
+
 ## [0.3.1] - 2018-12-17
 ### Added
 - Build name and version is now imprinted onto the binaries if available/specified during build

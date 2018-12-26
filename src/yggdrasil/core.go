@@ -125,7 +125,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	c.admin.init(c, nc.AdminListen)
 
 	c.nodeinfo.init(c)
-	c.nodeinfo.setNodeInfo(nc.NodeInfo)
+	c.nodeinfo.setNodeInfo(nc.NodeInfo, nc.NodeInfoPrivacy)
 
 	if err := c.tcp.init(c, nc.Listen, nc.ReadTimeout); err != nil {
 		c.log.Println("Failed to start TCP interface")
@@ -248,8 +248,8 @@ func (c *Core) GetNodeInfo() nodeinfoPayload {
 }
 
 // Sets the nodeinfo.
-func (c *Core) SetNodeInfo(nodeinfo interface{}) {
-	c.nodeinfo.setNodeInfo(nodeinfo)
+func (c *Core) SetNodeInfo(nodeinfo interface{}, nodeinfoprivacy bool) {
+	c.nodeinfo.setNodeInfo(nodeinfo, nodeinfoprivacy)
 }
 
 // Sets the output logger of the Yggdrasil node after startup. This may be

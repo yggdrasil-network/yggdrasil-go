@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -96,18 +97,27 @@ func (m *nodeinfo) getNodeInfo() nodeinfoPayload {
 }
 
 // Set the current node's nodeinfo
-func (m *nodeinfo) setNodeInfo(given interface{}) error {
+func (m *nodeinfo) setNodeInfo(given interface{}, privacy bool) error {
 	m.myNodeInfoMutex.Lock()
 	defer m.myNodeInfoMutex.Unlock()
-	newnodeinfo := map[string]interface{}{
+	defaults := map[string]interface{}{
 		"buildname":     GetBuildName(),
 		"buildversion":  GetBuildVersion(),
 		"buildplatform": runtime.GOOS,
 		"buildarch":     runtime.GOARCH,
 	}
+	newnodeinfo := make(map[string]interface{})
+	if !privacy {
+		for k, v := range defaults {
+			newnodeinfo[k] = v
+		}
+	}
 	if nodeinfomap, ok := given.(map[string]interface{}); ok {
 		for key, value := range nodeinfomap {
-			if _, ok := newnodeinfo[key]; ok {
+			if _, ok := defaults[key]; ok {
+				if strvalue, strok := value.(string); strok && strings.EqualFold(strvalue, "null") || value == nil {
+					delete(newnodeinfo, key)
+				}
 				continue
 			}
 			newnodeinfo[key] = value

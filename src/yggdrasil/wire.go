@@ -70,7 +70,7 @@ func wire_decode_uint64(bs []byte) (uint64, int) {
 
 // Converts an int64 into uint64 so it can be written to the wire.
 // Non-negative integers are mapped to even integers: 0 -> 0, 1 -> 2, etc.
-// Negative integres are mapped to odd integes: -1 -> 1, -2 -> 3, etc.
+// Negative integers are mapped to odd integers: -1 -> 1, -2 -> 3, etc.
 // This means the least significant bit is a sign bit.
 func wire_intToUint(i int64) uint64 {
 	return ((uint64(-(i+1))<<1)|0x01)*(uint64(i)>>63) + (uint64(i)<<1)*(^uint64(i)>>63)

@@ -103,7 +103,7 @@ jobs:
           name: Create tags (master branch only)
           command: >
               if [ "${CIRCLE_BRANCH}" == "master" ]; then
-                git tag -f -a $(sh contrib/semver/version.sh) -m "Created by CircleCI" && git push -f --tags;
+                (git tag -a $(sh contrib/semver/version.sh) -m "Created by CircleCI" && git push --tags) || true;
               else
                 echo "Only runs for master branch (this is ${CIRCLE_BRANCH})";
               fi;
