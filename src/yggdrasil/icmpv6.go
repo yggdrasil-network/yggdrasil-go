@@ -180,12 +180,12 @@ func (i *icmpv6) parse_packet_tun(datain []byte, datamac *[]byte) ([]byte, error
 			copy(addr[:], ipv6Header.Src[:])
 			copy(target[:], datain[48:64])
 			copy(mac[:], (*datamac)[:])
-			i.tun.core.log.Printf("Learning peer MAC %x for %x\n", mac, target)
+			// i.tun.core.log.Printf("Learning peer MAC %x for %x\n", mac, target)
 			neighbor := i.peermacs[target]
 			neighbor.mac = mac
 			neighbor.learned = true
 			neighbor.lastadvertisement = time.Now()
-			i.peermacs[addr] = neighbor
+			i.peermacs[target] = neighbor
 		}
 		return nil, errors.New("No response needed")
 	}
