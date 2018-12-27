@@ -2,11 +2,11 @@
 
 # Get the last tag
 TAG=$(git describe --abbrev=0 --tags --match="v[0-9]*\.[0-9]*\.[0-9]*" 2>/dev/null)
-test $? != 0 && (echo "unknown"; exit 1)
+(test $? != 0 || test -z "$TAG") && (echo "unknown"; exit 1)
 
 # Get the current branch
 BRANCH=$(git symbolic-ref -q HEAD --short 2>/dev/null)
-test $? != 0 && BRANCH="master"
+(test $? != 0 || test -z "$BRANCH") && BRANCH="master"
 
 # Split out into major, minor and patch numbers
 MAJOR=$(echo $TAG | cut -c 2- | cut -d "." -f 1)
@@ -23,8 +23,9 @@ fi
 # Add the build tag on non-master branches
 if [ "$BRANCH" != "master" ]; then
   BUILD=$(git rev-list $TAG..HEAD --count)
-
-  if [ $? == 0 ] && [ $((BUILD)) -gt 0 ]; then
-      printf -- "-%04d" "$((BUILD))"
+  if [ $? = 0 ] && [ -n "$BUILD" ]; then
+    if [ $((BUILD)) -gt 0 ]; then
+        printf -- "-%04d" "$((BUILD))"
+    fi
   fi
 fi
