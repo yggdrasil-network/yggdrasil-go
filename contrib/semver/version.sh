@@ -31,7 +31,7 @@ fi
 
 # Add the build tag on non-master branches
 if [ "$BRANCH" != "master" ]; then
-  BUILD=$(git rev-list $TAG..HEAD --count 2>/dev/null)
+  BUILD=$(git rev-list --count $TAG..HEAD 2>/dev/null)
 
   # Did getting the count of commits since the tag succeed?
   if [ $? != 0 ] || [ -z "$BUILD" ]; then
