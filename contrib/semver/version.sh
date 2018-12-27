@@ -5,7 +5,7 @@ TAG=$(git describe --abbrev=0 --tags --match="v[0-9]*\.[0-9]*\.[0-9]*" 2>/dev/nu
 
 # Did getting the tag succeed?
 if [ $? != 0 ] || [ -z "$TAG" ]; then
-  printf "unknown"
+  printf -- "unknown"
   exit 1
 fi
 
@@ -34,7 +34,8 @@ if [ "$BRANCH" != "master" ]; then
   BUILD=$(git rev-list $TAG..HEAD --count 2>/dev/null)
 
   # Did getting the count of commits since the tag succeed?
-  if [ $? != 0 ] && [ -z "$BUILD" ]; then
+  if [ $? != 0 ] || [ -z "$BUILD" ]; then
+    printf -- "-unknown"
     exit 1
   fi
 
