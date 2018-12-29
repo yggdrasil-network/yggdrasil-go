@@ -83,8 +83,10 @@ func (iface *tcpInterface) connectSOCKS(socksaddr, peeraddr string) {
 // Initializes the struct.
 func (iface *tcpInterface) init(core *Core) (err error) {
 	iface.core = core
+	iface.core.configMutex.RLock()
 	iface.tcp_addr = iface.core.config.Listen
 	iface.tcp_timeout = time.Duration(iface.core.config.ReadTimeout) * time.Millisecond
+	iface.core.configMutex.RUnlock()
 	if iface.tcp_timeout >= 0 && iface.tcp_timeout < default_tcp_timeout {
 		iface.tcp_timeout = default_tcp_timeout
 	}
