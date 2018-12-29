@@ -42,13 +42,26 @@ type searchInfo struct {
 
 // This stores a map of active searches.
 type searches struct {
-	core     *Core
-	searches map[crypto.NodeID]*searchInfo
+	core        *Core
+	reconfigure chan bool
+	searches    map[crypto.NodeID]*searchInfo
 }
 
 // Intializes the searches struct.
 func (s *searches) init(core *Core) {
 	s.core = core
+	s.reconfigure = make(chan bool, 1)
+	go func() {
+		for {
+			select {
+			case _ = <-s.reconfigure:
+				s.core.configMutex.RLock()
+				s.core.log.Println("Notified: searches")
+				s.core.configMutex.RUnlock()
+				continue
+			}
+		}
+	}()
 	s.searches = make(map[crypto.NodeID]*searchInfo)
 }
 

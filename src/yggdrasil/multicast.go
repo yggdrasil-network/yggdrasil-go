@@ -10,13 +10,26 @@ import (
 )
 
 type multicast struct {
-	core      *Core
-	sock      *ipv6.PacketConn
-	groupAddr string
+	core        *Core
+	reconfigure chan bool
+	sock        *ipv6.PacketConn
+	groupAddr   string
 }
 
 func (m *multicast) init(core *Core) {
 	m.core = core
+	m.reconfigure = make(chan bool, 1)
+	go func() {
+		for {
+			select {
+			case _ = <-m.reconfigure:
+				m.core.configMutex.RLock()
+				m.core.log.Println("Notified: multicast")
+				m.core.configMutex.RUnlock()
+				continue
+			}
+		}
+	}()
 	m.groupAddr = "[ff02::114]:9001"
 	// Check if we've been given any expressions
 	if len(m.core.ifceExpr) == 0 {

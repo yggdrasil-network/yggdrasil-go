@@ -19,6 +19,7 @@ import (
 // In other cases, it's link protocol traffic used to build the spanning tree, in which case this checks signatures and passes the message along to the switch.
 type peers struct {
 	core                        *Core
+	reconfigure                 chan bool
 	mutex                       sync.Mutex   // Synchronize writes to atomic
 	ports                       atomic.Value //map[switchPort]*peer, use CoW semantics
 	authMutex                   sync.RWMutex
@@ -31,6 +32,18 @@ func (ps *peers) init(c *Core) {
 	defer ps.mutex.Unlock()
 	ps.putPorts(make(map[switchPort]*peer))
 	ps.core = c
+	ps.reconfigure = make(chan bool, 1)
+	go func() {
+		for {
+			select {
+			case _ = <-ps.reconfigure:
+				ps.core.configMutex.RLock()
+				ps.core.log.Println("Notified: peers")
+				ps.core.configMutex.RUnlock()
+				continue
+			}
+		}
+	}()
 	ps.allowedEncryptionPublicKeys = make(map[crypto.BoxPubKey]struct{})
 }
 

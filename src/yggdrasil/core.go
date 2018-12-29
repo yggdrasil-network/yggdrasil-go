@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"regexp"
+	"sync"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
@@ -17,14 +18,26 @@ import (
 var buildName string
 var buildVersion string
 
+type module interface {
+	init(*config.NodeConfig) error
+	start() error
+}
+
 // The Core object represents the Yggdrasil node. You should create a Core
 // object for each Yggdrasil node you plan to run.
 type Core struct {
 	// This is the main data structure that holds everything else for a node
-	boxPub      crypto.BoxPubKey
-	boxPriv     crypto.BoxPrivKey
-	sigPub      crypto.SigPubKey
-	sigPriv     crypto.SigPrivKey
+	// We're going to keep our own copy of the provided config - that way we can
+	// guarantee that it will be covered by the mutex
+	config      config.NodeConfig // Active config
+	configOld   config.NodeConfig // Previous config
+	configMutex sync.RWMutex      // Protects both config and configOld
+	// Core-specific config
+	boxPub  crypto.BoxPubKey
+	boxPriv crypto.BoxPrivKey
+	sigPub  crypto.SigPubKey
+	sigPriv crypto.SigPrivKey
+	// Modules
 	switchTable switchTable
 	peers       peers
 	sessions    sessions
@@ -35,8 +48,9 @@ type Core struct {
 	multicast   multicast
 	nodeinfo    nodeinfo
 	tcp         tcpInterface
-	log         *log.Logger
-	ifceExpr    []*regexp.Regexp // the zone of link-local IPv6 peers must match this
+	// Other bits
+	log      *log.Logger
+	ifceExpr []*regexp.Regexp // the zone of link-local IPv6 peers must match this
 }
 
 func (c *Core) init(bpub *crypto.BoxPubKey,
@@ -62,8 +76,26 @@ func (c *Core) init(bpub *crypto.BoxPubKey,
 	c.switchTable.init(c, c.sigPub) // TODO move before peers? before router?
 }
 
-// Get the current build name. This is usually injected if built from git,
-// or returns "unknown" otherwise.
+// UpdateConfig updates the configuration in Core and then signals the
+// various module goroutines to reconfigure themselves if needed
+func (c *Core) UpdateConfig(config *config.NodeConfig) {
+	c.configMutex.Lock()
+	c.configOld = c.config
+	c.config = *config
+	c.configMutex.Unlock()
+
+	c.admin.reconfigure <- true
+	c.searches.reconfigure <- true
+	c.dht.reconfigure <- true
+	c.sessions.reconfigure <- true
+	c.multicast.reconfigure <- true
+	c.peers.reconfigure <- true
+	c.router.reconfigure <- true
+	c.switchTable.reconfigure <- true
+}
+
+// GetBuildName gets the current build name. This is usually injected if built
+// from git, or returns "unknown" otherwise.
 func GetBuildName() string {
 	if buildName == "" {
 		return "unknown"
@@ -95,6 +127,11 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	}
 
 	c.log.Println("Starting up...")
+
+	c.configMutex.Lock()
+	c.config = *nc
+	c.configOld = c.config
+	c.configMutex.Unlock()
 
 	var boxPub crypto.BoxPubKey
 	var boxPriv crypto.BoxPrivKey

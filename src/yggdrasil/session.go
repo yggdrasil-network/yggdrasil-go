@@ -18,6 +18,7 @@ import (
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
 type sessionInfo struct {
 	core         *Core
+	reconfigure  chan bool
 	theirAddr    address.Address
 	theirSubnet  address.Subnet
 	theirPermPub crypto.BoxPubKey
@@ -101,6 +102,7 @@ func (s *sessionInfo) timedout() bool {
 // Additionally, stores maps of address/subnet onto keys, and keys onto handles.
 type sessions struct {
 	core        *Core
+	reconfigure chan bool
 	lastCleanup time.Time
 	// Maps known permanent keys to their shared key, used by DHT a lot
 	permShared map[crypto.BoxPubKey]*crypto.BoxSharedKey
@@ -124,6 +126,22 @@ type sessions struct {
 // Initializes the session struct.
 func (ss *sessions) init(core *Core) {
 	ss.core = core
+	ss.reconfigure = make(chan bool, 1)
+	go func() {
+		for {
+			select {
+			case newConfig := <-ss.reconfigure:
+				ss.core.configMutex.RLock()
+				ss.core.log.Println("Notified: sessions")
+				ss.core.configMutex.RUnlock()
+
+				for _, sinfo := range ss.sinfos {
+					sinfo.reconfigure <- newConfig
+				}
+				continue
+			}
+		}
+	}()
 	ss.permShared = make(map[crypto.BoxPubKey]*crypto.BoxSharedKey)
 	ss.sinfos = make(map[crypto.Handle]*sessionInfo)
 	ss.byMySes = make(map[crypto.BoxPubKey]*crypto.Handle)
@@ -271,6 +289,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	}
 	sinfo := sessionInfo{}
 	sinfo.core = ss.core
+	sinfo.reconfigure = make(chan bool, 1)
 	sinfo.theirPermPub = *theirPermKey
 	pub, priv := crypto.NewBoxKeys()
 	sinfo.mySesPub = *pub
@@ -539,6 +558,11 @@ func (sinfo *sessionInfo) doWorker() {
 			} else {
 				return
 			}
+		case _ = <-sinfo.reconfigure:
+			sinfo.core.configMutex.RLock()
+			sinfo.core.log.Println("Notified: sessionInfo")
+			sinfo.core.configMutex.RUnlock()
+			continue
 		}
 	}
 }

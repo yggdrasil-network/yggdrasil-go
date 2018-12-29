@@ -37,19 +37,20 @@ import (
 // The router struct has channels to/from the tun/tap device and a self peer (0), which is how messages are passed between this node and the peers/switch layer.
 // The router's mainLoop goroutine is responsible for managing all information related to the dht, searches, and crypto sessions.
 type router struct {
-	core      *Core
-	addr      address.Address
-	subnet    address.Subnet
-	in        <-chan []byte          // packets we received from the network, link to peer's "out"
-	out       func([]byte)           // packets we're sending to the network, link to peer's "in"
-	toRecv    chan router_recvPacket // packets to handle via recvPacket()
-	tun       tunAdapter             // TUN/TAP adapter
-	adapters  []Adapter              // Other adapters
-	recv      chan<- []byte          // place where the tun pulls received packets from
-	send      <-chan []byte          // place where the tun puts outgoing packets
-	reset     chan struct{}          // signal that coords changed (re-init sessions/dht)
-	admin     chan func()            // pass a lambda for the admin socket to query stuff
-	cryptokey cryptokey
+	core        *Core
+	reconfigure chan bool
+	addr        address.Address
+	subnet      address.Subnet
+	in          <-chan []byte          // packets we received from the network, link to peer's "out"
+	out         func([]byte)           // packets we're sending to the network, link to peer's "in"
+	toRecv      chan router_recvPacket // packets to handle via recvPacket()
+	tun         tunAdapter             // TUN/TAP adapter
+	adapters    []Adapter              // Other adapters
+	recv        chan<- []byte          // place where the tun pulls received packets from
+	send        <-chan []byte          // place where the tun puts outgoing packets
+	reset       chan struct{}          // signal that coords changed (re-init sessions/dht)
+	admin       chan func()            // pass a lambda for the admin socket to query stuff
+	cryptokey   cryptokey
 }
 
 // Packet and session info, used to check that the packet matches a valid IP range or CKR prefix before sending to the tun.
@@ -61,6 +62,7 @@ type router_recvPacket struct {
 // Initializes the router struct, which includes setting up channels to/from the tun/tap.
 func (r *router) init(core *Core) {
 	r.core = core
+	r.reconfigure = make(chan bool, 1)
 	r.addr = *address.AddrForNodeID(&r.core.dht.nodeID)
 	r.subnet = *address.SubnetForNodeID(&r.core.dht.nodeID)
 	in := make(chan []byte, 32) // TODO something better than this...
@@ -124,6 +126,11 @@ func (r *router) mainLoop() {
 			}
 		case f := <-r.admin:
 			f()
+		case _ = <-r.reconfigure:
+			r.core.configMutex.RLock()
+			r.core.log.Println("Notified: router")
+			r.core.configMutex.RUnlock()
+			continue
 		}
 	}
 }

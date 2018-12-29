@@ -22,10 +22,11 @@ import (
 // TODO: Add authentication
 
 type admin struct {
-	core       *Core
-	listenaddr string
-	listener   net.Listener
-	handlers   []admin_handlerInfo
+	core        *Core
+	reconfigure chan bool
+	listenaddr  string
+	listener    net.Listener
+	handlers    []admin_handlerInfo
 }
 
 type admin_info map[string]interface{}
@@ -53,6 +54,21 @@ func (a *admin) addHandler(name string, args []string, handler func(admin_info) 
 // init runs the initial admin setup.
 func (a *admin) init(c *Core, listenaddr string) {
 	a.core = c
+	a.reconfigure = make(chan bool, 1)
+	go func() {
+		for {
+			select {
+			case _ = <-a.reconfigure:
+				a.core.configMutex.RLock()
+				a.core.log.Println("Notified: admin")
+				if a.core.config.AdminListen != a.core.configOld.AdminListen {
+					a.core.log.Println("AdminListen has changed!")
+				}
+				a.core.configMutex.RUnlock()
+				continue
+			}
+		}
+	}()
 	a.listenaddr = listenaddr
 	a.addHandler("list", []string{}, func(in admin_info) (admin_info, error) {
 		handlers := make(map[string]interface{})

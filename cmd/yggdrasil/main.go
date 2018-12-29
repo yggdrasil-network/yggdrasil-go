@@ -314,7 +314,9 @@ func main() {
 	logger.Printf("Your IPv6 subnet is %s", subnet.String())
 	// Catch interrupts from the operating system to exit gracefully.
 	c := make(chan os.Signal, 1)
+	r := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(r, os.Interrupt, syscall.SIGHUP)
 	// Create a function to capture the service being stopped on Windows.
 	winTerminate := func() {
 		c <- os.Interrupt
@@ -322,5 +324,13 @@ func main() {
 	minwinsvc.SetOnExit(winTerminate)
 	// Wait for the terminate/interrupt signal. Once a signal is received, the
 	// deferred Stop function above will run which will shut down TUN/TAP.
-	<-c
+	for {
+		select {
+		case _ = <-r:
+			n.core.UpdateConfig(cfg)
+		case _ = <-c:
+			goto exit
+		}
+	}
+exit:
 }
