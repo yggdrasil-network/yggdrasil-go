@@ -19,7 +19,7 @@ var buildName string
 var buildVersion string
 
 type module interface {
-	init(*config.NodeConfig) error
+	init(*Core, *config.NodeConfig) error
 	start() error
 }
 
@@ -32,12 +32,10 @@ type Core struct {
 	config      config.NodeConfig // Active config
 	configOld   config.NodeConfig // Previous config
 	configMutex sync.RWMutex      // Protects both config and configOld
-	// Core-specific config
-	boxPub  crypto.BoxPubKey
-	boxPriv crypto.BoxPrivKey
-	sigPub  crypto.SigPubKey
-	sigPriv crypto.SigPrivKey
-	// Modules
+	boxPub      crypto.BoxPubKey
+	boxPriv     crypto.BoxPrivKey
+	sigPub      crypto.SigPubKey
+	sigPriv     crypto.SigPrivKey
 	switchTable switchTable
 	peers       peers
 	sessions    sessions
@@ -48,15 +46,11 @@ type Core struct {
 	multicast   multicast
 	nodeinfo    nodeinfo
 	tcp         tcpInterface
-	// Other bits
-	log      *log.Logger
-	ifceExpr []*regexp.Regexp // the zone of link-local IPv6 peers must match this
+	log         *log.Logger
+	ifceExpr    []*regexp.Regexp // the zone of link-local IPv6 peers must match this
 }
 
-func (c *Core) init(bpub *crypto.BoxPubKey,
-	bpriv *crypto.BoxPrivKey,
-	spub *crypto.SigPubKey,
-	spriv *crypto.SigPrivKey) {
+func (c *Core) init() error {
 	// TODO separate init and start functions
 	//  Init sets up structs
 	//  Start launches goroutines that depend on structs being set up
@@ -64,16 +58,45 @@ func (c *Core) init(bpub *crypto.BoxPubKey,
 	if c.log == nil {
 		c.log = log.New(ioutil.Discard, "", 0)
 	}
-	c.boxPub, c.boxPriv = *bpub, *bpriv
-	c.sigPub, c.sigPriv = *spub, *spriv
-	c.admin.core = c
+
+	boxPubHex, err := hex.DecodeString(c.config.EncryptionPublicKey)
+	if err != nil {
+		return err
+	}
+	boxPrivHex, err := hex.DecodeString(c.config.EncryptionPrivateKey)
+	if err != nil {
+		return err
+	}
+	sigPubHex, err := hex.DecodeString(c.config.SigningPublicKey)
+	if err != nil {
+		return err
+	}
+	sigPrivHex, err := hex.DecodeString(c.config.SigningPrivateKey)
+	if err != nil {
+		return err
+	}
+
+	copy(c.boxPub[:], boxPubHex)
+	copy(c.boxPriv[:], boxPrivHex)
+	copy(c.sigPub[:], sigPubHex)
+	copy(c.sigPriv[:], sigPrivHex)
+
+	c.admin.init(c)
+	c.nodeinfo.init(c)
 	c.searches.init(c)
 	c.dht.init(c)
 	c.sessions.init(c)
 	c.multicast.init(c)
 	c.peers.init(c)
 	c.router.init(c)
-	c.switchTable.init(c, c.sigPub) // TODO move before peers? before router?
+	c.switchTable.init(c) // TODO move before peers? before router?
+
+	if err := c.tcp.init(c); err != nil {
+		c.log.Println("Failed to start TCP interface")
+		return err
+	}
+
+	return nil
 }
 
 // UpdateConfig updates the configuration in Core and then signals the
@@ -133,41 +156,9 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	c.configOld = c.config
 	c.configMutex.Unlock()
 
-	var boxPub crypto.BoxPubKey
-	var boxPriv crypto.BoxPrivKey
-	var sigPub crypto.SigPubKey
-	var sigPriv crypto.SigPrivKey
-	boxPubHex, err := hex.DecodeString(nc.EncryptionPublicKey)
-	if err != nil {
-		return err
-	}
-	boxPrivHex, err := hex.DecodeString(nc.EncryptionPrivateKey)
-	if err != nil {
-		return err
-	}
-	sigPubHex, err := hex.DecodeString(nc.SigningPublicKey)
-	if err != nil {
-		return err
-	}
-	sigPrivHex, err := hex.DecodeString(nc.SigningPrivateKey)
-	if err != nil {
-		return err
-	}
-	copy(boxPub[:], boxPubHex)
-	copy(boxPriv[:], boxPrivHex)
-	copy(sigPub[:], sigPubHex)
-	copy(sigPriv[:], sigPrivHex)
+	c.init()
 
-	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv)
-	c.admin.init(c, nc.AdminListen)
-
-	c.nodeinfo.init(c)
 	c.nodeinfo.setNodeInfo(nc.NodeInfo, nc.NodeInfoPrivacy)
-
-	if err := c.tcp.init(c, nc.Listen, nc.ReadTimeout); err != nil {
-		c.log.Println("Failed to start TCP interface")
-		return err
-	}
 
 	if nc.SwitchOptions.MaxTotalQueueSize >= SwitchQueueTotalMinSize {
 		c.switchTable.queueTotalMaxSize = nc.SwitchOptions.MaxTotalQueueSize
@@ -201,7 +192,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 			}
 		}
 		for _, source := range nc.TunnelRouting.IPv6Sources {
-			if c.router.cryptokey.addSourceSubnet(source); err != nil {
+			if err := c.router.cryptokey.addSourceSubnet(source); err != nil {
 				panic(err)
 			}
 		}
@@ -211,7 +202,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 			}
 		}
 		for _, source := range nc.TunnelRouting.IPv4Sources {
-			if c.router.cryptokey.addSourceSubnet(source); err != nil {
+			if err := c.router.cryptokey.addSourceSubnet(source); err != nil {
 				panic(err)
 			}
 		}

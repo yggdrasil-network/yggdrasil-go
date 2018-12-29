@@ -182,12 +182,12 @@ type switchTable struct {
 const SwitchQueueTotalMinSize = 4 * 1024 * 1024
 
 // Initializes the switchTable struct.
-func (t *switchTable) init(core *Core, key crypto.SigPubKey) {
+func (t *switchTable) init(core *Core) {
 	now := time.Now()
 	t.core = core
 	t.reconfigure = make(chan bool, 1)
-	t.key = key
-	locator := switchLocator{root: key, tstamp: now.Unix()}
+	t.key = t.core.sigPub
+	locator := switchLocator{root: t.key, tstamp: now.Unix()}
 	peers := make(map[switchPort]peerInfo)
 	t.data = switchData{locator: locator, peers: peers}
 	t.updater.Store(&sync.Once{})

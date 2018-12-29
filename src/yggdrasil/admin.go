@@ -52,7 +52,7 @@ func (a *admin) addHandler(name string, args []string, handler func(admin_info) 
 }
 
 // init runs the initial admin setup.
-func (a *admin) init(c *Core, listenaddr string) {
+func (a *admin) init(c *Core) {
 	a.core = c
 	a.reconfigure = make(chan bool, 1)
 	go func() {
@@ -69,7 +69,9 @@ func (a *admin) init(c *Core, listenaddr string) {
 			}
 		}
 	}()
-	a.listenaddr = listenaddr
+	a.core.configMutex.RLock()
+	a.listenaddr = a.core.config.AdminListen
+	a.core.configMutex.RUnlock()
 	a.addHandler("list", []string{}, func(in admin_info) (admin_info, error) {
 		handlers := make(map[string]interface{})
 		for _, handler := range a.handlers {

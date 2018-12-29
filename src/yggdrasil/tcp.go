@@ -40,6 +40,7 @@ type tcpInterface struct {
 	core        *Core
 	serv        net.Listener
 	tcp_timeout time.Duration
+	tcp_addr    string
 	mutex       sync.Mutex // Protecting the below
 	calls       map[string]struct{}
 	conns       map[tcpInfo](chan struct{})
@@ -80,15 +81,15 @@ func (iface *tcpInterface) connectSOCKS(socksaddr, peeraddr string) {
 }
 
 // Initializes the struct.
-func (iface *tcpInterface) init(core *Core, addr string, readTimeout int32) (err error) {
+func (iface *tcpInterface) init(core *Core) (err error) {
 	iface.core = core
-
-	iface.tcp_timeout = time.Duration(readTimeout) * time.Millisecond
+	iface.tcp_addr = iface.core.config.Listen
+	iface.tcp_timeout = time.Duration(iface.core.config.ReadTimeout) * time.Millisecond
 	if iface.tcp_timeout >= 0 && iface.tcp_timeout < default_tcp_timeout {
 		iface.tcp_timeout = default_tcp_timeout
 	}
 
-	iface.serv, err = net.Listen("tcp", addr)
+	iface.serv, err = net.Listen("tcp", iface.tcp_addr)
 	if err == nil {
 		iface.calls = make(map[string]struct{})
 		iface.conns = make(map[tcpInfo](chan struct{}))
