@@ -109,13 +109,14 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 
 	components := []chan chan error{
 		c.admin.reconfigure,
-		c.searches.reconfigure,
-		c.dht.reconfigure,
-		c.sessions.reconfigure,
+		//c.searches.reconfigure,
+		//c.dht.reconfigure,
+		//c.sessions.reconfigure,
+		//c.peers.reconfigure,
+		//c.router.reconfigure,
+		//c.switchTable.reconfigure,
+		c.tcp.reconfigure,
 		c.multicast.reconfigure,
-		c.peers.reconfigure,
-		c.router.reconfigure,
-		c.switchTable.reconfigure,
 	}
 
 	for _, component := range components {

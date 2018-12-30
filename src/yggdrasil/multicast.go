@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"golang.org/x/net/ipv6"
@@ -14,6 +15,8 @@ type multicast struct {
 	reconfigure chan chan error
 	sock        *ipv6.PacketConn
 	groupAddr   string
+	myAddr      *net.TCPAddr
+	myAddrMutex sync.RWMutex
 }
 
 func (m *multicast) init(core *Core) {
@@ -23,6 +26,9 @@ func (m *multicast) init(core *Core) {
 		for {
 			select {
 			case e := <-m.reconfigure:
+				m.myAddrMutex.Lock()
+				m.myAddr = m.core.tcp.getAddr()
+				m.myAddrMutex.Unlock()
 				e <- nil
 			}
 		}
@@ -95,13 +101,14 @@ func (m *multicast) interfaces() []net.Interface {
 }
 
 func (m *multicast) announce() {
+	var anAddr net.TCPAddr
+	m.myAddrMutex.Lock()
+	m.myAddr = m.core.tcp.getAddr()
+	m.myAddrMutex.Unlock()
 	groupAddr, err := net.ResolveUDPAddr("udp6", m.groupAddr)
 	if err != nil {
 		panic(err)
 	}
-	var anAddr net.TCPAddr
-	myAddr := m.core.tcp.getAddr()
-	anAddr.Port = myAddr.Port
 	destAddr, err := net.ResolveUDPAddr("udp6", m.groupAddr)
 	if err != nil {
 		panic(err)
@@ -113,6 +120,9 @@ func (m *multicast) announce() {
 			if err != nil {
 				panic(err)
 			}
+			m.myAddrMutex.RLock()
+			anAddr.Port = m.myAddr.Port
+			m.myAddrMutex.RUnlock()
 			for _, addr := range addrs {
 				addrIP, _, _ := net.ParseCIDR(addr.String())
 				if addrIP.To4() != nil {

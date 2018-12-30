@@ -38,7 +38,9 @@ const tcp_ping_interval = (default_tcp_timeout * 2 / 3)
 // The TCP listener and information about active TCP connections, to avoid duplication.
 type tcpInterface struct {
 	core        *Core
+	reconfigure chan chan error
 	serv        net.Listener
+	serv_stop   chan bool
 	tcp_timeout time.Duration
 	tcp_addr    string
 	mutex       sync.Mutex // Protecting the below
@@ -83,10 +85,37 @@ func (iface *tcpInterface) connectSOCKS(socksaddr, peeraddr string) {
 // Initializes the struct.
 func (iface *tcpInterface) init(core *Core) (err error) {
 	iface.core = core
+	iface.serv_stop = make(chan bool, 1)
+	iface.reconfigure = make(chan chan error, 1)
+	go func() {
+		for {
+			select {
+			case e := <-iface.reconfigure:
+				iface.core.configMutex.RLock()
+				updated := iface.core.config.Listen != iface.core.configOld.Listen
+				iface.core.configMutex.RUnlock()
+				if updated {
+					iface.serv_stop <- true
+					iface.serv.Close()
+					e <- iface.listen()
+				} else {
+					e <- nil
+				}
+			}
+		}
+	}()
+
+	return iface.listen()
+}
+
+func (iface *tcpInterface) listen() error {
+	var err error
+
 	iface.core.configMutex.RLock()
 	iface.tcp_addr = iface.core.config.Listen
 	iface.tcp_timeout = time.Duration(iface.core.config.ReadTimeout) * time.Millisecond
 	iface.core.configMutex.RUnlock()
+
 	if iface.tcp_timeout >= 0 && iface.tcp_timeout < default_tcp_timeout {
 		iface.tcp_timeout = default_tcp_timeout
 	}
@@ -96,6 +125,7 @@ func (iface *tcpInterface) init(core *Core) (err error) {
 		iface.calls = make(map[string]struct{})
 		iface.conns = make(map[tcpInfo](chan struct{}))
 		go iface.listener()
+		return nil
 	}
 
 	return err
@@ -107,10 +137,16 @@ func (iface *tcpInterface) listener() {
 	iface.core.log.Println("Listening for TCP on:", iface.serv.Addr().String())
 	for {
 		sock, err := iface.serv.Accept()
-		if err != nil {
-			panic(err)
+		select {
+		case <-iface.serv_stop:
+			iface.core.log.Println("Stopping listener")
+			return
+		default:
+			if err != nil {
+				panic(err)
+			}
+			go iface.handler(sock, true)
 		}
-		go iface.handler(sock, true)
 	}
 }
 
@@ -363,12 +399,12 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	themAddr := address.AddrForNodeID(themNodeID)
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, them)
-	iface.core.log.Println("Connected:", themString, "source", us)
+	iface.core.log.Printf("Connected: %s, source: %s", themString, us)
 	err = iface.reader(sock, in) // In this goroutine, because of defers
 	if err == nil {
-		iface.core.log.Println("Disconnected:", themString, "source", us)
+		iface.core.log.Printf("Disconnected: %s, source: %s", themString, us)
 	} else {
-		iface.core.log.Println("Disconnected:", themString, "source", us, "with error:", err)
+		iface.core.log.Printf("Disconnected: %s, source: %s, error: %s", themString, us, err)
 	}
 	return
 }
