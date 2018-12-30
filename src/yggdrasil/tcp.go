@@ -53,8 +53,8 @@ type tcpInterface struct {
 type tcpInfo struct {
 	box        crypto.BoxPubKey
 	sig        crypto.SigPubKey
-	localAddr  string
 	remoteAddr string
+	remotePort string
 }
 
 // Wrapper function to set additional options for specific connection types.
@@ -313,8 +313,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 		}
 	}
 	// Check if we already have a connection to this node, close and block if yes
-	info.localAddr, _, _ = net.SplitHostPort(sock.LocalAddr().String())
-	info.remoteAddr, _, _ = net.SplitHostPort(sock.RemoteAddr().String())
+	info.remoteAddr, info.remotePort, _ = net.SplitHostPort(sock.RemoteAddr().String())
 	iface.mutex.Lock()
 	if blockChan, isIn := iface.conns[info]; isIn {
 		iface.mutex.Unlock()
