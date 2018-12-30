@@ -76,6 +76,119 @@ func generateConfig(isAutoconf bool) *nodeConfig {
 	return &cfg
 }
 
+func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeConfig {
+	// Use a configuration file. If -useconf, the configuration will be read
+	// from stdin. If -useconffile, the configuration will be read from the
+	// filesystem.
+	var config []byte
+	var err error
+	if *useconffile != "" {
+		// Read the file from the filesystem
+		config, err = ioutil.ReadFile(*useconffile)
+	} else {
+		// Read the file from stdin.
+		config, err = ioutil.ReadAll(os.Stdin)
+	}
+	if err != nil {
+		panic(err)
+	}
+	// If there's a byte order mark - which Windows 10 is now incredibly fond of
+	// throwing everywhere when it's converting things into UTF-16 for the hell
+	// of it - remove it and decode back down into UTF-8. This is necessary
+	// because hjson doesn't know what to do with UTF-16 and will panic
+	if bytes.Compare(config[0:2], []byte{0xFF, 0xFE}) == 0 ||
+		bytes.Compare(config[0:2], []byte{0xFE, 0xFF}) == 0 {
+		utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
+		decoder := utf.NewDecoder()
+		config, err = decoder.Bytes(config)
+		if err != nil {
+			panic(err)
+		}
+	}
+	// Generate a new configuration - this gives us a set of sane defaults -
+	// then parse the configuration we loaded above on top of it. The effect
+	// of this is that any configuration item that is missing from the provided
+	// configuration will use a sane default.
+	cfg := generateConfig(false)
+	var dat map[string]interface{}
+	if err := hjson.Unmarshal(config, &dat); err != nil {
+		panic(err)
+	}
+	confJson, err := json.Marshal(dat)
+	if err != nil {
+		panic(err)
+	}
+	json.Unmarshal(confJson, &cfg)
+	// For now we will do a little bit to help the user adjust their
+	// configuration to match the new configuration format, as some of the key
+	// names have changed recently.
+	changes := map[string]string{
+		"Multicast":      "",
+		"LinkLocal":      "MulticastInterfaces",
+		"BoxPub":         "EncryptionPublicKey",
+		"BoxPriv":        "EncryptionPrivateKey",
+		"SigPub":         "SigningPublicKey",
+		"SigPriv":        "SigningPrivateKey",
+		"AllowedBoxPubs": "AllowedEncryptionPublicKeys",
+	}
+	// Loop over the mappings aove and see if we have anything to fix.
+	for from, to := range changes {
+		if _, ok := dat[from]; ok {
+			if to == "" {
+				if !*normaliseconf {
+					log.Println("Warning: Deprecated config option", from, "- please remove")
+				}
+			} else {
+				if !*normaliseconf {
+					log.Println("Warning: Deprecated config option", from, "- please rename to", to)
+				}
+				// If the configuration file doesn't already contain a line with the
+				// new name then set it to the old value. This makes sure that we
+				// don't overwrite something that was put there intentionally.
+				if _, ok := dat[to]; !ok {
+					dat[to] = dat[from]
+				}
+			}
+		}
+	}
+	// Check to see if the peers are in a parsable format, if not then default
+	// them to the TCP scheme
+	if peers, ok := dat["Peers"].([]interface{}); ok {
+		for index, peer := range peers {
+			uri := peer.(string)
+			if strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, "socks://") {
+				continue
+			}
+			if strings.HasPrefix(uri, "tcp:") {
+				uri = uri[4:]
+			}
+			(dat["Peers"].([]interface{}))[index] = "tcp://" + uri
+		}
+	}
+	// Now do the same with the interface peers
+	if interfacepeers, ok := dat["InterfacePeers"].(map[string]interface{}); ok {
+		for intf, peers := range interfacepeers {
+			for index, peer := range peers.([]interface{}) {
+				uri := peer.(string)
+				if strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, "socks://") {
+					continue
+				}
+				if strings.HasPrefix(uri, "tcp:") {
+					uri = uri[4:]
+				}
+				((dat["InterfacePeers"].(map[string]interface{}))[intf]).([]interface{})[index] = "tcp://" + uri
+			}
+		}
+	}
+	// Overlay our newly mapped configuration onto the autoconf node config that
+	// we generated above.
+	if err = mapstructure.Decode(dat, &cfg); err != nil {
+		panic(err)
+	}
+
+	return cfg
+}
+
 // Generates a new configuration and returns it in HJSON format. This is used
 // with -genconf.
 func doGenconf(isjson bool) string {
@@ -106,6 +219,7 @@ func main() {
 	flag.Parse()
 
 	var cfg *nodeConfig
+	var err error
 	switch {
 	case *version:
 		fmt.Println("Build name:", yggdrasil.GetBuildName())
@@ -116,114 +230,8 @@ func main() {
 		// port numbers, and will use an automatically selected TUN/TAP interface.
 		cfg = generateConfig(true)
 	case *useconffile != "" || *useconf:
-		// Use a configuration file. If -useconf, the configuration will be read
-		// from stdin. If -useconffile, the configuration will be read from the
-		// filesystem.
-		var config []byte
-		var err error
-		if *useconffile != "" {
-			// Read the file from the filesystem
-			config, err = ioutil.ReadFile(*useconffile)
-		} else {
-			// Read the file from stdin.
-			config, err = ioutil.ReadAll(os.Stdin)
-		}
-		if err != nil {
-			panic(err)
-		}
-		// If there's a byte order mark - which Windows 10 is now incredibly fond of
-		// throwing everywhere when it's converting things into UTF-16 for the hell
-		// of it - remove it and decode back down into UTF-8. This is necessary
-		// because hjson doesn't know what to do with UTF-16 and will panic
-		if bytes.Compare(config[0:2], []byte{0xFF, 0xFE}) == 0 ||
-			bytes.Compare(config[0:2], []byte{0xFE, 0xFF}) == 0 {
-			utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
-			decoder := utf.NewDecoder()
-			config, err = decoder.Bytes(config)
-			if err != nil {
-				panic(err)
-			}
-		}
-		// Generate a new configuration - this gives us a set of sane defaults -
-		// then parse the configuration we loaded above on top of it. The effect
-		// of this is that any configuration item that is missing from the provided
-		// configuration will use a sane default.
-		cfg = generateConfig(false)
-		var dat map[string]interface{}
-		if err := hjson.Unmarshal(config, &dat); err != nil {
-			panic(err)
-		}
-		confJson, err := json.Marshal(dat)
-		if err != nil {
-			panic(err)
-		}
-		json.Unmarshal(confJson, &cfg)
-		// For now we will do a little bit to help the user adjust their
-		// configuration to match the new configuration format, as some of the key
-		// names have changed recently.
-		changes := map[string]string{
-			"Multicast":      "",
-			"LinkLocal":      "MulticastInterfaces",
-			"BoxPub":         "EncryptionPublicKey",
-			"BoxPriv":        "EncryptionPrivateKey",
-			"SigPub":         "SigningPublicKey",
-			"SigPriv":        "SigningPrivateKey",
-			"AllowedBoxPubs": "AllowedEncryptionPublicKeys",
-		}
-		// Loop over the mappings aove and see if we have anything to fix.
-		for from, to := range changes {
-			if _, ok := dat[from]; ok {
-				if to == "" {
-					if !*normaliseconf {
-						log.Println("Warning: Deprecated config option", from, "- please remove")
-					}
-				} else {
-					if !*normaliseconf {
-						log.Println("Warning: Deprecated config option", from, "- please rename to", to)
-					}
-					// If the configuration file doesn't already contain a line with the
-					// new name then set it to the old value. This makes sure that we
-					// don't overwrite something that was put there intentionally.
-					if _, ok := dat[to]; !ok {
-						dat[to] = dat[from]
-					}
-				}
-			}
-		}
-		// Check to see if the peers are in a parsable format, if not then default
-		// them to the TCP scheme
-		if peers, ok := dat["Peers"].([]interface{}); ok {
-			for index, peer := range peers {
-				uri := peer.(string)
-				if strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, "socks://") {
-					continue
-				}
-				if strings.HasPrefix(uri, "tcp:") {
-					uri = uri[4:]
-				}
-				(dat["Peers"].([]interface{}))[index] = "tcp://" + uri
-			}
-		}
-		// Now do the same with the interface peers
-		if interfacepeers, ok := dat["InterfacePeers"].(map[string]interface{}); ok {
-			for intf, peers := range interfacepeers {
-				for index, peer := range peers.([]interface{}) {
-					uri := peer.(string)
-					if strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, "socks://") {
-						continue
-					}
-					if strings.HasPrefix(uri, "tcp:") {
-						uri = uri[4:]
-					}
-					((dat["InterfacePeers"].(map[string]interface{}))[intf]).([]interface{})[index] = "tcp://" + uri
-				}
-			}
-		}
-		// Overlay our newly mapped configuration onto the autoconf node config that
-		// we generated above.
-		if err = mapstructure.Decode(dat, &cfg); err != nil {
-			panic(err)
-		}
+		// Read the configuration from either stdin or from the filesystem
+		cfg = readConfig(useconf, useconffile, normaliseconf)
 		// If the -normaliseconf option was specified then remarshal the above
 		// configuration and print it back to stdout. This lets the user update
 		// their configuration file with newly mapped names (like above) or to
@@ -327,7 +335,12 @@ func main() {
 	for {
 		select {
 		case _ = <-r:
-			n.core.UpdateConfig(cfg)
+			if *useconffile != "" {
+				cfg = readConfig(useconf, useconffile, normaliseconf)
+				n.core.UpdateConfig(cfg)
+			} else {
+				logger.Println("Reloading config at runtime is only possible with -useconffile")
+			}
 		case _ = <-c:
 			goto exit
 		}

@@ -61,7 +61,9 @@ func (a *admin) init(c *Core) {
 			case e := <-a.reconfigure:
 				a.core.configMutex.RLock()
 				if a.core.config.AdminListen != a.core.configOld.AdminListen {
-					a.core.log.Println("AdminListen has changed!")
+					a.listenaddr = a.core.config.AdminListen
+					a.close()
+					a.start()
 				}
 				a.core.configMutex.RUnlock()
 				e <- nil
