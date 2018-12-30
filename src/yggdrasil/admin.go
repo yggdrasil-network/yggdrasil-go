@@ -23,7 +23,7 @@ import (
 
 type admin struct {
 	core        *Core
-	reconfigure chan bool
+	reconfigure chan chan error
 	listenaddr  string
 	listener    net.Listener
 	handlers    []admin_handlerInfo
@@ -54,18 +54,17 @@ func (a *admin) addHandler(name string, args []string, handler func(admin_info) 
 // init runs the initial admin setup.
 func (a *admin) init(c *Core) {
 	a.core = c
-	a.reconfigure = make(chan bool, 1)
+	a.reconfigure = make(chan chan error, 1)
 	go func() {
 		for {
 			select {
-			case _ = <-a.reconfigure:
+			case e := <-a.reconfigure:
 				a.core.configMutex.RLock()
-				a.core.log.Println("Notified: admin")
 				if a.core.config.AdminListen != a.core.configOld.AdminListen {
 					a.core.log.Println("AdminListen has changed!")
 				}
 				a.core.configMutex.RUnlock()
-				continue
+				e <- nil
 			}
 		}
 	}()

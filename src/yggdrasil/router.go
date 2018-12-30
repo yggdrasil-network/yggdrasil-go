@@ -38,7 +38,7 @@ import (
 // The router's mainLoop goroutine is responsible for managing all information related to the dht, searches, and crypto sessions.
 type router struct {
 	core        *Core
-	reconfigure chan bool
+	reconfigure chan chan error
 	addr        address.Address
 	subnet      address.Subnet
 	in          <-chan []byte          // packets we received from the network, link to peer's "out"
@@ -62,7 +62,7 @@ type router_recvPacket struct {
 // Initializes the router struct, which includes setting up channels to/from the tun/tap.
 func (r *router) init(core *Core) {
 	r.core = core
-	r.reconfigure = make(chan bool, 1)
+	r.reconfigure = make(chan chan error, 1)
 	r.addr = *address.AddrForNodeID(&r.core.dht.nodeID)
 	r.subnet = *address.SubnetForNodeID(&r.core.dht.nodeID)
 	in := make(chan []byte, 32) // TODO something better than this...
@@ -126,11 +126,8 @@ func (r *router) mainLoop() {
 			}
 		case f := <-r.admin:
 			f()
-		case _ = <-r.reconfigure:
-			r.core.configMutex.RLock()
-			r.core.log.Println("Notified: router")
-			r.core.configMutex.RUnlock()
-			continue
+		case e := <-r.reconfigure:
+			e <- nil
 		}
 	}
 }

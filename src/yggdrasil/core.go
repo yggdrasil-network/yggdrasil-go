@@ -107,14 +107,24 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 	c.config = *config
 	c.configMutex.Unlock()
 
-	c.admin.reconfigure <- true
-	c.searches.reconfigure <- true
-	c.dht.reconfigure <- true
-	c.sessions.reconfigure <- true
-	c.multicast.reconfigure <- true
-	c.peers.reconfigure <- true
-	c.router.reconfigure <- true
-	c.switchTable.reconfigure <- true
+	components := []chan chan error{
+		c.admin.reconfigure,
+		c.searches.reconfigure,
+		c.dht.reconfigure,
+		c.sessions.reconfigure,
+		c.multicast.reconfigure,
+		c.peers.reconfigure,
+		c.router.reconfigure,
+		c.switchTable.reconfigure,
+	}
+
+	for _, component := range components {
+		response := make(chan error)
+		component <- response
+		if err := <-response; err != nil {
+			c.log.Println(err)
+		}
+	}
 }
 
 // GetBuildName gets the current build name. This is usually injected if built

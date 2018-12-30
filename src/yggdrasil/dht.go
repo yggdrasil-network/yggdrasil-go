@@ -66,7 +66,7 @@ type dhtReqKey struct {
 // The main DHT struct.
 type dht struct {
 	core        *Core
-	reconfigure chan bool
+	reconfigure chan chan error
 	nodeID      crypto.NodeID
 	peers       chan *dhtInfo                  // other goroutines put incoming dht updates here
 	reqs        map[dhtReqKey]time.Time        // Keeps track of recent outstanding requests
@@ -79,15 +79,12 @@ type dht struct {
 // Initializes the DHT.
 func (t *dht) init(c *Core) {
 	t.core = c
-	t.reconfigure = make(chan bool, 1)
+	t.reconfigure = make(chan chan error, 1)
 	go func() {
 		for {
 			select {
-			case _ = <-t.reconfigure:
-				t.core.configMutex.RLock()
-				t.core.log.Println("Notified: dht")
-				t.core.configMutex.RUnlock()
-				continue
+			case e := <-t.reconfigure:
+				e <- nil
 			}
 		}
 	}()

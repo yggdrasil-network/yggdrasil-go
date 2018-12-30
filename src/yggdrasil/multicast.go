@@ -11,22 +11,19 @@ import (
 
 type multicast struct {
 	core        *Core
-	reconfigure chan bool
+	reconfigure chan chan error
 	sock        *ipv6.PacketConn
 	groupAddr   string
 }
 
 func (m *multicast) init(core *Core) {
 	m.core = core
-	m.reconfigure = make(chan bool, 1)
+	m.reconfigure = make(chan chan error, 1)
 	go func() {
 		for {
 			select {
-			case _ = <-m.reconfigure:
-				m.core.configMutex.RLock()
-				m.core.log.Println("Notified: multicast")
-				m.core.configMutex.RUnlock()
-				continue
+			case e := <-m.reconfigure:
+				e <- nil
 			}
 		}
 	}()
