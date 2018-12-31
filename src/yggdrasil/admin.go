@@ -343,12 +343,27 @@ func (a *admin) init(c *Core) {
 			return admin_info{}, err
 		}
 	})
-	a.addHandler("getNodeInfo", []string{"box_pub_key", "coords", "[nocache]"}, func(in admin_info) (admin_info, error) {
+	a.addHandler("getNodeInfo", []string{"[box_pub_key]", "[coords]", "[nocache]"}, func(in admin_info) (admin_info, error) {
 		var nocache bool
 		if in["nocache"] != nil {
 			nocache = in["nocache"].(string) == "true"
 		}
-		result, err := a.admin_getNodeInfo(in["box_pub_key"].(string), in["coords"].(string), nocache)
+		var box_pub_key, coords string
+		if in["box_pub_key"] == nil && in["coords"] == nil {
+			nodeinfo := []byte(a.core.nodeinfo.getNodeInfo())
+			var jsoninfo interface{}
+			if err := json.Unmarshal(nodeinfo, &jsoninfo); err != nil {
+				return admin_info{}, err
+			} else {
+				return admin_info{"nodeinfo": jsoninfo}, nil
+			}
+		} else if in["box_pub_key"] == nil || in["coords"] == nil {
+			return admin_info{}, errors.New("Expecting both box_pub_key and coords")
+		} else {
+			box_pub_key = in["box_pub_key"].(string)
+			coords = in["coords"].(string)
+		}
+		result, err := a.admin_getNodeInfo(box_pub_key, coords, nocache)
 		if err == nil {
 			var m map[string]interface{}
 			if err = json.Unmarshal(result, &m); err == nil {
