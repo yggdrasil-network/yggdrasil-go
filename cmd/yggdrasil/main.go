@@ -2,13 +2,11 @@ package main
 
 import (
 	"bytes"
-	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"os"
 	"os/signal"
 	"regexp"
@@ -23,7 +21,6 @@ import (
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
@@ -34,52 +31,10 @@ type node struct {
 	core Core
 }
 
-// Generates default configuration. This is used when outputting the -genconf
-// parameter and also when using -autoconf. The isAutoconf flag is used to
-// determine whether the operating system should select a free port by itself
-// (which guarantees that there will not be a conflict with any other services)
-// or whether to generate a random port number. The only side effect of setting
-// isAutoconf is that the TCP and UDP ports will likely end up with different
-// port numbers.
-func generateConfig(isAutoconf bool) *nodeConfig {
-	// Create a new core.
-	core := Core{}
-	// Generate encryption keys.
-	bpub, bpriv := core.NewEncryptionKeys()
-	spub, spriv := core.NewSigningKeys()
-	// Create a node configuration and populate it.
-	cfg := nodeConfig{}
-	if isAutoconf {
-		cfg.Listen = "[::]:0"
-	} else {
-		r1 := rand.New(rand.NewSource(time.Now().UnixNano()))
-		cfg.Listen = fmt.Sprintf("[::]:%d", r1.Intn(65534-32768)+32768)
-	}
-	cfg.AdminListen = defaults.GetDefaults().DefaultAdminListen
-	cfg.EncryptionPublicKey = hex.EncodeToString(bpub[:])
-	cfg.EncryptionPrivateKey = hex.EncodeToString(bpriv[:])
-	cfg.SigningPublicKey = hex.EncodeToString(spub[:])
-	cfg.SigningPrivateKey = hex.EncodeToString(spriv[:])
-	cfg.Peers = []string{}
-	cfg.InterfacePeers = map[string][]string{}
-	cfg.AllowedEncryptionPublicKeys = []string{}
-	cfg.MulticastInterfaces = []string{".*"}
-	cfg.IfName = defaults.GetDefaults().DefaultIfName
-	cfg.IfMTU = defaults.GetDefaults().DefaultIfMTU
-	cfg.IfTAPMode = defaults.GetDefaults().DefaultIfTAPMode
-	cfg.SessionFirewall.Enable = false
-	cfg.SessionFirewall.AllowFromDirect = true
-	cfg.SessionFirewall.AllowFromRemote = true
-	cfg.SwitchOptions.MaxTotalQueueSize = yggdrasil.SwitchQueueTotalMinSize
-	cfg.NodeInfoPrivacy = false
-
-	return &cfg
-}
-
 // Generates a new configuration and returns it in HJSON format. This is used
 // with -genconf.
 func doGenconf(isjson bool) string {
-	cfg := generateConfig(false)
+	cfg := config.GenerateConfig(false)
 	var bs []byte
 	var err error
 	if isjson {
@@ -114,19 +69,19 @@ func main() {
 	case *autoconf:
 		// Use an autoconf-generated config, this will give us random keys and
 		// port numbers, and will use an automatically selected TUN/TAP interface.
-		cfg = generateConfig(true)
+		cfg = config.GenerateConfig(true)
 	case *useconffile != "" || *useconf:
 		// Use a configuration file. If -useconf, the configuration will be read
 		// from stdin. If -useconffile, the configuration will be read from the
 		// filesystem.
-		var config []byte
+		var configjson []byte
 		var err error
 		if *useconffile != "" {
 			// Read the file from the filesystem
-			config, err = ioutil.ReadFile(*useconffile)
+			configjson, err = ioutil.ReadFile(*useconffile)
 		} else {
 			// Read the file from stdin.
-			config, err = ioutil.ReadAll(os.Stdin)
+			configjson, err = ioutil.ReadAll(os.Stdin)
 		}
 		if err != nil {
 			panic(err)
@@ -135,11 +90,11 @@ func main() {
 		// throwing everywhere when it's converting things into UTF-16 for the hell
 		// of it - remove it and decode back down into UTF-8. This is necessary
 		// because hjson doesn't know what to do with UTF-16 and will panic
-		if bytes.Compare(config[0:2], []byte{0xFF, 0xFE}) == 0 ||
-			bytes.Compare(config[0:2], []byte{0xFE, 0xFF}) == 0 {
+		if bytes.Compare(configjson[0:2], []byte{0xFF, 0xFE}) == 0 ||
+			bytes.Compare(configjson[0:2], []byte{0xFE, 0xFF}) == 0 {
 			utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
 			decoder := utf.NewDecoder()
-			config, err = decoder.Bytes(config)
+			configjson, err = decoder.Bytes(configjson)
 			if err != nil {
 				panic(err)
 			}
@@ -148,9 +103,9 @@ func main() {
 		// then parse the configuration we loaded above on top of it. The effect
 		// of this is that any configuration item that is missing from the provided
 		// configuration will use a sane default.
-		cfg = generateConfig(false)
+		cfg = config.GenerateConfig(false)
 		var dat map[string]interface{}
-		if err := hjson.Unmarshal(config, &dat); err != nil {
+		if err := hjson.Unmarshal(configjson, &dat); err != nil {
 			panic(err)
 		}
 		confJson, err := json.Marshal(dat)
