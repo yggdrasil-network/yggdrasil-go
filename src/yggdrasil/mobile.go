@@ -7,6 +7,8 @@ import (
 	"os"
 	"regexp"
 
+	hjson "github.com/hjson/hjson-go"
+	"github.com/mitchellh/mapstructure"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
@@ -30,6 +32,23 @@ func (c *Core) StartAutoconfigure() error {
 	if err == nil {
 		c.ifceExpr = append(c.ifceExpr, ifceExpr)
 	}
+	if err := c.Start(nc, logger); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Core) StartJSON(configjson []byte) error {
+	logger := log.New(os.Stdout, "", 0)
+	nc := config.GenerateConfig(false)
+	var dat map[string]interface{}
+	if err := hjson.Unmarshal(configjson, &dat); err != nil {
+		return err
+	}
+	if err := mapstructure.Decode(dat, &nc); err != nil {
+		return err
+	}
+	nc.IfName = "dummy"
 	if err := c.Start(nc, logger); err != nil {
 		return err
 	}
