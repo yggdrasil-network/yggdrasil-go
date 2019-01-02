@@ -1,3 +1,5 @@
+// +build !mobile
+
 package yggdrasil
 
 // The linux platform specific tun parts
