@@ -3,6 +3,7 @@
 package yggdrasil
 
 import (
+	"encoding/json"
 	"log"
 	"os"
 	"regexp"
@@ -23,7 +24,7 @@ func (c *Core) StartAutoconfigure() error {
 	logger := log.New(os.Stdout, "", 0)
 	nc := config.GenerateConfig(true)
 	nc.IfName = "dummy"
-	nc.AdminListen = "tcp://[::]:9001"
+	nc.AdminListen = "tcp://localhost:9001"
 	nc.Peers = []string{}
 	if hostname, err := os.Hostname(); err == nil {
 		nc.NodeInfo = map[string]interface{}{"name": hostname}
@@ -49,10 +50,27 @@ func (c *Core) StartJSON(configjson []byte) error {
 		return err
 	}
 	nc.IfName = "dummy"
+	for _, ll := range nc.MulticastInterfaces {
+		ifceExpr, err := regexp.Compile(ll)
+		if err != nil {
+			panic(err)
+		}
+		c.AddMulticastInterfaceExpr(ifceExpr)
+	}
 	if err := c.Start(nc, logger); err != nil {
 		return err
 	}
 	return nil
+}
+
+func GenerateConfigJSON() []byte {
+	nc := config.GenerateConfig(false)
+	nc.IfName = "dummy"
+	if json, err := json.Marshal(nc); err == nil {
+		return json
+	} else {
+		return nil
+	}
 }
 
 func (c *Core) GetAddressString() string {
