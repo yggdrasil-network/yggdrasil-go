@@ -3,6 +3,7 @@
 package yggdrasil
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log"
@@ -94,12 +95,24 @@ func (c *Core) RouterSendPacket(buf []byte) error {
 	return nil
 }
 
-func (c *Core) AWDLCreateInterface(boxPubKey []byte, sigPubKey []byte, name string) {
-	var box crypto.BoxPubKey
-	var sig crypto.SigPubKey
-	copy(box[:crypto.BoxPubKeyLen], boxPubKey[:])
-	copy(sig[:crypto.SigPubKeyLen], sigPubKey[:])
-	c.awdl.create(&box, &sig, name)
+func (c *Core) AWDLCreateInterface(boxPubKey string, sigPubKey string, name string) error {
+	var boxPub crypto.BoxPubKey
+	var sigPub crypto.SigPubKey
+	boxPubHex, err := hex.DecodeString(boxPubKey)
+	if err != nil {
+		return err
+	}
+	sigPubHex, err := hex.DecodeString(sigPubKey)
+	if err != nil {
+		return err
+	}
+	copy(boxPub[:], boxPubHex)
+	copy(sigPub[:], sigPubHex)
+	if intf := c.awdl.create(&boxPub, &sigPub, name); intf != nil {
+		return nil
+	} else {
+		return errors.New("No interface was created")
+	}
 }
 
 func (c *Core) AWDLRecvPacket(identity string) ([]byte, error) {
