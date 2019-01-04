@@ -74,9 +74,24 @@ func (l *awdl) shutdown(identity string) {
 
 func (ai *awdlInterface) handler() {
 	for {
+		/*timerInterval := tcp_ping_interval
+		timer := time.NewTimer(timerInterval)
+		defer timer.Stop()*/
 		select {
 		case p := <-ai.peer.linkOut:
 			ai.send <- p
+			continue
+		default:
+		}
+		/*timer.Stop()
+		select {
+		case <-timer.C:
+		default:
+		}
+		timer.Reset(timerInterval)*/
+		select {
+		//case _ = <-timer.C:
+		//	ai.send <- nil
 		case r := <-ai.recv: // traffic received from AWDL
 			ai.peer.handlePacket(r)
 		case <-ai.shutdown:

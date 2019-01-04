@@ -4,6 +4,7 @@ package yggdrasil
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 	"os"
 	"regexp"
@@ -99,4 +100,20 @@ func (c *Core) AWDLCreateInterface(boxPubKey []byte, sigPubKey []byte, name stri
 	copy(box[:crypto.BoxPubKeyLen], boxPubKey[:])
 	copy(sig[:crypto.SigPubKeyLen], sigPubKey[:])
 	c.awdl.create(&box, &sig, name)
+}
+
+func (c *Core) AWDLRecvPacket(identity string) ([]byte, error) {
+	if intf := c.awdl.getInterface(identity); intf != nil {
+		return <-intf.recv, nil
+	}
+	return nil, errors.New("identity not known: " + identity)
+}
+
+func (c *Core) AWDLSendPacket(identity string, buf []byte) error {
+	packet := append(util.GetBytes(), buf[:]...)
+	if intf := c.awdl.getInterface(identity); intf != nil {
+		intf.send <- packet
+		return nil
+	}
+	return errors.New("identity not known: " + identity)
 }
