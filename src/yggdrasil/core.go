@@ -35,6 +35,7 @@ type Core struct {
 	multicast   multicast
 	nodeinfo    nodeinfo
 	tcp         tcpInterface
+	awdl				awdl
 	log         *log.Logger
 	ifceExpr    []*regexp.Regexp // the zone of link-local IPv6 peers must match this
 }
@@ -129,6 +130,11 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 
 	if err := c.tcp.init(c, nc.Listen, nc.ReadTimeout); err != nil {
 		c.log.Println("Failed to start TCP interface")
+		return err
+	}
+
+	if err := c.awdl.init(c); err != nil {
+		c.log.Println("Failed to start AWDL interface")
 		return err
 	}
 

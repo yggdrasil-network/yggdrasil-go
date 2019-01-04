@@ -11,6 +11,7 @@ import (
 	hjson "github.com/hjson/hjson-go"
 	"github.com/mitchellh/mapstructure"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
@@ -90,4 +91,12 @@ func (c *Core) RouterSendPacket(buf []byte) error {
 	packet := append(util.GetBytes(), buf[:]...)
 	c.router.tun.send <- packet
 	return nil
+}
+
+func (c *Core) AWDLCreateInterface(boxPubKey []byte, sigPubKey []byte, name string) {
+	var box crypto.BoxPubKey
+	var sig crypto.SigPubKey
+	copy(box[:crypto.BoxPubKeyLen], boxPubKey[:])
+	copy(sig[:crypto.SigPubKeyLen], sigPubKey[:])
+	c.awdl.create(&box, &sig, name)
 }

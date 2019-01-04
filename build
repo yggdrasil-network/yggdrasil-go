@@ -6,12 +6,13 @@ PKGVER=${PKGVER:-$(sh contrib/semver/version.sh --bare)}
 
 LDFLAGS="-X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
 
-while getopts "udtc:l:" option
+while getopts "udmtc:l:" option
 do
   case "${option}"
   in
   u) UPX=true;;
   d) DEBUG=true;;
+  m) MOBILE=true;;
   t) TABLES=true;;
   c) GCFLAGS="$GCFLAGS $OPTARG";;
   l) LDFLAGS="$LDFLAGS $OPTARG";;
@@ -25,7 +26,9 @@ fi
 for CMD in `ls cmd/` ; do
   echo "Building: $CMD"
 
-  if [ $DEBUG ]; then
+  if [ $MOBILE ]; then
+    go build -ldflags="$LDFLAGS" -gcflags="$GCFLAGS" -tags mobile -v ./cmd/$CMD
+  elif [ $DEBUG ]; then
     go build -ldflags="$LDFLAGS" -gcflags="$GCFLAGS" -tags debug -v ./cmd/$CMD
   else
     go build -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" -v ./cmd/$CMD
