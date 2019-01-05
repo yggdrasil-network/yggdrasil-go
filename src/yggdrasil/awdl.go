@@ -45,6 +45,7 @@ func (l *awdl) create(boxPubKey *crypto.BoxPubKey, sigPubKey *crypto.SigPubKey, 
 		intf.peer.out = func(msg []byte) {
 			defer func() { recover() }()
 			intf.send <- msg
+			l.core.switchTable.idleIn <- intf.peer.port
 		}
 		go intf.handler()
 		l.core.switchTable.idleIn <- intf.peer.port
@@ -80,6 +81,7 @@ func (ai *awdlInterface) handler() {
 		select {
 		case p := <-ai.peer.linkOut:
 			ai.send <- p
+			ai.awdl.core.switchTable.idleIn <- ai.peer.port
 			continue
 		default:
 		}

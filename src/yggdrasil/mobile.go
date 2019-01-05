@@ -115,6 +115,10 @@ func (c *Core) AWDLCreateInterface(boxPubKey string, sigPubKey string, name stri
 	}
 }
 
+func (c *Core) AWDLShutdownInterface(name string) {
+	c.awdl.shutdown(name)
+}
+
 func (c *Core) AWDLRecvPacket(identity string) ([]byte, error) {
 	if intf := c.awdl.getInterface(identity); intf != nil {
 		return <-intf.recv, nil
