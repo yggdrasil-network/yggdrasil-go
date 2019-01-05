@@ -24,7 +24,8 @@ import (
 // therefore we use the "dummy" TUN interface instead.
 
 func (c *Core) StartAutoconfigure() error {
-	logger := log.New(os.Stdout, "", 0)
+	mobilelog := MobileLogger{}
+	logger := log.New(mobilelog, "", 0)
 	nc := config.GenerateConfig(true)
 	nc.IfName = "dummy"
 	nc.AdminListen = "tcp://localhost:9001"
@@ -43,7 +44,8 @@ func (c *Core) StartAutoconfigure() error {
 }
 
 func (c *Core) StartJSON(configjson []byte) error {
-	logger := log.New(os.Stdout, "", 0)
+	mobilelog := MobileLogger{}
+	logger := log.New(mobilelog, "", 0)
 	nc := config.GenerateConfig(false)
 	var dat map[string]interface{}
 	if err := hjson.Unmarshal(configjson, &dat); err != nil {

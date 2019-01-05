@@ -109,11 +109,12 @@ func (ai *awdlInterface) handler() {
 		timer.Reset(timerInterval)
 		select {
 		case _ = <-timer.C:
-			send([]byte{'H', 'E', 'L', 'L', 'O'})
+			send([]byte{})
 		case p := <-ai.peer.linkOut:
 			send(p)
 			continue
 		case r := <-ai.fromAWDL:
+			//_ = append(util.GetBytes(), r...)
 			ai.peer.handlePacket(r)
 			ai.awdl.core.switchTable.idleIn <- ai.peer.port
 		case <-ai.shutdown:

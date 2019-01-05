@@ -217,6 +217,7 @@ func (p *peer) handlePacket(packet []byte) {
 	default:
 		util.PutBytes(packet)
 	}
+	return
 }
 
 // Called to handle traffic or protocolTraffic packets.
