@@ -102,7 +102,10 @@ func (ai *awdlInterface) handler() {
 			ai.peer.handlePacket(r)
 		case <-ai.shutdown:
 			return
-		default:
+		case p := <-ai.peer.linkOut:
+			ai.send <- p
+			ai.awdl.core.switchTable.idleIn <- ai.peer.port
+			continue
 		}
 	}
 }
