@@ -47,6 +47,10 @@ func (l *awdl) create(boxPubKey *crypto.BoxPubKey, sigPubKey *crypto.SigPubKey, 
 			intf.send <- msg
 			l.core.switchTable.idleIn <- intf.peer.port
 		}
+		intf.peer.close = func() {
+			close(intf.send)
+		}
+		go intf.peer.linkLoop()
 		go intf.handler()
 		l.core.switchTable.idleIn <- intf.peer.port
 		return &intf
