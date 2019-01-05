@@ -1,9 +1,14 @@
 package yggdrasil
 
 import (
+	"errors"
+	"fmt"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 type awdl struct {
@@ -14,8 +19,8 @@ type awdl struct {
 
 type awdlInterface struct {
 	awdl     *awdl
-	recv     <-chan []byte // traffic received from the network
-	send     chan<- []byte // traffic to send to the network
+	fromAWDL chan []byte
+	toAWDL   chan []byte
 	shutdown chan bool
 	peer     *peer
 }
@@ -29,11 +34,11 @@ func (l *awdl) init(c *Core) error {
 	return nil
 }
 
-func (l *awdl) create(boxPubKey *crypto.BoxPubKey, sigPubKey *crypto.SigPubKey, name string) *awdlInterface {
+func (l *awdl) create(boxPubKey *crypto.BoxPubKey, sigPubKey *crypto.SigPubKey, name string) (*awdlInterface, error) {
 	shared := crypto.GetSharedKey(&l.core.boxPriv, boxPubKey)
 	intf := awdlInterface{
-		recv:     make(<-chan []byte),
-		send:     make(chan<- []byte),
+		fromAWDL: make(chan []byte, 32),
+		toAWDL:   make(chan []byte, 32),
 		shutdown: make(chan bool),
 		peer:     l.core.peers.newPeer(boxPubKey, sigPubKey, shared, name),
 	}
@@ -41,21 +46,21 @@ func (l *awdl) create(boxPubKey *crypto.BoxPubKey, sigPubKey *crypto.SigPubKey, 
 		l.mutex.Lock()
 		l.interfaces[name] = &intf
 		l.mutex.Unlock()
-		intf.peer.linkOut = make(chan []byte, 1)
+		intf.peer.linkOut = make(chan []byte, 1) // protocol traffic
 		intf.peer.out = func(msg []byte) {
 			defer func() { recover() }()
-			intf.send <- msg
-			l.core.switchTable.idleIn <- intf.peer.port
-		}
+			intf.toAWDL <- msg
+		} // called by peer.sendPacket()
+		l.core.switchTable.idleIn <- intf.peer.port // notify switch that we're idle
 		intf.peer.close = func() {
-			close(intf.send)
+			close(intf.fromAWDL)
+			close(intf.toAWDL)
 		}
-		go intf.peer.linkLoop()
-		go intf.handler()
-		l.core.switchTable.idleIn <- intf.peer.port
-		return &intf
+		go intf.handler()       // start listening for packets from switch
+		go intf.peer.linkLoop() // start link loop
+		return &intf, nil
 	}
-	return nil
+	return nil, errors.New("l.core.peers.newPeer failed")
 }
 
 func (l *awdl) getInterface(identity string) *awdlInterface {
@@ -67,45 +72,52 @@ func (l *awdl) getInterface(identity string) *awdlInterface {
 	return nil
 }
 
-func (l *awdl) shutdown(identity string) {
+func (l *awdl) shutdown(identity string) error {
 	if intf, ok := l.interfaces[identity]; ok {
 		intf.shutdown <- true
 		l.core.peers.removePeer(intf.peer.port)
 		l.mutex.Lock()
 		delete(l.interfaces, identity)
 		l.mutex.Unlock()
+		return nil
+	} else {
+		return errors.New(fmt.Sprintf("Interface '%s' doesn't exist or already shutdown", identity))
 	}
 }
 
 func (ai *awdlInterface) handler() {
+	send := func(msg []byte) {
+		ai.toAWDL <- msg
+		atomic.AddUint64(&ai.peer.bytesSent, uint64(len(msg)))
+		util.PutBytes(msg)
+	}
 	for {
-		/*timerInterval := tcp_ping_interval
+		timerInterval := tcp_ping_interval
 		timer := time.NewTimer(timerInterval)
-		defer timer.Stop()*/
+		defer timer.Stop()
 		select {
 		case p := <-ai.peer.linkOut:
-			ai.send <- p
-			ai.awdl.core.switchTable.idleIn <- ai.peer.port
+			send(p)
 			continue
 		default:
 		}
-		/*timer.Stop()
+		timer.Stop()
 		select {
 		case <-timer.C:
 		default:
 		}
-		timer.Reset(timerInterval)*/
+		timer.Reset(timerInterval)
 		select {
-		//case _ = <-timer.C:
-		//	ai.send <- nil
-		case r := <-ai.recv: // traffic received from AWDL
+		case _ = <-timer.C:
+			send([]byte{'H', 'E', 'L', 'L', 'O'})
+		case p := <-ai.peer.linkOut:
+			send(p)
+			continue
+		case r := <-ai.fromAWDL:
 			ai.peer.handlePacket(r)
+			ai.awdl.core.switchTable.idleIn <- ai.peer.port
 		case <-ai.shutdown:
 			return
-		case p := <-ai.peer.linkOut:
-			ai.send <- p
-			ai.awdl.core.switchTable.idleIn <- ai.peer.port
-			continue
 		}
 	}
 }

@@ -35,7 +35,7 @@ type Core struct {
 	multicast   multicast
 	nodeinfo    nodeinfo
 	tcp         tcpInterface
-	awdl				awdl
+	awdl        awdl
 	log         *log.Logger
 	ifceExpr    []*regexp.Regexp // the zone of link-local IPv6 peers must match this
 }

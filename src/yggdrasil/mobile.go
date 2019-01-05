@@ -108,20 +108,24 @@ func (c *Core) AWDLCreateInterface(boxPubKey string, sigPubKey string, name stri
 	}
 	copy(boxPub[:], boxPubHex)
 	copy(sigPub[:], sigPubHex)
-	if intf := c.awdl.create(&boxPub, &sigPub, name); intf != nil {
-		return nil
+	if intf, err := c.awdl.create(&boxPub, &sigPub, name); err == nil {
+		if intf != nil {
+			return err
+		} else {
+			return errors.New("c.awdl.create didn't return an interface")
+		}
 	} else {
-		return errors.New("No interface was created")
+		return err
 	}
 }
 
-func (c *Core) AWDLShutdownInterface(name string) {
-	c.awdl.shutdown(name)
+func (c *Core) AWDLShutdownInterface(name string) error {
+	return c.awdl.shutdown(name)
 }
 
 func (c *Core) AWDLRecvPacket(identity string) ([]byte, error) {
 	if intf := c.awdl.getInterface(identity); intf != nil {
-		return <-intf.recv, nil
+		return <-intf.toAWDL, nil
 	}
 	return nil, errors.New("identity not known: " + identity)
 }
@@ -129,7 +133,7 @@ func (c *Core) AWDLRecvPacket(identity string) ([]byte, error) {
 func (c *Core) AWDLSendPacket(identity string, buf []byte) error {
 	packet := append(util.GetBytes(), buf[:]...)
 	if intf := c.awdl.getInterface(identity); intf != nil {
-		intf.send <- packet
+		intf.fromAWDL <- packet
 		return nil
 	}
 	return errors.New("identity not known: " + identity)
