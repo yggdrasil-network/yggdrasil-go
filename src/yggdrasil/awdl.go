@@ -37,6 +37,7 @@ func (l *awdl) init(c *Core) error {
 func (l *awdl) create(boxPubKey *crypto.BoxPubKey, sigPubKey *crypto.SigPubKey, name string) (*awdlInterface, error) {
 	shared := crypto.GetSharedKey(&l.core.boxPriv, boxPubKey)
 	intf := awdlInterface{
+		awdl:     l,
 		fromAWDL: make(chan []byte, 32),
 		toAWDL:   make(chan []byte, 32),
 		shutdown: make(chan bool),
@@ -114,7 +115,6 @@ func (ai *awdlInterface) handler() {
 			send(p)
 			continue
 		case r := <-ai.fromAWDL:
-			//_ = append(util.GetBytes(), r...)
 			ai.peer.handlePacket(r)
 			ai.awdl.core.switchTable.idleIn <- ai.peer.port
 		case <-ai.shutdown:
