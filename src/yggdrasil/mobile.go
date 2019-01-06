@@ -98,27 +98,45 @@ func (c *Core) RouterSendPacket(buf []byte) error {
 }
 
 func (c *Core) AWDLCreateInterface(boxPubKey string, sigPubKey string, name string) error {
+	fromAWDL := make(chan []byte, 32)
+	toAWDL := make(chan []byte, 32)
+
 	var boxPub crypto.BoxPubKey
 	var sigPub crypto.SigPubKey
 	boxPubHex, err := hex.DecodeString(boxPubKey)
 	if err != nil {
+		c.log.Println(err)
 		return err
 	}
 	sigPubHex, err := hex.DecodeString(sigPubKey)
 	if err != nil {
+		c.log.Println(err)
 		return err
 	}
 	copy(boxPub[:], boxPubHex)
 	copy(sigPub[:], sigPubHex)
-	if intf, err := c.awdl.create(&boxPub, &sigPub, name); err == nil {
+
+	if intf, err := c.awdl.create(fromAWDL, toAWDL, &boxPub, &sigPub, name); err == nil {
 		if intf != nil {
+			c.log.Println(err)
 			return err
 		} else {
+			c.log.Println("c.awdl.create didn't return an interface")
 			return errors.New("c.awdl.create didn't return an interface")
 		}
 	} else {
+		c.log.Println(err)
 		return err
 	}
+}
+
+func (c *Core) AWDLCreateInterfaceFromContext(context []byte, name string) error {
+	if len(context) < crypto.BoxPubKeyLen+crypto.SigPubKeyLen {
+		return errors.New("Not enough bytes in context")
+	}
+	boxPubKey := hex.EncodeToString(context[:crypto.BoxPubKeyLen])
+	sigPubKey := hex.EncodeToString(context[crypto.BoxPubKeyLen:])
+	return c.AWDLCreateInterface(boxPubKey, sigPubKey, name)
 }
 
 func (c *Core) AWDLShutdownInterface(name string) error {
@@ -129,7 +147,7 @@ func (c *Core) AWDLRecvPacket(identity string) ([]byte, error) {
 	if intf := c.awdl.getInterface(identity); intf != nil {
 		return <-intf.toAWDL, nil
 	}
-	return nil, errors.New("identity not known: " + identity)
+	return nil, errors.New("AWDLRecvPacket identity not known: " + identity)
 }
 
 func (c *Core) AWDLSendPacket(identity string, buf []byte) error {
@@ -138,5 +156,12 @@ func (c *Core) AWDLSendPacket(identity string, buf []byte) error {
 		intf.fromAWDL <- packet
 		return nil
 	}
-	return errors.New("identity not known: " + identity)
+	return errors.New("AWDLSendPacket identity not known: " + identity)
+}
+
+func (c *Core) AWDLConnectionContext() []byte {
+	var context []byte
+	context = append(context, c.boxPub[:]...)
+	context = append(context, c.sigPub[:]...)
+	return context
 }

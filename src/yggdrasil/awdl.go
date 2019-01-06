@@ -34,14 +34,37 @@ func (l *awdl) init(c *Core) error {
 	return nil
 }
 
-func (l *awdl) create(boxPubKey *crypto.BoxPubKey, sigPubKey *crypto.SigPubKey, name string) (*awdlInterface, error) {
+func (l *awdl) create(fromAWDL chan []byte, toAWDL chan []byte, boxPubKey *crypto.BoxPubKey, sigPubKey *crypto.SigPubKey, name string) (*awdlInterface, error) {
+	/*
+		myLinkPub, myLinkPriv := crypto.NewBoxKeys()
+		meta := version_getBaseMetadata()
+		meta.box = l.core.boxPub
+		meta.sig = l.core.sigPub
+		meta.link = *myLinkPub
+		metaBytes := meta.encode()
+		l.core.log.Println("toAWDL <- metaBytes")
+		toAWDL <- metaBytes
+		l.core.log.Println("metaBytes = <-fromAWDL")
+		metaBytes = <-fromAWDL
+		l.core.log.Println("version_metadata{}")
+		meta = version_metadata{}
+		if !meta.decode(metaBytes) || !meta.check() {
+			return nil, errors.New("Metadata decode failure")
+		}
+		base := version_getBaseMetadata()
+		if meta.ver > base.ver || meta.ver == base.ver && meta.minorVer > base.minorVer {
+			return nil, errors.New("Failed to connect to node: " + name + " version: " + fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
+		}
+		shared := crypto.GetSharedKey(myLinkPriv, &meta.link)
+	*/
 	shared := crypto.GetSharedKey(&l.core.boxPriv, boxPubKey)
 	intf := awdlInterface{
 		awdl:     l,
-		fromAWDL: make(chan []byte, 32),
-		toAWDL:   make(chan []byte, 32),
+		fromAWDL: fromAWDL,
+		toAWDL:   toAWDL,
 		shutdown: make(chan bool),
 		peer:     l.core.peers.newPeer(boxPubKey, sigPubKey, shared, name),
+		//peer:     l.core.peers.newPeer(&meta.box, &meta.sig, shared, name),
 	}
 	if intf.peer != nil {
 		l.mutex.Lock()
@@ -57,8 +80,8 @@ func (l *awdl) create(boxPubKey *crypto.BoxPubKey, sigPubKey *crypto.SigPubKey, 
 			close(intf.fromAWDL)
 			close(intf.toAWDL)
 		}
-		go intf.handler()       // start listening for packets from switch
-		go intf.peer.linkLoop() // start link loop
+		go intf.handler()
+		go intf.peer.linkLoop()
 		return &intf, nil
 	}
 	return nil, errors.New("l.core.peers.newPeer failed")
