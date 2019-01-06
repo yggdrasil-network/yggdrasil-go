@@ -1,3 +1,5 @@
+// +build !mobile
+
 package yggdrasil
 
 // The darwin platform specific tun parts

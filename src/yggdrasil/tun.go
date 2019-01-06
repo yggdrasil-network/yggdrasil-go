@@ -47,11 +47,13 @@ func (tun *tunAdapter) init(core *Core, send chan<- []byte, recv <-chan []byte) 
 // Starts the setup process for the TUN/TAP adapter, and if successful, starts
 // the read/write goroutines to handle packets on that interface.
 func (tun *tunAdapter) start(ifname string, iftapmode bool, addr string, mtu int) error {
-	if ifname == "none" {
-		return nil
+	if ifname != "none" {
+		if err := tun.setup(ifname, iftapmode, addr, mtu); err != nil {
+			return err
+		}
 	}
-	if err := tun.setup(ifname, iftapmode, addr, mtu); err != nil {
-		return err
+	if ifname == "none" || ifname == "dummy" {
+		return nil
 	}
 	tun.mutex.Lock()
 	tun.isOpen = true
