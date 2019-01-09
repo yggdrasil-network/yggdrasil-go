@@ -9,9 +9,9 @@ type Address [16]byte
 type Subnet [8]byte
 
 // address_prefix is the prefix used for all addresses and subnets in the network.
-// The current implementation requires this to be a muliple of 8 bits + 7 bits.
+// The current implementation requires this to be a multiple of 8 bits + 7 bits.
 // The 8th bit of the last byte is used to signal nodes (0) or /64 prefixes (1).
-// Nodes that configure this differently will be unable to communicate with eachother, though routing and the DHT machinery *should* still work.
+// Nodes that configure this differently will be unable to communicate with each other, though routing and the DHT machinery *should* still work.
 func GetPrefix() [1]byte {
 	return [...]byte{0x02}
 }
