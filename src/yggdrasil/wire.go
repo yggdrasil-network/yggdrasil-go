@@ -114,7 +114,7 @@ func wire_decode_coords(packet []byte) ([]byte, int) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Encodes a swtichMsg into its wire format.
+// Encodes a switchMsg into its wire format.
 func (m *switchMsg) encode() []byte {
 	bs := wire_encode_uint64(wire_SwitchMsg)
 	bs = append(bs, m.Root[:]...)
