@@ -20,7 +20,7 @@ func UnlockThread() {
 }
 
 // This is used to buffer recently used slices of bytes, to prevent allocations in the hot loops.
-// It's used like a sync.Pool, but with a fixed size and typechecked without type casts to/from interface{} (which were making the profiles look ugly).
+// It's used like a sync.Pool, but with a fixed size and type checked without type casts to/from interface{} (which were making the profiles look ugly).
 var byteStore chan []byte
 
 func init() {
