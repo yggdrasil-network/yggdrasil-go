@@ -47,7 +47,7 @@ type sessionInfo struct {
 	bytesRecvd   uint64    // Bytes of real traffic received in this session
 }
 
-// Represents a session ping/pong packet, andincludes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
+// Represents a session ping/pong packet, and includes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
 type sessionPing struct {
 	SendPermPub crypto.BoxPubKey // Sender's permanent key
 	Handle      crypto.Handle    // Random number to ID session
@@ -156,7 +156,7 @@ func (ss *sessions) setSessionFirewallBlacklist(blacklist []string) {
 	ss.sessionFirewallBlacklist = blacklist
 }
 
-// Determines whether the session with a given publickey is allowed based on
+// Determines whether the session with a given public key is allowed based on
 // session firewall rules.
 func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) bool {
 	// Allow by default if the session firewall is disabled
@@ -261,8 +261,8 @@ func (ss *sessions) getByTheirSubnet(snet *address.Subnet) (*sessionInfo, bool) 
 	return sinfo, isIn
 }
 
-// Creates a new session and lazily cleans up old/timedout existing sessions.
-// This includse initializing session info to sane defaults (e.g. lowest supported MTU).
+// Creates a new session and lazily cleans up old/timed out existing sessions.
+// This includes initializing session info to sane defaults (e.g. lowest supported MTU).
 func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	if ss.sessionFirewallEnabled {
 		if !ss.isSessionAllowed(theirPermKey, true) {
