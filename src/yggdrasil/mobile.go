@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"time"
 
 	hjson "github.com/hjson/hjson-go"
 	"github.com/mitchellh/mapstructure"
@@ -22,6 +23,25 @@ import (
 // types. Therefore for iOS we will expose some nice simple functions. Note
 // that in the case of iOS we handle reading/writing to/from TUN in Swift
 // therefore we use the "dummy" TUN interface instead.
+
+func (c *Core) addStaticPeers(cfg *config.NodeConfig) {
+	if len(cfg.Peers) == 0 && len(cfg.InterfacePeers) == 0 {
+		return
+	}
+	for {
+		for _, peer := range cfg.Peers {
+			c.AddPeer(peer, "")
+			time.Sleep(time.Second)
+		}
+		for intf, intfpeers := range cfg.InterfacePeers {
+			for _, peer := range intfpeers {
+				c.AddPeer(peer, intf)
+				time.Sleep(time.Second)
+			}
+		}
+		time.Sleep(time.Minute)
+	}
+}
 
 func (c *Core) StartAutoconfigure() error {
 	mobilelog := MobileLogger{}
@@ -40,6 +60,7 @@ func (c *Core) StartAutoconfigure() error {
 	if err := c.Start(nc, logger); err != nil {
 		return err
 	}
+	go c.addStaticPeers(nc)
 	return nil
 }
 
@@ -55,7 +76,9 @@ func (c *Core) StartJSON(configjson []byte) error {
 		return err
 	}
 	nc.IfName = "dummy"
+	//c.log.Println(nc.MulticastInterfaces)
 	for _, ll := range nc.MulticastInterfaces {
+		//c.log.Println("Processing MC", ll)
 		ifceExpr, err := regexp.Compile(ll)
 		if err != nil {
 			panic(err)
@@ -65,6 +88,7 @@ func (c *Core) StartJSON(configjson []byte) error {
 	if err := c.Start(nc, logger); err != nil {
 		return err
 	}
+	go c.addStaticPeers(nc)
 	return nil
 }
 
