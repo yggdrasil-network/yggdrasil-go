@@ -13,11 +13,9 @@ void Log(const char *text) {
 */
 import "C"
 import (
-	"encoding/hex"
 	"errors"
 	"unsafe"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
@@ -31,26 +29,11 @@ func (nsl MobileLogger) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (c *Core) AWDLCreateInterface(boxPubKey string, sigPubKey string, name string) error {
+func (c *Core) AWDLCreateInterface(name string) error {
 	fromAWDL := make(chan []byte, 32)
 	toAWDL := make(chan []byte, 32)
 
-	var boxPub crypto.BoxPubKey
-	var sigPub crypto.SigPubKey
-	boxPubHex, err := hex.DecodeString(boxPubKey)
-	if err != nil {
-		c.log.Println(err)
-		return err
-	}
-	sigPubHex, err := hex.DecodeString(sigPubKey)
-	if err != nil {
-		c.log.Println(err)
-		return err
-	}
-	copy(boxPub[:], boxPubHex)
-	copy(sigPub[:], sigPubHex)
-
-	if intf, err := c.awdl.create(fromAWDL, toAWDL, &boxPub, &sigPub, name); err == nil {
+	if intf, err := c.awdl.create(fromAWDL, toAWDL, name); err == nil {
 		if intf != nil {
 			c.log.Println(err)
 			return err
