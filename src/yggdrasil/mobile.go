@@ -3,6 +3,7 @@
 package yggdrasil
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"log"
 	"os"
@@ -111,6 +112,16 @@ func (c *Core) GetAddressString() string {
 // Gets the node's IPv6 subnet in CIDR notation.
 func (c *Core) GetSubnetString() string {
 	return c.GetSubnet().String()
+}
+
+// Gets the node's public encryption key.
+func (c *Core) GetBoxPubKeyString() string {
+	return hex.EncodeToString(c.boxPub[:])
+}
+
+// Gets the node's public signing key.
+func (c *Core) GetSigPubKeyString() string {
+	return hex.EncodeToString(c.sigPub[:])
 }
 
 // Wait for a packet from the router. You will use this when implementing a
