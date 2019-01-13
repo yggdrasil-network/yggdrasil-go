@@ -64,15 +64,6 @@ func (c *Core) AWDLCreateInterface(boxPubKey string, sigPubKey string, name stri
 	}
 }
 
-func (c *Core) AWDLCreateInterfaceFromContext(context []byte, name string) error {
-	if len(context) < crypto.BoxPubKeyLen+crypto.SigPubKeyLen {
-		return errors.New("Not enough bytes in context")
-	}
-	boxPubKey := hex.EncodeToString(context[:crypto.BoxPubKeyLen])
-	sigPubKey := hex.EncodeToString(context[crypto.BoxPubKeyLen:])
-	return c.AWDLCreateInterface(boxPubKey, sigPubKey, name)
-}
-
 func (c *Core) AWDLShutdownInterface(name string) error {
 	return c.awdl.shutdown(name)
 }
@@ -91,11 +82,4 @@ func (c *Core) AWDLSendPacket(identity string, buf []byte) error {
 		return nil
 	}
 	return errors.New("AWDLSendPacket identity not known: " + identity)
-}
-
-func (c *Core) AWDLConnectionContext() []byte {
-	var context []byte
-	context = append(context, c.boxPub[:]...)
-	context = append(context, c.sigPub[:]...)
-	return context
 }
