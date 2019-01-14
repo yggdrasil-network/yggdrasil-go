@@ -231,31 +231,6 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
-	c.router.cryptokey.setEnabled(nc.TunnelRouting.Enable)
-	if c.router.cryptokey.isEnabled() {
-		c.log.Println("Crypto-key routing enabled")
-		for ipv6, pubkey := range nc.TunnelRouting.IPv6Destinations {
-			if err := c.router.cryptokey.addRoute(ipv6, pubkey); err != nil {
-				panic(err)
-			}
-		}
-		for _, source := range nc.TunnelRouting.IPv6Sources {
-			if err := c.router.cryptokey.addSourceSubnet(source); err != nil {
-				panic(err)
-			}
-		}
-		for ipv4, pubkey := range nc.TunnelRouting.IPv4Destinations {
-			if err := c.router.cryptokey.addRoute(ipv4, pubkey); err != nil {
-				panic(err)
-			}
-		}
-		for _, source := range nc.TunnelRouting.IPv4Sources {
-			if err := c.router.cryptokey.addSourceSubnet(source); err != nil {
-				panic(err)
-			}
-		}
-	}
-
 	if err := c.admin.start(); err != nil {
 		c.log.Println("Failed to start admin socket")
 		return err

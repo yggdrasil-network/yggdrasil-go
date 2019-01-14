@@ -127,6 +127,14 @@ func (r *router) mainLoop() {
 		case f := <-r.admin:
 			f()
 		case e := <-r.reconfigure:
+			// Send reconfigure notification to cryptokey
+			response := make(chan error)
+			r.cryptokey.reconfigure <- response
+			if err := <-response; err != nil {
+				e <- err
+			}
+
+			// Anything else to do?
 			e <- nil
 		}
 	}

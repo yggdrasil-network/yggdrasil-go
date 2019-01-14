@@ -45,25 +45,73 @@ func (c *cryptokey) init(core *Core) {
 		for {
 			select {
 			case e := <-c.reconfigure:
-				e <- nil
+				e <- c.configure()
 			}
 		}
 	}()
 
+	if err := c.configure(); err != nil {
+		c.core.log.Println("CKR configuration failed:", err)
+	}
+}
+
+// Configure the CKR routes
+func (c *cryptokey) configure() error {
+	c.core.configMutex.RLock()
+	defer c.core.configMutex.RUnlock()
+
+	// Set enabled/disabled state
+	c.setEnabled(c.core.config.TunnelRouting.Enable)
+
+	// Clear out existing routes
 	c.mutexroutes.Lock()
-	c.ipv4routes = make([]cryptokey_route, 0)
 	c.ipv6routes = make([]cryptokey_route, 0)
+	c.ipv4routes = make([]cryptokey_route, 0)
 	c.mutexroutes.Unlock()
 
+	// Add IPv6 routes
+	for ipv6, pubkey := range c.core.config.TunnelRouting.IPv6Destinations {
+		if err := c.addRoute(ipv6, pubkey); err != nil {
+			return err
+		}
+	}
+
+	// Add IPv4 routes
+	for ipv4, pubkey := range c.core.config.TunnelRouting.IPv4Destinations {
+		if err := c.addRoute(ipv4, pubkey); err != nil {
+			return err
+		}
+	}
+
+	// Clear out existing sources
+	c.mutexsources.Lock()
+	c.ipv6sources = make([]net.IPNet, 0)
+	c.ipv4sources = make([]net.IPNet, 0)
+	c.mutexsources.Unlock()
+
+	// Add IPv6 sources
+	c.ipv6sources = make([]net.IPNet, 0)
+	for _, source := range c.core.config.TunnelRouting.IPv6Sources {
+		if err := c.addSourceSubnet(source); err != nil {
+			return err
+		}
+	}
+
+	// Add IPv4 sources
+	c.ipv4sources = make([]net.IPNet, 0)
+	for _, source := range c.core.config.TunnelRouting.IPv4Sources {
+		if err := c.addSourceSubnet(source); err != nil {
+			return err
+		}
+	}
+
+	// Wipe the caches
 	c.mutexcache.Lock()
 	c.ipv4cache = make(map[address.Address]cryptokey_route, 0)
 	c.ipv6cache = make(map[address.Address]cryptokey_route, 0)
 	c.mutexcache.Unlock()
 
-	c.mutexsources.Lock()
-	c.ipv4sources = make([]net.IPNet, 0)
-	c.ipv6sources = make([]net.IPNet, 0)
-	c.mutexsources.Unlock()
+	return nil
 }
 
 // Enable or disable crypto-key routing.
