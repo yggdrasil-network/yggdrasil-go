@@ -141,6 +141,7 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 		c.peers.reconfigure,
 		c.router.reconfigure,
 		c.router.tun.reconfigure,
+		c.router.cryptokey.reconfigure,
 		c.switchTable.reconfigure,
 		c.tcp.reconfigure,
 		c.multicast.reconfigure,
