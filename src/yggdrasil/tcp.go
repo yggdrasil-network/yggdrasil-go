@@ -15,6 +15,7 @@ package yggdrasil
 //  See version.go for version metadata format
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -120,7 +121,11 @@ func (iface *tcpInterface) listen() error {
 		iface.tcp_timeout = default_tcp_timeout
 	}
 
-	iface.serv, err = net.Listen("tcp", iface.tcp_addr)
+	ctx := context.Background()
+	lc := net.ListenConfig{
+		Control: iface.tcpContext,
+	}
+	iface.serv, err = lc.Listen(ctx, "tcp", iface.tcp_addr)
 	if err == nil {
 		iface.calls = make(map[string]struct{})
 		iface.conns = make(map[tcpInfo](chan struct{}))
@@ -212,7 +217,9 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 				},
 			}
 		} else {
-			dialer := net.Dialer{}
+			dialer := net.Dialer{
+				Control: iface.tcpContext,
+			}
 			if sintf != "" {
 				ief, err := net.InterfaceByName(sintf)
 				if err != nil {
