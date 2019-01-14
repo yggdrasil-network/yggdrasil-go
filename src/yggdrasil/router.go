@@ -127,7 +127,9 @@ func (r *router) mainLoop() {
 		case f := <-r.admin:
 			f()
 		case e := <-r.reconfigure:
-			e <- nil
+			r.core.configMutex.RLock()
+			e <- r.core.nodeinfo.setNodeInfo(r.core.config.NodeInfo, r.core.config.NodeInfoPrivacy)
+			r.core.configMutex.RUnlock()
 		}
 	}
 }

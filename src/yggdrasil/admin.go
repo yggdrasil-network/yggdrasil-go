@@ -350,7 +350,10 @@ func (a *admin) init(c *Core) {
 		}
 		var box_pub_key, coords string
 		if in["box_pub_key"] == nil && in["coords"] == nil {
-			nodeinfo := []byte(a.core.nodeinfo.getNodeInfo())
+			var nodeinfo []byte
+			a.core.router.doAdmin(func() {
+				nodeinfo = []byte(a.core.nodeinfo.getNodeInfo())
+			})
 			var jsoninfo interface{}
 			if err := json.Unmarshal(nodeinfo, &jsoninfo); err != nil {
 				return admin_info{}, err
