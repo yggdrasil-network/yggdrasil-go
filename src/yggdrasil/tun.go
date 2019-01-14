@@ -47,11 +47,13 @@ func (tun *tunAdapter) init(core *Core, send chan<- []byte, recv <-chan []byte) 
 // Starts the setup process for the TUN/TAP adapter, and if successful, starts
 // the read/write goroutines to handle packets on that interface.
 func (tun *tunAdapter) start(ifname string, iftapmode bool, addr string, mtu int) error {
-	if ifname == "none" {
-		return nil
+	if ifname != "none" {
+		if err := tun.setup(ifname, iftapmode, addr, mtu); err != nil {
+			return err
+		}
 	}
-	if err := tun.setup(ifname, iftapmode, addr, mtu); err != nil {
-		return err
+	if ifname == "none" || ifname == "dummy" {
+		return nil
 	}
 	tun.mutex.Lock()
 	tun.isOpen = true
@@ -214,11 +216,12 @@ func (tun *tunAdapter) read() error {
 			continue
 		}
 		if buf[o+6] == 58 {
-			// Found an ICMPv6 packet
-			b := make([]byte, n)
-			copy(b, buf)
-			// tun.icmpv6.recv <- b
-			go tun.icmpv6.parse_packet(b)
+			if tun.iface.IsTAP() {
+				// Found an ICMPv6 packet
+				b := make([]byte, n)
+				copy(b, buf)
+				go tun.icmpv6.parse_packet(b)
+			}
 		}
 		packet := append(util.GetBytes(), buf[o:n]...)
 		tun.send <- packet

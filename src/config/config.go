@@ -1,5 +1,15 @@
 package config
 
+import (
+	"encoding/hex"
+	"fmt"
+	"math/rand"
+	"time"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+)
+
 // NodeConfig defines all configuration values needed to run a signle yggdrasil node
 type NodeConfig struct {
 	Listen                      string                 `comment:"Listen address for peer connections. Default is to listen for all\nTCP connections over IPv4 and IPv6 with a random port."`
@@ -19,6 +29,7 @@ type NodeConfig struct {
 	SessionFirewall             SessionFirewall        `comment:"The session firewall controls who can send/receive network traffic\nto/from. This is useful if you want to protect this node without\nresorting to using a real firewall. This does not affect traffic\nbeing routed via this node to somewhere else. Rules are prioritised as\nfollows: blacklist, whitelist, always allow outgoing, direct, remote."`
 	TunnelRouting               TunnelRouting          `comment:"Allow tunneling non-Yggdrasil traffic over Yggdrasil. This effectively\nallows you to use Yggdrasil to route to, or to bridge other networks,\nsimilar to a VPN tunnel. Tunnelling works between any two nodes and\ndoes not require them to be directly peered."`
 	SwitchOptions               SwitchOptions          `comment:"Advanced options for tuning the switch. Normally you will not need\nto edit these options."`
+	NodeInfoPrivacy             bool                   `comment:"By default, nodeinfo contains some defaults including the platform,\narchitecture and Yggdrasil version. These can help when surveying\nthe network and diagnosing network routing problems. Enabling\nnodeinfo privacy prevents this, so that only items specified in\n\"NodeInfo\" are sent back if specified."`
 	NodeInfo                    map[string]interface{} `comment:"Optional node info. This must be a { \"key\": \"value\", ... } map\nor set as null. This is entirely optional but, if set, is visible\nto the whole network on request."`
 	//Net                         NetConfig `comment:"Extended options for connecting to peers over other networks."`
 }
@@ -51,4 +62,46 @@ type TunnelRouting struct {
 // SwitchOptions contains tuning options for the switch
 type SwitchOptions struct {
 	MaxTotalQueueSize uint64 `comment:"Maximum size of all switch queues combined (in bytes)."`
+}
+
+// Generates default configuration. This is used when outputting the -genconf
+// parameter and also when using -autoconf. The isAutoconf flag is used to
+// determine whether the operating system should select a free port by itself
+// (which guarantees that there will not be a conflict with any other services)
+// or whether to generate a random port number. The only side effect of setting
+// isAutoconf is that the TCP and UDP ports will likely end up with different
+// port numbers.
+func GenerateConfig(isAutoconf bool) *NodeConfig {
+	// Create a new core.
+	//core := Core{}
+	// Generate encryption keys.
+	bpub, bpriv := crypto.NewBoxKeys()
+	spub, spriv := crypto.NewSigKeys()
+	// Create a node configuration and populate it.
+	cfg := NodeConfig{}
+	if isAutoconf {
+		cfg.Listen = "[::]:0"
+	} else {
+		r1 := rand.New(rand.NewSource(time.Now().UnixNano()))
+		cfg.Listen = fmt.Sprintf("[::]:%d", r1.Intn(65534-32768)+32768)
+	}
+	cfg.AdminListen = defaults.GetDefaults().DefaultAdminListen
+	cfg.EncryptionPublicKey = hex.EncodeToString(bpub[:])
+	cfg.EncryptionPrivateKey = hex.EncodeToString(bpriv[:])
+	cfg.SigningPublicKey = hex.EncodeToString(spub[:])
+	cfg.SigningPrivateKey = hex.EncodeToString(spriv[:])
+	cfg.Peers = []string{}
+	cfg.InterfacePeers = map[string][]string{}
+	cfg.AllowedEncryptionPublicKeys = []string{}
+	cfg.MulticastInterfaces = []string{".*"}
+	cfg.IfName = defaults.GetDefaults().DefaultIfName
+	cfg.IfMTU = defaults.GetDefaults().DefaultIfMTU
+	cfg.IfTAPMode = defaults.GetDefaults().DefaultIfTAPMode
+	cfg.SessionFirewall.Enable = false
+	cfg.SessionFirewall.AllowFromDirect = true
+	cfg.SessionFirewall.AllowFromRemote = true
+	cfg.SwitchOptions.MaxTotalQueueSize = 4 * 1024 * 1024
+	cfg.NodeInfoPrivacy = false
+
+	return &cfg
 }

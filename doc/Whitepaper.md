@@ -63,7 +63,7 @@ These coordinates are used as a distance label.
 Given the coordinates of any two nodes, it is possible to calculate the length of some real path through the network between the two nodes.
 
 Traffic is forwarded using a [greedy routing](https://en.wikipedia.org/wiki/Small-world_routing#Greedy_routing) scheme, where each node forwards the packet to a one-hop neighbor that is closer to the destination (according to this distance metric) than the current node.
-In particular, when a packet needs to be forward, a node will forward it to whatever peer is closest to the destination in the greedy [metric space](https://en.wikipedia.org/wiki/Metric_space) used by the network, provided that the peer is closer to the destination than the current node.
+In particular, when a packet needs to be forwarded, a node will forward it to whatever peer is closest to the destination in the greedy [metric space](https://en.wikipedia.org/wiki/Metric_space) used by the network, provided that the peer is closer to the destination than the current node.
 
 If no closer peers are idle, then the packet is queued in FIFO order, with separate queues per destination coords (currently, as a bit of a hack, IPv6 flow labels are embedeed after the end of the significant part of the coords, so queues distinguish between different traffic streams with the same destination).
 Whenever the node finishes forwarding a packet to a peer, it checks the queues, and will forward the first packet from the queue with the maximum `<age of first packet>/<queue size in bytes>`, i.e. the bandwidth the queue is attempting to use, subject to the constraint that the peer is a valid next hop (i.e. closer to the destination than the current node).

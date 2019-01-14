@@ -157,6 +157,6 @@ func (m *multicast) listen() {
 		}
 		addr.Zone = from.Zone
 		saddr := addr.String()
-		m.core.tcp.connect(saddr, "")
+		m.core.tcp.connect(saddr, addr.Zone)
 	}
 }
