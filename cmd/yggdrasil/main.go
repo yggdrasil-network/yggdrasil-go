@@ -9,7 +9,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"regexp"
 	"strings"
 	"syscall"
 
@@ -221,15 +220,6 @@ func main() {
 	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
 	// don't need to create this manually.
 	n := node{}
-	// Check to see if any multicast interface expressions were provided in the
-	// config. If they were then set them now.
-	for _, ll := range cfg.MulticastInterfaces {
-		ifceExpr, err := regexp.Compile(ll)
-		if err != nil {
-			panic(err)
-		}
-		n.core.AddMulticastInterfaceExpr(ifceExpr)
-	}
 	// Now that we have a working configuration, we can now actually start
 	// Yggdrasil. This will start the router, switch, DHT node, TCP and UDP
 	// sockets, TUN/TAP adapter and multicast discovery port.

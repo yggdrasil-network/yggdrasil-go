@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
-	"regexp"
 	"sync"
 	"time"
 
@@ -47,7 +46,6 @@ type Core struct {
 	tcp         tcpInterface
 	awdl        awdl
 	log         *log.Logger
-	ifceExpr    []*regexp.Regexp // the zone of link-local IPv6 peers must match this
 }
 
 func (c *Core) init() error {
@@ -311,13 +309,6 @@ func (c *Core) SetLogger(log *log.Logger) {
 // tcp://a.b.c.d:e, udp://a.b.c.d:e, socks://a.b.c.d:e/f.g.h.i:j
 func (c *Core) AddPeer(addr string, sintf string) error {
 	return c.admin.addPeer(addr, sintf)
-}
-
-// Adds an expression to select multicast interfaces for peer discovery. This
-// should be done before calling Start. This function can be called multiple
-// times to add multiple search expressions.
-func (c *Core) AddMulticastInterfaceExpr(expr *regexp.Regexp) {
-	c.ifceExpr = append(c.ifceExpr, expr)
 }
 
 // Adds an allowed public key. This allow peerings to be restricted only to

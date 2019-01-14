@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"regexp"
 	"sync"
 	"time"
 
@@ -35,15 +36,13 @@ func (m *multicast) init(core *Core) {
 	}()
 	m.groupAddr = "[ff02::114]:9001"
 	// Check if we've been given any expressions
-	if len(m.core.ifceExpr) == 0 {
-		return
+	if count := len(m.interfaces()); count != 0 {
+		m.core.log.Println("Found", count, "multicast interface(s)")
 	}
-	// Ask the system for network interfaces
-	m.core.log.Println("Found", len(m.interfaces()), "multicast interface(s)")
 }
 
 func (m *multicast) start() error {
-	if len(m.core.ifceExpr) == 0 {
+	if len(m.interfaces()) == 0 {
 		m.core.log.Println("Multicast discovery is disabled")
 	} else {
 		m.core.log.Println("Multicast discovery is enabled")
@@ -71,6 +70,10 @@ func (m *multicast) start() error {
 }
 
 func (m *multicast) interfaces() []net.Interface {
+	// Get interface expressions from config
+	m.core.configMutex.RLock()
+	exprs := m.core.config.MulticastInterfaces
+	m.core.configMutex.RUnlock()
 	// Ask the system for network interfaces
 	var interfaces []net.Interface
 	allifaces, err := net.Interfaces()
@@ -91,8 +94,12 @@ func (m *multicast) interfaces() []net.Interface {
 			// Ignore point-to-point interfaces
 			continue
 		}
-		for _, expr := range m.core.ifceExpr {
-			if expr.MatchString(iface.Name) {
+		for _, expr := range exprs {
+			e, err := regexp.Compile(expr)
+			if err != nil {
+				panic(err)
+			}
+			if e.MatchString(iface.Name) {
 				interfaces = append(interfaces, iface)
 			}
 		}
