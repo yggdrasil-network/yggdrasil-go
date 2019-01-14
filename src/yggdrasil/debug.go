@@ -517,7 +517,7 @@ func (c *Core) DEBUG_setLogger(log *log.Logger) {
 }
 
 func (c *Core) DEBUG_setIfceExpr(expr *regexp.Regexp) {
-	c.ifceExpr = append(c.ifceExpr, expr)
+	c.log.Println("DEBUG_setIfceExpr no longer implemented")
 }
 
 func (c *Core) DEBUG_addAllowedEncryptionPublicKey(boxStr string) {
