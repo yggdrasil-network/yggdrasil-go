@@ -12,7 +12,6 @@ import (
 	"regexp"
 	"strings"
 	"syscall"
-	"time"
 
 	"golang.org/x/text/encoding/unicode"
 
@@ -243,27 +242,6 @@ func main() {
 	for _, pBoxStr := range cfg.AllowedEncryptionPublicKeys {
 		n.core.AddAllowedEncryptionPublicKey(pBoxStr)
 	}
-	// If any static peers were provided in the configuration above then we should
-	// configure them. The loop ensures that disconnected peers will eventually
-	// be reconnected with.
-	go func() {
-		if len(cfg.Peers) == 0 && len(cfg.InterfacePeers) == 0 {
-			return
-		}
-		for {
-			for _, peer := range cfg.Peers {
-				n.core.AddPeer(peer, "")
-				time.Sleep(time.Second)
-			}
-			for intf, intfpeers := range cfg.InterfacePeers {
-				for _, peer := range intfpeers {
-					n.core.AddPeer(peer, intf)
-					time.Sleep(time.Second)
-				}
-			}
-			time.Sleep(time.Minute)
-		}
-	}()
 	// The Stop function ensures that the TUN/TAP adapter is correctly shut down
 	// before the program exits.
 	defer func() {

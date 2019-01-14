@@ -7,6 +7,7 @@ import (
 	"net"
 	"regexp"
 	"sync"
+	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
@@ -91,12 +92,37 @@ func (c *Core) init() error {
 	c.router.init(c)
 	c.switchTable.init(c) // TODO move before peers? before router?
 
-	if err := c.tcp.init(c); err != nil {
-		c.log.Println("Failed to start TCP interface")
-		return err
-	}
-
 	return nil
+}
+
+// If any static peers were provided in the configuration above then we should
+// configure them. The loop ensures that disconnected peers will eventually
+// be reconnected with.
+func (c *Core) addPeerLoop() {
+	for {
+		// Get the peers from the config - these could change!
+		c.configMutex.RLock()
+		peers := c.config.Peers
+		interfacepeers := c.config.InterfacePeers
+		c.configMutex.RUnlock()
+
+		// Add peers from the Peers section
+		for _, peer := range peers {
+			c.AddPeer(peer, "")
+			time.Sleep(time.Second)
+		}
+
+		// Add peers from the InterfacePeers section
+		for intf, intfpeers := range interfacepeers {
+			for _, peer := range intfpeers {
+				c.AddPeer(peer, intf)
+				time.Sleep(time.Second)
+			}
+		}
+
+		// Sit for a while
+		time.Sleep(time.Minute)
+	}
 }
 
 // UpdateConfig updates the configuration in Core and then signals the
@@ -244,6 +270,8 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		c.log.Println("Failed to start TUN/TAP")
 		return err
 	}
+
+	go c.addPeerLoop()
 
 	c.log.Println("Startup complete")
 	return nil
