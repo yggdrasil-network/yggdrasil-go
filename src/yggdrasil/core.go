@@ -44,7 +44,6 @@ type Core struct {
 	admin       admin
 	searches    searches
 	multicast   multicast
-	nodeinfo    nodeinfo
 	tcp         tcpInterface
 	awdl        awdl
 	log         *log.Logger
@@ -83,7 +82,6 @@ func (c *Core) init() error {
 	copy(c.sigPriv[:], sigPrivHex)
 
 	c.admin.init(c)
-	c.nodeinfo.init(c)
 	c.searches.init(c)
 	c.dht.init(c)
 	c.sessions.init(c)
@@ -197,8 +195,6 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 
 	c.init()
 
-	c.nodeinfo.setNodeInfo(nc.NodeInfo, nc.NodeInfoPrivacy)
-
 	if err := c.tcp.init(c); err != nil {
 		c.log.Println("Failed to start TCP interface")
 		return err
@@ -297,12 +293,12 @@ func (c *Core) GetSubnet() *net.IPNet {
 
 // Gets the nodeinfo.
 func (c *Core) GetNodeInfo() nodeinfoPayload {
-	return c.nodeinfo.getNodeInfo()
+	return c.router.nodeinfo.getNodeInfo()
 }
 
 // Sets the nodeinfo.
 func (c *Core) SetNodeInfo(nodeinfo interface{}, nodeinfoprivacy bool) {
-	c.nodeinfo.setNodeInfo(nodeinfo, nodeinfoprivacy)
+	c.router.nodeinfo.setNodeInfo(nodeinfo, nodeinfoprivacy)
 }
 
 // Sets the output logger of the Yggdrasil node after startup. This may be

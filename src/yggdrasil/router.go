@@ -51,6 +51,7 @@ type router struct {
 	reset       chan struct{}          // signal that coords changed (re-init sessions/dht)
 	admin       chan func()            // pass a lambda for the admin socket to query stuff
 	cryptokey   cryptokey
+	nodeinfo    nodeinfo
 }
 
 // Packet and session info, used to check that the packet matches a valid IP range or CKR prefix before sending to the tun.
@@ -85,6 +86,9 @@ func (r *router) init(core *Core) {
 	r.send = send
 	r.reset = make(chan struct{}, 1)
 	r.admin = make(chan func(), 32)
+	r.core.configMutex.RLock()
+	r.nodeinfo.setNodeInfo(r.core.config.NodeInfo, r.core.config.NodeInfoPrivacy)
+	r.core.configMutex.RUnlock()
 	r.cryptokey.init(r.core)
 	r.tun.init(r.core, send, recv)
 }
@@ -128,7 +132,7 @@ func (r *router) mainLoop() {
 			f()
 		case e := <-r.reconfigure:
 			r.core.configMutex.RLock()
-			e <- r.core.nodeinfo.setNodeInfo(r.core.config.NodeInfo, r.core.config.NodeInfoPrivacy)
+			e <- r.nodeinfo.setNodeInfo(r.core.config.NodeInfo, r.core.config.NodeInfoPrivacy)
 			r.core.configMutex.RUnlock()
 		}
 	}
@@ -469,7 +473,7 @@ func (r *router) handleNodeInfo(bs []byte, fromKey *crypto.BoxPubKey) {
 		return
 	}
 	req.SendPermPub = *fromKey
-	r.core.nodeinfo.handleNodeInfo(&req)
+	r.nodeinfo.handleNodeInfo(&req)
 }
 
 // Passed a function to call.

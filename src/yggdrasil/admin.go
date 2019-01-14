@@ -352,7 +352,7 @@ func (a *admin) init(c *Core) {
 		if in["box_pub_key"] == nil && in["coords"] == nil {
 			var nodeinfo []byte
 			a.core.router.doAdmin(func() {
-				nodeinfo = []byte(a.core.nodeinfo.getNodeInfo())
+				nodeinfo = []byte(a.core.router.nodeinfo.getNodeInfo())
 			})
 			var jsoninfo interface{}
 			if err := json.Unmarshal(nodeinfo, &jsoninfo); err != nil {
@@ -864,7 +864,7 @@ func (a *admin) admin_getNodeInfo(keyString, coordString string, nocache bool) (
 		copy(key[:], keyBytes)
 	}
 	if !nocache {
-		if response, err := a.core.nodeinfo.getCachedNodeInfo(key); err == nil {
+		if response, err := a.core.router.nodeinfo.getCachedNodeInfo(key); err == nil {
 			return response, nil
 		}
 	}
@@ -882,14 +882,14 @@ func (a *admin) admin_getNodeInfo(keyString, coordString string, nocache bool) (
 	}
 	response := make(chan *nodeinfoPayload, 1)
 	sendNodeInfoRequest := func() {
-		a.core.nodeinfo.addCallback(key, func(nodeinfo *nodeinfoPayload) {
+		a.core.router.nodeinfo.addCallback(key, func(nodeinfo *nodeinfoPayload) {
 			defer func() { recover() }()
 			select {
 			case response <- nodeinfo:
 			default:
 			}
 		})
-		a.core.nodeinfo.sendNodeInfo(key, coords, false)
+		a.core.router.nodeinfo.sendNodeInfo(key, coords, false)
 	}
 	a.core.router.doAdmin(sendNodeInfoRequest)
 	go func() {
