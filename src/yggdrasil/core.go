@@ -2,7 +2,6 @@ package yggdrasil
 
 import (
 	"encoding/hex"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
@@ -110,12 +109,13 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 
 	components := []chan chan error{
 		c.admin.reconfigure,
-		//c.searches.reconfigure,
-		//c.dht.reconfigure,
-		//c.sessions.reconfigure,
-		//c.peers.reconfigure,
-		//c.router.reconfigure,
-		//c.switchTable.reconfigure,
+		c.searches.reconfigure,
+		c.dht.reconfigure,
+		c.sessions.reconfigure,
+		c.peers.reconfigure,
+		c.router.reconfigure,
+		c.router.tun.reconfigure,
+		c.switchTable.reconfigure,
 		c.tcp.reconfigure,
 		c.multicast.reconfigure,
 	}
@@ -240,8 +240,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
-	ip := net.IP(c.router.addr[:]).String()
-	if err := c.router.tun.start(nc.IfName, nc.IfTAPMode, fmt.Sprintf("%s/%d", ip, 8*len(address.GetPrefix())-1), nc.IfMTU); err != nil {
+	if err := c.router.tun.start(); err != nil {
 		c.log.Println("Failed to start TUN/TAP")
 		return err
 	}
