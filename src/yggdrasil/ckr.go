@@ -38,14 +38,12 @@ func (c *cryptokey) init(core *Core) {
 	c.reconfigure = make(chan chan error, 1)
 	go func() {
 		for {
-			select {
-			case e := <-c.reconfigure:
-				var err error
-				c.core.router.doAdmin(func() {
-					err = c.core.router.cryptokey.configure()
-				})
-				e <- err
-			}
+			e := <-c.reconfigure
+			var err error
+			c.core.router.doAdmin(func() {
+				err = c.core.router.cryptokey.configure()
+			})
+			e <- err
 		}
 	}()
 

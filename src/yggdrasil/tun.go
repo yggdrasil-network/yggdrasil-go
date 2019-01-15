@@ -54,6 +54,7 @@ func (tun *tunAdapter) init(core *Core, send chan<- []byte, recv <-chan []byte) 
 					tun.core.config.IfMTU != tun.core.configOld.IfMTU
 				tun.core.configMutex.RUnlock()
 				if updated {
+					tun.core.log.Println("Reconfiguring TUN/TAP is not supported yet")
 					e <- nil
 				} else {
 					e <- nil
