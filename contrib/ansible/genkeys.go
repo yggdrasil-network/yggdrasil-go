@@ -54,11 +54,11 @@ func main() {
 		signatureKeys = bubbleUpTo(signatureKeys, 0)
 	}
 
-	os.MkdirAll("ansible/host_vars", 0755)
+	os.MkdirAll("host_vars", 0755)
 
 	for i := 1; i <= *numHosts; i++ {
-		os.MkdirAll(fmt.Sprintf("ansible/host_vars/%x", i), 0755)
-		file, err := os.Create(fmt.Sprintf("ansible/host_vars/%x/vars", i))
+		os.MkdirAll(fmt.Sprintf("host_vars/%x", i), 0755)
+		file, err := os.Create(fmt.Sprintf("host_vars/%x/vars", i))
 		if err != nil {
 			return
 		}
@@ -66,10 +66,10 @@ func main() {
 		file.WriteString(fmt.Sprintf("yggdrasil_encryption_public_key: %v\n", hex.EncodeToString(encryptionKeys[i].pub)))
 		file.WriteString("yggdrasil_encryption_private_key: \"{{ vault_yggdrasil_encryption_private_key }}\"\n")
 		file.WriteString(fmt.Sprintf("yggdrasil_signing_public_key: %v\n", hex.EncodeToString(signatureKeys[i].pub)))
-		file.WriteString("yggdrasil_signing_public_key: \"{{ vault_yggdrasil_signing_private_key }}\"\n")
+		file.WriteString("yggdrasil_signing_private_key: \"{{ vault_yggdrasil_signing_private_key }}\"\n")
 		file.WriteString(fmt.Sprintf("ansible_host: %v\n", encryptionKeys[i].ip))
 
-		file, err = os.Create(fmt.Sprintf("ansible/host_vars/%x/vault", i))
+		file, err = os.Create(fmt.Sprintf("host_vars/%x/vault", i))
 		if err != nil {
 			return
 		}
