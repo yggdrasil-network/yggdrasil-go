@@ -30,7 +30,7 @@ const search_MAX_SEARCH_SIZE = 16
 const search_RETRY_TIME = time.Second
 
 // Information about an ongoing search.
-// Includes the targed NodeID, the bitmask to match it to an IP, and the list of nodes to visit / already visited.
+// Includes the target NodeID, the bitmask to match it to an IP, and the list of nodes to visit / already visited.
 type searchInfo struct {
 	dest    crypto.NodeID
 	mask    crypto.NodeID
