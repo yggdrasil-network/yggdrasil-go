@@ -4,7 +4,7 @@ package yggdrasil
 // It routes packets based on distance on the spanning tree
 //  In general, this is *not* equivalent to routing on the tree
 //  It falls back to the tree in the worst case, but it can take shortcuts too
-// This is the part that makse routing reasonably efficient on scale-free graphs
+// This is the part that makes routing reasonably efficient on scale-free graphs
 
 // TODO document/comment everything in a lot more detail
 
