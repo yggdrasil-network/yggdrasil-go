@@ -4,30 +4,43 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"regexp"
+	"sync"
 	"time"
 
 	"golang.org/x/net/ipv6"
 )
 
 type multicast struct {
-	core      *Core
-	sock      *ipv6.PacketConn
-	groupAddr string
+	core        *Core
+	reconfigure chan chan error
+	sock        *ipv6.PacketConn
+	groupAddr   string
+	myAddr      *net.TCPAddr
+	myAddrMutex sync.RWMutex
 }
 
 func (m *multicast) init(core *Core) {
 	m.core = core
+	m.reconfigure = make(chan chan error, 1)
+	go func() {
+		for {
+			e := <-m.reconfigure
+			m.myAddrMutex.Lock()
+			m.myAddr = m.core.tcp.getAddr()
+			m.myAddrMutex.Unlock()
+			e <- nil
+		}
+	}()
 	m.groupAddr = "[ff02::114]:9001"
 	// Check if we've been given any expressions
-	if len(m.core.ifceExpr) == 0 {
-		return
+	if count := len(m.interfaces()); count != 0 {
+		m.core.log.Println("Found", count, "multicast interface(s)")
 	}
-	// Ask the system for network interfaces
-	m.core.log.Println("Found", len(m.interfaces()), "multicast interface(s)")
 }
 
 func (m *multicast) start() error {
-	if len(m.core.ifceExpr) == 0 {
+	if len(m.interfaces()) == 0 {
 		m.core.log.Println("Multicast discovery is disabled")
 	} else {
 		m.core.log.Println("Multicast discovery is enabled")
@@ -55,6 +68,10 @@ func (m *multicast) start() error {
 }
 
 func (m *multicast) interfaces() []net.Interface {
+	// Get interface expressions from config
+	m.core.configMutex.RLock()
+	exprs := m.core.config.MulticastInterfaces
+	m.core.configMutex.RUnlock()
 	// Ask the system for network interfaces
 	var interfaces []net.Interface
 	allifaces, err := net.Interfaces()
@@ -75,8 +92,12 @@ func (m *multicast) interfaces() []net.Interface {
 			// Ignore point-to-point interfaces
 			continue
 		}
-		for _, expr := range m.core.ifceExpr {
-			if expr.MatchString(iface.Name) {
+		for _, expr := range exprs {
+			e, err := regexp.Compile(expr)
+			if err != nil {
+				panic(err)
+			}
+			if e.MatchString(iface.Name) {
 				interfaces = append(interfaces, iface)
 			}
 		}
@@ -85,13 +106,14 @@ func (m *multicast) interfaces() []net.Interface {
 }
 
 func (m *multicast) announce() {
+	var anAddr net.TCPAddr
+	m.myAddrMutex.Lock()
+	m.myAddr = m.core.tcp.getAddr()
+	m.myAddrMutex.Unlock()
 	groupAddr, err := net.ResolveUDPAddr("udp6", m.groupAddr)
 	if err != nil {
 		panic(err)
 	}
-	var anAddr net.TCPAddr
-	myAddr := m.core.tcp.getAddr()
-	anAddr.Port = myAddr.Port
 	destAddr, err := net.ResolveUDPAddr("udp6", m.groupAddr)
 	if err != nil {
 		panic(err)
@@ -103,6 +125,9 @@ func (m *multicast) announce() {
 			if err != nil {
 				panic(err)
 			}
+			m.myAddrMutex.RLock()
+			anAddr.Port = m.myAddr.Port
+			m.myAddrMutex.RUnlock()
 			for _, addr := range addrs {
 				addrIP, _, _ := net.ParseCIDR(addr.String())
 				if addrIP.To4() != nil {

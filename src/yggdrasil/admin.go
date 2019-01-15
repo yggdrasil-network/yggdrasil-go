@@ -22,10 +22,11 @@ import (
 // TODO: Add authentication
 
 type admin struct {
-	core       *Core
-	listenaddr string
-	listener   net.Listener
-	handlers   []admin_handlerInfo
+	core        *Core
+	reconfigure chan chan error
+	listenaddr  string
+	listener    net.Listener
+	handlers    []admin_handlerInfo
 }
 
 type admin_info map[string]interface{}
@@ -51,9 +52,25 @@ func (a *admin) addHandler(name string, args []string, handler func(admin_info) 
 }
 
 // init runs the initial admin setup.
-func (a *admin) init(c *Core, listenaddr string) {
+func (a *admin) init(c *Core) {
 	a.core = c
-	a.listenaddr = listenaddr
+	a.reconfigure = make(chan chan error, 1)
+	go func() {
+		for {
+			e := <-a.reconfigure
+			a.core.configMutex.RLock()
+			if a.core.config.AdminListen != a.core.configOld.AdminListen {
+				a.listenaddr = a.core.config.AdminListen
+				a.close()
+				a.start()
+			}
+			a.core.configMutex.RUnlock()
+			e <- nil
+		}
+	}()
+	a.core.configMutex.RLock()
+	a.listenaddr = a.core.config.AdminListen
+	a.core.configMutex.RUnlock()
 	a.addHandler("list", []string{}, func(in admin_info) (admin_info, error) {
 		handlers := make(map[string]interface{})
 		for _, handler := range a.handlers {
@@ -331,7 +348,10 @@ func (a *admin) init(c *Core, listenaddr string) {
 		}
 		var box_pub_key, coords string
 		if in["box_pub_key"] == nil && in["coords"] == nil {
-			nodeinfo := []byte(a.core.nodeinfo.getNodeInfo())
+			var nodeinfo []byte
+			a.core.router.doAdmin(func() {
+				nodeinfo = []byte(a.core.router.nodeinfo.getNodeInfo())
+			})
 			var jsoninfo interface{}
 			if err := json.Unmarshal(nodeinfo, &jsoninfo); err != nil {
 				return admin_info{}, err
@@ -842,7 +862,7 @@ func (a *admin) admin_getNodeInfo(keyString, coordString string, nocache bool) (
 		copy(key[:], keyBytes)
 	}
 	if !nocache {
-		if response, err := a.core.nodeinfo.getCachedNodeInfo(key); err == nil {
+		if response, err := a.core.router.nodeinfo.getCachedNodeInfo(key); err == nil {
 			return response, nil
 		}
 	}
@@ -860,14 +880,14 @@ func (a *admin) admin_getNodeInfo(keyString, coordString string, nocache bool) (
 	}
 	response := make(chan *nodeinfoPayload, 1)
 	sendNodeInfoRequest := func() {
-		a.core.nodeinfo.addCallback(key, func(nodeinfo *nodeinfoPayload) {
+		a.core.router.nodeinfo.addCallback(key, func(nodeinfo *nodeinfoPayload) {
 			defer func() { recover() }()
 			select {
 			case response <- nodeinfo:
 			default:
 			}
 		})
-		a.core.nodeinfo.sendNodeInfo(key, coords, false)
+		a.core.router.nodeinfo.sendNodeInfo(key, coords, false)
 	}
 	a.core.router.doAdmin(sendNodeInfoRequest)
 	go func() {

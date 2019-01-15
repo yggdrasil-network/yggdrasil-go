@@ -7,6 +7,7 @@ package yggdrasil
 import (
 	"bytes"
 	"encoding/hex"
+	"sync"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
@@ -18,6 +19,7 @@ import (
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
 type sessionInfo struct {
 	core         *Core
+	reconfigure  chan chan error
 	theirAddr    address.Address
 	theirSubnet  address.Subnet
 	theirPermPub crypto.BoxPubKey
@@ -101,6 +103,7 @@ func (s *sessionInfo) timedout() bool {
 // Additionally, stores maps of address/subnet onto keys, and keys onto handles.
 type sessions struct {
 	core        *Core
+	reconfigure chan chan error
 	lastCleanup time.Time
 	// Maps known permanent keys to their shared key, used by DHT a lot
 	permShared map[crypto.BoxPubKey]*crypto.BoxSharedKey
@@ -113,6 +116,7 @@ type sessions struct {
 	addrToPerm   map[address.Address]*crypto.BoxPubKey
 	subnetToPerm map[address.Subnet]*crypto.BoxPubKey
 	// Options from the session firewall
+	sessionFirewallMutex                sync.RWMutex
 	sessionFirewallEnabled              bool
 	sessionFirewallAllowsDirect         bool
 	sessionFirewallAllowsRemote         bool
@@ -124,6 +128,24 @@ type sessions struct {
 // Initializes the session struct.
 func (ss *sessions) init(core *Core) {
 	ss.core = core
+	ss.reconfigure = make(chan chan error, 1)
+	go func() {
+		for {
+			e := <-ss.reconfigure
+			responses := make(map[crypto.Handle]chan error)
+			for index, session := range ss.sinfos {
+				responses[index] = make(chan error)
+				session.reconfigure <- responses[index]
+			}
+			for _, response := range responses {
+				if err := <-response; err != nil {
+					e <- err
+					continue
+				}
+			}
+			e <- nil
+		}
+	}()
 	ss.permShared = make(map[crypto.BoxPubKey]*crypto.BoxSharedKey)
 	ss.sinfos = make(map[crypto.Handle]*sessionInfo)
 	ss.byMySes = make(map[crypto.BoxPubKey]*crypto.Handle)
@@ -135,12 +157,16 @@ func (ss *sessions) init(core *Core) {
 
 // Enable or disable the session firewall
 func (ss *sessions) setSessionFirewallState(enabled bool) {
+	ss.sessionFirewallMutex.Lock()
+	defer ss.sessionFirewallMutex.Unlock()
 	ss.sessionFirewallEnabled = enabled
 }
 
 // Set the session firewall defaults (first parameter is whether to allow
 // sessions from direct peers, second is whether to allow from remote nodes).
 func (ss *sessions) setSessionFirewallDefaults(allowsDirect bool, allowsRemote bool, alwaysAllowsOutbound bool) {
+	ss.sessionFirewallMutex.Lock()
+	defer ss.sessionFirewallMutex.Unlock()
 	ss.sessionFirewallAllowsDirect = allowsDirect
 	ss.sessionFirewallAllowsRemote = allowsRemote
 	ss.sessionFirewallAlwaysAllowsOutbound = alwaysAllowsOutbound
@@ -148,17 +174,24 @@ func (ss *sessions) setSessionFirewallDefaults(allowsDirect bool, allowsRemote b
 
 // Set the session firewall whitelist - nodes always allowed to open sessions.
 func (ss *sessions) setSessionFirewallWhitelist(whitelist []string) {
+	ss.sessionFirewallMutex.Lock()
+	defer ss.sessionFirewallMutex.Unlock()
 	ss.sessionFirewallWhitelist = whitelist
 }
 
 // Set the session firewall blacklist - nodes never allowed to open sessions.
 func (ss *sessions) setSessionFirewallBlacklist(blacklist []string) {
+	ss.sessionFirewallMutex.Lock()
+	defer ss.sessionFirewallMutex.Unlock()
 	ss.sessionFirewallBlacklist = blacklist
 }
 
 // Determines whether the session with a given publickey is allowed based on
 // session firewall rules.
 func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) bool {
+	ss.sessionFirewallMutex.RLock()
+	defer ss.sessionFirewallMutex.RUnlock()
+
 	// Allow by default if the session firewall is disabled
 	if !ss.sessionFirewallEnabled {
 		return true
@@ -264,13 +297,12 @@ func (ss *sessions) getByTheirSubnet(snet *address.Subnet) (*sessionInfo, bool) 
 // Creates a new session and lazily cleans up old/timedout existing sessions.
 // This includse initializing session info to sane defaults (e.g. lowest supported MTU).
 func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
-	if ss.sessionFirewallEnabled {
-		if !ss.isSessionAllowed(theirPermKey, true) {
-			return nil
-		}
+	if !ss.isSessionAllowed(theirPermKey, true) {
+		return nil
 	}
 	sinfo := sessionInfo{}
 	sinfo.core = ss.core
+	sinfo.reconfigure = make(chan chan error, 1)
 	sinfo.theirPermPub = *theirPermKey
 	pub, priv := crypto.NewBoxKeys()
 	sinfo.mySesPub = *pub
@@ -442,11 +474,14 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 	// Get the corresponding session (or create a new session)
 	sinfo, isIn := ss.getByTheirPerm(&ping.SendPermPub)
 	// Check the session firewall
+	ss.sessionFirewallMutex.RLock()
 	if !isIn && ss.sessionFirewallEnabled {
 		if !ss.isSessionAllowed(&ping.SendPermPub, false) {
+			ss.sessionFirewallMutex.RUnlock()
 			return
 		}
 	}
+	ss.sessionFirewallMutex.RUnlock()
 	if !isIn || sinfo.timedout() {
 		if isIn {
 			sinfo.close()
@@ -539,6 +574,8 @@ func (sinfo *sessionInfo) doWorker() {
 			} else {
 				return
 			}
+		case e := <-sinfo.reconfigure:
+			e <- nil
 		}
 	}
 }

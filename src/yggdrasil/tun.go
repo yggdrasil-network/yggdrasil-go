@@ -5,6 +5,8 @@ package yggdrasil
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"net"
 	"sync"
 	"time"
 
@@ -42,11 +44,33 @@ func getSupportedMTU(mtu int) int {
 func (tun *tunAdapter) init(core *Core, send chan<- []byte, recv <-chan []byte) {
 	tun.Adapter.init(core, send, recv)
 	tun.icmpv6.init(tun)
+	go func() {
+		for {
+			e := <-tun.reconfigure
+			tun.core.configMutex.RLock()
+			updated := tun.core.config.IfName != tun.core.configOld.IfName ||
+				tun.core.config.IfTAPMode != tun.core.configOld.IfTAPMode ||
+				tun.core.config.IfMTU != tun.core.configOld.IfMTU
+			tun.core.configMutex.RUnlock()
+			if updated {
+				tun.core.log.Println("Reconfiguring TUN/TAP is not supported yet")
+				e <- nil
+			} else {
+				e <- nil
+			}
+		}
+	}()
 }
 
 // Starts the setup process for the TUN/TAP adapter, and if successful, starts
 // the read/write goroutines to handle packets on that interface.
-func (tun *tunAdapter) start(ifname string, iftapmode bool, addr string, mtu int) error {
+func (tun *tunAdapter) start() error {
+	tun.core.configMutex.RLock()
+	ifname := tun.core.config.IfName
+	iftapmode := tun.core.config.IfTAPMode
+	addr := fmt.Sprintf("%s/%d", net.IP(tun.core.router.addr[:]).String(), 8*len(address.GetPrefix())-1)
+	mtu := tun.core.config.IfMTU
+	tun.core.configMutex.RUnlock()
 	if ifname != "none" {
 		if err := tun.setup(ifname, iftapmode, addr, mtu); err != nil {
 			return err

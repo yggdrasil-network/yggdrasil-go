@@ -18,6 +18,7 @@ import (
 type cryptokey struct {
 	core        *Core
 	enabled     bool
+	reconfigure chan chan error
 	ipv4routes  []cryptokey_route
 	ipv6routes  []cryptokey_route
 	ipv4cache   map[address.Address]cryptokey_route
@@ -34,12 +35,75 @@ type cryptokey_route struct {
 // Initialise crypto-key routing. This must be done before any other CKR calls.
 func (c *cryptokey) init(core *Core) {
 	c.core = core
-	c.ipv4routes = make([]cryptokey_route, 0)
+	c.reconfigure = make(chan chan error, 1)
+	go func() {
+		for {
+			e := <-c.reconfigure
+			var err error
+			c.core.router.doAdmin(func() {
+				err = c.core.router.cryptokey.configure()
+			})
+			e <- err
+		}
+	}()
+
+	if err := c.configure(); err != nil {
+		c.core.log.Println("CKR configuration failed:", err)
+	}
+}
+
+// Configure the CKR routes - this must only ever be called from the router
+// goroutine, e.g. through router.doAdmin
+func (c *cryptokey) configure() error {
+	c.core.configMutex.RLock()
+	defer c.core.configMutex.RUnlock()
+
+	// Set enabled/disabled state
+	c.setEnabled(c.core.config.TunnelRouting.Enable)
+
+	// Clear out existing routes
 	c.ipv6routes = make([]cryptokey_route, 0)
+	c.ipv4routes = make([]cryptokey_route, 0)
+
+	// Add IPv6 routes
+	for ipv6, pubkey := range c.core.config.TunnelRouting.IPv6Destinations {
+		if err := c.addRoute(ipv6, pubkey); err != nil {
+			return err
+		}
+	}
+
+	// Add IPv4 routes
+	for ipv4, pubkey := range c.core.config.TunnelRouting.IPv4Destinations {
+		if err := c.addRoute(ipv4, pubkey); err != nil {
+			return err
+		}
+	}
+
+	// Clear out existing sources
+	c.ipv6sources = make([]net.IPNet, 0)
+	c.ipv4sources = make([]net.IPNet, 0)
+
+	// Add IPv6 sources
+	c.ipv6sources = make([]net.IPNet, 0)
+	for _, source := range c.core.config.TunnelRouting.IPv6Sources {
+		if err := c.addSourceSubnet(source); err != nil {
+			return err
+		}
+	}
+
+	// Add IPv4 sources
+	c.ipv4sources = make([]net.IPNet, 0)
+	for _, source := range c.core.config.TunnelRouting.IPv4Sources {
+		if err := c.addSourceSubnet(source); err != nil {
+			return err
+		}
+	}
+
+	// Wipe the caches
 	c.ipv4cache = make(map[address.Address]cryptokey_route, 0)
 	c.ipv6cache = make(map[address.Address]cryptokey_route, 0)
-	c.ipv4sources = make([]net.IPNet, 0)
-	c.ipv6sources = make([]net.IPNet, 0)
+
+	return nil
 }
 
 // Enable or disable crypto-key routing.

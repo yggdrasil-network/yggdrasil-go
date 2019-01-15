@@ -162,6 +162,7 @@ type switchData struct {
 // All the information stored by the switch.
 type switchTable struct {
 	core              *Core
+	reconfigure       chan chan error
 	key               crypto.SigPubKey           // Our own key
 	time              time.Time                  // Time when locator.tstamp was last updated
 	drop              map[crypto.SigPubKey]int64 // Tstamp associated with a dropped root
@@ -181,11 +182,14 @@ type switchTable struct {
 const SwitchQueueTotalMinSize = 4 * 1024 * 1024
 
 // Initializes the switchTable struct.
-func (t *switchTable) init(core *Core, key crypto.SigPubKey) {
+func (t *switchTable) init(core *Core) {
 	now := time.Now()
 	t.core = core
-	t.key = key
-	locator := switchLocator{root: key, tstamp: now.Unix()}
+	t.reconfigure = make(chan chan error, 1)
+	t.core.configMutex.RLock()
+	t.key = t.core.sigPub
+	t.core.configMutex.RUnlock()
+	locator := switchLocator{root: t.key, tstamp: now.Unix()}
 	peers := make(map[switchPort]peerInfo)
 	t.data = switchData{locator: locator, peers: peers}
 	t.updater.Store(&sync.Once{})
@@ -808,6 +812,8 @@ func (t *switchTable) doWorker() {
 			}
 		case f := <-t.admin:
 			f()
+		case e := <-t.reconfigure:
+			e <- nil
 		}
 	}
 }

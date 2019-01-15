@@ -65,11 +65,12 @@ type dhtReqKey struct {
 
 // The main DHT struct.
 type dht struct {
-	core      *Core
-	nodeID    crypto.NodeID
-	peers     chan *dhtInfo                  // other goroutines put incoming dht updates here
-	reqs      map[dhtReqKey]time.Time        // Keeps track of recent outstanding requests
-	callbacks map[dhtReqKey]dht_callbackInfo // Search and admin lookup callbacks
+	core        *Core
+	reconfigure chan chan error
+	nodeID      crypto.NodeID
+	peers       chan *dhtInfo                  // other goroutines put incoming dht updates here
+	reqs        map[dhtReqKey]time.Time        // Keeps track of recent outstanding requests
+	callbacks   map[dhtReqKey]dht_callbackInfo // Search and admin lookup callbacks
 	// These next two could be replaced by a single linked list or similar...
 	table map[crypto.NodeID]*dhtInfo
 	imp   []*dhtInfo
@@ -78,6 +79,13 @@ type dht struct {
 // Initializes the DHT.
 func (t *dht) init(c *Core) {
 	t.core = c
+	t.reconfigure = make(chan chan error, 1)
+	go func() {
+		for {
+			e := <-t.reconfigure
+			e <- nil
+		}
+	}()
 	t.nodeID = *t.core.GetNodeID()
 	t.peers = make(chan *dhtInfo, 1024)
 	t.callbacks = make(map[dhtReqKey]dht_callbackInfo)

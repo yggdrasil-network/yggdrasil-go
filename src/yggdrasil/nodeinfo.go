@@ -170,7 +170,7 @@ func (m *nodeinfo) sendNodeInfo(key crypto.BoxPubKey, coords []byte, isResponse 
 	nodeinfo := nodeinfoReqRes{
 		SendCoords: table.self.getCoords(),
 		IsResponse: isResponse,
-		NodeInfo:   m.core.nodeinfo.getNodeInfo(),
+		NodeInfo:   m.getNodeInfo(),
 	}
 	bs := nodeinfo.encode()
 	shared := m.core.sessions.getSharedKey(&m.core.boxPriv, &key)

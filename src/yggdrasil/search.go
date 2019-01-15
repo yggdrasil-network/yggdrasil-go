@@ -42,13 +42,21 @@ type searchInfo struct {
 
 // This stores a map of active searches.
 type searches struct {
-	core     *Core
-	searches map[crypto.NodeID]*searchInfo
+	core        *Core
+	reconfigure chan chan error
+	searches    map[crypto.NodeID]*searchInfo
 }
 
 // Intializes the searches struct.
 func (s *searches) init(core *Core) {
 	s.core = core
+	s.reconfigure = make(chan chan error, 1)
+	go func() {
+		for {
+			e := <-s.reconfigure
+			e <- nil
+		}
+	}()
 	s.searches = make(map[crypto.NodeID]*searchInfo)
 }
 

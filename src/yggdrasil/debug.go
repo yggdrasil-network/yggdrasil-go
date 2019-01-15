@@ -16,6 +16,7 @@ import "fmt"
 import "net"
 import "log"
 import "regexp"
+import "encoding/hex"
 
 import _ "net/http/pprof"
 import "net/http"
@@ -23,6 +24,7 @@ import "runtime"
 import "os"
 
 import "github.com/yggdrasil-network/yggdrasil-go/src/address"
+import "github.com/yggdrasil-network/yggdrasil-go/src/config"
 import "github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 import "github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 
@@ -52,7 +54,17 @@ func StartProfiler(log *log.Logger) error {
 func (c *Core) Init() {
 	bpub, bpriv := crypto.NewBoxKeys()
 	spub, spriv := crypto.NewSigKeys()
-	c.init(bpub, bpriv, spub, spriv)
+	hbpub := hex.EncodeToString(bpub[:])
+	hbpriv := hex.EncodeToString(bpriv[:])
+	hspub := hex.EncodeToString(spub[:])
+	hspriv := hex.EncodeToString(spriv[:])
+	c.config = config.NodeConfig{
+		EncryptionPublicKey:  hbpub,
+		EncryptionPrivateKey: hbpriv,
+		SigningPublicKey:     hspub,
+		SigningPrivateKey:    hspriv,
+	}
+	c.init( /*bpub, bpriv, spub, spriv*/ )
 	c.switchTable.start()
 	c.router.start()
 }
@@ -350,7 +362,7 @@ func (c *Core) DEBUG_init(bpub []byte,
 	bpriv []byte,
 	spub []byte,
 	spriv []byte) {
-	var boxPub crypto.BoxPubKey
+	/*var boxPub crypto.BoxPubKey
 	var boxPriv crypto.BoxPrivKey
 	var sigPub crypto.SigPubKey
 	var sigPriv crypto.SigPrivKey
@@ -358,7 +370,18 @@ func (c *Core) DEBUG_init(bpub []byte,
 	copy(boxPriv[:], bpriv)
 	copy(sigPub[:], spub)
 	copy(sigPriv[:], spriv)
-	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv)
+	c.init(&boxPub, &boxPriv, &sigPub, &sigPriv)*/
+	hbpub := hex.EncodeToString(bpub[:])
+	hbpriv := hex.EncodeToString(bpriv[:])
+	hspub := hex.EncodeToString(spub[:])
+	hspriv := hex.EncodeToString(spriv[:])
+	c.config = config.NodeConfig{
+		EncryptionPublicKey:  hbpub,
+		EncryptionPrivateKey: hbpriv,
+		SigningPublicKey:     hspub,
+		SigningPrivateKey:    hspriv,
+	}
+	c.init( /*bpub, bpriv, spub, spriv*/ )
 
 	if err := c.router.start(); err != nil {
 		panic(err)
@@ -427,7 +450,8 @@ func (c *Core) DEBUG_addSOCKSConn(socksaddr, peeraddr string) {
 
 //*
 func (c *Core) DEBUG_setupAndStartGlobalTCPInterface(addrport string) {
-	if err := c.tcp.init(c, addrport, 0); err != nil {
+	c.config.Listen = addrport
+	if err := c.tcp.init(c /*, addrport, 0*/); err != nil {
 		c.log.Println("Failed to start TCP interface:", err)
 		panic(err)
 	}
@@ -474,7 +498,8 @@ func (c *Core) DEBUG_addKCPConn(saddr string) {
 
 func (c *Core) DEBUG_setupAndStartAdminInterface(addrport string) {
 	a := admin{}
-	a.init(c, addrport)
+	c.config.AdminListen = addrport
+	a.init(c /*, addrport*/)
 	c.admin = a
 }
 
@@ -492,7 +517,7 @@ func (c *Core) DEBUG_setLogger(log *log.Logger) {
 }
 
 func (c *Core) DEBUG_setIfceExpr(expr *regexp.Regexp) {
-	c.ifceExpr = append(c.ifceExpr, expr)
+	c.log.Println("DEBUG_setIfceExpr no longer implemented")
 }
 
 func (c *Core) DEBUG_addAllowedEncryptionPublicKey(boxStr string) {
