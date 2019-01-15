@@ -57,17 +57,15 @@ func (a *admin) init(c *Core) {
 	a.reconfigure = make(chan chan error, 1)
 	go func() {
 		for {
-			select {
-			case e := <-a.reconfigure:
-				a.core.configMutex.RLock()
-				if a.core.config.AdminListen != a.core.configOld.AdminListen {
-					a.listenaddr = a.core.config.AdminListen
-					a.close()
-					a.start()
-				}
-				a.core.configMutex.RUnlock()
-				e <- nil
+			e := <-a.reconfigure
+			a.core.configMutex.RLock()
+			if a.core.config.AdminListen != a.core.configOld.AdminListen {
+				a.listenaddr = a.core.config.AdminListen
+				a.close()
+				a.start()
 			}
+			a.core.configMutex.RUnlock()
+			e <- nil
 		}
 	}()
 	a.core.configMutex.RLock()

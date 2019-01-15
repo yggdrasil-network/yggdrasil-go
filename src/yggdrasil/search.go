@@ -53,10 +53,8 @@ func (s *searches) init(core *Core) {
 	s.reconfigure = make(chan chan error, 1)
 	go func() {
 		for {
-			select {
-			case e := <-s.reconfigure:
-				e <- nil
-			}
+			e := <-s.reconfigure
+			e <- nil
 		}
 	}()
 	s.searches = make(map[crypto.NodeID]*searchInfo)

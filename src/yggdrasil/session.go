@@ -131,21 +131,19 @@ func (ss *sessions) init(core *Core) {
 	ss.reconfigure = make(chan chan error, 1)
 	go func() {
 		for {
-			select {
-			case e := <-ss.reconfigure:
-				responses := make(map[crypto.Handle]chan error)
-				for index, session := range ss.sinfos {
-					responses[index] = make(chan error)
-					session.reconfigure <- responses[index]
-				}
-				for _, response := range responses {
-					if err := <-response; err != nil {
-						e <- err
-						continue
-					}
-				}
-				e <- nil
+			e := <-ss.reconfigure
+			responses := make(map[crypto.Handle]chan error)
+			for index, session := range ss.sinfos {
+				responses[index] = make(chan error)
+				session.reconfigure <- responses[index]
 			}
+			for _, response := range responses {
+				if err := <-response; err != nil {
+					e <- err
+					continue
+				}
+			}
+			e <- nil
 		}
 	}()
 	ss.permShared = make(map[crypto.BoxPubKey]*crypto.BoxSharedKey)

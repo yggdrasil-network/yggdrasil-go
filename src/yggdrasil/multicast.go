@@ -25,13 +25,11 @@ func (m *multicast) init(core *Core) {
 	m.reconfigure = make(chan chan error, 1)
 	go func() {
 		for {
-			select {
-			case e := <-m.reconfigure:
-				m.myAddrMutex.Lock()
-				m.myAddr = m.core.tcp.getAddr()
-				m.myAddrMutex.Unlock()
-				e <- nil
-			}
+			e := <-m.reconfigure
+			m.myAddrMutex.Lock()
+			m.myAddr = m.core.tcp.getAddr()
+			m.myAddrMutex.Unlock()
+			e <- nil
 		}
 	}()
 	m.groupAddr = "[ff02::114]:9001"

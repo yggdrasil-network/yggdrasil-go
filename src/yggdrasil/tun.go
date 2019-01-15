@@ -46,19 +46,17 @@ func (tun *tunAdapter) init(core *Core, send chan<- []byte, recv <-chan []byte) 
 	tun.icmpv6.init(tun)
 	go func() {
 		for {
-			select {
-			case e := <-tun.reconfigure:
-				tun.core.configMutex.RLock()
-				updated := tun.core.config.IfName != tun.core.configOld.IfName ||
-					tun.core.config.IfTAPMode != tun.core.configOld.IfTAPMode ||
-					tun.core.config.IfMTU != tun.core.configOld.IfMTU
-				tun.core.configMutex.RUnlock()
-				if updated {
-					tun.core.log.Println("Reconfiguring TUN/TAP is not supported yet")
-					e <- nil
-				} else {
-					e <- nil
-				}
+			e := <-tun.reconfigure
+			tun.core.configMutex.RLock()
+			updated := tun.core.config.IfName != tun.core.configOld.IfName ||
+				tun.core.config.IfTAPMode != tun.core.configOld.IfTAPMode ||
+				tun.core.config.IfMTU != tun.core.configOld.IfMTU
+			tun.core.configMutex.RUnlock()
+			if updated {
+				tun.core.log.Println("Reconfiguring TUN/TAP is not supported yet")
+				e <- nil
+			} else {
+				e <- nil
 			}
 		}
 	}()

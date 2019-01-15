@@ -90,18 +90,16 @@ func (iface *tcpInterface) init(core *Core) (err error) {
 	iface.reconfigure = make(chan chan error, 1)
 	go func() {
 		for {
-			select {
-			case e := <-iface.reconfigure:
-				iface.core.configMutex.RLock()
-				updated := iface.core.config.Listen != iface.core.configOld.Listen
-				iface.core.configMutex.RUnlock()
-				if updated {
-					iface.serv_stop <- true
-					iface.serv.Close()
-					e <- iface.listen()
-				} else {
-					e <- nil
-				}
+			e := <-iface.reconfigure
+			iface.core.configMutex.RLock()
+			updated := iface.core.config.Listen != iface.core.configOld.Listen
+			iface.core.configMutex.RUnlock()
+			if updated {
+				iface.serv_stop <- true
+				iface.serv.Close()
+				e <- iface.listen()
+			} else {
+				e <- nil
 			}
 		}
 	}()

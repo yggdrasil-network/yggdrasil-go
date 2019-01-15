@@ -82,10 +82,8 @@ func (t *dht) init(c *Core) {
 	t.reconfigure = make(chan chan error, 1)
 	go func() {
 		for {
-			select {
-			case e := <-t.reconfigure:
-				e <- nil
-			}
+			e := <-t.reconfigure
+			e <- nil
 		}
 	}()
 	t.nodeID = *t.core.GetNodeID()

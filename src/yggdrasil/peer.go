@@ -35,10 +35,8 @@ func (ps *peers) init(c *Core) {
 	ps.reconfigure = make(chan chan error, 1)
 	go func() {
 		for {
-			select {
-			case e := <-ps.reconfigure:
-				e <- nil
-			}
+			e := <-ps.reconfigure
+			e <- nil
 		}
 	}()
 	ps.allowedEncryptionPublicKeys = make(map[crypto.BoxPubKey]struct{})
