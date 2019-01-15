@@ -140,6 +140,10 @@ func (iface *tcpInterface) listener() {
 	iface.core.log.Println("Listening for TCP on:", iface.serv.Addr().String())
 	for {
 		sock, err := iface.serv.Accept()
+		if err != nil {
+			iface.core.log.Println("Failed to accept connection:", err)
+			return
+		}
 		select {
 		case <-iface.serv_stop:
 			iface.core.log.Println("Stopping listener")
