@@ -765,35 +765,20 @@ func (a *admin) getData_getSessions() []admin_nodeInfo {
 
 // getAllowedEncryptionPublicKeys returns the public keys permitted for incoming peer connections.
 func (a *admin) getAllowedEncryptionPublicKeys() []string {
-	pubs := a.core.peers.getAllowedEncryptionPublicKeys()
-	var out []string
-	for _, pub := range pubs {
-		out = append(out, hex.EncodeToString(pub[:]))
-	}
-	return out
+	return a.core.peers.getAllowedEncryptionPublicKeys()
 }
 
 // addAllowedEncryptionPublicKey whitelists a key for incoming peer connections.
 func (a *admin) addAllowedEncryptionPublicKey(bstr string) (err error) {
-	boxBytes, err := hex.DecodeString(bstr)
-	if err == nil {
-		var box crypto.BoxPubKey
-		copy(box[:], boxBytes)
-		a.core.peers.addAllowedEncryptionPublicKey(&box)
-	}
-	return
+	a.core.peers.addAllowedEncryptionPublicKey(bstr)
+	return nil
 }
 
 // removeAllowedEncryptionPublicKey removes a key from the whitelist for incoming peer connections.
 // If none are set, an empty list permits all incoming connections.
 func (a *admin) removeAllowedEncryptionPublicKey(bstr string) (err error) {
-	boxBytes, err := hex.DecodeString(bstr)
-	if err == nil {
-		var box crypto.BoxPubKey
-		copy(box[:], boxBytes)
-		a.core.peers.removeAllowedEncryptionPublicKey(&box)
-	}
-	return
+	a.core.peers.removeAllowedEncryptionPublicKey(bstr)
+	return nil
 }
 
 // Send a DHT ping to the node with the provided key and coords, optionally looking up the specified target NodeID.
