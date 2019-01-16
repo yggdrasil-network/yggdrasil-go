@@ -86,6 +86,7 @@ func (r *router) init(core *Core) {
 	r.send = send
 	r.reset = make(chan struct{}, 1)
 	r.admin = make(chan func(), 32)
+	r.nodeinfo.init(r.core)
 	r.core.configMutex.RLock()
 	r.nodeinfo.setNodeInfo(r.core.config.NodeInfo, r.core.config.NodeInfoPrivacy)
 	r.core.configMutex.RUnlock()
