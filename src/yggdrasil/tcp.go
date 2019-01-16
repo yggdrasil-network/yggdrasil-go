@@ -125,8 +125,10 @@ func (iface *tcpInterface) listen() error {
 	}
 	iface.serv, err = lc.Listen(ctx, "tcp", iface.tcp_addr)
 	if err == nil {
+		iface.mutex.Lock()
 		iface.calls = make(map[string]struct{})
 		iface.conns = make(map[tcpInfo](chan struct{}))
+		iface.mutex.Unlock()
 		go iface.listener()
 		return nil
 	}
@@ -187,7 +189,9 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 		if iface.isAlreadyCalling(saddr) {
 			return
 		}
+		iface.mutex.Lock()
 		iface.calls[callname] = struct{}{}
+		iface.mutex.Unlock()
 		defer func() {
 			// Block new calls for a little while, to mitigate livelock scenarios
 			time.Sleep(default_tcp_timeout)
