@@ -230,35 +230,38 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 				ief, err := net.InterfaceByName(sintf)
 				if err != nil {
 					return
-				} else {
-					if ief.Flags&net.FlagUp == 0 {
+				}
+				if ief.Flags&net.FlagUp == 0 {
+					return
+				}
+				addrs, err := ief.Addrs()
+				if err == nil {
+					dst, err := net.ResolveTCPAddr("tcp", saddr)
+					if err != nil {
 						return
 					}
-					addrs, err := ief.Addrs()
-					if err == nil {
-						dst, err := net.ResolveTCPAddr("tcp", saddr)
+					for addrindex, addr := range addrs {
+						src, _, err := net.ParseCIDR(addr.String())
 						if err != nil {
-							return
+							continue
 						}
-						for _, addr := range addrs {
-							src, _, err := net.ParseCIDR(addr.String())
-							if err != nil {
-								continue
-							}
-							if (src.To4() != nil) == (dst.IP.To4() != nil) && src.IsGlobalUnicast() {
+						if (src.To4() != nil) == (dst.IP.To4() != nil) {
+							if addrindex == len(addrs)-1 || src.IsGlobalUnicast() {
 								dialer.LocalAddr = &net.TCPAddr{
 									IP:   src,
 									Port: 0,
+									Zone: sintf,
 								}
 								break
 							}
 						}
-						if dialer.LocalAddr == nil {
-							return
-						}
+					}
+					if dialer.LocalAddr == nil {
+						return
 					}
 				}
 			}
+
 			conn, err = dialer.Dial("tcp", saddr)
 			if err != nil {
 				return
