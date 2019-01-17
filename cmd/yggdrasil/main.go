@@ -227,11 +227,6 @@ func main() {
 		logger.Println("An error occurred during startup")
 		panic(err)
 	}
-	// Check to see if any allowed encryption keys were provided in the config.
-	// If they were then set them now.
-	for _, pBoxStr := range cfg.AllowedEncryptionPublicKeys {
-		n.core.AddAllowedEncryptionPublicKey(pBoxStr)
-	}
 	// The Stop function ensures that the TUN/TAP adapter is correctly shut down
 	// before the program exits.
 	defer func() {

@@ -7,7 +7,6 @@ package yggdrasil
 import (
 	"bytes"
 	"encoding/hex"
-	"sync"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
@@ -115,14 +114,6 @@ type sessions struct {
 	byTheirPerm  map[crypto.BoxPubKey]*crypto.Handle
 	addrToPerm   map[address.Address]*crypto.BoxPubKey
 	subnetToPerm map[address.Subnet]*crypto.BoxPubKey
-	// Options from the session firewall
-	sessionFirewallMutex                sync.RWMutex
-	sessionFirewallEnabled              bool
-	sessionFirewallAllowsDirect         bool
-	sessionFirewallAllowsRemote         bool
-	sessionFirewallAlwaysAllowsOutbound bool
-	sessionFirewallWhitelist            []string
-	sessionFirewallBlacklist            []string
 }
 
 // Initializes the session struct.
@@ -155,51 +146,28 @@ func (ss *sessions) init(core *Core) {
 	ss.lastCleanup = time.Now()
 }
 
-// Enable or disable the session firewall
-func (ss *sessions) setSessionFirewallState(enabled bool) {
-	ss.sessionFirewallMutex.Lock()
-	defer ss.sessionFirewallMutex.Unlock()
-	ss.sessionFirewallEnabled = enabled
-}
+// Determines whether the session firewall is enabled.
+func (ss *sessions) isSessionFirewallEnabled() bool {
+	ss.core.configMutex.RLock()
+	defer ss.core.configMutex.RUnlock()
 
-// Set the session firewall defaults (first parameter is whether to allow
-// sessions from direct peers, second is whether to allow from remote nodes).
-func (ss *sessions) setSessionFirewallDefaults(allowsDirect bool, allowsRemote bool, alwaysAllowsOutbound bool) {
-	ss.sessionFirewallMutex.Lock()
-	defer ss.sessionFirewallMutex.Unlock()
-	ss.sessionFirewallAllowsDirect = allowsDirect
-	ss.sessionFirewallAllowsRemote = allowsRemote
-	ss.sessionFirewallAlwaysAllowsOutbound = alwaysAllowsOutbound
-}
-
-// Set the session firewall whitelist - nodes always allowed to open sessions.
-func (ss *sessions) setSessionFirewallWhitelist(whitelist []string) {
-	ss.sessionFirewallMutex.Lock()
-	defer ss.sessionFirewallMutex.Unlock()
-	ss.sessionFirewallWhitelist = whitelist
-}
-
-// Set the session firewall blacklist - nodes never allowed to open sessions.
-func (ss *sessions) setSessionFirewallBlacklist(blacklist []string) {
-	ss.sessionFirewallMutex.Lock()
-	defer ss.sessionFirewallMutex.Unlock()
-	ss.sessionFirewallBlacklist = blacklist
+	return ss.core.config.SessionFirewall.Enable
 }
 
 // Determines whether the session with a given publickey is allowed based on
 // session firewall rules.
 func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) bool {
-	ss.sessionFirewallMutex.RLock()
-	defer ss.sessionFirewallMutex.RUnlock()
+	ss.core.configMutex.RLock()
+	defer ss.core.configMutex.RUnlock()
 
 	// Allow by default if the session firewall is disabled
-	if !ss.sessionFirewallEnabled {
+	if !ss.isSessionFirewallEnabled() {
 		return true
 	}
 	// Prepare for checking whitelist/blacklist
 	var box crypto.BoxPubKey
 	// Reject blacklisted nodes
-	for _, b := range ss.sessionFirewallBlacklist {
+	for _, b := range ss.core.config.SessionFirewall.BlacklistEncryptionPublicKeys {
 		key, err := hex.DecodeString(b)
 		if err == nil {
 			copy(box[:crypto.BoxPubKeyLen], key)
@@ -209,7 +177,7 @@ func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) b
 		}
 	}
 	// Allow whitelisted nodes
-	for _, b := range ss.sessionFirewallWhitelist {
+	for _, b := range ss.core.config.SessionFirewall.WhitelistEncryptionPublicKeys {
 		key, err := hex.DecodeString(b)
 		if err == nil {
 			copy(box[:crypto.BoxPubKeyLen], key)
@@ -219,7 +187,7 @@ func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) b
 		}
 	}
 	// Allow outbound sessions if appropriate
-	if ss.sessionFirewallAlwaysAllowsOutbound {
+	if ss.core.config.SessionFirewall.AlwaysAllowOutbound {
 		if initiator {
 			return true
 		}
@@ -233,11 +201,11 @@ func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) b
 		}
 	}
 	// Allow direct peers if appropriate
-	if ss.sessionFirewallAllowsDirect && isDirectPeer {
+	if ss.core.config.SessionFirewall.AllowFromDirect && isDirectPeer {
 		return true
 	}
 	// Allow remote nodes if appropriate
-	if ss.sessionFirewallAllowsRemote && !isDirectPeer {
+	if ss.core.config.SessionFirewall.AllowFromRemote && !isDirectPeer {
 		return true
 	}
 	// Finally, default-deny if not matching any of the above rules
@@ -474,14 +442,11 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 	// Get the corresponding session (or create a new session)
 	sinfo, isIn := ss.getByTheirPerm(&ping.SendPermPub)
 	// Check the session firewall
-	ss.sessionFirewallMutex.RLock()
-	if !isIn && ss.sessionFirewallEnabled {
+	if !isIn && ss.isSessionFirewallEnabled() {
 		if !ss.isSessionAllowed(&ping.SendPermPub, false) {
-			ss.sessionFirewallMutex.RUnlock()
 			return
 		}
 	}
-	ss.sessionFirewallMutex.RUnlock()
 	if !isIn || sinfo.timedout() {
 		if isIn {
 			sinfo.close()

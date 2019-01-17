@@ -5,6 +5,7 @@ package yggdrasil
 //  Live code should be better commented
 
 import (
+	"encoding/hex"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -18,12 +19,10 @@ import (
 // In most cases, this involves passing the packet to the handler for outgoing traffic to another peer.
 // In other cases, it's link protocol traffic used to build the spanning tree, in which case this checks signatures and passes the message along to the switch.
 type peers struct {
-	core                        *Core
-	reconfigure                 chan chan error
-	mutex                       sync.Mutex   // Synchronize writes to atomic
-	ports                       atomic.Value //map[switchPort]*peer, use CoW semantics
-	authMutex                   sync.RWMutex
-	allowedEncryptionPublicKeys map[crypto.BoxPubKey]struct{}
+	core        *Core
+	reconfigure chan chan error
+	mutex       sync.Mutex   // Synchronize writes to atomic
+	ports       atomic.Value //map[switchPort]*peer, use CoW semantics
 }
 
 // Initializes the peers struct.
@@ -39,40 +38,48 @@ func (ps *peers) init(c *Core) {
 			e <- nil
 		}
 	}()
-	ps.allowedEncryptionPublicKeys = make(map[crypto.BoxPubKey]struct{})
 }
 
-// Returns true if an incoming peer connection to a key is allowed, either because the key is in the whitelist or because the whitelist is empty.
+// Returns true if an incoming peer connection to a key is allowed, either
+// because the key is in the whitelist or because the whitelist is empty.
 func (ps *peers) isAllowedEncryptionPublicKey(box *crypto.BoxPubKey) bool {
-	ps.authMutex.RLock()
-	defer ps.authMutex.RUnlock()
-	_, isIn := ps.allowedEncryptionPublicKeys[*box]
-	return isIn || len(ps.allowedEncryptionPublicKeys) == 0
+	boxstr := hex.EncodeToString(box[:])
+	ps.core.configMutex.RLock()
+	defer ps.core.configMutex.RUnlock()
+	for _, v := range ps.core.config.AllowedEncryptionPublicKeys {
+		if v == boxstr {
+			return true
+		}
+	}
+	return len(ps.core.config.AllowedEncryptionPublicKeys) == 0
 }
 
 // Adds a key to the whitelist.
-func (ps *peers) addAllowedEncryptionPublicKey(box *crypto.BoxPubKey) {
-	ps.authMutex.Lock()
-	defer ps.authMutex.Unlock()
-	ps.allowedEncryptionPublicKeys[*box] = struct{}{}
+func (ps *peers) addAllowedEncryptionPublicKey(box string) {
+	ps.core.configMutex.RLock()
+	defer ps.core.configMutex.RUnlock()
+	ps.core.config.AllowedEncryptionPublicKeys =
+		append(ps.core.config.AllowedEncryptionPublicKeys, box)
 }
 
 // Removes a key from the whitelist.
-func (ps *peers) removeAllowedEncryptionPublicKey(box *crypto.BoxPubKey) {
-	ps.authMutex.Lock()
-	defer ps.authMutex.Unlock()
-	delete(ps.allowedEncryptionPublicKeys, *box)
+func (ps *peers) removeAllowedEncryptionPublicKey(box string) {
+	ps.core.configMutex.RLock()
+	defer ps.core.configMutex.RUnlock()
+	for k, v := range ps.core.config.AllowedEncryptionPublicKeys {
+		if v == box {
+			ps.core.config.AllowedEncryptionPublicKeys =
+				append(ps.core.config.AllowedEncryptionPublicKeys[:k],
+					ps.core.config.AllowedEncryptionPublicKeys[k+1:]...)
+		}
+	}
 }
 
 // Gets the whitelist of allowed keys for incoming connections.
-func (ps *peers) getAllowedEncryptionPublicKeys() []crypto.BoxPubKey {
-	ps.authMutex.RLock()
-	defer ps.authMutex.RUnlock()
-	keys := make([]crypto.BoxPubKey, 0, len(ps.allowedEncryptionPublicKeys))
-	for key := range ps.allowedEncryptionPublicKeys {
-		keys = append(keys, key)
-	}
-	return keys
+func (ps *peers) getAllowedEncryptionPublicKeys() []string {
+	ps.core.configMutex.RLock()
+	defer ps.core.configMutex.RUnlock()
+	return ps.core.config.AllowedEncryptionPublicKeys
 }
 
 // Atomically gets a map[switchPort]*peer of known peers.
