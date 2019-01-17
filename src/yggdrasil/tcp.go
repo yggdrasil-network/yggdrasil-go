@@ -245,15 +245,27 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 						if err != nil {
 							continue
 						}
-						if (src.To4() != nil) == (dst.IP.To4() != nil) {
-							if addrindex == len(addrs)-1 || src.IsGlobalUnicast() {
-								dialer.LocalAddr = &net.TCPAddr{
-									IP:   src,
-									Port: 0,
-									Zone: sintf,
-								}
-								break
+						if src.Equal(dst.IP) {
+							continue
+						}
+						if !src.IsGlobalUnicast() && !src.IsLinkLocalUnicast() {
+							continue
+						}
+						bothglobal := src.IsGlobalUnicast() == dst.IP.IsGlobalUnicast()
+						bothlinklocal := src.IsLinkLocalUnicast() == dst.IP.IsLinkLocalUnicast()
+						if !bothglobal && !bothlinklocal {
+							continue
+						}
+						if (src.To4() != nil) != (dst.IP.To4() != nil) {
+							continue
+						}
+						if bothglobal || bothlinklocal || addrindex == len(addrs)-1 {
+							dialer.LocalAddr = &net.TCPAddr{
+								IP:   src,
+								Port: 0,
+								Zone: sintf,
 							}
+							break
 						}
 					}
 					if dialer.LocalAddr == nil {
