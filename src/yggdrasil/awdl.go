@@ -18,6 +18,7 @@ type awdlInterface struct {
 	shutdown chan bool
 	peer     *peer
 	link     *linkInterface
+	stream   stream
 }
 
 func (l *awdl) init(c *Core) error {
@@ -41,6 +42,8 @@ func (l *awdl) create(fromAWDL chan []byte, toAWDL chan []byte, name string) (*a
 		toAWDL:   toAWDL,
 		shutdown: make(chan bool),
 	}
+	intf.stream.init()
+	go intf.handler()
 	l.mutex.Lock()
 	l.interfaces[name] = &intf
 	l.mutex.Unlock()
@@ -71,6 +74,9 @@ func (l *awdl) shutdown(identity string) error {
 }
 
 func (ai *awdlInterface) handler() {
+	inPacket := func(packet []byte) {
+		ai.link.fromlink <- packet
+	}
 	for {
 		select {
 		case <-ai.shutdown:
@@ -78,7 +84,7 @@ func (ai *awdlInterface) handler() {
 		case <-ai.link.shutdown:
 			return
 		case in := <-ai.fromAWDL:
-			ai.link.fromlink <- in
+			ai.stream.write(in, inPacket)
 		case out := <-ai.link.tolink:
 			ai.toAWDL <- out
 		}

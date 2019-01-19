@@ -9,7 +9,6 @@ import (
 
 type stream struct {
 	buffer []byte
-	cursor int
 }
 
 const streamMsgSize = 2048 + 65535
@@ -18,7 +17,6 @@ var streamMsg = [...]byte{0xde, 0xad, 0xb1, 0x75} // "dead bits"
 
 func (s *stream) init() {
 	s.buffer = make([]byte, 2*streamMsgSize)
-	s.cursor = 0
 }
 
 // This reads from the channel into a []byte buffer for incoming messages. It
@@ -76,36 +74,3 @@ func stream_chopMsg(bs *[]byte) ([]byte, bool, error) {
 	(*bs) = (*bs)[msgEnd:]
 	return msg, true, nil
 }
-
-/*
-func (s *stream) chopMsg() ([]byte, bool, error) {
-	// Returns msg, ok, err
-	if len(s.buffer) < len(streamMsg) {
-		fmt.Println("*** too short")
-		return nil, false, nil
-	}
-	for idx := range streamMsg {
-		if s.buffer[idx] != streamMsg[idx] {
-			fmt.Println("*** bad message")
-			return nil, false, errors.New("bad message")
-		}
-	}
-	msgLen, msgLenLen := wire_decode_uint64((s.buffer)[len(streamMsg):])
-	if msgLen > streamMsgSize {
-		fmt.Println("*** oversized message")
-		return nil, false, errors.New("oversized message")
-	}
-	msgBegin := len(streamMsg) + msgLenLen
-	msgEnd := msgBegin + int(msgLen)
-	if msgLenLen == 0 || len(s.buffer) < msgEnd {
-		// We don't have the full message
-		// Need to buffer this and wait for the rest to come in
-		fmt.Println("*** still waiting")
-		return nil, false, nil
-	}
-	msg := s.buffer[msgBegin:msgEnd]
-	s.buffer = s.buffer[msgEnd:]
-	fmt.Println("*** done")
-	return msg, true, nil
-}
-*/

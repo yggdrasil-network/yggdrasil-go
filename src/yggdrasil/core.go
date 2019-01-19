@@ -199,8 +199,8 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
-	if err := c.awdl.init(c); err != nil {
-		c.log.Println("Failed to start AWDL interface")
+	if err := c.link.init(c); err != nil {
+		c.log.Println("Failed to start link interfaces")
 		return err
 	}
 

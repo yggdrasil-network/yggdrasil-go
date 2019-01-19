@@ -18,6 +18,7 @@ type link struct {
 }
 
 type linkInterface struct {
+	name     string
 	link     *link
 	fromlink chan []byte
 	tolink   chan []byte
@@ -32,55 +33,75 @@ func (l *link) init(c *Core) error {
 	l.interfaces = make(map[string]*linkInterface)
 	l.mutex.Unlock()
 
+	if err := l.core.awdl.init(c); err != nil {
+		l.core.log.Println("Failed to start AWDL interface")
+		return err
+	}
+
 	return nil
 }
 
 func (l *link) create(fromlink chan []byte, tolink chan []byte, name string) (*linkInterface, error) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	if _, ok := l.interfaces[name]; ok {
+		return nil, errors.New("Interface with this name already exists")
+	}
 	intf := linkInterface{
+		name:     name,
 		link:     l,
 		fromlink: fromlink,
 		tolink:   tolink,
 		shutdown: make(chan bool),
 	}
-	l.mutex.Lock()
-	l.interfaces[name] = &intf
-	l.mutex.Unlock()
+	l.interfaces[intf.name] = &intf
+	go intf.start()
+	return &intf, nil
+}
+
+func (intf *linkInterface) start() {
 	myLinkPub, myLinkPriv := crypto.NewBoxKeys()
 	meta := version_getBaseMetadata()
-	meta.box = l.core.boxPub
-	meta.sig = l.core.sigPub
+	meta.box = intf.link.core.boxPub
+	meta.sig = intf.link.core.sigPub
 	meta.link = *myLinkPub
 	metaBytes := meta.encode()
-	tolink <- metaBytes
-	metaBytes = <-fromlink
+	//intf.link.core.log.Println("start: intf.tolink <- metaBytes")
+	intf.tolink <- metaBytes
+	//intf.link.core.log.Println("finish: intf.tolink <- metaBytes")
+	//intf.link.core.log.Println("start: metaBytes = <-intf.fromlink")
+	metaBytes = <-intf.fromlink
+	//intf.link.core.log.Println("finish: metaBytes = <-intf.fromlink")
 	meta = version_metadata{}
 	if !meta.decode(metaBytes) || !meta.check() {
-		return nil, errors.New("Metadata decode failure")
+		intf.link.core.log.Println("Metadata decode failure")
+		return
 	}
 	base := version_getBaseMetadata()
 	if meta.ver > base.ver || meta.ver == base.ver && meta.minorVer > base.minorVer {
-		return nil, errors.New("Failed to connect to node: " + name + " version: " + fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
+		intf.link.core.log.Println("Failed to connect to node: " + intf.name + " version: " + fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
+		return
 	}
 	shared := crypto.GetSharedKey(myLinkPriv, &meta.link)
-	//shared := crypto.GetSharedKey(&l.core.boxPriv, boxPubKey)
-	intf.peer = l.core.peers.newPeer(&meta.box, &meta.sig, shared, name)
-	if intf.peer != nil {
-		intf.peer.linkOut = make(chan []byte, 1) // protocol traffic
-		intf.peer.out = func(msg []byte) {
-			defer func() { recover() }()
-			intf.tolink <- msg
-		} // called by peer.sendPacket()
-		l.core.switchTable.idleIn <- intf.peer.port // notify switch that we're idle
-		intf.peer.close = func() {
-			close(intf.fromlink)
-			close(intf.tolink)
-		}
-		go intf.handler()
-		go intf.peer.linkLoop()
-		return &intf, nil
+	intf.peer = intf.link.core.peers.newPeer(&meta.box, &meta.sig, shared, intf.name)
+	if intf.peer == nil {
+		intf.link.mutex.Lock()
+		delete(intf.link.interfaces, intf.name)
+		intf.link.mutex.Unlock()
+		return
 	}
-	delete(l.interfaces, name)
-	return nil, errors.New("l.core.peers.newPeer failed")
+	intf.peer.linkOut = make(chan []byte, 1) // protocol traffic
+	intf.peer.out = func(msg []byte) {
+		defer func() { recover() }()
+		intf.tolink <- msg
+	} // called by peer.sendPacket()
+	intf.link.core.switchTable.idleIn <- intf.peer.port // notify switch that we're idle
+	intf.peer.close = func() {
+		close(intf.fromlink)
+		close(intf.tolink)
+	}
+	go intf.handler()
+	go intf.peer.linkLoop()
 }
 
 func (l *link) getInterface(identity string) *linkInterface {
