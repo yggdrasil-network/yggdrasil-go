@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"log"
 	"os"
-	"regexp"
 	"time"
 
 	hjson "github.com/hjson/hjson-go"
@@ -52,10 +51,6 @@ func (c *Core) StartAutoconfigure() error {
 	if hostname, err := os.Hostname(); err == nil {
 		nc.NodeInfo = map[string]interface{}{"name": hostname}
 	}
-	ifceExpr, err := regexp.Compile(".*")
-	if err == nil {
-		c.ifceExpr = append(c.ifceExpr, ifceExpr)
-	}
 	if err := c.Start(nc, logger); err != nil {
 		return err
 	}
@@ -77,15 +72,6 @@ func (c *Core) StartJSON(configjson []byte) error {
 		return err
 	}
 	nc.IfName = "dummy"
-	//c.log.Println(nc.MulticastInterfaces)
-	for _, ll := range nc.MulticastInterfaces {
-		//c.log.Println("Processing MC", ll)
-		ifceExpr, err := regexp.Compile(ll)
-		if err != nil {
-			panic(err)
-		}
-		c.AddMulticastInterfaceExpr(ifceExpr)
-	}
 	if err := c.Start(nc, logger); err != nil {
 		return err
 	}
