@@ -35,7 +35,7 @@ func (l *link) init(c *Core) error {
 	return nil
 }
 
-func (l *link) create(fromlink chan []byte, tolink chan []byte /*boxPubKey *crypto.BoxPubKey, sigPubKey *crypto.SigPubKey*/, name string) (*linkInterface, error) {
+func (l *link) create(fromlink chan []byte, tolink chan []byte, name string) (*linkInterface, error) {
 	intf := linkInterface{
 		link:     l,
 		fromlink: fromlink,
@@ -101,7 +101,7 @@ func (l *link) shutdown(identity string) error {
 		l.mutex.Unlock()
 		return nil
 	} else {
-		return errors.New(fmt.Sprintf("Interface '%s' doesn't exist or already shutdown", identity))
+		return fmt.Errorf("interface '%s' doesn't exist or already shutdown", identity)
 	}
 }
 

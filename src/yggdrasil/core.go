@@ -44,7 +44,8 @@ type Core struct {
 	searches    searches
 	multicast   multicast
 	tcp         tcpInterface
-	link        link
+	link        link // TODO: not sure if this wants to be here?
+	awdl        awdl
 	log         *log.Logger
 }
 
@@ -198,12 +199,10 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
-	/*
-		if err := c.awdl.init(c); err != nil {
-			c.log.Println("Failed to start AWDL interface")
-			return err
-		}
-	*/
+	if err := c.awdl.init(c); err != nil {
+		c.log.Println("Failed to start AWDL interface")
+		return err
+	}
 
 	if nc.SwitchOptions.MaxTotalQueueSize >= SwitchQueueTotalMinSize {
 		c.switchTable.queueTotalMaxSize = nc.SwitchOptions.MaxTotalQueueSize
