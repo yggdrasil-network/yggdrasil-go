@@ -42,7 +42,10 @@ func (l *awdl) create(fromAWDL chan []byte, toAWDL chan []byte, name string) (*a
 		toAWDL:   toAWDL,
 		shutdown: make(chan bool),
 	}
-	intf.stream.init()
+	inPacket := func(packet []byte) {
+		intf.link.fromlink <- packet
+	}
+	intf.stream.init(inPacket)
 	go intf.handler()
 	l.mutex.Lock()
 	l.interfaces[name] = &intf
@@ -74,9 +77,6 @@ func (l *awdl) shutdown(identity string) error {
 }
 
 func (ai *awdlInterface) handler() {
-	inPacket := func(packet []byte) {
-		ai.link.fromlink <- packet
-	}
 	for {
 		select {
 		case <-ai.shutdown:
@@ -84,7 +84,7 @@ func (ai *awdlInterface) handler() {
 		case <-ai.link.shutdown:
 			return
 		case in := <-ai.fromAWDL:
-			ai.stream.write(in, inPacket)
+			ai.stream.handleInput(in)
 		case out := <-ai.link.tolink:
 			ai.toAWDL <- out
 		}

@@ -8,15 +8,16 @@ import (
 )
 
 type stream struct {
-	buffer []byte
+	inputBuffer  []byte
+	handlePacket func([]byte)
 }
 
 const streamMsgSize = 2048 + 65535
 
 var streamMsg = [...]byte{0xde, 0xad, 0xb1, 0x75} // "dead bits"
 
-func (s *stream) init() {
-	s.buffer = make([]byte, 2*streamMsgSize)
+func (s *stream) init(in func([]byte)) {
+	s.handlePacket = in
 }
 
 // This reads from the channel into a []byte buffer for incoming messages. It
@@ -24,11 +25,10 @@ func (s *stream) init() {
 // to the peer struct via the provided `in func([]byte)` argument. Then it
 // shifts the incomplete fragments of data forward so future reads won't
 // overwrite it.
-func (s *stream) write(bs []byte, in func([]byte)) error {
-	frag := s.buffer[:0]
-	if n := len(bs); n > 0 {
-		frag = append(frag, bs[:n]...)
-		msg, ok, err2 := stream_chopMsg(&frag)
+func (s *stream) handleInput(bs []byte) error {
+	if len(bs) > 0 {
+		s.inputBuffer = append(s.inputBuffer, bs...)
+		msg, ok, err2 := stream_chopMsg(&s.inputBuffer)
 		if err2 != nil {
 			return fmt.Errorf("message error: %v", err2)
 		}
@@ -37,8 +37,9 @@ func (s *stream) write(bs []byte, in func([]byte)) error {
 			return nil
 		}
 		newMsg := append(util.GetBytes(), msg...)
-		in(newMsg)
-		util.Yield()
+		s.inputBuffer = append(s.inputBuffer[:0], s.inputBuffer...)
+		s.handlePacket(newMsg)
+		util.Yield() // Make sure we give up control to the scheduler
 	}
 	return nil
 }

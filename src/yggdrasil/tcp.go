@@ -378,9 +378,6 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	//  E.g. over different interfaces
 	p := iface.core.peers.newPeer(&meta.box, &meta.sig, crypto.GetSharedKey(myLinkPriv, &meta.link), sock.RemoteAddr().String())
 	p.linkOut = make(chan []byte, 1)
-	in := func(bs []byte) {
-		p.handlePacket(bs)
-	}
 	out := make(chan []byte, 1)
 	defer close(out)
 	go func() {
@@ -443,7 +440,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, them)
 	iface.core.log.Printf("Connected: %s, source: %s", themString, us)
-	iface.stream.init()
+	iface.stream.init(p.handlePacket)
 	bs := make([]byte, 2*streamMsgSize)
 	var n int
 	for {
@@ -455,7 +452,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 			break
 		}
 		if n > 0 {
-			iface.stream.write(bs[:n], in)
+			iface.stream.handleInput(bs[:n])
 		}
 	}
 	if err == nil {
