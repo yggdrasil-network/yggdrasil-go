@@ -16,9 +16,7 @@ package yggdrasil
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"math/rand"
 	"net"
 	"sync"
@@ -32,21 +30,21 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
-const tcp_msgSize = 2048 + 65535 // TODO figure out what makes sense
-const default_tcp_timeout = 6 * time.Second
-const tcp_ping_interval = (default_tcp_timeout * 2 / 3)
+const default_timeout = 6 * time.Second
+const tcp_ping_interval = (default_timeout * 2 / 3)
 
 // The TCP listener and information about active TCP connections, to avoid duplication.
 type tcpInterface struct {
 	core        *Core
 	reconfigure chan chan error
 	serv        net.Listener
-	serv_stop   chan bool
-	tcp_timeout time.Duration
-	tcp_addr    string
+	stop        chan bool
+	timeout     time.Duration
+	addr        string
 	mutex       sync.Mutex // Protecting the below
 	calls       map[string]struct{}
 	conns       map[tcpInfo](chan struct{})
+	stream      stream
 }
 
 // This is used as the key to a map that tracks existing connections, to prevent multiple connections to the same keys and local/remote address pair from occuring.
@@ -86,7 +84,7 @@ func (iface *tcpInterface) connectSOCKS(socksaddr, peeraddr string) {
 // Initializes the struct.
 func (iface *tcpInterface) init(core *Core) (err error) {
 	iface.core = core
-	iface.serv_stop = make(chan bool, 1)
+	iface.stop = make(chan bool, 1)
 	iface.reconfigure = make(chan chan error, 1)
 	go func() {
 		for {
@@ -95,7 +93,7 @@ func (iface *tcpInterface) init(core *Core) (err error) {
 			updated := iface.core.config.Listen != iface.core.configOld.Listen
 			iface.core.configMutex.RUnlock()
 			if updated {
-				iface.serv_stop <- true
+				iface.stop <- true
 				iface.serv.Close()
 				e <- iface.listen()
 			} else {
@@ -111,19 +109,19 @@ func (iface *tcpInterface) listen() error {
 	var err error
 
 	iface.core.configMutex.RLock()
-	iface.tcp_addr = iface.core.config.Listen
-	iface.tcp_timeout = time.Duration(iface.core.config.ReadTimeout) * time.Millisecond
+	iface.addr = iface.core.config.Listen
+	iface.timeout = time.Duration(iface.core.config.ReadTimeout) * time.Millisecond
 	iface.core.configMutex.RUnlock()
 
-	if iface.tcp_timeout >= 0 && iface.tcp_timeout < default_tcp_timeout {
-		iface.tcp_timeout = default_tcp_timeout
+	if iface.timeout >= 0 && iface.timeout < default_timeout {
+		iface.timeout = default_timeout
 	}
 
 	ctx := context.Background()
 	lc := net.ListenConfig{
 		Control: iface.tcpContext,
 	}
-	iface.serv, err = lc.Listen(ctx, "tcp", iface.tcp_addr)
+	iface.serv, err = lc.Listen(ctx, "tcp", iface.addr)
 	if err == nil {
 		iface.mutex.Lock()
 		iface.calls = make(map[string]struct{})
@@ -147,7 +145,7 @@ func (iface *tcpInterface) listener() {
 			return
 		}
 		select {
-		case <-iface.serv_stop:
+		case <-iface.stop:
 			iface.core.log.Println("Stopping listener")
 			return
 		default:
@@ -194,7 +192,7 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 		iface.mutex.Unlock()
 		defer func() {
 			// Block new calls for a little while, to mitigate livelock scenarios
-			time.Sleep(default_tcp_timeout)
+			time.Sleep(default_timeout)
 			time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
 			iface.mutex.Lock()
 			delete(iface.calls, callname)
@@ -299,8 +297,8 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	if err != nil {
 		return
 	}
-	if iface.tcp_timeout > 0 {
-		sock.SetReadDeadline(time.Now().Add(iface.tcp_timeout))
+	if iface.timeout > 0 {
+		sock.SetReadDeadline(time.Now().Add(iface.timeout))
 	}
 	_, err = sock.Read(metaBytes)
 	if err != nil {
@@ -389,9 +387,9 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 		// This goroutine waits for outgoing packets, link protocol traffic, or sends idle keep-alive traffic
 		send := func(msg []byte) {
 			msgLen := wire_encode_uint64(uint64(len(msg)))
-			buf := net.Buffers{tcp_msg[:], msgLen, msg}
+			buf := net.Buffers{streamMsg[:], msgLen, msg}
 			buf.WriteTo(sock)
-			atomic.AddUint64(&p.bytesSent, uint64(len(tcp_msg)+len(msgLen)+len(msg)))
+			atomic.AddUint64(&p.bytesSent, uint64(len(streamMsg)+len(msgLen)+len(msg)))
 			util.PutBytes(msg)
 		}
 		timerInterval := tcp_ping_interval
@@ -445,83 +443,25 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, them)
 	iface.core.log.Printf("Connected: %s, source: %s", themString, us)
-	err = iface.reader(sock, in) // In this goroutine, because of defers
+	iface.stream.init()
+	bs := make([]byte, 2*streamMsgSize)
+	var n int
+	for {
+		if iface.timeout > 0 {
+			sock.SetReadDeadline(time.Now().Add(iface.timeout))
+		}
+		n, err = sock.Read(bs)
+		if err != nil {
+			break
+		}
+		if n > 0 {
+			iface.stream.write(bs[:n], in)
+		}
+	}
 	if err == nil {
 		iface.core.log.Printf("Disconnected: %s, source: %s", themString, us)
 	} else {
 		iface.core.log.Printf("Disconnected: %s, source: %s, error: %s", themString, us, err)
 	}
 	return
-}
-
-// This reads from the socket into a []byte buffer for incomping messages.
-// It copies completed messages out of the cache into a new slice, and passes them to the peer struct via the provided `in func([]byte)` argument.
-// Then it shifts the incomplete fragments of data forward so future reads won't overwrite it.
-func (iface *tcpInterface) reader(sock net.Conn, in func([]byte)) error {
-	bs := make([]byte, 2*tcp_msgSize)
-	frag := bs[:0]
-	for {
-		if iface.tcp_timeout > 0 {
-			sock.SetReadDeadline(time.Now().Add(iface.tcp_timeout))
-		}
-		n, err := sock.Read(bs[len(frag):])
-		if n > 0 {
-			frag = bs[:len(frag)+n]
-			for {
-				msg, ok, err2 := tcp_chop_msg(&frag)
-				if err2 != nil {
-					return fmt.Errorf("Message error: %v", err2)
-				}
-				if !ok {
-					// We didn't get the whole message yet
-					break
-				}
-				newMsg := append(util.GetBytes(), msg...)
-				in(newMsg)
-				util.Yield()
-			}
-			frag = append(bs[:0], frag...)
-		}
-		if err != nil || n == 0 {
-			if err != io.EOF {
-				return err
-			}
-			return nil
-		}
-	}
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// These are 4 bytes of padding used to catch if something went horribly wrong with the tcp connection.
-var tcp_msg = [...]byte{0xde, 0xad, 0xb1, 0x75} // "dead bits"
-
-// This takes a pointer to a slice as an argument.
-// It checks if there's a complete message and, if so, slices out those parts and returns the message, true, and nil.
-// If there's no error, but also no complete message, it returns nil, false, and nil.
-// If there's an error, it returns nil, false, and the error, which the reader then handles (currently, by returning from the reader, which causes the connection to close).
-func tcp_chop_msg(bs *[]byte) ([]byte, bool, error) {
-	// Returns msg, ok, err
-	if len(*bs) < len(tcp_msg) {
-		return nil, false, nil
-	}
-	for idx := range tcp_msg {
-		if (*bs)[idx] != tcp_msg[idx] {
-			return nil, false, errors.New("Bad message!")
-		}
-	}
-	msgLen, msgLenLen := wire_decode_uint64((*bs)[len(tcp_msg):])
-	if msgLen > tcp_msgSize {
-		return nil, false, errors.New("Oversized message!")
-	}
-	msgBegin := len(tcp_msg) + msgLenLen
-	msgEnd := msgBegin + int(msgLen)
-	if msgLenLen == 0 || len(*bs) < msgEnd {
-		// We don't have the full message
-		// Need to buffer this and wait for the rest to come in
-		return nil, false, nil
-	}
-	msg := (*bs)[msgBegin:msgEnd]
-	(*bs) = (*bs)[msgEnd:]
-	return msg, true, nil
 }

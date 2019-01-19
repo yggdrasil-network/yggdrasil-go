@@ -11,34 +11,35 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
-type awdl struct {
+type link struct {
 	core       *Core
 	mutex      sync.RWMutex // protects interfaces below
-	interfaces map[string]*awdlInterface
+	interfaces map[string]*linkInterface
 }
 
-type awdlInterface struct {
-	awdl     *awdl
-	fromAWDL chan []byte
-	toAWDL   chan []byte
+type linkInterface struct {
+	link     *link
+	fromlink chan []byte
+	tolink   chan []byte
 	shutdown chan bool
 	peer     *peer
+	stream   stream
 }
 
-func (l *awdl) init(c *Core) error {
+func (l *link) init(c *Core) error {
 	l.core = c
 	l.mutex.Lock()
-	l.interfaces = make(map[string]*awdlInterface)
+	l.interfaces = make(map[string]*linkInterface)
 	l.mutex.Unlock()
 
 	return nil
 }
 
-func (l *awdl) create(fromAWDL chan []byte, toAWDL chan []byte /*boxPubKey *crypto.BoxPubKey, sigPubKey *crypto.SigPubKey*/, name string) (*awdlInterface, error) {
-	intf := awdlInterface{
-		awdl:     l,
-		fromAWDL: fromAWDL,
-		toAWDL:   toAWDL,
+func (l *link) create(fromlink chan []byte, tolink chan []byte /*boxPubKey *crypto.BoxPubKey, sigPubKey *crypto.SigPubKey*/, name string) (*linkInterface, error) {
+	intf := linkInterface{
+		link:     l,
+		fromlink: fromlink,
+		tolink:   tolink,
 		shutdown: make(chan bool),
 	}
 	l.mutex.Lock()
@@ -50,35 +51,29 @@ func (l *awdl) create(fromAWDL chan []byte, toAWDL chan []byte /*boxPubKey *cryp
 	meta.sig = l.core.sigPub
 	meta.link = *myLinkPub
 	metaBytes := meta.encode()
-	l.core.log.Println("toAWDL <- metaBytes")
-	toAWDL <- metaBytes
-	l.core.log.Println("metaBytes = <-fromAWDL")
-	metaBytes = <-fromAWDL
-	l.core.log.Println("version_metadata{}")
+	tolink <- metaBytes
+	metaBytes = <-fromlink
 	meta = version_metadata{}
 	if !meta.decode(metaBytes) || !meta.check() {
 		return nil, errors.New("Metadata decode failure")
 	}
-	l.core.log.Println("version_getBaseMetadata{}")
 	base := version_getBaseMetadata()
 	if meta.ver > base.ver || meta.ver == base.ver && meta.minorVer > base.minorVer {
 		return nil, errors.New("Failed to connect to node: " + name + " version: " + fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
 	}
-	l.core.log.Println("crypto.GetSharedKey")
 	shared := crypto.GetSharedKey(myLinkPriv, &meta.link)
 	//shared := crypto.GetSharedKey(&l.core.boxPriv, boxPubKey)
-	l.core.log.Println("l.core.peers.newPeer")
 	intf.peer = l.core.peers.newPeer(&meta.box, &meta.sig, shared, name)
 	if intf.peer != nil {
 		intf.peer.linkOut = make(chan []byte, 1) // protocol traffic
 		intf.peer.out = func(msg []byte) {
 			defer func() { recover() }()
-			intf.toAWDL <- msg
+			intf.tolink <- msg
 		} // called by peer.sendPacket()
 		l.core.switchTable.idleIn <- intf.peer.port // notify switch that we're idle
 		intf.peer.close = func() {
-			close(intf.fromAWDL)
-			close(intf.toAWDL)
+			close(intf.fromlink)
+			close(intf.tolink)
 		}
 		go intf.handler()
 		go intf.peer.linkLoop()
@@ -88,7 +83,7 @@ func (l *awdl) create(fromAWDL chan []byte, toAWDL chan []byte /*boxPubKey *cryp
 	return nil, errors.New("l.core.peers.newPeer failed")
 }
 
-func (l *awdl) getInterface(identity string) *awdlInterface {
+func (l *link) getInterface(identity string) *linkInterface {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
 	if intf, ok := l.interfaces[identity]; ok {
@@ -97,7 +92,7 @@ func (l *awdl) getInterface(identity string) *awdlInterface {
 	return nil
 }
 
-func (l *awdl) shutdown(identity string) error {
+func (l *link) shutdown(identity string) error {
 	if intf, ok := l.interfaces[identity]; ok {
 		intf.shutdown <- true
 		l.core.peers.removePeer(intf.peer.port)
@@ -110,9 +105,9 @@ func (l *awdl) shutdown(identity string) error {
 	}
 }
 
-func (ai *awdlInterface) handler() {
+func (ai *linkInterface) handler() {
 	send := func(msg []byte) {
-		ai.toAWDL <- msg
+		ai.tolink <- msg
 		atomic.AddUint64(&ai.peer.bytesSent, uint64(len(msg)))
 		util.PutBytes(msg)
 	}
@@ -138,9 +133,9 @@ func (ai *awdlInterface) handler() {
 		case p := <-ai.peer.linkOut:
 			send(p)
 			continue
-		case r := <-ai.fromAWDL:
+		case r := <-ai.fromlink:
 			ai.peer.handlePacket(r)
-			ai.awdl.core.switchTable.idleIn <- ai.peer.port
+			ai.link.core.switchTable.idleIn <- ai.peer.port
 		case <-ai.shutdown:
 			return
 		}
