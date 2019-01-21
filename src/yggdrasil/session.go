@@ -554,20 +554,33 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 	}
 	// code isn't multithreaded so appending to this is safe
 	coords := sinfo.coords
-	// Read IPv6 flowlabel field (20 bits).
-	// Assumes packet at least contains IPv6 header.
-	flowkey := uint64(bs[1]&0x0f)<<16 | uint64(bs[2])<<8 | uint64(bs[3])
-	// Check if the flowlabel was specified
+	var flowkey uint64
+	// Try to read IPv6 flowlabel field (20 bits)
+	if bs[0]&0xf0 == 0x60 {
+		flowkey = uint64(bs[1]&0x0f)<<16 | uint64(bs[2])<<8 | uint64(bs[3])
+	}
+	// Check if the flowlabel was specified. If not then try to use known
+	// protocols' ports: protokey: proto | sport | dport
 	if flowkey == 0 {
-		// Does the packet meet the minimum UDP packet size? (others are bigger)
-		if len(bs) >= 48 {
-			// Is the protocol TCP, UDP, SCTP?
-			if bs[6] == 0x06 || bs[6] == 0x11 || bs[6] == 0x84 {
-				// if flowlabel was unspecified (0), try to use known protocols' ports
-				// protokey: proto | sport | dport
-				flowkey = uint64(bs[6])<<32 /* proto */ |
-					uint64(bs[40])<<24 | uint64(bs[41])<<16 /* sport */ |
-					uint64(bs[42])<<8 | uint64(bs[43]) /* dport */
+		// Is the protocol TCP, UDP, SCTP?
+		switch bs[0] & 0xf0 {
+		case 0x40: // IPv4 packet
+			if len(bs) >= 24 {
+				if bs[9] == 0x06 || bs[9] == 0x11 || bs[9] == 0x84 {
+					ihl := bs[0] & 0x0f * 4 // Header length
+					flowkey = uint64(bs[9])<<32 /* proto */ |
+						uint64(bs[ihl+0])<<24 | uint64(bs[ihl+1])<<16 /* sport */ |
+						uint64(bs[ihl+2])<<8 | uint64(bs[ihl+3]) /* dport */
+				}
+			}
+		case 0x60: // IPv6 packet
+			// Does the packet meet the minimum UDP packet size? (others are bigger)
+			if len(bs) >= 48 {
+				if bs[6] == 0x06 || bs[6] == 0x11 || bs[6] == 0x84 {
+					flowkey = uint64(bs[6])<<32 /* proto */ |
+						uint64(bs[40])<<24 | uint64(bs[41])<<16 /* sport */ |
+						uint64(bs[42])<<8 | uint64(bs[43]) /* dport */
+				}
 			}
 		}
 	}
