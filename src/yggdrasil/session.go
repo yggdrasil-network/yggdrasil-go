@@ -557,10 +557,12 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 	// Work out the flowkey - this is used to determine which switch queue
 	// traffic will be pushed to in the event of congestion
 	var flowkey uint64
+	// Get the IP protocol version from the packet
 	switch bs[0] & 0xf0 {
 	case 0x40: // IPv4 packet
 		// Check the packet meets minimum UDP packet length
 		if len(bs) >= 24 {
+			// Is the protocol TCP, UDP or SCTP?
 			if bs[9] == 0x06 || bs[9] == 0x11 || bs[9] == 0x84 {
 				ihl := bs[0] & 0x0f * 4 // Header length
 				flowkey = uint64(bs[9])<<32 /* proto */ |
