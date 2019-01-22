@@ -12,10 +12,8 @@ import (
 var _ = linkInterfaceMsgIO(&stream{})
 
 type stream struct {
-	rwc          io.ReadWriteCloser
-	inputBuffer  []byte // Incoming packet stream
-	didFirstSend bool   // Used for metadata exchange
-	didFirstRecv bool   // Used for metadata exchange
+	rwc         io.ReadWriteCloser
+	inputBuffer []byte // Incoming packet stream
 	// TODO remove the rest, it shouldn't matter in the long run
 	handlePacket func([]byte)
 }

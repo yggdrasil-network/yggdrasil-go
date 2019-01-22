@@ -44,7 +44,6 @@ type tcpInterface struct {
 	mutex       sync.Mutex // Protecting the below
 	calls       map[string]struct{}
 	conns       map[tcpInfo](chan struct{})
-	stream      stream
 }
 
 // This is used as the key to a map that tracks existing connections, to prevent multiple connections to the same keys and local/remote address pair from occuring.
@@ -281,9 +280,25 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 	}()
 }
 
+func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
+	defer sock.Close()
+	iface.setExtraOptions(sock)
+	stream := stream{}
+	stream.init(sock, nil)
+	name := sock.LocalAddr().String() + sock.RemoteAddr().String()
+	link, err := iface.core.link.create(&stream, name)
+	if err != nil {
+		iface.core.log.Println(err)
+		panic(err)
+	}
+	iface.core.log.Println("DEBUG: starting handler")
+	link.handler()
+	iface.core.log.Println("DEBUG: stopped handler")
+}
+
 // This exchanges/checks connection metadata, sets up the peer struct, sets up the writer goroutine, and then runs the reader within the current goroutine.
 // It defers a bunch of cleanup stuff to tear down all of these things when the reader exists (e.g. due to a closed connection or a timeout).
-func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
+func (iface *tcpInterface) handler_old(sock net.Conn, incoming bool) {
 	defer sock.Close()
 	iface.setExtraOptions(sock)
 	// Get our keys
@@ -440,7 +455,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, them)
 	iface.core.log.Printf("Connected: %s, source: %s", themString, us)
-	iface.stream.init(sock, p.handlePacket)
+	//iface.stream.init(sock, p.handlePacket)
 	bs := make([]byte, 2*streamMsgSize)
 	var n int
 	for {
@@ -452,7 +467,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 			break
 		}
 		if n > 0 {
-			iface.stream.handleInput(bs[:n])
+			//iface.stream.handleInput(bs[:n])
 		}
 	}
 	if err == nil {

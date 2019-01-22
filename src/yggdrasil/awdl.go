@@ -1,7 +1,7 @@
 package yggdrasil
 
 import (
-	"fmt"
+	//"fmt"
 	"sync"
 )
 
@@ -30,6 +30,7 @@ func (l *awdl) init(c *Core) error {
 	return nil
 }
 
+/* temporarily disabled while getting the TCP side to work
 func (l *awdl) create(fromAWDL chan []byte, toAWDL chan []byte, name string) (*awdlInterface, error) {
 	link, err := l.core.link.create(fromAWDL, toAWDL, name)
 	if err != nil {
@@ -90,3 +91,4 @@ func (ai *awdlInterface) handler() {
 		}
 	}
 }
+*/
