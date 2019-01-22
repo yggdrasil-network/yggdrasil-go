@@ -440,7 +440,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, them)
 	iface.core.log.Printf("Connected: %s, source: %s", themString, us)
-	iface.stream.init(p.handlePacket)
+	iface.stream.init(sock, p.handlePacket)
 	bs := make([]byte, 2*streamMsgSize)
 	var n int
 	for {

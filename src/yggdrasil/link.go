@@ -17,6 +17,15 @@ type link struct {
 	interfaces map[string]*linkInterface
 }
 
+type linkInterfaceMsgIO interface {
+	readMsg() ([]byte, error)
+	writeMsg([]byte) (int, error)
+	close() error
+	// These are temporary workarounds to stream semantics
+	_sendMetaBytes([]byte) error
+	_recvMetaBytes() ([]byte, error)
+}
+
 type linkInterface struct {
 	name     string
 	link     *link

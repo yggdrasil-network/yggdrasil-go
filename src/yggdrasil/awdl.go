@@ -45,7 +45,7 @@ func (l *awdl) create(fromAWDL chan []byte, toAWDL chan []byte, name string) (*a
 	inPacket := func(packet []byte) {
 		intf.link.fromlink <- packet
 	}
-	intf.stream.init(inPacket)
+	intf.stream.init(nil, inPacket) // FIXME nil = ReadWriteCloser
 	go intf.handler()
 	l.mutex.Lock()
 	l.interfaces[name] = &intf
