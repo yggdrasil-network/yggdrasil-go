@@ -106,10 +106,12 @@ func (intf *linkInterface) handler() error {
 		defer func() { recover() }()
 		out <- msg
 	}
+	intf.peer.linkOut = make(chan []byte, 1)
 	intf.peer.close = func() { intf.msgIO.close() }
 	go intf.peer.linkLoop()
 	// Start the writer
 	go func() {
+		// TODO util.PutBytes etc.
 		interval := 4 * time.Second
 		timer := time.NewTimer(interval)
 		clearTimer := func() {
