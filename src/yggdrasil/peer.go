@@ -250,6 +250,7 @@ func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
 func (p *peer) sendPacket(packet []byte) {
 	// Is there ever a case where something more complicated is needed?
 	// What if p.out blocks?
+	atomic.AddUint64(&p.bytesSent, uint64(len(packet)))
 	p.out(packet)
 }
 

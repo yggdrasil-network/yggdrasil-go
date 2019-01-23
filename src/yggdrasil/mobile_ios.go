@@ -30,9 +30,7 @@ func (nsl MobileLogger) Write(p []byte) (n int, err error) {
 }
 
 func (c *Core) AWDLCreateInterface(name, local, remote string) error {
-	fromAWDL := make(chan []byte, 32)
-	toAWDL := make(chan []byte, 32)
-	if intf, err := c.awdl.create(fromAWDL, toAWDL, name, local, remote); err != nil || intf == nil {
+	if intf, err := c.awdl.create(name, local, remote); err != nil || intf == nil {
 		c.log.Println("c.awdl.create:", err)
 		return err
 	}
@@ -45,7 +43,11 @@ func (c *Core) AWDLShutdownInterface(name string) error {
 
 func (c *Core) AWDLRecvPacket(identity string) ([]byte, error) {
 	if intf := c.awdl.getInterface(identity); intf != nil {
-		return <-intf.rwc.toAWDL, nil
+		read, ok := <-intf.rwc.toAWDL
+		if !ok {
+			return nil, errors.New("AWDLRecvPacket: channel closed")
+		}
+		return read, nil
 	}
 	return nil, errors.New("AWDLRecvPacket identity not known: " + identity)
 }

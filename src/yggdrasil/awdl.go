@@ -2,6 +2,7 @@ package yggdrasil
 
 import (
 	"errors"
+	"io"
 	"sync"
 )
 
@@ -24,8 +25,13 @@ type awdlReadWriteCloser struct {
 }
 
 func (c awdlReadWriteCloser) Read(p []byte) (n int, err error) {
-	p = <-c.fromAWDL
-	return len(p), nil
+	select {
+	case packet := <-c.fromAWDL:
+		n = copy(p, packet)
+		return n, nil
+	default:
+		return 0, io.EOF
+	}
 }
 
 func (c awdlReadWriteCloser) Write(p []byte) (n int, err error) {
@@ -48,10 +54,10 @@ func (l *awdl) init(c *Core) error {
 	return nil
 }
 
-func (l *awdl) create(fromAWDL chan []byte, toAWDL chan []byte, name, local, remote string) (*awdlInterface, error) {
+func (l *awdl) create(name, local, remote string) (*awdlInterface, error) {
 	rwc := awdlReadWriteCloser{
-		fromAWDL: fromAWDL,
-		toAWDL:   toAWDL,
+		fromAWDL: make(chan []byte, 1),
+		toAWDL:   make(chan []byte, 1),
 	}
 	s := stream{}
 	s.init(rwc)
@@ -66,7 +72,7 @@ func (l *awdl) create(fromAWDL chan []byte, toAWDL chan []byte, name, local, rem
 	l.mutex.Lock()
 	l.interfaces[name] = &intf
 	l.mutex.Unlock()
-	go link.handler()
+	go intf.link.handler()
 	return &intf, nil
 }
 
