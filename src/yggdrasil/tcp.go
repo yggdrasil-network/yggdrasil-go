@@ -294,8 +294,8 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 		panic(err)
 	}
 	iface.core.log.Println("DEBUG: starting handler for", name)
-	link.handler()
-	iface.core.log.Println("DEBUG: stopped handler for", name)
+	err = link.handler()
+	iface.core.log.Println("DEBUG: stopped handler for", name, err)
 }
 
 // This exchanges/checks connection metadata, sets up the peer struct, sets up the writer goroutine, and then runs the reader within the current goroutine.

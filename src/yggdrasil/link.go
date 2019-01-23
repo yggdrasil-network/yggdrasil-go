@@ -114,7 +114,12 @@ func (intf *linkInterface) handler() error {
 	} else {
 		intf.closed = make(chan struct{})
 		intf.link.interfaces[intf.info] = intf
-		defer close(intf.closed)
+		defer func() {
+			intf.link.mutex.Lock()
+			delete(intf.link.interfaces, intf.info)
+			intf.link.mutex.Unlock()
+			close(intf.closed)
+		}()
 		intf.link.core.log.Println("DEBUG: registered interface for", intf.name)
 	}
 	intf.link.mutex.Unlock()
@@ -144,7 +149,10 @@ func (intf *linkInterface) handler() error {
 		timer := time.NewTimer(interval)
 		clearTimer := func() {
 			if !timer.Stop() {
-				<-timer.C
+				select {
+				case <-timer.C:
+				default:
+				}
 			}
 		}
 		defer clearTimer()
