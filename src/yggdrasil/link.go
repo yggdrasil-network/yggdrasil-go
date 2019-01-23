@@ -87,10 +87,12 @@ func (intf *linkInterface) handler() error {
 	if err != nil {
 		return err
 	}
+	intf.link.core.log.Println("Sent my metadata")
 	metaBytes, err = intf.msgIO._recvMetaBytes()
 	if err != nil {
 		return err
 	}
+	intf.link.core.log.Println("Received their metadata")
 	meta = version_metadata{}
 	if !meta.decode(metaBytes) || !meta.check() {
 		return errors.New("failed to decode metadata")
@@ -100,6 +102,7 @@ func (intf *linkInterface) handler() error {
 		intf.link.core.log.Println("Failed to connect to node: " + intf.name + " version: " + fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
 		return errors.New("failed to connect: wrong version")
 	}
+	intf.link.core.log.Println("Do we have a link already?")
 	// Check if we already have a link to this node
 	intf.info.box = meta.box
 	intf.info.sig = meta.sig
@@ -124,6 +127,7 @@ func (intf *linkInterface) handler() error {
 		intf.link.core.log.Println("DEBUG: registered interface for", intf.name)
 	}
 	intf.link.mutex.Unlock()
+	intf.link.core.log.Println("Create peer")
 	// Create peer
 	shared := crypto.GetSharedKey(myLinkPriv, &meta.link)
 	intf.peer = intf.link.core.peers.newPeer(&meta.box, &meta.sig, shared, intf.name)
@@ -145,6 +149,7 @@ func (intf *linkInterface) handler() error {
 	intf.peer.close = func() { intf.msgIO.close() }
 	go intf.peer.linkLoop()
 	// Start the writer
+	intf.link.core.log.Println("Start writer")
 	go func() {
 		interval := 4 * time.Second
 		timer := time.NewTimer(interval)
@@ -190,6 +195,7 @@ func (intf *linkInterface) handler() error {
 	}()
 	intf.link.core.switchTable.idleIn <- intf.peer.port // notify switch that we're idle
 	// Run reader loop
+	intf.link.core.log.Println("Start reader")
 	for {
 		msg, err := intf.msgIO.readMsg()
 		if len(msg) > 0 {

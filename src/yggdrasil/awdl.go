@@ -1,7 +1,7 @@
 package yggdrasil
 
 import (
-	//"fmt"
+	"errors"
 	"sync"
 )
 
@@ -12,13 +12,31 @@ type awdl struct {
 }
 
 type awdlInterface struct {
-	awdl     *awdl
+	link   *linkInterface
+	rwc    awdlReadWriteCloser
+	peer   *peer
+	stream stream
+}
+
+type awdlReadWriteCloser struct {
 	fromAWDL chan []byte
 	toAWDL   chan []byte
-	shutdown chan bool
-	peer     *peer
-	link     *linkInterface
-	stream   stream
+}
+
+func (c awdlReadWriteCloser) Read(p []byte) (n int, err error) {
+	p = <-c.fromAWDL
+	return len(p), nil
+}
+
+func (c awdlReadWriteCloser) Write(p []byte) (n int, err error) {
+	c.toAWDL <- p
+	return len(p), nil
+}
+
+func (c awdlReadWriteCloser) Close() error {
+	close(c.fromAWDL)
+	close(c.toAWDL)
+	return nil
 }
 
 func (l *awdl) init(c *Core) error {
@@ -30,27 +48,26 @@ func (l *awdl) init(c *Core) error {
 	return nil
 }
 
-/* temporarily disabled while getting the TCP side to work
-func (l *awdl) create(fromAWDL chan []byte, toAWDL chan []byte, name string) (*awdlInterface, error) {
-	link, err := l.core.link.create(fromAWDL, toAWDL, name)
+func (l *awdl) create(fromAWDL chan []byte, toAWDL chan []byte, name, local, remote string) (*awdlInterface, error) {
+	rwc := awdlReadWriteCloser{
+		fromAWDL: fromAWDL,
+		toAWDL:   toAWDL,
+	}
+	s := stream{}
+	s.init(rwc, nil)
+	link, err := l.core.link.create(&s, name, "awdl", local, remote)
 	if err != nil {
 		return nil, err
 	}
 	intf := awdlInterface{
-		awdl:     l,
-		link:     link,
-		fromAWDL: fromAWDL,
-		toAWDL:   toAWDL,
-		shutdown: make(chan bool),
+		link: link,
+		rwc:  rwc,
 	}
-	inPacket := func(packet []byte) {
-		intf.link.fromlink <- packet
-	}
-	intf.stream.init(nil, inPacket) // FIXME nil = ReadWriteCloser
-	go intf.handler()
+	intf.stream.init(intf.rwc, nil)
 	l.mutex.Lock()
 	l.interfaces[name] = &intf
 	l.mutex.Unlock()
+	go link.handler()
 	return &intf, nil
 }
 
@@ -64,31 +81,13 @@ func (l *awdl) getInterface(identity string) *awdlInterface {
 }
 
 func (l *awdl) shutdown(identity string) error {
-	if err := l.core.link.shutdown(identity); err != nil {
-		return err
-	}
 	if intf, ok := l.interfaces[identity]; ok {
-		intf.shutdown <- true
+		close(intf.link.closed)
+		intf.rwc.Close()
 		l.mutex.Lock()
 		delete(l.interfaces, identity)
 		l.mutex.Unlock()
 		return nil
 	}
-	return fmt.Errorf("interface '%s' doesn't exist or already shutdown", identity)
+	return errors.New("Interface not found or already closed")
 }
-
-func (ai *awdlInterface) handler() {
-	for {
-		select {
-		case <-ai.shutdown:
-			return
-		case <-ai.link.shutdown:
-			return
-		case in := <-ai.fromAWDL:
-			ai.stream.handleInput(in)
-		case out := <-ai.link.tolink:
-			ai.toAWDL <- out
-		}
-	}
-}
-*/
