@@ -285,15 +285,17 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	iface.setExtraOptions(sock)
 	stream := stream{}
 	stream.init(sock, nil)
-	name := sock.LocalAddr().String() + sock.RemoteAddr().String()
-	link, err := iface.core.link.create(&stream, name)
+	local, _, _ := net.SplitHostPort(sock.LocalAddr().String())
+	remote, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
+	name := "tcp://" + sock.RemoteAddr().String()
+	link, err := iface.core.link.create(&stream, name, "tcp", local, remote)
 	if err != nil {
 		iface.core.log.Println(err)
 		panic(err)
 	}
-	iface.core.log.Println("DEBUG: starting handler")
+	iface.core.log.Println("DEBUG: starting handler for", name)
 	link.handler()
-	iface.core.log.Println("DEBUG: stopped handler")
+	iface.core.log.Println("DEBUG: stopped handler for", name)
 }
 
 // This exchanges/checks connection metadata, sets up the peer struct, sets up the writer goroutine, and then runs the reader within the current goroutine.
