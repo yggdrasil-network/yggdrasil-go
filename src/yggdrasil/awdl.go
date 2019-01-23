@@ -25,18 +25,18 @@ type awdlReadWriteCloser struct {
 }
 
 func (c awdlReadWriteCloser) Read(p []byte) (n int, err error) {
-	select {
-	case packet := <-c.fromAWDL:
+	if packet, ok := <-c.fromAWDL; ok {
 		n = copy(p, packet)
 		return n, nil
-	default:
-		return 0, io.EOF
 	}
+	return 0, io.EOF
 }
 
 func (c awdlReadWriteCloser) Write(p []byte) (n int, err error) {
-	c.toAWDL <- p
-	return len(p), nil
+	var pc []byte
+	pc = append(pc, p...)
+	c.toAWDL <- pc
+	return len(pc), nil
 }
 
 func (c awdlReadWriteCloser) Close() error {
