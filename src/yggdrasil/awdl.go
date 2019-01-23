@@ -54,7 +54,7 @@ func (l *awdl) create(fromAWDL chan []byte, toAWDL chan []byte, name, local, rem
 		toAWDL:   toAWDL,
 	}
 	s := stream{}
-	s.init(rwc, nil)
+	s.init(rwc)
 	link, err := l.core.link.create(&s, name, "awdl", local, remote)
 	if err != nil {
 		return nil, err
@@ -63,7 +63,6 @@ func (l *awdl) create(fromAWDL chan []byte, toAWDL chan []byte, name, local, rem
 		link: link,
 		rwc:  rwc,
 	}
-	intf.stream.init(intf.rwc, nil)
 	l.mutex.Lock()
 	l.interfaces[name] = &intf
 	l.mutex.Unlock()

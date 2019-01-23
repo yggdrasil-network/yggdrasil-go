@@ -20,14 +20,11 @@ import (
 	"math/rand"
 	"net"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"golang.org/x/net/proxy"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 const default_timeout = 6 * time.Second
@@ -284,7 +281,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	defer sock.Close()
 	iface.setExtraOptions(sock)
 	stream := stream{}
-	stream.init(sock, nil)
+	stream.init(sock)
 	local, _, _ := net.SplitHostPort(sock.LocalAddr().String())
 	remote, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
 	name := "tcp://" + sock.RemoteAddr().String()
@@ -296,186 +293,4 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	iface.core.log.Println("DEBUG: starting handler for", name)
 	err = link.handler()
 	iface.core.log.Println("DEBUG: stopped handler for", name, err)
-}
-
-// This exchanges/checks connection metadata, sets up the peer struct, sets up the writer goroutine, and then runs the reader within the current goroutine.
-// It defers a bunch of cleanup stuff to tear down all of these things when the reader exists (e.g. due to a closed connection or a timeout).
-func (iface *tcpInterface) handler_old(sock net.Conn, incoming bool) {
-	defer sock.Close()
-	iface.setExtraOptions(sock)
-	// Get our keys
-	myLinkPub, myLinkPriv := crypto.NewBoxKeys() // ephemeral link keys
-	meta := version_getBaseMetadata()
-	meta.box = iface.core.boxPub
-	meta.sig = iface.core.sigPub
-	meta.link = *myLinkPub
-	metaBytes := meta.encode()
-	_, err := sock.Write(metaBytes)
-	if err != nil {
-		return
-	}
-	if iface.timeout > 0 {
-		sock.SetReadDeadline(time.Now().Add(iface.timeout))
-	}
-	_, err = sock.Read(metaBytes)
-	if err != nil {
-		return
-	}
-	meta = version_metadata{} // Reset to zero value
-	if !meta.decode(metaBytes) || !meta.check() {
-		// Failed to decode and check the metadata
-		// If it's a version mismatch issue, then print an error message
-		base := version_getBaseMetadata()
-		if meta.meta == base.meta {
-			if meta.ver > base.ver {
-				iface.core.log.Println("Failed to connect to node:", sock.RemoteAddr().String(), "version:", meta.ver)
-			} else if meta.ver == base.ver && meta.minorVer > base.minorVer {
-				iface.core.log.Println("Failed to connect to node:", sock.RemoteAddr().String(), "version:", fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
-			}
-		}
-		// TODO? Block forever to prevent future connection attempts? suppress future messages about the same node?
-		return
-	}
-	remoteAddr, _, e1 := net.SplitHostPort(sock.RemoteAddr().String())
-	localAddr, _, e2 := net.SplitHostPort(sock.LocalAddr().String())
-	if e1 != nil || e2 != nil {
-		return
-	}
-	info := tcpInfo{ // used as a map key, so don't include ephemeral link key
-		box:        meta.box,
-		sig:        meta.sig,
-		localAddr:  localAddr,
-		remoteAddr: remoteAddr,
-	}
-	if iface.isAlreadyConnected(info) {
-		return
-	}
-	// Quit the parent call if this is a connection to ourself
-	equiv := func(k1, k2 []byte) bool {
-		for idx := range k1 {
-			if k1[idx] != k2[idx] {
-				return false
-			}
-		}
-		return true
-	}
-	if equiv(meta.box[:], iface.core.boxPub[:]) {
-		return
-	}
-	if equiv(meta.sig[:], iface.core.sigPub[:]) {
-		return
-	}
-	// Check if we're authorized to connect to this key / IP
-	if incoming && !iface.core.peers.isAllowedEncryptionPublicKey(&meta.box) {
-		// Allow unauthorized peers if they're link-local
-		raddrStr, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
-		raddr := net.ParseIP(raddrStr)
-		if !raddr.IsLinkLocalUnicast() {
-			return
-		}
-	}
-	// Check if we already have a connection to this node, close and block if yes
-	iface.mutex.Lock()
-	/*if blockChan, isIn := iface.conns[info]; isIn {
-		iface.mutex.Unlock()
-		sock.Close()
-		<-blockChan
-		return
-	}*/
-	blockChan := make(chan struct{})
-	iface.conns[info] = blockChan
-	iface.mutex.Unlock()
-	defer func() {
-		iface.mutex.Lock()
-		delete(iface.conns, info)
-		iface.mutex.Unlock()
-		close(blockChan)
-	}()
-	// Note that multiple connections to the same node are allowed
-	//  E.g. over different interfaces
-	p := iface.core.peers.newPeer(&meta.box, &meta.sig, crypto.GetSharedKey(myLinkPriv, &meta.link), sock.RemoteAddr().String())
-	p.linkOut = make(chan []byte, 1)
-	out := make(chan []byte, 1)
-	defer close(out)
-	go func() {
-		// This goroutine waits for outgoing packets, link protocol traffic, or sends idle keep-alive traffic
-		send := func(msg []byte) {
-			msgLen := wire_encode_uint64(uint64(len(msg)))
-			buf := net.Buffers{streamMsg[:], msgLen, msg}
-			buf.WriteTo(sock)
-			atomic.AddUint64(&p.bytesSent, uint64(len(streamMsg)+len(msgLen)+len(msg)))
-			util.PutBytes(msg)
-		}
-		timerInterval := tcp_ping_interval
-		timer := time.NewTimer(timerInterval)
-		defer timer.Stop()
-		for {
-			select {
-			case msg := <-p.linkOut:
-				// Always send outgoing link traffic first, if needed
-				send(msg)
-				continue
-			default:
-			}
-			// Otherwise wait reset the timer and wait for something to do
-			timer.Stop()
-			select {
-			case <-timer.C:
-			default:
-			}
-			timer.Reset(timerInterval)
-			select {
-			case _ = <-timer.C:
-				send(nil) // TCP keep-alive traffic
-			case msg := <-p.linkOut:
-				send(msg)
-			case msg, ok := <-out:
-				if !ok {
-					return
-				}
-				send(msg) // Block until the socket write has finished
-				// Now inform the switch that we're ready for more traffic
-				p.core.switchTable.idleIn <- p.port
-			}
-		}
-	}()
-	p.core.switchTable.idleIn <- p.port // Start in the idle state
-	p.out = func(msg []byte) {
-		defer func() { recover() }()
-		out <- msg
-	}
-	p.close = func() { sock.Close() }
-	go p.linkLoop()
-	defer func() {
-		// Put all of our cleanup here...
-		p.core.peers.removePeer(p.port)
-	}()
-	us, _, _ := net.SplitHostPort(sock.LocalAddr().String())
-	them, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
-	themNodeID := crypto.GetNodeID(&meta.box)
-	themAddr := address.AddrForNodeID(themNodeID)
-	themAddrString := net.IP(themAddr[:]).String()
-	themString := fmt.Sprintf("%s@%s", themAddrString, them)
-	iface.core.log.Printf("Connected: %s, source: %s", themString, us)
-	//iface.stream.init(sock, p.handlePacket)
-	bs := make([]byte, 2*streamMsgSize)
-	var n int
-	for {
-		if iface.timeout > 0 {
-			sock.SetReadDeadline(time.Now().Add(iface.timeout))
-		}
-		n, err = sock.Read(bs)
-		if err != nil {
-			break
-		}
-		if n > 0 {
-			//iface.stream.handleInput(bs[:n])
-		}
-	}
-	if err == nil {
-		iface.core.log.Printf("Disconnected: %s, source: %s", themString, us)
-	} else {
-		iface.core.log.Printf("Disconnected: %s, source: %s, error: %s", themString, us, err)
-	}
-	return
 }

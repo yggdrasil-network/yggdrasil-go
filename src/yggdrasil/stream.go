@@ -14,8 +14,6 @@ var _ = linkInterfaceMsgIO(&stream{})
 type stream struct {
 	rwc         io.ReadWriteCloser
 	inputBuffer []byte // Incoming packet stream
-	// TODO remove the rest, it shouldn't matter in the long run
-	handlePacket func([]byte)
 }
 
 func (s *stream) close() error {
@@ -26,11 +24,9 @@ const streamMsgSize = 2048 + 65535
 
 var streamMsg = [...]byte{0xde, 0xad, 0xb1, 0x75} // "dead bits"
 
-func (s *stream) init(rwc io.ReadWriteCloser, in func([]byte)) {
+func (s *stream) init(rwc io.ReadWriteCloser) {
 	// TODO have this also do the metadata handshake and create the peer struct
 	s.rwc = rwc
-	s.handlePacket = in
-
 	// TODO call something to do the metadata exchange
 }
 
@@ -110,31 +106,6 @@ func (s *stream) _recvMetaBytes() ([]byte, error) {
 		metaBytes = append(metaBytes, frag[:n]...)
 	}
 	return metaBytes, nil
-}
-
-// This reads from the channel into a []byte buffer for incoming messages. It
-// copies completed messages out of the cache into a new slice, and passes them
-// to the peer struct via the provided `in func([]byte)` argument. Then it
-// shifts the incomplete fragments of data forward so future reads won't
-// overwrite it.
-func (s *stream) handleInput(bs []byte) error {
-	if len(bs) > 0 {
-		s.inputBuffer = append(s.inputBuffer, bs...)
-		buf := s.inputBuffer
-		msg, ok, err2 := stream_chopMsg(&buf)
-		if err2 != nil {
-			return fmt.Errorf("message error: %v", err2)
-		}
-		if !ok {
-			// We didn't get the whole message yet
-			return nil
-		}
-		newMsg := append(util.GetBytes(), msg...)
-		s.inputBuffer = append(s.inputBuffer[:0], buf...)
-		s.handlePacket(newMsg)
-		util.Yield() // Make sure we give up control to the scheduler
-	}
-	return nil
 }
 
 // This takes a pointer to a slice as an argument. It checks if there's a
