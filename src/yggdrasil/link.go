@@ -107,8 +107,9 @@ func (intf *linkInterface) handler() error {
 	if oldIntf, isIn := intf.link.interfaces[intf.info]; isIn {
 		intf.link.mutex.Unlock()
 		// FIXME we should really return an error and let the caller block instead
-		// That lets them do things like close connections before blocking
+		// That lets them do things like close connections on its own, avoid printing a connection message in the first place, etc.
 		intf.link.core.log.Println("DEBUG: found existing interface for", intf.name)
+		intf.msgIO.close()
 		<-oldIntf.closed
 		return nil
 	} else {
