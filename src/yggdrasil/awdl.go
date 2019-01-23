@@ -7,13 +7,13 @@ import (
 )
 
 type awdl struct {
-	core       *Core
+	link       *link
 	mutex      sync.RWMutex // protects interfaces below
 	interfaces map[string]*awdlInterface
 }
 
 type awdlInterface struct {
-	link   *linkInterface
+	linkif *linkInterface
 	rwc    awdlReadWriteCloser
 	peer   *peer
 	stream stream
@@ -45,53 +45,53 @@ func (c awdlReadWriteCloser) Close() error {
 	return nil
 }
 
-func (l *awdl) init(c *Core) error {
-	l.core = c
-	l.mutex.Lock()
-	l.interfaces = make(map[string]*awdlInterface)
-	l.mutex.Unlock()
+func (a *awdl) init(l *link) error {
+	a.link = l
+	a.mutex.Lock()
+	a.interfaces = make(map[string]*awdlInterface)
+	a.mutex.Unlock()
 
 	return nil
 }
 
-func (l *awdl) create(name, local, remote string) (*awdlInterface, error) {
+func (a *awdl) create(name, local, remote string) (*awdlInterface, error) {
 	rwc := awdlReadWriteCloser{
 		fromAWDL: make(chan []byte, 1),
 		toAWDL:   make(chan []byte, 1),
 	}
 	s := stream{}
 	s.init(rwc)
-	link, err := l.core.link.create(&s, name, "awdl", local, remote)
+	linkif, err := a.link.create(&s, name, "awdl", local, remote)
 	if err != nil {
 		return nil, err
 	}
 	intf := awdlInterface{
-		link: link,
-		rwc:  rwc,
+		linkif: linkif,
+		rwc:    rwc,
 	}
-	l.mutex.Lock()
-	l.interfaces[name] = &intf
-	l.mutex.Unlock()
-	go intf.link.handler()
+	a.mutex.Lock()
+	a.interfaces[name] = &intf
+	a.mutex.Unlock()
+	go intf.linkif.handler()
 	return &intf, nil
 }
 
-func (l *awdl) getInterface(identity string) *awdlInterface {
-	l.mutex.RLock()
-	defer l.mutex.RUnlock()
-	if intf, ok := l.interfaces[identity]; ok {
+func (a *awdl) getInterface(identity string) *awdlInterface {
+	a.mutex.RLock()
+	defer a.mutex.RUnlock()
+	if intf, ok := a.interfaces[identity]; ok {
 		return intf
 	}
 	return nil
 }
 
-func (l *awdl) shutdown(identity string) error {
-	if intf, ok := l.interfaces[identity]; ok {
-		close(intf.link.closed)
+func (a *awdl) shutdown(identity string) error {
+	if intf, ok := a.interfaces[identity]; ok {
+		close(intf.linkif.closed)
 		intf.rwc.Close()
-		l.mutex.Lock()
-		delete(l.interfaces, identity)
-		l.mutex.Unlock()
+		a.mutex.Lock()
+		delete(a.interfaces, identity)
+		a.mutex.Unlock()
 		return nil
 	}
 	return errors.New("Interface not found or already closed")

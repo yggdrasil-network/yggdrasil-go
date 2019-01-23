@@ -44,8 +44,7 @@ type Core struct {
 	searches    searches
 	multicast   multicast
 	tcp         tcpInterface
-	link        link // TODO: not sure if this wants to be here?
-	awdl        awdl
+	link        link
 	log         *log.Logger
 }
 

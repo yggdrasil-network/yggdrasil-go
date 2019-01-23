@@ -30,19 +30,19 @@ func (nsl MobileLogger) Write(p []byte) (n int, err error) {
 }
 
 func (c *Core) AWDLCreateInterface(name, local, remote string) error {
-	if intf, err := c.awdl.create(name, local, remote); err != nil || intf == nil {
-		c.log.Println("c.awdl.create:", err)
+	if intf, err := c.link.awdl.create(name, local, remote); err != nil || intf == nil {
+		c.log.Println("c.link.awdl.create:", err)
 		return err
 	}
 	return nil
 }
 
 func (c *Core) AWDLShutdownInterface(name string) error {
-	return c.awdl.shutdown(name)
+	return c.link.awdl.shutdown(name)
 }
 
 func (c *Core) AWDLRecvPacket(identity string) ([]byte, error) {
-	if intf := c.awdl.getInterface(identity); intf != nil {
+	if intf := c.link.awdl.getInterface(identity); intf != nil {
 		read, ok := <-intf.rwc.toAWDL
 		if !ok {
 			return nil, errors.New("AWDLRecvPacket: channel closed")
@@ -54,7 +54,7 @@ func (c *Core) AWDLRecvPacket(identity string) ([]byte, error) {
 
 func (c *Core) AWDLSendPacket(identity string, buf []byte) error {
 	packet := append(util.GetBytes(), buf[:]...)
-	if intf := c.awdl.getInterface(identity); intf != nil {
+	if intf := c.link.awdl.getInterface(identity); intf != nil {
 		intf.rwc.fromAWDL <- packet
 		return nil
 	}

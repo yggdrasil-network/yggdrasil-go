@@ -15,6 +15,7 @@ type link struct {
 	core       *Core
 	mutex      sync.RWMutex // protects interfaces below
 	interfaces map[linkInfo]*linkInterface
+	awdl       awdl // AWDL interface support
 }
 
 type linkInfo struct {
@@ -49,7 +50,7 @@ func (l *link) init(c *Core) error {
 	l.interfaces = make(map[linkInfo]*linkInterface)
 	l.mutex.Unlock()
 
-	if err := l.core.awdl.init(c); err != nil {
+	if err := l.awdl.init(l); err != nil {
 		l.core.log.Println("Failed to start AWDL interface")
 		return err
 	}
