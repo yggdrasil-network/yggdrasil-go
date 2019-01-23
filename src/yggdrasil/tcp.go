@@ -183,7 +183,7 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 		if sintf != "" {
 			callname = fmt.Sprintf("%s/%s", saddr, sintf)
 		}
-		if iface.isAlreadyCalling(saddr) {
+		if iface.isAlreadyCalling(callname) {
 			return
 		}
 		iface.mutex.Lock()
