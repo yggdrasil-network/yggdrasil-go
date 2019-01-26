@@ -117,6 +117,8 @@ func bubbleUpTo(sets []keySet, num int) []keySet {
 			var tmp = sets[i]
 			sets[i] = sets[i+1]
 			sets[i+1] = tmp
+		} else {
+			break
 		}
 	}
 	return sets
