@@ -114,9 +114,9 @@ func (tun *tunAdapter) setupAddress(addr string) error {
 	}
 
 	// Friendly output
-	tun.core.log.Printf("Interface name: %s", tun.iface.Name())
-	tun.core.log.Printf("Interface IPv6: %s", addr)
-	tun.core.log.Printf("Interface MTU: %d", tun.mtu)
+	tun.core.log.Infof("Interface name: %s", tun.iface.Name())
+	tun.core.log.Infof("Interface IPv6: %s", addr)
+	tun.core.log.Infof("Interface MTU: %d", tun.mtu)
 
 	// Create the MTU request
 	var ir in6_ifreq_mtu
@@ -126,15 +126,15 @@ func (tun *tunAdapter) setupAddress(addr string) error {
 	// Set the MTU
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(sfd), uintptr(syscall.SIOCSIFMTU), uintptr(unsafe.Pointer(&ir))); errno != 0 {
 		err = errno
-		tun.core.log.Printf("Error in SIOCSIFMTU: %v", errno)
+		tun.core.log.Errorf("Error in SIOCSIFMTU: %v", errno)
 
 		// Fall back to ifconfig to set the MTU
 		cmd := exec.Command("ifconfig", tun.iface.Name(), "mtu", string(tun.mtu))
-		tun.core.log.Printf("Using ifconfig as fallback: %v", strings.Join(cmd.Args, " "))
+		tun.core.log.Warnf("Using ifconfig as fallback: %v", strings.Join(cmd.Args, " "))
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			tun.core.log.Printf("SIOCSIFMTU fallback failed: %v.", err)
-			tun.core.log.Println(string(output))
+			tun.core.log.Errorf("SIOCSIFMTU fallback failed: %v.", err)
+			tun.core.log.Traceln(string(output))
 		}
 	}
 
@@ -155,15 +155,15 @@ func (tun *tunAdapter) setupAddress(addr string) error {
 	// Set the interface address
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(sfd), uintptr(SIOCSIFADDR_IN6), uintptr(unsafe.Pointer(&ar))); errno != 0 {
 		err = errno
-		tun.core.log.Printf("Error in SIOCSIFADDR_IN6: %v", errno)
+		tun.core.log.Errorf("Error in SIOCSIFADDR_IN6: %v", errno)
 
 		// Fall back to ifconfig to set the address
 		cmd := exec.Command("ifconfig", tun.iface.Name(), "inet6", addr)
-		tun.core.log.Printf("Using ifconfig as fallback: %v", strings.Join(cmd.Args, " "))
+		tun.core.log.Warnf("Using ifconfig as fallback: %v", strings.Join(cmd.Args, " "))
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			tun.core.log.Printf("SIOCSIFADDR_IN6 fallback failed: %v.", err)
-			tun.core.log.Println(string(output))
+			tun.core.log.Errorf("SIOCSIFADDR_IN6 fallback failed: %v.", err)
+			tun.core.log.Traceln(string(output))
 		}
 	}
 

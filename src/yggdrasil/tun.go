@@ -53,7 +53,7 @@ func (tun *tunAdapter) init(core *Core, send chan<- []byte, recv <-chan []byte) 
 				tun.core.config.IfMTU != tun.core.configOld.IfMTU
 			tun.core.configMutex.RUnlock()
 			if updated {
-				tun.core.log.Println("Reconfiguring TUN/TAP is not supported yet")
+				tun.core.log.Warnln("Reconfiguring TUN/TAP is not supported yet")
 				e <- nil
 			} else {
 				e <- nil
@@ -82,8 +82,8 @@ func (tun *tunAdapter) start() error {
 	tun.mutex.Lock()
 	tun.isOpen = true
 	tun.mutex.Unlock()
-	go func() { tun.core.log.Println("WARNING: tun.read() exited with error:", tun.read()) }()
-	go func() { tun.core.log.Println("WARNING: tun.write() exited with error:", tun.write()) }()
+	go func() { tun.core.log.Errorln("WARNING: tun.read() exited with error:", tun.read()) }()
+	go func() { tun.core.log.Errorln("WARNING: tun.write() exited with error:", tun.write()) }()
 	if iftapmode {
 		go func() {
 			for {

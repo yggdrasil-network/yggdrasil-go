@@ -14,7 +14,6 @@ import _ "golang.org/x/net/ipv6" // TODO put this somewhere better
 
 import "fmt"
 import "net"
-import "log"
 import "regexp"
 import "encoding/hex"
 
@@ -22,6 +21,8 @@ import _ "net/http/pprof"
 import "net/http"
 import "runtime"
 import "os"
+
+import "github.com/gologme/log"
 
 import "github.com/yggdrasil-network/yggdrasil-go/src/address"
 import "github.com/yggdrasil-network/yggdrasil-go/src/config"

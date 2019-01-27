@@ -133,16 +133,16 @@ func (iface *tcpInterface) listen() error {
 // Runs the listener, which spawns off goroutines for incoming connections.
 func (iface *tcpInterface) listener() {
 	defer iface.serv.Close()
-	iface.core.log.Println("Listening for TCP on:", iface.serv.Addr().String())
+	iface.core.log.Infoln("Listening for TCP on:", iface.serv.Addr().String())
 	for {
 		sock, err := iface.serv.Accept()
 		if err != nil {
-			iface.core.log.Println("Failed to accept connection:", err)
+			iface.core.log.Errorln("Failed to accept connection:", err)
 			return
 		}
 		select {
 		case <-iface.stop:
-			iface.core.log.Println("Stopping listener")
+			iface.core.log.Errorln("Stopping listener")
 			return
 		default:
 			if err != nil {
@@ -290,7 +290,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 		iface.core.log.Println(err)
 		panic(err)
 	}
-	iface.core.log.Println("DEBUG: starting handler for", name)
+	iface.core.log.Debugln("DEBUG: starting handler for", name)
 	err = link.handler()
-	iface.core.log.Println("DEBUG: stopped handler for", name, err)
+	iface.core.log.Debugln("DEBUG: stopped handler for", name, err)
 }

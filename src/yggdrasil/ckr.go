@@ -48,7 +48,7 @@ func (c *cryptokey) init(core *Core) {
 	}()
 
 	if err := c.configure(); err != nil {
-		c.core.log.Println("CKR configuration failed:", err)
+		c.core.log.Errorln("CKR configuration failed:", err)
 	}
 }
 
@@ -192,7 +192,7 @@ func (c *cryptokey) addSourceSubnet(cidr string) error {
 
 	// Add the source subnet
 	*routingsources = append(*routingsources, *ipnet)
-	c.core.log.Println("Added CKR source subnet", cidr)
+	c.core.log.Infoln("Added CKR source subnet", cidr)
 	return nil
 }
 
@@ -264,7 +264,7 @@ func (c *cryptokey) addRoute(cidr string, dest string) error {
 			delete(*routingcache, k)
 		}
 
-		c.core.log.Println("Added CKR destination subnet", cidr)
+		c.core.log.Infoln("Added CKR destination subnet", cidr)
 		return nil
 	}
 }
@@ -358,7 +358,7 @@ func (c *cryptokey) removeSourceSubnet(cidr string) error {
 	for idx, subnet := range *routingsources {
 		if subnet.String() == ipnet.String() {
 			*routingsources = append((*routingsources)[:idx], (*routingsources)[idx+1:]...)
-			c.core.log.Println("Removed CKR source subnet", cidr)
+			c.core.log.Infoln("Removed CKR source subnet", cidr)
 			return nil
 		}
 	}
@@ -407,7 +407,7 @@ func (c *cryptokey) removeRoute(cidr string, dest string) error {
 			for k := range *routingcache {
 				delete(*routingcache, k)
 			}
-			c.core.log.Printf("Removed CKR destination subnet %s via %s\n", cidr, dest)
+			c.core.log.Infoln("Removed CKR destination subnet %s via %s\n", cidr, dest)
 			return nil
 		}
 	}
