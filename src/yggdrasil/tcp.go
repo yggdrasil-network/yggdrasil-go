@@ -139,16 +139,16 @@ func (iface *tcpInterface) listen() error {
 // Runs the listener, which spawns off goroutines for incoming connections.
 func (iface *tcpInterface) listener() {
 	defer iface.serv.Close()
-	iface.core.log.Println("Listening for TCP on:", iface.serv.Addr().String())
+	iface.core.log.Infoln("Listening for TCP on:", iface.serv.Addr().String())
 	for {
 		sock, err := iface.serv.Accept()
 		if err != nil {
-			iface.core.log.Println("Failed to accept connection:", err)
+			iface.core.log.Errorln("Failed to accept connection:", err)
 			return
 		}
 		select {
 		case <-iface.serv_stop:
-			iface.core.log.Println("Stopping listener")
+			iface.core.log.Errorln("Stopping listener")
 			return
 		default:
 			if err != nil {
@@ -313,9 +313,9 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 		base := version_getBaseMetadata()
 		if meta.meta == base.meta {
 			if meta.ver > base.ver {
-				iface.core.log.Println("Failed to connect to node:", sock.RemoteAddr().String(), "version:", meta.ver)
+				iface.core.log.Errorln("Failed to connect to node:", sock.RemoteAddr().String(), "version:", meta.ver)
 			} else if meta.ver == base.ver && meta.minorVer > base.minorVer {
-				iface.core.log.Println("Failed to connect to node:", sock.RemoteAddr().String(), "version:", fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
+				iface.core.log.Errorln("Failed to connect to node:", sock.RemoteAddr().String(), "version:", fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
 			}
 		}
 		// TODO? Block forever to prevent future connection attempts? suppress future messages about the same node?
@@ -444,12 +444,12 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	themAddr := address.AddrForNodeID(themNodeID)
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, them)
-	iface.core.log.Printf("Connected: %s, source: %s", themString, us)
+	iface.core.log.Infof("Connected: %s, source: %s", themString, us)
 	err = iface.reader(sock, in) // In this goroutine, because of defers
 	if err == nil {
-		iface.core.log.Printf("Disconnected: %s, source: %s", themString, us)
+		iface.core.log.Infof("Disconnected: %s, source: %s", themString, us)
 	} else {
-		iface.core.log.Printf("Disconnected: %s, source: %s, error: %s", themString, us, err)
+		iface.core.log.Infof("Disconnected: %s, source: %s, error: %s", themString, us, err)
 	}
 	return
 }

@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/signal"
 	"strings"
@@ -14,6 +13,7 @@ import (
 
 	"golang.org/x/text/encoding/unicode"
 
+	"github.com/gologme/log"
 	"github.com/hjson/hjson-go"
 	"github.com/kardianos/minwinsvc"
 	"github.com/mitchellh/mapstructure"
@@ -169,6 +169,7 @@ func main() {
 	confjson := flag.Bool("json", false, "print configuration from -genconf or -normaliseconf as JSON instead of HJSON")
 	autoconf := flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
 	version := flag.Bool("version", false, "prints the version of this build")
+	logging := flag.String("logging", "info,warn,error", "comma-separated list of logging levels to enable")
 	flag.Parse()
 
 	var cfg *nodeConfig
@@ -217,6 +218,20 @@ func main() {
 	}
 	// Create a new logger that logs output to stdout.
 	logger := log.New(os.Stdout, "", log.Flags())
+	//logger.EnableLevel("error")
+	//logger.EnableLevel("warn")
+	//logger.EnableLevel("info")
+	if levels := strings.Split(*logging, ","); len(levels) > 0 {
+		for _, level := range levels {
+			l := strings.TrimSpace(level)
+			switch l {
+			case "error", "warn", "info", "trace", "debug":
+				logger.EnableLevel(l)
+			default:
+				continue
+			}
+		}
+	}
 	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
 	// don't need to create this manually.
 	n := node{}
@@ -224,7 +239,7 @@ func main() {
 	// Yggdrasil. This will start the router, switch, DHT node, TCP and UDP
 	// sockets, TUN/TAP adapter and multicast discovery port.
 	if err := n.core.Start(cfg, logger); err != nil {
-		logger.Println("An error occurred during startup")
+		logger.Errorln("An error occurred during startup")
 		panic(err)
 	}
 	// The Stop function ensures that the TUN/TAP adapter is correctly shut down
@@ -236,8 +251,8 @@ func main() {
 	// This is just logged to stdout for the user.
 	address := n.core.GetAddress()
 	subnet := n.core.GetSubnet()
-	logger.Printf("Your IPv6 address is %s", address.String())
-	logger.Printf("Your IPv6 subnet is %s", subnet.String())
+	logger.Infof("Your IPv6 address is %s", address.String())
+	logger.Infof("Your IPv6 subnet is %s", subnet.String())
 	// Catch interrupts from the operating system to exit gracefully.
 	c := make(chan os.Signal, 1)
 	r := make(chan os.Signal, 1)
@@ -257,7 +272,7 @@ func main() {
 				cfg = readConfig(useconf, useconffile, normaliseconf)
 				n.core.UpdateConfig(cfg)
 			} else {
-				logger.Println("Reloading config at runtime is only possible with -useconffile")
+				logger.Errorln("Reloading config at runtime is only possible with -useconffile")
 			}
 		case _ = <-c:
 			goto exit

@@ -77,9 +77,7 @@ func (c *Core) StartJSON(configjson []byte) error {
 		return err
 	}
 	nc.IfName = "dummy"
-	//c.log.Println(nc.MulticastInterfaces)
 	for _, ll := range nc.MulticastInterfaces {
-		//c.log.Println("Processing MC", ll)
 		ifceExpr, err := regexp.Compile(ll)
 		if err != nil {
 			panic(err)
