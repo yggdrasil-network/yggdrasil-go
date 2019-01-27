@@ -51,7 +51,7 @@ func (l *link) init(c *Core) error {
 	l.mutex.Unlock()
 
 	if err := l.awdl.init(l); err != nil {
-		l.core.log.Println("Failed to start AWDL interface")
+		l.core.log.Errorln("Failed to start AWDL interface")
 		return err
 	}
 
@@ -98,7 +98,7 @@ func (intf *linkInterface) handler() error {
 	}
 	base := version_getBaseMetadata()
 	if meta.ver > base.ver || meta.ver == base.ver && meta.minorVer > base.minorVer {
-		intf.link.core.log.Println("Failed to connect to node: " + intf.name + " version: " + fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
+		intf.link.core.log.Errorln("Failed to connect to node: " + intf.name + " version: " + fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
 		return errors.New("failed to connect: wrong version")
 	}
 	// Check if we already have a link to this node
@@ -109,7 +109,7 @@ func (intf *linkInterface) handler() error {
 		intf.link.mutex.Unlock()
 		// FIXME we should really return an error and let the caller block instead
 		// That lets them do things like close connections on its own, avoid printing a connection message in the first place, etc.
-		intf.link.core.log.Println("DEBUG: found existing interface for", intf.name)
+		intf.link.core.log.Debugln("DEBUG: found existing interface for", intf.name)
 		intf.msgIO.close()
 		<-oldIntf.closed
 		return nil
@@ -122,7 +122,7 @@ func (intf *linkInterface) handler() error {
 			intf.link.mutex.Unlock()
 			close(intf.closed)
 		}()
-		intf.link.core.log.Println("DEBUG: registered interface for", intf.name)
+		intf.link.core.log.Debugln("DEBUG: registered interface for", intf.name)
 	}
 	intf.link.mutex.Unlock()
 	// Create peer
