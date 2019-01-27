@@ -398,7 +398,7 @@ func (a *admin) listen() {
 		switch strings.ToLower(u.Scheme) {
 		case "unix":
 			if _, err := os.Stat(a.listenaddr[7:]); err == nil {
-				a.core.log.Println("WARNING:", a.listenaddr[7:], "already exists and may be in use by another process")
+				a.core.log.Warnln("WARNING:", a.listenaddr[7:], "already exists and may be in use by another process")
 			}
 			a.listener, err = net.Listen("unix", a.listenaddr[7:])
 			if err == nil {
@@ -406,7 +406,7 @@ func (a *admin) listen() {
 				case "@": // maybe abstract namespace
 				default:
 					if err := os.Chmod(a.listenaddr[7:], 0660); err != nil {
-						a.core.log.Println("WARNING:", a.listenaddr[:7], "may have unsafe permissions!")
+						a.core.log.Warnln("WARNING:", a.listenaddr[:7], "may have unsafe permissions!")
 					}
 				}
 			}
@@ -420,10 +420,10 @@ func (a *admin) listen() {
 		a.listener, err = net.Listen("tcp", a.listenaddr)
 	}
 	if err != nil {
-		a.core.log.Printf("Admin socket failed to listen: %v", err)
+		a.core.log.Errorf("Admin socket failed to listen: %v", err)
 		os.Exit(1)
 	}
-	a.core.log.Printf("%s admin socket listening on %s",
+	a.core.log.Infof("%s admin socket listening on %s",
 		strings.ToUpper(a.listener.Addr().Network()),
 		a.listener.Addr().String())
 	defer a.listener.Close()
@@ -450,9 +450,9 @@ func (a *admin) handleRequest(conn net.Conn) {
 				"status": "error",
 				"error":  "Unrecoverable error, possibly as a result of invalid input types or malformed syntax",
 			}
-			fmt.Println("Admin socket error:", r)
+			a.core.log.Errorln("Admin socket error:", r)
 			if err := encoder.Encode(&send); err != nil {
-				fmt.Println("Admin socket JSON encode error:", err)
+				a.core.log.Errorln("Admin socket JSON encode error:", err)
 			}
 			conn.Close()
 		}

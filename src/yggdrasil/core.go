@@ -3,10 +3,11 @@ package yggdrasil
 import (
 	"encoding/hex"
 	"io/ioutil"
-	"log"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/gologme/log"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
@@ -178,13 +179,13 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	c.log = log
 
 	if name := GetBuildName(); name != "unknown" {
-		c.log.Println("Build name:", name)
+		c.log.Infoln("Build name:", name)
 	}
 	if version := GetBuildVersion(); version != "unknown" {
-		c.log.Println("Build version:", version)
+		c.log.Infoln("Build version:", version)
 	}
 
-	c.log.Println("Starting up...")
+	c.log.Infoln("Starting up...")
 
 	c.configMutex.Lock()
 	c.config = *nc
@@ -194,12 +195,12 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	c.init()
 
 	if err := c.tcp.init(c); err != nil {
-		c.log.Println("Failed to start TCP interface")
+		c.log.Errorln("Failed to start TCP interface")
 		return err
 	}
 
 	if err := c.awdl.init(c); err != nil {
-		c.log.Println("Failed to start AWDL interface")
+		c.log.Errorln("Failed to start AWDL interface")
 		return err
 	}
 
@@ -208,39 +209,39 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	}
 
 	if err := c.switchTable.start(); err != nil {
-		c.log.Println("Failed to start switch")
+		c.log.Errorln("Failed to start switch")
 		return err
 	}
 
 	if err := c.router.start(); err != nil {
-		c.log.Println("Failed to start router")
+		c.log.Errorln("Failed to start router")
 		return err
 	}
 
 	if err := c.admin.start(); err != nil {
-		c.log.Println("Failed to start admin socket")
+		c.log.Errorln("Failed to start admin socket")
 		return err
 	}
 
 	if err := c.multicast.start(); err != nil {
-		c.log.Println("Failed to start multicast interface")
+		c.log.Errorln("Failed to start multicast interface")
 		return err
 	}
 
 	if err := c.router.tun.start(); err != nil {
-		c.log.Println("Failed to start TUN/TAP")
+		c.log.Errorln("Failed to start TUN/TAP")
 		return err
 	}
 
 	go c.addPeerLoop()
 
-	c.log.Println("Startup complete")
+	c.log.Infoln("Startup complete")
 	return nil
 }
 
 // Stops the Yggdrasil node.
 func (c *Core) Stop() {
-	c.log.Println("Stopping...")
+	c.log.Infoln("Stopping...")
 	c.router.tun.close()
 	c.admin.close()
 }

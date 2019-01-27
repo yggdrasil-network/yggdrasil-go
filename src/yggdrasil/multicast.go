@@ -35,15 +35,15 @@ func (m *multicast) init(core *Core) {
 	m.groupAddr = "[ff02::114]:9001"
 	// Check if we've been given any expressions
 	if count := len(m.interfaces()); count != 0 {
-		m.core.log.Println("Found", count, "multicast interface(s)")
+		m.core.log.Infoln("Found", count, "multicast interface(s)")
 	}
 }
 
 func (m *multicast) start() error {
 	if len(m.interfaces()) == 0 {
-		m.core.log.Println("Multicast discovery is disabled")
+		m.core.log.Infoln("Multicast discovery is disabled")
 	} else {
-		m.core.log.Println("Multicast discovery is enabled")
+		m.core.log.Infoln("Multicast discovery is enabled")
 		addr, err := net.ResolveUDPAddr("udp", m.groupAddr)
 		if err != nil {
 			return err

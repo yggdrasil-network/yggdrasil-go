@@ -15,7 +15,7 @@ import (
 // delegate the hard work to "netsh".
 func (tun *tunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	if !iftapmode {
-		tun.core.log.Printf("TUN mode is not supported on this platform, defaulting to TAP")
+		tun.core.log.Warnln("TUN mode is not supported on this platform, defaulting to TAP")
 	}
 	config := water.Config{DeviceType: water.TAP}
 	config.PlatformSpecificParams.ComponentID = "tap0901"
@@ -34,16 +34,16 @@ func (tun *tunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 	tun.core.log.Printf("netsh command: %v", strings.Join(cmd.Args, " "))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		tun.core.log.Printf("Windows netsh failed: %v.", err)
-		tun.core.log.Println(string(output))
+		tun.core.log.Errorf("Windows netsh failed: %v.", err)
+		tun.core.log.Traceln(string(output))
 		return err
 	}
 	cmd = exec.Command("netsh", "interface", "set", "interface", iface.Name(), "admin=ENABLED")
 	tun.core.log.Printf("netsh command: %v", strings.Join(cmd.Args, " "))
 	output, err = cmd.CombinedOutput()
 	if err != nil {
-		tun.core.log.Printf("Windows netsh failed: %v.", err)
-		tun.core.log.Println(string(output))
+		tun.core.log.Errorf("Windows netsh failed: %v.", err)
+		tun.core.log.Traceln(string(output))
 		return err
 	}
 	// Get a new iface
@@ -58,9 +58,9 @@ func (tun *tunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 		panic(err)
 	}
 	// Friendly output
-	tun.core.log.Printf("Interface name: %s", tun.iface.Name())
-	tun.core.log.Printf("Interface IPv6: %s", addr)
-	tun.core.log.Printf("Interface MTU: %d", tun.mtu)
+	tun.core.log.Infof("Interface name: %s", tun.iface.Name())
+	tun.core.log.Infof("Interface IPv6: %s", addr)
+	tun.core.log.Infof("Interface MTU: %d", tun.mtu)
 	return tun.setupAddress(addr)
 }
 
@@ -71,11 +71,11 @@ func (tun *tunAdapter) setupMTU(mtu int) error {
 		fmt.Sprintf("interface=%s", tun.iface.Name()),
 		fmt.Sprintf("mtu=%d", mtu),
 		"store=active")
-	tun.core.log.Printf("netsh command: %v", strings.Join(cmd.Args, " "))
+	tun.core.log.Debugln("netsh command: %v", strings.Join(cmd.Args, " "))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		tun.core.log.Printf("Windows netsh failed: %v.", err)
-		tun.core.log.Println(string(output))
+		tun.core.log.Errorf("Windows netsh failed: %v.", err)
+		tun.core.log.Traceln(string(output))
 		return err
 	}
 	return nil
@@ -88,11 +88,11 @@ func (tun *tunAdapter) setupAddress(addr string) error {
 		fmt.Sprintf("interface=%s", tun.iface.Name()),
 		fmt.Sprintf("addr=%s", addr),
 		"store=active")
-	tun.core.log.Printf("netsh command: %v", strings.Join(cmd.Args, " "))
+	tun.core.log.Debugln("netsh command: %v", strings.Join(cmd.Args, " "))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		tun.core.log.Printf("Windows netsh failed: %v.", err)
-		tun.core.log.Println(string(output))
+		tun.core.log.Errorf("Windows netsh failed: %v.", err)
+		tun.core.log.Traceln(string(output))
 		return err
 	}
 	return nil

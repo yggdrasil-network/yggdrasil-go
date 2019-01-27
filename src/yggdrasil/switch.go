@@ -563,7 +563,7 @@ func (t *switchTable) getTable() lookupTable {
 
 // Starts the switch worker
 func (t *switchTable) start() error {
-	t.core.log.Println("Starting switch")
+	t.core.log.Infoln("Starting switch")
 	go t.doWorker()
 	return nil
 }

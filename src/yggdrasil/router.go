@@ -96,7 +96,7 @@ func (r *router) init(core *Core) {
 
 // Starts the mainLoop goroutine.
 func (r *router) start() error {
-	r.core.log.Println("Starting router")
+	r.core.log.Infoln("Starting router")
 	go r.mainLoop()
 	return nil
 }

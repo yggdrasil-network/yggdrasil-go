@@ -50,24 +50,24 @@ func (l *awdl) create(fromAWDL chan []byte, toAWDL chan []byte /*boxPubKey *cryp
 	meta.sig = l.core.sigPub
 	meta.link = *myLinkPub
 	metaBytes := meta.encode()
-	l.core.log.Println("toAWDL <- metaBytes")
+	l.core.log.Traceln("toAWDL <- metaBytes")
 	toAWDL <- metaBytes
-	l.core.log.Println("metaBytes = <-fromAWDL")
+	l.core.log.Traceln("metaBytes = <-fromAWDL")
 	metaBytes = <-fromAWDL
-	l.core.log.Println("version_metadata{}")
+	l.core.log.Traceln("version_metadata{}")
 	meta = version_metadata{}
 	if !meta.decode(metaBytes) || !meta.check() {
 		return nil, errors.New("Metadata decode failure")
 	}
-	l.core.log.Println("version_getBaseMetadata{}")
+	l.core.log.Traceln("version_getBaseMetadata{}")
 	base := version_getBaseMetadata()
 	if meta.ver > base.ver || meta.ver == base.ver && meta.minorVer > base.minorVer {
 		return nil, errors.New("Failed to connect to node: " + name + " version: " + fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
 	}
-	l.core.log.Println("crypto.GetSharedKey")
+	l.core.log.Traceln("crypto.GetSharedKey")
 	shared := crypto.GetSharedKey(myLinkPriv, &meta.link)
 	//shared := crypto.GetSharedKey(&l.core.boxPriv, boxPubKey)
-	l.core.log.Println("l.core.peers.newPeer")
+	l.core.log.Traceln("l.core.peers.newPeer")
 	intf.peer = l.core.peers.newPeer(&meta.box, &meta.sig, shared, name)
 	if intf.peer != nil {
 		intf.peer.linkOut = make(chan []byte, 1) // protocol traffic
