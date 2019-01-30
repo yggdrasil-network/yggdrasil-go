@@ -37,19 +37,21 @@ import (
 // The router struct has channels to/from the tun/tap device and a self peer (0), which is how messages are passed between this node and the peers/switch layer.
 // The router's mainLoop goroutine is responsible for managing all information related to the dht, searches, and crypto sessions.
 type router struct {
-	core      *Core
-	addr      address.Address
-	subnet    address.Subnet
-	in        <-chan []byte          // packets we received from the network, link to peer's "out"
-	out       func([]byte)           // packets we're sending to the network, link to peer's "in"
-	toRecv    chan router_recvPacket // packets to handle via recvPacket()
-	tun       tunAdapter             // TUN/TAP adapter
-	adapters  []Adapter              // Other adapters
-	recv      chan<- []byte          // place where the tun pulls received packets from
-	send      <-chan []byte          // place where the tun puts outgoing packets
-	reset     chan struct{}          // signal that coords changed (re-init sessions/dht)
-	admin     chan func()            // pass a lambda for the admin socket to query stuff
-	cryptokey cryptokey
+	core        *Core
+	reconfigure chan chan error
+	addr        address.Address
+	subnet      address.Subnet
+	in          <-chan []byte          // packets we received from the network, link to peer's "out"
+	out         func([]byte)           // packets we're sending to the network, link to peer's "in"
+	toRecv      chan router_recvPacket // packets to handle via recvPacket()
+	tun         tunAdapter             // TUN/TAP adapter
+	adapters    []Adapter              // Other adapters
+	recv        chan<- []byte          // place where the tun pulls received packets from
+	send        <-chan []byte          // place where the tun puts outgoing packets
+	reset       chan struct{}          // signal that coords changed (re-init sessions/dht)
+	admin       chan func()            // pass a lambda for the admin socket to query stuff
+	cryptokey   cryptokey
+	nodeinfo    nodeinfo
 }
 
 // Packet and session info, used to check that the packet matches a valid IP range or CKR prefix before sending to the tun.
@@ -61,6 +63,7 @@ type router_recvPacket struct {
 // Initializes the router struct, which includes setting up channels to/from the tun/tap.
 func (r *router) init(core *Core) {
 	r.core = core
+	r.reconfigure = make(chan chan error, 1)
 	r.addr = *address.AddrForNodeID(&r.core.dht.nodeID)
 	r.subnet = *address.SubnetForNodeID(&r.core.dht.nodeID)
 	in := make(chan []byte, 32) // TODO something better than this...
@@ -83,13 +86,17 @@ func (r *router) init(core *Core) {
 	r.send = send
 	r.reset = make(chan struct{}, 1)
 	r.admin = make(chan func(), 32)
+	r.nodeinfo.init(r.core)
+	r.core.configMutex.RLock()
+	r.nodeinfo.setNodeInfo(r.core.config.NodeInfo, r.core.config.NodeInfoPrivacy)
+	r.core.configMutex.RUnlock()
 	r.cryptokey.init(r.core)
 	r.tun.init(r.core, send, recv)
 }
 
 // Starts the mainLoop goroutine.
 func (r *router) start() error {
-	r.core.log.Println("Starting router")
+	r.core.log.Infoln("Starting router")
 	go r.mainLoop()
 	return nil
 }
@@ -124,6 +131,10 @@ func (r *router) mainLoop() {
 			}
 		case f := <-r.admin:
 			f()
+		case e := <-r.reconfigure:
+			r.core.configMutex.RLock()
+			e <- r.nodeinfo.setNodeInfo(r.core.config.NodeInfo, r.core.config.NodeInfoPrivacy)
+			r.core.configMutex.RUnlock()
 		}
 	}
 }
@@ -463,7 +474,7 @@ func (r *router) handleNodeInfo(bs []byte, fromKey *crypto.BoxPubKey) {
 		return
 	}
 	req.SendPermPub = *fromKey
-	r.core.nodeinfo.handleNodeInfo(&req)
+	r.nodeinfo.handleNodeInfo(&req)
 }
 
 // Passed a function to call.

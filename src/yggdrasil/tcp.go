@@ -39,8 +39,11 @@ const tcp_ping_interval = (default_tcp_timeout * 2 / 3)
 // The TCP listener and information about active TCP connections, to avoid duplication.
 type tcpInterface struct {
 	core        *Core
+	reconfigure chan chan error
 	serv        net.Listener
+	serv_stop   chan bool
 	tcp_timeout time.Duration
+	tcp_addr    string
 	mutex       sync.Mutex // Protecting the below
 	calls       map[string]struct{}
 	conns       map[tcpInfo](chan struct{})
@@ -81,10 +84,37 @@ func (iface *tcpInterface) connectSOCKS(socksaddr, peeraddr string) {
 }
 
 // Initializes the struct.
-func (iface *tcpInterface) init(core *Core, addr string, readTimeout int32) (err error) {
+func (iface *tcpInterface) init(core *Core) (err error) {
 	iface.core = core
+	iface.serv_stop = make(chan bool, 1)
+	iface.reconfigure = make(chan chan error, 1)
+	go func() {
+		for {
+			e := <-iface.reconfigure
+			iface.core.configMutex.RLock()
+			updated := iface.core.config.Listen != iface.core.configOld.Listen
+			iface.core.configMutex.RUnlock()
+			if updated {
+				iface.serv_stop <- true
+				iface.serv.Close()
+				e <- iface.listen()
+			} else {
+				e <- nil
+			}
+		}
+	}()
 
-	iface.tcp_timeout = time.Duration(readTimeout) * time.Millisecond
+	return iface.listen()
+}
+
+func (iface *tcpInterface) listen() error {
+	var err error
+
+	iface.core.configMutex.RLock()
+	iface.tcp_addr = iface.core.config.Listen
+	iface.tcp_timeout = time.Duration(iface.core.config.ReadTimeout) * time.Millisecond
+	iface.core.configMutex.RUnlock()
+
 	if iface.tcp_timeout >= 0 && iface.tcp_timeout < default_tcp_timeout {
 		iface.tcp_timeout = default_tcp_timeout
 	}
@@ -93,11 +123,14 @@ func (iface *tcpInterface) init(core *Core, addr string, readTimeout int32) (err
 	lc := net.ListenConfig{
 		Control: iface.tcpContext,
 	}
-	iface.serv, err = lc.Listen(ctx, "tcp", addr)
+	iface.serv, err = lc.Listen(ctx, "tcp", iface.tcp_addr)
 	if err == nil {
+		iface.mutex.Lock()
 		iface.calls = make(map[string]struct{})
 		iface.conns = make(map[tcpInfo](chan struct{}))
+		iface.mutex.Unlock()
 		go iface.listener()
+		return nil
 	}
 
 	return err
@@ -106,14 +139,40 @@ func (iface *tcpInterface) init(core *Core, addr string, readTimeout int32) (err
 // Runs the listener, which spawns off goroutines for incoming connections.
 func (iface *tcpInterface) listener() {
 	defer iface.serv.Close()
-	iface.core.log.Println("Listening for TCP on:", iface.serv.Addr().String())
+	iface.core.log.Infoln("Listening for TCP on:", iface.serv.Addr().String())
 	for {
 		sock, err := iface.serv.Accept()
 		if err != nil {
-			panic(err)
+			iface.core.log.Errorln("Failed to accept connection:", err)
+			return
 		}
-		go iface.handler(sock, true)
+		select {
+		case <-iface.serv_stop:
+			iface.core.log.Errorln("Stopping listener")
+			return
+		default:
+			if err != nil {
+				panic(err)
+			}
+			go iface.handler(sock, true)
+		}
 	}
+}
+
+// Checks if we already have a connection to this node
+func (iface *tcpInterface) isAlreadyConnected(info tcpInfo) bool {
+	iface.mutex.Lock()
+	defer iface.mutex.Unlock()
+	_, isIn := iface.conns[info]
+	return isIn
+}
+
+// Checks if we already are calling this address
+func (iface *tcpInterface) isAlreadyCalling(saddr string) bool {
+	iface.mutex.Lock()
+	defer iface.mutex.Unlock()
+	_, isIn := iface.calls[saddr]
+	return isIn
 }
 
 // Checks if a connection already exists.
@@ -127,25 +186,20 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 		if sintf != "" {
 			callname = fmt.Sprintf("%s/%s", saddr, sintf)
 		}
-		quit := false
-		iface.mutex.Lock()
-		if _, isIn := iface.calls[callname]; isIn {
-			quit = true
-		} else {
-			iface.calls[callname] = struct{}{}
-			defer func() {
-				// Block new calls for a little while, to mitigate livelock scenarios
-				time.Sleep(default_tcp_timeout)
-				time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
-				iface.mutex.Lock()
-				delete(iface.calls, callname)
-				iface.mutex.Unlock()
-			}()
-		}
-		iface.mutex.Unlock()
-		if quit {
+		if iface.isAlreadyCalling(saddr) {
 			return
 		}
+		iface.mutex.Lock()
+		iface.calls[callname] = struct{}{}
+		iface.mutex.Unlock()
+		defer func() {
+			// Block new calls for a little while, to mitigate livelock scenarios
+			time.Sleep(default_tcp_timeout)
+			time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
+			iface.mutex.Lock()
+			delete(iface.calls, callname)
+			iface.mutex.Unlock()
+		}()
 		var conn net.Conn
 		var err error
 		if socksaddr != nil {
@@ -176,35 +230,50 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 				ief, err := net.InterfaceByName(sintf)
 				if err != nil {
 					return
-				} else {
-					if ief.Flags&net.FlagUp == 0 {
+				}
+				if ief.Flags&net.FlagUp == 0 {
+					return
+				}
+				addrs, err := ief.Addrs()
+				if err == nil {
+					dst, err := net.ResolveTCPAddr("tcp", saddr)
+					if err != nil {
 						return
 					}
-					addrs, err := ief.Addrs()
-					if err == nil {
-						dst, err := net.ResolveTCPAddr("tcp", saddr)
+					for addrindex, addr := range addrs {
+						src, _, err := net.ParseCIDR(addr.String())
 						if err != nil {
-							return
+							continue
 						}
-						for _, addr := range addrs {
-							src, _, err := net.ParseCIDR(addr.String())
-							if err != nil {
-								continue
+						if src.Equal(dst.IP) {
+							continue
+						}
+						if !src.IsGlobalUnicast() && !src.IsLinkLocalUnicast() {
+							continue
+						}
+						bothglobal := src.IsGlobalUnicast() == dst.IP.IsGlobalUnicast()
+						bothlinklocal := src.IsLinkLocalUnicast() == dst.IP.IsLinkLocalUnicast()
+						if !bothglobal && !bothlinklocal {
+							continue
+						}
+						if (src.To4() != nil) != (dst.IP.To4() != nil) {
+							continue
+						}
+						if bothglobal || bothlinklocal || addrindex == len(addrs)-1 {
+							dialer.LocalAddr = &net.TCPAddr{
+								IP:   src,
+								Port: 0,
+								Zone: sintf,
 							}
-							if (src.To4() != nil) == (dst.IP.To4() != nil) && src.IsGlobalUnicast() {
-								dialer.LocalAddr = &net.TCPAddr{
-									IP:   src,
-									Port: 0,
-								}
-								break
-							}
+							break
 						}
-						if dialer.LocalAddr == nil {
-							return
-						}
+					}
+					if dialer.LocalAddr == nil {
+						return
 					}
 				}
 			}
+
 			conn, err = dialer.Dial("tcp", saddr)
 			if err != nil {
 				return
@@ -244,17 +313,27 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 		base := version_getBaseMetadata()
 		if meta.meta == base.meta {
 			if meta.ver > base.ver {
-				iface.core.log.Println("Failed to connect to node:", sock.RemoteAddr().String(), "version:", meta.ver)
+				iface.core.log.Errorln("Failed to connect to node:", sock.RemoteAddr().String(), "version:", meta.ver)
 			} else if meta.ver == base.ver && meta.minorVer > base.minorVer {
-				iface.core.log.Println("Failed to connect to node:", sock.RemoteAddr().String(), "version:", fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
+				iface.core.log.Errorln("Failed to connect to node:", sock.RemoteAddr().String(), "version:", fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
 			}
 		}
 		// TODO? Block forever to prevent future connection attempts? suppress future messages about the same node?
 		return
 	}
+	remoteAddr, _, e1 := net.SplitHostPort(sock.RemoteAddr().String())
+	localAddr, _, e2 := net.SplitHostPort(sock.LocalAddr().String())
+	if e1 != nil || e2 != nil {
+		return
+	}
 	info := tcpInfo{ // used as a map key, so don't include ephemeral link key
-		box: meta.box,
-		sig: meta.sig,
+		box:        meta.box,
+		sig:        meta.sig,
+		localAddr:  localAddr,
+		remoteAddr: remoteAddr,
+	}
+	if iface.isAlreadyConnected(info) {
+		return
 	}
 	// Quit the parent call if this is a connection to ourself
 	equiv := func(k1, k2 []byte) bool {
@@ -265,14 +344,14 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 		}
 		return true
 	}
-	if equiv(info.box[:], iface.core.boxPub[:]) {
+	if equiv(meta.box[:], iface.core.boxPub[:]) {
 		return
 	}
-	if equiv(info.sig[:], iface.core.sigPub[:]) {
+	if equiv(meta.sig[:], iface.core.sigPub[:]) {
 		return
 	}
 	// Check if we're authorized to connect to this key / IP
-	if incoming && !iface.core.peers.isAllowedEncryptionPublicKey(&info.box) {
+	if incoming && !iface.core.peers.isAllowedEncryptionPublicKey(&meta.box) {
 		// Allow unauthorized peers if they're link-local
 		raddrStr, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
 		raddr := net.ParseIP(raddrStr)
@@ -281,15 +360,13 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 		}
 	}
 	// Check if we already have a connection to this node, close and block if yes
-	info.localAddr, _, _ = net.SplitHostPort(sock.LocalAddr().String())
-	info.remoteAddr, _, _ = net.SplitHostPort(sock.RemoteAddr().String())
 	iface.mutex.Lock()
-	if blockChan, isIn := iface.conns[info]; isIn {
+	/*if blockChan, isIn := iface.conns[info]; isIn {
 		iface.mutex.Unlock()
 		sock.Close()
 		<-blockChan
 		return
-	}
+	}*/
 	blockChan := make(chan struct{})
 	iface.conns[info] = blockChan
 	iface.mutex.Unlock()
@@ -301,7 +378,7 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	}()
 	// Note that multiple connections to the same node are allowed
 	//  E.g. over different interfaces
-	p := iface.core.peers.newPeer(&info.box, &info.sig, crypto.GetSharedKey(myLinkPriv, &meta.link), sock.RemoteAddr().String())
+	p := iface.core.peers.newPeer(&meta.box, &meta.sig, crypto.GetSharedKey(myLinkPriv, &meta.link), sock.RemoteAddr().String())
 	p.linkOut = make(chan []byte, 1)
 	in := func(bs []byte) {
 		p.handlePacket(bs)
@@ -363,16 +440,16 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	}()
 	us, _, _ := net.SplitHostPort(sock.LocalAddr().String())
 	them, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
-	themNodeID := crypto.GetNodeID(&info.box)
+	themNodeID := crypto.GetNodeID(&meta.box)
 	themAddr := address.AddrForNodeID(themNodeID)
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, them)
-	iface.core.log.Println("Connected:", themString, "source", us)
+	iface.core.log.Infof("Connected: %s, source: %s", themString, us)
 	err = iface.reader(sock, in) // In this goroutine, because of defers
 	if err == nil {
-		iface.core.log.Println("Disconnected:", themString, "source", us)
+		iface.core.log.Infof("Disconnected: %s, source: %s", themString, us)
 	} else {
-		iface.core.log.Println("Disconnected:", themString, "source", us, "with error:", err)
+		iface.core.log.Infof("Disconnected: %s, source: %s, error: %s", themString, us, err)
 	}
 	return
 }

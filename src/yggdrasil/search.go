@@ -30,7 +30,7 @@ const search_MAX_SEARCH_SIZE = 16
 const search_RETRY_TIME = time.Second
 
 // Information about an ongoing search.
-// Includes the targed NodeID, the bitmask to match it to an IP, and the list of nodes to visit / already visited.
+// Includes the target NodeID, the bitmask to match it to an IP, and the list of nodes to visit / already visited.
 type searchInfo struct {
 	dest    crypto.NodeID
 	mask    crypto.NodeID
@@ -42,13 +42,21 @@ type searchInfo struct {
 
 // This stores a map of active searches.
 type searches struct {
-	core     *Core
-	searches map[crypto.NodeID]*searchInfo
+	core        *Core
+	reconfigure chan chan error
+	searches    map[crypto.NodeID]*searchInfo
 }
 
 // Intializes the searches struct.
 func (s *searches) init(core *Core) {
 	s.core = core
+	s.reconfigure = make(chan chan error, 1)
+	go func() {
+		for {
+			e := <-s.reconfigure
+			e <- nil
+		}
+	}()
 	s.searches = make(map[crypto.NodeID]*searchInfo)
 }
 
