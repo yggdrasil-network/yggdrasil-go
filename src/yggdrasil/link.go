@@ -3,10 +3,13 @@ package yggdrasil
 import (
 	"errors"
 	"fmt"
+	"net"
+	"strings"
 	"sync"
 	//"sync/atomic"
 	"time"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
@@ -143,7 +146,22 @@ func (intf *linkInterface) handler() error {
 		out <- msg
 	}
 	intf.peer.linkOut = make(chan []byte, 1)
-	intf.peer.close = func() { intf.msgIO.close() }
+	intf.peer.close = func() {
+		intf.msgIO.close()
+		// Make output
+		themAddr := address.AddrForNodeID(crypto.GetNodeID(&intf.info.box))
+		themAddrString := net.IP(themAddr[:]).String()
+		themString := fmt.Sprintf("%s@%s", themAddrString, intf.info.remote)
+		intf.link.core.log.Infof("Disconnected %s: %s, source %s",
+			strings.ToUpper(intf.info.linkType), themString, intf.info.local)
+	}
+	// Make output
+	themAddr := address.AddrForNodeID(crypto.GetNodeID(&intf.info.box))
+	themAddrString := net.IP(themAddr[:]).String()
+	themString := fmt.Sprintf("%s@%s", themAddrString, intf.info.remote)
+	intf.link.core.log.Infof("Connected %s: %s, source %s",
+		strings.ToUpper(intf.info.linkType), themString, intf.info.local)
+	// Start the link loop
 	go intf.peer.linkLoop()
 	// Start the writer
 	signalReady := make(chan struct{}, 1)
