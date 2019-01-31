@@ -107,15 +107,10 @@ func (intf *linkInterface) handler() error {
 	}
 	// Check if we're authorized to connect to this key / IP
 	if !intf.link.core.peers.isAllowedEncryptionPublicKey(&meta.box) {
-		// Allow unauthorized peers if they're link-local
-		raddrStr, _, _ := net.SplitHostPort(intf.info.remote)
-		raddr := net.ParseIP(raddrStr)
-		if !raddr.IsLinkLocalUnicast() {
-			intf.link.core.log.Debugf("%s connection to %s forbidden: AllowedEncryptionPublicKey does not contain key %s",
-				strings.ToUpper(intf.info.linkType), intf.info.remote, hex.EncodeToString(meta.box[:]))
-			intf.msgIO.close()
-			return nil
-		}
+		intf.link.core.log.Debugf("%s connection to %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
+			strings.ToUpper(intf.info.linkType), intf.info.remote, hex.EncodeToString(meta.box[:]))
+		intf.msgIO.close()
+		return nil
 	}
 	// Check if we already have a link to this node
 	intf.info.box = meta.box
