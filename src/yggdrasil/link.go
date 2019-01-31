@@ -146,7 +146,9 @@ func (intf *linkInterface) handler() error {
 	intf.peer.close = func() { intf.msgIO.close() }
 	go intf.peer.linkLoop()
 	// Start the writer
+	signalReady := make(chan struct{}, 1)
 	go func() {
+		defer close(signalReady)
 		interval := 4 * time.Second
 		timer := time.NewTimer(interval)
 		clearTimer := func() {
@@ -181,15 +183,63 @@ func (intf *linkInterface) handler() error {
 				}
 				intf.msgIO.writeMsg(msg)
 				util.PutBytes(msg)
-				if true {
-					// TODO *don't* do this if we're not reading any traffic
-					// In such a case, the reader is responsible for resetting it the next time we read something
-					intf.link.core.switchTable.idleIn <- intf.peer.port
+				select {
+				case signalReady <- struct{}{}:
+				default:
 				}
 			}
 		}
 	}()
-	intf.link.core.switchTable.idleIn <- intf.peer.port // notify switch that we're idle
+	//intf.link.core.switchTable.idleIn <- intf.peer.port // notify switch that we're idle
+	// Used to enable/disable activity in the switch
+	signalAlive := make(chan struct{}, 1)
+	defer close(signalAlive)
+	go func() {
+		var isAlive bool
+		var isReady bool
+		interval := 6 * time.Second // TODO set to ReadTimeout from the config, reset if it gets changed
+		timer := time.NewTimer(interval)
+		clearTimer := func() {
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
+		}
+		defer clearTimer()
+		for {
+			clearTimer()
+			timer.Reset(interval)
+			select {
+			case _, ok := <-signalAlive:
+				if !ok {
+					return
+				}
+				if !isAlive {
+					isAlive = true
+					if !isReady {
+						// (Re-)enable in the switch
+						isReady = true
+						intf.link.core.switchTable.idleIn <- intf.peer.port
+					}
+				}
+			case _, ok := <-signalReady:
+				if !ok {
+					return
+				}
+				if !isAlive || !isReady {
+					// Disable in the switch
+					isReady = false
+				} else {
+					// Keep enabled in the switch
+					intf.link.core.switchTable.idleIn <- intf.peer.port
+				}
+			case <-timer.C:
+				isAlive = false
+			}
+		}
+	}()
 	// Run reader loop
 	for {
 		msg, err := intf.msgIO.readMsg()
@@ -198,6 +248,10 @@ func (intf *linkInterface) handler() error {
 		}
 		if err != nil {
 			return err
+		}
+		select {
+		case signalAlive <- struct{}{}:
+		default:
 		}
 	}
 	////////////////////////////////////////////////////////////////////////////////
