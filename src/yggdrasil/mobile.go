@@ -5,9 +5,10 @@ package yggdrasil
 import (
 	"encoding/hex"
 	"encoding/json"
-	"log"
 	"os"
 	"time"
+
+	"github.com/gologme/log"
 
 	hjson "github.com/hjson/hjson-go"
 	"github.com/mitchellh/mapstructure"

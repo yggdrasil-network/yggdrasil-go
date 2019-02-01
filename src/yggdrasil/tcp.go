@@ -284,8 +284,9 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	stream.init(sock)
 	local, _, _ := net.SplitHostPort(sock.LocalAddr().String())
 	remote, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
+	remotelinklocal := net.ParseIP(remote).IsLinkLocalUnicast()
 	name := "tcp://" + sock.RemoteAddr().String()
-	link, err := iface.core.link.create(&stream, name, "tcp", local, remote)
+	link, err := iface.core.link.create(&stream, name, "tcp", local, remote, incoming, remotelinklocal)
 	if err != nil {
 		iface.core.log.Println(err)
 		panic(err)
