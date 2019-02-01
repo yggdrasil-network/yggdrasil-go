@@ -40,12 +40,14 @@ type linkInterfaceMsgIO interface {
 }
 
 type linkInterface struct {
-	name   string
-	link   *link
-	peer   *peer
-	msgIO  linkInterfaceMsgIO
-	info   linkInfo
-	closed chan struct{}
+	name     string
+	link     *link
+	peer     *peer
+	msgIO    linkInterfaceMsgIO
+	info     linkInfo
+	incoming bool
+	force    bool
+	closed   chan struct{}
 }
 
 func (l *link) init(c *Core) error {
@@ -62,7 +64,7 @@ func (l *link) init(c *Core) error {
 	return nil
 }
 
-func (l *link) create(msgIO linkInterfaceMsgIO, name, linkType, local, remote string) (*linkInterface, error) {
+func (l *link) create(msgIO linkInterfaceMsgIO, name, linkType, local, remote string, incoming, force bool) (*linkInterface, error) {
 	// Technically anything unique would work for names, but lets pick something human readable, just for debugging
 	intf := linkInterface{
 		name:  name,
@@ -73,6 +75,8 @@ func (l *link) create(msgIO linkInterfaceMsgIO, name, linkType, local, remote st
 			local:    local,
 			remote:   remote,
 		},
+		incoming: incoming,
+		force:    force,
 	}
 	//l.interfaces[intf.name] = &intf
 	//go intf.start()
@@ -106,7 +110,7 @@ func (intf *linkInterface) handler() error {
 		return errors.New("failed to connect: wrong version")
 	}
 	// Check if we're authorized to connect to this key / IP
-	if !intf.link.core.peers.isAllowedEncryptionPublicKey(&meta.box) {
+	if !intf.force && !intf.link.core.peers.isAllowedEncryptionPublicKey(&meta.box) {
 		intf.link.core.log.Debugf("%s connection to %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
 			strings.ToUpper(intf.info.linkType), intf.info.remote, hex.EncodeToString(meta.box[:]))
 		intf.msgIO.close()
@@ -154,19 +158,14 @@ func (intf *linkInterface) handler() error {
 		out <- msg
 	}
 	intf.peer.linkOut = make(chan []byte, 1)
-	intf.peer.close = func() {
-		intf.msgIO.close()
-		// Make output
-		themAddr := address.AddrForNodeID(crypto.GetNodeID(&intf.info.box))
-		themAddrString := net.IP(themAddr[:]).String()
-		themString := fmt.Sprintf("%s@%s", themAddrString, intf.info.remote)
-		intf.link.core.log.Infof("Disconnected %s: %s, source %s",
-			strings.ToUpper(intf.info.linkType), themString, intf.info.local)
-	}
-	// Make output
 	themAddr := address.AddrForNodeID(crypto.GetNodeID(&intf.info.box))
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, intf.info.remote)
+	intf.peer.close = func() {
+		intf.msgIO.close()
+		intf.link.core.log.Infof("Disconnected %s: %s, source %s",
+			strings.ToUpper(intf.info.linkType), themString, intf.info.local)
+	}
 	intf.link.core.log.Infof("Connected %s: %s, source %s",
 		strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 	// Start the link loop

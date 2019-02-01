@@ -54,14 +54,14 @@ func (a *awdl) init(l *link) error {
 	return nil
 }
 
-func (a *awdl) create(name, local, remote string) (*awdlInterface, error) {
+func (a *awdl) create(name, local, remote string, incoming bool) (*awdlInterface, error) {
 	rwc := awdlReadWriteCloser{
 		fromAWDL: make(chan []byte, 1),
 		toAWDL:   make(chan []byte, 1),
 	}
 	s := stream{}
 	s.init(rwc)
-	linkif, err := a.link.create(&s, name, "awdl", local, remote)
+	linkif, err := a.link.create(&s, name, "awdl", local, remote, incoming, true)
 	if err != nil {
 		return nil, err
 	}

@@ -29,8 +29,8 @@ func (nsl MobileLogger) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (c *Core) AWDLCreateInterface(name, local, remote string) error {
-	if intf, err := c.link.awdl.create(name, local, remote); err != nil || intf == nil {
+func (c *Core) AWDLCreateInterface(name, local, remote string, incoming bool) error {
+	if intf, err := c.link.awdl.create(name, local, remote, incoming); err != nil || intf == nil {
 		c.log.Println("c.link.awdl.create:", err)
 		return err
 	}
