@@ -281,6 +281,7 @@ func (t *switchTable) cleanPeers() {
 		if now.Sub(peer.time) > switch_timeout+switch_throttle {
 			// Longer than switch_timeout to make sure we don't remove a working peer because the root stopped responding.
 			delete(t.data.peers, port)
+			go t.core.peers.removePeer(port) // TODO figure out if it's safe to do this without a goroutine, or make it safe
 		}
 	}
 	if _, isIn := t.data.peers[t.parent]; !isIn {
