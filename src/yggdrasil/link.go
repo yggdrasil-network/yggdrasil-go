@@ -141,7 +141,7 @@ func (intf *linkInterface) handler() error {
 	intf.link.mutex.Unlock()
 	// Create peer
 	shared := crypto.GetSharedKey(myLinkPriv, &meta.link)
-	intf.peer = intf.link.core.peers.newPeer(&meta.box, &meta.sig, shared, intf.name)
+	intf.peer = intf.link.core.peers.newPeer(&meta.box, &meta.sig, shared, intf.name, func() { intf.msgIO.close() })
 	if intf.peer == nil {
 		return errors.New("failed to create peer")
 	}
@@ -160,12 +160,9 @@ func (intf *linkInterface) handler() error {
 	themAddr := address.AddrForNodeID(crypto.GetNodeID(&intf.info.box))
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, intf.info.remote)
-	intf.peer.close = func() {
-		intf.msgIO.close()
-		intf.link.core.log.Infof("Disconnected %s: %s, source %s",
-			strings.ToUpper(intf.info.linkType), themString, intf.info.local)
-	}
 	intf.link.core.log.Infof("Connected %s: %s, source %s",
+		strings.ToUpper(intf.info.linkType), themString, intf.info.local)
+	defer intf.link.core.log.Infof("Disconnected %s: %s, source %s",
 		strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 	// Start the link loop
 	go intf.peer.linkLoop()
