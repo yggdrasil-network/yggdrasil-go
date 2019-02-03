@@ -171,7 +171,7 @@ func (intf *linkInterface) handler() error {
 	go intf.peer.linkLoop()
 	// Start the writer
 	signalReady := make(chan struct{}, 1)
-	signalSent := make(chan struct{}, 1)
+	signalSent := make(chan bool, 1)
 	sendAck := make(chan struct{}, 1)
 	go func() {
 		defer close(signalReady)
@@ -182,7 +182,7 @@ func (intf *linkInterface) handler() error {
 		send := func(bs []byte) {
 			intf.msgIO.writeMsg(bs)
 			select {
-			case signalSent <- struct{}{}:
+			case signalSent <- len(bs) > 0:
 			default:
 			}
 		}
@@ -229,16 +229,15 @@ func (intf *linkInterface) handler() error {
 	go func() {
 		var isAlive bool
 		var isReady bool
-		var ackTimerRunning bool
-		timeout := 6 * time.Second // TODO set to ReadTimeout from the config, reset if it gets changed
-		ackTime := time.Second
-		timer := time.NewTimer(timeout)
-		defer util.TimerStop(timer)
-		ackTimer := time.NewTimer(ackTime)
-		defer util.TimerStop(ackTimer)
+		var sendTimerRunning bool
+		var recvTimerRunning bool
+		recvTime := 6 * time.Second // TODO set to ReadTimeout from the config, reset if it gets changed
+		sendTime := time.Second
+		sendTimer := time.NewTimer(sendTime)
+		defer util.TimerStop(sendTimer)
+		recvTimer := time.NewTimer(recvTime)
+		defer util.TimerStop(recvTimer)
 		for {
-			util.TimerStop(timer)
-			timer.Reset(timeout)
 			select {
 			case gotMsg, ok := <-signalAlive:
 				if !ok {
@@ -252,23 +251,26 @@ func (intf *linkInterface) handler() error {
 						intf.link.core.switchTable.idleIn <- intf.peer.port
 					}
 				}
-				if gotMsg && !ackTimerRunning {
-					util.TimerStop(ackTimer)
-					ackTimer.Reset(ackTime)
-					ackTimerRunning = true
+				if gotMsg && !sendTimerRunning {
+					// We got a message
+					// Start a timer, if it expires then send a 0-sized ack to let them know we're alive
+					util.TimerStop(sendTimer)
+					sendTimer.Reset(sendTime)
+					sendTimerRunning = true
 				}
-			case _, ok := <-signalSent:
+			case sentMsg, ok := <-signalSent:
 				// Stop any running ack timer
 				if !ok {
 					return
 				}
-				util.TimerStop(ackTimer)
-				ackTimerRunning = false
-			case <-ackTimer.C:
-				// We haven't sent anything in the past ackTimeout, so signal a send of a nil packet
-				select {
-				case sendAck <- struct{}{}:
-				default:
+				util.TimerStop(sendTimer)
+				sendTimerRunning = false
+				if sentMsg && !recvTimerRunning {
+					// We sent a message
+					// Start a timer, if it expires and we haven't gotten any return traffic (including a 0-sized ack), then assume there's a problem
+					util.TimerStop(recvTimer)
+					recvTimer.Reset(recvTime)
+					recvTimerRunning = true
 				}
 			case _, ok := <-signalReady:
 				if !ok {
@@ -281,7 +283,14 @@ func (intf *linkInterface) handler() error {
 					// Keep enabled in the switch
 					intf.link.core.switchTable.idleIn <- intf.peer.port
 				}
-			case <-timer.C:
+			case <-sendTimer.C:
+				// We haven't sent anything, so signal a send of a 0 packet to let them know we're alive
+				select {
+				case sendAck <- struct{}{}:
+				default:
+				}
+			case <-recvTimer.C:
+				// We haven't received anything, so assume there's a problem and don't return this node to the switch until they start responding
 				isAlive = false
 			}
 		}
