@@ -113,7 +113,7 @@ type peer struct {
 }
 
 // Creates a new peer with the specified box, sig, and linkShared keys, using the lowest unoccupied port number.
-func (ps *peers) newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShared *crypto.BoxSharedKey, endpoint string) *peer {
+func (ps *peers) newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShared *crypto.BoxSharedKey, endpoint string, closer func()) *peer {
 	now := time.Now()
 	p := peer{box: *box,
 		sig:        *sig,
@@ -123,6 +123,7 @@ func (ps *peers) newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShare
 		firstSeen:  now,
 		doSend:     make(chan struct{}, 1),
 		dinfo:      make(chan *dhtInfo, 1),
+		close:      closer,
 		core:       ps.core}
 	ps.mutex.Lock()
 	defer ps.mutex.Unlock()
@@ -250,6 +251,7 @@ func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
 func (p *peer) sendPacket(packet []byte) {
 	// Is there ever a case where something more complicated is needed?
 	// What if p.out blocks?
+	atomic.AddUint64(&p.bytesSent, uint64(len(packet)))
 	p.out(packet)
 }
 

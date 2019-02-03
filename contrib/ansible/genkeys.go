@@ -35,22 +35,22 @@ func main() {
 	}
 
 	var encryptionKeys []keySet
-	for i := 0; i < *numHosts + 1; i++ {
+	for i := 0; i < *numHosts+1; i++ {
 		encryptionKeys = append(encryptionKeys, newBoxKey())
 	}
 	encryptionKeys = sortKeySetArray(encryptionKeys)
-	for i := 0; i < *keyTries - *numHosts - 1; i++ {
-		encryptionKeys[0] = newBoxKey();
+	for i := 0; i < *keyTries-*numHosts-1; i++ {
+		encryptionKeys[0] = newBoxKey()
 		encryptionKeys = bubbleUpTo(encryptionKeys, 0)
 	}
 
 	var signatureKeys []keySet
-	for i := 0; i < *numHosts + 1; i++ {
+	for i := 0; i < *numHosts+1; i++ {
 		signatureKeys = append(signatureKeys, newSigKey())
 	}
 	signatureKeys = sortKeySetArray(signatureKeys)
-	for i := 0; i < *keyTries - *numHosts - 1; i++ {
-		signatureKeys[0] = newSigKey();
+	for i := 0; i < *keyTries-*numHosts-1; i++ {
+		signatureKeys[0] = newSigKey()
 		signatureKeys = bubbleUpTo(signatureKeys, 0)
 	}
 
@@ -112,11 +112,11 @@ func sortKeySetArray(sets []keySet) []keySet {
 }
 
 func bubbleUpTo(sets []keySet, num int) []keySet {
-	for i := 0; i < len(sets) - num - 1; i++ {
-		if isBetter(sets[i + 1].id, sets[i].id) {
+	for i := 0; i < len(sets)-num-1; i++ {
+		if isBetter(sets[i+1].id, sets[i].id) {
 			var tmp = sets[i]
-			sets[i] = sets[i + 1]
-			sets[i + 1] = tmp
+			sets[i] = sets[i+1]
+			sets[i+1] = tmp
 		} else {
 			break
 		}

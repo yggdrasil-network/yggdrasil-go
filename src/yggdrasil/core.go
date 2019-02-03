@@ -45,7 +45,7 @@ type Core struct {
 	searches    searches
 	multicast   multicast
 	tcp         tcpInterface
-	awdl        awdl
+	link        link
 	log         *log.Logger
 }
 
@@ -199,8 +199,8 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
-	if err := c.awdl.init(c); err != nil {
-		c.log.Errorln("Failed to start AWDL interface")
+	if err := c.link.init(c); err != nil {
+		c.log.Errorln("Failed to start link interfaces")
 		return err
 	}
 

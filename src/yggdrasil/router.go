@@ -67,7 +67,7 @@ func (r *router) init(core *Core) {
 	r.addr = *address.AddrForNodeID(&r.core.dht.nodeID)
 	r.subnet = *address.SubnetForNodeID(&r.core.dht.nodeID)
 	in := make(chan []byte, 32) // TODO something better than this...
-	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, "(self)")
+	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, "(self)", nil)
 	p.out = func(packet []byte) {
 		// This is to make very sure it never blocks
 		select {
