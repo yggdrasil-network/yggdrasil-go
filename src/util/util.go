@@ -3,6 +3,7 @@ package util
 // These are misc. utility functions that didn't really fit anywhere else
 
 import "runtime"
+import "time"
 
 // A wrapper around runtime.Gosched() so it doesn't need to be imported elsewhere.
 func Yield() {
@@ -43,4 +44,15 @@ func PutBytes(bs []byte) {
 	case byteStore <- bs:
 	default:
 	}
+}
+
+// This is a workaround to go's broken timer implementation
+func TimerStop(t *time.Timer) bool {
+	if !t.Stop() {
+		select {
+		case <-t.C:
+		default:
+		}
+	}
+	return true
 }

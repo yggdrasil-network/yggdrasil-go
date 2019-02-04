@@ -5,10 +5,10 @@ package yggdrasil
 import (
 	"encoding/hex"
 	"encoding/json"
-	"log"
 	"os"
-	"regexp"
 	"time"
+
+	"github.com/gologme/log"
 
 	hjson "github.com/hjson/hjson-go"
 	"github.com/mitchellh/mapstructure"
@@ -52,10 +52,6 @@ func (c *Core) StartAutoconfigure() error {
 	if hostname, err := os.Hostname(); err == nil {
 		nc.NodeInfo = map[string]interface{}{"name": hostname}
 	}
-	ifceExpr, err := regexp.Compile(".*")
-	if err == nil {
-		c.ifceExpr = append(c.ifceExpr, ifceExpr)
-	}
 	if err := c.Start(nc, logger); err != nil {
 		return err
 	}
@@ -77,13 +73,6 @@ func (c *Core) StartJSON(configjson []byte) error {
 		return err
 	}
 	nc.IfName = "dummy"
-	for _, ll := range nc.MulticastInterfaces {
-		ifceExpr, err := regexp.Compile(ll)
-		if err != nil {
-			panic(err)
-		}
-		c.AddMulticastInterfaceExpr(ifceExpr)
-	}
 	if err := c.Start(nc, logger); err != nil {
 		return err
 	}
