@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -ef
+
 PKGSRC=${PKGSRC:-github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil}
 PKGNAME=${PKGNAME:-$(sh contrib/semver/name.sh)}
 PKGVER=${PKGVER:-$(sh contrib/semver/version.sh --bare)}
