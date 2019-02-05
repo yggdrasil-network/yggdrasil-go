@@ -12,8 +12,10 @@ import (
 var _ = linkInterfaceMsgIO(&stream{})
 
 type stream struct {
-	rwc         io.ReadWriteCloser
-	inputBuffer []byte // Incoming packet stream
+	rwc          io.ReadWriteCloser
+	inputBuffer  []byte                  // Incoming packet stream
+	frag         [2 * streamMsgSize]byte // Temporary data read off the underlying rwc, on its way to the inputBuffer
+	outputBuffer [2 * streamMsgSize]byte // Temporary data about to be written to the rwc
 }
 
 func (s *stream) close() error {
@@ -32,10 +34,9 @@ func (s *stream) init(rwc io.ReadWriteCloser) {
 
 // writeMsg writes a message with stream padding, and is *not* thread safe.
 func (s *stream) writeMsg(bs []byte) (int, error) {
-	buf := util.GetBytes()
-	defer util.PutBytes(buf)
+	buf := s.outputBuffer[:0]
 	buf = append(buf, streamMsg[:]...)
-	buf = append(buf, wire_encode_uint64(uint64(len(bs)))...)
+	buf = wire_put_uint64(uint64(len(bs)), buf)
 	padLen := len(buf)
 	buf = append(buf, bs...)
 	var bn int
@@ -69,10 +70,9 @@ func (s *stream) readMsg() ([]byte, error) {
 			return msg, nil
 		default:
 			// Wait for the underlying reader to return enough info for us to proceed
-			frag := make([]byte, 2*streamMsgSize)
-			n, err := s.rwc.Read(frag)
+			n, err := s.rwc.Read(s.frag[:])
 			if n > 0 {
-				s.inputBuffer = append(s.inputBuffer, frag[:n]...)
+				s.inputBuffer = append(s.inputBuffer, s.frag[:n]...)
 			} else if err != nil {
 				return nil, err
 			}
