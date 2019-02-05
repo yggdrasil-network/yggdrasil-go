@@ -388,7 +388,11 @@ func (a *admin) start() error {
 
 // cleans up when stopping
 func (a *admin) close() error {
-	return a.listener.Close()
+	if a.listener != nil {
+		return a.listener.Close()
+	} else {
+		return nil
+	}
 }
 
 // listen is run by start and manages API connections.
