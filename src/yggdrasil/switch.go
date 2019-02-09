@@ -645,20 +645,39 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool
 		ports[0].sendPacket(packet)
 		return true
 	}
+	table := t.getTable()
 	var best *peer
 	var bestDist int
+	var bestCoordLen int
 	for port, dist := range closer {
 		to := ports[port]
 		_, isIdle := idle[port]
+		coordLen := len(table.elems[port].locator.coords)
+		var update bool
 		switch {
-		case to == nil: // skip
-		case !isIdle: // skip
-		case best == nil: // keep
-			fallthrough
-		case dist < bestDist: // keep
+		case to == nil:
+			//nothing
+		case !isIdle:
+			//nothing
+		case best == nil:
+			update = true
+		case dist < bestDist:
+			update = true
+		case dist > bestDist:
+			//nothing
+		case coordLen < bestCoordLen:
+			update = true
+		case coordLen > bestCoordLen:
+			//nothing
+		case port < best.port:
+			update = true
+		default:
+			//nothing
+		}
+		if update {
 			best = to
 			bestDist = dist
-		default: // skip
+			bestCoordLen = coordLen
 		}
 	}
 	if best != nil {
