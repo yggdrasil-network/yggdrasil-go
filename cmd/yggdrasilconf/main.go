@@ -121,8 +121,7 @@ func main() {
 		case reflect.Struct:
 			field := item.FieldByName(name)
 			if !field.IsValid() {
-				fmt.Println("Invalid option:", strings.Join(flags[1:len(flags)-1], " "))
-				os.Exit(1)
+				break
 			}
 			switch field.Kind() {
 			case reflect.String:
@@ -137,26 +136,20 @@ func main() {
 				if uint, uerr := strconv.ParseUint(value, 10, 64); uerr == nil {
 					field.SetUint(uint)
 				}
-			default:
-				fmt.Println("Invalid type for option:", name)
-				os.Exit(1)
 			}
 		case reflect.Map:
 			intf := item.Interface().(map[string]interface{})
 			intf[name] = value
 		}
-		var bs []byte
-		if *usejson {
-			if bs, err = json.Marshal(cfg); err == nil {
-				fmt.Println(string(bs))
-			}
-		} else {
-			if bs, err = hjson.Marshal(cfg); err == nil {
-				fmt.Println(string(bs))
-			}
+	}
+	var bs []byte
+	if *usejson {
+		if bs, err = json.Marshal(cfg); err == nil {
+			fmt.Println(string(bs))
 		}
-		os.Exit(0)
-	default:
-		os.Exit(1)
+	} else {
+		if bs, err = hjson.Marshal(cfg); err == nil {
+			fmt.Println(string(bs))
+		}
 	}
 }
