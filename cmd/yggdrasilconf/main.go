@@ -14,6 +14,8 @@ import (
 	"io/ioutil"
 	"os"
 	"reflect"
+	"strconv"
+	"strings"
 
 	"github.com/hjson/hjson-go"
 	"golang.org/x/text/encoding/unicode"
@@ -26,19 +28,23 @@ type nodeConfig = config.NodeConfig
 func main() {
 	useconffile := flag.String("useconffile", "/etc/yggdrasil.conf", "update config at specified file path")
 	usejson := flag.Bool("json", false, "write out new config as JSON instead of HJSON")
-
-	var action string
-	switch flag.Arg(0) {
+	flag.Parse()
+	flags := flag.Args()
+	if len(flags) == 0 {
+		fmt.Println("No arguments given")
+		os.Exit(1)
+	}
+	action := flags[0]
+	switch strings.ToLower(flags[0]) {
 	case "get":
 	case "set":
 	case "add":
 	case "remove":
-		action = flag.Arg(0)
+		action = strings.ToLower(flags[0])
 	default:
-		fmt.Errorf("Action must be get, set, add or remove")
+		fmt.Println("Unknown action", flags[0])
+		os.Exit(1)
 	}
-
-	flag.Parse()
 	cfg := nodeConfig{}
 	var config []byte
 	var err error
@@ -64,89 +70,93 @@ func main() {
 		panic(err)
 	}
 	json.Unmarshal(confJSON, &cfg)
-
-	item := reflect.ValueOf(cfg)
-	for index, arg := range flag.Args() {
-		if *set || *add || *remove {
-
-		}
-		if item.Kind() == reflect.Map {
-			for _, key := range item.MapKeys() {
-				if key.String() == arg {
-					item = item.MapIndex(key)
+	item := reflect.ValueOf(&cfg).Elem()
+	for index, arg := range flags {
+		switch index {
+		case 0:
+			continue
+		case len(flags) - 2:
+			fallthrough
+		case len(flags) - 1:
+			if action != "get" {
+				continue
+			}
+			fallthrough
+		default:
+			switch item.Kind() {
+			case reflect.Map:
+				for _, key := range item.MapKeys() {
+					if key.String() == arg {
+						item = item.MapIndex(key)
+					}
 				}
+			case reflect.Struct:
+				item = item.FieldByName(arg)
+			}
+			if !item.IsValid() {
+				os.Exit(1)
+				return
+			}
+		}
+	}
+	switch action {
+	case "get":
+		var bs []byte
+		if *usejson {
+			if bs, err = json.Marshal(item.Interface()); err == nil {
+				fmt.Println(string(bs))
 			}
 		} else {
-			item = item.FieldByName(arg)
+			if bs, err = hjson.Marshal(item.Interface()); err == nil {
+				fmt.Println(string(bs))
+			}
 		}
-		if !item.IsValid() {
-			os.Exit(1)
-			return
+		if err != nil {
+			panic(err)
 		}
-	}
-	var bs []byte
-	if *usejson {
-		bs, err = json.Marshal(item.Interface())
-	} else {
-		bs, err = hjson.Marshal(item.Interface())
-	}
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(string(bs))
-	os.Exit(0)
-
-	/* else {
-		switch flag.Arg(0) {
-		case "setMTU":
-			cfg.IfMTU, err = strconv.Atoi(flag.Arg(1))
-			if err != nil {
-				cfg.IfMTU = 1280
+	case "set":
+		name := flags[len(flags)-2:][0]
+		value := flags[len(flags)-1:][0]
+		switch item.Kind() {
+		case reflect.Struct:
+			field := item.FieldByName(name)
+			if !field.IsValid() {
+				fmt.Println("Invalid option:", strings.Join(flags[1:len(flags)-1], " "))
+				os.Exit(1)
 			}
-			if mtu, _ := strconv.Atoi(flag.Arg(1)); mtu < 1280 {
-				cfg.IfMTU = 1280
-			}
-		case "setIfName":
-			cfg.IfName = flag.Arg(1)
-		case "setListen":
-			cfg.Listen = flag.Arg(1)
-		case "setAdminListen":
-			cfg.AdminListen = flag.Arg(1)
-		case "setIfTapMode":
-			if flag.Arg(1) == "true" {
-				cfg.IfTAPMode = true
-			} else {
-				cfg.IfTAPMode = false
-			}
-		case "addPeer":
-			found := false
-			for _, v := range cfg.Peers {
-				if v == flag.Arg(1) {
-					found = true
+			switch field.Kind() {
+			case reflect.String:
+				field.SetString(value)
+			case reflect.Bool:
+				field.SetBool(value == "true")
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				if int, ierr := strconv.ParseInt(value, 10, 64); ierr == nil {
+					field.SetInt(int)
 				}
-			}
-			if !found {
-				cfg.Peers = append(cfg.Peers, flag.Arg(1))
-			}
-		case "removePeer":
-			for k, v := range cfg.Peers {
-				if v == flag.Arg(1) {
-					cfg.Peers = append(cfg.Peers[:k], cfg.Peers[k+1:]...)
+			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				if uint, uerr := strconv.ParseUint(value, 10, 64); uerr == nil {
+					field.SetUint(uint)
 				}
+			default:
+				fmt.Println("Invalid type for option:", name)
+				os.Exit(1)
 			}
-		case "setNodeInfoName":
-			cfg.NodeInfo["name"] = flag.Arg(1)
+		case reflect.Map:
+			intf := item.Interface().(map[string]interface{})
+			intf[name] = value
 		}
-	}*/
-	var bs []byte
-	if *usejson {
-		bs, err = json.Marshal(cfg)
-	} else {
-		bs, err = hjson.Marshal(cfg)
+		var bs []byte
+		if *usejson {
+			if bs, err = json.Marshal(cfg); err == nil {
+				fmt.Println(string(bs))
+			}
+		} else {
+			if bs, err = hjson.Marshal(cfg); err == nil {
+				fmt.Println(string(bs))
+			}
+		}
+		os.Exit(0)
+	default:
+		os.Exit(1)
 	}
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(string(bs))
-	return
 }
