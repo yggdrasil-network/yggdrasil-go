@@ -12,6 +12,8 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"reflect"
 	"strconv"
 
 	"github.com/hjson/hjson-go"
@@ -25,6 +27,7 @@ type nodeConfig = config.NodeConfig
 func main() {
 	useconffile := flag.String("useconffile", "/etc/yggdrasil.conf", "update config at specified file path")
 	usejson := flag.Bool("json", false, "write out new config as JSON instead of HJSON")
+	get := flag.Bool("get", false, "get value instead of setting it")
 	flag.Parse()
 	cfg := nodeConfig{}
 	var config []byte
@@ -51,45 +54,75 @@ func main() {
 		panic(err)
 	}
 	json.Unmarshal(confJSON, &cfg)
-	switch flag.Arg(0) {
-	case "setMTU":
-		cfg.IfMTU, err = strconv.Atoi(flag.Arg(1))
-		if err != nil {
-			cfg.IfMTU = 1280
+	if *get {
+		item := reflect.ValueOf(cfg)
+		for _, arg := range flag.Args() {
+			if item.Kind() == reflect.Map {
+				for _, key := range item.MapKeys() {
+					if key.String() == arg {
+						item = item.MapIndex(key)
+					}
+				}
+			} else {
+				item = item.FieldByName(arg)
+			}
+			if !item.IsValid() {
+				os.Exit(1)
+				return
+			}
 		}
-		if mtu, _ := strconv.Atoi(flag.Arg(1)); mtu < 1280 {
-			cfg.IfMTU = 1280
-		}
-	case "setIfName":
-		cfg.IfName = flag.Arg(1)
-	case "setListen":
-		cfg.Listen = flag.Arg(1)
-	case "setAdminListen":
-		cfg.AdminListen = flag.Arg(1)
-	case "setIfTapMode":
-		if flag.Arg(1) == "true" {
-			cfg.IfTAPMode = true
+		var bs []byte
+		if *usejson {
+			bs, err = json.Marshal(item.Interface())
 		} else {
-			cfg.IfTAPMode = false
+			bs, err = hjson.Marshal(item.Interface())
 		}
-	case "addPeer":
-		found := false
-		for _, v := range cfg.Peers {
-			if v == flag.Arg(1) {
-				found = true
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(string(bs))
+		os.Exit(0)
+	} else {
+		switch flag.Arg(0) {
+		case "setMTU":
+			cfg.IfMTU, err = strconv.Atoi(flag.Arg(1))
+			if err != nil {
+				cfg.IfMTU = 1280
 			}
-		}
-		if !found {
-			cfg.Peers = append(cfg.Peers, flag.Arg(1))
-		}
-	case "removePeer":
-		for k, v := range cfg.Peers {
-			if v == flag.Arg(1) {
-				cfg.Peers = append(cfg.Peers[:k], cfg.Peers[k+1:]...)
+			if mtu, _ := strconv.Atoi(flag.Arg(1)); mtu < 1280 {
+				cfg.IfMTU = 1280
 			}
+		case "setIfName":
+			cfg.IfName = flag.Arg(1)
+		case "setListen":
+			cfg.Listen = flag.Arg(1)
+		case "setAdminListen":
+			cfg.AdminListen = flag.Arg(1)
+		case "setIfTapMode":
+			if flag.Arg(1) == "true" {
+				cfg.IfTAPMode = true
+			} else {
+				cfg.IfTAPMode = false
+			}
+		case "addPeer":
+			found := false
+			for _, v := range cfg.Peers {
+				if v == flag.Arg(1) {
+					found = true
+				}
+			}
+			if !found {
+				cfg.Peers = append(cfg.Peers, flag.Arg(1))
+			}
+		case "removePeer":
+			for k, v := range cfg.Peers {
+				if v == flag.Arg(1) {
+					cfg.Peers = append(cfg.Peers[:k], cfg.Peers[k+1:]...)
+				}
+			}
+		case "setNodeInfoName":
+			cfg.NodeInfo["name"] = flag.Arg(1)
 		}
-	case "setNodeInfoName":
-		cfg.NodeInfo["name"] = flag.Arg(1)
 	}
 	var bs []byte
 	if *usejson {
