@@ -95,7 +95,6 @@ func main() {
 			}
 			if !item.IsValid() {
 				os.Exit(1)
-				return
 			}
 		}
 	}
@@ -114,6 +113,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		return
 	case "set":
 		name := flags[len(flags)-2:][0]
 		value := flags[len(flags)-1:][0]
