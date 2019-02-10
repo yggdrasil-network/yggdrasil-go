@@ -24,6 +24,7 @@ type nodeConfig = config.NodeConfig
 
 func main() {
 	useconffile := flag.String("useconffile", "/etc/yggdrasil.conf", "update config at specified file path")
+	usejson := flag.Bool("json", false, "write out new config as JSON instead of HJSON")
 	flag.Parse()
 	cfg := nodeConfig{}
 	var config []byte
@@ -42,14 +43,14 @@ func main() {
 		}
 	}
 	var dat map[string]interface{}
-	if err := hjson.Unmarshal(config, &dat); err != nil {
+	if err = hjson.Unmarshal(config, &dat); err != nil {
 		panic(err)
 	}
-	confJson, err := json.Marshal(dat)
+	confJSON, err := json.Marshal(dat)
 	if err != nil {
 		panic(err)
 	}
-	json.Unmarshal(confJson, &cfg)
+	json.Unmarshal(confJSON, &cfg)
 	switch flag.Arg(0) {
 	case "setMTU":
 		cfg.IfMTU, err = strconv.Atoi(flag.Arg(1))
@@ -87,8 +88,15 @@ func main() {
 				cfg.Peers = append(cfg.Peers[:k], cfg.Peers[k+1:]...)
 			}
 		}
+	case "setNodeInfoName":
+		cfg.NodeInfo["name"] = flag.Arg(1)
 	}
-	bs, err := hjson.Marshal(cfg)
+	var bs []byte
+	if *usejson {
+		bs, err = json.Marshal(cfg)
+	} else {
+		bs, err = hjson.Marshal(cfg)
+	}
 	if err != nil {
 		panic(err)
 	}
