@@ -26,12 +26,34 @@ import (
 type nodeConfig = config.NodeConfig
 
 func main() {
-	useconffile := flag.String("useconffile", "/etc/yggdrasil.conf", "update config at specified file path")
-	usejson := flag.Bool("json", false, "write out new config as JSON instead of HJSON")
+	useconffile := flag.String("useconffile", "/etc/yggdrasil.conf", "configuration file")
+	usejson := flag.Bool("json", false, "produce new config as JSON instead of HJSON")
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [-useconffile path] [-json] action foo bar ...\n\n", os.Args[0])
+		fmt.Println("yggdrasilconf is a utility designed to make it easier to modify the")
+		fmt.Println("yggdrasil.conf file without resorting to using string editing like")
+		fmt.Println("sed and awk. yggdrasilconf guarantees that the output config will")
+		fmt.Println("always be valid and correctly formatted for the Yggdrasil version.")
+		fmt.Println("This utility will output new configuration to stdout - it does not")
+		fmt.Println("modify the filesystem. You must redirect the output to store it.")
+		fmt.Println()
+		fmt.Println("Valid actions are 'get', 'set', 'add' and 'del', followed by the\npath of the configuration item. Examples:")
+		fmt.Println()
+		fmt.Println(os.Args[0], "get NodeInfo name")
+		fmt.Println(os.Args[0], "set IfName auto")
+		fmt.Println(os.Args[0], "add Peers tcp://a.b.c.d:e")
+		fmt.Println(os.Args[0], "add InterfacePeers eth0 tcp://a.b.c.d:e")
+		fmt.Println(os.Args[0], "del Peers tcp://a.b.c.d:e")
+		fmt.Println()
+		fmt.Println("Options:")
+		flag.PrintDefaults()
+		fmt.Println()
+		fmt.Println("Please note that options must always specified BEFORE the action\non the command line or they will be ignored.")
+	}
 	flag.Parse()
 	flags := flag.Args()
 	if len(flags) == 0 {
-		fmt.Println("No arguments given")
+		flag.Usage()
 		os.Exit(1)
 	}
 	action := flags[0]
@@ -39,10 +61,10 @@ func main() {
 	case "get":
 	case "set":
 	case "add":
-	case "remove":
+	case "del":
 		action = strings.ToLower(flags[0])
 	default:
-		fmt.Println("Unknown action", flags[0])
+		flag.Usage()
 		os.Exit(1)
 	}
 	cfg := nodeConfig{}
@@ -78,7 +100,7 @@ func main() {
 		case len(flags) - 2:
 			fallthrough
 		case len(flags) - 1:
-			if action != "get" {
+			if action == "set" {
 				continue
 			}
 			fallthrough
@@ -117,6 +139,9 @@ func main() {
 	case "set":
 		name := flags[len(flags)-2:][0]
 		value := flags[len(flags)-1:][0]
+
+		fmt.Println(name, value, item)
+
 		switch item.Kind() {
 		case reflect.Struct:
 			field := item.FieldByName(name)
@@ -140,6 +165,21 @@ func main() {
 		case reflect.Map:
 			intf := item.Interface().(map[string]interface{})
 			intf[name] = value
+		}
+	case "add":
+		value := flags[len(flags)-1:][0]
+		switch item.Kind() {
+		case reflect.Slice:
+			fallthrough
+		case reflect.Array:
+			item.Set(reflect.Append(item, reflect.ValueOf(value)))
+		}
+	case "del":
+		//value := flags[len(flags)-1:][0]
+		switch item.Kind() {
+		case reflect.Slice:
+			fallthrough
+		case reflect.Array:
 		}
 	}
 	var bs []byte
