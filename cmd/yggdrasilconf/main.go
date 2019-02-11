@@ -139,9 +139,6 @@ func main() {
 	case "set":
 		name := flags[len(flags)-2:][0]
 		value := flags[len(flags)-1:][0]
-
-		fmt.Println(name, value, item)
-
 		switch item.Kind() {
 		case reflect.Struct:
 			field := item.FieldByName(name)
