@@ -1,16 +1,14 @@
-FROM docker.io/golang:alpine as builder
+FROM golang:alpine as builder
 
 WORKDIR /src
 
-RUN apk add git
-
-RUN git clone https://github.com/yggdrasil-network/yggdrasil-go.git .
-
 ENV CGO_ENABLED=0
 
-RUN ./build
+RUN apk add git && \
+    git clone https://github.com/yggdrasil-network/yggdrasil-go.git . && \
+    ./build
 
-FROM docker.io/alpine
+FROM alpine
 LABEL maintainer="Christer Waren/CWINFO <christer.waren@cwinfo.org>"
 
 COPY --from=builder /src/yggdrasil /usr/bin/yggdrasil
