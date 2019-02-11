@@ -77,6 +77,7 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeCo
 	// names have changed recently.
 	changes := map[string]string{
 		"Multicast":      "",
+		"ReadTimeout":    "",
 		"LinkLocal":      "MulticastInterfaces",
 		"BoxPub":         "EncryptionPublicKey",
 		"BoxPriv":        "EncryptionPrivateKey",
@@ -89,11 +90,11 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeCo
 		if _, ok := dat[from]; ok {
 			if to == "" {
 				if !*normaliseconf {
-					log.Println("Warning: Deprecated config option", from, "- please remove")
+					log.Println("Warning: Config option", from, "is deprecated")
 				}
 			} else {
 				if !*normaliseconf {
-					log.Println("Warning: Deprecated config option", from, "- please rename to", to)
+					log.Println("Warning: Config option", from, "has been renamed - please change to", to)
 				}
 				// If the configuration file doesn't already contain a line with the
 				// new name then set it to the old value. This makes sure that we

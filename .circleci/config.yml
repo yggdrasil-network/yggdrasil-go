@@ -48,14 +48,12 @@ jobs:
           command: |
               rm -f {yggdrasil,yggdrasilctl}
               GOOS=darwin GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-darwin-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-darwin-amd64;
-              GOOS=darwin GOARCH=386 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-darwin-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-darwin-i386;
 
       - run:
           name: Build for macOS (.pkg format)
           command: |
               rm -rf {yggdrasil,yggdrasilctl}
               GOOS=darwin GOARCH=amd64 ./build && PKGARCH=amd64 sh contrib/macos/create-pkg.sh && mv *.pkg /tmp/upload/
-              GOOS=darwin GOARCH=386 ./build && PKGARCH=i386 sh contrib/macos/create-pkg.sh && mv *.pkg /tmp/upload/
 
       - run:
           name: Build for OpenBSD

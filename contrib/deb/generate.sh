@@ -110,12 +110,10 @@ EOF
 cp yggdrasil /tmp/$PKGNAME/usr/bin/
 cp yggdrasilctl /tmp/$PKGNAME/usr/bin/
 cp contrib/systemd/yggdrasil.service /tmp/$PKGNAME/etc/systemd/system/
-cp contrib/systemd/yggdrasil-resume.service /tmp/$PKGNAME/etc/systemd/system/
 
 tar -czvf /tmp/$PKGNAME/data.tar.gz -C /tmp/$PKGNAME/ \
   usr/bin/yggdrasil usr/bin/yggdrasilctl \
-  etc/systemd/system/yggdrasil.service \
-  etc/systemd/system/yggdrasil-resume.service
+  etc/systemd/system/yggdrasil.service
 tar -czvf /tmp/$PKGNAME/control.tar.gz -C /tmp/$PKGNAME/debian .
 echo 2.0 > /tmp/$PKGNAME/debian-binary
 
