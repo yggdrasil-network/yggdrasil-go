@@ -415,6 +415,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 	// Update the matrix of peer "faster" thresholds
 	if reprocessing {
 		sender.faster = oldSender.faster
+		sender.time = oldSender.time
 	} else {
 		sender.faster = make(map[switchPort]uint64, len(oldSender.faster))
 		for port, peer := range t.data.peers {
