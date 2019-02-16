@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Connects nodes in two namespaces by two links with different bandwidth (10mbit and 100mbit)
+
+ip netns add node1
+ip netns add node2
+
+ip link add veth11 type veth peer name veth21
+ip link set veth11 netns node1 up
+ip link set veth21 netns node2 up
+
+ip link add veth12 type veth peer name veth22
+ip link set veth12 netns node1 up
+ip link set veth22 netns node2 up
+
+ip netns exec node1 tc qdisc add dev veth11 root tbf rate 10mbit burst 8192 latency 1ms
+ip netns exec node2 tc qdisc add dev veth21 root tbf rate 10mbit burst 8192 latency 1ms
+
+ip netns exec node1 tc qdisc add dev veth12 root tbf rate 100mbit burst 8192 latency 1ms
+ip netns exec node2 tc qdisc add dev veth22 root tbf rate 100mbit burst 8192 latency 1ms
+
+echo '{AdminListen: "unix://node1.sock"}' | ip netns exec node1 env PPROFLISTEN=localhost:6060 ./yggdrasil -logging "info,warn,error,debug" -useconf &> node1.log &
+echo '{AdminListen: "unix://node2.sock"}' | ip netns exec node2 env PPROFLISTEN=localhost:6060 ./yggdrasil -logging "info,warn,error,debug" -useconf &> node2.log &
+
+echo "Started, to continue you should (possibly w/ sudo):"
+echo "kill" $(jobs -p)
+wait
+
+ip netns delete node1
+ip netns delete node2
+
+ip link delete veth11
+ip link delete veth12
