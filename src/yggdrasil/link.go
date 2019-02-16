@@ -216,6 +216,8 @@ func (intf *linkInterface) handler() error {
 				case signalReady <- struct{}{}:
 				default:
 				}
+				intf.link.core.log.Debugf("Sending packet to %s: %s, source %s",
+					strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 			}
 		}
 	}()
@@ -235,18 +237,21 @@ func (intf *linkInterface) handler() error {
 		recvTimer := time.NewTimer(recvTime)
 		defer util.TimerStop(recvTimer)
 		for {
+			intf.link.core.log.Debugf("State of %s: %s, source %s :: isAlive %t isReady %t sendTimerRunning %t recvTimerRunning %t",
+				strings.ToUpper(intf.info.linkType), themString, intf.info.local,
+				isAlive, isReady, sendTimerRunning, recvTimerRunning)
 			select {
 			case gotMsg, ok := <-signalAlive:
 				if !ok {
 					return
 				}
-				if !isAlive {
-					isAlive = true
-					if !isReady {
-						// (Re-)enable in the switch
-						isReady = true
-						intf.link.core.switchTable.idleIn <- intf.peer.port
-					}
+				util.TimerStop(recvTimer)
+				recvTimerRunning = false
+				isAlive = true
+				if !isReady {
+					// (Re-)enable in the switch
+					intf.link.core.switchTable.idleIn <- intf.peer.port
+					isReady = true
 				}
 				if gotMsg && !sendTimerRunning {
 					// We got a message
@@ -254,6 +259,10 @@ func (intf *linkInterface) handler() error {
 					util.TimerStop(sendTimer)
 					sendTimer.Reset(sendTime)
 					sendTimerRunning = true
+				}
+				if !gotMsg {
+					intf.link.core.log.Debugf("Received ack from %s: %s, source %s",
+						strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 				}
 			case sentMsg, ok := <-signalSent:
 				// Stop any running ack timer
@@ -273,12 +282,13 @@ func (intf *linkInterface) handler() error {
 				if !ok {
 					return
 				}
-				if !isAlive || !isReady {
+				if !isAlive {
 					// Disable in the switch
 					isReady = false
 				} else {
 					// Keep enabled in the switch
 					intf.link.core.switchTable.idleIn <- intf.peer.port
+					isReady = true
 				}
 			case <-sendTimer.C:
 				// We haven't sent anything, so signal a send of a 0 packet to let them know we're alive
