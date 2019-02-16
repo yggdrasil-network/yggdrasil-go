@@ -36,7 +36,6 @@ type tcpInterface struct {
 	reconfigure chan chan error
 	serv        net.Listener
 	stop        chan bool
-	timeout     time.Duration
 	addr        string
 	mutex       sync.Mutex // Protecting the below
 	calls       map[string]struct{}
@@ -106,12 +105,7 @@ func (iface *tcpInterface) listen() error {
 
 	iface.core.configMutex.RLock()
 	iface.addr = iface.core.config.Listen
-	iface.timeout = time.Duration(iface.core.config.ReadTimeout) * time.Millisecond
 	iface.core.configMutex.RUnlock()
-
-	if iface.timeout >= 0 && iface.timeout < default_timeout {
-		iface.timeout = default_timeout
-	}
 
 	ctx := context.Background()
 	lc := net.ListenConfig{
