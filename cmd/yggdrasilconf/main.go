@@ -58,10 +58,7 @@ func main() {
 	}
 	action := flags[0]
 	switch strings.ToLower(flags[0]) {
-	case "get":
-	case "set":
-	case "add":
-	case "del":
+	case "get", "set", "add", "del":
 		action = strings.ToLower(flags[0])
 	default:
 		flag.Usage()
@@ -92,28 +89,40 @@ func main() {
 		panic(err)
 	}
 	json.Unmarshal(confJSON, &cfg)
-	item := reflect.ValueOf(&cfg).Elem()
+	item := reflect.ValueOf(cfg)
 	for index, arg := range flags {
 		switch index {
 		case 0:
 			continue
-		case len(flags) - 2:
-			fallthrough
 		case len(flags) - 1:
-			if action == "set" {
-				continue
+			if action != "get" {
+				break
 			}
 			fallthrough
 		default:
 			switch item.Kind() {
 			case reflect.Map:
+				found := false
 				for _, key := range item.MapKeys() {
 					if key.String() == arg {
 						item = item.MapIndex(key)
+						found = true
+						break
 					}
 				}
+				if !found {
+					t := reflect.TypeOf(item.Interface())
+					k := reflect.ValueOf(arg)
+					v := reflect.New(t)
+					item.SetMapIndex(k, v)
+					item = item.MapIndex(k)
+				}
+				continue
+			case reflect.Array:
+				continue
 			case reflect.Struct:
 				item = item.FieldByName(arg)
+				continue
 			}
 			if !item.IsValid() {
 				os.Exit(1)
@@ -160,8 +169,7 @@ func main() {
 				}
 			}
 		case reflect.Map:
-			intf := item.Interface().(map[string]interface{})
-			intf[name] = value
+			item.SetMapIndex(reflect.ValueOf(name), reflect.ValueOf(value))
 		}
 	case "add":
 		value := flags[len(flags)-1:][0]
@@ -169,15 +177,20 @@ func main() {
 		case reflect.Slice:
 			fallthrough
 		case reflect.Array:
-			item.Set(reflect.Append(item, reflect.ValueOf(value)))
+			if item.CanSet() {
+				fmt.Println("add", value, "to", item)
+				item.Set(reflect.Append(item, reflect.ValueOf(value)))
+			} else {
+				fmt.Println("can't add", value, "to", item)
+			}
 		}
 	case "del":
-		//value := flags[len(flags)-1:][0]
+		/*value := flags[len(flags)-1:][0]
 		switch item.Kind() {
 		case reflect.Slice:
 			fallthrough
 		case reflect.Array:
-		}
+		}*/
 	}
 	var bs []byte
 	if *usejson {
