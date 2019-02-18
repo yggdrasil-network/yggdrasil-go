@@ -25,6 +25,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.3.3] - 2018-02-18
+### Added
+- Dynamic reconfiguration, which allows reloading the configuration file to make changes during runtime by sending a `SIGHUP` signal (note: this only works with `-useconffile` and not `-useconf` and currently reconfiguring TUN/TAP is not supported)
+- Support for building Yggdrasil as an iOS or Android framework if the appropriate tools (e.g. `gomobile`/`gobind` + SDKs) are available
+- Connection contexts used for TCP connections which allow more exotic socket options to be set, e.g.
+  - Reusing the multicast socket to allow multiple running Yggdrasil instances without having to disable multicast
+  - Allowing supported Macs to peer with other nearby Macs that aren't even on the same Wi-Fi network using AWDL
+- Flexible logging support, which allows for logging at different levels of verbosity
+
+### Changed
+- Switch changes to improve parent selection
+- Node configuration is now stored centrally, rather than having fragments/copies distributed at startup time
+- Significant refactoring in various areas, including for link types (TCP, AWDL etc), generic streams and adapters
+- macOS builds through CircleCI are now 64-bit only
+
+### Fixed
+- Simplified `systemd` service now in `contrib`
+
+### Removed
+- `ReadTimeout` option is now deprecated
+
 ## [0.3.2] - 2018-12-26
 ### Added
 - The admin socket is now multithreaded, greatly improving performance of the crawler and allowing concurrent lookups to take place
