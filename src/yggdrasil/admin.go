@@ -22,10 +22,11 @@ import (
 // TODO: Add authentication
 
 type admin struct {
-	core       *Core
-	listenaddr string
-	listener   net.Listener
-	handlers   []admin_handlerInfo
+	core        *Core
+	reconfigure chan chan error
+	listenaddr  string
+	listener    net.Listener
+	handlers    []admin_handlerInfo
 }
 
 type admin_info map[string]interface{}
@@ -51,9 +52,25 @@ func (a *admin) addHandler(name string, args []string, handler func(admin_info) 
 }
 
 // init runs the initial admin setup.
-func (a *admin) init(c *Core, listenaddr string) {
+func (a *admin) init(c *Core) {
 	a.core = c
-	a.listenaddr = listenaddr
+	a.reconfigure = make(chan chan error, 1)
+	go func() {
+		for {
+			e := <-a.reconfigure
+			a.core.configMutex.RLock()
+			if a.core.config.AdminListen != a.core.configOld.AdminListen {
+				a.listenaddr = a.core.config.AdminListen
+				a.close()
+				a.start()
+			}
+			a.core.configMutex.RUnlock()
+			e <- nil
+		}
+	}()
+	a.core.configMutex.RLock()
+	a.listenaddr = a.core.config.AdminListen
+	a.core.configMutex.RUnlock()
 	a.addHandler("list", []string{}, func(in admin_info) (admin_info, error) {
 		handlers := make(map[string]interface{})
 		for _, handler := range a.handlers {
@@ -324,12 +341,30 @@ func (a *admin) init(c *Core, listenaddr string) {
 			return admin_info{}, err
 		}
 	})
-	a.addHandler("getNodeInfo", []string{"box_pub_key", "coords", "[nocache]"}, func(in admin_info) (admin_info, error) {
+	a.addHandler("getNodeInfo", []string{"[box_pub_key]", "[coords]", "[nocache]"}, func(in admin_info) (admin_info, error) {
 		var nocache bool
 		if in["nocache"] != nil {
 			nocache = in["nocache"].(string) == "true"
 		}
-		result, err := a.admin_getNodeInfo(in["box_pub_key"].(string), in["coords"].(string), nocache)
+		var box_pub_key, coords string
+		if in["box_pub_key"] == nil && in["coords"] == nil {
+			var nodeinfo []byte
+			a.core.router.doAdmin(func() {
+				nodeinfo = []byte(a.core.router.nodeinfo.getNodeInfo())
+			})
+			var jsoninfo interface{}
+			if err := json.Unmarshal(nodeinfo, &jsoninfo); err != nil {
+				return admin_info{}, err
+			} else {
+				return admin_info{"nodeinfo": jsoninfo}, nil
+			}
+		} else if in["box_pub_key"] == nil || in["coords"] == nil {
+			return admin_info{}, errors.New("Expecting both box_pub_key and coords")
+		} else {
+			box_pub_key = in["box_pub_key"].(string)
+			coords = in["coords"].(string)
+		}
+		result, err := a.admin_getNodeInfo(box_pub_key, coords, nocache)
 		if err == nil {
 			var m map[string]interface{}
 			if err = json.Unmarshal(result, &m); err == nil {
@@ -353,7 +388,11 @@ func (a *admin) start() error {
 
 // cleans up when stopping
 func (a *admin) close() error {
-	return a.listener.Close()
+	if a.listener != nil {
+		return a.listener.Close()
+	} else {
+		return nil
+	}
 }
 
 // listen is run by start and manages API connections.
@@ -363,7 +402,7 @@ func (a *admin) listen() {
 		switch strings.ToLower(u.Scheme) {
 		case "unix":
 			if _, err := os.Stat(a.listenaddr[7:]); err == nil {
-				a.core.log.Println("WARNING:", a.listenaddr[7:], "already exists and may be in use by another process")
+				a.core.log.Warnln("WARNING:", a.listenaddr[7:], "already exists and may be in use by another process")
 			}
 			a.listener, err = net.Listen("unix", a.listenaddr[7:])
 			if err == nil {
@@ -371,7 +410,7 @@ func (a *admin) listen() {
 				case "@": // maybe abstract namespace
 				default:
 					if err := os.Chmod(a.listenaddr[7:], 0660); err != nil {
-						a.core.log.Println("WARNING:", a.listenaddr[:7], "may have unsafe permissions!")
+						a.core.log.Warnln("WARNING:", a.listenaddr[:7], "may have unsafe permissions!")
 					}
 				}
 			}
@@ -385,10 +424,10 @@ func (a *admin) listen() {
 		a.listener, err = net.Listen("tcp", a.listenaddr)
 	}
 	if err != nil {
-		a.core.log.Printf("Admin socket failed to listen: %v", err)
+		a.core.log.Errorf("Admin socket failed to listen: %v", err)
 		os.Exit(1)
 	}
-	a.core.log.Printf("%s admin socket listening on %s",
+	a.core.log.Infof("%s admin socket listening on %s",
 		strings.ToUpper(a.listener.Addr().Network()),
 		a.listener.Addr().String())
 	defer a.listener.Close()
@@ -415,9 +454,9 @@ func (a *admin) handleRequest(conn net.Conn) {
 				"status": "error",
 				"error":  "Unrecoverable error, possibly as a result of invalid input types or malformed syntax",
 			}
-			fmt.Println("Admin socket error:", r)
+			a.core.log.Errorln("Admin socket error:", r)
 			if err := encoder.Encode(&send); err != nil {
-				fmt.Println("Admin socket JSON encode error:", err)
+				a.core.log.Errorln("Admin socket JSON encode error:", err)
 			}
 			conn.Close()
 		}
@@ -730,35 +769,20 @@ func (a *admin) getData_getSessions() []admin_nodeInfo {
 
 // getAllowedEncryptionPublicKeys returns the public keys permitted for incoming peer connections.
 func (a *admin) getAllowedEncryptionPublicKeys() []string {
-	pubs := a.core.peers.getAllowedEncryptionPublicKeys()
-	var out []string
-	for _, pub := range pubs {
-		out = append(out, hex.EncodeToString(pub[:]))
-	}
-	return out
+	return a.core.peers.getAllowedEncryptionPublicKeys()
 }
 
 // addAllowedEncryptionPublicKey whitelists a key for incoming peer connections.
 func (a *admin) addAllowedEncryptionPublicKey(bstr string) (err error) {
-	boxBytes, err := hex.DecodeString(bstr)
-	if err == nil {
-		var box crypto.BoxPubKey
-		copy(box[:], boxBytes)
-		a.core.peers.addAllowedEncryptionPublicKey(&box)
-	}
-	return
+	a.core.peers.addAllowedEncryptionPublicKey(bstr)
+	return nil
 }
 
 // removeAllowedEncryptionPublicKey removes a key from the whitelist for incoming peer connections.
 // If none are set, an empty list permits all incoming connections.
 func (a *admin) removeAllowedEncryptionPublicKey(bstr string) (err error) {
-	boxBytes, err := hex.DecodeString(bstr)
-	if err == nil {
-		var box crypto.BoxPubKey
-		copy(box[:], boxBytes)
-		a.core.peers.removeAllowedEncryptionPublicKey(&box)
-	}
-	return
+	a.core.peers.removeAllowedEncryptionPublicKey(bstr)
+	return nil
 }
 
 // Send a DHT ping to the node with the provided key and coords, optionally looking up the specified target NodeID.
@@ -827,7 +851,7 @@ func (a *admin) admin_getNodeInfo(keyString, coordString string, nocache bool) (
 		copy(key[:], keyBytes)
 	}
 	if !nocache {
-		if response, err := a.core.nodeinfo.getCachedNodeInfo(key); err == nil {
+		if response, err := a.core.router.nodeinfo.getCachedNodeInfo(key); err == nil {
 			return response, nil
 		}
 	}
@@ -845,14 +869,14 @@ func (a *admin) admin_getNodeInfo(keyString, coordString string, nocache bool) (
 	}
 	response := make(chan *nodeinfoPayload, 1)
 	sendNodeInfoRequest := func() {
-		a.core.nodeinfo.addCallback(key, func(nodeinfo *nodeinfoPayload) {
+		a.core.router.nodeinfo.addCallback(key, func(nodeinfo *nodeinfoPayload) {
 			defer func() { recover() }()
 			select {
 			case response <- nodeinfo:
 			default:
 			}
 		})
-		a.core.nodeinfo.sendNodeInfo(key, coords, false)
+		a.core.router.nodeinfo.sendNodeInfo(key, coords, false)
 	}
 	a.core.router.doAdmin(sendNodeInfoRequest)
 	go func() {

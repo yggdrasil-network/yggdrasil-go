@@ -4,7 +4,7 @@ package yggdrasil
 // It routes packets based on distance on the spanning tree
 //  In general, this is *not* equivalent to routing on the tree
 //  It falls back to the tree in the worst case, but it can take shortcuts too
-// This is the part that makse routing reasonably efficient on scale-free graphs
+// This is the part that makes routing reasonably efficient on scale-free graphs
 
 // TODO document/comment everything in a lot more detail
 
@@ -162,6 +162,7 @@ type switchData struct {
 // All the information stored by the switch.
 type switchTable struct {
 	core              *Core
+	reconfigure       chan chan error
 	key               crypto.SigPubKey           // Our own key
 	time              time.Time                  // Time when locator.tstamp was last updated
 	drop              map[crypto.SigPubKey]int64 // Tstamp associated with a dropped root
@@ -181,11 +182,14 @@ type switchTable struct {
 const SwitchQueueTotalMinSize = 4 * 1024 * 1024
 
 // Initializes the switchTable struct.
-func (t *switchTable) init(core *Core, key crypto.SigPubKey) {
+func (t *switchTable) init(core *Core) {
 	now := time.Now()
 	t.core = core
-	t.key = key
-	locator := switchLocator{root: key, tstamp: now.Unix()}
+	t.reconfigure = make(chan chan error, 1)
+	t.core.configMutex.RLock()
+	t.key = t.core.sigPub
+	t.core.configMutex.RUnlock()
+	locator := switchLocator{root: t.key, tstamp: now.Unix()}
 	peers := make(map[switchPort]peerInfo)
 	t.data = switchData{locator: locator, peers: peers}
 	t.updater.Store(&sync.Once{})
@@ -277,6 +281,7 @@ func (t *switchTable) cleanPeers() {
 		if now.Sub(peer.time) > switch_timeout+switch_throttle {
 			// Longer than switch_timeout to make sure we don't remove a working peer because the root stopped responding.
 			delete(t.data.peers, port)
+			go t.core.peers.removePeer(port) // TODO figure out if it's safe to do this without a goroutine, or make it safe
 		}
 	}
 	if _, isIn := t.data.peers[t.parent]; !isIn {
@@ -410,6 +415,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 	// Update the matrix of peer "faster" thresholds
 	if reprocessing {
 		sender.faster = oldSender.faster
+		sender.time = oldSender.time
 	} else {
 		sender.faster = make(map[switchPort]uint64, len(oldSender.faster))
 		for port, peer := range t.data.peers {
@@ -559,7 +565,7 @@ func (t *switchTable) getTable() lookupTable {
 
 // Starts the switch worker
 func (t *switchTable) start() error {
-	t.core.log.Println("Starting switch")
+	t.core.log.Infoln("Starting switch")
 	go t.doWorker()
 	return nil
 }
@@ -774,6 +780,7 @@ func (t *switchTable) doWorker() {
 	t.queues.bufs = make(map[string]switch_buffer) // Packets per PacketStreamID (string)
 	idle := make(map[switchPort]struct{})          // this is to deduplicate things
 	for {
+		t.core.log.Debugf("Switch state: idle = %d, buffers = %d", len(idle), len(t.queues.bufs))
 		select {
 		case bytes := <-t.packetIn:
 			// Try to send it somewhere (or drop it if it's corrupt or at a dead end)
@@ -808,6 +815,8 @@ func (t *switchTable) doWorker() {
 			}
 		case f := <-t.admin:
 			f()
+		case e := <-t.reconfigure:
+			e <- nil
 		}
 	}
 }

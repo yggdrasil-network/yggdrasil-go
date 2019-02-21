@@ -1,12 +1,21 @@
 package config
 
+import (
+	"encoding/hex"
+	"fmt"
+	"math/rand"
+	"time"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+)
+
 // NodeConfig defines all configuration values needed to run a signle yggdrasil node
 type NodeConfig struct {
 	Listen                      string                 `comment:"Listen address for peer connections. Default is to listen for all\nTCP connections over IPv4 and IPv6 with a random port."`
 	AdminListen                 string                 `comment:"Listen address for admin connections. Default is to listen for local\nconnections either on TCP/9001 or a UNIX socket depending on your\nplatform. Use this value for yggdrasilctl -endpoint=X. To disable\nthe admin socket, use the value \"none\" instead."`
 	Peers                       []string               `comment:"List of connection strings for static peers in URI format, e.g.\ntcp://a.b.c.d:e or socks://a.b.c.d:e/f.g.h.i:j."`
 	InterfacePeers              map[string][]string    `comment:"List of connection strings for static peers in URI format, arranged\nby source interface, e.g. { \"eth0\": [ tcp://a.b.c.d:e ] }. Note that\nSOCKS peerings will NOT be affected by this option and should go in\nthe \"Peers\" section instead."`
-	ReadTimeout                 int32                  `comment:"Read timeout for connections, specified in milliseconds. If less\nthan 6000 and not negative, 6000 (the default) is used. If negative,\nreads won't time out."`
 	AllowedEncryptionPublicKeys []string               `comment:"List of peer encryption public keys to allow or incoming TCP\nconnections from. If left empty/undefined then all connections\nwill be allowed by default."`
 	EncryptionPublicKey         string                 `comment:"Your public encryption key. Your peers may ask you for this to put\ninto their AllowedEncryptionPublicKeys configuration."`
 	EncryptionPrivateKey        string                 `comment:"Your private encryption key. DO NOT share this with anyone!"`
@@ -52,4 +61,46 @@ type TunnelRouting struct {
 // SwitchOptions contains tuning options for the switch
 type SwitchOptions struct {
 	MaxTotalQueueSize uint64 `comment:"Maximum size of all switch queues combined (in bytes)."`
+}
+
+// Generates default configuration. This is used when outputting the -genconf
+// parameter and also when using -autoconf. The isAutoconf flag is used to
+// determine whether the operating system should select a free port by itself
+// (which guarantees that there will not be a conflict with any other services)
+// or whether to generate a random port number. The only side effect of setting
+// isAutoconf is that the TCP and UDP ports will likely end up with different
+// port numbers.
+func GenerateConfig(isAutoconf bool) *NodeConfig {
+	// Create a new core.
+	//core := Core{}
+	// Generate encryption keys.
+	bpub, bpriv := crypto.NewBoxKeys()
+	spub, spriv := crypto.NewSigKeys()
+	// Create a node configuration and populate it.
+	cfg := NodeConfig{}
+	if isAutoconf {
+		cfg.Listen = "[::]:0"
+	} else {
+		r1 := rand.New(rand.NewSource(time.Now().UnixNano()))
+		cfg.Listen = fmt.Sprintf("[::]:%d", r1.Intn(65534-32768)+32768)
+	}
+	cfg.AdminListen = defaults.GetDefaults().DefaultAdminListen
+	cfg.EncryptionPublicKey = hex.EncodeToString(bpub[:])
+	cfg.EncryptionPrivateKey = hex.EncodeToString(bpriv[:])
+	cfg.SigningPublicKey = hex.EncodeToString(spub[:])
+	cfg.SigningPrivateKey = hex.EncodeToString(spriv[:])
+	cfg.Peers = []string{}
+	cfg.InterfacePeers = map[string][]string{}
+	cfg.AllowedEncryptionPublicKeys = []string{}
+	cfg.MulticastInterfaces = []string{".*"}
+	cfg.IfName = defaults.GetDefaults().DefaultIfName
+	cfg.IfMTU = defaults.GetDefaults().DefaultIfMTU
+	cfg.IfTAPMode = defaults.GetDefaults().DefaultIfTAPMode
+	cfg.SessionFirewall.Enable = false
+	cfg.SessionFirewall.AllowFromDirect = true
+	cfg.SessionFirewall.AllowFromRemote = true
+	cfg.SwitchOptions.MaxTotalQueueSize = 4 * 1024 * 1024
+	cfg.NodeInfoPrivacy = false
+
+	return &cfg
 }

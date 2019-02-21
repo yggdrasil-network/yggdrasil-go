@@ -1,5 +1,7 @@
 github.com/docker/libcontainer v2.2.1+incompatible h1:++SbbkCw+X8vAd4j2gOCzZ2Nn7s2xFALTf7LZKmM1/0=
 github.com/docker/libcontainer v2.2.1+incompatible/go.mod h1:osvj61pYsqhNCMLGX31xr7klUBhHb/ZBuXS0o1Fvwbw=
+github.com/gologme/log v0.0.0-20181207131047-4e5d8ccb38e8 h1:WD8iJ37bRNwvETMfVTusVSAi0WdXTpfNVGY2aHycNKY=
+github.com/gologme/log v0.0.0-20181207131047-4e5d8ccb38e8/go.mod h1:gq31gQ8wEHkR+WekdWsqDuf8pXTUZA9BnnzTuPz1Y9U=
 github.com/hjson/hjson-go v0.0.0-20181010104306-a25ecf6bd222 h1:xmvkbxXDeN1ffWq8kvrhyqVYAO2aXuRBsbpxVTR+JyU=
 github.com/hjson/hjson-go v0.0.0-20181010104306-a25ecf6bd222/go.mod h1:qsetwF8NlsTsOTwZTApNlTCerV+b2GjYRRcIk4JMFio=
 github.com/kardianos/minwinsvc v0.0.0-20151122163309-cad6b2b879b0 h1:YnZmFjg0Nvk8851WTVWlqMC1ecJH07Ctz+Ezxx4u54g=

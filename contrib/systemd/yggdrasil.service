@@ -14,8 +14,8 @@ ExecStartPre=/bin/sh -ec "if ! test -s /etc/yggdrasil.conf; \
                 echo 'WARNING: A new /etc/yggdrasil.conf file has been generated.'; \
             fi"
 ExecStart=/usr/bin/yggdrasil -useconffile /etc/yggdrasil.conf
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
-Also=yggdrasil-resume.service

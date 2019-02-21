@@ -18,6 +18,7 @@ import (
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
 type sessionInfo struct {
 	core         *Core
+	reconfigure  chan chan error
 	theirAddr    address.Address
 	theirSubnet  address.Subnet
 	theirPermPub crypto.BoxPubKey
@@ -101,6 +102,7 @@ func (s *sessionInfo) timedout() bool {
 // Additionally, stores maps of address/subnet onto keys, and keys onto handles.
 type sessions struct {
 	core        *Core
+	reconfigure chan chan error
 	lastCleanup time.Time
 	// Maps known permanent keys to their shared key, used by DHT a lot
 	permShared map[crypto.BoxPubKey]*crypto.BoxSharedKey
@@ -112,18 +114,29 @@ type sessions struct {
 	byTheirPerm  map[crypto.BoxPubKey]*crypto.Handle
 	addrToPerm   map[address.Address]*crypto.BoxPubKey
 	subnetToPerm map[address.Subnet]*crypto.BoxPubKey
-	// Options from the session firewall
-	sessionFirewallEnabled              bool
-	sessionFirewallAllowsDirect         bool
-	sessionFirewallAllowsRemote         bool
-	sessionFirewallAlwaysAllowsOutbound bool
-	sessionFirewallWhitelist            []string
-	sessionFirewallBlacklist            []string
 }
 
 // Initializes the session struct.
 func (ss *sessions) init(core *Core) {
 	ss.core = core
+	ss.reconfigure = make(chan chan error, 1)
+	go func() {
+		for {
+			e := <-ss.reconfigure
+			responses := make(map[crypto.Handle]chan error)
+			for index, session := range ss.sinfos {
+				responses[index] = make(chan error)
+				session.reconfigure <- responses[index]
+			}
+			for _, response := range responses {
+				if err := <-response; err != nil {
+					e <- err
+					continue
+				}
+			}
+			e <- nil
+		}
+	}()
 	ss.permShared = make(map[crypto.BoxPubKey]*crypto.BoxSharedKey)
 	ss.sinfos = make(map[crypto.Handle]*sessionInfo)
 	ss.byMySes = make(map[crypto.BoxPubKey]*crypto.Handle)
@@ -133,40 +146,28 @@ func (ss *sessions) init(core *Core) {
 	ss.lastCleanup = time.Now()
 }
 
-// Enable or disable the session firewall
-func (ss *sessions) setSessionFirewallState(enabled bool) {
-	ss.sessionFirewallEnabled = enabled
-}
+// Determines whether the session firewall is enabled.
+func (ss *sessions) isSessionFirewallEnabled() bool {
+	ss.core.configMutex.RLock()
+	defer ss.core.configMutex.RUnlock()
 
-// Set the session firewall defaults (first parameter is whether to allow
-// sessions from direct peers, second is whether to allow from remote nodes).
-func (ss *sessions) setSessionFirewallDefaults(allowsDirect bool, allowsRemote bool, alwaysAllowsOutbound bool) {
-	ss.sessionFirewallAllowsDirect = allowsDirect
-	ss.sessionFirewallAllowsRemote = allowsRemote
-	ss.sessionFirewallAlwaysAllowsOutbound = alwaysAllowsOutbound
-}
-
-// Set the session firewall whitelist - nodes always allowed to open sessions.
-func (ss *sessions) setSessionFirewallWhitelist(whitelist []string) {
-	ss.sessionFirewallWhitelist = whitelist
-}
-
-// Set the session firewall blacklist - nodes never allowed to open sessions.
-func (ss *sessions) setSessionFirewallBlacklist(blacklist []string) {
-	ss.sessionFirewallBlacklist = blacklist
+	return ss.core.config.SessionFirewall.Enable
 }
 
 // Determines whether the session with a given publickey is allowed based on
 // session firewall rules.
 func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) bool {
+	ss.core.configMutex.RLock()
+	defer ss.core.configMutex.RUnlock()
+
 	// Allow by default if the session firewall is disabled
-	if !ss.sessionFirewallEnabled {
+	if !ss.isSessionFirewallEnabled() {
 		return true
 	}
 	// Prepare for checking whitelist/blacklist
 	var box crypto.BoxPubKey
 	// Reject blacklisted nodes
-	for _, b := range ss.sessionFirewallBlacklist {
+	for _, b := range ss.core.config.SessionFirewall.BlacklistEncryptionPublicKeys {
 		key, err := hex.DecodeString(b)
 		if err == nil {
 			copy(box[:crypto.BoxPubKeyLen], key)
@@ -176,7 +177,7 @@ func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) b
 		}
 	}
 	// Allow whitelisted nodes
-	for _, b := range ss.sessionFirewallWhitelist {
+	for _, b := range ss.core.config.SessionFirewall.WhitelistEncryptionPublicKeys {
 		key, err := hex.DecodeString(b)
 		if err == nil {
 			copy(box[:crypto.BoxPubKeyLen], key)
@@ -186,7 +187,7 @@ func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) b
 		}
 	}
 	// Allow outbound sessions if appropriate
-	if ss.sessionFirewallAlwaysAllowsOutbound {
+	if ss.core.config.SessionFirewall.AlwaysAllowOutbound {
 		if initiator {
 			return true
 		}
@@ -200,11 +201,11 @@ func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) b
 		}
 	}
 	// Allow direct peers if appropriate
-	if ss.sessionFirewallAllowsDirect && isDirectPeer {
+	if ss.core.config.SessionFirewall.AllowFromDirect && isDirectPeer {
 		return true
 	}
 	// Allow remote nodes if appropriate
-	if ss.sessionFirewallAllowsRemote && !isDirectPeer {
+	if ss.core.config.SessionFirewall.AllowFromRemote && !isDirectPeer {
 		return true
 	}
 	// Finally, default-deny if not matching any of the above rules
@@ -264,13 +265,12 @@ func (ss *sessions) getByTheirSubnet(snet *address.Subnet) (*sessionInfo, bool) 
 // Creates a new session and lazily cleans up old/timedout existing sessions.
 // This includse initializing session info to sane defaults (e.g. lowest supported MTU).
 func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
-	if ss.sessionFirewallEnabled {
-		if !ss.isSessionAllowed(theirPermKey, true) {
-			return nil
-		}
+	if !ss.isSessionAllowed(theirPermKey, true) {
+		return nil
 	}
 	sinfo := sessionInfo{}
 	sinfo.core = ss.core
+	sinfo.reconfigure = make(chan chan error, 1)
 	sinfo.theirPermPub = *theirPermKey
 	pub, priv := crypto.NewBoxKeys()
 	sinfo.mySesPub = *pub
@@ -442,7 +442,7 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 	// Get the corresponding session (or create a new session)
 	sinfo, isIn := ss.getByTheirPerm(&ping.SendPermPub)
 	// Check the session firewall
-	if !isIn && ss.sessionFirewallEnabled {
+	if !isIn && ss.isSessionFirewallEnabled() {
 		if !ss.isSessionAllowed(&ping.SendPermPub, false) {
 			return
 		}
@@ -539,6 +539,8 @@ func (sinfo *sessionInfo) doWorker() {
 			} else {
 				return
 			}
+		case e := <-sinfo.reconfigure:
+			e <- nil
 		}
 	}
 }
@@ -552,17 +554,30 @@ func (sinfo *sessionInfo) doSend(bs []byte) {
 	}
 	// code isn't multithreaded so appending to this is safe
 	coords := sinfo.coords
-	// Read IPv6 flowlabel field (20 bits).
-	// Assumes packet at least contains IPv6 header.
-	flowkey := uint64(bs[1]&0x0f)<<16 | uint64(bs[2])<<8 | uint64(bs[3])
-	// Check if the flowlabel was specified
-	if flowkey == 0 {
-		// Does the packet meet the minimum UDP packet size? (others are bigger)
-		if len(bs) >= 48 {
-			// Is the protocol TCP, UDP, SCTP?
+	// Work out the flowkey - this is used to determine which switch queue
+	// traffic will be pushed to in the event of congestion
+	var flowkey uint64
+	// Get the IP protocol version from the packet
+	switch bs[0] & 0xf0 {
+	case 0x40: // IPv4 packet
+		// Check the packet meets minimum UDP packet length
+		if len(bs) >= 24 {
+			// Is the protocol TCP, UDP or SCTP?
+			if bs[9] == 0x06 || bs[9] == 0x11 || bs[9] == 0x84 {
+				ihl := bs[0] & 0x0f * 4 // Header length
+				flowkey = uint64(bs[9])<<32 /* proto */ |
+					uint64(bs[ihl+0])<<24 | uint64(bs[ihl+1])<<16 /* sport */ |
+					uint64(bs[ihl+2])<<8 | uint64(bs[ihl+3]) /* dport */
+			}
+		}
+	case 0x60: // IPv6 packet
+		// Check if the flowlabel was specified in the packet header
+		flowkey = uint64(bs[1]&0x0f)<<16 | uint64(bs[2])<<8 | uint64(bs[3])
+		// If the flowlabel isn't present, make protokey from proto | sport | dport
+		// if the packet meets minimum UDP packet length
+		if flowkey == 0 && len(bs) >= 48 {
+			// Is the protocol TCP, UDP or SCTP?
 			if bs[6] == 0x06 || bs[6] == 0x11 || bs[6] == 0x84 {
-				// if flowlabel was unspecified (0), try to use known protocols' ports
-				// protokey: proto | sport | dport
 				flowkey = uint64(bs[6])<<32 /* proto */ |
 					uint64(bs[40])<<24 | uint64(bs[41])<<16 /* sport */ |
 					uint64(bs[42])<<8 | uint64(bs[43]) /* dport */
@@ -610,5 +625,8 @@ func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
 	sinfo.updateNonce(&p.Nonce)
 	sinfo.time = time.Now()
 	sinfo.bytesRecvd += uint64(len(bs))
-	sinfo.core.router.toRecv <- router_recvPacket{bs, sinfo}
+	select {
+	case sinfo.core.router.toRecv <- router_recvPacket{bs, sinfo}:
+	default: // avoid deadlocks, maybe do this somewhere else?...
+	}
 }
