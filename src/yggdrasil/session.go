@@ -304,7 +304,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.theirSubnet = *address.SubnetForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
 	sinfo.send = make(chan []byte, 32)
 	sinfo.recv = make(chan *wire_trafficPacket, 32)
-	go sinfo.doWorker()
+	//go sinfo.doWorker()
 	ss.sinfos[sinfo.myHandle] = &sinfo
 	ss.byMySes[sinfo.mySesPub] = &sinfo.myHandle
 	ss.byTheirPerm[sinfo.theirPermPub] = &sinfo.myHandle
@@ -625,6 +625,8 @@ func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
 	sinfo.updateNonce(&p.Nonce)
 	sinfo.time = time.Now()
 	sinfo.bytesRecvd += uint64(len(bs))
+	sinfo.core.router.recvPacket(bs, sinfo)
+	return
 	select {
 	case sinfo.core.router.toRecv <- router_recvPacket{bs, sinfo}:
 	default: // avoid deadlocks, maybe do this somewhere else?...

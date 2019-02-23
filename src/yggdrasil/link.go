@@ -216,8 +216,8 @@ func (intf *linkInterface) handler() error {
 				case signalReady <- struct{}{}:
 				default:
 				}
-				intf.link.core.log.Debugf("Sending packet to %s: %s, source %s",
-					strings.ToUpper(intf.info.linkType), themString, intf.info.local)
+				//intf.link.core.log.Debugf("Sending packet to %s: %s, source %s",
+				//	strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 			}
 		}
 	}()
@@ -237,9 +237,9 @@ func (intf *linkInterface) handler() error {
 		recvTimer := time.NewTimer(recvTime)
 		defer util.TimerStop(recvTimer)
 		for {
-			intf.link.core.log.Debugf("State of %s: %s, source %s :: isAlive %t isReady %t sendTimerRunning %t recvTimerRunning %t",
-				strings.ToUpper(intf.info.linkType), themString, intf.info.local,
-				isAlive, isReady, sendTimerRunning, recvTimerRunning)
+			//intf.link.core.log.Debugf("State of %s: %s, source %s :: isAlive %t isReady %t sendTimerRunning %t recvTimerRunning %t",
+			//	strings.ToUpper(intf.info.linkType), themString, intf.info.local,
+			//	isAlive, isReady, sendTimerRunning, recvTimerRunning)
 			select {
 			case gotMsg, ok := <-signalAlive:
 				if !ok {

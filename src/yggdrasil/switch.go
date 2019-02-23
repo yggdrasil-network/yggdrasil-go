@@ -668,10 +668,12 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool
 			//nothing
 		case coordLen < bestCoordLen:
 			update = true
-		case coordLen > bestCoordLen:
-			//nothing
-		case port < best.port:
-			update = true
+			/*
+				case coordLen > bestCoordLen:
+					//nothing
+				case port < best.port:
+					update = true
+			*/
 		default:
 			//nothing
 		}
@@ -800,7 +802,7 @@ func (t *switchTable) doWorker() {
 	t.queues.bufs = make(map[string]switch_buffer) // Packets per PacketStreamID (string)
 	idle := make(map[switchPort]struct{})          // this is to deduplicate things
 	for {
-		t.core.log.Debugf("Switch state: idle = %d, buffers = %d", len(idle), len(t.queues.bufs))
+		//t.core.log.Debugf("Switch state: idle = %d, buffers = %d", len(idle), len(t.queues.bufs))
 		select {
 		case bytes := <-t.packetIn:
 			// Try to send it somewhere (or drop it if it's corrupt or at a dead end)
