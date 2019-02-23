@@ -570,23 +570,23 @@ func (t *switchTable) start() error {
 	return nil
 }
 
-// Check if a packet should go to the self node
-// This means there's no node closer to the destination than us
-// This is mainly used to identify packets addressed to us, or that hit a blackhole
-func (t *switchTable) selfIsClosest(dest []byte) bool {
+// Return a map of ports onto distance, keeping only ports closer to the destination than this node
+// If the map is empty (or nil), then no peer is closer
+func (t *switchTable) getCloser(dest []byte) map[switchPort]int {
 	table := t.getTable()
 	myDist := table.self.dist(dest)
 	if myDist == 0 {
 		// Skip the iteration step if it's impossible to be closer
-		return true
+		return nil
 	}
+	closer := make(map[switchPort]int, len(table.elems))
 	for _, info := range table.elems {
 		dist := info.locator.dist(dest)
 		if dist < myDist {
-			return false
+			closer[info.port] = dist
 		}
 	}
-	return true
+	return closer
 }
 
 // Returns true if the peer is closer to the destination than ourself
@@ -640,25 +640,45 @@ func (t *switchTable) bestPortForCoords(coords []byte) switchPort {
 func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool {
 	coords := switch_getPacketCoords(packet)
 	ports := t.core.peers.getPorts()
-	if t.selfIsClosest(coords) {
+	closer := t.getCloser(coords)
+	if len(closer) == 0 {
 		// TODO? call the router directly, and remove the whole concept of a self peer?
 		ports[0].sendPacket(packet)
 		return true
 	}
 	table := t.getTable()
-	myDist := table.self.dist(coords)
 	var best *peer
-	bestDist := myDist
-	for port := range idle {
-		if to := ports[port]; to != nil {
-			if info, isIn := table.elems[to.port]; isIn {
-				dist := info.locator.dist(coords)
-				if !(dist < bestDist) {
-					continue
-				}
-				best = to
-				bestDist = dist
-			}
+	var bestDist int
+	var bestCoordLen int
+	for port, dist := range closer {
+		to := ports[port]
+		_, isIdle := idle[port]
+		coordLen := len(table.elems[port].locator.coords)
+		var update bool
+		switch {
+		case to == nil:
+			//nothing
+		case !isIdle:
+			//nothing
+		case best == nil:
+			update = true
+		case dist < bestDist:
+			update = true
+		case dist > bestDist:
+			//nothing
+		case coordLen < bestCoordLen:
+			update = true
+		case coordLen > bestCoordLen:
+			//nothing
+		case port < best.port:
+			update = true
+		default:
+			//nothing
+		}
+		if update {
+			best = to
+			bestDist = dist
+			bestCoordLen = coordLen
 		}
 	}
 	if best != nil {
@@ -697,7 +717,7 @@ func (b *switch_buffers) cleanup(t *switchTable) {
 		// Remove queues for which we have no next hop
 		packet := buf.packets[0]
 		coords := switch_getPacketCoords(packet.bytes)
-		if t.selfIsClosest(coords) {
+		if len(t.getCloser(coords)) == 0 {
 			for _, packet := range buf.packets {
 				util.PutBytes(packet.bytes)
 			}
