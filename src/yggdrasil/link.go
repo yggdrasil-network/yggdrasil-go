@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"sync"
@@ -223,6 +224,7 @@ func (intf *linkInterface) handler() error {
 	// Used to enable/disable activity in the switch
 	signalAlive := make(chan bool, 1) // True = real packet, false = keep-alive
 	defer close(signalAlive)
+	ret := make(chan error, 1) // How we signal the return value when multiple goroutines are involved
 	go func() {
 		var isAlive bool
 		var isReady bool
@@ -247,6 +249,7 @@ func (intf *linkInterface) handler() error {
 					return
 				}
 				util.TimerStop(closeTimer)
+				closeTimer.Reset(closeTime)
 				util.TimerStop(recvTimer)
 				recvTimerRunning = false
 				isAlive = true
@@ -278,8 +281,6 @@ func (intf *linkInterface) handler() error {
 					// Start a timer, if it expires and we haven't gotten any return traffic (including a 0-sized ack), then assume there's a problem
 					util.TimerStop(recvTimer)
 					recvTimer.Reset(recvTime)
-					util.TimerStop(closeTimer)
-					closeTimer.Reset(closeTime)
 					recvTimerRunning = true
 				}
 			case _, ok := <-signalReady:
@@ -306,18 +307,27 @@ func (intf *linkInterface) handler() error {
 			case <-closeTimer.C:
 				// We haven't received anything in a really long time, so things have died at the switch level and then some...
 				// Just close the connection at this point...
+				select {
+				case ret <- errors.New("timeout"):
+				default:
+				}
 				intf.msgIO.close()
 			}
 		}
 	}()
 	// Run reader loop
 	for {
-		var msg []byte
-		msg, err = intf.msgIO.readMsg()
+		msg, err := intf.msgIO.readMsg()
 		if len(msg) > 0 {
 			intf.peer.handlePacket(msg)
 		}
 		if err != nil {
+			if err != io.EOF {
+				select {
+				case ret <- err:
+				default:
+				}
+			}
 			break
 		}
 		select {
@@ -327,7 +337,14 @@ func (intf *linkInterface) handler() error {
 	}
 	////////////////////////////////////////////////////////////////////////////////
 	// Remember to set `err` to something useful before returning
-	intf.link.core.log.Infof("Disconnected %s: %s, source %s, reason: %s",
-		strings.ToUpper(intf.info.linkType), themString, intf.info.local, err)
+	select {
+	case err = <-ret:
+		intf.link.core.log.Infof("Disconnected %s: %s, source %s; error: %s",
+			strings.ToUpper(intf.info.linkType), themString, intf.info.local, err)
+	default:
+		err = nil
+		intf.link.core.log.Infof("Disconnected %s: %s, source %s",
+			strings.ToUpper(intf.info.linkType), themString, intf.info.local)
+	}
 	return err
 }
