@@ -162,8 +162,6 @@ func (intf *linkInterface) handler() error {
 	themString := fmt.Sprintf("%s@%s", themAddrString, intf.info.remote)
 	intf.link.core.log.Infof("Connected %s: %s, source %s",
 		strings.ToUpper(intf.info.linkType), themString, intf.info.local)
-	defer intf.link.core.log.Infof("Disconnected %s: %s, source %s",
-		strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 	// Start the link loop
 	go intf.peer.linkLoop()
 	// Start the writer
@@ -304,12 +302,13 @@ func (intf *linkInterface) handler() error {
 	}()
 	// Run reader loop
 	for {
-		msg, err := intf.msgIO.readMsg()
+		var msg []byte
+		msg, err = intf.msgIO.readMsg()
 		if len(msg) > 0 {
 			intf.peer.handlePacket(msg)
 		}
 		if err != nil {
-			return err
+			break
 		}
 		select {
 		case signalAlive <- len(msg) > 0:
@@ -317,5 +316,8 @@ func (intf *linkInterface) handler() error {
 		}
 	}
 	////////////////////////////////////////////////////////////////////////////////
-	return nil
+	// Remember to set `err` to something useful before returning
+	intf.link.core.log.Infof("Disconnected %s: %s, source %s, reason: %s",
+		strings.ToUpper(intf.info.linkType), themString, intf.info.local, err)
+	return err
 }
