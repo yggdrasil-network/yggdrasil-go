@@ -228,12 +228,15 @@ func (intf *linkInterface) handler() error {
 		var isReady bool
 		var sendTimerRunning bool
 		var recvTimerRunning bool
-		recvTime := 6 * time.Second // TODO set to ReadTimeout from the config, reset if it gets changed
+		recvTime := 6 * time.Second     // TODO set to ReadTimeout from the config, reset if it gets changed
+		closeTime := 2 * switch_timeout // TODO or maybe this makes more sense for ReadTimeout?...
 		sendTime := time.Second
 		sendTimer := time.NewTimer(sendTime)
 		defer util.TimerStop(sendTimer)
 		recvTimer := time.NewTimer(recvTime)
 		defer util.TimerStop(recvTimer)
+		closeTimer := time.NewTimer(closeTime)
+		defer util.TimerStop(closeTimer)
 		for {
 			//intf.link.core.log.Debugf("State of %s: %s, source %s :: isAlive %t isReady %t sendTimerRunning %t recvTimerRunning %t",
 			//	strings.ToUpper(intf.info.linkType), themString, intf.info.local,
@@ -243,6 +246,7 @@ func (intf *linkInterface) handler() error {
 				if !ok {
 					return
 				}
+				util.TimerStop(closeTimer)
 				util.TimerStop(recvTimer)
 				recvTimerRunning = false
 				isAlive = true
@@ -274,6 +278,8 @@ func (intf *linkInterface) handler() error {
 					// Start a timer, if it expires and we haven't gotten any return traffic (including a 0-sized ack), then assume there's a problem
 					util.TimerStop(recvTimer)
 					recvTimer.Reset(recvTime)
+					util.TimerStop(closeTimer)
+					closeTimer.Reset(closeTime)
 					recvTimerRunning = true
 				}
 			case _, ok := <-signalReady:
@@ -297,6 +303,10 @@ func (intf *linkInterface) handler() error {
 			case <-recvTimer.C:
 				// We haven't received anything, so assume there's a problem and don't return this node to the switch until they start responding
 				isAlive = false
+			case <-closeTimer.C:
+				// We haven't received anything in a really long time, so things have died at the switch level and then some...
+				// Just close the connection at this point...
+				intf.msgIO.close()
 			}
 		}
 	}()

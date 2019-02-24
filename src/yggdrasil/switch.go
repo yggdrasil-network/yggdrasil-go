@@ -215,7 +215,6 @@ func (t *switchTable) doMaintenance() {
 	defer t.mutex.Unlock() // Release lock when we're done
 	t.cleanRoot()
 	t.cleanDropped()
-	t.cleanPeers()
 }
 
 // Updates the root periodically if it is ourself, or promotes ourself to root if we're better than the current root or if the current root has timed out.
@@ -269,28 +268,6 @@ func (t *switchTable) forgetPeer(port switchPort) {
 	t.parent = 0
 	for _, info := range t.data.peers {
 		t.unlockedHandleMsg(&info.msg, info.port, true)
-	}
-}
-
-// Clean all unresponsive peers from the table, needed in case a peer stops updating.
-// Needed in case a non-parent peer keeps the connection open but stops sending updates.
-// Also reclaims space from deleted peers by copying the map.
-func (t *switchTable) cleanPeers() {
-	now := time.Now()
-	for port, peer := range t.data.peers {
-		if now.Sub(peer.time) > switch_timeout+switch_throttle {
-			// Longer than switch_timeout to make sure we don't remove a working peer because the root stopped responding.
-			delete(t.data.peers, port)
-			go t.core.peers.removePeer(port) // TODO figure out if it's safe to do this without a goroutine, or make it safe
-		}
-	}
-	if _, isIn := t.data.peers[t.parent]; !isIn {
-		// The root timestamp would probably time out before this happens, but better safe than sorry.
-		// We removed the current parent, so find a new one.
-		t.parent = 0
-		for _, peer := range t.data.peers {
-			t.unlockedHandleMsg(&peer.msg, peer.port, true)
-		}
 	}
 }
 
