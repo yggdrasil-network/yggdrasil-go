@@ -92,11 +92,16 @@ func (intf *linkInterface) handler() error {
 	meta.link = *myLinkPub
 	metaBytes := meta.encode()
 	// TODO timeouts on send/recv (goroutine for send/recv, channel select w/ timer)
-	err := intf.msgIO._sendMetaBytes(metaBytes)
+	var err error
+	if !util.FuncTimeout(func() { err = intf.msgIO._sendMetaBytes(metaBytes) }, 30*time.Second) {
+		return errors.New("timeout on metadata send")
+	}
 	if err != nil {
 		return err
 	}
-	metaBytes, err = intf.msgIO._recvMetaBytes()
+	if !util.FuncTimeout(func() { metaBytes, err = intf.msgIO._recvMetaBytes() }, 30*time.Second) {
+		return errors.New("timeout on metadata recv")
+	}
 	if err != nil {
 		return err
 	}
@@ -110,7 +115,7 @@ func (intf *linkInterface) handler() error {
 		return errors.New("failed to connect: wrong version")
 	}
 	// Check if we're authorized to connect to this key / IP
-	if !intf.force && !intf.link.core.peers.isAllowedEncryptionPublicKey(&meta.box) {
+	if !intf.incoming && !intf.force && !intf.link.core.peers.isAllowedEncryptionPublicKey(&meta.box) {
 		intf.link.core.log.Debugf("%s connection to %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
 			strings.ToUpper(intf.info.linkType), intf.info.remote, hex.EncodeToString(meta.box[:]))
 		intf.msgIO.close()
