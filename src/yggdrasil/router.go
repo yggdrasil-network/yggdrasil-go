@@ -66,7 +66,7 @@ func (r *router) init(core *Core) {
 	r.reconfigure = make(chan chan error, 1)
 	r.addr = *address.AddrForNodeID(&r.core.dht.nodeID)
 	r.subnet = *address.SubnetForNodeID(&r.core.dht.nodeID)
-	in := make(chan []byte, 32) // TODO something better than this...
+	in := make(chan []byte, 1) // TODO something better than this...
 	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, "(self)", nil)
 	p.out = func(packet []byte) { in <- packet }
 	r.in = in
@@ -322,9 +322,6 @@ func (r *router) sendPacket(bs []byte) {
 			// Don't continue - drop the packet
 			return
 		}
-
-		sinfo.doSend(bs)
-		return
 		sinfo.send <- bs
 	}
 }
@@ -404,8 +401,6 @@ func (r *router) handleTraffic(packet []byte) {
 	if !isIn {
 		return
 	}
-	sinfo.doRecv(&p)
-	return
 	sinfo.recv <- &p
 }
 
