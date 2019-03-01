@@ -7,7 +7,6 @@ package yggdrasil
 #cgo LDFLAGS: -framework Foundation
 #import <Foundation/Foundation.h>
 void WakeUpAWDL() {
-	id delegateObject; // Assume this exists.
 	NSNetServiceBrowser *serviceBrowser;
 
 	serviceBrowser = [[NSNetServiceBrowser alloc] init];
