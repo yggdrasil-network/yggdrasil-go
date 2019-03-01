@@ -4,6 +4,10 @@ package yggdrasil
 
 import "syscall"
 
-func multicastReuse(network string, address string, c syscall.RawConn) error {
+func (m *multicast) multicastWake() {
+
+}
+
+func (m *multicast) multicastReuse(network string, address string, c syscall.RawConn) error {
 	return nil
 }
