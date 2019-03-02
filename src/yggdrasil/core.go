@@ -125,10 +125,14 @@ func (c *Core) addPeerLoop() {
 // UpdateConfig updates the configuration in Core and then signals the
 // various module goroutines to reconfigure themselves if needed
 func (c *Core) UpdateConfig(config *config.NodeConfig) {
+	c.log.Infoln("Reloading configuration...")
+
 	c.configMutex.Lock()
 	c.configOld = c.config
 	c.config = *config
 	c.configMutex.Unlock()
+
+	errors := 0
 
 	components := []chan chan error{
 		c.admin.reconfigure,
@@ -148,8 +152,15 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 		response := make(chan error)
 		component <- response
 		if err := <-response; err != nil {
-			c.log.Println(err)
+			c.log.Errorln(err)
+			errors++
 		}
+	}
+
+	if errors > 0 {
+		c.log.Warnln(errors, "modules reported errors during configuration reload")
+	} else {
+		c.log.Infoln("Configuration reloaded successfully")
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 	"sync"
@@ -91,11 +92,16 @@ func (intf *linkInterface) handler() error {
 	meta.link = *myLinkPub
 	metaBytes := meta.encode()
 	// TODO timeouts on send/recv (goroutine for send/recv, channel select w/ timer)
-	err := intf.msgIO._sendMetaBytes(metaBytes)
+	var err error
+	if !util.FuncTimeout(func() { err = intf.msgIO._sendMetaBytes(metaBytes) }, 30*time.Second) {
+		return errors.New("timeout on metadata send")
+	}
 	if err != nil {
 		return err
 	}
-	metaBytes, err = intf.msgIO._recvMetaBytes()
+	if !util.FuncTimeout(func() { metaBytes, err = intf.msgIO._recvMetaBytes() }, 30*time.Second) {
+		return errors.New("timeout on metadata recv")
+	}
 	if err != nil {
 		return err
 	}
@@ -109,8 +115,8 @@ func (intf *linkInterface) handler() error {
 		return errors.New("failed to connect: wrong version")
 	}
 	// Check if we're authorized to connect to this key / IP
-	if !intf.force && !intf.link.core.peers.isAllowedEncryptionPublicKey(&meta.box) {
-		intf.link.core.log.Debugf("%s connection to %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
+	if !intf.incoming && !intf.force && !intf.link.core.peers.isAllowedEncryptionPublicKey(&meta.box) {
+		intf.link.core.log.Warnf("%s connection to %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
 			strings.ToUpper(intf.info.linkType), intf.info.remote, hex.EncodeToString(meta.box[:]))
 		intf.msgIO.close()
 		return nil
@@ -161,8 +167,6 @@ func (intf *linkInterface) handler() error {
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, intf.info.remote)
 	intf.link.core.log.Infof("Connected %s: %s, source %s",
-		strings.ToUpper(intf.info.linkType), themString, intf.info.local)
-	defer intf.link.core.log.Infof("Disconnected %s: %s, source %s",
 		strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 	// Start the link loop
 	go intf.peer.linkLoop()
@@ -216,8 +220,8 @@ func (intf *linkInterface) handler() error {
 				case signalReady <- struct{}{}:
 				default:
 				}
-				intf.link.core.log.Debugf("Sending packet to %s: %s, source %s",
-					strings.ToUpper(intf.info.linkType), themString, intf.info.local)
+				//intf.link.core.log.Debugf("Sending packet to %s: %s, source %s",
+				//	strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 			}
 		}
 	}()
@@ -225,26 +229,32 @@ func (intf *linkInterface) handler() error {
 	// Used to enable/disable activity in the switch
 	signalAlive := make(chan bool, 1) // True = real packet, false = keep-alive
 	defer close(signalAlive)
+	ret := make(chan error, 1) // How we signal the return value when multiple goroutines are involved
 	go func() {
 		var isAlive bool
 		var isReady bool
 		var sendTimerRunning bool
 		var recvTimerRunning bool
-		recvTime := 6 * time.Second // TODO set to ReadTimeout from the config, reset if it gets changed
+		recvTime := 6 * time.Second     // TODO set to ReadTimeout from the config, reset if it gets changed
+		closeTime := 2 * switch_timeout // TODO or maybe this makes more sense for ReadTimeout?...
 		sendTime := time.Second
 		sendTimer := time.NewTimer(sendTime)
 		defer util.TimerStop(sendTimer)
 		recvTimer := time.NewTimer(recvTime)
 		defer util.TimerStop(recvTimer)
+		closeTimer := time.NewTimer(closeTime)
+		defer util.TimerStop(closeTimer)
 		for {
-			intf.link.core.log.Debugf("State of %s: %s, source %s :: isAlive %t isReady %t sendTimerRunning %t recvTimerRunning %t",
-				strings.ToUpper(intf.info.linkType), themString, intf.info.local,
-				isAlive, isReady, sendTimerRunning, recvTimerRunning)
+			//intf.link.core.log.Debugf("State of %s: %s, source %s :: isAlive %t isReady %t sendTimerRunning %t recvTimerRunning %t",
+			//	strings.ToUpper(intf.info.linkType), themString, intf.info.local,
+			//	isAlive, isReady, sendTimerRunning, recvTimerRunning)
 			select {
 			case gotMsg, ok := <-signalAlive:
 				if !ok {
 					return
 				}
+				util.TimerStop(closeTimer)
+				closeTimer.Reset(closeTime)
 				util.TimerStop(recvTimer)
 				recvTimerRunning = false
 				isAlive = true
@@ -299,6 +309,14 @@ func (intf *linkInterface) handler() error {
 			case <-recvTimer.C:
 				// We haven't received anything, so assume there's a problem and don't return this node to the switch until they start responding
 				isAlive = false
+			case <-closeTimer.C:
+				// We haven't received anything in a really long time, so things have died at the switch level and then some...
+				// Just close the connection at this point...
+				select {
+				case ret <- errors.New("timeout"):
+				default:
+				}
+				intf.msgIO.close()
 			}
 		}
 	}()
@@ -309,7 +327,13 @@ func (intf *linkInterface) handler() error {
 			intf.peer.handlePacket(msg)
 		}
 		if err != nil {
-			return err
+			if err != io.EOF {
+				select {
+				case ret <- err:
+				default:
+				}
+			}
+			break
 		}
 		select {
 		case signalAlive <- len(msg) > 0:
@@ -317,5 +341,15 @@ func (intf *linkInterface) handler() error {
 		}
 	}
 	////////////////////////////////////////////////////////////////////////////////
-	return nil
+	// Remember to set `err` to something useful before returning
+	select {
+	case err = <-ret:
+		intf.link.core.log.Infof("Disconnected %s: %s, source %s; error: %s",
+			strings.ToUpper(intf.info.linkType), themString, intf.info.local, err)
+	default:
+		err = nil
+		intf.link.core.log.Infof("Disconnected %s: %s, source %s",
+			strings.ToUpper(intf.info.linkType), themString, intf.info.local)
+	}
+	return err
 }

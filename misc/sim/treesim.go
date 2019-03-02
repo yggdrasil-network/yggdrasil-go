@@ -6,13 +6,15 @@ import "os"
 import "strings"
 import "strconv"
 import "time"
-import "log"
 
 import "runtime"
 import "runtime/pprof"
 import "flag"
 
+import "github.com/gologme/log"
+
 import . "github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
+import . "github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 
 ////////////////////////////////////////////////////////////////////////////////
 
