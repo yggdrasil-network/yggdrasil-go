@@ -5,7 +5,11 @@ package yggdrasil
 import "syscall"
 import "golang.org/x/sys/windows"
 
-func multicastReuse(network string, address string, c syscall.RawConn) error {
+func (m *multicast) multicastWake() {
+
+}
+
+func (m *multicast) multicastReuse(network string, address string, c syscall.RawConn) error {
 	var control error
 	var reuseaddr error
 
