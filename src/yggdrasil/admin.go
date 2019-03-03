@@ -404,7 +404,7 @@ func (a *admin) listen() {
 			if _, err := os.Stat(a.listenaddr[7:]); err == nil {
 				a.core.log.Debugln("Admin socket", a.listenaddr[7:], "already exists, trying to clean up")
 				if _, err := net.Dial("unix", a.listenaddr[7:]); err == nil {
-					a.core.log.Errorln("Admin socket", a.listenaddr[7:], "is already in use by another process")
+					a.core.log.Errorln("Admin socket", a.listenaddr[7:], "already exists and is in use by another process")
 					os.Exit(1)
 				} else {
 					if err := os.Remove(a.listenaddr[7:]); err == nil {
