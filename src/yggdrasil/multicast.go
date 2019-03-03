@@ -50,7 +50,7 @@ func (m *multicast) start() error {
 		}
 		listenString := fmt.Sprintf("[::]:%v", addr.Port)
 		lc := net.ListenConfig{
-			Control: multicastReuse,
+			Control: m.multicastReuse,
 		}
 		conn, err := lc.ListenPacket(context.Background(), "udp6", listenString)
 		if err != nil {
@@ -61,6 +61,7 @@ func (m *multicast) start() error {
 			// Windows can't set this flag, so we need to handle it in other ways
 		}
 
+		m.multicastWake()
 		go m.listen()
 		go m.announce()
 	}

@@ -56,3 +56,23 @@ func TimerStop(t *time.Timer) bool {
 	}
 	return true
 }
+
+// Run a blocking function with a timeout.
+// Returns true if the function returns.
+// Returns false if the timer fires.
+// The blocked function remains blocked--the caller is responsible for somehow killing it.
+func FuncTimeout(f func(), timeout time.Duration) bool {
+	success := make(chan struct{})
+	go func() {
+		defer close(success)
+		f()
+	}()
+	timer := time.NewTimer(timeout)
+	defer TimerStop(timer)
+	select {
+	case <-success:
+		return true
+	case <-timer.C:
+		return false
+	}
+}
