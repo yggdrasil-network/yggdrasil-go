@@ -402,7 +402,18 @@ func (a *admin) listen() {
 		switch strings.ToLower(u.Scheme) {
 		case "unix":
 			if _, err := os.Stat(a.listenaddr[7:]); err == nil {
-				a.core.log.Warnln("WARNING:", a.listenaddr[7:], "already exists and may be in use by another process")
+				a.core.log.Debugln("Admin socket", a.listenaddr[7:], "already exists, trying to clean up")
+				if _, err := net.Dial("unix", a.listenaddr[7:]); err == nil {
+					a.core.log.Errorln("Admin socket", a.listenaddr[7:], "already exists and is in use by another process")
+					os.Exit(1)
+				} else {
+					if err := os.Remove(a.listenaddr[7:]); err == nil {
+						a.core.log.Debugln(a.listenaddr[7:], "was cleaned up")
+					} else {
+						a.core.log.Errorln(a.listenaddr[7:], "already exists and was not cleaned up:", err)
+						os.Exit(1)
+					}
+				}
 			}
 			a.listener, err = net.Listen("unix", a.listenaddr[7:])
 			if err == nil {
