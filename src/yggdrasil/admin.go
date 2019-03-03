@@ -403,7 +403,7 @@ func (a *admin) listen() {
 		case "unix":
 			if _, err := os.Stat(a.listenaddr[7:]); err == nil {
 				a.core.log.Debugln("Admin socket", a.listenaddr[7:], "already exists, trying to clean up")
-				if _, err := net.Dial("unix", a.listenaddr[7:]); err == nil {
+				if _, err := net.DialTimeout("unix", a.listenaddr[7:], time.Second*2); err == nil || err.(net.Error).Timeout() {
 					a.core.log.Errorln("Admin socket", a.listenaddr[7:], "already exists and is in use by another process")
 					os.Exit(1)
 				} else {
