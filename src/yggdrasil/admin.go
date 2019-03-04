@@ -573,18 +573,9 @@ func (a *admin) printInfos(infos []admin_nodeInfo) string {
 
 // addPeer triggers a connection attempt to a node.
 func (a *admin) addPeer(addr string, sintf string) error {
-	u, err := url.Parse(addr)
-	if err == nil {
-		switch strings.ToLower(u.Scheme) {
-		case "tcp":
-			a.core.link.tcp.connect(u.Host, sintf)
-		case "socks":
-			a.core.link.tcp.connectSOCKS(u.Host, u.Path[1:])
-		default:
-			return errors.New("invalid peer: " + addr)
-		}
-	} else {
-		return errors.New("invalid peer: " + addr)
+	err := a.core.link.call(addr, sintf)
+	if err != nil {
+		return err
 	}
 	return nil
 }

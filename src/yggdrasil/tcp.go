@@ -64,16 +64,6 @@ func (t *tcp) getAddr() *net.TCPAddr {
 	return nil
 }
 
-// Attempts to initiate a connection to the provided address.
-func (t *tcp) connect(addr string, intf string) {
-	t.call(addr, nil, intf)
-}
-
-// Attempst to initiate a connection to the provided address, viathe provided socks proxy address.
-func (t *tcp) connectSOCKS(socksaddr, peeraddr string) {
-	t.call(peeraddr, &socksaddr, "")
-}
-
 // Initializes the struct.
 func (t *tcp) init(l *link) error {
 	t.link = l
@@ -104,14 +94,6 @@ func (t *tcp) init(l *link) error {
 				}
 				for _, delete := range deleted {
 					t.link.core.log.Warnln("Removing listener", delete, "not currently implemented")
-					/*t.mutex.Lock()
-					if listener, ok := t.listeners[delete]; ok {
-						listener.Close()
-					}
-					if listener, ok := t.listenerstops[delete]; ok {
-						listener <- true
-					}
-					t.mutex.Unlock()*/
 				}
 				e <- nil
 			} else {
@@ -202,7 +184,7 @@ func (t *tcp) isAlreadyCalling(saddr string) bool {
 // If the dial is successful, it launches the handler.
 // When finished, it removes the outgoing call, so reconnection attempts can be made later.
 // This all happens in a separate goroutine that it spawns.
-func (t *tcp) call(saddr string, socksaddr *string, sintf string) {
+func (t *tcp) call(saddr string, options interface{}, sintf string) {
 	go func() {
 		callname := saddr
 		if sintf != "" {
@@ -224,12 +206,13 @@ func (t *tcp) call(saddr string, socksaddr *string, sintf string) {
 		}()
 		var conn net.Conn
 		var err error
-		if socksaddr != nil {
+		socksaddr, issocks := options.(string)
+		if issocks {
 			if sintf != "" {
 				return
 			}
 			var dialer proxy.Dialer
-			dialer, err = proxy.SOCKS5("tcp", *socksaddr, nil, proxy.Direct)
+			dialer, err = proxy.SOCKS5("tcp", socksaddr, nil, proxy.Direct)
 			if err != nil {
 				return
 			}

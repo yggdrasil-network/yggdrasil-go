@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -68,21 +69,20 @@ func (l *link) init(c *Core) error {
 	}
 
 	if err := l.awdl.init(l); err != nil {
-		l.core.log.Errorln("Failed to start AWDL interface")
+		c.log.Errorln("Failed to start AWDL interface")
 		return err
 	}
 
 	go func() {
 		for {
 			e := <-l.reconfigure
-			tcpresponse := make(chan error)
-			awdlresponse := make(chan error)
-			l.tcp.reconfigure <- tcpresponse
-			l.awdl.reconfigure <- awdlresponse
-			if err := <-tcpresponse; err != nil {
+			response := make(chan error)
+			l.tcp.reconfigure <- response
+			if err := <-response; err != nil {
 				e <- err
 			}
-			if err := <-awdlresponse; err != nil {
+			l.awdl.reconfigure <- response
+			if err := <-response; err != nil {
 				e <- err
 			}
 			e <- nil
@@ -90,6 +90,36 @@ func (l *link) init(c *Core) error {
 	}()
 
 	return nil
+}
+
+func (l *link) call(uri string, sintf string) error {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return err
+	}
+	pathtokens := strings.Split(strings.Trim(u.Path, "/"), "/")
+	switch u.Scheme {
+	case "tcp":
+		l.tcp.call(u.Host, nil, sintf)
+	case "socks":
+		l.tcp.call(pathtokens[0], &u.Host, sintf)
+	default:
+		return errors.New("unknown call scheme: " + u.Scheme)
+	}
+	return nil
+}
+
+func (l *link) listen(uri string) error {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return err
+	}
+	switch u.Scheme {
+	case "tcp":
+		return l.tcp.listen(u.Host)
+	default:
+		return errors.New("unknown listen scheme: " + u.Scheme)
+	}
 }
 
 func (l *link) create(msgIO linkInterfaceMsgIO, name, linkType, local, remote string, incoming, force bool) (*linkInterface, error) {
