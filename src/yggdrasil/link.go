@@ -18,12 +18,13 @@ import (
 )
 
 type link struct {
-	core       *Core
-	mutex      sync.RWMutex // protects interfaces below
-	interfaces map[linkInfo]*linkInterface
-	handlers   map[string]linkListener
-	awdl       awdl // AWDL interface support
-	tcp        tcp  // TCP interface support
+	core        *Core
+	reconfigure chan chan error
+	mutex       sync.RWMutex // protects interfaces below
+	interfaces  map[linkInfo]*linkInterface
+	handlers    map[string]linkListener
+	awdl        awdl // AWDL interface support
+	tcp         tcp  // TCP interface support
 	// TODO timeout (to remove from switch), read from config.ReadTimeout
 }
 
@@ -63,6 +64,7 @@ func (l *link) init(c *Core) error {
 	l.core = c
 	l.mutex.Lock()
 	l.interfaces = make(map[linkInfo]*linkInterface)
+	l.reconfigure = make(chan chan error)
 	l.mutex.Unlock()
 
 	if err := l.tcp.init(l); err != nil {
@@ -74,6 +76,23 @@ func (l *link) init(c *Core) error {
 		l.core.log.Errorln("Failed to start AWDL interface")
 		return err
 	}
+
+	go func() {
+		for {
+			e := <-l.reconfigure
+			tcpresponse := make(chan error)
+			awdlresponse := make(chan error)
+			l.tcp.reconfigure <- tcpresponse
+			l.awdl.reconfigure <- awdlresponse
+			if err := <-tcpresponse; err != nil {
+				e <- err
+			}
+			if err := <-awdlresponse; err != nil {
+				e <- err
+			}
+			e <- nil
+		}
+	}()
 
 	return nil
 }

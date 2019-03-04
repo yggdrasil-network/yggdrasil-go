@@ -25,6 +25,7 @@ import (
 	"golang.org/x/net/proxy"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 const default_timeout = 6 * time.Second
@@ -32,13 +33,13 @@ const tcp_ping_interval = (default_timeout * 2 / 3)
 
 // The TCP listener and information about active TCP connections, to avoid duplication.
 type tcp struct {
-	link        *link
-	reconfigure chan chan error
-	stop        chan bool
-	mutex       sync.Mutex // Protecting the below
-	listeners   map[string]net.Listener
-	calls       map[string]struct{}
-	conns       map[tcpInfo](chan struct{})
+	link          *link
+	reconfigure   chan chan error
+	mutex         sync.Mutex // Protecting the below
+	listeners     map[string]net.Listener
+	listenerstops map[string]chan bool
+	calls         map[string]struct{}
+	conns         map[tcpInfo](chan struct{})
 }
 
 // This is used as the key to a map that tracks existing connections, to prevent multiple connections to the same keys and local/remote address pair from occuring.
@@ -81,22 +82,38 @@ func (t *tcp) connectSOCKS(socksaddr, peeraddr string) {
 // Initializes the struct.
 func (t *tcp) init(l *link) error {
 	t.link = l
-	t.stop = make(chan bool, 1)
 	t.reconfigure = make(chan chan error, 1)
 
 	go func() {
 		for {
 			e := <-t.reconfigure
 			t.link.core.configMutex.RLock()
-			//updated := t.link.core.config.Listen != t.link.core.configOld.Listen
-			updated := false
+			added := util.Difference(t.link.core.config.Listen, t.link.core.configOld.Listen)
+			deleted := util.Difference(t.link.core.configOld.Listen, t.link.core.config.Listen)
+			updated := len(added) > 0 || len(deleted) > 0
 			t.link.core.configMutex.RUnlock()
 			if updated {
-				/*	t.stop <- true
-					for _, listener := range t.listeners {
+				for _, add := range added {
+					if add[:6] != "tcp://" {
+						continue
+					}
+					if err := t.listen(add[6:]); err != nil {
+						e <- err
+						continue
+					}
+				}
+				for _, delete := range deleted {
+					t.link.core.log.Warnln("Removing listener", delete, "not currently implemented")
+					/*t.mutex.Lock()
+					if listener, ok := t.listeners[delete]; ok {
 						listener.Close()
 					}
-					e <- t.listen() */
+					if listener, ok := t.listenerstops[delete]; ok {
+						listener <- true
+					}
+					t.mutex.Unlock()*/
+				}
+				e <- nil
 			} else {
 				e <- nil
 			}
@@ -107,6 +124,7 @@ func (t *tcp) init(l *link) error {
 	t.calls = make(map[string]struct{})
 	t.conns = make(map[tcpInfo](chan struct{}))
 	t.listeners = make(map[string]net.Listener)
+	t.listenerstops = make(map[string]chan bool)
 	t.mutex.Unlock()
 
 	t.link.core.configMutex.RLock()
@@ -134,6 +152,7 @@ func (t *tcp) listen(listenaddr string) error {
 	if err == nil {
 		t.mutex.Lock()
 		t.listeners[listenaddr] = listener
+		t.listenerstops[listenaddr] = make(chan bool, 1)
 		t.mutex.Unlock()
 		go t.listener(listenaddr)
 		return nil
@@ -149,17 +168,25 @@ func (t *tcp) listener(listenaddr string) {
 		t.link.core.log.Errorln("Tried to start TCP listener for", listenaddr, "which doesn't exist")
 		return
 	}
+	reallistenaddr := listener.Addr().String()
 	defer listener.Close()
-	t.link.core.log.Infoln("Listening for TCP on:", listener.Addr().String())
+	t.link.core.log.Infoln("Listening for TCP on:", reallistenaddr)
 	for {
-		sock, err := listener.Accept()
-		if err != nil {
-			t.link.core.log.Errorln("Failed to accept connection:", err)
-			return
-		}
+		var sock net.Conn
+		var err error
+		accepted := make(chan bool)
+		go func() {
+			sock, err = listener.Accept()
+			accepted <- true
+		}()
 		select {
-		case <-t.stop:
-			t.link.core.log.Errorln("Stopping listener")
+		case <-accepted:
+			if err != nil {
+				t.link.core.log.Errorln("Failed to accept connection:", err)
+				return
+			}
+		case <-t.listenerstops[listenaddr]:
+			t.link.core.log.Errorln("Stopping TCP listener on:", reallistenaddr)
 			return
 		default:
 			if err != nil {

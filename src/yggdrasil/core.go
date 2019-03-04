@@ -143,7 +143,7 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 		c.router.tun.reconfigure,
 		c.router.cryptokey.reconfigure,
 		c.switchTable.reconfigure,
-		//	c.link.reconfigure,
+		c.link.reconfigure,
 		c.multicast.reconfigure,
 	}
 
