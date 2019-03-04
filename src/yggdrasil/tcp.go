@@ -24,7 +24,6 @@ import (
 
 	"golang.org/x/net/proxy"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
@@ -39,16 +38,7 @@ type tcp struct {
 	listeners     map[string]net.Listener
 	listenerstops map[string]chan bool
 	calls         map[string]struct{}
-	conns         map[tcpInfo](chan struct{})
-}
-
-// This is used as the key to a map that tracks existing connections, to prevent multiple connections to the same keys and local/remote address pair from occuring.
-// Different address combinations are allowed, so multi-homing is still technically possible (but not necessarily advisable).
-type tcpInfo struct {
-	box        crypto.BoxPubKey
-	sig        crypto.SigPubKey
-	localAddr  string
-	remoteAddr string
+	conns         map[linkInfo](chan struct{})
 }
 
 // Wrapper function to set additional options for specific connection types.
@@ -90,7 +80,7 @@ func (t *tcp) init(l *link) error {
 	t.reconfigure = make(chan chan error, 1)
 	t.mutex.Lock()
 	t.calls = make(map[string]struct{})
-	t.conns = make(map[tcpInfo](chan struct{}))
+	t.conns = make(map[linkInfo](chan struct{}))
 	t.listeners = make(map[string]net.Listener)
 	t.listenerstops = make(map[string]chan bool)
 	t.mutex.Unlock()
@@ -167,20 +157,20 @@ func (t *tcp) listen(listenaddr string) error {
 // Runs the listener, which spawns off goroutines for incoming connections.
 func (t *tcp) listener(listenaddr string) {
 	t.mutex.Lock()
-	listener, ok := t.listeners[listenaddr]
+	listener, ok1 := t.listeners[listenaddr]
 	listenerstop, ok2 := t.listenerstops[listenaddr]
 	t.mutex.Unlock()
-	if !ok || !ok2 {
+	if !ok1 || !ok2 {
 		t.link.core.log.Errorln("Tried to start TCP listener for", listenaddr, "which doesn't exist")
 		return
 	}
 	reallistenaddr := listener.Addr().String()
 	defer listener.Close()
 	t.link.core.log.Infoln("Listening for TCP on:", reallistenaddr)
+	accepted := make(chan bool)
 	for {
 		var sock net.Conn
 		var err error
-		accepted := make(chan bool)
 		go func() {
 			sock, err = listener.Accept()
 			accepted <- true
@@ -191,24 +181,12 @@ func (t *tcp) listener(listenaddr string) {
 				t.link.core.log.Errorln("Failed to accept connection:", err)
 				return
 			}
+			go t.handler(sock, true)
 		case <-listenerstop:
 			t.link.core.log.Errorln("Stopping TCP listener on:", reallistenaddr)
 			return
-		default:
-			if err != nil {
-				panic(err)
-			}
-			go t.handler(sock, true)
 		}
 	}
-}
-
-// Checks if we already have a connection to this node
-func (t *tcp) isAlreadyConnected(info tcpInfo) bool {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	_, isIn := t.conns[info]
-	return isIn
 }
 
 // Checks if we already are calling this address

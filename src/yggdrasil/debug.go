@@ -97,7 +97,15 @@ func (c *Core) DEBUG_getPeers() *peers {
 }
 
 func (ps *peers) DEBUG_newPeer(box crypto.BoxPubKey, sig crypto.SigPubKey, link crypto.BoxSharedKey) *peer {
-	return ps.newPeer(&box, &sig, &link, "(simulator)", nil)
+	sim := linkInterface{
+		name: "(simulator)",
+		info: linkInfo{
+			local:    "(simulator)",
+			remote:   "(simulator)",
+			linkType: "sim",
+		},
+	}
+	return ps.newPeer(&box, &sig, &link, &sim, nil)
 }
 
 /*

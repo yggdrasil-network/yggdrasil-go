@@ -666,7 +666,8 @@ func (a *admin) getData_getPeers() []admin_nodeInfo {
 			{"uptime", int(time.Since(p.firstSeen).Seconds())},
 			{"bytes_sent", atomic.LoadUint64(&p.bytesSent)},
 			{"bytes_recvd", atomic.LoadUint64(&p.bytesRecvd)},
-			{"endpoint", p.endpoint},
+			{"proto", p.intf.info.linkType},
+			{"endpoint", p.intf.info.remote},
 			{"box_pub_key", hex.EncodeToString(p.box[:])},
 		}
 		peerInfos = append(peerInfos, info)
@@ -692,7 +693,8 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 			{"port", elem.port},
 			{"bytes_sent", atomic.LoadUint64(&peer.bytesSent)},
 			{"bytes_recvd", atomic.LoadUint64(&peer.bytesRecvd)},
-			{"endpoint", peer.endpoint},
+			{"proto", peer.intf.info.linkType},
+			{"endpoint", peer.intf.info.remote},
 			{"box_pub_key", hex.EncodeToString(peer.box[:])},
 		}
 		peerInfos = append(peerInfos, info)
