@@ -63,9 +63,14 @@ func (t *tcp) setExtraOptions(c net.Conn) {
 
 // Returns the address of the listener.
 func (t *tcp) getAddr() *net.TCPAddr {
+	// TODO: Fix this, because this will currently only give a single address
+	// to multicast.go, which obviously is not great, but right now multicast.go
+	// doesn't have the ability to send more than one address in a packet either
+	t.mutex.Lock()
 	for _, listener := range t.listeners {
 		return listener.Addr().(*net.TCPAddr)
 	}
+	t.mutex.Unlock()
 	return nil
 }
 
@@ -83,6 +88,12 @@ func (t *tcp) connectSOCKS(socksaddr, peeraddr string) {
 func (t *tcp) init(l *link) error {
 	t.link = l
 	t.reconfigure = make(chan chan error, 1)
+	t.mutex.Lock()
+	t.calls = make(map[string]struct{})
+	t.conns = make(map[tcpInfo](chan struct{}))
+	t.listeners = make(map[string]net.Listener)
+	t.listenerstops = make(map[string]chan bool)
+	t.mutex.Unlock()
 
 	go func() {
 		for {
@@ -90,9 +101,8 @@ func (t *tcp) init(l *link) error {
 			t.link.core.configMutex.RLock()
 			added := util.Difference(t.link.core.config.Listen, t.link.core.configOld.Listen)
 			deleted := util.Difference(t.link.core.configOld.Listen, t.link.core.config.Listen)
-			updated := len(added) > 0 || len(deleted) > 0
 			t.link.core.configMutex.RUnlock()
-			if updated {
+			if len(added) > 0 || len(deleted) > 0 {
 				for _, add := range added {
 					if add[:6] != "tcp://" {
 						continue
@@ -119,13 +129,6 @@ func (t *tcp) init(l *link) error {
 			}
 		}
 	}()
-
-	t.mutex.Lock()
-	t.calls = make(map[string]struct{})
-	t.conns = make(map[tcpInfo](chan struct{}))
-	t.listeners = make(map[string]net.Listener)
-	t.listenerstops = make(map[string]chan bool)
-	t.mutex.Unlock()
 
 	t.link.core.configMutex.RLock()
 	defer t.link.core.configMutex.RUnlock()
@@ -163,8 +166,11 @@ func (t *tcp) listen(listenaddr string) error {
 
 // Runs the listener, which spawns off goroutines for incoming connections.
 func (t *tcp) listener(listenaddr string) {
+	t.mutex.Lock()
 	listener, ok := t.listeners[listenaddr]
-	if !ok {
+	listenerstop, ok2 := t.listenerstops[listenaddr]
+	t.mutex.Unlock()
+	if !ok || !ok2 {
 		t.link.core.log.Errorln("Tried to start TCP listener for", listenaddr, "which doesn't exist")
 		return
 	}
@@ -185,7 +191,7 @@ func (t *tcp) listener(listenaddr string) {
 				t.link.core.log.Errorln("Failed to accept connection:", err)
 				return
 			}
-		case <-t.listenerstops[listenaddr]:
+		case <-listenerstop:
 			t.link.core.log.Errorln("Stopping TCP listener on:", reallistenaddr)
 			return
 		default:
