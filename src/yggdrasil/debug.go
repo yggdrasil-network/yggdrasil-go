@@ -449,19 +449,19 @@ func (c *Core) DEBUG_addSOCKSConn(socksaddr, peeraddr string) {
 
 //*
 func (c *Core) DEBUG_setupAndStartGlobalTCPInterface(addrport string) {
-	c.config.Listen = addrport
-	if err := c.tcp.init(c /*, addrport, 0*/); err != nil {
-		c.log.Println("Failed to start TCP interface:", err)
+	c.config.Listen = []string{addrport}
+	if err := c.link.init(c); err != nil {
+		c.log.Println("Failed to start interfaces:", err)
 		panic(err)
 	}
 }
 
 func (c *Core) DEBUG_getGlobalTCPAddr() *net.TCPAddr {
-	return c.tcp.serv.Addr().(*net.TCPAddr)
+	return c.link.tcp.getAddr()
 }
 
 func (c *Core) DEBUG_addTCPConn(saddr string) {
-	c.tcp.call(saddr, nil, "")
+	c.link.tcp.call(saddr, nil, "")
 }
 
 //*/
