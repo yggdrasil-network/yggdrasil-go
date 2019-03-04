@@ -21,8 +21,9 @@ type link struct {
 	core       *Core
 	mutex      sync.RWMutex // protects interfaces below
 	interfaces map[linkInfo]*linkInterface
-	awdl       awdl         // AWDL interface support
-	tcp        tcpInterface // TCP interface support
+	handlers   map[string]linkListener
+	awdl       awdl // AWDL interface support
+	tcp        tcp  // TCP interface support
 	// TODO timeout (to remove from switch), read from config.ReadTimeout
 }
 
@@ -32,6 +33,10 @@ type linkInfo struct {
 	linkType string           // Type of link, e.g. TCP, AWDL
 	local    string           // Local name or address
 	remote   string           // Remote name or address
+}
+
+type linkListener interface {
+	init(*link) error
 }
 
 type linkInterfaceMsgIO interface {

@@ -31,13 +31,12 @@ const default_timeout = 6 * time.Second
 const tcp_ping_interval = (default_timeout * 2 / 3)
 
 // The TCP listener and information about active TCP connections, to avoid duplication.
-type tcpInterface struct {
+type tcp struct {
 	link        *link
 	reconfigure chan chan error
-	serv        net.Listener
 	stop        chan bool
-	addr        string
 	mutex       sync.Mutex // Protecting the below
+	listeners   map[string]net.Listener
 	calls       map[string]struct{}
 	conns       map[tcpInfo](chan struct{})
 }
@@ -52,7 +51,7 @@ type tcpInfo struct {
 }
 
 // Wrapper function to set additional options for specific connection types.
-func (iface *tcpInterface) setExtraOptions(c net.Conn) {
+func (t *tcp) setExtraOptions(c net.Conn) {
 	switch sock := c.(type) {
 	case *net.TCPConn:
 		sock.SetNoDelay(true)
@@ -62,62 +61,81 @@ func (iface *tcpInterface) setExtraOptions(c net.Conn) {
 }
 
 // Returns the address of the listener.
-func (iface *tcpInterface) getAddr() *net.TCPAddr {
-	return iface.serv.Addr().(*net.TCPAddr)
+func (t *tcp) getAddr() *net.TCPAddr {
+	for _, listener := range t.listeners {
+		return listener.Addr().(*net.TCPAddr)
+	}
+	return nil
 }
 
 // Attempts to initiate a connection to the provided address.
-func (iface *tcpInterface) connect(addr string, intf string) {
-	iface.call(addr, nil, intf)
+func (t *tcp) connect(addr string, intf string) {
+	t.call(addr, nil, intf)
 }
 
 // Attempst to initiate a connection to the provided address, viathe provided socks proxy address.
-func (iface *tcpInterface) connectSOCKS(socksaddr, peeraddr string) {
-	iface.call(peeraddr, &socksaddr, "")
+func (t *tcp) connectSOCKS(socksaddr, peeraddr string) {
+	t.call(peeraddr, &socksaddr, "")
 }
 
 // Initializes the struct.
-func (iface *tcpInterface) init(l *link) (err error) {
-	iface.link = l
-	iface.stop = make(chan bool, 1)
-	iface.reconfigure = make(chan chan error, 1)
+func (t *tcp) init(l *link) error {
+	t.link = l
+	t.stop = make(chan bool, 1)
+	t.reconfigure = make(chan chan error, 1)
+
 	go func() {
 		for {
-			e := <-iface.reconfigure
-			iface.link.core.configMutex.RLock()
-			updated := iface.link.core.config.Listen != iface.link.core.configOld.Listen
-			iface.link.core.configMutex.RUnlock()
+			e := <-t.reconfigure
+			t.link.core.configMutex.RLock()
+			//updated := t.link.core.config.Listen != t.link.core.configOld.Listen
+			updated := false
+			t.link.core.configMutex.RUnlock()
 			if updated {
-				iface.stop <- true
-				iface.serv.Close()
-				e <- iface.listen()
+				/*	t.stop <- true
+					for _, listener := range t.listeners {
+						listener.Close()
+					}
+					e <- t.listen() */
 			} else {
 				e <- nil
 			}
 		}
 	}()
 
-	return iface.listen()
+	t.mutex.Lock()
+	t.calls = make(map[string]struct{})
+	t.conns = make(map[tcpInfo](chan struct{}))
+	t.listeners = make(map[string]net.Listener)
+	t.mutex.Unlock()
+
+	t.link.core.configMutex.RLock()
+	defer t.link.core.configMutex.RUnlock()
+	for _, listenaddr := range t.link.core.config.Listen {
+		if listenaddr[:6] != "tcp://" {
+			continue
+		}
+		if err := t.listen(listenaddr[6:]); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func (iface *tcpInterface) listen() error {
+func (t *tcp) listen(listenaddr string) error {
 	var err error
-
-	iface.link.core.configMutex.RLock()
-	iface.addr = iface.link.core.config.Listen
-	iface.link.core.configMutex.RUnlock()
 
 	ctx := context.Background()
 	lc := net.ListenConfig{
-		Control: iface.tcpContext,
+		Control: t.tcpContext,
 	}
-	iface.serv, err = lc.Listen(ctx, "tcp", iface.addr)
+	listener, err := lc.Listen(ctx, "tcp", listenaddr)
 	if err == nil {
-		iface.mutex.Lock()
-		iface.calls = make(map[string]struct{})
-		iface.conns = make(map[tcpInfo](chan struct{}))
-		iface.mutex.Unlock()
-		go iface.listener()
+		t.mutex.Lock()
+		t.listeners[listenaddr] = listener
+		t.mutex.Unlock()
+		go t.listener(listenaddr)
 		return nil
 	}
 
@@ -125,41 +143,46 @@ func (iface *tcpInterface) listen() error {
 }
 
 // Runs the listener, which spawns off goroutines for incoming connections.
-func (iface *tcpInterface) listener() {
-	defer iface.serv.Close()
-	iface.link.core.log.Infoln("Listening for TCP on:", iface.serv.Addr().String())
+func (t *tcp) listener(listenaddr string) {
+	listener, ok := t.listeners[listenaddr]
+	if !ok {
+		t.link.core.log.Errorln("Tried to start TCP listener for", listenaddr, "which doesn't exist")
+		return
+	}
+	defer listener.Close()
+	t.link.core.log.Infoln("Listening for TCP on:", listener.Addr().String())
 	for {
-		sock, err := iface.serv.Accept()
+		sock, err := listener.Accept()
 		if err != nil {
-			iface.link.core.log.Errorln("Failed to accept connection:", err)
+			t.link.core.log.Errorln("Failed to accept connection:", err)
 			return
 		}
 		select {
-		case <-iface.stop:
-			iface.link.core.log.Errorln("Stopping listener")
+		case <-t.stop:
+			t.link.core.log.Errorln("Stopping listener")
 			return
 		default:
 			if err != nil {
 				panic(err)
 			}
-			go iface.handler(sock, true)
+			go t.handler(sock, true)
 		}
 	}
 }
 
 // Checks if we already have a connection to this node
-func (iface *tcpInterface) isAlreadyConnected(info tcpInfo) bool {
-	iface.mutex.Lock()
-	defer iface.mutex.Unlock()
-	_, isIn := iface.conns[info]
+func (t *tcp) isAlreadyConnected(info tcpInfo) bool {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	_, isIn := t.conns[info]
 	return isIn
 }
 
 // Checks if we already are calling this address
-func (iface *tcpInterface) isAlreadyCalling(saddr string) bool {
-	iface.mutex.Lock()
-	defer iface.mutex.Unlock()
-	_, isIn := iface.calls[saddr]
+func (t *tcp) isAlreadyCalling(saddr string) bool {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	_, isIn := t.calls[saddr]
 	return isIn
 }
 
@@ -168,25 +191,25 @@ func (iface *tcpInterface) isAlreadyCalling(saddr string) bool {
 // If the dial is successful, it launches the handler.
 // When finished, it removes the outgoing call, so reconnection attempts can be made later.
 // This all happens in a separate goroutine that it spawns.
-func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
+func (t *tcp) call(saddr string, socksaddr *string, sintf string) {
 	go func() {
 		callname := saddr
 		if sintf != "" {
 			callname = fmt.Sprintf("%s/%s", saddr, sintf)
 		}
-		if iface.isAlreadyCalling(callname) {
+		if t.isAlreadyCalling(callname) {
 			return
 		}
-		iface.mutex.Lock()
-		iface.calls[callname] = struct{}{}
-		iface.mutex.Unlock()
+		t.mutex.Lock()
+		t.calls[callname] = struct{}{}
+		t.mutex.Unlock()
 		defer func() {
 			// Block new calls for a little while, to mitigate livelock scenarios
 			time.Sleep(default_timeout)
 			time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
-			iface.mutex.Lock()
-			delete(iface.calls, callname)
-			iface.mutex.Unlock()
+			t.mutex.Lock()
+			delete(t.calls, callname)
+			t.mutex.Unlock()
 		}()
 		var conn net.Conn
 		var err error
@@ -212,7 +235,7 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 			}
 		} else {
 			dialer := net.Dialer{
-				Control: iface.tcpContext,
+				Control: t.tcpContext,
 			}
 			if sintf != "" {
 				ief, err := net.InterfaceByName(sintf)
@@ -267,25 +290,25 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 				return
 			}
 		}
-		iface.handler(conn, false)
+		t.handler(conn, false)
 	}()
 }
 
-func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
+func (t *tcp) handler(sock net.Conn, incoming bool) {
 	defer sock.Close()
-	iface.setExtraOptions(sock)
+	t.setExtraOptions(sock)
 	stream := stream{}
 	stream.init(sock)
 	local, _, _ := net.SplitHostPort(sock.LocalAddr().String())
 	remote, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
 	remotelinklocal := net.ParseIP(remote).IsLinkLocalUnicast()
 	name := "tcp://" + sock.RemoteAddr().String()
-	link, err := iface.link.core.link.create(&stream, name, "tcp", local, remote, incoming, remotelinklocal)
+	link, err := t.link.core.link.create(&stream, name, "tcp", local, remote, incoming, remotelinklocal)
 	if err != nil {
-		iface.link.core.log.Println(err)
+		t.link.core.log.Println(err)
 		panic(err)
 	}
-	iface.link.core.log.Debugln("DEBUG: starting handler for", name)
+	t.link.core.log.Debugln("DEBUG: starting handler for", name)
 	err = link.handler()
-	iface.link.core.log.Debugln("DEBUG: stopped handler for", name, err)
+	t.link.core.log.Debugln("DEBUG: stopped handler for", name, err)
 }
