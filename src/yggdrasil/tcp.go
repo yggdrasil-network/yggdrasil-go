@@ -16,6 +16,7 @@ package yggdrasil
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -57,10 +58,10 @@ func (t *tcp) getAddr() *net.TCPAddr {
 	// to multicast.go, which obviously is not great, but right now multicast.go
 	// doesn't have the ability to send more than one address in a packet either
 	t.mutex.Lock()
+	defer t.mutex.Unlock()
 	for _, listener := range t.listeners {
 		return listener.Addr().(*net.TCPAddr)
 	}
-	t.mutex.Unlock()
 	return nil
 }
 
@@ -85,6 +86,7 @@ func (t *tcp) init(l *link) error {
 			if len(added) > 0 || len(deleted) > 0 {
 				for _, add := range added {
 					if add[:6] != "tcp://" {
+						e <- errors.New("unknown scheme: " + add)
 						continue
 					}
 					if err := t.listen(add[6:]); err != nil {

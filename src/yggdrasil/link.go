@@ -76,14 +76,17 @@ func (l *link) init(c *Core) error {
 	go func() {
 		for {
 			e := <-l.reconfigure
-			response := make(chan error)
-			l.tcp.reconfigure <- response
-			if err := <-response; err != nil {
+			tcpresponse := make(chan error)
+			awdlresponse := make(chan error)
+			l.tcp.reconfigure <- tcpresponse
+			if err := <-tcpresponse; err != nil {
 				e <- err
+				continue
 			}
-			l.awdl.reconfigure <- response
-			if err := <-response; err != nil {
+			l.awdl.reconfigure <- awdlresponse
+			if err := <-awdlresponse; err != nil {
 				e <- err
+				continue
 			}
 			e <- nil
 		}
