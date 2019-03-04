@@ -94,15 +94,13 @@ jobs:
       - run:
           name: Build for macOS
           command: |
-              rm -f {yggdrasil,yggdrasilctl}
               GO111MODULE=on GOOS=darwin GOARCH=amd64 ./build
-              mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-darwin-amd64
-              mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-darwin-amd64;
+              cp yggdrasil /tmp/upload/$CINAME-$CIVERSION-darwin-amd64
+              cp yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-darwin-amd64;
 
       - run:
           name: Build for macOS (.pkg format)
           command: |
-              rm -rf {yggdrasil,yggdrasilctl}
               PKGARCH=amd64 sh contrib/macos/create-pkg.sh
               mv *.pkg /tmp/upload/
 
