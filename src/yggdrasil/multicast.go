@@ -27,7 +27,7 @@ func (m *multicast) init(core *Core) {
 		for {
 			e := <-m.reconfigure
 			m.myAddrMutex.Lock()
-			m.myAddr = m.core.tcp.getAddr()
+			m.myAddr = m.core.link.tcp.getAddr()
 			m.myAddrMutex.Unlock()
 			e <- nil
 		}
@@ -109,7 +109,7 @@ func (m *multicast) interfaces() []net.Interface {
 func (m *multicast) announce() {
 	var anAddr net.TCPAddr
 	m.myAddrMutex.Lock()
-	m.myAddr = m.core.tcp.getAddr()
+	m.myAddr = m.core.link.tcp.getAddr()
 	m.myAddrMutex.Unlock()
 	groupAddr, err := net.ResolveUDPAddr("udp6", m.groupAddr)
 	if err != nil {
@@ -183,6 +183,6 @@ func (m *multicast) listen() {
 		}
 		addr.Zone = from.Zone
 		saddr := addr.String()
-		m.core.tcp.connect(saddr, addr.Zone)
+		m.core.link.tcp.connect(saddr, addr.Zone)
 	}
 }

@@ -577,9 +577,9 @@ func (a *admin) addPeer(addr string, sintf string) error {
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "tcp":
-			a.core.tcp.connect(u.Host, sintf)
+			a.core.link.tcp.connect(u.Host, sintf)
 		case "socks":
-			a.core.tcp.connectSOCKS(u.Host, u.Path[1:])
+			a.core.link.tcp.connectSOCKS(u.Host, u.Path[1:])
 		default:
 			return errors.New("invalid peer: " + addr)
 		}

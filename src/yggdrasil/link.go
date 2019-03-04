@@ -8,6 +8,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+
 	//"sync/atomic"
 	"time"
 
@@ -20,7 +21,8 @@ type link struct {
 	core       *Core
 	mutex      sync.RWMutex // protects interfaces below
 	interfaces map[linkInfo]*linkInterface
-	awdl       awdl // AWDL interface support
+	awdl       awdl         // AWDL interface support
+	tcp        tcpInterface // TCP interface support
 	// TODO timeout (to remove from switch), read from config.ReadTimeout
 }
 
@@ -57,6 +59,11 @@ func (l *link) init(c *Core) error {
 	l.mutex.Lock()
 	l.interfaces = make(map[linkInfo]*linkInterface)
 	l.mutex.Unlock()
+
+	if err := l.tcp.init(l); err != nil {
+		c.log.Errorln("Failed to start TCP interface")
+		return err
+	}
 
 	if err := l.awdl.init(l); err != nil {
 		l.core.log.Errorln("Failed to start AWDL interface")

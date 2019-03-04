@@ -32,7 +32,7 @@ const tcp_ping_interval = (default_timeout * 2 / 3)
 
 // The TCP listener and information about active TCP connections, to avoid duplication.
 type tcpInterface struct {
-	core        *Core
+	link        *link
 	reconfigure chan chan error
 	serv        net.Listener
 	stop        chan bool
@@ -77,16 +77,16 @@ func (iface *tcpInterface) connectSOCKS(socksaddr, peeraddr string) {
 }
 
 // Initializes the struct.
-func (iface *tcpInterface) init(core *Core) (err error) {
-	iface.core = core
+func (iface *tcpInterface) init(l *link) (err error) {
+	iface.link = l
 	iface.stop = make(chan bool, 1)
 	iface.reconfigure = make(chan chan error, 1)
 	go func() {
 		for {
 			e := <-iface.reconfigure
-			iface.core.configMutex.RLock()
-			updated := iface.core.config.Listen != iface.core.configOld.Listen
-			iface.core.configMutex.RUnlock()
+			iface.link.core.configMutex.RLock()
+			updated := iface.link.core.config.Listen != iface.link.core.configOld.Listen
+			iface.link.core.configMutex.RUnlock()
 			if updated {
 				iface.stop <- true
 				iface.serv.Close()
@@ -103,9 +103,9 @@ func (iface *tcpInterface) init(core *Core) (err error) {
 func (iface *tcpInterface) listen() error {
 	var err error
 
-	iface.core.configMutex.RLock()
-	iface.addr = iface.core.config.Listen
-	iface.core.configMutex.RUnlock()
+	iface.link.core.configMutex.RLock()
+	iface.addr = iface.link.core.config.Listen
+	iface.link.core.configMutex.RUnlock()
 
 	ctx := context.Background()
 	lc := net.ListenConfig{
@@ -127,16 +127,16 @@ func (iface *tcpInterface) listen() error {
 // Runs the listener, which spawns off goroutines for incoming connections.
 func (iface *tcpInterface) listener() {
 	defer iface.serv.Close()
-	iface.core.log.Infoln("Listening for TCP on:", iface.serv.Addr().String())
+	iface.link.core.log.Infoln("Listening for TCP on:", iface.serv.Addr().String())
 	for {
 		sock, err := iface.serv.Accept()
 		if err != nil {
-			iface.core.log.Errorln("Failed to accept connection:", err)
+			iface.link.core.log.Errorln("Failed to accept connection:", err)
 			return
 		}
 		select {
 		case <-iface.stop:
-			iface.core.log.Errorln("Stopping listener")
+			iface.link.core.log.Errorln("Stopping listener")
 			return
 		default:
 			if err != nil {
@@ -280,12 +280,12 @@ func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
 	remote, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
 	remotelinklocal := net.ParseIP(remote).IsLinkLocalUnicast()
 	name := "tcp://" + sock.RemoteAddr().String()
-	link, err := iface.core.link.create(&stream, name, "tcp", local, remote, incoming, remotelinklocal)
+	link, err := iface.link.core.link.create(&stream, name, "tcp", local, remote, incoming, remotelinklocal)
 	if err != nil {
-		iface.core.log.Println(err)
+		iface.link.core.log.Println(err)
 		panic(err)
 	}
-	iface.core.log.Debugln("DEBUG: starting handler for", name)
+	iface.link.core.log.Debugln("DEBUG: starting handler for", name)
 	err = link.handler()
-	iface.core.log.Debugln("DEBUG: stopped handler for", name, err)
+	iface.link.core.log.Debugln("DEBUG: stopped handler for", name, err)
 }

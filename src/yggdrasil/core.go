@@ -44,7 +44,6 @@ type Core struct {
 	admin       admin
 	searches    searches
 	multicast   multicast
-	tcp         tcpInterface
 	link        link
 	log         *log.Logger
 }
@@ -144,7 +143,7 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 		c.router.tun.reconfigure,
 		c.router.cryptokey.reconfigure,
 		c.switchTable.reconfigure,
-		c.tcp.reconfigure,
+		//	c.link.reconfigure,
 		c.multicast.reconfigure,
 	}
 
@@ -204,11 +203,6 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	c.configMutex.Unlock()
 
 	c.init()
-
-	if err := c.tcp.init(c); err != nil {
-		c.log.Errorln("Failed to start TCP interface")
-		return err
-	}
 
 	if err := c.link.init(c); err != nil {
 		c.log.Errorln("Failed to start link interfaces")
