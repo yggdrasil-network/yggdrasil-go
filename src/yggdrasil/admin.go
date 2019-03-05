@@ -252,6 +252,23 @@ func (a *admin) init(c *Core) {
 			}, errors.New("Failed to remove allowed key")
 		}
 	})
+	a.addHandler("getTunnelRouting", []string{}, func(in admin_info) (admin_info, error) {
+		enabled := false
+		a.core.router.doAdmin(func() {
+			enabled = a.core.router.cryptokey.isEnabled()
+		})
+		return admin_info{"enabled": enabled}, nil
+	})
+	a.addHandler("setTunnelRouting", []string{"enabled"}, func(in admin_info) (admin_info, error) {
+		enabled := false
+		if e, ok := in["enabled"].(bool); ok {
+			enabled = e
+		}
+		a.core.router.doAdmin(func() {
+			a.core.router.cryptokey.setEnabled(enabled)
+		})
+		return admin_info{"enabled": enabled}, nil
+	})
 	a.addHandler("addSourceSubnet", []string{"subnet"}, func(in admin_info) (admin_info, error) {
 		var err error
 		a.core.router.doAdmin(func() {
