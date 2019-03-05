@@ -173,9 +173,10 @@ func (a *admin) init(c *Core) {
 	})
 	a.addHandler("getTunTap", []string{}, func(in admin_info) (r admin_info, e error) {
 		defer func() {
-			recover()
-			r = admin_info{"none": admin_info{}}
-			e = nil
+			if err := recover(); err != nil {
+				r = admin_info{"none": admin_info{}}
+				e = nil
+			}
 		}()
 
 		return admin_info{
