@@ -82,7 +82,7 @@ func GenerateConfig(isAutoconf bool) *NodeConfig {
 		cfg.Listen = []string{"tcp://[::]:0"}
 	} else {
 		r1 := rand.New(rand.NewSource(time.Now().UnixNano()))
-		cfg.Listen = []string{fmt.Sprintf("[::]:%d", r1.Intn(65534-32768)+32768)}
+		cfg.Listen = []string{fmt.Sprintf("tcp://[::]:%d", r1.Intn(65534-32768)+32768)}
 	}
 	cfg.AdminListen = defaults.GetDefaults().DefaultAdminListen
 	cfg.EncryptionPublicKey = hex.EncodeToString(bpub[:])
