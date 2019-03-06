@@ -115,6 +115,15 @@ func (m *multicast) announce() {
 	}
 	for {
 		interfaces := m.interfaces()
+		// There might be interfaces that we configured listeners for but are no
+		// longer up - if that's the case then we should stop the listeners
+		for name, listener := range m.listeners {
+			if _, ok := interfaces[name]; !ok {
+				listener.stop <- true
+				delete(m.listeners, name)
+				m.core.log.Debugln("No longer multicasting on", name)
+			}
+		}
 		// Now that we have a list of valid interfaces from the operating system,
 		// we can start checking if we can send multicasts on them
 		for _, iface := range interfaces {
@@ -163,15 +172,6 @@ func (m *multicast) announce() {
 				break
 			}
 			time.Sleep(time.Second)
-		}
-		// There might be interfaces that we configured listeners for but are no
-		// longer up - if that's the case then we should stop the listeners
-		for name, listener := range m.listeners {
-			if _, ok := interfaces[name]; !ok {
-				listener.stop <- true
-				delete(m.listeners, name)
-				m.core.log.Debugln("No longer multicasting on", name)
-			}
 		}
 		time.Sleep(time.Second * 5)
 	}
