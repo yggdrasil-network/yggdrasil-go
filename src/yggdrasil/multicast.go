@@ -153,6 +153,7 @@ func (m *multicast) announce() {
 						m.core.log.Debugln("Started multicasting on", iface.Name)
 						// Store the listener so that we can stop it later if needed
 						m.listeners[iface.Name] = l
+						listener = l
 					}
 				} else {
 					// An existing listener was found
@@ -171,9 +172,8 @@ func (m *multicast) announce() {
 				}
 				break
 			}
-			time.Sleep(time.Second)
 		}
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 15)
 	}
 }
 
