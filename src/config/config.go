@@ -12,7 +12,7 @@ import (
 
 // NodeConfig defines all configuration values needed to run a signle yggdrasil node
 type NodeConfig struct {
-	Listen                      []string               `comment:"Listen address for peer connections. Default is to listen for all\nTCP connections over IPv4 and IPv6 with a random port."`
+	Listen                      []string               `comment:"Listen addresses for peer connections. Default is to listen for all\nTCP connections over IPv4 and IPv6 with a random port."`
 	AdminListen                 string                 `comment:"Listen address for admin connections. Default is to listen for local\nconnections either on TCP/9001 or a UNIX socket depending on your\nplatform. Use this value for yggdrasilctl -endpoint=X. To disable\nthe admin socket, use the value \"none\" instead."`
 	Peers                       []string               `comment:"List of connection strings for static peers in URI format, e.g.\ntcp://a.b.c.d:e or socks://a.b.c.d:e/f.g.h.i:j."`
 	InterfacePeers              map[string][]string    `comment:"List of connection strings for static peers in URI format, arranged\nby source interface, e.g. { \"eth0\": [ tcp://a.b.c.d:e ] }. Note that\nSOCKS peerings will NOT be affected by this option and should go in\nthe \"Peers\" section instead."`
@@ -30,13 +30,6 @@ type NodeConfig struct {
 	SwitchOptions               SwitchOptions          `comment:"Advanced options for tuning the switch. Normally you will not need\nto edit these options."`
 	NodeInfoPrivacy             bool                   `comment:"By default, nodeinfo contains some defaults including the platform,\narchitecture and Yggdrasil version. These can help when surveying\nthe network and diagnosing network routing problems. Enabling\nnodeinfo privacy prevents this, so that only items specified in\n\"NodeInfo\" are sent back if specified."`
 	NodeInfo                    map[string]interface{} `comment:"Optional node info. This must be a { \"key\": \"value\", ... } map\nor set as null. This is entirely optional but, if set, is visible\nto the whole network on request."`
-	//Net                         NetConfig `comment:"Extended options for connecting to peers over other networks."`
-}
-
-// NetConfig defines network/proxy related configuration values
-type NetConfig struct {
-	Tor TorConfig `comment:"Experimental options for configuring peerings over Tor."`
-	I2P I2PConfig `comment:"Experimental options for configuring peerings over I2P."`
 }
 
 // SessionFirewall controls the session firewall configuration
@@ -71,8 +64,6 @@ type SwitchOptions struct {
 // isAutoconf is that the TCP and UDP ports will likely end up with different
 // port numbers.
 func GenerateConfig(isAutoconf bool) *NodeConfig {
-	// Create a new core.
-	//core := Core{}
 	// Generate encryption keys.
 	bpub, bpriv := crypto.NewBoxKeys()
 	spub, spriv := crypto.NewSigKeys()
