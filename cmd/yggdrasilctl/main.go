@@ -402,6 +402,16 @@ func main() {
 					}
 				}
 			}
+		case "settunnelrouting":
+			fallthrough
+		case "gettunnelrouting":
+			if enabled, ok := res["enabled"].(bool); !ok {
+				fmt.Println("Tunnel routing is disabled")
+			} else if !enabled {
+				fmt.Println("Tunnel routing is disabled")
+			} else {
+				fmt.Println("Tunnel routing is enabled")
+			}
 		default:
 			if json, err := json.MarshalIndent(recv["response"], "", "  "); err == nil {
 				fmt.Println(string(json))
