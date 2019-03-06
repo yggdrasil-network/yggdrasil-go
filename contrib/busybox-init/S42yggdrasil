@@ -34,8 +34,8 @@ start() {
 	fi
 
 	printf 'Starting yggdrasil: '
-	if start-stop-daemon -S -b -x /usr/bin/yggdrasil \
-		-- --useconf < "$CONFFILE"; then
+	if start-stop-daemon -S -q -b -x /usr/bin/yggdrasil \
+		-- -useconffile "$CONFFILE"; then
 		echo "OK"
 	else
 		echo "FAIL"
@@ -51,20 +51,26 @@ stop() {
 	fi
 }
 
+reload() {
+	printf "Reloading yggdrasil: "
+	if start-stop-daemon -K -q -s HUP -x /usr/bin/yggdrasil; then
+		echo "OK"
+	else
+		echo "FAIL"
+		start
+	fi
+}
+
 restart() {
 	stop
 	start
-}
-
-reload() {
-	restart
 }
 
 case "$1" in
 	start|stop|restart|reload)
 		"$1";;
 	*)
-		echo "Usage: $0 {start|stop|restart}"
+		echo "Usage: $0 {start|stop|restart|reload}"
 		exit 1
 esac
 
