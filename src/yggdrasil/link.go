@@ -261,11 +261,11 @@ func (intf *linkInterface) handler() error {
 			// Now block until something is ready or the timer triggers keepalive traffic
 			select {
 			case <-tcpTimer.C:
-				intf.link.core.log.Debugf("Sending (legacy) keep-alive to %s: %s, source %s",
+				intf.link.core.log.Tracef("Sending (legacy) keep-alive to %s: %s, source %s",
 					strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 				send(nil)
 			case <-sendAck:
-				intf.link.core.log.Debugf("Sending ack to %s: %s, source %s",
+				intf.link.core.log.Tracef("Sending ack to %s: %s, source %s",
 					strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 				send(nil)
 			case msg := <-intf.peer.linkOut:
@@ -280,7 +280,7 @@ func (intf *linkInterface) handler() error {
 				case signalReady <- struct{}{}:
 				default:
 				}
-				//intf.link.core.log.Debugf("Sending packet to %s: %s, source %s",
+				//intf.link.core.log.Tracef("Sending packet to %s: %s, source %s",
 				//	strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 			}
 		}
@@ -331,7 +331,7 @@ func (intf *linkInterface) handler() error {
 					sendTimerRunning = true
 				}
 				if !gotMsg {
-					intf.link.core.log.Debugf("Received ack from %s: %s, source %s",
+					intf.link.core.log.Tracef("Received ack from %s: %s, source %s",
 						strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 				}
 			case sentMsg, ok := <-signalSent:

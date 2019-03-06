@@ -42,7 +42,7 @@ type tcp struct {
 }
 
 type tcpListener struct {
-	listener *net.Listener
+	listener net.Listener
 	stop     chan bool
 }
 
@@ -63,8 +63,8 @@ func (t *tcp) getAddr() *net.TCPAddr {
 	// doesn't have the ability to send more than one address in a packet either
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
-	for _, listener := range t.listeners {
-		return (*listener.listener).Addr().(*net.TCPAddr)
+	for _, l := range t.listeners {
+		return l.listener.Addr().(*net.TCPAddr)
 	}
 	return nil
 }
@@ -121,7 +121,7 @@ func (t *tcp) init(l *link) error {
 	return nil
 }
 
-func (t *tcp) listen(listenaddr string) (*net.Listener, error) {
+func (t *tcp) listen(listenaddr string) (*tcpListener, error) {
 	var err error
 
 	ctx := context.Background()
@@ -131,37 +131,40 @@ func (t *tcp) listen(listenaddr string) (*net.Listener, error) {
 	listener, err := lc.Listen(ctx, "tcp", listenaddr)
 	if err == nil {
 		l := tcpListener{
-			listener: &listener,
-			stop:     make(chan bool, 1),
+			listener: listener,
+			stop:     make(chan bool),
 		}
-		t.mutex.Lock()
-		t.listeners[listenaddr[6:]] = &l
-		t.mutex.Unlock()
-		go t.listener(&l)
-		return &listener, nil
+		go t.listener(&l, listenaddr[6:])
+		return &l, nil
 	}
 
 	return nil, err
 }
 
 // Runs the listener, which spawns off goroutines for incoming connections.
-func (t *tcp) listener(listener *tcpListener) {
-	if listener == nil {
+func (t *tcp) listener(l *tcpListener, listenaddr string) {
+	if l == nil {
 		return
 	}
-	reallistener := *listener.listener
-	reallistenaddr := reallistener.Addr().String()
-	stop := listener.stop
-	defer reallistener.Close()
-	t.link.core.log.Infoln("Listening for TCP on:", reallistenaddr)
+	// Track the listener so that we can find it again in future
+	t.mutex.Lock()
+	t.listeners[listenaddr] = l
+	t.mutex.Unlock()
+	// And here we go!
 	accepted := make(chan bool)
+	defer l.listener.Close()
+	t.link.core.log.Infoln("Listening for TCP on:", l.listener.Addr().String())
 	for {
 		var sock net.Conn
 		var err error
+		// Listen in a separate goroutine, as that way it does not block us from
+		// receiving "stop" events
 		go func() {
-			sock, err = reallistener.Accept()
+			sock, err = l.listener.Accept()
 			accepted <- true
 		}()
+		// Wait for either an accepted connection, or a message telling us to stop
+		// the TCP listener
 		select {
 		case <-accepted:
 			if err != nil {
@@ -169,8 +172,12 @@ func (t *tcp) listener(listener *tcpListener) {
 				return
 			}
 			go t.handler(sock, true)
-		case <-stop:
-			t.link.core.log.Errorln("Stopping TCP listener on:", reallistenaddr)
+		case <-l.stop:
+			t.link.core.log.Infoln("Stopping TCP listener on:", l.listener.Addr().String())
+			l.listener.Close()
+			t.mutex.Lock()
+			delete(t.listeners, listenaddr)
+			t.mutex.Unlock()
 			return
 		}
 	}

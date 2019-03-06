@@ -64,13 +64,13 @@ func (m *multicast) start() error {
 	return nil
 }
 
-func (m *multicast) interfaces() []net.Interface {
+func (m *multicast) interfaces() map[string]net.Interface {
 	// Get interface expressions from config
 	m.core.configMutex.RLock()
 	exprs := m.core.config.MulticastInterfaces
 	m.core.configMutex.RUnlock()
 	// Ask the system for network interfaces
-	var interfaces []net.Interface
+	interfaces := make(map[string]net.Interface)
 	allifaces, err := net.Interfaces()
 	if err != nil {
 		panic(err)
@@ -97,7 +97,7 @@ func (m *multicast) interfaces() []net.Interface {
 			}
 			// Does the interface match the regular expression? Store it if so
 			if e.MatchString(iface.Name) {
-				interfaces = append(interfaces, iface)
+				interfaces[iface.Name] = iface
 			}
 		}
 	}
@@ -114,7 +114,10 @@ func (m *multicast) announce() {
 		panic(err)
 	}
 	for {
-		for _, iface := range m.interfaces() {
+		interfaces := m.interfaces()
+		// Now that we have a list of valid interfaces from the operating system,
+		// we can start checking if we can send multicasts on them
+		for _, iface := range interfaces {
 			// Find interface addresses
 			addrs, err := iface.Addrs()
 			if err != nil {
@@ -134,23 +137,24 @@ func (m *multicast) announce() {
 				m.sock.JoinGroup(&iface, groupAddr)
 				// Try and see if we already have a TCP listener for this interface
 				var listener *tcpListener
-				if _, ok := m.listeners[iface.Name]; !ok {
+				if l, ok := m.listeners[iface.Name]; !ok || l.listener == nil {
 					// No listener was found - let's create one
 					listenaddr := fmt.Sprintf("[%s%%%s]:0", addrIP, iface.Name)
 					if l, err := m.core.link.tcp.listen(listenaddr); err == nil {
+						m.core.log.Debugln("Started multicasting on", iface.Name)
 						// Store the listener so that we can stop it later if needed
-						listener = &tcpListener{
-							listener: l,
-							stop:     make(chan bool),
-						}
-						m.listeners[iface.Name] = listener
+						m.listeners[iface.Name] = l
 					}
 				} else {
 					// An existing listener was found
 					listener = m.listeners[iface.Name]
 				}
+				// Make sure nothing above failed for some reason
+				if listener == nil {
+					continue
+				}
 				// Get the listener details and construct the multicast beacon
-				lladdr := (*listener.listener).Addr().String()
+				lladdr := listener.listener.Addr().String()
 				if a, err := net.ResolveTCPAddr("tcp6", lladdr); err == nil {
 					destAddr.Zone = iface.Name
 					msg := []byte(a.String())
@@ -160,7 +164,16 @@ func (m *multicast) announce() {
 			}
 			time.Sleep(time.Second)
 		}
-		time.Sleep(time.Second)
+		// There might be interfaces that we configured listeners for but are no
+		// longer up - if that's the case then we should stop the listeners
+		for name, listener := range m.listeners {
+			if _, ok := interfaces[name]; !ok {
+				listener.stop <- true
+				delete(m.listeners, name)
+				m.core.log.Debugln("No longer multicasting on", name)
+			}
+		}
+		time.Sleep(time.Second * 5)
 	}
 }
 
