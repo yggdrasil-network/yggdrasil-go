@@ -33,13 +33,17 @@ const tcp_ping_interval = (default_timeout * 2 / 3)
 
 // The TCP listener and information about active TCP connections, to avoid duplication.
 type tcp struct {
-	link          *link
-	reconfigure   chan chan error
-	mutex         sync.Mutex // Protecting the below
-	listeners     map[string]net.Listener
-	listenerstops map[string]chan bool
-	calls         map[string]struct{}
-	conns         map[linkInfo](chan struct{})
+	link        *link
+	reconfigure chan chan error
+	mutex       sync.Mutex // Protecting the below
+	listeners   map[string]*tcpListener
+	calls       map[string]struct{}
+	conns       map[linkInfo](chan struct{})
+}
+
+type tcpListener struct {
+	listener *net.Listener
+	stop     chan bool
 }
 
 // Wrapper function to set additional options for specific connection types.
@@ -60,7 +64,7 @@ func (t *tcp) getAddr() *net.TCPAddr {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	for _, listener := range t.listeners {
-		return listener.Addr().(*net.TCPAddr)
+		return (*listener.listener).Addr().(*net.TCPAddr)
 	}
 	return nil
 }
@@ -72,8 +76,7 @@ func (t *tcp) init(l *link) error {
 	t.mutex.Lock()
 	t.calls = make(map[string]struct{})
 	t.conns = make(map[linkInfo](chan struct{}))
-	t.listeners = make(map[string]net.Listener)
-	t.listenerstops = make(map[string]chan bool)
+	t.listeners = make(map[string]*tcpListener)
 	t.mutex.Unlock()
 
 	go func() {
@@ -89,7 +92,7 @@ func (t *tcp) init(l *link) error {
 						e <- errors.New("unknown scheme: " + add)
 						continue
 					}
-					if err := t.listen(add[6:]); err != nil {
+					if _, err := t.listen(add[6:]); err != nil {
 						e <- err
 						continue
 					}
@@ -110,7 +113,7 @@ func (t *tcp) init(l *link) error {
 		if listenaddr[:6] != "tcp://" {
 			continue
 		}
-		if err := t.listen(listenaddr[6:]); err != nil {
+		if _, err := t.listen(listenaddr[6:]); err != nil {
 			return err
 		}
 	}
@@ -118,7 +121,7 @@ func (t *tcp) init(l *link) error {
 	return nil
 }
 
-func (t *tcp) listen(listenaddr string) error {
+func (t *tcp) listen(listenaddr string) (*net.Listener, error) {
 	var err error
 
 	ctx := context.Background()
@@ -127,36 +130,36 @@ func (t *tcp) listen(listenaddr string) error {
 	}
 	listener, err := lc.Listen(ctx, "tcp", listenaddr)
 	if err == nil {
+		l := tcpListener{
+			listener: &listener,
+			stop:     make(chan bool, 1),
+		}
 		t.mutex.Lock()
-		t.listeners[listenaddr] = listener
-		t.listenerstops[listenaddr] = make(chan bool, 1)
+		t.listeners[listenaddr[6:]] = &l
 		t.mutex.Unlock()
-		go t.listener(listenaddr)
-		return nil
+		go t.listener(&l)
+		return &listener, nil
 	}
 
-	return err
+	return nil, err
 }
 
 // Runs the listener, which spawns off goroutines for incoming connections.
-func (t *tcp) listener(listenaddr string) {
-	t.mutex.Lock()
-	listener, ok1 := t.listeners[listenaddr]
-	listenerstop, ok2 := t.listenerstops[listenaddr]
-	t.mutex.Unlock()
-	if !ok1 || !ok2 {
-		t.link.core.log.Errorln("Tried to start TCP listener for", listenaddr, "which doesn't exist")
+func (t *tcp) listener(listener *tcpListener) {
+	if listener == nil {
 		return
 	}
-	reallistenaddr := listener.Addr().String()
-	defer listener.Close()
+	reallistener := *listener.listener
+	reallistenaddr := reallistener.Addr().String()
+	stop := listener.stop
+	defer reallistener.Close()
 	t.link.core.log.Infoln("Listening for TCP on:", reallistenaddr)
 	accepted := make(chan bool)
 	for {
 		var sock net.Conn
 		var err error
 		go func() {
-			sock, err = listener.Accept()
+			sock, err = reallistener.Accept()
 			accepted <- true
 		}()
 		select {
@@ -166,7 +169,7 @@ func (t *tcp) listener(listenaddr string) {
 				return
 			}
 			go t.handler(sock, true)
-		case <-listenerstop:
+		case <-stop:
 			t.link.core.log.Errorln("Stopping TCP listener on:", reallistenaddr)
 			return
 		}

@@ -119,7 +119,8 @@ func (l *link) listen(uri string) error {
 	}
 	switch u.Scheme {
 	case "tcp":
-		return l.tcp.listen(u.Host)
+		_, err := l.tcp.listen(u.Host)
+		return err
 	default:
 		return errors.New("unknown listen scheme: " + u.Scheme)
 	}
