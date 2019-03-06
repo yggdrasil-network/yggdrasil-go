@@ -16,7 +16,6 @@ package yggdrasil
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -87,18 +86,26 @@ func (t *tcp) init(l *link) error {
 			deleted := util.Difference(t.link.core.configOld.Listen, t.link.core.config.Listen)
 			t.link.core.configMutex.RUnlock()
 			if len(added) > 0 || len(deleted) > 0 {
-				for _, add := range added {
-					if add[:6] != "tcp://" {
-						e <- errors.New("unknown scheme: " + add)
+				for _, a := range added {
+					if a[:6] != "tcp://" {
 						continue
 					}
-					if _, err := t.listen(add[6:]); err != nil {
+					if _, err := t.listen(a[6:]); err != nil {
 						e <- err
 						continue
 					}
 				}
-				for _, delete := range deleted {
-					t.link.core.log.Warnln("Removing listener", delete, "not currently implemented")
+				for _, d := range deleted {
+					if d[:6] != "tcp://" {
+						continue
+					}
+					t.mutex.Lock()
+					if listener, ok := t.listeners[d[6:]]; ok {
+						t.mutex.Unlock()
+						listener.stop <- true
+					} else {
+						t.mutex.Unlock()
+					}
 				}
 				e <- nil
 			} else {
@@ -134,7 +141,7 @@ func (t *tcp) listen(listenaddr string) (*tcpListener, error) {
 			listener: listener,
 			stop:     make(chan bool),
 		}
-		go t.listener(&l, listenaddr[6:])
+		go t.listener(&l, listenaddr)
 		return &l, nil
 	}
 

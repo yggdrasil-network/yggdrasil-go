@@ -149,11 +149,11 @@ func (m *multicast) announce() {
 				if l, ok := m.listeners[iface.Name]; !ok || l.listener == nil {
 					// No listener was found - let's create one
 					listenaddr := fmt.Sprintf("[%s%%%s]:0", addrIP, iface.Name)
-					if l, err := m.core.link.tcp.listen(listenaddr); err == nil {
+					if li, err := m.core.link.tcp.listen(listenaddr); err == nil {
 						m.core.log.Debugln("Started multicasting on", iface.Name)
 						// Store the listener so that we can stop it later if needed
-						m.listeners[iface.Name] = l
-						listener = l
+						m.listeners[iface.Name] = li
+						listener = li
 					}
 				} else {
 					// An existing listener was found
