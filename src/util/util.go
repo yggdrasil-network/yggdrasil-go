@@ -87,7 +87,7 @@ func Difference(a, b []string) []string {
 		mb[x] = true
 	}
 	for _, x := range a {
-		if _, ok := mb[x]; !ok {
+		if !mb[x] {
 			ab = append(ab, x)
 		}
 	}

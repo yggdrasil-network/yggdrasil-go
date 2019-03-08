@@ -54,8 +54,7 @@ func (a *awdl) init(l *link) error {
 	a.mutex.Unlock()
 
 	go func() {
-		for {
-			e := <-a.reconfigure
+		for e := range a.reconfigure {
 			e <- nil
 		}
 	}()

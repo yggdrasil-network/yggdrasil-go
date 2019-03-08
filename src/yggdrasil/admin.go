@@ -676,7 +676,7 @@ func (a *admin) getData_getPeers() []admin_nodeInfo {
 			{"bytes_sent", atomic.LoadUint64(&p.bytesSent)},
 			{"bytes_recvd", atomic.LoadUint64(&p.bytesRecvd)},
 			{"proto", p.intf.info.linkType},
-			{"endpoint", p.intf.info.remote},
+			{"endpoint", p.intf.name},
 			{"box_pub_key", hex.EncodeToString(p.box[:])},
 		}
 		peerInfos = append(peerInfos, info)

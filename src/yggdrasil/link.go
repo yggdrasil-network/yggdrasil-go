@@ -105,7 +105,7 @@ func (l *link) call(uri string, sintf string) error {
 	case "tcp":
 		l.tcp.call(u.Host, nil, sintf)
 	case "socks":
-		l.tcp.call(pathtokens[0], &u.Host, sintf)
+		l.tcp.call(pathtokens[0], u.Host, sintf)
 	default:
 		return errors.New("unknown call scheme: " + u.Scheme)
 	}

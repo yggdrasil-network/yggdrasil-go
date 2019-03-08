@@ -159,7 +159,13 @@ func (t *tcp) listener(l *tcpListener, listenaddr string) {
 	t.mutex.Unlock()
 	// And here we go!
 	accepted := make(chan bool)
-	defer l.listener.Close()
+	defer func() {
+		t.link.core.log.Infoln("Stopping TCP listener on:", l.listener.Addr().String())
+		l.listener.Close()
+		t.mutex.Lock()
+		delete(t.listeners, listenaddr)
+		t.mutex.Unlock()
+	}()
 	t.link.core.log.Infoln("Listening for TCP on:", l.listener.Addr().String())
 	for {
 		var sock net.Conn
@@ -178,13 +184,8 @@ func (t *tcp) listener(l *tcpListener, listenaddr string) {
 				t.link.core.log.Errorln("Failed to accept connection:", err)
 				return
 			}
-			go t.handler(sock, true)
+			go t.handler(sock, true, nil)
 		case <-l.stop:
-			t.link.core.log.Infoln("Stopping TCP listener on:", l.listener.Addr().String())
-			l.listener.Close()
-			t.mutex.Lock()
-			delete(t.listeners, listenaddr)
-			t.mutex.Unlock()
 			return
 		}
 	}
@@ -230,8 +231,12 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 			if sintf != "" {
 				return
 			}
+			dialerdst, er := net.ResolveTCPAddr("tcp", socksaddr)
+			if er != nil {
+				return
+			}
 			var dialer proxy.Dialer
-			dialer, err = proxy.SOCKS5("tcp", socksaddr, nil, proxy.Direct)
+			dialer, err = proxy.SOCKS5("tcp", dialerdst.String(), nil, proxy.Direct)
 			if err != nil {
 				return
 			}
@@ -246,6 +251,7 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 					addr:    saddr,
 				},
 			}
+			t.handler(conn, false, dialerdst.String())
 		} else {
 			dialer := net.Dialer{
 				Control: t.tcpContext,
@@ -302,12 +308,12 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 			if err != nil {
 				return
 			}
+			t.handler(conn, false, nil)
 		}
-		t.handler(conn, false)
 	}()
 }
 
-func (t *tcp) handler(sock net.Conn, incoming bool) {
+func (t *tcp) handler(sock net.Conn, incoming bool, options interface{}) {
 	defer sock.Close()
 	t.setExtraOptions(sock)
 	stream := stream{}
@@ -315,8 +321,16 @@ func (t *tcp) handler(sock net.Conn, incoming bool) {
 	local, _, _ := net.SplitHostPort(sock.LocalAddr().String())
 	remote, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
 	remotelinklocal := net.ParseIP(remote).IsLinkLocalUnicast()
-	name := "tcp://" + sock.RemoteAddr().String()
-	link, err := t.link.core.link.create(&stream, name, "tcp", local, remote, incoming, remotelinklocal)
+	var name string
+	var proto string
+	if socksaddr, issocks := options.(string); issocks {
+		name = "socks://" + socksaddr + "/" + sock.RemoteAddr().String()
+		proto = "socks"
+	} else {
+		name = "tcp://" + sock.RemoteAddr().String()
+		proto = "tcp"
+	}
+	link, err := t.link.core.link.create(&stream, name, proto, local, remote, incoming, remotelinklocal)
 	if err != nil {
 		t.link.core.log.Println(err)
 		panic(err)
