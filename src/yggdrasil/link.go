@@ -309,6 +309,7 @@ func (intf *linkInterface) handler() error {
 			case <-recvTimer.C:
 				// We haven't received anything, so assume there's a problem and don't return this node to the switch until they start responding
 				isAlive = false
+				intf.link.core.switchTable.blockPeer(intf.peer.port)
 			case <-closeTimer.C:
 				// We haven't received anything in a really long time, so things have died at the switch level and then some...
 				// Just close the connection at this point...

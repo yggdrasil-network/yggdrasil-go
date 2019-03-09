@@ -131,6 +131,7 @@ type peerInfo struct {
 	faster  map[switchPort]uint64 // Counter of how often a node is faster than the current parent, penalized extra if slower
 	port    switchPort            // Interface number of this peer
 	msg     switchMsg             // The wire switchMsg used
+	blocked bool                  // True if the link is blocked, used to avoid parenting a blocked link
 }
 
 // This is just a uint64 with a named type for clarity reasons.
@@ -254,6 +255,29 @@ func (t *switchTable) cleanRoot() {
 		t.data.locator = switchLocator{root: t.key, tstamp: now.Unix()}
 		t.core.peers.sendSwitchMsgs()
 	}
+}
+
+// Blocks and, if possible, unparents a peer
+func (t *switchTable) blockPeer(port switchPort) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	peer, isIn := t.data.peers[port]
+	if !isIn {
+		return
+	}
+	peer.blocked = true
+	t.data.peers[port] = peer
+	if port != t.parent {
+		return
+	}
+	t.parent = 0
+	for _, info := range t.data.peers {
+		if info.port == port {
+			continue
+		}
+		t.unlockedHandleMsg(&info.msg, info.port, true)
+	}
+	t.unlockedHandleMsg(&peer.msg, peer.port, true)
 }
 
 // Removes a peer.
@@ -395,6 +419,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 	if reprocessing {
 		sender.faster = oldSender.faster
 		sender.time = oldSender.time
+		sender.blocked = oldSender.blocked
 	} else {
 		sender.faster = make(map[switchPort]uint64, len(oldSender.faster))
 		for port, peer := range t.data.peers {
@@ -454,6 +479,11 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 	case sender.faster[t.parent] >= switch_faster_threshold:
 		// The is reliably faster than the current parent.
 		updateRoot = true
+	case !sender.blocked && oldParent.blocked:
+		// Replace a blocked parent
+		updateRoot = true
+	case reprocessing && sender.blocked && !oldParent.blocked:
+		// Don't replace an unblocked parent when reprocessing
 	case reprocessing && sender.faster[t.parent] > oldParent.faster[sender.port]:
 		// The sender seems to be reliably faster than the current parent, so switch to them instead.
 		updateRoot = true
