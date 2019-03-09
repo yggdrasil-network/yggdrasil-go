@@ -25,6 +25,31 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.3.4] - 2019-03-09
+### Added
+- Support for multiple listeners (although currently only TCP listeners are supported)
+- New multicast behaviour where each multicast interface is given it's own link-local listener and does not depend on the `Listen` configuration
+- Blocking detection in the switch to avoid parenting a blocked peer
+- Support for adding and removing listeners and multicast interfaces when reloading configuration during runtime
+- Yggdrasil will now attempt to clean up UNIX admin sockets on startup if left behind by a previous crash
+- Admin socket `getTunnelRouting` and `setTunnelRouting` calls for enabling and disabling crypto-key routing during runtime
+- On macOS, Yggdrasil will now try to wake up AWDL on start-up when `awdl0` is a configured multicast interface
+
+### Changed
+- The `Listen` configuration statement is now an array instead of a string
+- The `Listen` configuration statement should now conform to the same formatting as peers with the protocol prefix, e.g. `tcp://[::]:0`
+- Session workers are now non-blocking
+- Multicast interval is now fixed at every 15 seconds and network interfaces are reevaluated for eligibility on each interval (where before the interval depended upon the number of configured multicast interfaces and evaluation only took place at startup)
+- Dead connections are now closed in the link handler as opposed to the switch
+- Peer forwarding is now prioritised instead of randomised
+
+### Fixed
+- Admin socket `getTunTap` call now returns properly instead of claiming no interface is enabled in all cases
+- Handling of `getRoutes` etc in `yggdrasilctl` is now working
+- Local interface names are no longer leaked in multicast packets
+- Link-local TCP connections, particularly those initiated because of multicast beacons, are now always correctly scoped for the target interface
+- Yggdrasil now correctly responds to multicast interfaces going up and down during runtime
+
 ## [0.3.3] - 2019-02-18
 ### Added
 - Dynamic reconfiguration, which allows reloading the configuration file to make changes during runtime by sending a `SIGHUP` signal (note: this only works with `-useconffile` and not `-useconf` and currently reconfiguring TUN/TAP is not supported)
