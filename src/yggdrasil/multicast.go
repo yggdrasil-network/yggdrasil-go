@@ -166,6 +166,7 @@ func (m *multicast) announce() {
 				// Get the listener details and construct the multicast beacon
 				lladdr := listener.listener.Addr().String()
 				if a, err := net.ResolveTCPAddr("tcp6", lladdr); err == nil {
+					a.Zone = ""
 					destAddr.Zone = iface.Name
 					msg := []byte(a.String())
 					m.sock.WriteTo(msg, nil, destAddr)
@@ -208,8 +209,9 @@ func (m *multicast) listen() {
 		if addr.IP.String() != from.IP.String() {
 			continue
 		}
-		addr.Zone = from.Zone
-		saddr := addr.String()
-		m.core.link.call("tcp://"+saddr, addr.Zone)
+		addr.Zone = ""
+		if err := m.core.link.call("tcp://"+addr.String(), from.Zone); err != nil {
+			m.core.log.Debugln("Call from multicast failed:", err)
+		}
 	}
 }
