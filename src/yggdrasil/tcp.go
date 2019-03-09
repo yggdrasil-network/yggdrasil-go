@@ -259,6 +259,16 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 			}
 			t.handler(conn, false, dialerdst.String())
 		} else {
+			dst, err := net.ResolveTCPAddr("tcp", saddr)
+			if err != nil {
+				return
+			}
+			if dst.IP.IsLinkLocalUnicast() {
+				dst.Zone = sintf
+				if dst.Zone == "" {
+					return
+				}
+			}
 			dialer := net.Dialer{
 				Control: t.tcpContext,
 			}
@@ -272,10 +282,6 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 				}
 				addrs, err := ief.Addrs()
 				if err == nil {
-					dst, err := net.ResolveTCPAddr("tcp", saddr)
-					if err != nil {
-						return
-					}
 					for addrindex, addr := range addrs {
 						src, _, err := net.ParseCIDR(addr.String())
 						if err != nil {
@@ -309,9 +315,9 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 					}
 				}
 			}
-
-			conn, err = dialer.Dial("tcp", saddr)
+			conn, err = dialer.Dial("tcp", dst.String())
 			if err != nil {
+				t.link.core.log.Debugln("Failed to dial TCP:", err)
 				return
 			}
 			t.handler(conn, false, nil)
