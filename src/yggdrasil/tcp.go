@@ -155,8 +155,14 @@ func (t *tcp) listener(l *tcpListener, listenaddr string) {
 	}
 	// Track the listener so that we can find it again in future
 	t.mutex.Lock()
-	t.listeners[listenaddr] = l
-	t.mutex.Unlock()
+	if _, isIn := t.listeners[listenaddr]; isIn {
+		t.mutex.Unlock()
+		l.listener.Close()
+		return
+	} else {
+		t.listeners[listenaddr] = l
+		t.mutex.Unlock()
+	}
 	// And here we go!
 	accepted := make(chan bool)
 	defer func() {
