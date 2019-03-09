@@ -1,0 +1,22 @@
+# Last Modified: Sat Mar  9 06:08:02 2019
+#include <tunables/global>
+
+/usr/bin/yggdrasil {
+  #include <abstractions/base>
+
+  capability net_admin,
+
+  network inet stream,
+  network inet6 dgram,
+  network inet6 stream,
+  network netlink raw,
+
+  /lib/x86_64-linux-gnu/ld-*.so mr,
+  /proc/sys/net/core/somaxconn r,
+  /dev/net/tun rw,
+
+  /usr/bin/yggdrasil mr,
+  /etc/yggdrasil.conf rw,
+  /run/yggdrasil.sock rw,
+
+}
