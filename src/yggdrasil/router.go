@@ -67,7 +67,15 @@ func (r *router) init(core *Core) {
 	r.addr = *address.AddrForNodeID(&r.core.dht.nodeID)
 	r.subnet = *address.SubnetForNodeID(&r.core.dht.nodeID)
 	in := make(chan []byte, 1) // TODO something better than this...
-	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, "(self)", nil)
+	self := linkInterface{
+		name: "(self)",
+		info: linkInfo{
+			local:    "(self)",
+			remote:   "(self)",
+			linkType: "self",
+		},
+	}
+	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, &self, nil)
 	p.out = func(packet []byte) { in <- packet }
 	r.in = in
 	out := make(chan []byte, 32)

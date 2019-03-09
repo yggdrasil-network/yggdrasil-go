@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"strings"
 	"sync"
+
 	//"sync/atomic"
 	"time"
 
@@ -17,10 +19,12 @@ import (
 )
 
 type link struct {
-	core       *Core
-	mutex      sync.RWMutex // protects interfaces below
-	interfaces map[linkInfo]*linkInterface
-	awdl       awdl // AWDL interface support
+	core        *Core
+	reconfigure chan chan error
+	mutex       sync.RWMutex // protects interfaces below
+	interfaces  map[linkInfo]*linkInterface
+	awdl        awdl // AWDL interface support
+	tcp         tcp  // TCP interface support
 	// TODO timeout (to remove from switch), read from config.ReadTimeout
 }
 
@@ -56,14 +60,70 @@ func (l *link) init(c *Core) error {
 	l.core = c
 	l.mutex.Lock()
 	l.interfaces = make(map[linkInfo]*linkInterface)
+	l.reconfigure = make(chan chan error)
 	l.mutex.Unlock()
 
-	if err := l.awdl.init(l); err != nil {
-		l.core.log.Errorln("Failed to start AWDL interface")
+	if err := l.tcp.init(l); err != nil {
+		c.log.Errorln("Failed to start TCP interface")
 		return err
 	}
 
+	if err := l.awdl.init(l); err != nil {
+		c.log.Errorln("Failed to start AWDL interface")
+		return err
+	}
+
+	go func() {
+		for {
+			e := <-l.reconfigure
+			tcpresponse := make(chan error)
+			awdlresponse := make(chan error)
+			l.tcp.reconfigure <- tcpresponse
+			if err := <-tcpresponse; err != nil {
+				e <- err
+				continue
+			}
+			l.awdl.reconfigure <- awdlresponse
+			if err := <-awdlresponse; err != nil {
+				e <- err
+				continue
+			}
+			e <- nil
+		}
+	}()
+
 	return nil
+}
+
+func (l *link) call(uri string, sintf string) error {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return err
+	}
+	pathtokens := strings.Split(strings.Trim(u.Path, "/"), "/")
+	switch u.Scheme {
+	case "tcp":
+		l.tcp.call(u.Host, nil, sintf)
+	case "socks":
+		l.tcp.call(pathtokens[0], u.Host, sintf)
+	default:
+		return errors.New("unknown call scheme: " + u.Scheme)
+	}
+	return nil
+}
+
+func (l *link) listen(uri string) error {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return err
+	}
+	switch u.Scheme {
+	case "tcp":
+		_, err := l.tcp.listen(u.Host)
+		return err
+	default:
+		return errors.New("unknown listen scheme: " + u.Scheme)
+	}
 }
 
 func (l *link) create(msgIO linkInterfaceMsgIO, name, linkType, local, remote string, incoming, force bool) (*linkInterface, error) {
@@ -147,7 +207,7 @@ func (intf *linkInterface) handler() error {
 	intf.link.mutex.Unlock()
 	// Create peer
 	shared := crypto.GetSharedKey(myLinkPriv, &meta.link)
-	intf.peer = intf.link.core.peers.newPeer(&meta.box, &meta.sig, shared, intf.name, func() { intf.msgIO.close() })
+	intf.peer = intf.link.core.peers.newPeer(&meta.box, &meta.sig, shared, intf, func() { intf.msgIO.close() })
 	if intf.peer == nil {
 		return errors.New("failed to create peer")
 	}
@@ -201,11 +261,11 @@ func (intf *linkInterface) handler() error {
 			// Now block until something is ready or the timer triggers keepalive traffic
 			select {
 			case <-tcpTimer.C:
-				intf.link.core.log.Debugf("Sending (legacy) keep-alive to %s: %s, source %s",
+				intf.link.core.log.Tracef("Sending (legacy) keep-alive to %s: %s, source %s",
 					strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 				send(nil)
 			case <-sendAck:
-				intf.link.core.log.Debugf("Sending ack to %s: %s, source %s",
+				intf.link.core.log.Tracef("Sending ack to %s: %s, source %s",
 					strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 				send(nil)
 			case msg := <-intf.peer.linkOut:
@@ -220,7 +280,7 @@ func (intf *linkInterface) handler() error {
 				case signalReady <- struct{}{}:
 				default:
 				}
-				//intf.link.core.log.Debugf("Sending packet to %s: %s, source %s",
+				//intf.link.core.log.Tracef("Sending packet to %s: %s, source %s",
 				//	strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 			}
 		}
@@ -271,7 +331,7 @@ func (intf *linkInterface) handler() error {
 					sendTimerRunning = true
 				}
 				if !gotMsg {
-					intf.link.core.log.Debugf("Received ack from %s: %s, source %s",
+					intf.link.core.log.Tracef("Received ack from %s: %s, source %s",
 						strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 				}
 			case sentMsg, ok := <-signalSent:

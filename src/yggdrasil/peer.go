@@ -98,6 +98,7 @@ type peer struct {
 	bytesRecvd uint64 // To track bandwidth usage for getPeers
 	// BUG: sync/atomic, 32 bit platforms need the above to be the first element
 	core       *Core
+	intf       *linkInterface
 	port       switchPort
 	box        crypto.BoxPubKey
 	sig        crypto.SigPubKey
@@ -113,18 +114,19 @@ type peer struct {
 }
 
 // Creates a new peer with the specified box, sig, and linkShared keys, using the lowest unoccupied port number.
-func (ps *peers) newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShared *crypto.BoxSharedKey, endpoint string, closer func()) *peer {
+func (ps *peers) newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShared *crypto.BoxSharedKey, intf *linkInterface, closer func()) *peer {
 	now := time.Now()
 	p := peer{box: *box,
 		sig:        *sig,
 		shared:     *crypto.GetSharedKey(&ps.core.boxPriv, box),
 		linkShared: *linkShared,
-		endpoint:   endpoint,
 		firstSeen:  now,
 		doSend:     make(chan struct{}, 1),
 		dinfo:      make(chan *dhtInfo, 1),
 		close:      closer,
-		core:       ps.core}
+		core:       ps.core,
+		intf:       intf,
+	}
 	ps.mutex.Lock()
 	defer ps.mutex.Unlock()
 	oldPorts := ps.getPorts()

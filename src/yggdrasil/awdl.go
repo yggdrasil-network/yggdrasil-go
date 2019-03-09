@@ -7,9 +7,10 @@ import (
 )
 
 type awdl struct {
-	link       *link
-	mutex      sync.RWMutex // protects interfaces below
-	interfaces map[string]*awdlInterface
+	link        *link
+	reconfigure chan chan error
+	mutex       sync.RWMutex // protects interfaces below
+	interfaces  map[string]*awdlInterface
 }
 
 type awdlInterface struct {
@@ -49,7 +50,14 @@ func (a *awdl) init(l *link) error {
 	a.link = l
 	a.mutex.Lock()
 	a.interfaces = make(map[string]*awdlInterface)
+	a.reconfigure = make(chan chan error, 1)
 	a.mutex.Unlock()
+
+	go func() {
+		for e := range a.reconfigure {
+			e <- nil
+		}
+	}()
 
 	return nil
 }

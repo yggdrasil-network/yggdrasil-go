@@ -24,35 +24,29 @@ import (
 
 	"golang.org/x/net/proxy"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 const default_timeout = 6 * time.Second
 const tcp_ping_interval = (default_timeout * 2 / 3)
 
 // The TCP listener and information about active TCP connections, to avoid duplication.
-type tcpInterface struct {
-	core        *Core
+type tcp struct {
+	link        *link
 	reconfigure chan chan error
-	serv        net.Listener
-	stop        chan bool
-	addr        string
 	mutex       sync.Mutex // Protecting the below
+	listeners   map[string]*tcpListener
 	calls       map[string]struct{}
-	conns       map[tcpInfo](chan struct{})
+	conns       map[linkInfo](chan struct{})
 }
 
-// This is used as the key to a map that tracks existing connections, to prevent multiple connections to the same keys and local/remote address pair from occuring.
-// Different address combinations are allowed, so multi-homing is still technically possible (but not necessarily advisable).
-type tcpInfo struct {
-	box        crypto.BoxPubKey
-	sig        crypto.SigPubKey
-	localAddr  string
-	remoteAddr string
+type tcpListener struct {
+	listener net.Listener
+	stop     chan bool
 }
 
 // Wrapper function to set additional options for specific connection types.
-func (iface *tcpInterface) setExtraOptions(c net.Conn) {
+func (t *tcp) setExtraOptions(c net.Conn) {
 	switch sock := c.(type) {
 	case *net.TCPConn:
 		sock.SetNoDelay(true)
@@ -62,104 +56,152 @@ func (iface *tcpInterface) setExtraOptions(c net.Conn) {
 }
 
 // Returns the address of the listener.
-func (iface *tcpInterface) getAddr() *net.TCPAddr {
-	return iface.serv.Addr().(*net.TCPAddr)
-}
-
-// Attempts to initiate a connection to the provided address.
-func (iface *tcpInterface) connect(addr string, intf string) {
-	iface.call(addr, nil, intf)
-}
-
-// Attempst to initiate a connection to the provided address, viathe provided socks proxy address.
-func (iface *tcpInterface) connectSOCKS(socksaddr, peeraddr string) {
-	iface.call(peeraddr, &socksaddr, "")
+func (t *tcp) getAddr() *net.TCPAddr {
+	// TODO: Fix this, because this will currently only give a single address
+	// to multicast.go, which obviously is not great, but right now multicast.go
+	// doesn't have the ability to send more than one address in a packet either
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	for _, l := range t.listeners {
+		return l.listener.Addr().(*net.TCPAddr)
+	}
+	return nil
 }
 
 // Initializes the struct.
-func (iface *tcpInterface) init(core *Core) (err error) {
-	iface.core = core
-	iface.stop = make(chan bool, 1)
-	iface.reconfigure = make(chan chan error, 1)
+func (t *tcp) init(l *link) error {
+	t.link = l
+	t.reconfigure = make(chan chan error, 1)
+	t.mutex.Lock()
+	t.calls = make(map[string]struct{})
+	t.conns = make(map[linkInfo](chan struct{}))
+	t.listeners = make(map[string]*tcpListener)
+	t.mutex.Unlock()
+
 	go func() {
 		for {
-			e := <-iface.reconfigure
-			iface.core.configMutex.RLock()
-			updated := iface.core.config.Listen != iface.core.configOld.Listen
-			iface.core.configMutex.RUnlock()
-			if updated {
-				iface.stop <- true
-				iface.serv.Close()
-				e <- iface.listen()
+			e := <-t.reconfigure
+			t.link.core.configMutex.RLock()
+			added := util.Difference(t.link.core.config.Listen, t.link.core.configOld.Listen)
+			deleted := util.Difference(t.link.core.configOld.Listen, t.link.core.config.Listen)
+			t.link.core.configMutex.RUnlock()
+			if len(added) > 0 || len(deleted) > 0 {
+				for _, a := range added {
+					if a[:6] != "tcp://" {
+						continue
+					}
+					if _, err := t.listen(a[6:]); err != nil {
+						e <- err
+						continue
+					}
+				}
+				for _, d := range deleted {
+					if d[:6] != "tcp://" {
+						continue
+					}
+					t.mutex.Lock()
+					if listener, ok := t.listeners[d[6:]]; ok {
+						t.mutex.Unlock()
+						listener.stop <- true
+					} else {
+						t.mutex.Unlock()
+					}
+				}
+				e <- nil
 			} else {
 				e <- nil
 			}
 		}
 	}()
 
-	return iface.listen()
+	t.link.core.configMutex.RLock()
+	defer t.link.core.configMutex.RUnlock()
+	for _, listenaddr := range t.link.core.config.Listen {
+		if listenaddr[:6] != "tcp://" {
+			continue
+		}
+		if _, err := t.listen(listenaddr[6:]); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func (iface *tcpInterface) listen() error {
+func (t *tcp) listen(listenaddr string) (*tcpListener, error) {
 	var err error
-
-	iface.core.configMutex.RLock()
-	iface.addr = iface.core.config.Listen
-	iface.core.configMutex.RUnlock()
 
 	ctx := context.Background()
 	lc := net.ListenConfig{
-		Control: iface.tcpContext,
+		Control: t.tcpContext,
 	}
-	iface.serv, err = lc.Listen(ctx, "tcp", iface.addr)
+	listener, err := lc.Listen(ctx, "tcp", listenaddr)
 	if err == nil {
-		iface.mutex.Lock()
-		iface.calls = make(map[string]struct{})
-		iface.conns = make(map[tcpInfo](chan struct{}))
-		iface.mutex.Unlock()
-		go iface.listener()
-		return nil
+		l := tcpListener{
+			listener: listener,
+			stop:     make(chan bool),
+		}
+		go t.listener(&l, listenaddr)
+		return &l, nil
 	}
 
-	return err
+	return nil, err
 }
 
 // Runs the listener, which spawns off goroutines for incoming connections.
-func (iface *tcpInterface) listener() {
-	defer iface.serv.Close()
-	iface.core.log.Infoln("Listening for TCP on:", iface.serv.Addr().String())
+func (t *tcp) listener(l *tcpListener, listenaddr string) {
+	if l == nil {
+		return
+	}
+	// Track the listener so that we can find it again in future
+	t.mutex.Lock()
+	if _, isIn := t.listeners[listenaddr]; isIn {
+		t.mutex.Unlock()
+		l.listener.Close()
+		return
+	} else {
+		t.listeners[listenaddr] = l
+		t.mutex.Unlock()
+	}
+	// And here we go!
+	accepted := make(chan bool)
+	defer func() {
+		t.link.core.log.Infoln("Stopping TCP listener on:", l.listener.Addr().String())
+		l.listener.Close()
+		t.mutex.Lock()
+		delete(t.listeners, listenaddr)
+		t.mutex.Unlock()
+	}()
+	t.link.core.log.Infoln("Listening for TCP on:", l.listener.Addr().String())
 	for {
-		sock, err := iface.serv.Accept()
-		if err != nil {
-			iface.core.log.Errorln("Failed to accept connection:", err)
-			return
-		}
+		var sock net.Conn
+		var err error
+		// Listen in a separate goroutine, as that way it does not block us from
+		// receiving "stop" events
+		go func() {
+			sock, err = l.listener.Accept()
+			accepted <- true
+		}()
+		// Wait for either an accepted connection, or a message telling us to stop
+		// the TCP listener
 		select {
-		case <-iface.stop:
-			iface.core.log.Errorln("Stopping listener")
-			return
-		default:
+		case <-accepted:
 			if err != nil {
-				panic(err)
+				t.link.core.log.Errorln("Failed to accept connection:", err)
+				return
 			}
-			go iface.handler(sock, true)
+			go t.handler(sock, true, nil)
+		case <-l.stop:
+			return
 		}
 	}
 }
 
-// Checks if we already have a connection to this node
-func (iface *tcpInterface) isAlreadyConnected(info tcpInfo) bool {
-	iface.mutex.Lock()
-	defer iface.mutex.Unlock()
-	_, isIn := iface.conns[info]
-	return isIn
-}
-
 // Checks if we already are calling this address
-func (iface *tcpInterface) isAlreadyCalling(saddr string) bool {
-	iface.mutex.Lock()
-	defer iface.mutex.Unlock()
-	_, isIn := iface.calls[saddr]
+func (t *tcp) isAlreadyCalling(saddr string) bool {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	_, isIn := t.calls[saddr]
 	return isIn
 }
 
@@ -168,34 +210,39 @@ func (iface *tcpInterface) isAlreadyCalling(saddr string) bool {
 // If the dial is successful, it launches the handler.
 // When finished, it removes the outgoing call, so reconnection attempts can be made later.
 // This all happens in a separate goroutine that it spawns.
-func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
+func (t *tcp) call(saddr string, options interface{}, sintf string) {
 	go func() {
 		callname := saddr
 		if sintf != "" {
 			callname = fmt.Sprintf("%s/%s", saddr, sintf)
 		}
-		if iface.isAlreadyCalling(callname) {
+		if t.isAlreadyCalling(callname) {
 			return
 		}
-		iface.mutex.Lock()
-		iface.calls[callname] = struct{}{}
-		iface.mutex.Unlock()
+		t.mutex.Lock()
+		t.calls[callname] = struct{}{}
+		t.mutex.Unlock()
 		defer func() {
 			// Block new calls for a little while, to mitigate livelock scenarios
 			time.Sleep(default_timeout)
 			time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
-			iface.mutex.Lock()
-			delete(iface.calls, callname)
-			iface.mutex.Unlock()
+			t.mutex.Lock()
+			delete(t.calls, callname)
+			t.mutex.Unlock()
 		}()
 		var conn net.Conn
 		var err error
-		if socksaddr != nil {
+		socksaddr, issocks := options.(string)
+		if issocks {
 			if sintf != "" {
 				return
 			}
+			dialerdst, er := net.ResolveTCPAddr("tcp", socksaddr)
+			if er != nil {
+				return
+			}
 			var dialer proxy.Dialer
-			dialer, err = proxy.SOCKS5("tcp", *socksaddr, nil, proxy.Direct)
+			dialer, err = proxy.SOCKS5("tcp", dialerdst.String(), nil, proxy.Direct)
 			if err != nil {
 				return
 			}
@@ -210,9 +257,10 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 					addr:    saddr,
 				},
 			}
+			t.handler(conn, false, dialerdst.String())
 		} else {
 			dialer := net.Dialer{
-				Control: iface.tcpContext,
+				Control: t.tcpContext,
 			}
 			if sintf != "" {
 				ief, err := net.InterfaceByName(sintf)
@@ -266,26 +314,34 @@ func (iface *tcpInterface) call(saddr string, socksaddr *string, sintf string) {
 			if err != nil {
 				return
 			}
+			t.handler(conn, false, nil)
 		}
-		iface.handler(conn, false)
 	}()
 }
 
-func (iface *tcpInterface) handler(sock net.Conn, incoming bool) {
+func (t *tcp) handler(sock net.Conn, incoming bool, options interface{}) {
 	defer sock.Close()
-	iface.setExtraOptions(sock)
+	t.setExtraOptions(sock)
 	stream := stream{}
 	stream.init(sock)
 	local, _, _ := net.SplitHostPort(sock.LocalAddr().String())
 	remote, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
 	remotelinklocal := net.ParseIP(remote).IsLinkLocalUnicast()
-	name := "tcp://" + sock.RemoteAddr().String()
-	link, err := iface.core.link.create(&stream, name, "tcp", local, remote, incoming, remotelinklocal)
+	var name string
+	var proto string
+	if socksaddr, issocks := options.(string); issocks {
+		name = "socks://" + socksaddr + "/" + sock.RemoteAddr().String()
+		proto = "socks"
+	} else {
+		name = "tcp://" + sock.RemoteAddr().String()
+		proto = "tcp"
+	}
+	link, err := t.link.core.link.create(&stream, name, proto, local, remote, incoming, remotelinklocal)
 	if err != nil {
-		iface.core.log.Println(err)
+		t.link.core.log.Println(err)
 		panic(err)
 	}
-	iface.core.log.Debugln("DEBUG: starting handler for", name)
+	t.link.core.log.Debugln("DEBUG: starting handler for", name)
 	err = link.handler()
-	iface.core.log.Debugln("DEBUG: stopped handler for", name, err)
+	t.link.core.log.Debugln("DEBUG: stopped handler for", name, err)
 }

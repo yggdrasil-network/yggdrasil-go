@@ -591,18 +591,9 @@ func (a *admin) printInfos(infos []admin_nodeInfo) string {
 
 // addPeer triggers a connection attempt to a node.
 func (a *admin) addPeer(addr string, sintf string) error {
-	u, err := url.Parse(addr)
-	if err == nil {
-		switch strings.ToLower(u.Scheme) {
-		case "tcp":
-			a.core.tcp.connect(u.Host, sintf)
-		case "socks":
-			a.core.tcp.connectSOCKS(u.Host, u.Path[1:])
-		default:
-			return errors.New("invalid peer: " + addr)
-		}
-	} else {
-		return errors.New("invalid peer: " + addr)
+	err := a.core.link.call(addr, sintf)
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -684,7 +675,8 @@ func (a *admin) getData_getPeers() []admin_nodeInfo {
 			{"uptime", int(time.Since(p.firstSeen).Seconds())},
 			{"bytes_sent", atomic.LoadUint64(&p.bytesSent)},
 			{"bytes_recvd", atomic.LoadUint64(&p.bytesRecvd)},
-			{"endpoint", p.endpoint},
+			{"proto", p.intf.info.linkType},
+			{"endpoint", p.intf.name},
 			{"box_pub_key", hex.EncodeToString(p.box[:])},
 		}
 		peerInfos = append(peerInfos, info)
@@ -710,7 +702,8 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 			{"port", elem.port},
 			{"bytes_sent", atomic.LoadUint64(&peer.bytesSent)},
 			{"bytes_recvd", atomic.LoadUint64(&peer.bytesRecvd)},
-			{"endpoint", peer.endpoint},
+			{"proto", peer.intf.info.linkType},
+			{"endpoint", peer.intf.info.remote},
 			{"box_pub_key", hex.EncodeToString(peer.box[:])},
 		}
 		peerInfos = append(peerInfos, info)
