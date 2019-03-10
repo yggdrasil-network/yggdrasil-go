@@ -646,7 +646,7 @@ func (t *switchTable) bestPortForCoords(coords []byte) switchPort {
 // Handle an incoming packet
 // Either send it to ourself, or to the first idle peer that's free
 // Returns true if the packet has been handled somehow, false if it should be queued
-func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool {
+func (t *switchTable) handleIn(packet []byte, idle map[switchPort]time.Time) bool {
 	coords := switch_getPacketCoords(packet)
 	closer := t.getCloser(coords)
 	if len(closer) == 0 {
@@ -654,15 +654,13 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool
 		t.toRouter <- packet
 		return true
 	}
-	table := t.getTable()
 	var best *peer
 	var bestDist int
-	var bestCoordLen int
+	var bestTime time.Time
 	ports := t.core.peers.getPorts()
 	for port, dist := range closer {
 		to := ports[port]
-		_, isIdle := idle[port]
-		coordLen := len(table.elems[port].locator.coords)
+		thisTime, isIdle := idle[port]
 		var update bool
 		switch {
 		case to == nil:
@@ -675,21 +673,15 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool
 			update = true
 		case dist > bestDist:
 			//nothing
-		case coordLen < bestCoordLen:
+		case thisTime.Before(bestTime):
 			update = true
-		/*
-			case coordLen > bestCoordLen:
-				//nothing
-			case port < best.port:
-				update = true
-		*/
 		default:
 			//nothing
 		}
 		if update {
 			best = to
 			bestDist = dist
-			bestCoordLen = coordLen
+			bestTime = thisTime
 		}
 	}
 	if best != nil {
@@ -836,7 +828,7 @@ func (t *switchTable) doWorker() {
 	}()
 	t.queues.switchTable = t
 	t.queues.bufs = make(map[string]switch_buffer) // Packets per PacketStreamID (string)
-	idle := make(map[switchPort]struct{})          // this is to deduplicate things
+	idle := make(map[switchPort]time.Time)         // this is to deduplicate things
 	for {
 		//t.core.log.Debugf("Switch state: idle = %d, buffers = %d", len(idle), len(t.queues.bufs))
 		select {
@@ -869,7 +861,7 @@ func (t *switchTable) doWorker() {
 			// Try to find something to send to this peer
 			if !t.handleIdle(port) {
 				// Didn't find anything ready to send yet, so stay idle
-				idle[port] = struct{}{}
+				idle[port] = time.Now()
 			}
 		case f := <-t.admin:
 			f()
