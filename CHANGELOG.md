@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Yggdrasil will now attempt to clean up UNIX admin sockets on startup if left behind by a previous crash
 - Admin socket `getTunnelRouting` and `setTunnelRouting` calls for enabling and disabling crypto-key routing during runtime
 - On macOS, Yggdrasil will now try to wake up AWDL on start-up when `awdl0` is a configured multicast interface, to keep it awake after system sleep, and to stop waking it when no longer needed
+- Added `LinkLocalTCPPort` option for controlling the port number that link-local TCP listeners will listen on by default when setting up `MulticastInterfaces`
 
 ### Changed
 - The `Listen` configuration statement is now an array instead of a string

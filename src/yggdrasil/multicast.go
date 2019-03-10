@@ -16,12 +16,16 @@ type multicast struct {
 	sock        *ipv6.PacketConn
 	groupAddr   string
 	listeners   map[string]*tcpListener
+	listenPort  uint16
 }
 
 func (m *multicast) init(core *Core) {
 	m.core = core
 	m.reconfigure = make(chan chan error, 1)
 	m.listeners = make(map[string]*tcpListener)
+	m.core.configMutex.RLock()
+	m.listenPort = m.core.config.LinkLocalTCPPort
+	m.core.configMutex.RUnlock()
 	go func() {
 		for {
 			e := <-m.reconfigure
@@ -148,12 +152,14 @@ func (m *multicast) announce() {
 				var listener *tcpListener
 				if l, ok := m.listeners[iface.Name]; !ok || l.listener == nil {
 					// No listener was found - let's create one
-					listenaddr := fmt.Sprintf("[%s%%%s]:0", addrIP, iface.Name)
+					listenaddr := fmt.Sprintf("[%s%%%s]:%d", addrIP, iface.Name, m.listenPort)
 					if li, err := m.core.link.tcp.listen(listenaddr); err == nil {
 						m.core.log.Debugln("Started multicasting on", iface.Name)
 						// Store the listener so that we can stop it later if needed
 						m.listeners[iface.Name] = li
 						listener = li
+					} else {
+						m.core.log.Warnln("Not multicasting on", iface.Name, "due to error:", err)
 					}
 				} else {
 					// An existing listener was found
