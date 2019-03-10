@@ -7,11 +7,12 @@
   capability net_admin,
 
   network inet stream,
+  network inet dgram,
   network inet6 dgram,
   network inet6 stream,
   network netlink raw,
 
-  /lib/x86_64-linux-gnu/ld-*.so mr,
+  /lib/@{multiarch}/ld-*.so mr,
   /proc/sys/net/core/somaxconn r,
   /dev/net/tun rw,
 
