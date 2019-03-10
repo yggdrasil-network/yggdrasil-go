@@ -677,12 +677,12 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool
 			//nothing
 		case coordLen < bestCoordLen:
 			update = true
-			/*
-				case coordLen > bestCoordLen:
-					//nothing
-				case port < best.port:
-					update = true
-			*/
+		/*
+			case coordLen > bestCoordLen:
+				//nothing
+			case port < best.port:
+				update = true
+		*/
 		default:
 			//nothing
 		}

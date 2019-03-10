@@ -234,6 +234,9 @@ func (intf *linkInterface) handler() error {
 	signalReady := make(chan struct{}, 1)
 	signalSent := make(chan bool, 1)
 	sendAck := make(chan struct{}, 1)
+	sendBlocked := time.NewTimer(time.Second)
+	defer util.TimerStop(sendBlocked)
+	util.TimerStop(sendBlocked)
 	go func() {
 		defer close(signalReady)
 		defer close(signalSent)
@@ -241,7 +244,9 @@ func (intf *linkInterface) handler() error {
 		tcpTimer := time.NewTimer(interval) // used for backwards compat with old tcp
 		defer util.TimerStop(tcpTimer)
 		send := func(bs []byte) {
+			sendBlocked.Reset(time.Second)
 			intf.msgIO.writeMsg(bs)
+			util.TimerStop(sendBlocked)
 			select {
 			case signalSent <- len(bs) > 0:
 			default:
@@ -269,7 +274,7 @@ func (intf *linkInterface) handler() error {
 					strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 				send(nil)
 			case msg := <-intf.peer.linkOut:
-				intf.msgIO.writeMsg(msg)
+				send(msg)
 			case msg, ok := <-out:
 				if !ok {
 					return
@@ -360,6 +365,10 @@ func (intf *linkInterface) handler() error {
 					intf.link.core.switchTable.idleIn <- intf.peer.port
 					isReady = true
 				}
+			case <-sendBlocked.C:
+				// We blocked while trying to send something
+				isReady = false
+				intf.link.core.switchTable.blockPeer(intf.peer.port)
 			case <-sendTimer.C:
 				// We haven't sent anything, so signal a send of a 0 packet to let them know we're alive
 				select {
