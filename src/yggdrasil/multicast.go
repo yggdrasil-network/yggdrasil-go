@@ -57,7 +57,7 @@ func (m *multicast) start() error {
 			// Windows can't set this flag, so we need to handle it in other ways
 		}
 
-		m.multicastWake()
+		go m.multicastStarted()
 		go m.listen()
 		go m.announce()
 	}

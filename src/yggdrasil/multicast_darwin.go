@@ -6,24 +6,46 @@ package yggdrasil
 #cgo CFLAGS: -x objective-c
 #cgo LDFLAGS: -framework Foundation
 #import <Foundation/Foundation.h>
-void WakeUpAWDL() {
-	NSNetServiceBrowser *serviceBrowser;
-
-	serviceBrowser = [[NSNetServiceBrowser alloc] init];
-	serviceBrowser.includesPeerToPeer = YES;
+NSNetServiceBrowser *serviceBrowser;
+void StartAWDLBrowsing() {
+	if (serviceBrowser == nil) {
+		serviceBrowser = [[NSNetServiceBrowser alloc] init];
+		serviceBrowser.includesPeerToPeer = YES;
+	}
 	[serviceBrowser searchForServicesOfType:@"_yggdrasil._tcp" inDomain:@""];
+}
+void StopAWDLBrowsing() {
+	if (serviceBrowser == nil) {
+		return;
+	}
+	[serviceBrowser stop];
 }
 */
 import "C"
-import "syscall"
-import "golang.org/x/sys/unix"
+import (
+	"syscall"
+	"time"
 
-func (m *multicast) multicastWake() {
-	for _, intf := range m.interfaces() {
-		if intf.Name == "awdl0" {
-			m.core.log.Infoln("Multicast discovery is waking up AWDL")
-			C.WakeUpAWDL()
+	"golang.org/x/sys/unix"
+)
+
+var awdlGoroutineStarted bool
+
+func (m *multicast) multicastStarted() {
+	if awdlGoroutineStarted {
+		return
+	}
+	m.core.log.Infoln("Multicast discovery will wake up AWDL if required")
+	awdlGoroutineStarted = true
+	for {
+		C.StopAWDLBrowsing()
+		for _, intf := range m.interfaces() {
+			if intf.Name == "awdl0" {
+				C.StartAWDLBrowsing()
+				break
+			}
 		}
+		time.Sleep(time.Minute)
 	}
 }
 
