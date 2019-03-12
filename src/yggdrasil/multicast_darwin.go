@@ -2,10 +2,54 @@
 
 package yggdrasil
 
-import "syscall"
-import "golang.org/x/sys/unix"
+/*
+#cgo CFLAGS: -x objective-c
+#cgo LDFLAGS: -framework Foundation
+#import <Foundation/Foundation.h>
+NSNetServiceBrowser *serviceBrowser;
+void StartAWDLBrowsing() {
+	if (serviceBrowser == nil) {
+		serviceBrowser = [[NSNetServiceBrowser alloc] init];
+		serviceBrowser.includesPeerToPeer = YES;
+	}
+	[serviceBrowser searchForServicesOfType:@"_yggdrasil._tcp" inDomain:@""];
+}
+void StopAWDLBrowsing() {
+	if (serviceBrowser == nil) {
+		return;
+	}
+	[serviceBrowser stop];
+}
+*/
+import "C"
+import (
+	"syscall"
+	"time"
 
-func multicastReuse(network string, address string, c syscall.RawConn) error {
+	"golang.org/x/sys/unix"
+)
+
+var awdlGoroutineStarted bool
+
+func (m *multicast) multicastStarted() {
+	if awdlGoroutineStarted {
+		return
+	}
+	m.core.log.Infoln("Multicast discovery will wake up AWDL if required")
+	awdlGoroutineStarted = true
+	for {
+		C.StopAWDLBrowsing()
+		for _, intf := range m.interfaces() {
+			if intf.Name == "awdl0" {
+				C.StartAWDLBrowsing()
+				break
+			}
+		}
+		time.Sleep(time.Minute)
+	}
+}
+
+func (m *multicast) multicastReuse(network string, address string, c syscall.RawConn) error {
 	var control error
 	var reuseport error
 	var recvanyif error

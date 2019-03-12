@@ -44,7 +44,6 @@ type Core struct {
 	admin       admin
 	searches    searches
 	multicast   multicast
-	tcp         tcpInterface
 	link        link
 	log         *log.Logger
 }
@@ -125,10 +124,14 @@ func (c *Core) addPeerLoop() {
 // UpdateConfig updates the configuration in Core and then signals the
 // various module goroutines to reconfigure themselves if needed
 func (c *Core) UpdateConfig(config *config.NodeConfig) {
+	c.log.Infoln("Reloading configuration...")
+
 	c.configMutex.Lock()
 	c.configOld = c.config
 	c.config = *config
 	c.configMutex.Unlock()
+
+	errors := 0
 
 	components := []chan chan error{
 		c.admin.reconfigure,
@@ -140,7 +143,7 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 		c.router.tun.reconfigure,
 		c.router.cryptokey.reconfigure,
 		c.switchTable.reconfigure,
-		c.tcp.reconfigure,
+		c.link.reconfigure,
 		c.multicast.reconfigure,
 	}
 
@@ -148,8 +151,15 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 		response := make(chan error)
 		component <- response
 		if err := <-response; err != nil {
-			c.log.Println(err)
+			c.log.Errorln(err)
+			errors++
 		}
+	}
+
+	if errors > 0 {
+		c.log.Warnln(errors, "modules reported errors during configuration reload")
+	} else {
+		c.log.Infoln("Configuration reloaded successfully")
 	}
 }
 
@@ -193,11 +203,6 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 	c.configMutex.Unlock()
 
 	c.init()
-
-	if err := c.tcp.init(c); err != nil {
-		c.log.Errorln("Failed to start TCP interface")
-		return err
-	}
 
 	if err := c.link.init(c); err != nil {
 		c.log.Errorln("Failed to start link interfaces")

@@ -134,12 +134,20 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeCo
 			}
 		}
 	}
+	// Do a quick check for old-format Listen statement so that mapstructure
+	// doesn't fail and crash
+	if listen, ok := dat["Listen"].(string); ok {
+		if strings.HasPrefix(listen, "tcp://") {
+			dat["Listen"] = []string{listen}
+		} else {
+			dat["Listen"] = []string{"tcp://" + listen}
+		}
+	}
 	// Overlay our newly mapped configuration onto the autoconf node config that
 	// we generated above.
 	if err = mapstructure.Decode(dat, &cfg); err != nil {
 		panic(err)
 	}
-
 	return cfg
 }
 

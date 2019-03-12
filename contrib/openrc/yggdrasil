@@ -1,0 +1,55 @@
+#!/sbin/openrc-run
+
+description="An experiment in scalable routing as an encrypted IPv6 overlay network."
+
+CONFFILE="/etc/yggdrasil.conf"
+pidfile="/run/${RC_SVCNAME}.pid"
+
+command="/usr/bin/yggdrasil"
+extra_started_commands="reload"
+
+depend() {
+	use net dns logger
+}
+
+start_pre() {
+	if [ ! -f "${CONFFILE}" ]; then
+		ebegin "Generating new configuration file into ${CONFFILE}"
+		if ! eval ${command} -genconf > ${CONFFILE}; then
+			eerror "Failed to generate configuration file"
+			exit 1
+		fi
+	fi
+
+	if [ ! -e /dev/net/tun ]; then
+		ebegin "Inserting TUN module"
+		if ! modprobe tun;  then
+			eerror "Failed to insert TUN kernel module"
+			exit 1
+		fi
+	fi
+}
+
+start() {
+	ebegin "Starting ${RC_SVCNAME}"
+	start-stop-daemon --start --quiet \
+		--pidfile "${pidfile}" \
+		--make-pidfile \
+		--background \
+		--stdout /var/log/yggdrasil.stdout.log \
+		--stderr /var/log/yggdrasil.stderr.log \
+		--exec "${command}" -- -useconffile "${CONFFILE}"
+	eend $?
+}
+
+reload() {
+	ebegin "Reloading ${RC_SVCNAME}"
+	start-stop-daemon --signal HUP --pidfile "${pidfile}"
+	eend $?
+}
+
+stop() {
+	ebegin "Stopping ${RC_SVCNAME}"
+	start-stop-daemon --stop --pidfile "${pidfile}" --exec "${command}"
+	eend $?
+}

@@ -56,3 +56,40 @@ func TimerStop(t *time.Timer) bool {
 	}
 	return true
 }
+
+// Run a blocking function with a timeout.
+// Returns true if the function returns.
+// Returns false if the timer fires.
+// The blocked function remains blocked--the caller is responsible for somehow killing it.
+func FuncTimeout(f func(), timeout time.Duration) bool {
+	success := make(chan struct{})
+	go func() {
+		defer close(success)
+		f()
+	}()
+	timer := time.NewTimer(timeout)
+	defer TimerStop(timer)
+	select {
+	case <-success:
+		return true
+	case <-timer.C:
+		return false
+	}
+}
+
+// This calculates the difference between two arrays and returns items
+// that appear in A but not in B - useful somewhat when reconfiguring
+// and working out what configuration items changed
+func Difference(a, b []string) []string {
+	ab := []string{}
+	mb := map[string]bool{}
+	for _, x := range b {
+		mb[x] = true
+	}
+	for _, x := range a {
+		if !mb[x] {
+			ab = append(ab, x)
+		}
+	}
+	return ab
+}

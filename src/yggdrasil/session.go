@@ -525,17 +525,36 @@ func (ss *sessions) resetInits() {
 // It handles calling the relatively expensive crypto operations.
 // It's also responsible for checking nonces and dropping out-of-date/duplicate packets, or else calling the function to update nonces if the packet is OK.
 func (sinfo *sessionInfo) doWorker() {
+	send := make(chan []byte, 32)
+	defer close(send)
+	go func() {
+		for bs := range send {
+			sinfo.doSend(bs)
+		}
+	}()
+	recv := make(chan *wire_trafficPacket, 32)
+	defer close(recv)
+	go func() {
+		for p := range recv {
+			sinfo.doRecv(p)
+		}
+	}()
 	for {
 		select {
 		case p, ok := <-sinfo.recv:
 			if ok {
-				sinfo.doRecv(p)
+				select {
+				case recv <- p:
+				default:
+					// We need something to not block, and it's best to drop it before we decrypt
+					util.PutBytes(p.Payload)
+				}
 			} else {
 				return
 			}
 		case bs, ok := <-sinfo.send:
 			if ok {
-				sinfo.doSend(bs)
+				send <- bs
 			} else {
 				return
 			}
@@ -625,8 +644,5 @@ func (sinfo *sessionInfo) doRecv(p *wire_trafficPacket) {
 	sinfo.updateNonce(&p.Nonce)
 	sinfo.time = time.Now()
 	sinfo.bytesRecvd += uint64(len(bs))
-	select {
-	case sinfo.core.router.toRecv <- router_recvPacket{bs, sinfo}:
-	default: // avoid deadlocks, maybe do this somewhere else?...
-	}
+	sinfo.core.router.toRecv <- router_recvPacket{bs, sinfo}
 }

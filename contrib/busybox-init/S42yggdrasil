@@ -1,0 +1,77 @@
+#!/bin/sh
+
+CONFFILE="/etc/yggdrasil.conf"
+
+genconf() {
+	/usr/bin/yggdrasil -genconf > "$1"
+	return $?
+}
+
+probetun() {
+	modprobe tun
+	return $?
+}
+
+start() {
+	if [ ! -f "$CONFFILE" ]; then
+		printf 'Generating configuration file: '
+		if genconf "$CONFFILE"; then
+			echo "OK"
+		else
+			echo "FAIL"
+			return 1
+		fi
+	fi
+
+	if [ ! -e /dev/net/tun ]; then
+		printf 'Inserting TUN module: '
+		if probetun; then
+			echo "OK"
+		else
+			echo "FAIL"
+			return 1
+		fi
+	fi
+
+	printf 'Starting yggdrasil: '
+	if start-stop-daemon -S -q -b -x /usr/bin/yggdrasil \
+		-- -useconffile "$CONFFILE"; then
+		echo "OK"
+	else
+		echo "FAIL"
+	fi
+}
+
+stop() {
+	printf "Stopping yggdrasil: "
+	if start-stop-daemon -K -q -x /usr/bin/yggdrasil; then
+		echo "OK"
+	else
+		echo "FAIL"
+	fi
+}
+
+reload() {
+	printf "Reloading yggdrasil: "
+	if start-stop-daemon -K -q -s HUP -x /usr/bin/yggdrasil; then
+		echo "OK"
+	else
+		echo "FAIL"
+		start
+	fi
+}
+
+restart() {
+	stop
+	start
+}
+
+case "$1" in
+	start|stop|restart|reload)
+		"$1";;
+	*)
+		echo "Usage: $0 {start|stop|restart|reload}"
+		exit 1
+esac
+
+exit 0

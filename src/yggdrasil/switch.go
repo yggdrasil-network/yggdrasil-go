@@ -131,6 +131,7 @@ type peerInfo struct {
 	faster  map[switchPort]uint64 // Counter of how often a node is faster than the current parent, penalized extra if slower
 	port    switchPort            // Interface number of this peer
 	msg     switchMsg             // The wire switchMsg used
+	blocked bool                  // True if the link is blocked, used to avoid parenting a blocked link
 }
 
 // This is just a uint64 with a named type for clarity reasons.
@@ -176,6 +177,7 @@ type switchTable struct {
 	admin             chan func()                // Pass a lambda for the admin socket to query stuff
 	queues            switch_buffers             // Queues - not atomic so ONLY use through admin chan
 	queueTotalMaxSize uint64                     // Maximum combined size of queues
+	toRouter          chan []byte                // Packets to be sent to the router
 }
 
 // Minimum allowed total size of switch queues.
@@ -199,6 +201,7 @@ func (t *switchTable) init(core *Core) {
 	t.idleIn = make(chan switchPort, 1024)
 	t.admin = make(chan func())
 	t.queueTotalMaxSize = SwitchQueueTotalMinSize
+	t.toRouter = make(chan []byte, 1)
 }
 
 // Safely gets a copy of this node's locator.
@@ -215,7 +218,6 @@ func (t *switchTable) doMaintenance() {
 	defer t.mutex.Unlock() // Release lock when we're done
 	t.cleanRoot()
 	t.cleanDropped()
-	t.cleanPeers()
 }
 
 // Updates the root periodically if it is ourself, or promotes ourself to root if we're better than the current root or if the current root has timed out.
@@ -255,6 +257,29 @@ func (t *switchTable) cleanRoot() {
 	}
 }
 
+// Blocks and, if possible, unparents a peer
+func (t *switchTable) blockPeer(port switchPort) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	peer, isIn := t.data.peers[port]
+	if !isIn {
+		return
+	}
+	peer.blocked = true
+	t.data.peers[port] = peer
+	if port != t.parent {
+		return
+	}
+	t.parent = 0
+	for _, info := range t.data.peers {
+		if info.port == port {
+			continue
+		}
+		t.unlockedHandleMsg(&info.msg, info.port, true)
+	}
+	t.unlockedHandleMsg(&peer.msg, peer.port, true)
+}
+
 // Removes a peer.
 // Must be called by the router mainLoop goroutine, e.g. call router.doAdmin with a lambda that calls this.
 // If the removed peer was this node's parent, it immediately tries to find a new parent.
@@ -269,28 +294,6 @@ func (t *switchTable) forgetPeer(port switchPort) {
 	t.parent = 0
 	for _, info := range t.data.peers {
 		t.unlockedHandleMsg(&info.msg, info.port, true)
-	}
-}
-
-// Clean all unresponsive peers from the table, needed in case a peer stops updating.
-// Needed in case a non-parent peer keeps the connection open but stops sending updates.
-// Also reclaims space from deleted peers by copying the map.
-func (t *switchTable) cleanPeers() {
-	now := time.Now()
-	for port, peer := range t.data.peers {
-		if now.Sub(peer.time) > switch_timeout+switch_throttle {
-			// Longer than switch_timeout to make sure we don't remove a working peer because the root stopped responding.
-			delete(t.data.peers, port)
-			go t.core.peers.removePeer(port) // TODO figure out if it's safe to do this without a goroutine, or make it safe
-		}
-	}
-	if _, isIn := t.data.peers[t.parent]; !isIn {
-		// The root timestamp would probably time out before this happens, but better safe than sorry.
-		// We removed the current parent, so find a new one.
-		t.parent = 0
-		for _, peer := range t.data.peers {
-			t.unlockedHandleMsg(&peer.msg, peer.port, true)
-		}
 	}
 }
 
@@ -416,6 +419,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 	if reprocessing {
 		sender.faster = oldSender.faster
 		sender.time = oldSender.time
+		sender.blocked = oldSender.blocked
 	} else {
 		sender.faster = make(map[switchPort]uint64, len(oldSender.faster))
 		for port, peer := range t.data.peers {
@@ -475,6 +479,11 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 	case sender.faster[t.parent] >= switch_faster_threshold:
 		// The is reliably faster than the current parent.
 		updateRoot = true
+	case !sender.blocked && oldParent.blocked:
+		// Replace a blocked parent
+		updateRoot = true
+	case reprocessing && sender.blocked && !oldParent.blocked:
+		// Don't replace an unblocked parent when reprocessing
 	case reprocessing && sender.faster[t.parent] > oldParent.faster[sender.port]:
 		// The sender seems to be reliably faster than the current parent, so switch to them instead.
 		updateRoot = true
@@ -570,23 +579,23 @@ func (t *switchTable) start() error {
 	return nil
 }
 
-// Check if a packet should go to the self node
-// This means there's no node closer to the destination than us
-// This is mainly used to identify packets addressed to us, or that hit a blackhole
-func (t *switchTable) selfIsClosest(dest []byte) bool {
+// Return a map of ports onto distance, keeping only ports closer to the destination than this node
+// If the map is empty (or nil), then no peer is closer
+func (t *switchTable) getCloser(dest []byte) map[switchPort]int {
 	table := t.getTable()
 	myDist := table.self.dist(dest)
 	if myDist == 0 {
 		// Skip the iteration step if it's impossible to be closer
-		return true
+		return nil
 	}
+	closer := make(map[switchPort]int, len(table.elems))
 	for _, info := range table.elems {
 		dist := info.locator.dist(dest)
 		if dist < myDist {
-			return false
+			closer[info.port] = dist
 		}
 	}
-	return true
+	return closer
 }
 
 // Returns true if the peer is closer to the destination than ourself
@@ -637,28 +646,42 @@ func (t *switchTable) bestPortForCoords(coords []byte) switchPort {
 // Handle an incoming packet
 // Either send it to ourself, or to the first idle peer that's free
 // Returns true if the packet has been handled somehow, false if it should be queued
-func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool {
+func (t *switchTable) handleIn(packet []byte, idle map[switchPort]time.Time) bool {
 	coords := switch_getPacketCoords(packet)
-	ports := t.core.peers.getPorts()
-	if t.selfIsClosest(coords) {
+	closer := t.getCloser(coords)
+	if len(closer) == 0 {
 		// TODO? call the router directly, and remove the whole concept of a self peer?
-		ports[0].sendPacket(packet)
+		t.toRouter <- packet
 		return true
 	}
-	table := t.getTable()
-	myDist := table.self.dist(coords)
 	var best *peer
-	bestDist := myDist
-	for port := range idle {
-		if to := ports[port]; to != nil {
-			if info, isIn := table.elems[to.port]; isIn {
-				dist := info.locator.dist(coords)
-				if !(dist < bestDist) {
-					continue
-				}
-				best = to
-				bestDist = dist
-			}
+	var bestDist int
+	var bestTime time.Time
+	ports := t.core.peers.getPorts()
+	for port, dist := range closer {
+		to := ports[port]
+		thisTime, isIdle := idle[port]
+		var update bool
+		switch {
+		case to == nil:
+			//nothing
+		case !isIdle:
+			//nothing
+		case best == nil:
+			update = true
+		case dist < bestDist:
+			update = true
+		case dist > bestDist:
+			//nothing
+		case thisTime.Before(bestTime):
+			update = true
+		default:
+			//nothing
+		}
+		if update {
+			best = to
+			bestDist = dist
+			bestTime = thisTime
 		}
 	}
 	if best != nil {
@@ -697,7 +720,7 @@ func (b *switch_buffers) cleanup(t *switchTable) {
 		// Remove queues for which we have no next hop
 		packet := buf.packets[0]
 		coords := switch_getPacketCoords(packet.bytes)
-		if t.selfIsClosest(coords) {
+		if len(t.getCloser(coords)) == 0 {
 			for _, packet := range buf.packets {
 				util.PutBytes(packet.bytes)
 			}
@@ -776,11 +799,38 @@ func (t *switchTable) handleIdle(port switchPort) bool {
 
 // The switch worker does routing lookups and sends packets to where they need to be
 func (t *switchTable) doWorker() {
+	sendingToRouter := make(chan []byte, 1)
+	go func() {
+		// Keep sending packets to the router
+		self := t.core.peers.getPorts()[0]
+		for bs := range sendingToRouter {
+			self.sendPacket(bs)
+		}
+	}()
+	go func() {
+		// Keep taking packets from the idle worker and sending them to the above whenever it's idle, keeping anything extra in a (fifo, head-drop) buffer
+		var buf [][]byte
+		for {
+			buf = append(buf, <-t.toRouter)
+			for len(buf) > 0 {
+				select {
+				case bs := <-t.toRouter:
+					buf = append(buf, bs)
+					for len(buf) > 32 {
+						util.PutBytes(buf[0])
+						buf = buf[1:]
+					}
+				case sendingToRouter <- buf[0]:
+					buf = buf[1:]
+				}
+			}
+		}
+	}()
 	t.queues.switchTable = t
 	t.queues.bufs = make(map[string]switch_buffer) // Packets per PacketStreamID (string)
-	idle := make(map[switchPort]struct{})          // this is to deduplicate things
+	idle := make(map[switchPort]time.Time)         // this is to deduplicate things
 	for {
-		t.core.log.Debugf("Switch state: idle = %d, buffers = %d", len(idle), len(t.queues.bufs))
+		//t.core.log.Debugf("Switch state: idle = %d, buffers = %d", len(idle), len(t.queues.bufs))
 		select {
 		case bytes := <-t.packetIn:
 			// Try to send it somewhere (or drop it if it's corrupt or at a dead end)
@@ -811,7 +861,7 @@ func (t *switchTable) doWorker() {
 			// Try to find something to send to this peer
 			if !t.handleIdle(port) {
 				// Didn't find anything ready to send yet, so stay idle
-				idle[port] = struct{}{}
+				idle[port] = time.Now()
 			}
 		case f := <-t.admin:
 			f()
