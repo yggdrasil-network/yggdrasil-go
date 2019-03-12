@@ -2,9 +2,6 @@ package config
 
 import (
 	"encoding/hex"
-	"fmt"
-	"math/rand"
-	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
@@ -12,16 +9,16 @@ import (
 
 // NodeConfig defines all configuration values needed to run a signle yggdrasil node
 type NodeConfig struct {
-	Listen                      []string               `comment:"Listen addresses for peer connections. Default is to listen for all\nTCP connections over IPv4 and IPv6 with a random port."`
+	Peers                       []string               `comment:"List of connection strings for outbound peer connections in URI format,\ne.g. tcp://a.b.c.d:e or socks://a.b.c.d:e/f.g.h.i:j. These connections\nwill obey the operating system routing table, therefore you should\nuse this section when you may connect via different interfaces."`
+	InterfacePeers              map[string][]string    `comment:"List of connection strings for outbound peer connections in URI format,\narranged by source interface, e.g. { \"eth0\": [ tcp://a.b.c.d:e ] }.\nNote that SOCKS peerings will NOT be affected by this option and should\ngo in the \"Peers\" section instead."`
+	Listen                      []string               `comment:"Listen addresses for incoming connections. You will need to add\nlisteners in order to accept incoming peerings from non-local nodes.\nMulticast peer discovery will work regardless of any listeners set\nhere. Each listener should be specified in URI format as above, e.g.\ntcp://0.0.0.0:0 or tcp://[::]:0 to listen on all interfaces."`
 	AdminListen                 string                 `comment:"Listen address for admin connections. Default is to listen for local\nconnections either on TCP/9001 or a UNIX socket depending on your\nplatform. Use this value for yggdrasilctl -endpoint=X. To disable\nthe admin socket, use the value \"none\" instead."`
-	Peers                       []string               `comment:"List of connection strings for static peers in URI format, e.g.\ntcp://a.b.c.d:e or socks://a.b.c.d:e/f.g.h.i:j."`
-	InterfacePeers              map[string][]string    `comment:"List of connection strings for static peers in URI format, arranged\nby source interface, e.g. { \"eth0\": [ tcp://a.b.c.d:e ] }. Note that\nSOCKS peerings will NOT be affected by this option and should go in\nthe \"Peers\" section instead."`
+	MulticastInterfaces         []string               `comment:"Regular expressions for which interfaces multicast peer discovery\nshould be enabled on. If none specified, multicast peer discovery is\ndisabled. The default value is .* which uses all interfaces."`
 	AllowedEncryptionPublicKeys []string               `comment:"List of peer encryption public keys to allow incoming TCP peering\nconnections from. If left empty/undefined then all connections will\nbe allowed by default. This does not affect outgoing peerings, nor\ndoes it affect link-local peers discovered via multicast."`
 	EncryptionPublicKey         string                 `comment:"Your public encryption key. Your peers may ask you for this to put\ninto their AllowedEncryptionPublicKeys configuration."`
 	EncryptionPrivateKey        string                 `comment:"Your private encryption key. DO NOT share this with anyone!"`
 	SigningPublicKey            string                 `comment:"Your public signing key. You should not ordinarily need to share\nthis with anyone."`
 	SigningPrivateKey           string                 `comment:"Your private signing key. DO NOT share this with anyone!"`
-	MulticastInterfaces         []string               `comment:"Regular expressions for which interfaces multicast peer discovery\nshould be enabled on. If none specified, multicast peer discovery is\ndisabled. The default value is .* which uses all interfaces."`
 	LinkLocalTCPPort            uint16                 `comment:"The port number to be used for the link-local TCP listeners for the\nconfigured MulticastInterfaces. This option does not affect listeners\nspecified in the Listen option. Unless you plan to firewall link-local\ntraffic, it is best to leave this as the default value of 0. This\noption cannot currently be changed by reloading config during runtime."`
 	IfName                      string                 `comment:"Local network interface name for TUN/TAP adapter, or \"auto\" to select\nan interface automatically, or \"none\" to run without TUN/TAP."`
 	IfTAPMode                   bool                   `comment:"Set local network interface to TAP mode rather than TUN mode if\nsupported by your platform - option will be ignored if not."`
@@ -70,12 +67,7 @@ func GenerateConfig(isAutoconf bool) *NodeConfig {
 	spub, spriv := crypto.NewSigKeys()
 	// Create a node configuration and populate it.
 	cfg := NodeConfig{}
-	if isAutoconf {
-		cfg.Listen = []string{"tcp://[::]:0"}
-	} else {
-		r1 := rand.New(rand.NewSource(time.Now().UnixNano()))
-		cfg.Listen = []string{fmt.Sprintf("tcp://[::]:%d", r1.Intn(65534-32768)+32768)}
-	}
+	cfg.Listen = []string{}
 	cfg.AdminListen = defaults.GetDefaults().DefaultAdminListen
 	cfg.EncryptionPublicKey = hex.EncodeToString(bpub[:])
 	cfg.EncryptionPrivateKey = hex.EncodeToString(bpriv[:])
@@ -91,6 +83,7 @@ func GenerateConfig(isAutoconf bool) *NodeConfig {
 	cfg.SessionFirewall.Enable = false
 	cfg.SessionFirewall.AllowFromDirect = true
 	cfg.SessionFirewall.AllowFromRemote = true
+	cfg.SessionFirewall.AlwaysAllowOutbound = true
 	cfg.SwitchOptions.MaxTotalQueueSize = 4 * 1024 * 1024
 	cfg.NodeInfoPrivacy = false
 
