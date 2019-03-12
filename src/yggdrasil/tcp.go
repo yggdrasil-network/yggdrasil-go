@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -332,7 +333,7 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options interface{}) {
 	stream.init(sock)
 	local, _, _ := net.SplitHostPort(sock.LocalAddr().String())
 	remote, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
-	remotelinklocal := net.ParseIP(remote).IsLinkLocalUnicast()
+	force := net.ParseIP(strings.Split(remote, "%")[0]).IsLinkLocalUnicast()
 	var name string
 	var proto string
 	if socksaddr, issocks := options.(string); issocks {
@@ -342,7 +343,7 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options interface{}) {
 		name = "tcp://" + sock.RemoteAddr().String()
 		proto = "tcp"
 	}
-	link, err := t.link.core.link.create(&stream, name, proto, local, remote, incoming, remotelinklocal)
+	link, err := t.link.core.link.create(&stream, name, proto, local, remote, incoming, force)
 	if err != nil {
 		t.link.core.log.Println(err)
 		panic(err)
