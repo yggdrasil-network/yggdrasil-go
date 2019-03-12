@@ -45,7 +45,7 @@ func (c *Core) addStaticPeers(cfg *config.NodeConfig) {
 func (c *Core) StartAutoconfigure() error {
 	mobilelog := MobileLogger{}
 	logger := log.New(mobilelog, "", 0)
-	nc := config.GenerateConfig(true)
+	nc := config.GenerateConfig()
 	nc.IfName = "dummy"
 	nc.AdminListen = "tcp://localhost:9001"
 	nc.Peers = []string{}
@@ -64,7 +64,7 @@ func (c *Core) StartAutoconfigure() error {
 func (c *Core) StartJSON(configjson []byte) error {
 	mobilelog := MobileLogger{}
 	logger := log.New(mobilelog, "", 0)
-	nc := config.GenerateConfig(false)
+	nc := config.GenerateConfig()
 	var dat map[string]interface{}
 	if err := hjson.Unmarshal(configjson, &dat); err != nil {
 		return err
@@ -82,7 +82,7 @@ func (c *Core) StartJSON(configjson []byte) error {
 
 // Generates mobile-friendly configuration in JSON format.
 func GenerateConfigJSON() []byte {
-	nc := config.GenerateConfig(false)
+	nc := config.GenerateConfig()
 	nc.IfName = "dummy"
 	if json, err := json.Marshal(nc); err == nil {
 		return json

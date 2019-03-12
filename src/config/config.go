@@ -61,7 +61,7 @@ type SwitchOptions struct {
 // or whether to generate a random port number. The only side effect of setting
 // isAutoconf is that the TCP and UDP ports will likely end up with different
 // port numbers.
-func GenerateConfig(isAutoconf bool) *NodeConfig {
+func GenerateConfig() *NodeConfig {
 	// Generate encryption keys.
 	bpub, bpriv := crypto.NewBoxKeys()
 	spub, spriv := crypto.NewSigKeys()
