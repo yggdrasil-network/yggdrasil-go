@@ -178,8 +178,8 @@ jobs:
           destination: /
 
 workflows:
-  version: 2
-  build-all:
+  version: 2.1
+  build:
     jobs:
       - build-linux
       - build-macos
