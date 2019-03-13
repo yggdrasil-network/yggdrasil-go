@@ -119,7 +119,7 @@ jobs:
 
   build-other:
     docker:
-      - image: circleci/golang:1.11
+      - image: circleci/golang:1.12
 
     steps:
       - checkout
