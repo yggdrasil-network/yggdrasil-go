@@ -186,7 +186,6 @@ func (m *multicast) announce() {
 				msg := []byte(a.String())
 				m.sock.WriteTo(msg, nil, destAddr)
 			}
-			break
 		}
 		time.Sleep(time.Second * 15)
 	}
