@@ -118,23 +118,13 @@ func (m *multicast) announce() {
 		panic(err)
 	}
 	for {
+		// Get the allowed interfaces and any matching link-local addresses
 		interfaces := m.interfaces()
-		// There might be interfaces that we configured listeners for but are no
-		// longer up - if that's the case then we should stop the listeners
-		for name, listener := range m.listeners {
-			if _, ok := interfaces[name]; !ok {
-				listener.stop <- true
-				delete(m.listeners, name)
-				m.core.log.Debugln("No longer multicasting on", name)
-			}
-		}
-		// Now that we have a list of valid interfaces from the operating system,
-		// we can start checking if we can send multicasts on them
+		addresses := make(map[string]net.IPAddr)
 		for _, iface := range interfaces {
-			// Find interface addresses
 			addrs, err := iface.Addrs()
 			if err != nil {
-				panic(err)
+				m.core.log.Debugln("Failed to get addresses for interface", iface.Name, "due to error:", err)
 			}
 			for _, addr := range addrs {
 				addrIP, _, _ := net.ParseCIDR(addr.String())
@@ -146,39 +136,57 @@ func (m *multicast) announce() {
 				if !addrIP.IsLinkLocalUnicast() {
 					continue
 				}
-				// Join the multicast group
-				m.sock.JoinGroup(&iface, groupAddr)
-				// Try and see if we already have a TCP listener for this interface
-				var listener *tcpListener
-				if l, ok := m.listeners[iface.Name]; !ok || l.listener == nil {
-					// No listener was found - let's create one
-					listenaddr := fmt.Sprintf("[%s%%%s]:%d", addrIP, iface.Name, m.listenPort)
-					if li, err := m.core.link.tcp.listen(listenaddr); err == nil {
-						m.core.log.Debugln("Started multicasting on", iface.Name)
-						// Store the listener so that we can stop it later if needed
-						m.listeners[iface.Name] = li
-						listener = li
-					} else {
-						m.core.log.Warnln("Not multicasting on", iface.Name, "due to error:", err)
-					}
-				} else {
-					// An existing listener was found
-					listener = m.listeners[iface.Name]
+				ipAddr := net.IPAddr{
+					IP:   addrIP,
+					Zone: iface.Name,
 				}
-				// Make sure nothing above failed for some reason
-				if listener == nil {
-					continue
-				}
-				// Get the listener details and construct the multicast beacon
-				lladdr := listener.listener.Addr().String()
-				if a, err := net.ResolveTCPAddr("tcp6", lladdr); err == nil {
-					a.Zone = ""
-					destAddr.Zone = iface.Name
-					msg := []byte(a.String())
-					m.sock.WriteTo(msg, nil, destAddr)
-				}
-				break
+				addresses[ipAddr.String()] = ipAddr
 			}
+		}
+		// There might be interfaces that we configured listeners for but are no
+		// longer up - if that's the case then we should stop the listeners
+		for name, listener := range m.listeners {
+			if _, ok := addresses[name]; !ok {
+				listener.stop <- true
+				delete(m.listeners, name)
+				m.core.log.Debugln("No longer multicasting on", name)
+			}
+		}
+		// Now that we have a list of valid addresses from the operating system,
+		// we can start checking if we can send multicasts on them
+		for addr, ipAddr := range addresses {
+			iface := interfaces[ipAddr.Zone]
+			m.sock.JoinGroup(&iface, groupAddr)
+			// Try and see if we already have a TCP listener for this interface
+			var listener *tcpListener
+			if l, ok := m.listeners[addr]; !ok || l.listener == nil {
+				// No listener was found - let's create one
+				listenaddr := fmt.Sprintf("[%s%%%s]:%d", ipAddr.IP.String(), ipAddr.Zone, m.listenPort)
+				if li, err := m.core.link.tcp.listen(listenaddr); err == nil {
+					m.core.log.Debugln("Started multicasting on", iface.Name, "with address", addr)
+					// Store the listener so that we can stop it later if needed
+					m.listeners[addr] = li
+					listener = li
+				} else {
+					m.core.log.Warnln("Not multicasting on", iface.Name, "with address", addr, "due to error:", err)
+				}
+			} else {
+				// An existing listener was found
+				listener = m.listeners[addr]
+			}
+			// Make sure nothing above failed for some reason
+			if listener == nil {
+				continue
+			}
+			// Get the listener details and construct the multicast beacon
+			lladdr := listener.listener.Addr().String()
+			if a, err := net.ResolveTCPAddr("tcp6", lladdr); err == nil {
+				a.Zone = ""
+				destAddr.Zone = iface.Name
+				msg := []byte(a.String())
+				m.sock.WriteTo(msg, nil, destAddr)
+			}
+			break
 		}
 		time.Sleep(time.Second * 15)
 	}
