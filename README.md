@@ -40,6 +40,9 @@ Please see our [Platforms](https://yggdrasil-network.github.io/) pages for more
 specific information about each of our supported platforms, including
 installation steps and caveats.
 
+You may also find other platform-specific wrappers, scripts or tools in the
+`contrib` folder.
+
 ## Building
 
 If you want to build from source, as opposed to installing one of the pre-built
@@ -102,10 +105,13 @@ repository within `doc/yggdrasil-network.github.io`.
 - [Platform-specific documentation](https://yggdrasil-network.github.io/platforms.html)
 - [Frequently asked questions](https://yggdrasil-network.github.io/faq.html)
 - [Admin API documentation](https://yggdrasil-network.github.io/admin.html)
+- [Version changelog](CHANGELOG.md)
 
 ## Community
 
-Feel free to join us on our [Matrix channel](https://matrix.to/#/#yggdrasil:matrix.org) at `#yggdrasil:matrix.org` or in the `#yggdrasil` IRC channel on Freenode.
+Feel free to join us on our [Matrix
+channel](https://matrix.to/#/#yggdrasil:matrix.org) at `#yggdrasil:matrix.org`
+or in the `#yggdrasil` IRC channel on Freenode.
 
 ## License
 
