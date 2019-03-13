@@ -55,22 +55,26 @@ specifying the `GOOS` and `GOARCH` environment variables, e.g. `GOOS=windows
 
 ## Running
 
+### Generate configuration
+
 To generate static configuration, either generate a HJSON file (human-friendly,
 complete with comments):
 
 ```
-./yggdrasil -genconf /path/to/yggdrasil.conf
+./yggdrasil -genconf > /path/to/yggdrasil.conf
 ```
 
 ... or generate a plain JSON file (which is easy to manipulate
 programmatically):
 
 ```
-./yggdrasil -genconf /path/to/yggdrasil.conf -json
+./yggdrasil -genconf -json > /path/to/yggdrasil.conf
 ```
 
 You will need to edit the `yggdrasil.conf` file to add or remove peers, modify
 other configuration such as listen addresses or multicast addresses, etc.
+
+### Run Yggdrasil
 
 To run with the generated static configuration:
 ```
@@ -81,7 +85,7 @@ To run in auto-configuration mode (which will use sane defaults and random keys
 at each startup, instead of using a static configuration file):
 
 ```
-./yggdrasil --autoconf
+./yggdrasil -autoconf
 ```
 
 You will likely need to run Yggdrasil as a privileged user or under `sudo`,
@@ -90,8 +94,8 @@ by giving the Yggdrasil binary the `CAP_NET_ADMIN` capability.
 
 ## Documentation
 
-Documentation is available on our [`GitHub
-Pages`](https://yggdrasil-network.github.io) site, or in the base submodule
+Documentation is available on our [GitHub
+Pages](https://yggdrasil-network.github.io) site, or in the base submodule
 repository within `doc/yggdrasil-network.github.io`.
 
 - [Configuration file options](https://yggdrasil-network.github.io/configuration.html)
