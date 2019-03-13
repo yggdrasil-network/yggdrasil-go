@@ -85,11 +85,11 @@ jobs:
               curl -LO https://dl.google.com/go/go1.12.darwin-amd64.pkg
               sudo installer -pkg /tmp/go1.12.darwin-amd64.pkg -target /
 
-      - run:
-          name: Install Gomobile
-          command: |
-              GO111MODULE=off go get golang.org/x/mobile/cmd/gomobile
-              gomobile init
+      #- run:
+      #    name: Install Gomobile
+      #    command: |
+      #        GO111MODULE=off go get golang.org/x/mobile/cmd/gomobile
+      #        gomobile init
 
       - run:
           name: Build for macOS
