@@ -25,6 +25,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.3.5] - 2019-03-13
+### Fixed
+- The `AllowedEncryptionPublicKeys` option has now been fixed to handle incoming connections properly and no longer blocks outgoing connections (this was broken in v0.3.4)
+- Multicast TCP listeners will now be stopped correctly when the link-local address on the interface changes or disappears altogether
+
 ## [0.3.4] - 2019-03-12
 ### Added
 - Support for multiple listeners (although currently only TCP listeners are supported)

@@ -62,7 +62,7 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeCo
 	// then parse the configuration we loaded above on top of it. The effect
 	// of this is that any configuration item that is missing from the provided
 	// configuration will use a sane default.
-	cfg := config.GenerateConfig(false)
+	cfg := config.GenerateConfig()
 	var dat map[string]interface{}
 	if err := hjson.Unmarshal(conf, &dat); err != nil {
 		panic(err)
@@ -154,7 +154,7 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeCo
 // Generates a new configuration and returns it in HJSON format. This is used
 // with -genconf.
 func doGenconf(isjson bool) string {
-	cfg := config.GenerateConfig(false)
+	cfg := config.GenerateConfig()
 	var bs []byte
 	var err error
 	if isjson {
@@ -191,7 +191,7 @@ func main() {
 	case *autoconf:
 		// Use an autoconf-generated config, this will give us random keys and
 		// port numbers, and will use an automatically selected TUN/TAP interface.
-		cfg = config.GenerateConfig(true)
+		cfg = config.GenerateConfig()
 	case *useconffile != "" || *useconf:
 		// Read the configuration from either stdin or from the filesystem
 		cfg = readConfig(useconf, useconffile, normaliseconf)
