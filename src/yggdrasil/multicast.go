@@ -122,10 +122,47 @@ func (m *multicast) announce() {
 		// There might be interfaces that we configured listeners for but are no
 		// longer up - if that's the case then we should stop the listeners
 		for name, listener := range m.listeners {
-			if _, ok := interfaces[name]; !ok {
+			// Prepare our stop function!
+			stop := func() {
 				listener.stop <- true
 				delete(m.listeners, name)
 				m.core.log.Debugln("No longer multicasting on", name)
+			}
+			// If the interface is no longer visible on the system then stop the
+			// listener, as another one will be started further down
+			if _, ok := interfaces[name]; !ok {
+				stop()
+				continue
+			}
+			// It's possible that the link-local listener address has changed so if
+			// that is the case then we should clean up the interface listener
+			found := false
+			listenaddr, err := net.ResolveTCPAddr("tcp6", listener.listener.Addr().String())
+			if err != nil {
+				stop()
+				continue
+			}
+			// Find the interface that matches the listener
+			if intf, err := net.InterfaceByName(name); err == nil {
+				if addrs, err := intf.Addrs(); err == nil {
+					// Loop through the addresses attached to that listener and see if any
+					// of them match the current address of the listener
+					for _, addr := range addrs {
+						if ip, _, err := net.ParseCIDR(addr.String()); err == nil {
+							// Does the interface address match our listener address?
+							if ip.Equal(listenaddr.IP) {
+								found = true
+								break
+							}
+						}
+					}
+				}
+			}
+			// If the address has not been found on the adapter then we should stop
+			// and clean up the TCP listener. A new one will be created below if a
+			// suitable link-local address is found
+			if !found {
+				stop()
 			}
 		}
 		// Now that we have a list of valid interfaces from the operating system,
