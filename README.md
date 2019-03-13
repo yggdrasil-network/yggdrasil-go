@@ -103,30 +103,9 @@ repository within `doc/yggdrasil-network.github.io`.
 - [Frequently asked questions](https://yggdrasil-network.github.io/faq.html)
 - [Admin API documentation](https://yggdrasil-network.github.io/admin.html)
 
-## Performance
+## Community
 
-A [simplified model](misc/sim/treesim-forward.py) of this routing scheme has
-been tested in simulation on the 9204-node
-[skitter](https://www.caida.org/tools/measurement/skitter/) network topology
-dataset from [caida](https://www.caida.org/), and compared with results in
-[arxiv:0708.2309](https://arxiv.org/abs/0708.2309). Using the routing scheme as
-implemented in this code, the average multiplicative stretch is observed to be
-about 1.08, with an average routing table size of 6 for a name-dependent scheme,
-and approximately 30 additional (but smaller) entries needed for the
-name-independent routing table. The number of name-dependent routing table
-entries needed is proportional to node degree, so that 6 is the mean of a
-distribution with a long tail, but this may be an acceptable tradeoff (it's at
-least worth trying, hence this code). The size of name-dependent routing table
-entries is relatively large, due to cryptographic signatures associated with
-routing table updates, but in the absence of cryptographic overhead, each entry
-should otherwise be comparable in size to the BC routing scheme described in the
-above paper. A modified version of this scheme, with the same resource
-requirements, achieves a multiplicative stretch of 1.02, which drops to 1.01 if
-source routing is used. Both of these optimizations are not present in the
-current implementation, as the former depends on network state information that
-appears difficult to cryptographically secure, and the latter optimization is
-both tedious to implement and would make debugging other aspects of the
-implementation more difficult.
+Feel free to join us on our [Matrix channel](https://matrix.to/#/#yggdrasil:matrix.org) at `#yggdrasil:matrix.org` or in the `#yggdrasil` IRC channel on Freenode.
 
 ## License
 
