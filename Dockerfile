@@ -1,1 +1,1 @@
-contrib/docker/Dockerfile
+contrib/docker/scratch/Dockerfile
