@@ -1,11 +1,11 @@
-FROM docker.io/golang:alpine as builder
+FROM docker.io/golang:1.12-alpine as builder
 
 COPY . /src
 WORKDIR /src
 
 ENV CGO_ENABLED=0
 
-RUN apk add git && ./build 
+RUN apk add git && ./build
 
 FROM docker.io/alpine
 LABEL maintainer="Christer Waren/CWINFO <christer.waren@cwinfo.org>"
