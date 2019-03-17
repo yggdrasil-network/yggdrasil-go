@@ -42,12 +42,12 @@ jobs:
           name: Build for Linux (including Debian packages)
           command: |
               rm -f {yggdrasil,yggdrasilctl}
-              PKGARCH=amd64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-amd64;
-              PKGARCH=i386 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-i386;
-              PKGARCH=mipsel sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-mipsel && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-mipsel;
-              PKGARCH=mips sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-mips && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-mips;
-              PKGARCH=armhf sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-armhf && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-armhf;
-              PKGARCH=arm64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-arm64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-arm64;
+              PKGARCH=amd64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-amd64 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-amd64;
+              PKGARCH=i386 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-i386 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-i386;
+              PKGARCH=mipsel sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-mipsel && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-mipsel;
+              PKGARCH=mips sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-mips && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-mips;
+              PKGARCH=armhf sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-armhf && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-armhf;
+              PKGARCH=arm64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-arm64 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-arm64;
               mv *.deb /tmp/upload/
 
       - run:
@@ -118,8 +118,8 @@ jobs:
           name: Build for macOS
           command: |
               GO111MODULE=on GOOS=darwin GOARCH=amd64 ./build
-              cp yggdrasil /tmp/upload/$CINAME-$CIVERSION-darwin-amd64
-              cp yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-darwin-amd64;
+              cp yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-darwin-amd64
+              cp yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-darwin-amd64;
 
       - run:
           name: Build for macOS (.pkg format)
@@ -160,34 +160,109 @@ jobs:
           name: Build for OpenBSD
           command: |
               rm -f {yggdrasil,yggdrasilctl}
-              GOOS=openbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-openbsd-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-openbsd-amd64;
-              GOOS=openbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-openbsd-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-openbsd-i386;
+              GOOS=openbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-openbsd-amd64 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-openbsd-amd64;
+              GOOS=openbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-openbsd-i386 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-openbsd-i386;
 
       - run:
           name: Build for FreeBSD
           command: |
               rm -f {yggdrasil,yggdrasilctl}
-              GOOS=freebsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-freebsd-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-freebsd-amd64;
-              GOOS=freebsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-freebsd-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-freebsd-i386;
+              GOOS=freebsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-freebsd-amd64 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-freebsd-amd64;
+              GOOS=freebsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-freebsd-i386 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-freebsd-i386;
 
       - run:
           name: Build for NetBSD
           command: |
               rm -f {yggdrasil,yggdrasilctl}
-              GOOS=netbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-netbsd-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-netbsd-amd64;
-              GOOS=netbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-netbsd-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-netbsd-i386;
+              GOOS=netbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-netbsd-amd64 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-netbsd-amd64;
+              GOOS=netbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-netbsd-i386 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-netbsd-i386;
 
       - run:
           name: Build for Windows
           command: |
               rm -f {yggdrasil,yggdrasilctl}
-              GOOS=windows GOARCH=amd64 ./build && mv yggdrasil.exe /tmp/upload/$CINAME-$CIVERSION-windows-amd64.exe && mv yggdrasilctl.exe /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-windows-amd64.exe;
-              GOOS=windows GOARCH=386 ./build && mv yggdrasil.exe /tmp/upload/$CINAME-$CIVERSION-windows-i386.exe && mv yggdrasilctl.exe /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-windows-i386.exe;
+              GOOS=windows GOARCH=amd64 ./build && mv yggdrasil.exe /tmp/upload/${CINAME}-${CIVERSION}-windows-amd64.exe && mv yggdrasilctl.exe /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-windows-amd64.exe;
+              GOOS=windows GOARCH=386 ./build && mv yggdrasil.exe /tmp/upload/${CINAME}-${CIVERSION}-windows-i386.exe && mv yggdrasilctl.exe /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-windows-i386.exe;
 
       - persist_to_workspace:
           root: /tmp
           paths:
             - upload
+
+  build-docker:
+    machine: true
+
+    steps:
+      - attach_workspace:
+          at: /tmp
+
+      - checkout
+
+      - run:
+          name: Set environment
+          command: |
+              echo 'export CINAME=$(sh contrib/semver/name.sh)' >> $BASH_ENV
+              echo 'export CIVERSION=$(sh contrib/semver/version.sh --bare)' >> $BASH_ENV
+
+      - run:
+          name: Build images
+          # docker-copyedit is used because of https://github.com/moby/moby/issues/36552
+          command: |
+              wget https://raw.githubusercontent.com/gdraheim/docker-copyedit/master/docker-copyedit.py && chmod +x docker-copyedit.py
+              cp /tmp/upload/${CINAME}-${CIVERSION}-linux-amd64 yggdrasil && \
+                docker build -t ${DOCKER_NAMESPACE}:temp . && \
+                ./docker-copyedit.py FROM ${DOCKER_NAMESPACE}:temp INTO ${DOCKER_NAMESPACE}:amd64 SET arch amd64 -vv
+              cp /tmp/upload/${CINAME}-${CIVERSION}-linux-i386 yggdrasil && \
+                docker build -t ${DOCKER_NAMESPACE}:temp . && \
+                ./docker-copyedit.py FROM ${DOCKER_NAMESPACE}:temp INTO ${DOCKER_NAMESPACE}:i386 SET arch i386 -vv
+              cp /tmp/upload/${CINAME}-${CIVERSION}-linux-mipsel yggdrasil && \
+                docker build -t ${DOCKER_NAMESPACE}:temp . && \
+                ./docker-copyedit.py FROM ${DOCKER_NAMESPACE}:temp INTO ${DOCKER_NAMESPACE}:mipsel SET arch mipsel -vv
+              cp /tmp/upload/${CINAME}-${CIVERSION}-linux-mips yggdrasil && \
+                docker build -t ${DOCKER_NAMESPACE}:temp . && \
+                ./docker-copyedit.py FROM ${DOCKER_NAMESPACE}:temp INTO ${DOCKER_NAMESPACE}:mips SET arch mips -vv
+              cp /tmp/upload/${CINAME}-${CIVERSION}-linux-armhf yggdrasil && \
+                docker build -t ${DOCKER_NAMESPACE}:temp . && \
+                ./docker-copyedit.py FROM ${DOCKER_NAMESPACE}:temp INTO ${DOCKER_NAMESPACE}:armhf SET arch armhf -vv
+              cp /tmp/upload/${CINAME}-${CIVERSION}-linux-arm64 yggdrasil && \
+                docker build -t ${DOCKER_NAMESPACE}:temp . && \
+                ./docker-copyedit.py FROM ${DOCKER_NAMESPACE}:temp INTO ${DOCKER_NAMESPACE}:arm64 SET arch arm64 -vv
+
+      - run:
+          name: Tag images
+          command: |
+              docker tag ${DOCKER_NAMESPACE}:amd64 ${DOCKER_NAMESPACE}:${CIVERSION}-amd64
+              docker tag ${DOCKER_NAMESPACE}:i386 ${DOCKER_NAMESPACE}:${CIVERSION}-i386
+              docker tag ${DOCKER_NAMESPACE}:mipsel ${DOCKER_NAMESPACE}:${CIVERSION}-mipsel
+              docker tag ${DOCKER_NAMESPACE}:mips ${DOCKER_NAMESPACE}:${CIVERSION}-mips
+              docker tag ${DOCKER_NAMESPACE}:armhf ${DOCKER_NAMESPACE}:${CIVERSION}-armhf
+              docker tag ${DOCKER_NAMESPACE}:arm64 ${DOCKER_NAMESPACE}:${CIVERSION}-arm64
+
+      - run:
+          name: Push images
+          command: |
+              docker login -u $DOCKER_USER -p $DOCKER_PASS
+              docker push ${DOCKER_NAMESPACE}:amd64
+              docker push ${DOCKER_NAMESPACE}:${CIVERSION}-amd64
+              docker push ${DOCKER_NAMESPACE}:i386
+              docker push ${DOCKER_NAMESPACE}:${CIVERSION}-i386
+              docker push ${DOCKER_NAMESPACE}:mipsel
+              docker push ${DOCKER_NAMESPACE}:${CIVERSION}-mipsel
+              docker push ${DOCKER_NAMESPACE}:mips
+              docker push ${DOCKER_NAMESPACE}:${CIVERSION}-mips
+              docker push ${DOCKER_NAMESPACE}:armhf
+              docker push ${DOCKER_NAMESPACE}:${CIVERSION}-armhf
+              docker push ${DOCKER_NAMESPACE}:arm64
+              docker push ${DOCKER_NAMESPACE}:${CIVERSION}-arm64
+
+      # - run:
+      #     name: Create and push release manifest
+      #     # We need to enable experimental features for cli in order to use docker manifest
+      #     command: |
+      #         mkdir -p ~/.docker && echo $'{\n    "experimental": "enabled"\n}' >| ~/.docker/config.json
+      #         docker login -u $DOCKER_USER -p $DOCKER_PASS
+      #         docker manifest create --amend ${DOCKER_NAMESPACE}:${CIVERSION} ${DOCKER_NAMESPACE}:${CIVERSION}-amd64 ${DOCKER_NAMESPACE}:${CIVERSION}-i386 ${DOCKER_NAMESPACE}:${CIVERSION}-mipsel ${DOCKER_NAMESPACE}:${CIVERSION}-mips ${DOCKER_NAMESPACE}:${CIVERSION}-armhf ${DOCKER_NAMESPACE}:${CIVERSION}-arm64
+      #         docker manifest push ${DOCKER_NAMESPACE}:${CIVERSION}
 
   upload:
     machine: true
@@ -207,6 +282,9 @@ workflows:
       - build-linux
       - build-macos
       - build-other
+      - build-docker:
+          requires:
+            - build-linux
       - upload:
           requires:
             - build-linux
