@@ -76,3 +76,20 @@ func FuncTimeout(f func(), timeout time.Duration) bool {
 		return false
 	}
 }
+
+// This calculates the difference between two arrays and returns items
+// that appear in A but not in B - useful somewhat when reconfiguring
+// and working out what configuration items changed
+func Difference(a, b []string) []string {
+	ab := []string{}
+	mb := map[string]bool{}
+	for _, x := range b {
+		mb[x] = true
+	}
+	for _, x := range a {
+		if !mb[x] {
+			ab = append(ab, x)
+		}
+	}
+	return ab
+}

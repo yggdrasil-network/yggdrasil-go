@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"strings"
 	"sync"
+
 	//"sync/atomic"
 	"time"
 
@@ -17,10 +19,12 @@ import (
 )
 
 type link struct {
-	core       *Core
-	mutex      sync.RWMutex // protects interfaces below
-	interfaces map[linkInfo]*linkInterface
-	awdl       awdl // AWDL interface support
+	core        *Core
+	reconfigure chan chan error
+	mutex       sync.RWMutex // protects interfaces below
+	interfaces  map[linkInfo]*linkInterface
+	awdl        awdl // AWDL interface support
+	tcp         tcp  // TCP interface support
 	// TODO timeout (to remove from switch), read from config.ReadTimeout
 }
 
@@ -56,14 +60,70 @@ func (l *link) init(c *Core) error {
 	l.core = c
 	l.mutex.Lock()
 	l.interfaces = make(map[linkInfo]*linkInterface)
+	l.reconfigure = make(chan chan error)
 	l.mutex.Unlock()
 
-	if err := l.awdl.init(l); err != nil {
-		l.core.log.Errorln("Failed to start AWDL interface")
+	if err := l.tcp.init(l); err != nil {
+		c.log.Errorln("Failed to start TCP interface")
 		return err
 	}
 
+	if err := l.awdl.init(l); err != nil {
+		c.log.Errorln("Failed to start AWDL interface")
+		return err
+	}
+
+	go func() {
+		for {
+			e := <-l.reconfigure
+			tcpresponse := make(chan error)
+			awdlresponse := make(chan error)
+			l.tcp.reconfigure <- tcpresponse
+			if err := <-tcpresponse; err != nil {
+				e <- err
+				continue
+			}
+			l.awdl.reconfigure <- awdlresponse
+			if err := <-awdlresponse; err != nil {
+				e <- err
+				continue
+			}
+			e <- nil
+		}
+	}()
+
 	return nil
+}
+
+func (l *link) call(uri string, sintf string) error {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return err
+	}
+	pathtokens := strings.Split(strings.Trim(u.Path, "/"), "/")
+	switch u.Scheme {
+	case "tcp":
+		l.tcp.call(u.Host, nil, sintf)
+	case "socks":
+		l.tcp.call(pathtokens[0], u.Host, sintf)
+	default:
+		return errors.New("unknown call scheme: " + u.Scheme)
+	}
+	return nil
+}
+
+func (l *link) listen(uri string) error {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return err
+	}
+	switch u.Scheme {
+	case "tcp":
+		_, err := l.tcp.listen(u.Host)
+		return err
+	default:
+		return errors.New("unknown listen scheme: " + u.Scheme)
+	}
 }
 
 func (l *link) create(msgIO linkInterfaceMsgIO, name, linkType, local, remote string, incoming, force bool) (*linkInterface, error) {
@@ -115,8 +175,8 @@ func (intf *linkInterface) handler() error {
 		return errors.New("failed to connect: wrong version")
 	}
 	// Check if we're authorized to connect to this key / IP
-	if !intf.incoming && !intf.force && !intf.link.core.peers.isAllowedEncryptionPublicKey(&meta.box) {
-		intf.link.core.log.Warnf("%s connection to %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
+	if intf.incoming && !intf.force && !intf.link.core.peers.isAllowedEncryptionPublicKey(&meta.box) {
+		intf.link.core.log.Warnf("%s connection from %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
 			strings.ToUpper(intf.info.linkType), intf.info.remote, hex.EncodeToString(meta.box[:]))
 		intf.msgIO.close()
 		return nil
@@ -147,7 +207,7 @@ func (intf *linkInterface) handler() error {
 	intf.link.mutex.Unlock()
 	// Create peer
 	shared := crypto.GetSharedKey(myLinkPriv, &meta.link)
-	intf.peer = intf.link.core.peers.newPeer(&meta.box, &meta.sig, shared, intf.name, func() { intf.msgIO.close() })
+	intf.peer = intf.link.core.peers.newPeer(&meta.box, &meta.sig, shared, intf, func() { intf.msgIO.close() })
 	if intf.peer == nil {
 		return errors.New("failed to create peer")
 	}
@@ -174,6 +234,9 @@ func (intf *linkInterface) handler() error {
 	signalReady := make(chan struct{}, 1)
 	signalSent := make(chan bool, 1)
 	sendAck := make(chan struct{}, 1)
+	sendBlocked := time.NewTimer(time.Second)
+	defer util.TimerStop(sendBlocked)
+	util.TimerStop(sendBlocked)
 	go func() {
 		defer close(signalReady)
 		defer close(signalSent)
@@ -181,7 +244,9 @@ func (intf *linkInterface) handler() error {
 		tcpTimer := time.NewTimer(interval) // used for backwards compat with old tcp
 		defer util.TimerStop(tcpTimer)
 		send := func(bs []byte) {
+			sendBlocked.Reset(time.Second)
 			intf.msgIO.writeMsg(bs)
+			util.TimerStop(sendBlocked)
 			select {
 			case signalSent <- len(bs) > 0:
 			default:
@@ -201,15 +266,15 @@ func (intf *linkInterface) handler() error {
 			// Now block until something is ready or the timer triggers keepalive traffic
 			select {
 			case <-tcpTimer.C:
-				intf.link.core.log.Debugf("Sending (legacy) keep-alive to %s: %s, source %s",
+				intf.link.core.log.Tracef("Sending (legacy) keep-alive to %s: %s, source %s",
 					strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 				send(nil)
 			case <-sendAck:
-				intf.link.core.log.Debugf("Sending ack to %s: %s, source %s",
+				intf.link.core.log.Tracef("Sending ack to %s: %s, source %s",
 					strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 				send(nil)
 			case msg := <-intf.peer.linkOut:
-				intf.msgIO.writeMsg(msg)
+				send(msg)
 			case msg, ok := <-out:
 				if !ok {
 					return
@@ -220,7 +285,7 @@ func (intf *linkInterface) handler() error {
 				case signalReady <- struct{}{}:
 				default:
 				}
-				//intf.link.core.log.Debugf("Sending packet to %s: %s, source %s",
+				//intf.link.core.log.Tracef("Sending packet to %s: %s, source %s",
 				//	strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 			}
 		}
@@ -271,7 +336,7 @@ func (intf *linkInterface) handler() error {
 					sendTimerRunning = true
 				}
 				if !gotMsg {
-					intf.link.core.log.Debugf("Received ack from %s: %s, source %s",
+					intf.link.core.log.Tracef("Received ack from %s: %s, source %s",
 						strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 				}
 			case sentMsg, ok := <-signalSent:
@@ -300,6 +365,10 @@ func (intf *linkInterface) handler() error {
 					intf.link.core.switchTable.idleIn <- intf.peer.port
 					isReady = true
 				}
+			case <-sendBlocked.C:
+				// We blocked while trying to send something
+				isReady = false
+				intf.link.core.switchTable.blockPeer(intf.peer.port)
 			case <-sendTimer.C:
 				// We haven't sent anything, so signal a send of a 0 packet to let them know we're alive
 				select {
@@ -309,6 +378,7 @@ func (intf *linkInterface) handler() error {
 			case <-recvTimer.C:
 				// We haven't received anything, so assume there's a problem and don't return this node to the switch until they start responding
 				isAlive = false
+				intf.link.core.switchTable.blockPeer(intf.peer.port)
 			case <-closeTimer.C:
 				// We haven't received anything in a really long time, so things have died at the switch level and then some...
 				// Just close the connection at this point...

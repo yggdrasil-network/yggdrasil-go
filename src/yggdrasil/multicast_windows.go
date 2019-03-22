@@ -5,7 +5,7 @@ package yggdrasil
 import "syscall"
 import "golang.org/x/sys/windows"
 
-func (m *multicast) multicastWake() {
+func (m *multicast) multicastStarted() {
 
 }
 

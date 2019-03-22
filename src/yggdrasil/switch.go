@@ -131,6 +131,7 @@ type peerInfo struct {
 	faster  map[switchPort]uint64 // Counter of how often a node is faster than the current parent, penalized extra if slower
 	port    switchPort            // Interface number of this peer
 	msg     switchMsg             // The wire switchMsg used
+	blocked bool                  // True if the link is blocked, used to avoid parenting a blocked link
 }
 
 // This is just a uint64 with a named type for clarity reasons.
@@ -254,6 +255,29 @@ func (t *switchTable) cleanRoot() {
 		t.data.locator = switchLocator{root: t.key, tstamp: now.Unix()}
 		t.core.peers.sendSwitchMsgs()
 	}
+}
+
+// Blocks and, if possible, unparents a peer
+func (t *switchTable) blockPeer(port switchPort) {
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+	peer, isIn := t.data.peers[port]
+	if !isIn {
+		return
+	}
+	peer.blocked = true
+	t.data.peers[port] = peer
+	if port != t.parent {
+		return
+	}
+	t.parent = 0
+	for _, info := range t.data.peers {
+		if info.port == port {
+			continue
+		}
+		t.unlockedHandleMsg(&info.msg, info.port, true)
+	}
+	t.unlockedHandleMsg(&peer.msg, peer.port, true)
 }
 
 // Removes a peer.
@@ -395,6 +419,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 	if reprocessing {
 		sender.faster = oldSender.faster
 		sender.time = oldSender.time
+		sender.blocked = oldSender.blocked
 	} else {
 		sender.faster = make(map[switchPort]uint64, len(oldSender.faster))
 		for port, peer := range t.data.peers {
@@ -454,6 +479,11 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 	case sender.faster[t.parent] >= switch_faster_threshold:
 		// The is reliably faster than the current parent.
 		updateRoot = true
+	case !sender.blocked && oldParent.blocked:
+		// Replace a blocked parent
+		updateRoot = true
+	case reprocessing && sender.blocked && !oldParent.blocked:
+		// Don't replace an unblocked parent when reprocessing
 	case reprocessing && sender.faster[t.parent] > oldParent.faster[sender.port]:
 		// The sender seems to be reliably faster than the current parent, so switch to them instead.
 		updateRoot = true
@@ -616,7 +646,7 @@ func (t *switchTable) bestPortForCoords(coords []byte) switchPort {
 // Handle an incoming packet
 // Either send it to ourself, or to the first idle peer that's free
 // Returns true if the packet has been handled somehow, false if it should be queued
-func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool {
+func (t *switchTable) handleIn(packet []byte, idle map[switchPort]time.Time) bool {
 	coords := switch_getPacketCoords(packet)
 	closer := t.getCloser(coords)
 	if len(closer) == 0 {
@@ -624,15 +654,13 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool
 		t.toRouter <- packet
 		return true
 	}
-	table := t.getTable()
 	var best *peer
 	var bestDist int
-	var bestCoordLen int
+	var bestTime time.Time
 	ports := t.core.peers.getPorts()
 	for port, dist := range closer {
 		to := ports[port]
-		_, isIdle := idle[port]
-		coordLen := len(table.elems[port].locator.coords)
+		thisTime, isIdle := idle[port]
 		var update bool
 		switch {
 		case to == nil:
@@ -645,21 +673,15 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]struct{}) bool
 			update = true
 		case dist > bestDist:
 			//nothing
-		case coordLen < bestCoordLen:
+		case thisTime.Before(bestTime):
 			update = true
-			/*
-				case coordLen > bestCoordLen:
-					//nothing
-				case port < best.port:
-					update = true
-			*/
 		default:
 			//nothing
 		}
 		if update {
 			best = to
 			bestDist = dist
-			bestCoordLen = coordLen
+			bestTime = thisTime
 		}
 	}
 	if best != nil {
@@ -806,7 +828,7 @@ func (t *switchTable) doWorker() {
 	}()
 	t.queues.switchTable = t
 	t.queues.bufs = make(map[string]switch_buffer) // Packets per PacketStreamID (string)
-	idle := make(map[switchPort]struct{})          // this is to deduplicate things
+	idle := make(map[switchPort]time.Time)         // this is to deduplicate things
 	for {
 		//t.core.log.Debugf("Switch state: idle = %d, buffers = %d", len(idle), len(t.queues.bufs))
 		select {
@@ -839,7 +861,7 @@ func (t *switchTable) doWorker() {
 			// Try to find something to send to this peer
 			if !t.handleIdle(port) {
 				// Didn't find anything ready to send yet, so stay idle
-				idle[port] = struct{}{}
+				idle[port] = time.Now()
 			}
 		case f := <-t.admin:
 			f()

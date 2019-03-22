@@ -173,9 +173,10 @@ func (a *admin) init(c *Core) {
 	})
 	a.addHandler("getTunTap", []string{}, func(in admin_info) (r admin_info, e error) {
 		defer func() {
-			recover()
-			r = admin_info{"none": admin_info{}}
-			e = nil
+			if err := recover(); err != nil {
+				r = admin_info{"none": admin_info{}}
+				e = nil
+			}
 		}()
 
 		return admin_info{
@@ -250,6 +251,23 @@ func (a *admin) init(c *Core) {
 				},
 			}, errors.New("Failed to remove allowed key")
 		}
+	})
+	a.addHandler("getTunnelRouting", []string{}, func(in admin_info) (admin_info, error) {
+		enabled := false
+		a.core.router.doAdmin(func() {
+			enabled = a.core.router.cryptokey.isEnabled()
+		})
+		return admin_info{"enabled": enabled}, nil
+	})
+	a.addHandler("setTunnelRouting", []string{"enabled"}, func(in admin_info) (admin_info, error) {
+		enabled := false
+		if e, ok := in["enabled"].(bool); ok {
+			enabled = e
+		}
+		a.core.router.doAdmin(func() {
+			a.core.router.cryptokey.setEnabled(enabled)
+		})
+		return admin_info{"enabled": enabled}, nil
 	})
 	a.addHandler("addSourceSubnet", []string{"subnet"}, func(in admin_info) (admin_info, error) {
 		var err error
@@ -402,7 +420,18 @@ func (a *admin) listen() {
 		switch strings.ToLower(u.Scheme) {
 		case "unix":
 			if _, err := os.Stat(a.listenaddr[7:]); err == nil {
-				a.core.log.Warnln("WARNING:", a.listenaddr[7:], "already exists and may be in use by another process")
+				a.core.log.Debugln("Admin socket", a.listenaddr[7:], "already exists, trying to clean up")
+				if _, err := net.DialTimeout("unix", a.listenaddr[7:], time.Second*2); err == nil || err.(net.Error).Timeout() {
+					a.core.log.Errorln("Admin socket", a.listenaddr[7:], "already exists and is in use by another process")
+					os.Exit(1)
+				} else {
+					if err := os.Remove(a.listenaddr[7:]); err == nil {
+						a.core.log.Debugln(a.listenaddr[7:], "was cleaned up")
+					} else {
+						a.core.log.Errorln(a.listenaddr[7:], "already exists and was not cleaned up:", err)
+						os.Exit(1)
+					}
+				}
 			}
 			a.listener, err = net.Listen("unix", a.listenaddr[7:])
 			if err == nil {
@@ -562,18 +591,9 @@ func (a *admin) printInfos(infos []admin_nodeInfo) string {
 
 // addPeer triggers a connection attempt to a node.
 func (a *admin) addPeer(addr string, sintf string) error {
-	u, err := url.Parse(addr)
-	if err == nil {
-		switch strings.ToLower(u.Scheme) {
-		case "tcp":
-			a.core.tcp.connect(u.Host, sintf)
-		case "socks":
-			a.core.tcp.connectSOCKS(u.Host, u.Path[1:])
-		default:
-			return errors.New("invalid peer: " + addr)
-		}
-	} else {
-		return errors.New("invalid peer: " + addr)
+	err := a.core.link.call(addr, sintf)
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -655,7 +675,8 @@ func (a *admin) getData_getPeers() []admin_nodeInfo {
 			{"uptime", int(time.Since(p.firstSeen).Seconds())},
 			{"bytes_sent", atomic.LoadUint64(&p.bytesSent)},
 			{"bytes_recvd", atomic.LoadUint64(&p.bytesRecvd)},
-			{"endpoint", p.endpoint},
+			{"proto", p.intf.info.linkType},
+			{"endpoint", p.intf.name},
 			{"box_pub_key", hex.EncodeToString(p.box[:])},
 		}
 		peerInfos = append(peerInfos, info)
@@ -681,7 +702,8 @@ func (a *admin) getData_getSwitchPeers() []admin_nodeInfo {
 			{"port", elem.port},
 			{"bytes_sent", atomic.LoadUint64(&peer.bytesSent)},
 			{"bytes_recvd", atomic.LoadUint64(&peer.bytesRecvd)},
-			{"endpoint", peer.endpoint},
+			{"proto", peer.intf.info.linkType},
+			{"endpoint", peer.intf.info.remote},
 			{"box_pub_key", hex.EncodeToString(peer.box[:])},
 		}
 		peerInfos = append(peerInfos, info)

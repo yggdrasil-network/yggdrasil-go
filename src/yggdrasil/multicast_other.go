@@ -4,7 +4,7 @@ package yggdrasil
 
 import "syscall"
 
-func (m *multicast) multicastWake() {
+func (m *multicast) multicastStarted() {
 
 }
 

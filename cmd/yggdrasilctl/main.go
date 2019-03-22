@@ -388,15 +388,29 @@ func main() {
 				}
 			}
 		case "getroutes":
-			if _, ok := res["routes"]; !ok {
-				fmt.Println("No routes found")
-			} else if res["routes"] == nil {
+			if routes, ok := res["routes"].(map[string]interface{}); !ok {
 				fmt.Println("No routes found")
 			} else {
-				fmt.Println("Routes:")
-				for _, v := range res["routes"].([]interface{}) {
-					fmt.Println("-", v)
+				if res["routes"] == nil || len(routes) == 0 {
+					fmt.Println("No routes found")
+				} else {
+					fmt.Println("Routes:")
+					for k, v := range routes {
+						if pv, ok := v.(string); ok {
+							fmt.Println("-", k, " via ", pv)
+						}
+					}
 				}
+			}
+		case "settunnelrouting":
+			fallthrough
+		case "gettunnelrouting":
+			if enabled, ok := res["enabled"].(bool); !ok {
+				fmt.Println("Tunnel routing is disabled")
+			} else if !enabled {
+				fmt.Println("Tunnel routing is disabled")
+			} else {
+				fmt.Println("Tunnel routing is enabled")
 			}
 		default:
 			if json, err := json.MarshalIndent(recv["response"], "", "  "); err == nil {

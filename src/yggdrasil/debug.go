@@ -97,7 +97,15 @@ func (c *Core) DEBUG_getPeers() *peers {
 }
 
 func (ps *peers) DEBUG_newPeer(box crypto.BoxPubKey, sig crypto.SigPubKey, link crypto.BoxSharedKey) *peer {
-	return ps.newPeer(&box, &sig, &link, "(simulator)", nil)
+	sim := linkInterface{
+		name: "(simulator)",
+		info: linkInfo{
+			local:    "(simulator)",
+			remote:   "(simulator)",
+			linkType: "sim",
+		},
+	}
+	return ps.newPeer(&box, &sig, &link, &sim, nil)
 }
 
 /*
@@ -449,19 +457,19 @@ func (c *Core) DEBUG_addSOCKSConn(socksaddr, peeraddr string) {
 
 //*
 func (c *Core) DEBUG_setupAndStartGlobalTCPInterface(addrport string) {
-	c.config.Listen = addrport
-	if err := c.tcp.init(c /*, addrport, 0*/); err != nil {
-		c.log.Println("Failed to start TCP interface:", err)
+	c.config.Listen = []string{addrport}
+	if err := c.link.init(c); err != nil {
+		c.log.Println("Failed to start interfaces:", err)
 		panic(err)
 	}
 }
 
 func (c *Core) DEBUG_getGlobalTCPAddr() *net.TCPAddr {
-	return c.tcp.serv.Addr().(*net.TCPAddr)
+	return c.link.tcp.getAddr()
 }
 
 func (c *Core) DEBUG_addTCPConn(saddr string) {
-	c.tcp.call(saddr, nil, "")
+	c.link.tcp.call(saddr, nil, "")
 }
 
 //*/

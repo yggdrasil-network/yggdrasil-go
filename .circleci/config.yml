@@ -1,11 +1,11 @@
 # Golang CircleCI 2.0 configuration file
 #
 # Check https://circleci.com/docs/2.0/language-go/ for more details
-version: 2
+version: 2.1
 jobs:
   build-linux:
     docker:
-      - image: circleci/golang:1.11
+      - image: circleci/golang:1.12
 
     steps:
       - checkout
@@ -79,30 +79,28 @@ jobs:
               echo -e "Host *\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
 
       - run:
-          name: Install Go 1.11
+          name: Install Go 1.12
           command: |
               cd /tmp
-              curl -LO https://dl.google.com/go/go1.11.5.darwin-amd64.pkg
-              sudo installer -pkg /tmp/go1.11.5.darwin-amd64.pkg -target /
+              curl -LO https://dl.google.com/go/go1.12.darwin-amd64.pkg
+              sudo installer -pkg /tmp/go1.12.darwin-amd64.pkg -target /
 
-      - run:
-          name: Install Gomobile
-          command: |
-              GO111MODULE=off go get golang.org/x/mobile/cmd/gomobile
-              gomobile init
+      #- run:
+      #    name: Install Gomobile
+      #    command: |
+      #        GO111MODULE=off go get golang.org/x/mobile/cmd/gomobile
+      #        gomobile init
 
       - run:
           name: Build for macOS
           command: |
-              rm -f {yggdrasil,yggdrasilctl}
               GO111MODULE=on GOOS=darwin GOARCH=amd64 ./build
-              mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-darwin-amd64
-              mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-darwin-amd64;
+              cp yggdrasil /tmp/upload/$CINAME-$CIVERSION-darwin-amd64
+              cp yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-darwin-amd64;
 
       - run:
           name: Build for macOS (.pkg format)
           command: |
-              rm -rf {yggdrasil,yggdrasilctl}
               PKGARCH=amd64 sh contrib/macos/create-pkg.sh
               mv *.pkg /tmp/upload/
 
@@ -121,7 +119,7 @@ jobs:
 
   build-other:
     docker:
-      - image: circleci/golang:1.11
+      - image: circleci/golang:1.12
 
     steps:
       - checkout
@@ -180,8 +178,8 @@ jobs:
           destination: /
 
 workflows:
-  version: 2
-  build-all:
+  version: 2.1
+  build:
     jobs:
       - build-linux
       - build-macos
