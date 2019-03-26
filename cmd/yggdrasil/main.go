@@ -108,10 +108,13 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeCo
 	// Check to see if the peers are in a parsable format, if not then default
 	// them to the TCP scheme
 	if peers, ok := dat["Peers"].([]interface{}); ok {
+	peerloop:
 		for index, peer := range peers {
 			uri := peer.(string)
-			if strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, "socks://") {
-				continue
+			for _, prefix := range []string{"tcp://", "socks://", "srv://", "txt://"} {
+				if strings.HasPrefix(uri, prefix) {
+					continue peerloop
+				}
 			}
 			if strings.HasPrefix(uri, "tcp:") {
 				uri = uri[4:]
@@ -121,11 +124,14 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeCo
 	}
 	// Now do the same with the interface peers
 	if interfacepeers, ok := dat["InterfacePeers"].(map[string]interface{}); ok {
+	interfacepeerloop:
 		for intf, peers := range interfacepeers {
 			for index, peer := range peers.([]interface{}) {
 				uri := peer.(string)
-				if strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, "socks://") {
-					continue
+				for _, prefix := range []string{"tcp://", "socks://", "srv://", "txt://"} {
+					if strings.HasPrefix(uri, prefix) {
+						continue interfacepeerloop
+					}
 				}
 				if strings.HasPrefix(uri, "tcp:") {
 					uri = uri[4:]

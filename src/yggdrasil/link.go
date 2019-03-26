@@ -102,33 +102,6 @@ func (l *link) call(uri string, sintf string) error {
 	}
 	pathtokens := strings.Split(strings.Trim(u.Path, "/"), "/")
 	switch u.Scheme {
-	case "srv":
-		for _, proto := range []string{"tcp"} {
-			if cname, srv, err := net.LookupSRV("yggdrasil", proto, u.Host); err == nil {
-				for _, record := range srv {
-					l.core.log.Debugln("SRV lookup for", u.Host, "found:", cname, record.Target, record.Port)
-					switch proto {
-					case "tcp":
-						saddr := fmt.Sprintf("%s:%d", record.Target, record.Port)
-						l.tcp.call(saddr, nil, sintf)
-					}
-				}
-			} else {
-				l.core.log.Debugln("SRV lookup for", u.Host, "failed:", err)
-			}
-		}
-	case "txt":
-		recordname := fmt.Sprintf("_yggdrasil.%s", u.Host)
-		if records, err := net.LookupTXT(recordname); err == nil {
-			for _, record := range records {
-				l.core.log.Debugln("Found TXT record:", record)
-				if !strings.HasPrefix(record, "txt://") {
-					l.call(record, sintf)
-				}
-			}
-		} else {
-			l.core.log.Debugln("TXT lookup failed:", err)
-		}
 	case "tcp":
 		l.tcp.call(u.Host, nil, sintf)
 	case "socks":

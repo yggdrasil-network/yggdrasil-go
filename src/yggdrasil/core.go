@@ -2,8 +2,11 @@ package yggdrasil
 
 import (
 	"encoding/hex"
+	"fmt"
 	"io/ioutil"
 	"net"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,29 +26,36 @@ type module interface {
 	start() error
 }
 
+type peerEntry struct {
+	uri   string
+	sintf string
+}
+
 // The Core object represents the Yggdrasil node. You should create a Core
 // object for each Yggdrasil node you plan to run.
 type Core struct {
 	// This is the main data structure that holds everything else for a node
 	// We're going to keep our own copy of the provided config - that way we can
 	// guarantee that it will be covered by the mutex
-	config      config.NodeConfig // Active config
-	configOld   config.NodeConfig // Previous config
-	configMutex sync.RWMutex      // Protects both config and configOld
-	boxPub      crypto.BoxPubKey
-	boxPriv     crypto.BoxPrivKey
-	sigPub      crypto.SigPubKey
-	sigPriv     crypto.SigPrivKey
-	switchTable switchTable
-	peers       peers
-	sessions    sessions
-	router      router
-	dht         dht
-	admin       admin
-	searches    searches
-	multicast   multicast
-	link        link
-	log         *log.Logger
+	config           config.NodeConfig // Active config
+	configOld        config.NodeConfig // Previous config
+	configMutex      sync.RWMutex      // Protects both config and configOld
+	configPeers      []peerEntry       // Transformed peer list
+	configPeersMutex sync.RWMutex      // Protects configPeers
+	boxPub           crypto.BoxPubKey
+	boxPriv          crypto.BoxPrivKey
+	sigPub           crypto.SigPubKey
+	sigPriv          crypto.SigPrivKey
+	switchTable      switchTable
+	peers            peers
+	sessions         sessions
+	router           router
+	dht              dht
+	admin            admin
+	searches         searches
+	multicast        multicast
+	link             link
+	log              *log.Logger
 }
 
 func (c *Core) init() error {
@@ -94,31 +104,40 @@ func (c *Core) init() error {
 // If any static peers were provided in the configuration above then we should
 // configure them. The loop ensures that disconnected peers will eventually
 // be reconnected with.
-func (c *Core) addPeerLoop() {
+func (c *Core) runPeerLoop() {
 	for {
 		// Get the peers from the config - these could change!
-		c.configMutex.RLock()
-		peers := c.config.Peers
-		interfacepeers := c.config.InterfacePeers
-		c.configMutex.RUnlock()
-
-		// Add peers from the Peers section
-		for _, peer := range peers {
-			c.AddPeer(peer, "")
+		c.configPeersMutex.RLock()
+		for _, peer := range c.configPeers {
+			c.AddPeer(peer.uri, peer.sintf)
 			time.Sleep(time.Second)
 		}
-
-		// Add peers from the InterfacePeers section
-		for intf, intfpeers := range interfacepeers {
-			for _, peer := range intfpeers {
-				c.AddPeer(peer, intf)
-				time.Sleep(time.Second)
-			}
-		}
+		c.configPeersMutex.RUnlock()
 
 		// Sit for a while
 		time.Sleep(time.Minute)
 	}
+}
+
+// When we start up or reconfigure, draw up the peer loop
+func (c *Core) updatePeerLoop() {
+	c.configMutex.RLock()
+	c.configPeersMutex.Lock()
+	c.configPeers = []peerEntry{}
+	for _, peer := range c.config.Peers {
+		if entry, err := c.resolvePeerEntry(peer, ""); err == nil {
+			c.configPeers = append(c.configPeers, entry)
+		}
+	}
+	for intf, intfpeers := range c.config.InterfacePeers {
+		for _, peer := range intfpeers {
+			if entry, err := c.resolvePeerEntry(peer, intf); err == nil {
+				c.configPeers = append(c.configPeers, entry)
+			}
+		}
+	}
+	c.configPeersMutex.Unlock()
+	c.configMutex.RUnlock()
 }
 
 // UpdateConfig updates the configuration in Core and then signals the
@@ -161,6 +180,8 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 	} else {
 		c.log.Infoln("Configuration reloaded successfully")
 	}
+
+	c.updatePeerLoop()
 }
 
 // GetBuildName gets the current build name. This is usually injected if built
@@ -238,7 +259,8 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
-	go c.addPeerLoop()
+	c.updatePeerLoop()
+	go c.runPeerLoop()
 
 	c.log.Infoln("Startup complete")
 	return nil
@@ -349,4 +371,55 @@ func (c *Core) GetTUNIfName() string {
 // Gets the current TUN/TAP interface MTU.
 func (c *Core) GetTUNIfMTU() int {
 	return c.router.tun.mtu
+}
+
+// Resolves the peer URI that may require a DNS lookup (or some other transform
+// into a peer URI that can be given directly to link.go
+func (c *Core) resolvePeerEntry(uri, sintf string) (peerEntry, error) {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return peerEntry{}, err
+	}
+	switch u.Scheme {
+	case "srv":
+		for _, proto := range []string{"tcp"} {
+			if cname, srv, err := net.LookupSRV("yggdrasil", proto, u.Host); err == nil {
+				for _, record := range srv {
+					c.log.Traceln("SRV lookup for", u.Host, "found:", cname, record.Target, record.Port)
+					switch proto {
+					case "tcp":
+						return peerEntry{
+							uri:   fmt.Sprintf("tcp://%s:%d", record.Target, record.Port),
+							sintf: sintf,
+						}, nil
+					}
+				}
+			} else {
+				c.log.Debugln("SRV lookup for", u.Host, "failed:", err)
+				return peerEntry{}, err
+			}
+		}
+	case "txt":
+		recordname := fmt.Sprintf("_yggdrasil.%s", u.Host)
+		if records, err := net.LookupTXT(recordname); err == nil {
+			for _, record := range records {
+				c.log.Traceln("Found TXT record:", record)
+				if !strings.HasPrefix(record, "txt://") {
+					return peerEntry{
+						uri:   fmt.Sprintf("%s", record),
+						sintf: sintf,
+					}, nil
+				}
+			}
+		} else {
+			c.log.Debugln("TXT lookup failed:", err)
+			return peerEntry{}, err
+		}
+	default:
+		break
+	}
+	return peerEntry{
+		uri:   uri,
+		sintf: sintf,
+	}, nil
 }

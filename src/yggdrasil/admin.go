@@ -591,7 +591,11 @@ func (a *admin) printInfos(infos []admin_nodeInfo) string {
 
 // addPeer triggers a connection attempt to a node.
 func (a *admin) addPeer(addr string, sintf string) error {
-	err := a.core.link.call(addr, sintf)
+	entry, err := a.core.resolvePeerEntry(addr, sintf)
+	if err != nil {
+		return err
+	}
+	err = a.core.link.call(entry.uri, entry.sintf)
 	if err != nil {
 		return err
 	}
