@@ -404,12 +404,14 @@ func (c *Core) resolvePeerEntry(uri, sintf string) (peerEntry, error) {
 		if records, err := net.LookupTXT(recordname); err == nil {
 			for _, record := range records {
 				c.log.Traceln("Found TXT record:", record)
-				if !strings.HasPrefix(record, "txt://") {
-					return peerEntry{
-						uri:   fmt.Sprintf("%s", record),
-						sintf: sintf,
-					}, nil
+				if strings.HasPrefix(record, "txt://") {
+					// Prevents an infinite loop
+					continue
 				}
+				return peerEntry{
+					uri:   fmt.Sprintf("%s", record),
+					sintf: sintf,
+				}, nil
 			}
 		} else {
 			c.log.Debugln("TXT lookup failed:", err)
