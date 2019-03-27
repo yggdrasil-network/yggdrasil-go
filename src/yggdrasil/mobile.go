@@ -12,7 +12,7 @@ import (
 
 	hjson "github.com/hjson/hjson-go"
 	"github.com/mitchellh/mapstructure"
-	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src.config.Current.
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 

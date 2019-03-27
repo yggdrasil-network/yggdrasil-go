@@ -55,25 +55,25 @@ func (c *cryptokey) init(core *Core) {
 // Configure the CKR routes - this must only ever be called from the router
 // goroutine, e.g. through router.doAdmin
 func (c *cryptokey) configure() error {
-	c.core.configMutex.RLock()
-	defer c.core.configMutex.RUnlock()
+	c.core.config.Mutex.RLock()
+	defer c.core.config.Mutex.RUnlock()
 
 	// Set enabled/disabled state
-	c.setEnabled(c.core.config.TunnelRouting.Enable)
+	c.setEnabled(c.core.config.Current.TunnelRouting.Enable)
 
 	// Clear out existing routes
 	c.ipv6routes = make([]cryptokey_route, 0)
 	c.ipv4routes = make([]cryptokey_route, 0)
 
 	// Add IPv6 routes
-	for ipv6, pubkey := range c.core.config.TunnelRouting.IPv6Destinations {
+	for ipv6, pubkey := range c.core.config.Current.TunnelRouting.IPv6Destinations {
 		if err := c.addRoute(ipv6, pubkey); err != nil {
 			return err
 		}
 	}
 
 	// Add IPv4 routes
-	for ipv4, pubkey := range c.core.config.TunnelRouting.IPv4Destinations {
+	for ipv4, pubkey := range c.core.config.Current.TunnelRouting.IPv4Destinations {
 		if err := c.addRoute(ipv4, pubkey); err != nil {
 			return err
 		}
@@ -85,7 +85,7 @@ func (c *cryptokey) configure() error {
 
 	// Add IPv6 sources
 	c.ipv6sources = make([]net.IPNet, 0)
-	for _, source := range c.core.config.TunnelRouting.IPv6Sources {
+	for _, source := range c.core.config.Current.TunnelRouting.IPv6Sources {
 		if err := c.addSourceSubnet(source); err != nil {
 			return err
 		}
@@ -93,7 +93,7 @@ func (c *cryptokey) configure() error {
 
 	// Add IPv4 sources
 	c.ipv4sources = make([]net.IPNet, 0)
-	for _, source := range c.core.config.TunnelRouting.IPv4Sources {
+	for _, source := range c.core.config.Current.TunnelRouting.IPv4Sources {
 		if err := c.addSourceSubnet(source); err != nil {
 			return err
 		}

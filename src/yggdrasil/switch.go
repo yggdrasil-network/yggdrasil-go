@@ -188,9 +188,9 @@ func (t *switchTable) init(core *Core) {
 	now := time.Now()
 	t.core = core
 	t.reconfigure = make(chan chan error, 1)
-	t.core.configMutex.RLock()
+	t.core.config.Mutex.RLock()
 	t.key = t.core.sigPub
-	t.core.configMutex.RUnlock()
+	t.core.config.Mutex.RUnlock()
 	locator := switchLocator{root: t.key, tstamp: now.Unix()}
 	peers := make(map[switchPort]peerInfo)
 	t.data = switchData{locator: locator, peers: peers}

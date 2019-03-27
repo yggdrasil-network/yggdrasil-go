@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"io/ioutil"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/gologme/log"
@@ -29,9 +28,7 @@ type Core struct {
 	// This is the main data structure that holds everything else for a node
 	// We're going to keep our own copy of the provided config - that way we can
 	// guarantee that it will be covered by the mutex
-	config      config.NodeConfig // Active config
-	configOld   config.NodeConfig // Previous config
-	configMutex sync.RWMutex      // Protects both config and configOld
+	config      config.StatefulNodeConfig
 	boxPub      crypto.BoxPubKey
 	boxPriv     crypto.BoxPrivKey
 	sigPub      crypto.SigPubKey
@@ -57,19 +54,19 @@ func (c *Core) init() error {
 		c.log = log.New(ioutil.Discard, "", 0)
 	}
 
-	boxPubHex, err := hex.DecodeString(c.config.EncryptionPublicKey)
+	boxPubHex, err := hex.DecodeString(c.config.Current.EncryptionPublicKey)
 	if err != nil {
 		return err
 	}
-	boxPrivHex, err := hex.DecodeString(c.config.EncryptionPrivateKey)
+	boxPrivHex, err := hex.DecodeString(c.config.Current.EncryptionPrivateKey)
 	if err != nil {
 		return err
 	}
-	sigPubHex, err := hex.DecodeString(c.config.SigningPublicKey)
+	sigPubHex, err := hex.DecodeString(c.config.Current.SigningPublicKey)
 	if err != nil {
 		return err
 	}
-	sigPrivHex, err := hex.DecodeString(c.config.SigningPrivateKey)
+	sigPrivHex, err := hex.DecodeString(c.config.Current.SigningPrivateKey)
 	if err != nil {
 		return err
 	}
@@ -97,10 +94,10 @@ func (c *Core) init() error {
 func (c *Core) addPeerLoop() {
 	for {
 		// Get the peers from the config - these could change!
-		c.configMutex.RLock()
-		peers := c.config.Peers
-		interfacepeers := c.config.InterfacePeers
-		c.configMutex.RUnlock()
+		c.config.Mutex.RLock()
+		peers := c.config.Current.Peers
+		interfacepeers := c.config.Current.InterfacePeers
+		c.config.Mutex.RUnlock()
 
 		// Add peers from the Peers section
 		for _, peer := range peers {
@@ -126,10 +123,10 @@ func (c *Core) addPeerLoop() {
 func (c *Core) UpdateConfig(config *config.NodeConfig) {
 	c.log.Infoln("Reloading configuration...")
 
-	c.configMutex.Lock()
-	c.configOld = c.config
-	c.config = *config
-	c.configMutex.Unlock()
+	c.config.Mutex.Lock()
+	c.config.Previous = c.config.Current
+	c.config.Current = *config
+	c.config.Mutex.Unlock()
 
 	errors := 0
 
@@ -140,7 +137,7 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 		c.sessions.reconfigure,
 		c.peers.reconfigure,
 		c.router.reconfigure,
-		c.router.tun.reconfigure,
+		c.router.tun.Reconfigure,
 		c.router.cryptokey.reconfigure,
 		c.switchTable.reconfigure,
 		c.link.reconfigure,
@@ -197,10 +194,10 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 
 	c.log.Infoln("Starting up...")
 
-	c.configMutex.Lock()
-	c.config = *nc
-	c.configOld = c.config
-	c.configMutex.Unlock()
+	c.config.Mutex.Lock()
+	c.config.Current = *nc
+	c.config.Previous = *nc
+	c.config.Mutex.Unlock()
 
 	c.init()
 
@@ -233,7 +230,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
-	if err := c.router.tun.start(); err != nil {
+	if err := c.router.tun.Start(c.router.addr, c.router.subnet); err != nil {
 		c.log.Errorln("Failed to start TUN/TAP")
 		return err
 	}
@@ -247,7 +244,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 // Stops the Yggdrasil node.
 func (c *Core) Stop() {
 	c.log.Infoln("Stopping...")
-	c.router.tun.close()
+	c.router.tun.Close()
 	c.admin.close()
 }
 
@@ -343,10 +340,10 @@ func (c *Core) GetTUNDefaultIfTAPMode() bool {
 
 // Gets the current TUN/TAP interface name.
 func (c *Core) GetTUNIfName() string {
-	return c.router.tun.iface.Name()
+	return c.router.tun.GetName()
 }
 
 // Gets the current TUN/TAP interface MTU.
 func (c *Core) GetTUNIfMTU() int {
-	return c.router.tun.mtu
+	return c.router.tun.GetMTU()
 }

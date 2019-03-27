@@ -16,7 +16,6 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 
 // TODO: Add authentication
@@ -58,19 +57,19 @@ func (a *admin) init(c *Core) {
 	go func() {
 		for {
 			e := <-a.reconfigure
-			a.core.configMutex.RLock()
-			if a.core.config.AdminListen != a.core.configOld.AdminListen {
-				a.listenaddr = a.core.config.AdminListen
+			a.core.config.Mutex.RLock()
+			if a.core.config.Current.AdminListen != a.core.config.Previous.AdminListen {
+				a.listenaddr = a.core.config.Current.AdminListen
 				a.close()
 				a.start()
 			}
-			a.core.configMutex.RUnlock()
+			a.core.config.Mutex.RUnlock()
 			e <- nil
 		}
 	}()
-	a.core.configMutex.RLock()
-	a.listenaddr = a.core.config.AdminListen
-	a.core.configMutex.RUnlock()
+	a.core.config.Mutex.RLock()
+	a.listenaddr = a.core.config.Current.AdminListen
+	a.core.config.Mutex.RUnlock()
 	a.addHandler("list", []string{}, func(in admin_info) (admin_info, error) {
 		handlers := make(map[string]interface{})
 		for _, handler := range a.handlers {
@@ -180,13 +179,13 @@ func (a *admin) init(c *Core) {
 		}()
 
 		return admin_info{
-			a.core.router.tun.iface.Name(): admin_info{
-				"tap_mode": a.core.router.tun.iface.IsTAP(),
-				"mtu":      a.core.router.tun.mtu,
+			a.core.router.tun.GetName(): admin_info{
+				"tap_mode": a.core.router.tun.GetTAPMode(),
+				"mtu":      a.core.router.tun.GetMTU(),
 			},
 		}, nil
 	})
-	a.addHandler("setTunTap", []string{"name", "[tap_mode]", "[mtu]"}, func(in admin_info) (admin_info, error) {
+	/*a.addHandler("setTunTap", []string{"name", "[tap_mode]", "[mtu]"}, func(in admin_info) (admin_info, error) {
 		// Set sane defaults
 		iftapmode := defaults.GetDefaults().DefaultIfTAPMode
 		ifmtu := defaults.GetDefaults().DefaultIfMTU
@@ -211,7 +210,7 @@ func (a *admin) init(c *Core) {
 				},
 			}, nil
 		}
-	})
+	})*/
 	a.addHandler("getMulticastInterfaces", []string{}, func(in admin_info) (admin_info, error) {
 		var intfs []string
 		for _, v := range a.core.multicast.interfaces() {
@@ -609,7 +608,7 @@ func (a *admin) removePeer(p string) error {
 }
 
 // startTunWithMTU creates the tun/tap device, sets its address, and sets the MTU to the provided value.
-func (a *admin) startTunWithMTU(ifname string, iftapmode bool, ifmtu int) error {
+/*func (a *admin) startTunWithMTU(ifname string, iftapmode bool, ifmtu int) error {
 	// Close the TUN first if open
 	_ = a.core.router.tun.close()
 	// Then reconfigure and start it
@@ -635,7 +634,7 @@ func (a *admin) startTunWithMTU(ifname string, iftapmode bool, ifmtu int) error 
 	}
 	go a.core.router.tun.write()
 	return nil
-}
+}*/
 
 // getData_getSelf returns the self node's info for admin responses.
 func (a *admin) getData_getSelf() *admin_nodeInfo {

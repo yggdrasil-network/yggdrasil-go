@@ -31,6 +31,7 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
@@ -44,8 +45,7 @@ type router struct {
 	in          <-chan []byte          // packets we received from the network, link to peer's "out"
 	out         func([]byte)           // packets we're sending to the network, link to peer's "in"
 	toRecv      chan router_recvPacket // packets to handle via recvPacket()
-	tun         tunAdapter             // TUN/TAP adapter
-	adapters    []Adapter              // Other adapters
+	tun         tuntap.TunAdapter      // TUN/TAP adapter
 	recv        chan<- []byte          // place where the tun pulls received packets from
 	send        <-chan []byte          // place where the tun puts outgoing packets
 	reset       chan struct{}          // signal that coords changed (re-init sessions/dht)
@@ -112,11 +112,11 @@ func (r *router) init(core *Core) {
 	r.reset = make(chan struct{}, 1)
 	r.admin = make(chan func(), 32)
 	r.nodeinfo.init(r.core)
-	r.core.configMutex.RLock()
-	r.nodeinfo.setNodeInfo(r.core.config.NodeInfo, r.core.config.NodeInfoPrivacy)
-	r.core.configMutex.RUnlock()
+	r.core.config.Mutex.RLock()
+	r.nodeinfo.setNodeInfo(r.core.config.Current.NodeInfo, r.core.config.Current.NodeInfoPrivacy)
+	r.core.config.Mutex.RUnlock()
 	r.cryptokey.init(r.core)
-	r.tun.init(r.core, send, recv)
+	r.tun.Init(&r.core.config, r.core.log, send, recv)
 }
 
 // Starts the mainLoop goroutine.
@@ -157,9 +157,9 @@ func (r *router) mainLoop() {
 		case f := <-r.admin:
 			f()
 		case e := <-r.reconfigure:
-			r.core.configMutex.RLock()
-			e <- r.nodeinfo.setNodeInfo(r.core.config.NodeInfo, r.core.config.NodeInfoPrivacy)
-			r.core.configMutex.RUnlock()
+			r.core.config.Mutex.RLock()
+			e <- r.nodeinfo.setNodeInfo(r.core.config.Current.NodeInfo, r.core.config.Current.NodeInfoPrivacy)
+			r.core.config.Mutex.RUnlock()
 		}
 	}
 }
@@ -320,7 +320,7 @@ func (r *router) sendPacket(bs []byte) {
 			}
 
 			// Create the ICMPv6 response from it
-			icmpv6Buf, err := r.tun.icmpv6.create_icmpv6_tun(
+			icmpv6Buf, err := r.tun.Icmpv6.Create_ICMPv6_TUN(
 				bs[8:24], bs[24:40],
 				ipv6.ICMPTypePacketTooBig, 0, ptb)
 			if err == nil {

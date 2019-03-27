@@ -2,10 +2,29 @@ package config
 
 import (
 	"encoding/hex"
+	"sync"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
+
+// A configuration item that represents the current configuration and the
+// previous configuration, protected by a mutex. Having this removes a ref to
+// Core
+type StatefulNodeConfig struct {
+	Current  NodeConfig
+	Previous NodeConfig
+	Mutex    sync.RWMutex
+}
+
+// Replace updates the active node configuration and stores the previous
+// config so that we can delta it if needed
+func (snc *StatefulNodeConfig) Replace(new NodeConfig) {
+	snc.Mutex.Lock()
+	snc.Previous = snc.Current
+	snc.Current = new
+	snc.Mutex.Unlock()
+}
 
 // NodeConfig defines all configuration values needed to run a signle yggdrasil node
 type NodeConfig struct {

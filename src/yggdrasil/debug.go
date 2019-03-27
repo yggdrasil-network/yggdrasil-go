@@ -25,7 +25,7 @@ import "os"
 import "github.com/gologme/log"
 
 import "github.com/yggdrasil-network/yggdrasil-go/src/address"
-import "github.com/yggdrasil-network/yggdrasil-go/src/config"
+import "github.com/yggdrasil-network/yggdrasil-go/src.config.Current.
 import "github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 import "github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 
@@ -59,7 +59,7 @@ func (c *Core) Init() {
 	hbpriv := hex.EncodeToString(bpriv[:])
 	hspub := hex.EncodeToString(spub[:])
 	hspriv := hex.EncodeToString(spriv[:])
-	c.config = config.NodeConfig{
+	c.config.Current.= config.NodeConfig{
 		EncryptionPublicKey:  hbpub,
 		EncryptionPrivateKey: hbpriv,
 		SigningPublicKey:     hspub,
@@ -382,7 +382,7 @@ func (c *Core) DEBUG_init(bpub []byte,
 	hbpriv := hex.EncodeToString(bpriv[:])
 	hspub := hex.EncodeToString(spub[:])
 	hspriv := hex.EncodeToString(spriv[:])
-	c.config = config.NodeConfig{
+	c.config.Current.= config.NodeConfig{
 		EncryptionPublicKey:  hbpub,
 		EncryptionPrivateKey: hbpriv,
 		SigningPublicKey:     hspub,
@@ -457,7 +457,7 @@ func (c *Core) DEBUG_addSOCKSConn(socksaddr, peeraddr string) {
 
 //*
 func (c *Core) DEBUG_setupAndStartGlobalTCPInterface(addrport string) {
-	c.config.Listen = []string{addrport}
+	c.config.Current.Listen = []string{addrport}
 	if err := c.link.init(c); err != nil {
 		c.log.Println("Failed to start interfaces:", err)
 		panic(err)
@@ -505,7 +505,7 @@ func (c *Core) DEBUG_addKCPConn(saddr string) {
 
 func (c *Core) DEBUG_setupAndStartAdminInterface(addrport string) {
 	a := admin{}
-	c.config.AdminListen = addrport
+	c.config.Current.AdminListen = addrport
 	a.init(c /*, addrport*/)
 	c.admin = a
 }

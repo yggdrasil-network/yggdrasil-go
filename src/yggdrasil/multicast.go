@@ -23,9 +23,9 @@ func (m *multicast) init(core *Core) {
 	m.core = core
 	m.reconfigure = make(chan chan error, 1)
 	m.listeners = make(map[string]*tcpListener)
-	m.core.configMutex.RLock()
-	m.listenPort = m.core.config.LinkLocalTCPPort
-	m.core.configMutex.RUnlock()
+	m.core.config.Mutex.RLock()
+	m.listenPort = m.core.config.Current.LinkLocalTCPPort
+	m.core.config.Mutex.RUnlock()
 	go func() {
 		for {
 			e := <-m.reconfigure
@@ -70,9 +70,9 @@ func (m *multicast) start() error {
 
 func (m *multicast) interfaces() map[string]net.Interface {
 	// Get interface expressions from config
-	m.core.configMutex.RLock()
-	exprs := m.core.config.MulticastInterfaces
-	m.core.configMutex.RUnlock()
+	m.core.config.Mutex.RLock()
+	exprs := m.core.config.Current.MulticastInterfaces
+	m.core.config.Mutex.RUnlock()
 	// Ask the system for network interfaces
 	interfaces := make(map[string]net.Interface)
 	allifaces, err := net.Interfaces()

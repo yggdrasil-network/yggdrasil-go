@@ -1,4 +1,4 @@
-package yggdrasil
+package tuntap
 
 // The ICMPv6 module implements functions to easily create ICMPv6
 // packets. These functions, when mixed with the built-in Go IPv6
@@ -26,7 +26,7 @@ type macAddress [6]byte
 const len_ETHER = 14
 
 type icmpv6 struct {
-	tun      *tunAdapter
+	tun      *TunAdapter
 	mylladdr net.IP
 	mymac    macAddress
 	peermacs map[address.Address]neighbor
@@ -59,7 +59,7 @@ func ipv6Header_Marshal(h *ipv6.Header) ([]byte, error) {
 // Initialises the ICMPv6 module by assigning our link-local IPv6 address and
 // our MAC address. ICMPv6 messages will always appear to originate from these
 // addresses.
-func (i *icmpv6) init(t *tunAdapter) {
+func (i *icmpv6) init(t *TunAdapter) {
 	i.tun = t
 	i.peermacs = make(map[address.Address]neighbor)
 
@@ -69,8 +69,8 @@ func (i *icmpv6) init(t *tunAdapter) {
 	i.mylladdr = net.IP{
 		0xFE, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xFE}
-	copy(i.mymac[:], i.tun.core.router.addr[:])
-	copy(i.mylladdr[9:], i.tun.core.router.addr[1:])
+	copy(i.mymac[:], i.tun.addr[:])
+	copy(i.mylladdr[9:], i.tun.addr[1:])
 }
 
 // Parses an incoming ICMPv6 packet. The packet provided may be either an
@@ -162,7 +162,7 @@ func (i *icmpv6) parse_packet_tun(datain []byte, datamac *[]byte) ([]byte, error
 		response, err := i.handle_ndp(datain[ipv6.HeaderLen:])
 		if err == nil {
 			// Create our ICMPv6 response
-			responsePacket, err := i.create_icmpv6_tun(
+			responsePacket, err := i.Create_ICMPv6_TUN(
 				ipv6Header.Src, i.mylladdr,
 				ipv6.ICMPTypeNeighborAdvertisement, 0,
 				&icmp.DefaultMessageBody{Data: response})
@@ -202,9 +202,9 @@ func (i *icmpv6) parse_packet_tun(datain []byte, datamac *[]byte) ([]byte, error
 // Creates an ICMPv6 packet based on the given icmp.MessageBody and other
 // parameters, complete with ethernet and IP headers, which can be written
 // directly to a TAP adapter.
-func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, src net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
+func (i *icmpv6) Create_ICMPv6_TAP(dstmac macAddress, dst net.IP, src net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
 	// Pass through to create_icmpv6_tun
-	ipv6packet, err := i.create_icmpv6_tun(dst, src, mtype, mcode, mbody)
+	ipv6packet, err := i.Create_ICMPv6_TUN(dst, src, mtype, mcode, mbody)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +226,7 @@ func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, src net.IP, mt
 // parameters, complete with IP headers only, which can be written directly to
 // a TUN adapter, or called directly by the create_icmpv6_tap function when
 // generating a message for TAP adapters.
-func (i *icmpv6) create_icmpv6_tun(dst net.IP, src net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
+func (i *icmpv6) Create_ICMPv6_TUN(dst net.IP, src net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
 	// Create the ICMPv6 message
 	icmpMessage := icmp.Message{
 		Type: mtype,
@@ -287,7 +287,7 @@ func (i *icmpv6) create_ndp_tap(dst address.Address) ([]byte, error) {
 	copy(dstmac[2:6], dstaddr[12:16])
 
 	// Create the ND request
-	requestPacket, err := i.create_icmpv6_tap(
+	requestPacket, err := i.Create_ICMPv6_TAP(
 		dstmac, dstaddr[:], i.mylladdr,
 		ipv6.ICMPTypeNeighborSolicitation, 0,
 		&icmp.DefaultMessageBody{Data: payload[:]})
