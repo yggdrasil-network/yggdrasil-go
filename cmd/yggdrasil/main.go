@@ -19,6 +19,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
@@ -27,8 +28,9 @@ type nodeConfig = config.NodeConfig
 type Core = yggdrasil.Core
 
 type node struct {
-	core Core
-	tun  tuntap.TunAdapter
+	core      Core
+	tun       tuntap.TunAdapter
+	multicast multicast.Multicast
 }
 
 func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeConfig {
@@ -253,6 +255,11 @@ func main() {
 	if err := n.core.Start(cfg, logger); err != nil {
 		logger.Errorln("An error occurred during startup")
 		panic(err)
+	}
+	// Start the multicast interface
+	n.multicast.Init(&n.core, cfg, logger)
+	if err := n.multicast.Start(); err != nil {
+		logger.Errorln("An error occurred starting multicast:", err)
 	}
 	// The Stop function ensures that the TUN/TAP adapter is correctly shut down
 	// before the program exits.

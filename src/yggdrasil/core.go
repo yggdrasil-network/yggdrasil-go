@@ -40,9 +40,9 @@ type Core struct {
 	dht         dht
 	admin       admin
 	searches    searches
-	multicast   multicast
-	link        link
-	log         *log.Logger
+	//multicast   multicast
+	link link
+	log  *log.Logger
 }
 
 func (c *Core) init() error {
@@ -82,7 +82,7 @@ func (c *Core) init() error {
 	c.searches.init(c)
 	c.dht.init(c)
 	c.sessions.init(c)
-	c.multicast.init(c)
+	//c.multicast.init(c)
 	c.peers.init(c)
 	c.router.init(c)
 	c.switchTable.init(c) // TODO move before peers? before router?
@@ -137,7 +137,7 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 		c.router.cryptokey.reconfigure,
 		c.switchTable.reconfigure,
 		c.link.reconfigure,
-		c.multicast.reconfigure,
+		//c.multicast.reconfigure,
 	}
 
 	for _, component := range components {
@@ -228,10 +228,10 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		return err
 	}
 
-	if err := c.multicast.start(); err != nil {
+	/*if err := c.multicast.start(); err != nil {
 		c.log.Errorln("Failed to start multicast interface")
 		return err
-	}
+	}*/
 
 	if err := c.router.tun.Start(c.router.addr, c.router.subnet); err != nil {
 		c.log.Errorln("Failed to start TUN/TAP")
@@ -249,6 +249,11 @@ func (c *Core) Stop() {
 	c.log.Infoln("Stopping...")
 	c.router.tun.Close()
 	c.admin.close()
+}
+
+// ListenOn starts a new listener
+func (c *Core) ListenTCP(uri string) (*TcpListener, error) {
+	return c.link.tcp.listen(uri)
 }
 
 // Generates a new encryption keypair. The encryption keys are used to
@@ -303,9 +308,18 @@ func (c *Core) SetLogger(log *log.Logger) {
 }
 
 // Adds a peer. This should be specified in the peer URI format, i.e.
-// tcp://a.b.c.d:e, udp://a.b.c.d:e, socks://a.b.c.d:e/f.g.h.i:j
+// tcp://a.b.c.d:e, udp://a.b.c.d:e, socks://a.b.c.d:e/f.g.h.i:j. This adds the
+// peer to the peer list, so that they will be called again if the connection
+// drops.
 func (c *Core) AddPeer(addr string, sintf string) error {
 	return c.admin.addPeer(addr, sintf)
+}
+
+// Calls a peer. This should be specified in the peer URI format, i.e.
+// tcp://a.b.c.d:e, udp://a.b.c.d:e, socks://a.b.c.d:e/f.g.h.i:j. This calls the
+// peer once, and if the connection drops, it won't be called again.
+func (c *Core) CallPeer(addr string, sintf string) error {
+	return c.link.call(addr, sintf)
 }
 
 // Adds an allowed public key. This allow peerings to be restricted only to

@@ -1,4 +1,4 @@
-package yggdrasil
+package multicast
 
 import (
 	"context"
@@ -7,23 +7,31 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/gologme/log"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 	"golang.org/x/net/ipv6"
 )
 
-type multicast struct {
-	core        *Core
+type Multicast struct {
+	core        *yggdrasil.Core
+	config      *config.NodeConfig
+	log         *log.Logger
 	reconfigure chan chan error
 	sock        *ipv6.PacketConn
 	groupAddr   string
-	listeners   map[string]*tcpListener
+	listeners   map[string]*yggdrasil.TcpListener
 	listenPort  uint16
 }
 
-func (m *multicast) init(core *Core) {
+func (m *Multicast) Init(core *yggdrasil.Core, config *config.NodeConfig, log *log.Logger) {
 	m.core = core
+	m.config = config
+	m.log = log
 	m.reconfigure = make(chan chan error, 1)
-	m.listeners = make(map[string]*tcpListener)
-	current, _ := m.core.config.Get()
+	m.listeners = make(map[string]*yggdrasil.TcpListener)
+	current := m.config //.Get()
 	m.listenPort = current.LinkLocalTCPPort
 	go func() {
 		for {
@@ -34,15 +42,15 @@ func (m *multicast) init(core *Core) {
 	m.groupAddr = "[ff02::114]:9001"
 	// Check if we've been given any expressions
 	if count := len(m.interfaces()); count != 0 {
-		m.core.log.Infoln("Found", count, "multicast interface(s)")
+		m.log.Infoln("Found", count, "multicast interface(s)")
 	}
 }
 
-func (m *multicast) start() error {
+func (m *Multicast) Start() error {
 	if len(m.interfaces()) == 0 {
-		m.core.log.Infoln("Multicast discovery is disabled")
+		m.log.Infoln("Multicast discovery is disabled")
 	} else {
-		m.core.log.Infoln("Multicast discovery is enabled")
+		m.log.Infoln("Multicast discovery is enabled")
 		addr, err := net.ResolveUDPAddr("udp", m.groupAddr)
 		if err != nil {
 			return err
@@ -67,9 +75,10 @@ func (m *multicast) start() error {
 	return nil
 }
 
-func (m *multicast) interfaces() map[string]net.Interface {
+func (m *Multicast) interfaces() map[string]net.Interface {
 	// Get interface expressions from config
-	current, _ := m.core.config.Get()
+	//current, _ := m.config.Get()
+	current := m.config
 	exprs := current.MulticastInterfaces
 	// Ask the system for network interfaces
 	interfaces := make(map[string]net.Interface)
@@ -106,7 +115,7 @@ func (m *multicast) interfaces() map[string]net.Interface {
 	return interfaces
 }
 
-func (m *multicast) announce() {
+func (m *Multicast) announce() {
 	groupAddr, err := net.ResolveUDPAddr("udp6", m.groupAddr)
 	if err != nil {
 		panic(err)
@@ -122,9 +131,9 @@ func (m *multicast) announce() {
 		for name, listener := range m.listeners {
 			// Prepare our stop function!
 			stop := func() {
-				listener.stop <- true
+				listener.Stop <- true
 				delete(m.listeners, name)
-				m.core.log.Debugln("No longer multicasting on", name)
+				m.log.Debugln("No longer multicasting on", name)
 			}
 			// If the interface is no longer visible on the system then stop the
 			// listener, as another one will be started further down
@@ -135,7 +144,7 @@ func (m *multicast) announce() {
 			// It's possible that the link-local listener address has changed so if
 			// that is the case then we should clean up the interface listener
 			found := false
-			listenaddr, err := net.ResolveTCPAddr("tcp6", listener.listener.Addr().String())
+			listenaddr, err := net.ResolveTCPAddr("tcp6", listener.Listener.Addr().String())
 			if err != nil {
 				stop()
 				continue
@@ -184,17 +193,18 @@ func (m *multicast) announce() {
 				// Join the multicast group
 				m.sock.JoinGroup(&iface, groupAddr)
 				// Try and see if we already have a TCP listener for this interface
-				var listener *tcpListener
-				if l, ok := m.listeners[iface.Name]; !ok || l.listener == nil {
+				var listener *yggdrasil.TcpListener
+				if l, ok := m.listeners[iface.Name]; !ok || l.Listener == nil {
 					// No listener was found - let's create one
 					listenaddr := fmt.Sprintf("[%s%%%s]:%d", addrIP, iface.Name, m.listenPort)
-					if li, err := m.core.link.tcp.listen(listenaddr); err == nil {
-						m.core.log.Debugln("Started multicasting on", iface.Name)
+					//if li, err := m.core.link.tcp.listen(listenaddr); err == nil {
+					if li, err := m.core.ListenTCP(listenaddr); err == nil {
+						m.log.Debugln("Started multicasting on", iface.Name)
 						// Store the listener so that we can stop it later if needed
 						m.listeners[iface.Name] = li
 						listener = li
 					} else {
-						m.core.log.Warnln("Not multicasting on", iface.Name, "due to error:", err)
+						m.log.Warnln("Not multicasting on", iface.Name, "due to error:", err)
 					}
 				} else {
 					// An existing listener was found
@@ -205,7 +215,7 @@ func (m *multicast) announce() {
 					continue
 				}
 				// Get the listener details and construct the multicast beacon
-				lladdr := listener.listener.Addr().String()
+				lladdr := listener.Listener.Addr().String()
 				if a, err := net.ResolveTCPAddr("tcp6", lladdr); err == nil {
 					a.Zone = ""
 					destAddr.Zone = iface.Name
@@ -219,7 +229,7 @@ func (m *multicast) announce() {
 	}
 }
 
-func (m *multicast) listen() {
+func (m *Multicast) listen() {
 	groupAddr, err := net.ResolveUDPAddr("udp6", m.groupAddr)
 	if err != nil {
 		panic(err)
@@ -251,8 +261,9 @@ func (m *multicast) listen() {
 			continue
 		}
 		addr.Zone = ""
-		if err := m.core.link.call("tcp://"+addr.String(), from.Zone); err != nil {
-			m.core.log.Debugln("Call from multicast failed:", err)
+		//if err := m.core.link.call("tcp://"+addr.String(), from.Zone); err != nil {
+		if err := m.core.CallPeer("tcp://"+addr.String(), from.Zone); err != nil {
+			m.log.Debugln("Call from multicast failed:", err)
 		}
 	}
 }

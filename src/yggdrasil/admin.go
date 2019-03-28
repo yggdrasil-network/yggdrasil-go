@@ -209,13 +209,13 @@ func (a *admin) init(c *Core) {
 				}, nil
 			}
 		})*/
-	a.addHandler("getMulticastInterfaces", []string{}, func(in admin_info) (admin_info, error) {
+	/*a.addHandler("getMulticastInterfaces", []string{}, func(in admin_info) (admin_info, error) {
 		var intfs []string
 		for _, v := range a.core.multicast.interfaces() {
 			intfs = append(intfs, v.Name)
 		}
 		return admin_info{"multicast_interfaces": intfs}, nil
-	})
+	})*/
 	a.addHandler("getAllowedEncryptionPublicKeys", []string{}, func(in admin_info) (admin_info, error) {
 		return admin_info{"allowed_box_pubs": a.getAllowedEncryptionPublicKeys()}, nil
 	})

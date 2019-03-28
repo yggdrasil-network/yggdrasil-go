@@ -115,7 +115,7 @@ func (c *Core) GetSigPubKeyString() string {
 // dummy adapter in place of real TUN - when this call returns a packet, you
 // will probably want to give it to the OS to write to TUN.
 func (c *Core) RouterRecvPacket() ([]byte, error) {
-	packet := <-c.router.tun.recv
+	packet := <-c.router.tun.Recv
 	return packet, nil
 }
 
@@ -125,6 +125,6 @@ func (c *Core) RouterRecvPacket() ([]byte, error) {
 // Yggdrasil.
 func (c *Core) RouterSendPacket(buf []byte) error {
 	packet := append(util.GetBytes(), buf[:]...)
-	c.router.tun.send <- packet
+	c.router.tun.Send <- packet
 	return nil
 }
