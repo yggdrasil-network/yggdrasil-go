@@ -29,7 +29,8 @@ type adapterImplementation interface {
 }
 
 // Initialises the adapter.
-func (adapter Adapter) Init(config *config.NodeState, log *log.Logger, send chan<- []byte, recv <-chan []byte) {
+func (adapter *Adapter) Init(config *config.NodeState, log *log.Logger, send chan<- []byte, recv <-chan []byte) {
+	log.Traceln("Adapter setup - given channels:", send, recv)
 	adapter.Send = send
 	adapter.Recv = recv
 	adapter.Reconfigure = make(chan chan error, 1)

@@ -93,7 +93,7 @@ func (i *ICMPv6) ParsePacket(datain []byte) {
 	}
 
 	// Write the packet to TUN/TAP
-	i.tun.Send <- response
+	i.tun.iface.Write(response)
 }
 
 // Unwraps the ethernet headers of an incoming ICMPv6 packet and hands off

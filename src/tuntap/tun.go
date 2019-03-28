@@ -107,13 +107,20 @@ func (tun *TunAdapter) Start(a address.Address, s address.Subnet) error {
 		}
 	}
 	if ifname == "none" || ifname == "dummy" {
+		tun.log.Debugln("Not starting TUN/TAP as ifname is none or dummy")
 		return nil
 	}
 	tun.mutex.Lock()
 	tun.isOpen = true
 	tun.mutex.Unlock()
-	go func() { tun.log.Errorln("WARNING: tun.read() exited with error:", tun.Read()) }()
-	go func() { tun.log.Errorln("WARNING: tun.write() exited with error:", tun.Write()) }()
+	go func() {
+		tun.log.Debugln("Starting TUN/TAP reader goroutine")
+		tun.log.Errorln("WARNING: tun.read() exited with error:", tun.Read())
+	}()
+	go func() {
+		tun.log.Debugln("Starting TUN/TAP writer goroutine")
+		tun.log.Errorln("WARNING: tun.write() exited with error:", tun.Write())
+	}()
 	if iftapmode {
 		go func() {
 			for {
@@ -147,12 +154,16 @@ func (tun *TunAdapter) Write() error {
 			var destAddr address.Address
 			if data[0]&0xf0 == 0x60 {
 				if len(data) < 40 {
-					panic("Tried to send a packet shorter than an IPv6 header...")
+					//panic("Tried to send a packet shorter than an IPv6 header...")
+					util.PutBytes(data)
+					continue
 				}
 				copy(destAddr[:16], data[24:])
 			} else if data[0]&0xf0 == 0x40 {
 				if len(data) < 20 {
-					panic("Tried to send a packet shorter than an IPv4 header...")
+					//panic("Tried to send a packet shorter than an IPv4 header...")
+					util.PutBytes(data)
+					continue
 				}
 				copy(destAddr[:4], data[16:])
 			} else {
@@ -255,7 +266,6 @@ func (tun *TunAdapter) Read() error {
 			if !open {
 				return nil
 			} else {
-				// panic(err)
 				return err
 			}
 		}
