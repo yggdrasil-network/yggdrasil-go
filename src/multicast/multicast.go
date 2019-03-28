@@ -16,7 +16,7 @@ import (
 
 type Multicast struct {
 	core        *yggdrasil.Core
-	config      *config.NodeConfig
+	config      *config.NodeState
 	log         *log.Logger
 	reconfigure chan chan error
 	sock        *ipv6.PacketConn
@@ -25,13 +25,13 @@ type Multicast struct {
 	listenPort  uint16
 }
 
-func (m *Multicast) Init(core *yggdrasil.Core, config *config.NodeConfig, log *log.Logger) {
+func (m *Multicast) Init(core *yggdrasil.Core, state *config.NodeState, log *log.Logger, options interface{}) error {
 	m.core = core
-	m.config = config
+	m.config = state
 	m.log = log
 	m.reconfigure = make(chan chan error, 1)
 	m.listeners = make(map[string]*yggdrasil.TcpListener)
-	current := m.config //.Get()
+	current, _ := m.config.Get()
 	m.listenPort = current.LinkLocalTCPPort
 	go func() {
 		for {
@@ -44,6 +44,7 @@ func (m *Multicast) Init(core *yggdrasil.Core, config *config.NodeConfig, log *l
 	if count := len(m.interfaces()); count != 0 {
 		m.log.Infoln("Found", count, "multicast interface(s)")
 	}
+	return nil
 }
 
 func (m *Multicast) Start() error {
@@ -75,10 +76,13 @@ func (m *Multicast) Start() error {
 	return nil
 }
 
+func (m *Multicast) Stop() error {
+	return nil
+}
+
 func (m *Multicast) interfaces() map[string]net.Interface {
 	// Get interface expressions from config
-	//current, _ := m.config.Get()
-	current := m.config
+	current, _ := m.config.Get()
 	exprs := current.MulticastInterfaces
 	// Ask the system for network interfaces
 	interfaces := make(map[string]net.Interface)
@@ -197,7 +201,6 @@ func (m *Multicast) announce() {
 				if l, ok := m.listeners[iface.Name]; !ok || l.Listener == nil {
 					// No listener was found - let's create one
 					listenaddr := fmt.Sprintf("[%s%%%s]:%d", addrIP, iface.Name, m.listenPort)
-					//if li, err := m.core.link.tcp.listen(listenaddr); err == nil {
 					if li, err := m.core.ListenTCP(listenaddr); err == nil {
 						m.log.Debugln("Started multicasting on", iface.Name)
 						// Store the listener so that we can stop it later if needed
@@ -261,7 +264,6 @@ func (m *Multicast) listen() {
 			continue
 		}
 		addr.Zone = ""
-		//if err := m.core.link.call("tcp://"+addr.String(), from.Zone); err != nil {
 		if err := m.core.CallPeer("tcp://"+addr.String(), from.Zone); err != nil {
 			m.log.Debugln("Call from multicast failed:", err)
 		}

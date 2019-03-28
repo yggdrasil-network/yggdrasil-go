@@ -29,7 +29,7 @@ type Core = yggdrasil.Core
 
 type node struct {
 	core      Core
-	tun       tuntap.TunAdapter
+	tuntap    tuntap.TunAdapter
 	multicast multicast.Multicast
 }
 
@@ -251,13 +251,14 @@ func main() {
 	// Now that we have a working configuration, we can now actually start
 	// Yggdrasil. This will start the router, switch, DHT node, TCP and UDP
 	// sockets, TUN/TAP adapter and multicast discovery port.
-	n.core.SetRouterAdapter(&n.tun)
-	if err := n.core.Start(cfg, logger); err != nil {
+	n.core.SetRouterAdapter(&n.tuntap)
+	state, err := n.core.Start(cfg, logger)
+	if err != nil {
 		logger.Errorln("An error occurred during startup")
 		panic(err)
 	}
 	// Start the multicast interface
-	n.multicast.Init(&n.core, cfg, logger)
+	n.multicast.Init(&n.core, state, logger, nil)
 	if err := n.multicast.Start(); err != nil {
 		logger.Errorln("An error occurred starting multicast:", err)
 	}

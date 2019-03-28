@@ -17,11 +17,6 @@ import (
 var buildName string
 var buildVersion string
 
-type module interface {
-	init(*Core, *config.NodeConfig) error
-	start() error
-}
-
 // The Core object represents the Yggdrasil node. You should create a Core
 // object for each Yggdrasil node you plan to run.
 type Core struct {
@@ -173,14 +168,14 @@ func GetBuildVersion() string {
 
 // Set the router adapter
 func (c *Core) SetRouterAdapter(adapter adapterImplementation) {
-	c.router.tun = adapter
+	c.router.adapter = adapter
 }
 
 // Starts up Yggdrasil using the provided NodeState, and outputs debug logging
 // through the provided log.Logger. The started stack will include TCP and UDP
 // sockets, a multicast discovery socket, an admin socket, router, switch and
 // DHT node.
-func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
+func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState, error) {
 	c.log = log
 
 	c.config = config.NodeState{
@@ -201,7 +196,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 
 	if err := c.link.init(c); err != nil {
 		c.log.Errorln("Failed to start link interfaces")
-		return err
+		return nil, err
 	}
 
 	c.config.Mutex.RLock()
@@ -212,34 +207,34 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 
 	if err := c.switchTable.start(); err != nil {
 		c.log.Errorln("Failed to start switch")
-		return err
+		return nil, err
 	}
 
 	if err := c.router.start(); err != nil {
 		c.log.Errorln("Failed to start router")
-		return err
+		return nil, err
 	}
 
 	if err := c.admin.start(); err != nil {
 		c.log.Errorln("Failed to start admin socket")
-		return err
+		return nil, err
 	}
 
-	if err := c.router.tun.Start(c.router.addr, c.router.subnet); err != nil {
+	if err := c.router.adapter.Start(c.router.addr, c.router.subnet); err != nil {
 		c.log.Errorln("Failed to start TUN/TAP")
-		return err
+		return nil, err
 	}
 
 	go c.addPeerLoop()
 
 	c.log.Infoln("Startup complete")
-	return nil
+	return &c.config, nil
 }
 
 // Stops the Yggdrasil node.
 func (c *Core) Stop() {
 	c.log.Infoln("Stopping...")
-	c.router.tun.Close()
+	c.router.adapter.Close()
 	c.admin.close()
 }
 
@@ -281,6 +276,12 @@ func (c *Core) GetSubnet() *net.IPNet {
 	subnet := address.SubnetForNodeID(c.GetNodeID())[:]
 	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
 	return &net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
+}
+
+// GetRouterAddresses returns the raw address and subnet types as used by the
+// router
+func (c *Core) GetRouterAddresses() (address.Address, address.Subnet) {
+	return c.router.addr, c.router.subnet
 }
 
 // Gets the nodeinfo.
@@ -350,11 +351,11 @@ func (c *Core) GetTUNDefaultIfTAPMode() bool {
 // Gets the current TUN/TAP interface name.
 func (c *Core) GetTUNIfName() string {
 	//return c.router.tun.iface.Name()
-	return c.router.tun.Name()
+	return c.router.adapter.Name()
 }
 
 // Gets the current TUN/TAP interface MTU.
 func (c *Core) GetTUNIfMTU() int {
 	//return c.router.tun.mtu
-	return c.router.tun.MTU()
+	return c.router.adapter.MTU()
 }
