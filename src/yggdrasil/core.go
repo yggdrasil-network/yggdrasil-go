@@ -40,9 +40,8 @@ type Core struct {
 	dht         dht
 	admin       admin
 	searches    searches
-	//multicast   multicast
-	link link
-	log  *log.Logger
+	link        link
+	log         *log.Logger
 }
 
 func (c *Core) init() error {
@@ -133,11 +132,9 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 		c.sessions.reconfigure,
 		c.peers.reconfigure,
 		c.router.reconfigure,
-		//c.router.tun.Reconfigure,
 		c.router.cryptokey.reconfigure,
 		c.switchTable.reconfigure,
 		c.link.reconfigure,
-		//c.multicast.reconfigure,
 	}
 
 	for _, component := range components {
@@ -227,11 +224,6 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) error {
 		c.log.Errorln("Failed to start admin socket")
 		return err
 	}
-
-	/*if err := c.multicast.start(); err != nil {
-		c.log.Errorln("Failed to start multicast interface")
-		return err
-	}*/
 
 	if err := c.router.tun.Start(c.router.addr, c.router.subnet); err != nil {
 		c.log.Errorln("Failed to start TUN/TAP")
