@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/gologme/log"
+	"golang.org/x/net/icmp"
+	"golang.org/x/net/ipv6"
 
 	"github.com/songgao/packets/ethernet"
 	"github.com/yggdrasil-network/water"
@@ -64,10 +66,10 @@ func (tun *TunAdapter) IsTAP() bool {
 }
 
 // Initialises the TUN/TAP adapter.
-func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, send chan<- []byte, recv <-chan []byte) {
+func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, send chan<- []byte, recv <-chan []byte, reject <-chan yggdrasil.RejectedPacket) {
 	tun.config = config
 	tun.log = log
-	tun.Adapter.Init(config, log, send, recv)
+	tun.Adapter.Init(config, log, send, recv, reject)
 	tun.icmpv6.Init(tun)
 	go func() {
 		for {
@@ -146,81 +148,118 @@ func (tun *TunAdapter) Start(a address.Address, s address.Subnet) error {
 // host operating system.
 func (tun *TunAdapter) Write() error {
 	for {
-		data := <-tun.Recv
-		if tun.iface == nil {
-			continue
-		}
-		if tun.iface.IsTAP() {
-			var destAddr address.Address
-			if data[0]&0xf0 == 0x60 {
-				if len(data) < 40 {
-					//panic("Tried to send a packet shorter than an IPv6 header...")
-					util.PutBytes(data)
-					continue
+		select {
+		case reject := <-tun.Reject:
+			switch reject.Reason {
+			case yggdrasil.PacketTooBig:
+				if mtu, ok := reject.Detail.(int); ok {
+					// Create the Packet Too Big response
+					ptb := &icmp.PacketTooBig{
+						MTU:  int(mtu),
+						Data: reject.Packet,
+					}
+
+					// Create the ICMPv6 response from it
+					icmpv6Buf, err := CreateICMPv6(
+						reject.Packet[8:24], reject.Packet[24:40],
+						ipv6.ICMPTypePacketTooBig, 0, ptb)
+
+					// Send the ICMPv6 response back to the TUN/TAP adapter
+					if err == nil {
+						tun.iface.Write(icmpv6Buf)
+					}
 				}
-				copy(destAddr[:16], data[24:])
-			} else if data[0]&0xf0 == 0x40 {
-				if len(data) < 20 {
-					//panic("Tried to send a packet shorter than an IPv4 header...")
-					util.PutBytes(data)
-					continue
-				}
-				copy(destAddr[:4], data[16:])
-			} else {
-				return errors.New("Invalid address family")
+				fallthrough
+			default:
+				continue
 			}
-			sendndp := func(destAddr address.Address) {
-				neigh, known := tun.icmpv6.peermacs[destAddr]
-				known = known && (time.Since(neigh.lastsolicitation).Seconds() < 30)
-				if !known {
-					request, err := tun.icmpv6.CreateNDPL2(destAddr)
-					if err != nil {
-						panic(err)
+		case data := <-tun.Recv:
+			if tun.iface == nil {
+				continue
+			}
+			if tun.iface.IsTAP() {
+				var destAddr address.Address
+				if data[0]&0xf0 == 0x60 {
+					if len(data) < 40 {
+						//panic("Tried to send a packet shorter than an IPv6 header...")
+						util.PutBytes(data)
+						continue
 					}
-					if _, err := tun.iface.Write(request); err != nil {
-						panic(err)
+					copy(destAddr[:16], data[24:])
+				} else if data[0]&0xf0 == 0x40 {
+					if len(data) < 20 {
+						//panic("Tried to send a packet shorter than an IPv4 header...")
+						util.PutBytes(data)
+						continue
 					}
-					tun.icmpv6.peermacs[destAddr] = neighbor{
-						lastsolicitation: time.Now(),
+					copy(destAddr[:4], data[16:])
+				} else {
+					return errors.New("Invalid address family")
+				}
+				sendndp := func(destAddr address.Address) {
+					neigh, known := tun.icmpv6.peermacs[destAddr]
+					known = known && (time.Since(neigh.lastsolicitation).Seconds() < 30)
+					if !known {
+						request, err := tun.icmpv6.CreateNDPL2(destAddr)
+						if err != nil {
+							panic(err)
+						}
+						if _, err := tun.iface.Write(request); err != nil {
+							panic(err)
+						}
+						tun.icmpv6.peermacs[destAddr] = neighbor{
+							lastsolicitation: time.Now(),
+						}
 					}
 				}
-			}
-			var peermac macAddress
-			var peerknown bool
-			if data[0]&0xf0 == 0x40 {
-				destAddr = tun.addr
-			} else if data[0]&0xf0 == 0x60 {
-				if !bytes.Equal(tun.addr[:16], destAddr[:16]) && !bytes.Equal(tun.subnet[:8], destAddr[:8]) {
+				var peermac macAddress
+				var peerknown bool
+				if data[0]&0xf0 == 0x40 {
 					destAddr = tun.addr
+				} else if data[0]&0xf0 == 0x60 {
+					if !bytes.Equal(tun.addr[:16], destAddr[:16]) && !bytes.Equal(tun.subnet[:8], destAddr[:8]) {
+						destAddr = tun.addr
+					}
 				}
-			}
-			if neighbor, ok := tun.icmpv6.peermacs[destAddr]; ok && neighbor.learned {
-				peermac = neighbor.mac
-				peerknown = true
-			} else if neighbor, ok := tun.icmpv6.peermacs[tun.addr]; ok && neighbor.learned {
-				peermac = neighbor.mac
-				peerknown = true
-				sendndp(destAddr)
+				if neighbor, ok := tun.icmpv6.peermacs[destAddr]; ok && neighbor.learned {
+					peermac = neighbor.mac
+					peerknown = true
+				} else if neighbor, ok := tun.icmpv6.peermacs[tun.addr]; ok && neighbor.learned {
+					peermac = neighbor.mac
+					peerknown = true
+					sendndp(destAddr)
+				} else {
+					sendndp(tun.addr)
+				}
+				if peerknown {
+					var proto ethernet.Ethertype
+					switch {
+					case data[0]&0xf0 == 0x60:
+						proto = ethernet.IPv6
+					case data[0]&0xf0 == 0x40:
+						proto = ethernet.IPv4
+					}
+					var frame ethernet.Frame
+					frame.Prepare(
+						peermac[:6],          // Destination MAC address
+						tun.icmpv6.mymac[:6], // Source MAC address
+						ethernet.NotTagged,   // VLAN tagging
+						proto,                // Ethertype
+						len(data))            // Payload length
+					copy(frame[tun_ETHER_HEADER_LENGTH:], data[:])
+					if _, err := tun.iface.Write(frame); err != nil {
+						tun.mutex.RLock()
+						open := tun.isOpen
+						tun.mutex.RUnlock()
+						if !open {
+							return nil
+						} else {
+							panic(err)
+						}
+					}
+				}
 			} else {
-				sendndp(tun.addr)
-			}
-			if peerknown {
-				var proto ethernet.Ethertype
-				switch {
-				case data[0]&0xf0 == 0x60:
-					proto = ethernet.IPv6
-				case data[0]&0xf0 == 0x40:
-					proto = ethernet.IPv4
-				}
-				var frame ethernet.Frame
-				frame.Prepare(
-					peermac[:6],          // Destination MAC address
-					tun.icmpv6.mymac[:6], // Source MAC address
-					ethernet.NotTagged,   // VLAN tagging
-					proto,                // Ethertype
-					len(data))            // Payload length
-				copy(frame[tun_ETHER_HEADER_LENGTH:], data[:])
-				if _, err := tun.iface.Write(frame); err != nil {
+				if _, err := tun.iface.Write(data); err != nil {
 					tun.mutex.RLock()
 					open := tun.isOpen
 					tun.mutex.RUnlock()
@@ -231,19 +270,8 @@ func (tun *TunAdapter) Write() error {
 					}
 				}
 			}
-		} else {
-			if _, err := tun.iface.Write(data); err != nil {
-				tun.mutex.RLock()
-				open := tun.isOpen
-				tun.mutex.RUnlock()
-				if !open {
-					return nil
-				} else {
-					panic(err)
-				}
-			}
+			util.PutBytes(data)
 		}
-		util.PutBytes(data)
 	}
 }
 

@@ -44,6 +44,7 @@ type router struct {
 	tun         adapterImplementation  // TUN/TAP adapter
 	recv        chan<- []byte          // place where the tun pulls received packets from
 	send        <-chan []byte          // place where the tun puts outgoing packets
+	reject      chan<- RejectedPacket  // place where we send error packets back to tun
 	reset       chan struct{}          // signal that coords changed (re-init sessions/dht)
 	admin       chan func()            // pass a lambda for the admin socket to query stuff
 	cryptokey   cryptokey
@@ -54,6 +55,19 @@ type router struct {
 type router_recvPacket struct {
 	bs    []byte
 	sinfo *sessionInfo
+}
+
+type RejectedPacketReason int
+
+const (
+	// The router rejected the packet because it is too big for the session
+	PacketTooBig = 1 + iota
+)
+
+type RejectedPacket struct {
+	Reason RejectedPacketReason
+	Packet []byte
+	Detail interface{}
 }
 
 // Initializes the router struct, which includes setting up channels to/from the tun/tap.
@@ -103,8 +117,10 @@ func (r *router) init(core *Core) {
 	r.toRecv = make(chan router_recvPacket, 32)
 	recv := make(chan []byte, 32)
 	send := make(chan []byte, 32)
+	reject := make(chan RejectedPacket, 32)
 	r.recv = recv
 	r.send = send
+	r.reject = reject
 	r.reset = make(chan struct{}, 1)
 	r.admin = make(chan func(), 32)
 	r.nodeinfo.init(r.core)
@@ -112,7 +128,7 @@ func (r *router) init(core *Core) {
 	r.nodeinfo.setNodeInfo(r.core.config.Current.NodeInfo, r.core.config.Current.NodeInfoPrivacy)
 	r.core.config.Mutex.RUnlock()
 	r.cryptokey.init(r.core)
-	r.tun.Init(&r.core.config, r.core.log, send, recv)
+	r.tun.Init(&r.core.config, r.core.log, send, recv, reject)
 }
 
 // Starts the mainLoop goroutine.
@@ -303,24 +319,17 @@ func (r *router) sendPacket(bs []byte) {
 		// Generate an ICMPv6 Packet Too Big for packets larger than session MTU
 		if len(bs) > int(sinfo.getMTU()) {
 			// Get the size of the oversized payload, up to a max of 900 bytes
-			/*window := 900
+			window := 900
 			if int(sinfo.getMTU()) < window {
 				window = int(sinfo.getMTU())
 			}
 
-			// Create the Packet Too Big response
-			ptb := &icmp.PacketTooBig{
-				MTU:  int(sinfo.getMTU()),
-				Data: bs[:window],
+			// Send the error back to the adapter
+			r.reject <- RejectedPacket{
+				Reason: PacketTooBig,
+				Packet: bs[:window],
+				Detail: int(sinfo.getMTU()),
 			}
-
-			// Create the ICMPv6 response from it
-			icmpv6Buf, err := CreateICMPv6(
-				bs[8:24], bs[24:40],
-				ipv6.ICMPTypePacketTooBig, 0, ptb)
-			if err == nil {
-				r.recv <- icmpv6Buf
-			}*/
 
 			// Don't continue - drop the packet
 			return
