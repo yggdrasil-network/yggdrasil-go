@@ -1,4 +1,4 @@
-package yggdrasil
+package tuntap
 
 // This manages the tun driver to send/recv packets to/from applications
 
@@ -10,21 +10,29 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gologme/log"
+
 	"github.com/songgao/packets/ethernet"
 	"github.com/yggdrasil-network/water"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
+	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
 const tun_IPv6_HEADER_LENGTH = 40
 const tun_ETHER_HEADER_LENGTH = 14
 
 // Represents a running TUN/TAP interface.
-type tunAdapter struct {
-	Adapter
-	icmpv6 icmpv6
+type TunAdapter struct {
+	yggdrasil.Adapter
+	addr   address.Address
+	subnet address.Subnet
+	log    *log.Logger
+	config *config.NodeState
+	icmpv6 ICMPv6
 	mtu    int
 	iface  *water.Interface
 	mutex  sync.RWMutex // Protects the below
@@ -40,20 +48,37 @@ func getSupportedMTU(mtu int) int {
 	return mtu
 }
 
+// Get the adapter name
+func (tun *TunAdapter) Name() string {
+	return tun.iface.Name()
+}
+
+// Get the adapter MTU
+func (tun *TunAdapter) MTU() int {
+	return getSupportedMTU(tun.mtu)
+}
+
+// Get the adapter mode
+func (tun *TunAdapter) IsTAP() bool {
+	return tun.iface.IsTAP()
+}
+
 // Initialises the TUN/TAP adapter.
-func (tun *tunAdapter) init(core *Core, send chan<- []byte, recv <-chan []byte) {
-	tun.Adapter.init(core, send, recv)
-	tun.icmpv6.init(tun)
+func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, send chan<- []byte, recv <-chan []byte) {
+	tun.config = config
+	tun.log = log
+	tun.Adapter.Init(config, log, send, recv)
+	tun.icmpv6.Init(tun)
 	go func() {
 		for {
-			e := <-tun.reconfigure
-			tun.core.configMutex.RLock()
-			updated := tun.core.config.IfName != tun.core.configOld.IfName ||
-				tun.core.config.IfTAPMode != tun.core.configOld.IfTAPMode ||
-				tun.core.config.IfMTU != tun.core.configOld.IfMTU
-			tun.core.configMutex.RUnlock()
+			e := <-tun.Reconfigure
+			tun.config.Mutex.RLock()
+			updated := tun.config.Current.IfName != tun.config.Previous.IfName ||
+				tun.config.Current.IfTAPMode != tun.config.Previous.IfTAPMode ||
+				tun.config.Current.IfMTU != tun.config.Previous.IfMTU
+			tun.config.Mutex.RUnlock()
 			if updated {
-				tun.core.log.Warnln("Reconfiguring TUN/TAP is not supported yet")
+				tun.log.Warnln("Reconfiguring TUN/TAP is not supported yet")
 				e <- nil
 			} else {
 				e <- nil
@@ -64,13 +89,18 @@ func (tun *tunAdapter) init(core *Core, send chan<- []byte, recv <-chan []byte) 
 
 // Starts the setup process for the TUN/TAP adapter, and if successful, starts
 // the read/write goroutines to handle packets on that interface.
-func (tun *tunAdapter) start() error {
-	tun.core.configMutex.RLock()
-	ifname := tun.core.config.IfName
-	iftapmode := tun.core.config.IfTAPMode
-	addr := fmt.Sprintf("%s/%d", net.IP(tun.core.router.addr[:]).String(), 8*len(address.GetPrefix())-1)
-	mtu := tun.core.config.IfMTU
-	tun.core.configMutex.RUnlock()
+func (tun *TunAdapter) Start(a address.Address, s address.Subnet) error {
+	tun.addr = a
+	tun.subnet = s
+	if tun.config == nil {
+		return errors.New("No configuration available to TUN/TAP")
+	}
+	tun.config.Mutex.RLock()
+	ifname := tun.config.Current.IfName
+	iftapmode := tun.config.Current.IfTAPMode
+	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
+	mtu := tun.config.Current.IfMTU
+	tun.config.Mutex.RUnlock()
 	if ifname != "none" {
 		if err := tun.setup(ifname, iftapmode, addr, mtu); err != nil {
 			return err
@@ -82,15 +112,15 @@ func (tun *tunAdapter) start() error {
 	tun.mutex.Lock()
 	tun.isOpen = true
 	tun.mutex.Unlock()
-	go func() { tun.core.log.Errorln("WARNING: tun.read() exited with error:", tun.read()) }()
-	go func() { tun.core.log.Errorln("WARNING: tun.write() exited with error:", tun.write()) }()
+	go func() { tun.log.Errorln("WARNING: tun.read() exited with error:", tun.Read()) }()
+	go func() { tun.log.Errorln("WARNING: tun.write() exited with error:", tun.Write()) }()
 	if iftapmode {
 		go func() {
 			for {
-				if _, ok := tun.icmpv6.peermacs[tun.core.router.addr]; ok {
+				if _, ok := tun.icmpv6.peermacs[tun.addr]; ok {
 					break
 				}
-				request, err := tun.icmpv6.create_ndp_tap(tun.core.router.addr)
+				request, err := tun.icmpv6.CreateNDPL2(tun.addr)
 				if err != nil {
 					panic(err)
 				}
@@ -107,9 +137,9 @@ func (tun *tunAdapter) start() error {
 // Writes a packet to the TUN/TAP adapter. If the adapter is running in TAP
 // mode then additional ethernet encapsulation is added for the benefit of the
 // host operating system.
-func (tun *tunAdapter) write() error {
+func (tun *TunAdapter) Write() error {
 	for {
-		data := <-tun.recv
+		data := <-tun.Recv
 		if tun.iface == nil {
 			continue
 		}
@@ -132,7 +162,7 @@ func (tun *tunAdapter) write() error {
 				neigh, known := tun.icmpv6.peermacs[destAddr]
 				known = known && (time.Since(neigh.lastsolicitation).Seconds() < 30)
 				if !known {
-					request, err := tun.icmpv6.create_ndp_tap(destAddr)
+					request, err := tun.icmpv6.CreateNDPL2(destAddr)
 					if err != nil {
 						panic(err)
 					}
@@ -147,21 +177,21 @@ func (tun *tunAdapter) write() error {
 			var peermac macAddress
 			var peerknown bool
 			if data[0]&0xf0 == 0x40 {
-				destAddr = tun.core.router.addr
+				destAddr = tun.addr
 			} else if data[0]&0xf0 == 0x60 {
-				if !bytes.Equal(tun.core.router.addr[:16], destAddr[:16]) && !bytes.Equal(tun.core.router.subnet[:8], destAddr[:8]) {
-					destAddr = tun.core.router.addr
+				if !bytes.Equal(tun.addr[:16], destAddr[:16]) && !bytes.Equal(tun.subnet[:8], destAddr[:8]) {
+					destAddr = tun.addr
 				}
 			}
 			if neighbor, ok := tun.icmpv6.peermacs[destAddr]; ok && neighbor.learned {
 				peermac = neighbor.mac
 				peerknown = true
-			} else if neighbor, ok := tun.icmpv6.peermacs[tun.core.router.addr]; ok && neighbor.learned {
+			} else if neighbor, ok := tun.icmpv6.peermacs[tun.addr]; ok && neighbor.learned {
 				peermac = neighbor.mac
 				peerknown = true
 				sendndp(destAddr)
 			} else {
-				sendndp(tun.core.router.addr)
+				sendndp(tun.addr)
 			}
 			if peerknown {
 				var proto ethernet.Ethertype
@@ -210,7 +240,7 @@ func (tun *tunAdapter) write() error {
 // is running in TAP mode then the ethernet headers will automatically be
 // processed and stripped if necessary. If an ICMPv6 packet is found, then
 // the relevant helper functions in icmpv6.go are called.
-func (tun *tunAdapter) read() error {
+func (tun *TunAdapter) Read() error {
 	mtu := tun.mtu
 	if tun.iface.IsTAP() {
 		mtu += tun_ETHER_HEADER_LENGTH
@@ -244,18 +274,18 @@ func (tun *tunAdapter) read() error {
 				// Found an ICMPv6 packet
 				b := make([]byte, n)
 				copy(b, buf)
-				go tun.icmpv6.parse_packet(b)
+				go tun.icmpv6.ParsePacket(b)
 			}
 		}
 		packet := append(util.GetBytes(), buf[o:n]...)
-		tun.send <- packet
+		tun.Send <- packet
 	}
 }
 
 // Closes the TUN/TAP adapter. This is only usually called when the Yggdrasil
 // process stops. Typically this operation will happen quickly, but on macOS
 // it can block until a read operation is completed.
-func (tun *tunAdapter) close() error {
+func (tun *TunAdapter) Close() error {
 	tun.mutex.Lock()
 	tun.isOpen = false
 	tun.mutex.Unlock()

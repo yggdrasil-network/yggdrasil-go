@@ -1,4 +1,4 @@
-package yggdrasil
+package tuntap
 
 import (
 	"fmt"
@@ -13,7 +13,7 @@ import (
 // Configures the TAP adapter with the correct IPv6 address and MTU. On Windows
 // we don't make use of a direct operating system API to do this - we instead
 // delegate the hard work to "netsh".
-func (tun *tunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
+func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	if !iftapmode {
 		tun.core.log.Warnln("TUN mode is not supported on this platform, defaulting to TAP")
 	}
@@ -65,7 +65,7 @@ func (tun *tunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 }
 
 // Sets the MTU of the TAP adapter.
-func (tun *tunAdapter) setupMTU(mtu int) error {
+func (tun *TunAdapter) setupMTU(mtu int) error {
 	// Set MTU
 	cmd := exec.Command("netsh", "interface", "ipv6", "set", "subinterface",
 		fmt.Sprintf("interface=%s", tun.iface.Name()),
@@ -82,7 +82,7 @@ func (tun *tunAdapter) setupMTU(mtu int) error {
 }
 
 // Sets the IPv6 address of the TAP adapter.
-func (tun *tunAdapter) setupAddress(addr string) error {
+func (tun *TunAdapter) setupAddress(addr string) error {
 	// Set address
 	cmd := exec.Command("netsh", "interface", "ipv6", "add", "address",
 		fmt.Sprintf("interface=%s", tun.iface.Name()),

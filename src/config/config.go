@@ -2,10 +2,35 @@ package config
 
 import (
 	"encoding/hex"
+	"sync"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
+
+// NodeState represents the active and previous configuration of the node and
+// protects it with a mutex
+type NodeState struct {
+	Current  NodeConfig
+	Previous NodeConfig
+	Mutex    sync.RWMutex
+}
+
+// Get returns both the current and previous node configs
+func (s *NodeState) Get() (NodeConfig, NodeConfig) {
+	s.Mutex.RLock()
+	defer s.Mutex.RUnlock()
+	return s.Current, s.Previous
+}
+
+// Replace the node configuration with new configuration
+func (s *NodeState) Replace(n NodeConfig) NodeConfig {
+	s.Mutex.Lock()
+	defer s.Mutex.Unlock()
+	s.Previous = s.Current
+	s.Current = n
+	return s.Current
+}
 
 // NodeConfig defines all configuration values needed to run a signle yggdrasil node
 type NodeConfig struct {

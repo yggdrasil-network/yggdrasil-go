@@ -19,6 +19,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
@@ -27,6 +28,7 @@ type Core = yggdrasil.Core
 
 type node struct {
 	core Core
+	tun  tuntap.TunAdapter
 }
 
 func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeConfig {
@@ -247,6 +249,7 @@ func main() {
 	// Now that we have a working configuration, we can now actually start
 	// Yggdrasil. This will start the router, switch, DHT node, TCP and UDP
 	// sockets, TUN/TAP adapter and multicast discovery port.
+	n.core.SetRouterAdapter(&n.tun)
 	if err := n.core.Start(cfg, logger); err != nil {
 		logger.Errorln("An error occurred during startup")
 		panic(err)

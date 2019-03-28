@@ -82,10 +82,10 @@ func (t *tcp) init(l *link) error {
 	go func() {
 		for {
 			e := <-t.reconfigure
-			t.link.core.configMutex.RLock()
-			added := util.Difference(t.link.core.config.Listen, t.link.core.configOld.Listen)
-			deleted := util.Difference(t.link.core.configOld.Listen, t.link.core.config.Listen)
-			t.link.core.configMutex.RUnlock()
+			t.link.core.config.Mutex.RLock()
+			added := util.Difference(t.link.core.config.Current.Listen, t.link.core.config.Previous.Listen)
+			deleted := util.Difference(t.link.core.config.Previous.Listen, t.link.core.config.Current.Listen)
+			t.link.core.config.Mutex.RUnlock()
 			if len(added) > 0 || len(deleted) > 0 {
 				for _, a := range added {
 					if a[:6] != "tcp://" {
@@ -115,9 +115,9 @@ func (t *tcp) init(l *link) error {
 		}
 	}()
 
-	t.link.core.configMutex.RLock()
-	defer t.link.core.configMutex.RUnlock()
-	for _, listenaddr := range t.link.core.config.Listen {
+	t.link.core.config.Mutex.RLock()
+	defer t.link.core.config.Mutex.RUnlock()
+	for _, listenaddr := range t.link.core.config.Current.Listen {
 		if listenaddr[:6] != "tcp://" {
 			continue
 		}
