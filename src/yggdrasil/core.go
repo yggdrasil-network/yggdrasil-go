@@ -309,7 +309,17 @@ func (c *Core) SetLogger(log *log.Logger) {
 // peer to the peer list, so that they will be called again if the connection
 // drops.
 func (c *Core) AddPeer(addr string, sintf string) error {
-	return c.admin.addPeer(addr, sintf)
+	if err := c.CallPeer(addr, sintf); err != nil {
+		return err
+	}
+	c.config.Mutex.Lock()
+	if sintf == "" {
+		c.config.Current.Peers = append(c.config.Current.Peers, addr)
+	} else {
+		c.config.Current.InterfacePeers[sintf] = append(c.config.Current.InterfacePeers[sintf], addr)
+	}
+	c.config.Mutex.Unlock()
+	return nil
 }
 
 // Calls a peer. This should be specified in the peer URI format, i.e.
