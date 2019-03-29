@@ -57,13 +57,21 @@ type router_recvPacket struct {
 	sinfo *sessionInfo
 }
 
+// RejectedPacketReason is the type code used to represent the reason that a
+// packet was rejected.
 type RejectedPacketReason int
 
 const (
-	// The router rejected the packet because it is too big for the session
+	// The router rejected the packet because it exceeds the session MTU for the
+	// given destination. In TUN/TAP, this results in the generation of an ICMPv6
+	// Packet Too Big message.
 	PacketTooBig = 1 + iota
 )
 
+// RejectedPacket represents a rejected packet from the router. This is passed
+// back to the adapter so that the adapter can respond appropriately, e.g. in
+// the case of TUN/TAP, a "PacketTooBig" reason can be used to generate an
+// ICMPv6 Packet Too Big response.
 type RejectedPacket struct {
 	Reason RejectedPacketReason
 	Packet []byte

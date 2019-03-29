@@ -14,6 +14,10 @@ import (
 	"golang.org/x/net/ipv6"
 )
 
+// Multicast represents the multicast advertisement and discovery mechanism used
+// by Yggdrasil to find peers on the same subnet. When a beacon is received on a
+// configured multicast interface, Yggdrasil will attempt to peer with that node
+// automatically.
 type Multicast struct {
 	core        *yggdrasil.Core
 	config      *config.NodeState
@@ -25,6 +29,7 @@ type Multicast struct {
 	listenPort  uint16
 }
 
+// Init prepares the multicast interface for use.
 func (m *Multicast) Init(core *yggdrasil.Core, state *config.NodeState, log *log.Logger, options interface{}) error {
 	m.core = core
 	m.config = state
@@ -47,6 +52,9 @@ func (m *Multicast) Init(core *yggdrasil.Core, state *config.NodeState, log *log
 	return nil
 }
 
+// Start starts the multicast interface. This launches goroutines which will
+// listen for multicast beacons from other hosts and will advertise multicast
+// beacons out to the network.
 func (m *Multicast) Start() error {
 	if len(m.interfaces()) == 0 {
 		m.log.Infoln("Multicast discovery is disabled")
@@ -76,6 +84,7 @@ func (m *Multicast) Start() error {
 	return nil
 }
 
+// Stop is not implemented for multicast yet.
 func (m *Multicast) Stop() error {
 	return nil
 }

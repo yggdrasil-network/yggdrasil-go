@@ -27,7 +27,10 @@ import (
 const tun_IPv6_HEADER_LENGTH = 40
 const tun_ETHER_HEADER_LENGTH = 14
 
-// Represents a running TUN/TAP interface.
+// TunAdapter represents a running TUN/TAP interface and extends the
+// yggdrasil.Adapter type. In order to use the TUN/TAP adapter with Yggdrasil,
+// you should pass this object to the yggdrasil.SetRouterAdapter() function
+// before calling yggdrasil.Start().
 type TunAdapter struct {
 	yggdrasil.Adapter
 	addr   address.Address
@@ -50,44 +53,50 @@ func getSupportedMTU(mtu int) int {
 	return mtu
 }
 
-// Get the adapter name
+// Name returns the name of the adapter, e.g. "tun0". On Windows, this may
+// return a canonical adapter name instead.
 func (tun *TunAdapter) Name() string {
 	return tun.iface.Name()
 }
 
-// Get the adapter MTU
+// MTU gets the adapter's MTU. This can range between 1280 and 65535, although
+// the maximum value is determined by your platform. The returned value will
+// never exceed that of MaximumMTU().
 func (tun *TunAdapter) MTU() int {
 	return getSupportedMTU(tun.mtu)
 }
 
-// Get the adapter mode
+// IsTAP returns true if the adapter is a TAP adapter (Layer 2) or false if it
+// is a TUN adapter (Layer 3).
 func (tun *TunAdapter) IsTAP() bool {
 	return tun.iface.IsTAP()
 }
 
-// Gets the default TUN/TAP interface name for your platform.
+// DefaultName gets the default TUN/TAP interface name for your platform.
 func DefaultName() string {
 	return defaults.GetDefaults().DefaultIfName
 }
 
-// Gets the default TUN/TAP interface MTU for your platform. This can be as high
-// as 65535, depending on platform, but is never lower than 1280.
+// DefaultMTU gets the default TUN/TAP interface MTU for your platform. This can
+// be as high as MaximumMTU(), depending on platform, but is never lower than 1280.
 func DefaultMTU() int {
 	return defaults.GetDefaults().DefaultIfMTU
 }
 
-// Gets the default TUN/TAP interface mode for your platform.
+// DefaultIsTAP returns true if the default adapter mode for the current
+// platform is TAP (Layer 2) and returns false for TUN (Layer 3).
 func DefaultIsTAP() bool {
 	return defaults.GetDefaults().DefaultIfTAPMode
 }
 
-// Gets the maximum supported TUN/TAP interface MTU for your platform. This
-// can be as high as 65535, depending on platform, but is never lower than 1280.
+// MaximumMTU returns the maximum supported TUN/TAP interface MTU for your
+// platform. This can be as high as 65535, depending on platform, but is never
+// lower than 1280.
 func MaximumMTU() int {
 	return defaults.GetDefaults().MaximumIfMTU
 }
 
-// Initialises the TUN/TAP adapter.
+// Init initialises the TUN/TAP adapter.
 func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, send chan<- []byte, recv <-chan []byte, reject <-chan yggdrasil.RejectedPacket) {
 	tun.config = config
 	tun.log = log
@@ -111,8 +120,8 @@ func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, send chan
 	}()
 }
 
-// Starts the setup process for the TUN/TAP adapter, and if successful, starts
-// the read/write goroutines to handle packets on that interface.
+// Start the setup process for the TUN/TAP adapter. If successful, starts the
+// read/write goroutines to handle packets on that interface.
 func (tun *TunAdapter) Start(a address.Address, s address.Subnet) error {
 	tun.addr = a
 	tun.subnet = s

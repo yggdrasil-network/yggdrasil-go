@@ -41,6 +41,10 @@ type tcp struct {
 	conns       map[linkInfo](chan struct{})
 }
 
+// TcpListener is a stoppable TCP listener interface. These are typically
+// returned from calls to the ListenTCP() function and are also used internally
+// to represent listeners created by the "Listen" configuration option and for
+// multicast interfaces.
 type TcpListener struct {
 	Listener net.Listener
 	Stop     chan bool
