@@ -11,7 +11,6 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 
 var buildName string
@@ -89,7 +88,7 @@ func (c *Core) init() error {
 // be reconnected with.
 func (c *Core) addPeerLoop() {
 	for {
-		// Get the peers from the config - these could change!
+		//  the peers from the config - these could change!
 		current, _ := c.config.Get()
 
 		// Add peers from the Peers section
@@ -111,8 +110,9 @@ func (c *Core) addPeerLoop() {
 	}
 }
 
-// UpdateConfig updates the configuration in Core and then signals the
-// various module goroutines to reconfigure themselves if needed
+// UpdateConfig updates the configuration in Core with the provided
+// config.NodeConfig and then signals the various module goroutines to
+// reconfigure themselves if needed.
 func (c *Core) UpdateConfig(config *config.NodeConfig) {
 	c.log.Infoln("Reloading configuration...")
 
@@ -148,33 +148,37 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 	}
 }
 
-// GetBuildName gets the current build name. This is usually injected if built
+// BuildName gets the current build name. This is usually injected if built
 // from git, or returns "unknown" otherwise.
-func GetBuildName() string {
+func BuildName() string {
 	if buildName == "" {
 		return "unknown"
 	}
 	return buildName
 }
 
-// Get the current build version. This is usually injected if built from git,
-// or returns "unknown" otherwise.
-func GetBuildVersion() string {
+// BuildVersion gets the current build version. This is usually injected if
+// built from git, or returns "unknown" otherwise.
+func BuildVersion() string {
 	if buildVersion == "" {
 		return "unknown"
 	}
 	return buildVersion
 }
 
-// Set the router adapter
-func (c *Core) SetRouterAdapter(adapter adapterImplementation) {
+// SetRouterAdapter instructs Yggdrasil to use the given adapter when starting
+// the router. The adapter must implement the standard
+// adapter.AdapterImplementation interface and should extend the adapter.Adapter
+// struct.
+func (c *Core) SetRouterAdapter(adapter AdapterImplementation) {
 	c.router.adapter = adapter
 }
 
-// Starts up Yggdrasil using the provided NodeState, and outputs debug logging
-// through the provided log.Logger. The started stack will include TCP and UDP
-// sockets, a multicast discovery socket, an admin socket, router, switch and
-// DHT node.
+// Start starts up Yggdrasil using the provided config.NodeConfig, and outputs
+// debug logging through the provided log.Logger. The started stack will include
+// TCP and UDP sockets, a multicast discovery socket, an admin socket, router,
+// switch and DHT node. A config.NodeState is returned which contains both the
+// current and previous configurations (from reconfigures).
 func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState, error) {
 	c.log = log
 
@@ -183,10 +187,10 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState,
 		Previous: *nc,
 	}
 
-	if name := GetBuildName(); name != "unknown" {
+	if name := BuildName(); name != "unknown" {
 		c.log.Infoln("Build name:", name)
 	}
-	if version := GetBuildVersion(); version != "unknown" {
+	if version := BuildVersion(); version != "unknown" {
 		c.log.Infoln("Build version:", version)
 	}
 
@@ -233,7 +237,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState,
 	return &c.config, nil
 }
 
-// Stops the Yggdrasil node.
+// Stop shuts down the Yggdrasil node.
 func (c *Core) Stop() {
 	c.log.Infoln("Stopping...")
 	if c.router.adapter != nil {
@@ -242,72 +246,78 @@ func (c *Core) Stop() {
 	c.admin.close()
 }
 
-// ListenOn starts a new listener
+// ListenTCP starts a new TCP listener. The input URI should match that of the
+// "Listen" configuration item, e.g.
+// 		tcp://a.b.c.d:e
 func (c *Core) ListenTCP(uri string) (*TcpListener, error) {
 	return c.link.tcp.listen(uri)
 }
 
-// Generates a new encryption keypair. The encryption keys are used to
-// encrypt traffic and to derive the IPv6 address/subnet of the node.
+// NewEncryptionKeys generates a new encryption keypair. The encryption keys are
+// used to encrypt traffic and to derive the IPv6 address/subnet of the node.
 func (c *Core) NewEncryptionKeys() (*crypto.BoxPubKey, *crypto.BoxPrivKey) {
 	return crypto.NewBoxKeys()
 }
 
-// Generates a new signing keypair. The signing keys are used to derive the
-// structure of the spanning tree.
+// NewSigningKeys generates a new signing keypair. The signing keys are used to
+// derive the structure of the spanning tree.
 func (c *Core) NewSigningKeys() (*crypto.SigPubKey, *crypto.SigPrivKey) {
 	return crypto.NewSigKeys()
 }
 
-// Gets the node ID.
-func (c *Core) GetNodeID() *crypto.NodeID {
-	return crypto.GetNodeID(&c.boxPub)
+// NodeID gets the node ID.
+func (c *Core) NodeID() *crypto.NodeID {
+	return crypto.NodeID(&c.boxPub)
 }
 
-// Gets the tree ID.
-func (c *Core) GetTreeID() *crypto.TreeID {
-	return crypto.GetTreeID(&c.sigPub)
+// TreeID gets the tree ID.
+func (c *Core) TreeID() *crypto.TreeID {
+	return crypto.TreeID(&c.sigPub)
 }
 
-// Gets the IPv6 address of the Yggdrasil node. This is always a /128.
-func (c *Core) GetAddress() *net.IP {
-	address := net.IP(address.AddrForNodeID(c.GetNodeID())[:])
+// Address gets the IPv6 address of the Yggdrasil node. This is always a /128
+// address.
+func (c *Core) Address() *net.IP {
+	address := net.IP(address.AddrForNodeID(c.NodeID())[:])
 	return &address
 }
 
-// Gets the routed IPv6 subnet of the Yggdrasil node. This is always a /64.
-func (c *Core) GetSubnet() *net.IPNet {
-	subnet := address.SubnetForNodeID(c.GetNodeID())[:]
+// Subnet gets the routed IPv6 subnet of the Yggdrasil node. This is always a
+// /64 subnet.
+func (c *Core) Subnet() *net.IPNet {
+	subnet := address.SubnetForNodeID(c.NodeID())[:]
 	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
 	return &net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
 }
 
-// GetRouterAddresses returns the raw address and subnet types as used by the
+// RouterAddresses returns the raw address and subnet types as used by the
 // router
-func (c *Core) GetRouterAddresses() (address.Address, address.Subnet) {
+func (c *Core) RouterAddresses() (address.Address, address.Subnet) {
 	return c.router.addr, c.router.subnet
 }
 
-// Gets the nodeinfo.
-func (c *Core) GetNodeInfo() nodeinfoPayload {
+// NodeInfo gets the currently configured nodeinfo.
+func (c *Core) NodeInfo() nodeinfoPayload {
 	return c.router.nodeinfo.getNodeInfo()
 }
 
-// Sets the nodeinfo.
+// SetNodeInfo the lcal nodeinfo. Note that nodeinfo can be any value or struct,
+// it will be serialised into JSON automatically.
 func (c *Core) SetNodeInfo(nodeinfo interface{}, nodeinfoprivacy bool) {
 	c.router.nodeinfo.setNodeInfo(nodeinfo, nodeinfoprivacy)
 }
 
-// Sets the output logger of the Yggdrasil node after startup. This may be
-// useful if you want to redirect the output later.
+// SetLogger sets the output logger of the Yggdrasil node after startup. This
+// may be useful if you want to redirect the output later.
 func (c *Core) SetLogger(log *log.Logger) {
 	c.log = log
 }
 
-// Adds a peer. This should be specified in the peer URI format, i.e.
-// tcp://a.b.c.d:e, udp://a.b.c.d:e, socks://a.b.c.d:e/f.g.h.i:j. This adds the
-// peer to the peer list, so that they will be called again if the connection
-// drops.
+// AddPeer adds a peer. This should be specified in the peer URI format, e.g.:
+// 		tcp://a.b.c.d:e
+//		socks://a.b.c.d:e/f.g.h.i:j
+// This adds the peer to the peer list, so that they will be called again if the
+// connection drops.
 func (c *Core) AddPeer(addr string, sintf string) error {
 	if err := c.CallPeer(addr, sintf); err != nil {
 		return err
@@ -322,54 +332,18 @@ func (c *Core) AddPeer(addr string, sintf string) error {
 	return nil
 }
 
-// Calls a peer. This should be specified in the peer URI format, i.e.
-// tcp://a.b.c.d:e, udp://a.b.c.d:e, socks://a.b.c.d:e/f.g.h.i:j. This calls the
-// peer once, and if the connection drops, it won't be called again.
+// CallPeer calls a peer once. This should be specified in the peer URI format,
+// e.g.:
+// 		tcp://a.b.c.d:e
+//		socks://a.b.c.d:e/f.g.h.i:j
+// This does not add the peer to the peer list, so if the connection drops, the
+// peer will not be called again automatically.
 func (c *Core) CallPeer(addr string, sintf string) error {
 	return c.link.call(addr, sintf)
 }
 
-// Adds an allowed public key. This allow peerings to be restricted only to
-// keys that you have selected.
+// AddAllowedEncryptionPublicKey adds an allowed public key. This allow peerings
+// to be restricted only to keys that you have selected.
 func (c *Core) AddAllowedEncryptionPublicKey(boxStr string) error {
 	return c.admin.addAllowedEncryptionPublicKey(boxStr)
-}
-
-// Gets the default admin listen address for your platform.
-func (c *Core) GetAdminDefaultListen() string {
-	return defaults.GetDefaults().DefaultAdminListen
-}
-
-// Gets the default TUN/TAP interface name for your platform.
-func (c *Core) GetTUNDefaultIfName() string {
-	return defaults.GetDefaults().DefaultIfName
-}
-
-// Gets the default TUN/TAP interface MTU for your platform. This can be as high
-// as 65535, depending on platform, but is never lower than 1280.
-func (c *Core) GetTUNDefaultIfMTU() int {
-	return defaults.GetDefaults().DefaultIfMTU
-}
-
-// Gets the maximum supported TUN/TAP interface MTU for your platform. This
-// can be as high as 65535, depending on platform, but is never lower than 1280.
-func (c *Core) GetTUNMaximumIfMTU() int {
-	return defaults.GetDefaults().MaximumIfMTU
-}
-
-// Gets the default TUN/TAP interface mode for your platform.
-func (c *Core) GetTUNDefaultIfTAPMode() bool {
-	return defaults.GetDefaults().DefaultIfTAPMode
-}
-
-// Gets the current TUN/TAP interface name.
-func (c *Core) GetTUNIfName() string {
-	//return c.router.tun.iface.Name()
-	return c.router.adapter.Name()
-}
-
-// Gets the current TUN/TAP interface MTU.
-func (c *Core) GetTUNIfMTU() int {
-	//return c.router.tun.mtu
-	return c.router.adapter.MTU()
 }

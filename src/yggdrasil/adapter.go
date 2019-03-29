@@ -6,10 +6,12 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 )
 
-// Defines the minimum required struct members for an adapter type (this is
-// now the base type for TunAdapter in tun.go)
+// Defines the minimum required struct members for an adapter type. This is now
+// the base type for adapters like tun.go. When implementing a new adapter type,
+// you should extend the adapter struct with this one and should call the
+// Adapter.Init() function when initialising.
 type Adapter struct {
-	adapterImplementation
+	AdapterImplementation
 	Core        *Core
 	Send        chan<- []byte
 	Recv        <-chan []byte
@@ -17,8 +19,9 @@ type Adapter struct {
 	Reconfigure chan chan error
 }
 
-// Defines the minimum required functions for an adapter type
-type adapterImplementation interface {
+// Defines the minimum required functions for an adapter type. Note that the
+// implementation of Init() should call Adapter.Init().
+type AdapterImplementation interface {
 	Init(*config.NodeState, *log.Logger, chan<- []byte, <-chan []byte, <-chan RejectedPacket)
 	Name() string
 	MTU() int
@@ -29,7 +32,10 @@ type adapterImplementation interface {
 	Close() error
 }
 
-// Initialises the adapter.
+// Initialises the adapter with the necessary channels to operate from the
+// router. When defining a new Adapter type, the Adapter should call this
+// function from within it's own Init function to set up the channels. It is
+// otherwise not expected for you to call this function directly.
 func (adapter *Adapter) Init(config *config.NodeState, log *log.Logger, send chan<- []byte, recv <-chan []byte, reject <-chan RejectedPacket) {
 	log.Traceln("Adapter setup - given channels:", send, recv)
 	adapter.Send = send

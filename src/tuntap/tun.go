@@ -65,6 +65,28 @@ func (tun *TunAdapter) IsTAP() bool {
 	return tun.iface.IsTAP()
 }
 
+// Gets the default TUN/TAP interface name for your platform.
+func DefaultName() string {
+	return defaults.GetDefaults().DefaultIfName
+}
+
+// Gets the default TUN/TAP interface MTU for your platform. This can be as high
+// as 65535, depending on platform, but is never lower than 1280.
+func DefaultMTU() int {
+	return defaults.GetDefaults().DefaultIfMTU
+}
+
+// Gets the default TUN/TAP interface mode for your platform.
+func DefaultIsTAP() bool {
+	return defaults.GetDefaults().DefaultIfTAPMode
+}
+
+// Gets the maximum supported TUN/TAP interface MTU for your platform. This
+// can be as high as 65535, depending on platform, but is never lower than 1280.
+func MaximumMTU() int {
+	return defaults.GetDefaults().MaximumIfMTU
+}
+
 // Initialises the TUN/TAP adapter.
 func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, send chan<- []byte, recv <-chan []byte, reject <-chan yggdrasil.RejectedPacket) {
 	tun.config = config
