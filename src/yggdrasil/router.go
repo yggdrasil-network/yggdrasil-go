@@ -128,7 +128,9 @@ func (r *router) init(core *Core) {
 	r.nodeinfo.setNodeInfo(r.core.config.Current.NodeInfo, r.core.config.Current.NodeInfoPrivacy)
 	r.core.config.Mutex.RUnlock()
 	r.cryptokey.init(r.core)
-	r.adapter.Init(&r.core.config, r.core.log, send, recv, reject)
+	if r.adapter != nil {
+		r.adapter.Init(&r.core.config, r.core.log, send, recv, reject)
+	}
 }
 
 // Starts the mainLoop goroutine.

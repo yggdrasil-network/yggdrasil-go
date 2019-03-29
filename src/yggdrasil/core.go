@@ -220,9 +220,11 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState,
 		return nil, err
 	}
 
-	if err := c.router.adapter.Start(c.router.addr, c.router.subnet); err != nil {
-		c.log.Errorln("Failed to start TUN/TAP")
-		return nil, err
+	if c.router.adapter != nil {
+		if err := c.router.adapter.Start(c.router.addr, c.router.subnet); err != nil {
+			c.log.Errorln("Failed to start TUN/TAP")
+			return nil, err
+		}
 	}
 
 	go c.addPeerLoop()
@@ -234,7 +236,9 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState,
 // Stops the Yggdrasil node.
 func (c *Core) Stop() {
 	c.log.Infoln("Stopping...")
-	c.router.adapter.Close()
+	if c.router.adapter != nil {
+		c.router.adapter.Close()
+	}
 	c.admin.close()
 }
 

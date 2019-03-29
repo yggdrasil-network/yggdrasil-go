@@ -248,10 +248,10 @@ func main() {
 	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
 	// don't need to create this manually.
 	n := node{}
-	// Now that we have a working configuration, we can now actually start
-	// Yggdrasil. This will start the router, switch, DHT node, TCP and UDP
-	// sockets, TUN/TAP adapter and multicast discovery port.
+	// Before we start the node, set the TUN/TAP to be our router adapter
 	n.core.SetRouterAdapter(&n.tuntap)
+	// Now start Yggdrasil - this starts the DHT, router, switch and other core
+	// components needed for Yggdrasil to operate
 	state, err := n.core.Start(cfg, logger)
 	if err != nil {
 		logger.Errorln("An error occurred during startup")
