@@ -189,8 +189,8 @@ func main() {
 	var err error
 	switch {
 	case *version:
-		fmt.Println("Build name:", yggdrasil.GetBuildName())
-		fmt.Println("Build version:", yggdrasil.GetBuildVersion())
+		fmt.Println("Build name:", yggdrasil.BuildName())
+		fmt.Println("Build version:", yggdrasil.BuildVersion())
 		os.Exit(0)
 	case *autoconf:
 		// Use an autoconf-generated config, this will give us random keys and
@@ -269,8 +269,8 @@ func main() {
 	}()
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
-	address := n.core.GetAddress()
-	subnet := n.core.GetSubnet()
+	address := n.core.Address()
+	subnet := n.core.Subnet()
 	logger.Infof("Your IPv6 address is %s", address.String())
 	logger.Infof("Your IPv6 subnet is %s", subnet.String())
 	// Catch interrupts from the operating system to exit gracefully.

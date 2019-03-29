@@ -101,8 +101,8 @@ func (m *nodeinfo) setNodeInfo(given interface{}, privacy bool) error {
 	m.myNodeInfoMutex.Lock()
 	defer m.myNodeInfoMutex.Unlock()
 	defaults := map[string]interface{}{
-		"buildname":     GetBuildName(),
-		"buildversion":  GetBuildVersion(),
+		"buildname":     BuildName(),
+		"buildversion":  BuildVersion(),
 		"buildplatform": runtime.GOOS,
 		"buildarch":     runtime.GOARCH,
 	}

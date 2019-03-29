@@ -642,14 +642,14 @@ func (a *admin) getData_getSelf() *admin_nodeInfo {
 	coords := table.self.getCoords()
 	self := admin_nodeInfo{
 		{"box_pub_key", hex.EncodeToString(a.core.boxPub[:])},
-		{"ip", a.core.GetAddress().String()},
-		{"subnet", a.core.GetSubnet().String()},
+		{"ip", a.core.Address().String()},
+		{"subnet", a.core.Subnet().String()},
 		{"coords", fmt.Sprint(coords)},
 	}
-	if name := GetBuildName(); name != "unknown" {
+	if name := BuildName(); name != "unknown" {
 		self = append(self, admin_pair{"build_name", name})
 	}
-	if version := GetBuildVersion(); version != "unknown" {
+	if version := BuildVersion(); version != "unknown" {
 		self = append(self, admin_pair{"build_version", version})
 	}
 

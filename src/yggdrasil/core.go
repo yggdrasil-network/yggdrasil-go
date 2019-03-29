@@ -267,12 +267,12 @@ func (c *Core) NewSigningKeys() (*crypto.SigPubKey, *crypto.SigPrivKey) {
 
 // NodeID gets the node ID.
 func (c *Core) NodeID() *crypto.NodeID {
-	return crypto.NodeID(&c.boxPub)
+	return crypto.GetNodeID(&c.boxPub)
 }
 
 // TreeID gets the tree ID.
 func (c *Core) TreeID() *crypto.TreeID {
-	return crypto.TreeID(&c.sigPub)
+	return crypto.GetTreeID(&c.sigPub)
 }
 
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128
