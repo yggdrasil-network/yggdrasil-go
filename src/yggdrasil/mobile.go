@@ -52,7 +52,7 @@ func (c *Core) StartAutoconfigure() error {
 	if hostname, err := os.Hostname(); err == nil {
 		nc.NodeInfo = map[string]interface{}{"name": hostname}
 	}
-	if err := c.Start(nc, logger); err != nil {
+	if _, err := c.Start(nc, logger); err != nil {
 		return err
 	}
 	go c.addStaticPeers(nc)
@@ -73,7 +73,7 @@ func (c *Core) StartJSON(configjson []byte) error {
 		return err
 	}
 	nc.IfName = "dummy"
-	if err := c.Start(nc, logger); err != nil {
+	if _, err := c.Start(nc, logger); err != nil {
 		return err
 	}
 	go c.addStaticPeers(nc)
@@ -93,12 +93,12 @@ func GenerateConfigJSON() []byte {
 
 // Gets the node's IPv6 address.
 func (c *Core) GetAddressString() string {
-	return c.GetAddress().String()
+	return c.Address().String()
 }
 
 // Gets the node's IPv6 subnet in CIDR notation.
 func (c *Core) GetSubnetString() string {
-	return c.GetSubnet().String()
+	return c.Subnet().String()
 }
 
 // Gets the node's public encryption key.
@@ -115,7 +115,7 @@ func (c *Core) GetSigPubKeyString() string {
 // dummy adapter in place of real TUN - when this call returns a packet, you
 // will probably want to give it to the OS to write to TUN.
 func (c *Core) RouterRecvPacket() ([]byte, error) {
-	packet := <-c.router.tun.Recv
+	packet := <-c.router.recv
 	return packet, nil
 }
 
@@ -125,6 +125,6 @@ func (c *Core) RouterRecvPacket() ([]byte, error) {
 // Yggdrasil.
 func (c *Core) RouterSendPacket(buf []byte) error {
 	packet := append(util.GetBytes(), buf[:]...)
-	c.router.tun.Send <- packet
+	c.router.send <- packet
 	return nil
 }

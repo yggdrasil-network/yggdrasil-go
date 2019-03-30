@@ -11,7 +11,7 @@ import (
 // you should extend the adapter struct with this one and should call the
 // Adapter.Init() function when initialising.
 type Adapter struct {
-	AdapterImplementation
+	adapterImplementation
 	Core        *Core
 	Send        chan<- []byte
 	Recv        <-chan []byte
@@ -20,15 +20,14 @@ type Adapter struct {
 }
 
 // Defines the minimum required functions for an adapter type. Note that the
-// implementation of Init() should call Adapter.Init().
-type AdapterImplementation interface {
+// implementation of Init() should call Adapter.Init(). This is not exported
+// because doing so breaks the gomobile bindings for iOS/Android.
+type adapterImplementation interface {
 	Init(*config.NodeState, *log.Logger, chan<- []byte, <-chan []byte, <-chan RejectedPacket)
 	Name() string
 	MTU() int
 	IsTAP() bool
 	Start(address.Address, address.Subnet) error
-	Read() error
-	Write() error
 	Close() error
 }
 
@@ -37,7 +36,6 @@ type AdapterImplementation interface {
 // function from within it's own Init function to set up the channels. It is
 // otherwise not expected for you to call this function directly.
 func (adapter *Adapter) Init(config *config.NodeState, log *log.Logger, send chan<- []byte, recv <-chan []byte, reject <-chan RejectedPacket) {
-	log.Traceln("Adapter setup - given channels:", send, recv)
 	adapter.Send = send
 	adapter.Recv = recv
 	adapter.Reject = reject

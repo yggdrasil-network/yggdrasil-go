@@ -41,7 +41,7 @@ type router struct {
 	in          <-chan []byte          // packets we received from the network, link to peer's "out"
 	out         func([]byte)           // packets we're sending to the network, link to peer's "in"
 	toRecv      chan router_recvPacket // packets to handle via recvPacket()
-	adapter     AdapterImplementation  // TUN/TAP adapter
+	adapter     adapterImplementation  // TUN/TAP adapter
 	recv        chan<- []byte          // place where the adapter pulls received packets from
 	send        <-chan []byte          // place where the adapter puts outgoing packets
 	reject      chan<- RejectedPacket  // place where we send error packets back to adapter

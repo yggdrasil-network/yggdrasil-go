@@ -148,11 +148,11 @@ func (tun *TunAdapter) Start(a address.Address, s address.Subnet) error {
 	tun.mutex.Unlock()
 	go func() {
 		tun.log.Debugln("Starting TUN/TAP reader goroutine")
-		tun.log.Errorln("WARNING: tun.read() exited with error:", tun.Read())
+		tun.log.Errorln("WARNING: tun.read() exited with error:", tun.read())
 	}()
 	go func() {
 		tun.log.Debugln("Starting TUN/TAP writer goroutine")
-		tun.log.Errorln("WARNING: tun.write() exited with error:", tun.Write())
+		tun.log.Errorln("WARNING: tun.write() exited with error:", tun.write())
 	}()
 	if iftapmode {
 		go func() {
@@ -177,7 +177,7 @@ func (tun *TunAdapter) Start(a address.Address, s address.Subnet) error {
 // Writes a packet to the TUN/TAP adapter. If the adapter is running in TAP
 // mode then additional ethernet encapsulation is added for the benefit of the
 // host operating system.
-func (tun *TunAdapter) Write() error {
+func (tun *TunAdapter) write() error {
 	for {
 		select {
 		case reject := <-tun.Reject:
@@ -310,7 +310,7 @@ func (tun *TunAdapter) Write() error {
 // is running in TAP mode then the ethernet headers will automatically be
 // processed and stripped if necessary. If an ICMPv6 packet is found, then
 // the relevant helper functions in icmpv6.go are called.
-func (tun *TunAdapter) Read() error {
+func (tun *TunAdapter) read() error {
 	mtu := tun.mtu
 	if tun.iface.IsTAP() {
 		mtu += tun_ETHER_HEADER_LENGTH
