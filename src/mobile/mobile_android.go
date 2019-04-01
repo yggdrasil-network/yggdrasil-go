@@ -1,6 +1,6 @@
 // +build android
 
-package yggdrasil
+package mobile
 
 import "log"
 

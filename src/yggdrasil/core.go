@@ -280,6 +280,16 @@ func (c *Core) TreeID() *crypto.TreeID {
 	return crypto.GetTreeID(&c.sigPub)
 }
 
+// SigPubKey gets the node's signing public key.
+func (c *Core) SigPubKey() string {
+	return hex.EncodeToString(c.sigPub[:])
+}
+
+// BoxPubKey gets the node's encryption public key.
+func (c *Core) BoxPubKey() string {
+	return hex.EncodeToString(c.boxPub[:])
+}
+
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128
 // address.
 func (c *Core) Address() *net.IP {

@@ -1,6 +1,6 @@
-// +build mobile,darwin
+// +build darwin
 
-package yggdrasil
+package mobile
 
 /*
 #cgo CFLAGS: -x objective-c
