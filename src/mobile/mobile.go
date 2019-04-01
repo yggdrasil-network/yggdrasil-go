@@ -49,6 +49,9 @@ func (m *Yggdrasil) addStaticPeers(cfg *config.NodeConfig) {
 // StartAutoconfigure starts a node with a randomly generated config
 func (m *Yggdrasil) StartAutoconfigure() error {
 	logger := log.New(m.log, "", 0)
+	logger.EnableLevel("error")
+	logger.EnableLevel("warn")
+	logger.EnableLevel("info")
 	nc := config.GenerateConfig()
 	nc.IfName = "dummy"
 	nc.AdminListen = "tcp://localhost:9001"
@@ -62,6 +65,7 @@ func (m *Yggdrasil) StartAutoconfigure() error {
 	}
 	state, err := m.core.Start(nc, logger)
 	if err != nil {
+		logger.Errorln("An error occured starting Yggdrasil:", err)
 		return err
 	}
 	m.multicast.Init(&m.core, state, logger, nil)
@@ -76,6 +80,9 @@ func (m *Yggdrasil) StartAutoconfigure() error {
 // (rather than HJSON) by using the GenerateConfigJSON() function
 func (m *Yggdrasil) StartJSON(configjson []byte) error {
 	logger := log.New(m.log, "", 0)
+	logger.EnableLevel("error")
+	logger.EnableLevel("warn")
+	logger.EnableLevel("info")
 	nc := config.GenerateConfig()
 	var dat map[string]interface{}
 	if err := hjson.Unmarshal(configjson, &dat); err != nil {
@@ -91,6 +98,7 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 	}
 	state, err := m.core.Start(nc, logger)
 	if err != nil {
+		logger.Errorln("An error occured starting Yggdrasil:", err)
 		return err
 	}
 	m.multicast.Init(&m.core, state, logger, nil)

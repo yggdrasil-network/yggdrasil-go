@@ -1,6 +1,6 @@
-/*
 package mobile
 
+/*
 import (
 	"errors"
 	"io"
