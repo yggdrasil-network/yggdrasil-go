@@ -2,56 +2,60 @@ package dummy
 
 import (
 	"github.com/gologme/log"
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
+// DummyAdapter is a non-specific adapter that is used by the mobile APIs.
+// You can also use it to send or receive custom traffic over Yggdrasil.
 type DummyAdapter struct {
 	yggdrasil.Adapter
-	send   chan<- []byte
-	recv   <-chan []byte
-	reject <-chan yggdrasil.RejectedPacket
 }
 
-// Init initialises the TUN/TAP adapter.
+// Init initialises the dummy adapter.
 func (m *DummyAdapter) Init(config *config.NodeState, log *log.Logger, send chan<- []byte, recv <-chan []byte, reject <-chan yggdrasil.RejectedPacket) {
 	m.Adapter.Init(config, log, send, recv, reject)
 }
 
-// Name returns the name of the adapter, e.g. "tun0". On Windows, this may
-// return a canonical adapter name instead.
+// Name returns the name of the adapter. This is always "dummy" for dummy
+// adapters.
 func (m *DummyAdapter) Name() string {
 	return "dummy"
 }
 
-// MTU gets the adapter's MTU. This can range between 1280 and 65535, although
-// the maximum value is determined by your platform. The returned value will
-// never exceed that of MaximumMTU().
+// MTU gets the adapter's MTU. This returns your platform's maximum MTU for
+// dummy adapters.
 func (m *DummyAdapter) MTU() int {
-	return 65535
+	return defaults.GetDefaults().MaximumIfMTU
 }
 
-// IsTAP returns true if the adapter is a TAP adapter (Layer 2) or false if it
-// is a TUN adapter (Layer 3).
+// IsTAP always returns false for dummy adapters.
 func (m *DummyAdapter) IsTAP() bool {
 	return false
 }
 
-// Wait for a packet from the router. You will use this when implementing a
-// dummy adapter in place of real TUN - when this call returns a packet, you
-// will probably want to give it to the OS to write to TUN.
+// Recv waits for and returns for a packet from the router.
 func (m *DummyAdapter) Recv() ([]byte, error) {
-	packet := <-m.recv
+	packet := <-m.Adapter.Recv
 	return packet, nil
 }
 
-// Send a packet to the router. You will use this when implementing a
-// dummy adapter in place of real TUN - when the operating system tells you
-// that a new packet is available from TUN, call this function to give it to
-// Yggdrasil.
+// Send a packet to the router.
 func (m *DummyAdapter) Send(buf []byte) error {
 	packet := append(util.GetBytes(), buf[:]...)
-	m.send <- packet
+	m.Adapter.Send <- packet
+	return nil
+}
+
+// Start is not implemented for dummy adapters.
+func (m *DummyAdapter) Start(address.Address, address.Subnet) error {
+	return nil
+}
+
+// Close is not implemented for dummy adapters.
+func (m *DummyAdapter) Close() error {
 	return nil
 }

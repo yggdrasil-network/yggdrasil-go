@@ -28,10 +28,16 @@ fi
 
 if [ $IOS ]; then
   echo "Building framework for iOS"
-  gomobile bind -target ios -tags mobile -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" github.com/yggdrasil-network/yggdrasil-go/src/mobile
+  gomobile bind -target ios -tags mobile -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
+    github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil \
+    github.com/yggdrasil-network/yggdrasil-go/src/mobile \
+    github.com/yggdrasil-network/yggdrasil-go/src/config
 elif [ $ANDROID ]; then
   echo "Building aar for Android"
-  gomobile bind -target android -tags mobile -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" github.com/yggdrasil-network/yggdrasil-go/src/mobile
+  gomobile bind -target android -tags mobile -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
+    github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil \
+    github.com/yggdrasil-network/yggdrasil-go/src/mobile \
+    github.com/yggdrasil-network/yggdrasil-go/src/config
 else
   for CMD in `ls cmd/` ; do
     echo "Building: $CMD"

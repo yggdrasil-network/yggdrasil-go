@@ -2,6 +2,7 @@ package yggdrasil
 
 import (
 	"encoding/hex"
+	"errors"
 	"io/ioutil"
 	"net"
 	"time"
@@ -170,13 +171,15 @@ func BuildVersion() string {
 // the router. The adapter must implement the standard
 // adapter.adapterImplementation interface and should extend the adapter.Adapter
 // struct.
-func (c *Core) SetRouterAdapter(adapter interface{}) {
+func (c *Core) SetRouterAdapter(adapter interface{}) error {
 	// We do this because adapterImplementation is not a valid type for the
 	// gomobile bindings so we just ask for a generic interface and try to cast it
 	// to adapterImplementation instead
 	if a, ok := adapter.(adapterImplementation); ok {
 		c.router.adapter = a
+		return nil
 	}
+	return errors.New("unsuitable adapter")
 }
 
 // Start starts up Yggdrasil using the provided config.NodeConfig, and outputs

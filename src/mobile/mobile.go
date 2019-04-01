@@ -15,14 +15,15 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
-// Yggdrasil's mobile package is meant to "plug the gap" for mobile support, as
+// Yggdrasil mobile package is meant to "plug the gap" for mobile support, as
 // Gomobile will not create headers for Swift/Obj-C etc if they have complex
 // (non-native) types. Therefore for iOS we will expose some nice simple
 // functions. Note that in the case of iOS we handle reading/writing to/from TUN
 // in Swift therefore we use the "dummy" TUN interface instead.
 type Yggdrasil struct {
-	core      *yggdrasil.Core
-	multicast *multicast.Multicast
+	core      yggdrasil.Core
+	multicast multicast.Multicast
+	log       MobileLogger
 	dummy.DummyAdapter
 }
 
@@ -47,10 +48,7 @@ func (m *Yggdrasil) addStaticPeers(cfg *config.NodeConfig) {
 
 // StartAutoconfigure starts a node with a randomly generated config
 func (m *Yggdrasil) StartAutoconfigure() error {
-	m.core = &yggdrasil.Core{}
-	//m.Adapter = dummy.DummyAdapter{}
-	mobilelog := MobileLogger{}
-	logger := log.New(mobilelog, "", 0)
+	logger := log.New(m.log, "", 0)
 	nc := config.GenerateConfig()
 	nc.IfName = "dummy"
 	nc.AdminListen = "tcp://localhost:9001"
@@ -58,13 +56,15 @@ func (m *Yggdrasil) StartAutoconfigure() error {
 	if hostname, err := os.Hostname(); err == nil {
 		nc.NodeInfo = map[string]interface{}{"name": hostname}
 	}
-	m.core.SetRouterAdapter(&m)
+	if err := m.core.SetRouterAdapter(m); err != nil {
+		logger.Errorln("An error occured setting router adapter:", err)
+		return err
+	}
 	state, err := m.core.Start(nc, logger)
 	if err != nil {
 		return err
 	}
-	// Start the multicast interface
-	m.multicast.Init(m.core, state, logger, nil)
+	m.multicast.Init(&m.core, state, logger, nil)
 	if err := m.multicast.Start(); err != nil {
 		logger.Errorln("An error occurred starting multicast:", err)
 	}
@@ -75,10 +75,7 @@ func (m *Yggdrasil) StartAutoconfigure() error {
 // StartJSON starts a node with the given JSON config. You can get JSON config
 // (rather than HJSON) by using the GenerateConfigJSON() function
 func (m *Yggdrasil) StartJSON(configjson []byte) error {
-	m.core = &yggdrasil.Core{}
-	//m.Adapter = dummy.DummyAdapter{}
-	mobilelog := MobileLogger{}
-	logger := log.New(mobilelog, "", 0)
+	logger := log.New(m.log, "", 0)
 	nc := config.GenerateConfig()
 	var dat map[string]interface{}
 	if err := hjson.Unmarshal(configjson, &dat); err != nil {
@@ -88,13 +85,15 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 		return err
 	}
 	nc.IfName = "dummy"
-	m.core.SetRouterAdapter(&m)
+	if err := m.core.SetRouterAdapter(m); err != nil {
+		logger.Errorln("An error occured setting router adapter:", err)
+		return err
+	}
 	state, err := m.core.Start(nc, logger)
 	if err != nil {
 		return err
 	}
-	// Start the multicast interface
-	m.multicast.Init(m.core, state, logger, nil)
+	m.multicast.Init(&m.core, state, logger, nil)
 	if err := m.multicast.Start(); err != nil {
 		logger.Errorln("An error occurred starting multicast:", err)
 	}
@@ -102,7 +101,7 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 	return nil
 }
 
-// Stops the mobile Yggdrasil instance
+// Stop the mobile Yggdrasil instance
 func (m *Yggdrasil) Stop() error {
 	m.core.Stop()
 	if err := m.Stop(); err != nil {
@@ -117,9 +116,8 @@ func GenerateConfigJSON() []byte {
 	nc.IfName = "dummy"
 	if json, err := json.Marshal(nc); err == nil {
 		return json
-	} else {
-		return nil
 	}
+	return nil
 }
 
 // GetAddressString gets the node's IPv6 address
