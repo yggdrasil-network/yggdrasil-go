@@ -35,8 +35,6 @@ type TunAdapter struct {
 	yggdrasil.Adapter
 	addr   address.Address
 	subnet address.Subnet
-	log    *log.Logger
-	config *config.NodeState
 	icmpv6 ICMPv6
 	mtu    int
 	iface  *water.Interface
@@ -98,20 +96,18 @@ func MaximumMTU() int {
 
 // Init initialises the TUN/TAP adapter.
 func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, send chan<- []byte, recv <-chan []byte, reject <-chan yggdrasil.RejectedPacket) {
-	tun.config = config
-	tun.log = log
 	tun.Adapter.Init(config, log, send, recv, reject)
 	tun.icmpv6.Init(tun)
 	go func() {
 		for {
 			e := <-tun.Reconfigure
-			tun.config.Mutex.RLock()
-			updated := tun.config.Current.IfName != tun.config.Previous.IfName ||
-				tun.config.Current.IfTAPMode != tun.config.Previous.IfTAPMode ||
-				tun.config.Current.IfMTU != tun.config.Previous.IfMTU
-			tun.config.Mutex.RUnlock()
+			tun.Config.Mutex.RLock()
+			updated := tun.Config.Current.IfName != tun.Config.Previous.IfName ||
+				tun.Config.Current.IfTAPMode != tun.Config.Previous.IfTAPMode ||
+				tun.Config.Current.IfMTU != tun.Config.Previous.IfMTU
+			tun.Config.Mutex.RUnlock()
 			if updated {
-				tun.log.Warnln("Reconfiguring TUN/TAP is not supported yet")
+				tun.Log.Warnln("Reconfiguring TUN/TAP is not supported yet")
 				e <- nil
 			} else {
 				e <- nil
@@ -125,34 +121,34 @@ func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, send chan
 func (tun *TunAdapter) Start(a address.Address, s address.Subnet) error {
 	tun.addr = a
 	tun.subnet = s
-	if tun.config == nil {
+	if tun.Config == nil {
 		return errors.New("No configuration available to TUN/TAP")
 	}
-	tun.config.Mutex.RLock()
-	ifname := tun.config.Current.IfName
-	iftapmode := tun.config.Current.IfTAPMode
+	tun.Config.Mutex.RLock()
+	ifname := tun.Config.Current.IfName
+	iftapmode := tun.Config.Current.IfTAPMode
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
-	mtu := tun.config.Current.IfMTU
-	tun.config.Mutex.RUnlock()
+	mtu := tun.Config.Current.IfMTU
+	tun.Config.Mutex.RUnlock()
 	if ifname != "none" {
 		if err := tun.setup(ifname, iftapmode, addr, mtu); err != nil {
 			return err
 		}
 	}
 	if ifname == "none" || ifname == "dummy" {
-		tun.log.Debugln("Not starting TUN/TAP as ifname is none or dummy")
+		tun.Log.Debugln("Not starting TUN/TAP as ifname is none or dummy")
 		return nil
 	}
 	tun.mutex.Lock()
 	tun.isOpen = true
 	tun.mutex.Unlock()
 	go func() {
-		tun.log.Debugln("Starting TUN/TAP reader goroutine")
-		tun.log.Errorln("WARNING: tun.read() exited with error:", tun.read())
+		tun.Log.Debugln("Starting TUN/TAP reader goroutine")
+		tun.Log.Errorln("WARNING: tun.read() exited with error:", tun.read())
 	}()
 	go func() {
-		tun.log.Debugln("Starting TUN/TAP writer goroutine")
-		tun.log.Errorln("WARNING: tun.write() exited with error:", tun.write())
+		tun.Log.Debugln("Starting TUN/TAP writer goroutine")
+		tun.Log.Errorln("WARNING: tun.write() exited with error:", tun.write())
 	}()
 	if iftapmode {
 		go func() {

@@ -40,9 +40,9 @@ func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 		}
 	}
 	// Friendly output
-	tun.log.Infof("Interface name: %s", tun.iface.Name())
-	tun.log.Infof("Interface IPv6: %s", addr)
-	tun.log.Infof("Interface MTU: %d", tun.mtu)
+	tun.Log.Infof("Interface name: %s", tun.iface.Name())
+	tun.Log.Infof("Interface IPv6: %s", addr)
+	tun.Log.Infof("Interface MTU: %d", tun.mtu)
 	return tun.setupAddress(addr)
 }
 

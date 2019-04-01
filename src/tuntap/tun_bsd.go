@@ -109,14 +109,14 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 
 	// Create system socket
 	if sfd, err = unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0); err != nil {
-		tun.log.Printf("Create AF_INET socket failed: %v.", err)
+		tun.Log.Printf("Create AF_INET socket failed: %v.", err)
 		return err
 	}
 
 	// Friendly output
-	tun.log.Infof("Interface name: %s", tun.iface.Name())
-	tun.log.Infof("Interface IPv6: %s", addr)
-	tun.log.Infof("Interface MTU: %d", tun.mtu)
+	tun.Log.Infof("Interface name: %s", tun.iface.Name())
+	tun.Log.Infof("Interface IPv6: %s", addr)
+	tun.Log.Infof("Interface MTU: %d", tun.mtu)
 
 	// Create the MTU request
 	var ir in6_ifreq_mtu
@@ -126,15 +126,15 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	// Set the MTU
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(sfd), uintptr(syscall.SIOCSIFMTU), uintptr(unsafe.Pointer(&ir))); errno != 0 {
 		err = errno
-		tun.log.Errorf("Error in SIOCSIFMTU: %v", errno)
+		tun.Log.Errorf("Error in SIOCSIFMTU: %v", errno)
 
 		// Fall back to ifconfig to set the MTU
 		cmd := exec.Command("ifconfig", tun.iface.Name(), "mtu", string(tun.mtu))
-		tun.log.Warnf("Using ifconfig as fallback: %v", strings.Join(cmd.Args, " "))
+		tun.Log.Warnf("Using ifconfig as fallback: %v", strings.Join(cmd.Args, " "))
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			tun.log.Errorf("SIOCSIFMTU fallback failed: %v.", err)
-			tun.log.Traceln(string(output))
+			tun.Log.Errorf("SIOCSIFMTU fallback failed: %v.", err)
+			tun.Log.Traceln(string(output))
 		}
 	}
 
@@ -155,15 +155,15 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	// Set the interface address
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(sfd), uintptr(SIOCSIFADDR_IN6), uintptr(unsafe.Pointer(&ar))); errno != 0 {
 		err = errno
-		tun.log.Errorf("Error in SIOCSIFADDR_IN6: %v", errno)
+		tun.Log.Errorf("Error in SIOCSIFADDR_IN6: %v", errno)
 
 		// Fall back to ifconfig to set the address
 		cmd := exec.Command("ifconfig", tun.iface.Name(), "inet6", addr)
-		tun.log.Warnf("Using ifconfig as fallback: %v", strings.Join(cmd.Args, " "))
+		tun.Log.Warnf("Using ifconfig as fallback: %v", strings.Join(cmd.Args, " "))
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			tun.log.Errorf("SIOCSIFADDR_IN6 fallback failed: %v.", err)
-			tun.log.Traceln(string(output))
+			tun.Log.Errorf("SIOCSIFADDR_IN6 fallback failed: %v.", err)
+			tun.Log.Traceln(string(output))
 		}
 	}
 
