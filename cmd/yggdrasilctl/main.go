@@ -47,7 +47,7 @@ func main() {
 		fmt.Println("  - ", os.Args[0], "getPeers")
 		fmt.Println("  - ", os.Args[0], "-v getSelf")
 		fmt.Println("  - ", os.Args[0], "setTunTap name=auto mtu=1500 tap_mode=false")
-		fmt.Println("  - ", os.Args[0], "-endpoint=tcp://localhost:9001 getDHT")
+		fmt.Println("  - ", os.Args[0], "-endpoint=tcp://localhost:3959 getDHT")
 		fmt.Println("  - ", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getDHT")
 	}
 	server := flag.String("endpoint", endpoint, "Admin socket endpoint")

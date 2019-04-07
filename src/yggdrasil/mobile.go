@@ -47,7 +47,7 @@ func (c *Core) StartAutoconfigure() error {
 	logger := log.New(mobilelog, "", 0)
 	nc := config.GenerateConfig()
 	nc.IfName = "dummy"
-	nc.AdminListen = "tcp://localhost:9001"
+	nc.AdminListen = "tcp://localhost:3959"
 	nc.Peers = []string{}
 	if hostname, err := os.Hostname(); err == nil {
 		nc.NodeInfo = map[string]interface{}{"name": hostname}
