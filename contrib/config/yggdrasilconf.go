@@ -61,8 +61,17 @@ func main() {
 		}
 	case "setIfName":
 		cfg.IfName = flag.Arg(1)
-	case "setListen":
-		cfg.Listen = flag.Arg(1)
+    case "setListen":
+        found := false
+
+        for _, v := range cfg.Listen {
+            if v == flag.Arg(1) {
+                found = true
+            }
+        }
+        if !found {
+            cfg.Listen = append(cfg.Listen, flag.Arg(1))
+        }
 	case "setAdminListen":
 		cfg.AdminListen = flag.Arg(1)
 	case "setIfTapMode":
