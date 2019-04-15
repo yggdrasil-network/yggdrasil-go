@@ -23,13 +23,14 @@ func (s *NodeState) Get() (NodeConfig, NodeConfig) {
 	return s.Current, s.Previous
 }
 
-// Replace the node configuration with new configuration
-func (s *NodeState) Replace(n NodeConfig) NodeConfig {
+// Replace the node configuration with new configuration. This method returns
+// both the new and the previous node configs
+func (s *NodeState) Replace(n NodeConfig) (NodeConfig, NodeConfig) {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
 	s.Previous = s.Current
 	s.Current = n
-	return s.Current
+	return s.Current, s.Previous
 }
 
 // NodeConfig defines all configuration values needed to run a signle yggdrasil node
