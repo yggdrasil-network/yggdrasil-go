@@ -1,4 +1,4 @@
-package yggdrasil
+package tuntap
 
 // The ICMPv6 module implements functions to easily create ICMPv6
 // packets. These functions, when mixed with the built-in Go IPv6
@@ -25,8 +25,8 @@ type macAddress [6]byte
 
 const len_ETHER = 14
 
-type icmpv6 struct {
-	tun      *tunAdapter
+type ICMPv6 struct {
+	tun      *TunAdapter
 	mylladdr net.IP
 	mymac    macAddress
 	peermacs map[address.Address]neighbor
@@ -59,7 +59,7 @@ func ipv6Header_Marshal(h *ipv6.Header) ([]byte, error) {
 // Initialises the ICMPv6 module by assigning our link-local IPv6 address and
 // our MAC address. ICMPv6 messages will always appear to originate from these
 // addresses.
-func (i *icmpv6) init(t *tunAdapter) {
+func (i *ICMPv6) Init(t *TunAdapter) {
 	i.tun = t
 	i.peermacs = make(map[address.Address]neighbor)
 
@@ -69,23 +69,23 @@ func (i *icmpv6) init(t *tunAdapter) {
 	i.mylladdr = net.IP{
 		0xFE, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0xFE}
-	copy(i.mymac[:], i.tun.core.router.addr[:])
-	copy(i.mylladdr[9:], i.tun.core.router.addr[1:])
+	copy(i.mymac[:], i.tun.addr[:])
+	copy(i.mylladdr[9:], i.tun.addr[1:])
 }
 
 // Parses an incoming ICMPv6 packet. The packet provided may be either an
 // ethernet frame containing an IP packet, or the IP packet alone. This is
 // determined by whether the TUN/TAP adapter is running in TUN (layer 3) or
 // TAP (layer 2) mode.
-func (i *icmpv6) parse_packet(datain []byte) {
+func (i *ICMPv6) ParsePacket(datain []byte) {
 	var response []byte
 	var err error
 
 	// Parse the frame/packet
-	if i.tun.iface.IsTAP() {
-		response, err = i.parse_packet_tap(datain)
+	if i.tun.IsTAP() {
+		response, err = i.UnmarshalPacketL2(datain)
 	} else {
-		response, err = i.parse_packet_tun(datain, nil)
+		response, err = i.UnmarshalPacket(datain, nil)
 	}
 
 	if err != nil {
@@ -97,18 +97,18 @@ func (i *icmpv6) parse_packet(datain []byte) {
 }
 
 // Unwraps the ethernet headers of an incoming ICMPv6 packet and hands off
-// the IP packet to the parse_packet_tun function for further processing.
+// the IP packet to the ParsePacket function for further processing.
 // A response buffer is also created for the response message, also complete
 // with ethernet headers.
-func (i *icmpv6) parse_packet_tap(datain []byte) ([]byte, error) {
+func (i *ICMPv6) UnmarshalPacketL2(datain []byte) ([]byte, error) {
 	// Ignore non-IPv6 frames
 	if binary.BigEndian.Uint16(datain[12:14]) != uint16(0x86DD) {
 		return nil, nil
 	}
 
-	// Hand over to parse_packet_tun to interpret the IPv6 packet
+	// Hand over to ParsePacket to interpret the IPv6 packet
 	mac := datain[6:12]
-	ipv6packet, err := i.parse_packet_tun(datain[len_ETHER:], &mac)
+	ipv6packet, err := i.UnmarshalPacket(datain[len_ETHER:], &mac)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func (i *icmpv6) parse_packet_tap(datain []byte) ([]byte, error) {
 // sanity checks on the packet - i.e. is the packet an ICMPv6 packet, does the
 // ICMPv6 message match a known expected type. The relevant handler function
 // is then called and a response packet may be returned.
-func (i *icmpv6) parse_packet_tun(datain []byte, datamac *[]byte) ([]byte, error) {
+func (i *ICMPv6) UnmarshalPacket(datain []byte, datamac *[]byte) ([]byte, error) {
 	// Parse the IPv6 packet headers
 	ipv6Header, err := ipv6.ParseHeader(datain[:ipv6.HeaderLen])
 	if err != nil {
@@ -156,13 +156,13 @@ func (i *icmpv6) parse_packet_tun(datain []byte, datamac *[]byte) ([]byte, error
 	// Check for a supported message type
 	switch icmpv6Header.Type {
 	case ipv6.ICMPTypeNeighborSolicitation:
-		if !i.tun.iface.IsTAP() {
+		if !i.tun.IsTAP() {
 			return nil, errors.New("Ignoring Neighbor Solicitation in TUN mode")
 		}
-		response, err := i.handle_ndp(datain[ipv6.HeaderLen:])
+		response, err := i.HandleNDP(datain[ipv6.HeaderLen:])
 		if err == nil {
 			// Create our ICMPv6 response
-			responsePacket, err := i.create_icmpv6_tun(
+			responsePacket, err := CreateICMPv6(
 				ipv6Header.Src, i.mylladdr,
 				ipv6.ICMPTypeNeighborAdvertisement, 0,
 				&icmp.DefaultMessageBody{Data: response})
@@ -176,7 +176,7 @@ func (i *icmpv6) parse_packet_tun(datain []byte, datamac *[]byte) ([]byte, error
 			return nil, err
 		}
 	case ipv6.ICMPTypeNeighborAdvertisement:
-		if !i.tun.iface.IsTAP() {
+		if !i.tun.IsTAP() {
 			return nil, errors.New("Ignoring Neighbor Advertisement in TUN mode")
 		}
 		if datamac != nil {
@@ -202,9 +202,9 @@ func (i *icmpv6) parse_packet_tun(datain []byte, datamac *[]byte) ([]byte, error
 // Creates an ICMPv6 packet based on the given icmp.MessageBody and other
 // parameters, complete with ethernet and IP headers, which can be written
 // directly to a TAP adapter.
-func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, src net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
-	// Pass through to create_icmpv6_tun
-	ipv6packet, err := i.create_icmpv6_tun(dst, src, mtype, mcode, mbody)
+func (i *ICMPv6) CreateICMPv6L2(dstmac macAddress, dst net.IP, src net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
+	// Pass through to CreateICMPv6
+	ipv6packet, err := CreateICMPv6(dst, src, mtype, mcode, mbody)
 	if err != nil {
 		return nil, err
 	}
@@ -224,9 +224,9 @@ func (i *icmpv6) create_icmpv6_tap(dstmac macAddress, dst net.IP, src net.IP, mt
 
 // Creates an ICMPv6 packet based on the given icmp.MessageBody and other
 // parameters, complete with IP headers only, which can be written directly to
-// a TUN adapter, or called directly by the create_icmpv6_tap function when
+// a TUN adapter, or called directly by the CreateICMPv6L2 function when
 // generating a message for TAP adapters.
-func (i *icmpv6) create_icmpv6_tun(dst net.IP, src net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
+func CreateICMPv6(dst net.IP, src net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
 	// Create the ICMPv6 message
 	icmpMessage := icmp.Message{
 		Type: mtype,
@@ -265,7 +265,7 @@ func (i *icmpv6) create_icmpv6_tun(dst net.IP, src net.IP, mtype ipv6.ICMPType, 
 	return responsePacket, nil
 }
 
-func (i *icmpv6) create_ndp_tap(dst address.Address) ([]byte, error) {
+func (i *ICMPv6) CreateNDPL2(dst address.Address) ([]byte, error) {
 	// Create the ND payload
 	var payload [28]byte
 	copy(payload[:4], []byte{0x00, 0x00, 0x00, 0x00})
@@ -287,7 +287,7 @@ func (i *icmpv6) create_ndp_tap(dst address.Address) ([]byte, error) {
 	copy(dstmac[2:6], dstaddr[12:16])
 
 	// Create the ND request
-	requestPacket, err := i.create_icmpv6_tap(
+	requestPacket, err := i.CreateICMPv6L2(
 		dstmac, dstaddr[:], i.mylladdr,
 		ipv6.ICMPTypeNeighborSolicitation, 0,
 		&icmp.DefaultMessageBody{Data: payload[:]})
@@ -305,7 +305,7 @@ func (i *icmpv6) create_ndp_tap(dst address.Address) ([]byte, error) {
 // when the host operating system generates an NDP request for any address in
 // the fd00::/8 range, so that the operating system knows to route that traffic
 // to the Yggdrasil TAP adapter.
-func (i *icmpv6) handle_ndp(in []byte) ([]byte, error) {
+func (i *ICMPv6) HandleNDP(in []byte) ([]byte, error) {
 	// Ignore NDP requests for anything outside of fd00::/8
 	var source address.Address
 	copy(source[:], in[8:])

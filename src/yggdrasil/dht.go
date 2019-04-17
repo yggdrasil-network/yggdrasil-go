@@ -86,7 +86,7 @@ func (t *dht) init(c *Core) {
 			e <- nil
 		}
 	}()
-	t.nodeID = *t.core.GetNodeID()
+	t.nodeID = *t.core.NodeID()
 	t.peers = make(chan *dhtInfo, 1024)
 	t.callbacks = make(map[dhtReqKey]dht_callbackInfo)
 	t.reset()

@@ -5,7 +5,7 @@ package yggdrasil
 // TODO clean up old/unused code, maybe improve comments on whatever is left
 
 // Send:
-//  Receive a packet from the tun
+//  Receive a packet from the adapter
 //  Look up session (if none exists, trigger a search)
 //  Hand off to session (which encrypts, etc)
 //  Session will pass it back to router.out, which hands it off to the self peer
@@ -20,21 +20,18 @@ package yggdrasil
 //  If it's dht/seach/etc. traffic, the router passes it to that part
 //  If it's an encapsulated IPv6 packet, the router looks up the session for it
 //  The packet is passed to the session, which decrypts it, router.recvPacket
-//  The router then runs some sanity checks before passing it to the tun
+//  The router then runs some sanity checks before passing it to the adapter
 
 import (
 	"bytes"
 	"time"
-
-	"golang.org/x/net/icmp"
-	"golang.org/x/net/ipv6"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
-// The router struct has channels to/from the tun/tap device and a self peer (0), which is how messages are passed between this node and the peers/switch layer.
+// The router struct has channels to/from the adapter device and a self peer (0), which is how messages are passed between this node and the peers/switch layer.
 // The router's mainLoop goroutine is responsible for managing all information related to the dht, searches, and crypto sessions.
 type router struct {
 	core        *Core
@@ -44,23 +41,44 @@ type router struct {
 	in          <-chan []byte          // packets we received from the network, link to peer's "out"
 	out         func([]byte)           // packets we're sending to the network, link to peer's "in"
 	toRecv      chan router_recvPacket // packets to handle via recvPacket()
-	tun         tunAdapter             // TUN/TAP adapter
-	adapters    []Adapter              // Other adapters
-	recv        chan<- []byte          // place where the tun pulls received packets from
-	send        <-chan []byte          // place where the tun puts outgoing packets
+	adapter     adapterImplementation  // TUN/TAP adapter
+	recv        chan<- []byte          // place where the adapter pulls received packets from
+	send        <-chan []byte          // place where the adapter puts outgoing packets
+	reject      chan<- RejectedPacket  // place where we send error packets back to adapter
 	reset       chan struct{}          // signal that coords changed (re-init sessions/dht)
 	admin       chan func()            // pass a lambda for the admin socket to query stuff
 	cryptokey   cryptokey
 	nodeinfo    nodeinfo
 }
 
-// Packet and session info, used to check that the packet matches a valid IP range or CKR prefix before sending to the tun.
+// Packet and session info, used to check that the packet matches a valid IP range or CKR prefix before sending to the adapter.
 type router_recvPacket struct {
 	bs    []byte
 	sinfo *sessionInfo
 }
 
-// Initializes the router struct, which includes setting up channels to/from the tun/tap.
+// RejectedPacketReason is the type code used to represent the reason that a
+// packet was rejected.
+type RejectedPacketReason int
+
+const (
+	// The router rejected the packet because it exceeds the session MTU for the
+	// given destination. In TUN/TAP, this results in the generation of an ICMPv6
+	// Packet Too Big message.
+	PacketTooBig = 1 + iota
+)
+
+// RejectedPacket represents a rejected packet from the router. This is passed
+// back to the adapter so that the adapter can respond appropriately, e.g. in
+// the case of TUN/TAP, a "PacketTooBig" reason can be used to generate an
+// ICMPv6 Packet Too Big response.
+type RejectedPacket struct {
+	Reason RejectedPacketReason
+	Packet []byte
+	Detail interface{}
+}
+
+// Initializes the router struct, which includes setting up channels to/from the adapter.
 func (r *router) init(core *Core) {
 	r.core = core
 	r.reconfigure = make(chan chan error, 1)
@@ -107,16 +125,20 @@ func (r *router) init(core *Core) {
 	r.toRecv = make(chan router_recvPacket, 32)
 	recv := make(chan []byte, 32)
 	send := make(chan []byte, 32)
+	reject := make(chan RejectedPacket, 32)
 	r.recv = recv
 	r.send = send
+	r.reject = reject
 	r.reset = make(chan struct{}, 1)
 	r.admin = make(chan func(), 32)
 	r.nodeinfo.init(r.core)
-	r.core.configMutex.RLock()
-	r.nodeinfo.setNodeInfo(r.core.config.NodeInfo, r.core.config.NodeInfoPrivacy)
-	r.core.configMutex.RUnlock()
+	r.core.config.Mutex.RLock()
+	r.nodeinfo.setNodeInfo(r.core.config.Current.NodeInfo, r.core.config.Current.NodeInfoPrivacy)
+	r.core.config.Mutex.RUnlock()
 	r.cryptokey.init(r.core)
-	r.tun.init(r.core, send, recv)
+	if r.adapter != nil {
+		r.adapter.Init(&r.core.config, r.core.log, send, recv, reject)
+	}
 }
 
 // Starts the mainLoop goroutine.
@@ -126,7 +148,7 @@ func (r *router) start() error {
 	return nil
 }
 
-// Takes traffic from the tun/tap and passes it to router.send, or from r.in and handles incoming traffic.
+// Takes traffic from the adapter and passes it to router.send, or from r.in and handles incoming traffic.
 // Also adds new peer info to the DHT.
 // Also resets the DHT and sesssions in the event of a coord change.
 // Also does periodic maintenance stuff.
@@ -157,9 +179,8 @@ func (r *router) mainLoop() {
 		case f := <-r.admin:
 			f()
 		case e := <-r.reconfigure:
-			r.core.configMutex.RLock()
-			e <- r.nodeinfo.setNodeInfo(r.core.config.NodeInfo, r.core.config.NodeInfoPrivacy)
-			r.core.configMutex.RUnlock()
+			current, _ := r.core.config.Get()
+			e <- r.nodeinfo.setNodeInfo(current.NodeInfo, current.NodeInfoPrivacy)
 		}
 	}
 }
@@ -168,7 +189,7 @@ func (r *router) mainLoop() {
 // If a session to the destination exists, gets the session and passes the packet to it.
 // If no session exists, it triggers (or continues) a search.
 // If the session hasn't responded recently, it triggers a ping or search to keep things alive or deal with broken coords *relatively* quickly.
-// It also deals with oversized packets if there are MTU issues by calling into icmpv6.go to spoof PacketTooBig traffic, or DestinationUnreachable if the other side has their tun/tap disabled.
+// It also deals with oversized packets if there are MTU issues by calling into icmpv6.go to spoof PacketTooBig traffic, or DestinationUnreachable if the other side has their adapter disabled.
 func (r *router) sendPacket(bs []byte) {
 	var sourceAddr address.Address
 	var destAddr address.Address
@@ -313,18 +334,11 @@ func (r *router) sendPacket(bs []byte) {
 				window = int(sinfo.getMTU())
 			}
 
-			// Create the Packet Too Big response
-			ptb := &icmp.PacketTooBig{
-				MTU:  int(sinfo.getMTU()),
-				Data: bs[:window],
-			}
-
-			// Create the ICMPv6 response from it
-			icmpv6Buf, err := r.tun.icmpv6.create_icmpv6_tun(
-				bs[8:24], bs[24:40],
-				ipv6.ICMPTypePacketTooBig, 0, ptb)
-			if err == nil {
-				r.recv <- icmpv6Buf
+			// Send the error back to the adapter
+			r.reject <- RejectedPacket{
+				Reason: PacketTooBig,
+				Packet: bs[:window],
+				Detail: int(sinfo.getMTU()),
 			}
 
 			// Don't continue - drop the packet
@@ -335,7 +349,7 @@ func (r *router) sendPacket(bs []byte) {
 }
 
 // Called for incoming traffic by the session worker for that connection.
-// Checks that the IP address is correct (matches the session) and passes the packet to the tun/tap.
+// Checks that the IP address is correct (matches the session) and passes the packet to the adapter.
 func (r *router) recvPacket(bs []byte, sinfo *sessionInfo) {
 	// Note: called directly by the session worker, not the router goroutine
 	if len(bs) < 24 {
@@ -398,7 +412,7 @@ func (r *router) handleIn(packet []byte) {
 }
 
 // Handles incoming traffic, i.e. encapuslated ordinary IPv6 packets.
-// Passes them to the crypto session worker to be decrypted and sent to the tun/tap.
+// Passes them to the crypto session worker to be decrypted and sent to the adapter.
 func (r *router) handleTraffic(packet []byte) {
 	defer util.PutBytes(packet)
 	p := wire_trafficPacket{}
@@ -432,7 +446,7 @@ func (r *router) handleProto(packet []byte) {
 		return
 	}
 	// Now do something with the bytes in bs...
-	// send dht messages to dht, sessionRefresh to sessions, data to tun...
+	// send dht messages to dht, sessionRefresh to sessions, data to adapter...
 	// For data, should check that key and IP match...
 	bsType, bsTypeLen := wire_decode_uint64(bs)
 	if bsTypeLen == 0 {

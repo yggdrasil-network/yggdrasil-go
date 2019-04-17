@@ -148,17 +148,17 @@ func (ss *sessions) init(core *Core) {
 
 // Determines whether the session firewall is enabled.
 func (ss *sessions) isSessionFirewallEnabled() bool {
-	ss.core.configMutex.RLock()
-	defer ss.core.configMutex.RUnlock()
+	ss.core.config.Mutex.RLock()
+	defer ss.core.config.Mutex.RUnlock()
 
-	return ss.core.config.SessionFirewall.Enable
+	return ss.core.config.Current.SessionFirewall.Enable
 }
 
 // Determines whether the session with a given publickey is allowed based on
 // session firewall rules.
 func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) bool {
-	ss.core.configMutex.RLock()
-	defer ss.core.configMutex.RUnlock()
+	ss.core.config.Mutex.RLock()
+	defer ss.core.config.Mutex.RUnlock()
 
 	// Allow by default if the session firewall is disabled
 	if !ss.isSessionFirewallEnabled() {
@@ -167,7 +167,7 @@ func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) b
 	// Prepare for checking whitelist/blacklist
 	var box crypto.BoxPubKey
 	// Reject blacklisted nodes
-	for _, b := range ss.core.config.SessionFirewall.BlacklistEncryptionPublicKeys {
+	for _, b := range ss.core.config.Current.SessionFirewall.BlacklistEncryptionPublicKeys {
 		key, err := hex.DecodeString(b)
 		if err == nil {
 			copy(box[:crypto.BoxPubKeyLen], key)
@@ -177,7 +177,7 @@ func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) b
 		}
 	}
 	// Allow whitelisted nodes
-	for _, b := range ss.core.config.SessionFirewall.WhitelistEncryptionPublicKeys {
+	for _, b := range ss.core.config.Current.SessionFirewall.WhitelistEncryptionPublicKeys {
 		key, err := hex.DecodeString(b)
 		if err == nil {
 			copy(box[:crypto.BoxPubKeyLen], key)
@@ -187,7 +187,7 @@ func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) b
 		}
 	}
 	// Allow outbound sessions if appropriate
-	if ss.core.config.SessionFirewall.AlwaysAllowOutbound {
+	if ss.core.config.Current.SessionFirewall.AlwaysAllowOutbound {
 		if initiator {
 			return true
 		}
@@ -201,11 +201,11 @@ func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) b
 		}
 	}
 	// Allow direct peers if appropriate
-	if ss.core.config.SessionFirewall.AllowFromDirect && isDirectPeer {
+	if ss.core.config.Current.SessionFirewall.AllowFromDirect && isDirectPeer {
 		return true
 	}
 	// Allow remote nodes if appropriate
-	if ss.core.config.SessionFirewall.AllowFromRemote && !isDirectPeer {
+	if ss.core.config.Current.SessionFirewall.AllowFromRemote && !isDirectPeer {
 		return true
 	}
 	// Finally, default-deny if not matching any of the above rules
@@ -277,7 +277,9 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.mySesPriv = *priv
 	sinfo.myNonce = *crypto.NewBoxNonce()
 	sinfo.theirMTU = 1280
-	sinfo.myMTU = uint16(ss.core.router.tun.mtu)
+	if ss.core.router.adapter != nil {
+		sinfo.myMTU = uint16(ss.core.router.adapter.MTU())
+	}
 	now := time.Now()
 	sinfo.time = now
 	sinfo.mtuTime = now

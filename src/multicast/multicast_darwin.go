@@ -1,6 +1,6 @@
 // +build darwin
 
-package yggdrasil
+package multicast
 
 /*
 #cgo CFLAGS: -x objective-c
@@ -31,11 +31,11 @@ import (
 
 var awdlGoroutineStarted bool
 
-func (m *multicast) multicastStarted() {
+func (m *Multicast) multicastStarted() {
 	if awdlGoroutineStarted {
 		return
 	}
-	m.core.log.Infoln("Multicast discovery will wake up AWDL if required")
+	m.log.Infoln("Multicast discovery will wake up AWDL if required")
 	awdlGoroutineStarted = true
 	for {
 		C.StopAWDLBrowsing()
@@ -49,7 +49,7 @@ func (m *multicast) multicastStarted() {
 	}
 }
 
-func (m *multicast) multicastReuse(network string, address string, c syscall.RawConn) error {
+func (m *Multicast) multicastReuse(network string, address string, c syscall.RawConn) error {
 	var control error
 	var reuseport error
 	var recvanyif error

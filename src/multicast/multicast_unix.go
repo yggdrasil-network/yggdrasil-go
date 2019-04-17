@@ -1,15 +1,15 @@
 // +build linux netbsd freebsd openbsd dragonflybsd
 
-package yggdrasil
+package multicast
 
 import "syscall"
 import "golang.org/x/sys/unix"
 
-func (m *multicast) multicastStarted() {
+func (m *Multicast) multicastStarted() {
 
 }
 
-func (m *multicast) multicastReuse(network string, address string, c syscall.RawConn) error {
+func (m *Multicast) multicastReuse(network string, address string, c syscall.RawConn) error {
 	var control error
 	var reuseport error
 

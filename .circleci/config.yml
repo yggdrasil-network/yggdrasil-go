@@ -24,11 +24,11 @@ jobs:
           command: |
               sudo apt-get install -y alien
 
-      - run:
-          name: Test debug builds
-          command: |
-              ./build -d
-              test -f yggdrasil && test -f yggdrasilctl
+    #  - run:
+    #      name: Test debug builds
+    #      command: |
+    #          ./build -d
+    #          test -f yggdrasil && test -f yggdrasilctl
 
       - run:
           name: Build for Linux (including Debian packages and RPMs)

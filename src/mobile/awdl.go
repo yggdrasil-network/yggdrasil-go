@@ -1,5 +1,6 @@
-package yggdrasil
+package mobile
 
+/*
 import (
 	"errors"
 	"io"
@@ -104,3 +105,4 @@ func (a *awdl) shutdown(identity string) error {
 	}
 	return errors.New("Interface not found or already closed")
 }
+*/

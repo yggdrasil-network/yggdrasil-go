@@ -1,6 +1,6 @@
 // +build openbsd freebsd netbsd
 
-package yggdrasil
+package tuntap
 
 import (
 	"encoding/binary"
@@ -77,7 +77,7 @@ type in6_ifreq_lifetime struct {
 // a system socket and making syscalls to the kernel. This is not refined though
 // and often doesn't work (if at all), therefore if a call fails, it resorts
 // to calling "ifconfig" instead.
-func (tun *tunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
+func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	var config water.Config
 	if ifname[:4] == "auto" {
 		ifname = "/dev/tap0"
@@ -103,20 +103,20 @@ func (tun *tunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 	return tun.setupAddress(addr)
 }
 
-func (tun *tunAdapter) setupAddress(addr string) error {
+func (tun *TunAdapter) setupAddress(addr string) error {
 	var sfd int
 	var err error
 
 	// Create system socket
 	if sfd, err = unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0); err != nil {
-		tun.core.log.Printf("Create AF_INET socket failed: %v.", err)
+		tun.Log.Printf("Create AF_INET socket failed: %v.", err)
 		return err
 	}
 
 	// Friendly output
-	tun.core.log.Infof("Interface name: %s", tun.iface.Name())
-	tun.core.log.Infof("Interface IPv6: %s", addr)
-	tun.core.log.Infof("Interface MTU: %d", tun.mtu)
+	tun.Log.Infof("Interface name: %s", tun.iface.Name())
+	tun.Log.Infof("Interface IPv6: %s", addr)
+	tun.Log.Infof("Interface MTU: %d", tun.mtu)
 
 	// Create the MTU request
 	var ir in6_ifreq_mtu
@@ -126,15 +126,15 @@ func (tun *tunAdapter) setupAddress(addr string) error {
 	// Set the MTU
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(sfd), uintptr(syscall.SIOCSIFMTU), uintptr(unsafe.Pointer(&ir))); errno != 0 {
 		err = errno
-		tun.core.log.Errorf("Error in SIOCSIFMTU: %v", errno)
+		tun.Log.Errorf("Error in SIOCSIFMTU: %v", errno)
 
 		// Fall back to ifconfig to set the MTU
 		cmd := exec.Command("ifconfig", tun.iface.Name(), "mtu", string(tun.mtu))
-		tun.core.log.Warnf("Using ifconfig as fallback: %v", strings.Join(cmd.Args, " "))
+		tun.Log.Warnf("Using ifconfig as fallback: %v", strings.Join(cmd.Args, " "))
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			tun.core.log.Errorf("SIOCSIFMTU fallback failed: %v.", err)
-			tun.core.log.Traceln(string(output))
+			tun.Log.Errorf("SIOCSIFMTU fallback failed: %v.", err)
+			tun.Log.Traceln(string(output))
 		}
 	}
 
@@ -155,15 +155,15 @@ func (tun *tunAdapter) setupAddress(addr string) error {
 	// Set the interface address
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(sfd), uintptr(SIOCSIFADDR_IN6), uintptr(unsafe.Pointer(&ar))); errno != 0 {
 		err = errno
-		tun.core.log.Errorf("Error in SIOCSIFADDR_IN6: %v", errno)
+		tun.Log.Errorf("Error in SIOCSIFADDR_IN6: %v", errno)
 
 		// Fall back to ifconfig to set the address
 		cmd := exec.Command("ifconfig", tun.iface.Name(), "inet6", addr)
-		tun.core.log.Warnf("Using ifconfig as fallback: %v", strings.Join(cmd.Args, " "))
+		tun.Log.Warnf("Using ifconfig as fallback: %v", strings.Join(cmd.Args, " "))
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			tun.core.log.Errorf("SIOCSIFADDR_IN6 fallback failed: %v.", err)
-			tun.core.log.Traceln(string(output))
+			tun.Log.Errorf("SIOCSIFADDR_IN6 fallback failed: %v.", err)
+			tun.Log.Traceln(string(output))
 		}
 	}
 

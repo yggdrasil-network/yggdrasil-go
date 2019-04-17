@@ -19,6 +19,8 @@ import (
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
+	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
@@ -26,7 +28,9 @@ type nodeConfig = config.NodeConfig
 type Core = yggdrasil.Core
 
 type node struct {
-	core Core
+	core      Core
+	tuntap    tuntap.TunAdapter
+	multicast multicast.Multicast
 }
 
 func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeConfig {
@@ -185,8 +189,8 @@ func main() {
 	var err error
 	switch {
 	case *version:
-		fmt.Println("Build name:", yggdrasil.GetBuildName())
-		fmt.Println("Build version:", yggdrasil.GetBuildVersion())
+		fmt.Println("Build name:", yggdrasil.BuildName())
+		fmt.Println("Build version:", yggdrasil.BuildVersion())
 		os.Exit(0)
 	case *autoconf:
 		// Use an autoconf-generated config, this will give us random keys and
@@ -244,12 +248,19 @@ func main() {
 	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
 	// don't need to create this manually.
 	n := node{}
-	// Now that we have a working configuration, we can now actually start
-	// Yggdrasil. This will start the router, switch, DHT node, TCP and UDP
-	// sockets, TUN/TAP adapter and multicast discovery port.
-	if err := n.core.Start(cfg, logger); err != nil {
+	// Before we start the node, set the TUN/TAP to be our router adapter
+	n.core.SetRouterAdapter(&n.tuntap)
+	// Now start Yggdrasil - this starts the DHT, router, switch and other core
+	// components needed for Yggdrasil to operate
+	state, err := n.core.Start(cfg, logger)
+	if err != nil {
 		logger.Errorln("An error occurred during startup")
 		panic(err)
+	}
+	// Start the multicast interface
+	n.multicast.Init(&n.core, state, logger, nil)
+	if err := n.multicast.Start(); err != nil {
+		logger.Errorln("An error occurred starting multicast:", err)
 	}
 	// The Stop function ensures that the TUN/TAP adapter is correctly shut down
 	// before the program exits.
@@ -258,8 +269,8 @@ func main() {
 	}()
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
-	address := n.core.GetAddress()
-	subnet := n.core.GetSubnet()
+	address := n.core.Address()
+	subnet := n.core.Subnet()
 	logger.Infof("Your IPv6 address is %s", address.String())
 	logger.Infof("Your IPv6 subnet is %s", subnet.String())
 	// Catch interrupts from the operating system to exit gracefully.

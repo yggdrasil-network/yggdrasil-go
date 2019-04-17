@@ -16,7 +16,6 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 
 // TODO: Add authentication
@@ -58,19 +57,17 @@ func (a *admin) init(c *Core) {
 	go func() {
 		for {
 			e := <-a.reconfigure
-			a.core.configMutex.RLock()
-			if a.core.config.AdminListen != a.core.configOld.AdminListen {
-				a.listenaddr = a.core.config.AdminListen
+			current, previous := a.core.config.Get()
+			if current.AdminListen != previous.AdminListen {
+				a.listenaddr = current.AdminListen
 				a.close()
 				a.start()
 			}
-			a.core.configMutex.RUnlock()
 			e <- nil
 		}
 	}()
-	a.core.configMutex.RLock()
-	a.listenaddr = a.core.config.AdminListen
-	a.core.configMutex.RUnlock()
+	current, _ := a.core.config.Get()
+	a.listenaddr = current.AdminListen
 	a.addHandler("list", []string{}, func(in admin_info) (admin_info, error) {
 		handlers := make(map[string]interface{})
 		for _, handler := range a.handlers {
@@ -171,54 +168,54 @@ func (a *admin) init(c *Core) {
 			}, errors.New("Failed to remove peer")
 		}
 	})
-	a.addHandler("getTunTap", []string{}, func(in admin_info) (r admin_info, e error) {
-		defer func() {
-			if err := recover(); err != nil {
-				r = admin_info{"none": admin_info{}}
-				e = nil
-			}
-		}()
+	/*	a.addHandler("getTunTap", []string{}, func(in admin_info) (r admin_info, e error) {
+			defer func() {
+				if err := recover(); err != nil {
+					r = admin_info{"none": admin_info{}}
+					e = nil
+				}
+			}()
 
-		return admin_info{
-			a.core.router.tun.iface.Name(): admin_info{
-				"tap_mode": a.core.router.tun.iface.IsTAP(),
-				"mtu":      a.core.router.tun.mtu,
-			},
-		}, nil
-	})
-	a.addHandler("setTunTap", []string{"name", "[tap_mode]", "[mtu]"}, func(in admin_info) (admin_info, error) {
-		// Set sane defaults
-		iftapmode := defaults.GetDefaults().DefaultIfTAPMode
-		ifmtu := defaults.GetDefaults().DefaultIfMTU
-		// Has TAP mode been specified?
-		if tap, ok := in["tap_mode"]; ok {
-			iftapmode = tap.(bool)
-		}
-		// Check we have enough params for MTU
-		if mtu, ok := in["mtu"]; ok {
-			if mtu.(float64) >= 1280 && ifmtu <= defaults.GetDefaults().MaximumIfMTU {
-				ifmtu = int(in["mtu"].(float64))
-			}
-		}
-		// Start the TUN adapter
-		if err := a.startTunWithMTU(in["name"].(string), iftapmode, ifmtu); err != nil {
-			return admin_info{}, errors.New("Failed to configure adapter")
-		} else {
 			return admin_info{
 				a.core.router.tun.iface.Name(): admin_info{
 					"tap_mode": a.core.router.tun.iface.IsTAP(),
-					"mtu":      ifmtu,
+					"mtu":      a.core.router.tun.mtu,
 				},
 			}, nil
-		}
-	})
-	a.addHandler("getMulticastInterfaces", []string{}, func(in admin_info) (admin_info, error) {
+		})
+		a.addHandler("setTunTap", []string{"name", "[tap_mode]", "[mtu]"}, func(in admin_info) (admin_info, error) {
+			// Set sane defaults
+			iftapmode := defaults.GetDefaults().DefaultIfTAPMode
+			ifmtu := defaults.GetDefaults().DefaultIfMTU
+			// Has TAP mode been specified?
+			if tap, ok := in["tap_mode"]; ok {
+				iftapmode = tap.(bool)
+			}
+			// Check we have enough params for MTU
+			if mtu, ok := in["mtu"]; ok {
+				if mtu.(float64) >= 1280 && ifmtu <= defaults.GetDefaults().MaximumIfMTU {
+					ifmtu = int(in["mtu"].(float64))
+				}
+			}
+			// Start the TUN adapter
+			if err := a.startTunWithMTU(in["name"].(string), iftapmode, ifmtu); err != nil {
+				return admin_info{}, errors.New("Failed to configure adapter")
+			} else {
+				return admin_info{
+					a.core.router.tun.iface.Name(): admin_info{
+						"tap_mode": a.core.router.tun.iface.IsTAP(),
+						"mtu":      ifmtu,
+					},
+				}, nil
+			}
+		})*/
+	/*a.addHandler("getMulticastInterfaces", []string{}, func(in admin_info) (admin_info, error) {
 		var intfs []string
 		for _, v := range a.core.multicast.interfaces() {
 			intfs = append(intfs, v.Name)
 		}
 		return admin_info{"multicast_interfaces": intfs}, nil
-	})
+	})*/
 	a.addHandler("getAllowedEncryptionPublicKeys", []string{}, func(in admin_info) (admin_info, error) {
 		return admin_info{"allowed_box_pubs": a.getAllowedEncryptionPublicKeys()}, nil
 	})
@@ -609,6 +606,7 @@ func (a *admin) removePeer(p string) error {
 }
 
 // startTunWithMTU creates the tun/tap device, sets its address, and sets the MTU to the provided value.
+/*
 func (a *admin) startTunWithMTU(ifname string, iftapmode bool, ifmtu int) error {
 	// Close the TUN first if open
 	_ = a.core.router.tun.close()
@@ -636,6 +634,7 @@ func (a *admin) startTunWithMTU(ifname string, iftapmode bool, ifmtu int) error 
 	go a.core.router.tun.write()
 	return nil
 }
+*/
 
 // getData_getSelf returns the self node's info for admin responses.
 func (a *admin) getData_getSelf() *admin_nodeInfo {
@@ -643,14 +642,14 @@ func (a *admin) getData_getSelf() *admin_nodeInfo {
 	coords := table.self.getCoords()
 	self := admin_nodeInfo{
 		{"box_pub_key", hex.EncodeToString(a.core.boxPub[:])},
-		{"ip", a.core.GetAddress().String()},
-		{"subnet", a.core.GetSubnet().String()},
+		{"ip", a.core.Address().String()},
+		{"subnet", a.core.Subnet().String()},
 		{"coords", fmt.Sprint(coords)},
 	}
-	if name := GetBuildName(); name != "unknown" {
+	if name := BuildName(); name != "unknown" {
 		self = append(self, admin_pair{"build_name", name})
 	}
-	if version := GetBuildVersion(); version != "unknown" {
+	if version := BuildVersion(); version != "unknown" {
 		self = append(self, admin_pair{"build_version", version})
 	}
 
