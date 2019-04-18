@@ -27,10 +27,11 @@ func (c *Conn) startSearch() {
 		}
 		if sinfo != nil {
 			c.session = sinfo
-			c.core.log.Println("Search from API found", hex.EncodeToString(sinfo.theirPermPub[:]))
+			c.core.log.Println("Search from API succeeded")
+			c.core.log.Println("Pubkey:", hex.EncodeToString(sinfo.theirPermPub[:]))
+			c.core.log.Println("Coords:", sinfo.coords)
 		}
 	}
-	// Try and search for the node on the network
 	doSearch := func() {
 		sinfo, isIn := c.core.searches.searches[*c.nodeID]
 		if !isIn {
@@ -43,25 +44,16 @@ func (c *Conn) startSearch() {
 	var isIn bool
 	switch {
 	case !isIn || !sinfo.init:
-		// No or unintiialized session, so we need to search first
 		doSearch()
 	case time.Since(sinfo.time) > 6*time.Second:
 		if sinfo.time.Before(sinfo.pingTime) && time.Since(sinfo.pingTime) > 6*time.Second {
-			// We haven't heard from the dest in a while
-			// We tried pinging but didn't get a response
-			// They may have changed coords
-			// Try searching to discover new coords
-			// Note that search spam is throttled internally
 			doSearch()
 		} else {
-			// We haven't heard about the dest in a while
 			now := time.Now()
 			if !sinfo.time.Before(sinfo.pingTime) {
-				// Update pingTime to start the clock for searches (above)
 				sinfo.pingTime = now
 			}
 			if time.Since(sinfo.pingSend) > time.Second {
-				// Send at most 1 ping per second
 				sinfo.pingSend = now
 				c.core.sessions.sendPingPong(sinfo, false)
 			}
@@ -72,6 +64,10 @@ func (c *Conn) startSearch() {
 func (c *Conn) Read(b []byte) (int, error) {
 	if c.session == nil {
 		return 0, errors.New("session not open")
+	}
+	if !c.session.init {
+		// To prevent blocking forever on a session that isn't initialised
+		return 0, errors.New("session not initialised")
 	}
 	p := <-c.session.recv
 	defer util.PutBytes(p.Payload)
