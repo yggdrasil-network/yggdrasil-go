@@ -100,17 +100,17 @@ func (c *Conn) startSearch() {
 
 func (c *Conn) Read(b []byte) (int, error) {
 	if c.session == nil {
-		return 0, errors.New("invalid session")
+		return 0, errors.New("session not open")
 	}
 	p := <-c.session.recv
 	defer util.PutBytes(p.Payload)
 	if !c.session.nonceIsOK(&p.Nonce) {
-		return 0, errors.New("invalid nonce")
+		return 0, errors.New("packet dropped due to invalid nonce")
 	}
 	bs, isOK := crypto.BoxOpen(&c.session.sharedSesKey, p.Payload, &p.Nonce)
 	if !isOK {
 		util.PutBytes(bs)
-		return 0, errors.New("failed to decrypt")
+		return 0, errors.New("packet dropped due to decryption failure")
 	}
 	b = b[:0]
 	b = append(b, bs...)
@@ -125,7 +125,7 @@ func (c *Conn) Write(b []byte) (int, error) {
 		c.core.router.doAdmin(func() {
 			c.startSearch()
 		})
-		return 0, errors.New("invalid session")
+		return 0, errors.New("session not open")
 	}
 	defer util.PutBytes(b)
 	if !c.session.init {
@@ -146,7 +146,7 @@ func (c *Conn) Write(b []byte) (int, error) {
 	packet := p.encode()
 	c.session.bytesSent += uint64(len(b))
 	c.session.send <- packet
-	//c.session.core.router.out(packet)
+	c.session.core.router.out(packet)
 	return len(b), nil
 }
 

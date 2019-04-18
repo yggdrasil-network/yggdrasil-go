@@ -523,7 +523,7 @@ func (ss *sessions) resetInits() {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
+/*
 // This is for a per-session worker.
 // It handles calling the relatively expensive crypto operations.
 // It's also responsible for checking nonces and dropping out-of-date/duplicate packets, or else calling the function to update nonces if the packet is OK.
