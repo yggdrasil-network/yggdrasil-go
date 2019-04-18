@@ -245,6 +245,12 @@ func (r *router) sendPacket(bs []byte) {
 			return
 		}
 	}
+	searchCompleted := func(sinfo *sessionInfo, err error) {
+		if err != nil {
+			r.core.log.Debugln("DHT search failed:", err)
+			return
+		}
+	}
 	doSearch := func(packet []byte) {
 		var nodeID, mask *crypto.NodeID
 		switch {
@@ -270,7 +276,7 @@ func (r *router) sendPacket(bs []byte) {
 		}
 		sinfo, isIn := r.core.searches.searches[*nodeID]
 		if !isIn {
-			sinfo = r.core.searches.newIterSearch(nodeID, mask)
+			sinfo = r.core.searches.newIterSearch(nodeID, mask, searchCompleted)
 		}
 		if packet != nil {
 			sinfo.packet = packet

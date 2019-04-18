@@ -7,6 +7,7 @@ package yggdrasil
 import (
 	"bytes"
 	"encoding/hex"
+	"sync"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
@@ -17,35 +18,38 @@ import (
 // All the information we know about an active session.
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
 type sessionInfo struct {
-	core         *Core
-	reconfigure  chan chan error
-	theirAddr    address.Address
-	theirSubnet  address.Subnet
-	theirPermPub crypto.BoxPubKey
-	theirSesPub  crypto.BoxPubKey
-	mySesPub     crypto.BoxPubKey
-	mySesPriv    crypto.BoxPrivKey
-	sharedSesKey crypto.BoxSharedKey // derived from session keys
-	theirHandle  crypto.Handle
-	myHandle     crypto.Handle
-	theirNonce   crypto.BoxNonce
-	myNonce      crypto.BoxNonce
-	theirMTU     uint16
-	myMTU        uint16
-	wasMTUFixed  bool      // Was the MTU fixed by a receive error?
-	time         time.Time // Time we last received a packet
-	coords       []byte    // coords of destination
-	packet       []byte    // a buffered packet, sent immediately on ping/pong
-	init         bool      // Reset if coords change
-	send         chan []byte
-	recv         chan *wire_trafficPacket
-	nonceMask    uint64
-	tstamp       int64     // tstamp from their last session ping, replay attack mitigation
-	mtuTime      time.Time // time myMTU was last changed
-	pingTime     time.Time // time the first ping was sent since the last received packet
-	pingSend     time.Time // time the last ping was sent
-	bytesSent    uint64    // Bytes of real traffic sent in this session
-	bytesRecvd   uint64    // Bytes of real traffic received in this session
+	core            *Core
+	reconfigure     chan chan error
+	theirAddr       address.Address
+	theirSubnet     address.Subnet
+	theirPermPub    crypto.BoxPubKey
+	theirSesPub     crypto.BoxPubKey
+	mySesPub        crypto.BoxPubKey
+	mySesPriv       crypto.BoxPrivKey
+	sharedSesKey    crypto.BoxSharedKey // derived from session keys
+	theirHandle     crypto.Handle
+	myHandle        crypto.Handle
+	theirNonce      crypto.BoxNonce
+	theirNonceMutex sync.RWMutex // protects the above
+	myNonce         crypto.BoxNonce
+	myNonceMutex    sync.RWMutex // protects the above
+	theirMTU        uint16
+	myMTU           uint16
+	wasMTUFixed     bool      // Was the MTU fixed by a receive error?
+	time            time.Time // Time we last received a packet
+	coords          []byte    // coords of destination
+	packet          []byte    // a buffered packet, sent immediately on ping/pong
+	init            bool      // Reset if coords change
+	send            chan []byte
+	recv            chan *wire_trafficPacket
+	nonceMask       uint64
+	tstamp          int64     // tstamp from their last session ping, replay attack mitigation
+	tstampMutex     int64     // protects the above
+	mtuTime         time.Time // time myMTU was last changed
+	pingTime        time.Time // time the first ping was sent since the last received packet
+	pingSend        time.Time // time the last ping was sent
+	bytesSent       uint64    // Bytes of real traffic sent in this session
+	bytesRecvd      uint64    // Bytes of real traffic received in this session
 }
 
 // Represents a session ping/pong packet, andincludes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
@@ -101,17 +105,14 @@ func (s *sessionInfo) timedout() bool {
 // Sessions are indexed by handle.
 // Additionally, stores maps of address/subnet onto keys, and keys onto handles.
 type sessions struct {
-	core        *Core
-	reconfigure chan chan error
-	lastCleanup time.Time
-	// Maps known permanent keys to their shared key, used by DHT a lot
-	permShared map[crypto.BoxPubKey]*crypto.BoxSharedKey
-	// Maps (secret) handle onto session info
-	sinfos map[crypto.Handle]*sessionInfo
-	// Maps mySesPub onto handle
-	byMySes map[crypto.BoxPubKey]*crypto.Handle
-	// Maps theirPermPub onto handle
-	byTheirPerm  map[crypto.BoxPubKey]*crypto.Handle
+	core         *Core
+	reconfigure  chan chan error
+	lastCleanup  time.Time
+	permShared   map[crypto.BoxPubKey]*crypto.BoxSharedKey // Maps known permanent keys to their shared key, used by DHT a lot
+	sinfos       map[crypto.Handle]*sessionInfo            // Maps (secret) handle onto session info
+	conns        map[crypto.Handle]*Conn                   // Maps (secret) handle onto connections
+	byMySes      map[crypto.BoxPubKey]*crypto.Handle       // Maps mySesPub onto handle
+	byTheirPerm  map[crypto.BoxPubKey]*crypto.Handle       // Maps theirPermPub onto handle
 	addrToPerm   map[address.Address]*crypto.BoxPubKey
 	subnetToPerm map[address.Subnet]*crypto.BoxPubKey
 }

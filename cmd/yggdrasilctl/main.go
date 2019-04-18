@@ -277,6 +277,9 @@ func main() {
 					fmt.Println("Coords:", coords)
 				}
 				if *verbose {
+					if nodeID, ok := v.(map[string]interface{})["node_id"].(string); ok {
+						fmt.Println("Node ID:", nodeID)
+					}
 					if boxPubKey, ok := v.(map[string]interface{})["box_pub_key"].(string); ok {
 						fmt.Println("Public encryption key:", boxPubKey)
 					}

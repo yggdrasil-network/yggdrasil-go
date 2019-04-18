@@ -640,7 +640,9 @@ func (a *admin) startTunWithMTU(ifname string, iftapmode bool, ifmtu int) error 
 func (a *admin) getData_getSelf() *admin_nodeInfo {
 	table := a.core.switchTable.table.Load().(lookupTable)
 	coords := table.self.getCoords()
+	nodeid := *crypto.GetNodeID(&a.core.boxPub)
 	self := admin_nodeInfo{
+		{"node_id", hex.EncodeToString(nodeid[:])},
 		{"box_pub_key", hex.EncodeToString(a.core.boxPub[:])},
 		{"ip", a.core.Address().String()},
 		{"subnet", a.core.Subnet().String()},
