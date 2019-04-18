@@ -9,35 +9,6 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
-func (c *Core) Dial(network, address string) (Conn, error) {
-	conn := Conn{}
-	nodeID := crypto.NodeID{}
-	nodeMask := crypto.NodeID{}
-	// Process
-	switch network {
-	case "nodeid":
-		// A node ID was provided - we don't need to do anything special with it
-		dest, err := hex.DecodeString(address)
-		if err != nil {
-			return Conn{}, err
-		}
-		copy(nodeID[:], dest)
-		for i := range nodeMask {
-			nodeMask[i] = 0xFF
-		}
-	default:
-		// An unexpected address type was given, so give up
-		return Conn{}, errors.New("unexpected address type")
-	}
-	conn.core = c
-	conn.nodeID = &nodeID
-	conn.nodeMask = &nodeMask
-	conn.core.router.doAdmin(func() {
-		conn.startSearch()
-	})
-	return conn, nil
-}
-
 type Conn struct {
 	core          *Core
 	nodeID        *crypto.NodeID
