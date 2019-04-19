@@ -29,9 +29,10 @@ type sessionInfo struct {
 	theirHandle     crypto.Handle
 	myHandle        crypto.Handle
 	theirNonce      crypto.BoxNonce
-	theirNonceMutex sync.RWMutex // protects the above
+	theirNonceMask  uint64
+	theirNonceMutex sync.Mutex // protects the above
 	myNonce         crypto.BoxNonce
-	myNonceMutex    sync.RWMutex // protects the above
+	myNonceMutex    sync.Mutex // protects the above
 	theirMTU        uint16
 	myMTU           uint16
 	wasMTUFixed     bool      // Was the MTU fixed by a receive error?
@@ -42,7 +43,6 @@ type sessionInfo struct {
 	send            chan []byte
 	recv            chan *wire_trafficPacket
 	closed          chan interface{}
-	nonceMask       uint64
 	tstamp          int64     // tstamp from their last session ping, replay attack mitigation
 	tstampMutex     int64     // protects the above
 	mtuTime         time.Time // time myMTU was last changed
@@ -79,8 +79,10 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 		s.theirSesPub = p.SendSesPub
 		s.theirHandle = p.Handle
 		s.sharedSesKey = *crypto.GetSharedKey(&s.mySesPriv, &s.theirSesPub)
+		s.theirNonceMutex.Lock()
 		s.theirNonce = crypto.BoxNonce{}
-		s.nonceMask = 0
+		s.theirNonceMask = 0
+		s.theirNonceMutex.Unlock()
 	}
 	if p.MTU >= 1280 || p.MTU == 0 {
 		s.theirMTU = p.MTU
@@ -270,6 +272,10 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 		return nil
 	}
 	sinfo := sessionInfo{}
+	sinfo.myNonceMutex.Lock()
+	sinfo.theirNonceMutex.Lock()
+	defer sinfo.myNonceMutex.Unlock()
+	defer sinfo.theirNonceMutex.Unlock()
 	sinfo.core = ss.core
 	sinfo.reconfigure = make(chan chan error, 1)
 	sinfo.theirPermPub = *theirPermKey
@@ -389,7 +395,9 @@ func (ss *sessions) getPing(sinfo *sessionInfo) sessionPing {
 		Coords:      coords,
 		MTU:         sinfo.myMTU,
 	}
+	sinfo.myNonceMutex.Lock()
 	sinfo.myNonce.Increment()
+	sinfo.myNonceMutex.Unlock()
 	return ref
 }
 
@@ -493,26 +501,30 @@ func (sinfo *sessionInfo) getMTU() uint16 {
 // Checks if a packet's nonce is recent enough to fall within the window of allowed packets, and not already received.
 func (sinfo *sessionInfo) nonceIsOK(theirNonce *crypto.BoxNonce) bool {
 	// The bitmask is to allow for some non-duplicate out-of-order packets
+	sinfo.theirNonceMutex.Lock()
+	defer sinfo.theirNonceMutex.Unlock()
 	diff := theirNonce.Minus(&sinfo.theirNonce)
 	if diff > 0 {
 		return true
 	}
-	return ^sinfo.nonceMask&(0x01<<uint64(-diff)) != 0
+	return ^sinfo.theirNonceMask&(0x01<<uint64(-diff)) != 0
 }
 
 // Updates the nonce mask by (possibly) shifting the bitmask and setting the bit corresponding to this nonce to 1, and then updating the most recent nonce
 func (sinfo *sessionInfo) updateNonce(theirNonce *crypto.BoxNonce) {
+	sinfo.theirNonceMutex.Lock()
+	defer sinfo.theirNonceMutex.Unlock()
 	// Shift nonce mask if needed
 	// Set bit
 	diff := theirNonce.Minus(&sinfo.theirNonce)
 	if diff > 0 {
 		// This nonce is newer, so shift the window before setting the bit, and update theirNonce in the session info.
-		sinfo.nonceMask <<= uint64(diff)
-		sinfo.nonceMask &= 0x01
+		sinfo.theirNonceMask <<= uint64(diff)
+		sinfo.theirNonceMask &= 0x01
 		sinfo.theirNonce = *theirNonce
 	} else {
 		// This nonce is older, so set the bit but do not shift the window.
-		sinfo.nonceMask &= 0x01 << uint64(-diff)
+		sinfo.theirNonceMask &= 0x01 << uint64(-diff)
 	}
 }
 

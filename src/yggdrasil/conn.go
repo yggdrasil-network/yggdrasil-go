@@ -3,6 +3,7 @@ package yggdrasil
 import (
 	"encoding/hex"
 	"errors"
+	"sync/atomic"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
@@ -84,7 +85,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 		b = append(b, bs...)
 		c.session.updateNonce(&p.Nonce)
 		c.session.time = time.Now()
-		c.session.bytesRecvd += uint64(len(bs))
+		atomic.AddUint64(&c.session.bytesRecvd, uint64(len(b)))
 		return len(b), nil
 	case <-c.session.closed:
 		return len(b), errors.New("session was closed")
@@ -106,7 +107,9 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 	// code isn't multithreaded so appending to this is safe
 	coords := c.session.coords
 	// Prepare the payload
+	c.session.myNonceMutex.Lock()
 	payload, nonce := crypto.BoxSeal(&c.session.sharedSesKey, b, &c.session.myNonce)
+	c.session.myNonceMutex.Unlock()
 	defer util.PutBytes(payload)
 	p := wire_trafficPacket{
 		Coords:  coords,
@@ -115,7 +118,7 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 		Payload: payload,
 	}
 	packet := p.encode()
-	c.session.bytesSent += uint64(len(b))
+	atomic.AddUint64(&c.session.bytesSent, uint64(len(b)))
 	select {
 	case c.session.send <- packet:
 	case <-c.session.closed:
