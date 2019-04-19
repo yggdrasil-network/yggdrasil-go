@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"golang.org/x/text/encoding/unicode"
 
@@ -266,6 +267,67 @@ func main() {
 	// before the program exits.
 	defer func() {
 		n.core.Stop()
+	}()
+	// Listen for new sessions
+	go func() {
+		listener, err := n.core.ListenConn()
+		if err != nil {
+			logger.Errorln("Unable to listen for sessions:", err)
+			return
+		}
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				logger.Errorln("Accept:", err)
+				continue
+			}
+			logger.Println("Accepted")
+			for {
+				b := []byte{}
+				if n, err := conn.Read(b); err != nil {
+					logger.Errorln("Read failed:", err)
+					time.Sleep(time.Second * 2)
+				} else {
+					logger.Println("Read", n, "bytes:", b)
+					b = []byte{5, 5, 5}
+					if n, err := conn.Write(b); err != nil {
+						logger.Errorln("Write failed:", err)
+						time.Sleep(time.Second * 2)
+					} else {
+						logger.Println("Wrote", n, "bytes:", b)
+					}
+				}
+			}
+		}
+	}()
+	// Try creating new sessions
+	go func() {
+		if cfg.EncryptionPublicKey != "533574224115f835b7c7db6433986bc5aef855ff9c9568c01abeb0fbed3e8810" {
+			return
+		}
+		time.Sleep(time.Second * 2)
+		conn, err := n.core.Dial("nodeid", "9890e135604e8aa6039a909e40c629824d852042a70e51957d5b9d700195663d50552e8e869af132b4617d76f8ef00314d94cce23aa8d6b051b3b952a32a4966")
+		if err != nil {
+			logger.Errorln("Dial:", err)
+			return
+		}
+		go func() {
+			for {
+				time.Sleep(time.Second * 2)
+				b := []byte{1, 2, 3, 4, 5}
+				if n, err := conn.Write(b); err != nil {
+					logger.Errorln("Write failed:", err)
+				} else {
+					logger.Println("Wrote", n, "bytes:", b)
+					b = b[:0]
+					if n, err := conn.Read(b); err != nil {
+						logger.Errorln("Read failed:", err)
+					} else {
+						logger.Println("Read", n, "bytes:", b)
+					}
+				}
+			}
+		}()
 	}()
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
