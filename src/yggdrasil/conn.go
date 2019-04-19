@@ -88,8 +88,10 @@ func (c *Conn) Read(b []byte) (int, error) {
 				util.PutBytes(bs)
 				return errors.New("packet dropped due to decryption failure")
 			}
-			b = b[:0]
-			b = append(b, bs...)
+			copy(b, bs)
+			if len(bs) < len(b) {
+				b = b[:len(bs)]
+			}
 			c.session.updateNonce(&p.Nonce)
 			c.session.time = time.Now()
 			return nil

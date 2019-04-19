@@ -283,7 +283,7 @@ func main() {
 			}
 			logger.Println("Accepted")
 			for {
-				b := []byte{}
+				b := make([]byte, 100)
 				if n, err := conn.Read(b); err != nil {
 					logger.Errorln("Read failed:", err)
 					time.Sleep(time.Second * 2)
@@ -319,7 +319,7 @@ func main() {
 					logger.Errorln("Write failed:", err)
 				} else {
 					logger.Println("Wrote", n, "bytes:", b)
-					b = b[:0]
+					b = make([]byte, 100)
 					if n, err := conn.Read(b); err != nil {
 						logger.Errorln("Read failed:", err)
 					} else {
