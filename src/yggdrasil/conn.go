@@ -73,18 +73,26 @@ func (c *Conn) Read(b []byte) (int, error) {
 			return 0, errors.New("session was closed")
 		}
 		defer util.PutBytes(p.Payload)
-		if !c.session.nonceIsOK(&p.Nonce) {
-			return 0, errors.New("packet dropped due to invalid nonce")
+		err := func() error {
+			c.session.theirNonceMutex.Lock()
+			defer c.session.theirNonceMutex.Unlock()
+			if !c.session.nonceIsOK(&p.Nonce) {
+				return errors.New("packet dropped due to invalid nonce")
+			}
+			bs, isOK := crypto.BoxOpen(&c.session.sharedSesKey, p.Payload, &p.Nonce)
+			if !isOK {
+				util.PutBytes(bs)
+				return errors.New("packet dropped due to decryption failure")
+			}
+			b = b[:0]
+			b = append(b, bs...)
+			c.session.updateNonce(&p.Nonce)
+			c.session.time = time.Now()
+			return nil
+		}()
+		if err != nil {
+			return 0, err
 		}
-		bs, isOK := crypto.BoxOpen(&c.session.sharedSesKey, p.Payload, &p.Nonce)
-		if !isOK {
-			util.PutBytes(bs)
-			return 0, errors.New("packet dropped due to decryption failure")
-		}
-		b = b[:0]
-		b = append(b, bs...)
-		c.session.updateNonce(&p.Nonce)
-		c.session.time = time.Now()
 		atomic.AddUint64(&c.session.bytesRecvd, uint64(len(b)))
 		return len(b), nil
 	case <-c.session.closed:

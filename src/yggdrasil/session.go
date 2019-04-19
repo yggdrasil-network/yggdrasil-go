@@ -79,10 +79,8 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 		s.theirSesPub = p.SendSesPub
 		s.theirHandle = p.Handle
 		s.sharedSesKey = *crypto.GetSharedKey(&s.mySesPriv, &s.theirSesPub)
-		s.theirNonceMutex.Lock()
 		s.theirNonce = crypto.BoxNonce{}
 		s.theirNonceMask = 0
-		s.theirNonceMutex.Unlock()
 	}
 	if p.MTU >= 1280 || p.MTU == 0 {
 		s.theirMTU = p.MTU
@@ -272,10 +270,6 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 		return nil
 	}
 	sinfo := sessionInfo{}
-	sinfo.myNonceMutex.Lock()
-	sinfo.theirNonceMutex.Lock()
-	defer sinfo.myNonceMutex.Unlock()
-	defer sinfo.theirNonceMutex.Unlock()
 	sinfo.core = ss.core
 	sinfo.reconfigure = make(chan chan error, 1)
 	sinfo.theirPermPub = *theirPermKey
@@ -395,9 +389,7 @@ func (ss *sessions) getPing(sinfo *sessionInfo) sessionPing {
 		Coords:      coords,
 		MTU:         sinfo.myMTU,
 	}
-	sinfo.myNonceMutex.Lock()
 	sinfo.myNonce.Increment()
-	sinfo.myNonceMutex.Unlock()
 	return ref
 }
 
@@ -501,8 +493,6 @@ func (sinfo *sessionInfo) getMTU() uint16 {
 // Checks if a packet's nonce is recent enough to fall within the window of allowed packets, and not already received.
 func (sinfo *sessionInfo) nonceIsOK(theirNonce *crypto.BoxNonce) bool {
 	// The bitmask is to allow for some non-duplicate out-of-order packets
-	sinfo.theirNonceMutex.Lock()
-	defer sinfo.theirNonceMutex.Unlock()
 	diff := theirNonce.Minus(&sinfo.theirNonce)
 	if diff > 0 {
 		return true
@@ -512,8 +502,6 @@ func (sinfo *sessionInfo) nonceIsOK(theirNonce *crypto.BoxNonce) bool {
 
 // Updates the nonce mask by (possibly) shifting the bitmask and setting the bit corresponding to this nonce to 1, and then updating the most recent nonce
 func (sinfo *sessionInfo) updateNonce(theirNonce *crypto.BoxNonce) {
-	sinfo.theirNonceMutex.Lock()
-	defer sinfo.theirNonceMutex.Unlock()
 	// Shift nonce mask if needed
 	// Set bit
 	diff := theirNonce.Minus(&sinfo.theirNonce)
