@@ -41,6 +41,7 @@ type sessionInfo struct {
 	init            bool      // Reset if coords change
 	send            chan []byte
 	recv            chan *wire_trafficPacket
+	closed          chan interface{}
 	nonceMask       uint64
 	tstamp          int64     // tstamp from their last session ping, replay attack mitigation
 	tstampMutex     int64     // protects the above
@@ -306,6 +307,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.theirSubnet = *address.SubnetForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
 	sinfo.send = make(chan []byte, 32)
 	sinfo.recv = make(chan *wire_trafficPacket, 32)
+	sinfo.closed = make(chan interface{})
 	ss.sinfos[sinfo.myHandle] = &sinfo
 	ss.byMySes[sinfo.mySesPub] = &sinfo.myHandle
 	ss.byTheirPerm[sinfo.theirPermPub] = &sinfo.myHandle
@@ -364,6 +366,8 @@ func (ss *sessions) cleanup() {
 
 // Closes a session, removing it from sessions maps and killing the worker goroutine.
 func (sinfo *sessionInfo) close() {
+	sinfo.init = false
+	close(sinfo.closed)
 	delete(sinfo.core.sessions.sinfos, sinfo.myHandle)
 	delete(sinfo.core.sessions.byMySes, sinfo.mySesPub)
 	delete(sinfo.core.sessions.byTheirPerm, sinfo.theirPermPub)

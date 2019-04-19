@@ -10,7 +10,6 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
 	"golang.org/x/text/encoding/unicode"
 
@@ -267,19 +266,6 @@ func main() {
 	// before the program exits.
 	defer func() {
 		n.core.Stop()
-	}()
-	// Some stuff
-	go func() {
-		time.Sleep(time.Second * 2)
-		//session, err := n.core.Dial("nodeid", "babd4e4bccb216f77bb723c1b034b63a652060aabfe9506b51f687183e9b0fd13f438876f5a3ab21cac9c8101eb88e2613fe2a8b0724add09d7ef5a72146c31f")
-		session, err := n.core.Dial("nodeid", "9890e135604e8aa6039a909e40c629824d852042a70e51957d5b9d700195663d50552e8e869af132b4617d76f8ef00314d94cce23aa8d6b051b3b952a32a4966")
-		logger.Println(session, err)
-		b := []byte{1, 2, 3, 4, 5}
-		for {
-			logger.Println(session.Write(b))
-			logger.Println(session.Read(b))
-			time.Sleep(time.Second)
-		}
 	}()
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.

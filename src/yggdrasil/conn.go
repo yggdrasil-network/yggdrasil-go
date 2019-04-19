@@ -27,9 +27,6 @@ func (c *Conn) startSearch() {
 		}
 		if sinfo != nil {
 			c.session = sinfo
-			c.core.log.Println("Search from API succeeded")
-			c.core.log.Println("Pubkey:", hex.EncodeToString(sinfo.theirPermPub[:]))
-			c.core.log.Println("Coords:", sinfo.coords)
 		}
 	}
 	doSearch := func() {
@@ -69,25 +66,32 @@ func (c *Conn) Read(b []byte) (int, error) {
 		// To prevent blocking forever on a session that isn't initialised
 		return 0, errors.New("session not initialised")
 	}
-	p := <-c.session.recv
-	defer util.PutBytes(p.Payload)
-	if !c.session.nonceIsOK(&p.Nonce) {
-		return 0, errors.New("packet dropped due to invalid nonce")
+	select {
+	case p, ok := <-c.session.recv:
+		if !ok {
+			return 0, errors.New("session was closed")
+		}
+		defer util.PutBytes(p.Payload)
+		if !c.session.nonceIsOK(&p.Nonce) {
+			return 0, errors.New("packet dropped due to invalid nonce")
+		}
+		bs, isOK := crypto.BoxOpen(&c.session.sharedSesKey, p.Payload, &p.Nonce)
+		if !isOK {
+			util.PutBytes(bs)
+			return 0, errors.New("packet dropped due to decryption failure")
+		}
+		b = b[:0]
+		b = append(b, bs...)
+		c.session.updateNonce(&p.Nonce)
+		c.session.time = time.Now()
+		c.session.bytesRecvd += uint64(len(bs))
+		return len(b), nil
+	case <-c.session.closed:
+		return len(b), errors.New("session was closed")
 	}
-	bs, isOK := crypto.BoxOpen(&c.session.sharedSesKey, p.Payload, &p.Nonce)
-	if !isOK {
-		util.PutBytes(bs)
-		return 0, errors.New("packet dropped due to decryption failure")
-	}
-	b = b[:0]
-	b = append(b, bs...)
-	c.session.updateNonce(&p.Nonce)
-	c.session.time = time.Now()
-	c.session.bytesRecvd += uint64(len(bs))
-	return len(b), nil
 }
 
-func (c *Conn) Write(b []byte) (int, error) {
+func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 	if c.session == nil {
 		c.core.router.doAdmin(func() {
 			c.startSearch()
@@ -112,7 +116,11 @@ func (c *Conn) Write(b []byte) (int, error) {
 	}
 	packet := p.encode()
 	c.session.bytesSent += uint64(len(b))
-	c.session.send <- packet
+	select {
+	case c.session.send <- packet:
+	case <-c.session.closed:
+		return len(b), errors.New("session was closed")
+	}
 	c.session.core.router.out(packet)
 	return len(b), nil
 }
