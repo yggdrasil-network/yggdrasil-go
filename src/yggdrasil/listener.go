@@ -7,6 +7,7 @@ import (
 
 // Listener waits for incoming sessions
 type Listener struct {
+	core  *Core
 	conn  chan *Conn
 	close chan interface{}
 }
@@ -30,6 +31,9 @@ func (l *Listener) Close() (err error) {
 		recover()
 		err = errors.New("already closed")
 	}()
+	if l.core.sessions.listener == l {
+		l.core.sessions.listener = nil
+	}
 	close(l.close)
 	close(l.conn)
 	return nil

@@ -262,6 +262,7 @@ func (c *Core) ListenConn() (*Listener, error) {
 		return nil, errors.New("a listener already exists")
 	}
 	c.sessions.listener = &Listener{
+		core:  c,
 		conn:  make(chan *Conn),
 		close: make(chan interface{}),
 	}
