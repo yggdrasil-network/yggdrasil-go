@@ -17,6 +17,7 @@ type Conn struct {
 	session       *sessionInfo
 	readDeadline  time.Time
 	writeDeadline time.Time
+	expired       bool
 }
 
 // This method should only be called from the router goroutine
@@ -60,8 +61,11 @@ func (c *Conn) startSearch() {
 }
 
 func (c *Conn) Read(b []byte) (int, error) {
+	if c.expired {
+		return 0, errors.New("session is closed")
+	}
 	if c.session == nil {
-		return 0, errors.New("session not ready yet")
+		return 0, errors.New("searching for remote side")
 	}
 	if !c.session.init {
 		return 0, errors.New("waiting for remote side to accept")
@@ -69,7 +73,8 @@ func (c *Conn) Read(b []byte) (int, error) {
 	select {
 	case p, ok := <-c.session.recv:
 		if !ok {
-			return 0, errors.New("session was closed")
+			c.expired = true
+			return 0, errors.New("session is closed")
 		}
 		defer util.PutBytes(p.Payload)
 		err := func() error {
@@ -83,7 +88,6 @@ func (c *Conn) Read(b []byte) (int, error) {
 				util.PutBytes(bs)
 				return errors.New("packet dropped due to decryption failure")
 			}
-			//	c.core.log.Println("HOW MANY BYTES?", len(bs))
 			b = b[:0]
 			b = append(b, bs...)
 			c.session.updateNonce(&p.Nonce)
@@ -96,16 +100,20 @@ func (c *Conn) Read(b []byte) (int, error) {
 		atomic.AddUint64(&c.session.bytesRecvd, uint64(len(b)))
 		return len(b), nil
 	case <-c.session.closed:
-		return len(b), errors.New("session closed")
+		c.expired = true
+		return len(b), errors.New("session is closed")
 	}
 }
 
 func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
+	if c.expired {
+		return 0, errors.New("session is closed")
+	}
 	if c.session == nil {
 		c.core.router.doAdmin(func() {
 			c.startSearch()
 		})
-		return 0, errors.New("session not ready yet")
+		return 0, errors.New("searching for remote side")
 	}
 	defer util.PutBytes(b)
 	if !c.session.init {
@@ -130,13 +138,15 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 	select {
 	case c.session.send <- packet:
 	case <-c.session.closed:
-		return len(b), errors.New("session closed")
+		c.expired = true
+		return len(b), errors.New("session is closed")
 	}
 	c.session.core.router.out(packet)
 	return len(b), nil
 }
 
 func (c *Conn) Close() error {
+	c.expired = true
 	c.session.close()
 	return nil
 }

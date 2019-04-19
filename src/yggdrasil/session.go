@@ -368,7 +368,6 @@ func (ss *sessions) cleanup() {
 
 // Closes a session, removing it from sessions maps and killing the worker goroutine.
 func (sinfo *sessionInfo) close() {
-	sinfo.init = false
 	close(sinfo.closed)
 	delete(sinfo.core.sessions.sinfos, sinfo.myHandle)
 	delete(sinfo.core.sessions.byMySes, sinfo.mySesPub)
