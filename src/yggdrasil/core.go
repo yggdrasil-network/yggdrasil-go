@@ -254,6 +254,20 @@ func (c *Core) Stop() {
 	c.admin.close()
 }
 
+// ListenConn returns a listener for Yggdrasil session connections.
+func (c *Core) ListenConn() (*Listener, error) {
+	c.sessions.listenerMutex.Lock()
+	defer c.sessions.listenerMutex.Unlock()
+	if c.sessions.listener != nil {
+		return nil, errors.New("a listener already exists")
+	}
+	c.sessions.listener = &Listener{
+		conn:  make(chan *Conn),
+		close: make(chan interface{}),
+	}
+	return c.sessions.listener, nil
+}
+
 // Dial opens a session to the given node. The first paramter should be "nodeid"
 // and the second parameter should contain a hexadecimal representation of the
 // target node ID.

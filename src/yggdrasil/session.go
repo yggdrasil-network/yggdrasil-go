@@ -105,16 +105,18 @@ func (s *sessionInfo) timedout() bool {
 // Sessions are indexed by handle.
 // Additionally, stores maps of address/subnet onto keys, and keys onto handles.
 type sessions struct {
-	core         *Core
-	reconfigure  chan chan error
-	lastCleanup  time.Time
-	permShared   map[crypto.BoxPubKey]*crypto.BoxSharedKey // Maps known permanent keys to their shared key, used by DHT a lot
-	sinfos       map[crypto.Handle]*sessionInfo            // Maps (secret) handle onto session info
-	conns        map[crypto.Handle]*Conn                   // Maps (secret) handle onto connections
-	byMySes      map[crypto.BoxPubKey]*crypto.Handle       // Maps mySesPub onto handle
-	byTheirPerm  map[crypto.BoxPubKey]*crypto.Handle       // Maps theirPermPub onto handle
-	addrToPerm   map[address.Address]*crypto.BoxPubKey
-	subnetToPerm map[address.Subnet]*crypto.BoxPubKey
+	core          *Core
+	listener      *Listener
+	listenerMutex sync.Mutex
+	reconfigure   chan chan error
+	lastCleanup   time.Time
+	permShared    map[crypto.BoxPubKey]*crypto.BoxSharedKey // Maps known permanent keys to their shared key, used by DHT a lot
+	sinfos        map[crypto.Handle]*sessionInfo            // Maps (secret) handle onto session info
+	conns         map[crypto.Handle]*Conn                   // Maps (secret) handle onto connections
+	byMySes       map[crypto.BoxPubKey]*crypto.Handle       // Maps mySesPub onto handle
+	byTheirPerm   map[crypto.BoxPubKey]*crypto.Handle       // Maps theirPermPub onto handle
+	addrToPerm    map[address.Address]*crypto.BoxPubKey
+	subnetToPerm  map[address.Subnet]*crypto.BoxPubKey
 }
 
 // Initializes the session struct.
@@ -461,6 +463,22 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 		if !isIn {
 			panic("This should not happen")
 		}
+		ss.listenerMutex.Lock()
+		if ss.listener != nil {
+			conn := &Conn{
+				core:     ss.core,
+				session:  sinfo,
+				nodeID:   crypto.GetNodeID(&sinfo.theirPermPub),
+				nodeMask: &crypto.NodeID{},
+			}
+			for i := range conn.nodeMask {
+				conn.nodeMask[i] = 0xFF
+			}
+			ss.listener.conn <- conn
+		} else {
+			ss.core.log.Debugln("Received new session but there is no listener, ignoring")
+		}
+		ss.listenerMutex.Unlock()
 	}
 	// Update the session
 	if !sinfo.update(ping) { /*panic("Should not happen in testing")*/

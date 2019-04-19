@@ -61,11 +61,10 @@ func (c *Conn) startSearch() {
 
 func (c *Conn) Read(b []byte) (int, error) {
 	if c.session == nil {
-		return 0, errors.New("session not open")
+		return 0, errors.New("session not ready yet")
 	}
 	if !c.session.init {
-		// To prevent blocking forever on a session that isn't initialised
-		return 0, errors.New("session not initialised")
+		return 0, errors.New("waiting for remote side to accept")
 	}
 	select {
 	case p, ok := <-c.session.recv:
@@ -84,6 +83,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 				util.PutBytes(bs)
 				return errors.New("packet dropped due to decryption failure")
 			}
+			//	c.core.log.Println("HOW MANY BYTES?", len(bs))
 			b = b[:0]
 			b = append(b, bs...)
 			c.session.updateNonce(&p.Nonce)
@@ -96,7 +96,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 		atomic.AddUint64(&c.session.bytesRecvd, uint64(len(b)))
 		return len(b), nil
 	case <-c.session.closed:
-		return len(b), errors.New("session was closed")
+		return len(b), errors.New("session closed")
 	}
 }
 
@@ -105,12 +105,12 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 		c.core.router.doAdmin(func() {
 			c.startSearch()
 		})
-		return 0, errors.New("session not open")
+		return 0, errors.New("session not ready yet")
 	}
 	defer util.PutBytes(b)
 	if !c.session.init {
 		// To prevent using empty session keys
-		return 0, errors.New("session not initialised")
+		return 0, errors.New("waiting for remote side to accept")
 	}
 	// code isn't multithreaded so appending to this is safe
 	coords := c.session.coords
@@ -130,13 +130,14 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 	select {
 	case c.session.send <- packet:
 	case <-c.session.closed:
-		return len(b), errors.New("session was closed")
+		return len(b), errors.New("session closed")
 	}
 	c.session.core.router.out(packet)
 	return len(b), nil
 }
 
 func (c *Conn) Close() error {
+	c.session.close()
 	return nil
 }
 
