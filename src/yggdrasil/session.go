@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
@@ -35,21 +36,23 @@ type sessionInfo struct {
 	myNonceMutex    sync.Mutex // protects the above
 	theirMTU        uint16
 	myMTU           uint16
-	wasMTUFixed     bool      // Was the MTU fixed by a receive error?
-	time            time.Time // Time we last received a packet
-	coords          []byte    // coords of destination
-	packet          []byte    // a buffered packet, sent immediately on ping/pong
-	init            bool      // Reset if coords change
+	wasMTUFixed     bool         // Was the MTU fixed by a receive error?
+	time            time.Time    // Time we last received a packet
+	mtuTime         time.Time    // time myMTU was last changed
+	pingTime        time.Time    // time the first ping was sent since the last received packet
+	pingSend        time.Time    // time the last ping was sent
+	timeMutex       sync.RWMutex // protects all time fields above
+	coords          []byte       // coords of destination
+	coordsMutex     sync.RWMutex // protects the above
+	packet          []byte       // a buffered packet, sent immediately on ping/pong
+	init            bool         // Reset if coords change
+	initMutex       sync.RWMutex
 	send            chan []byte
 	recv            chan *wire_trafficPacket
 	closed          chan interface{}
-	tstamp          int64     // tstamp from their last session ping, replay attack mitigation
-	tstampMutex     int64     // protects the above
-	mtuTime         time.Time // time myMTU was last changed
-	pingTime        time.Time // time the first ping was sent since the last received packet
-	pingSend        time.Time // time the last ping was sent
-	bytesSent       uint64    // Bytes of real traffic sent in this session
-	bytesRecvd      uint64    // Bytes of real traffic received in this session
+	tstamp          int64  // ATOMIC - tstamp from their last session ping, replay attack mitigation
+	bytesSent       uint64 // Bytes of real traffic sent in this session
+	bytesRecvd      uint64 // Bytes of real traffic received in this session
 }
 
 // Represents a session ping/pong packet, andincludes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
@@ -66,7 +69,7 @@ type sessionPing struct {
 // Updates session info in response to a ping, after checking that the ping is OK.
 // Returns true if the session was updated, or false otherwise.
 func (s *sessionInfo) update(p *sessionPing) bool {
-	if !(p.Tstamp > s.tstamp) {
+	if !(p.Tstamp > atomic.LoadInt64(&s.tstamp)) {
 		// To protect against replay attacks
 		return false
 	}
@@ -90,14 +93,20 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 		s.coords = append(make([]byte, 0, len(p.Coords)+11), p.Coords...)
 	}
 	now := time.Now()
+	s.timeMutex.Lock()
 	s.time = now
-	s.tstamp = p.Tstamp
+	s.timeMutex.Unlock()
+	atomic.StoreInt64(&s.tstamp, p.Tstamp)
+	s.initMutex.Lock()
 	s.init = true
+	s.initMutex.Unlock()
 	return true
 }
 
 // Returns true if the session has been idle for longer than the allowed timeout.
 func (s *sessionInfo) timedout() bool {
+	s.timeMutex.RLock()
+	defer s.timeMutex.RUnlock()
 	return time.Since(s.time) > time.Minute
 }
 
@@ -284,10 +293,12 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 		sinfo.myMTU = uint16(ss.core.router.adapter.MTU())
 	}
 	now := time.Now()
+	sinfo.timeMutex.Lock()
 	sinfo.time = now
 	sinfo.mtuTime = now
 	sinfo.pingTime = now
 	sinfo.pingSend = now
+	sinfo.timeMutex.Unlock()
 	higher := false
 	for idx := range ss.core.boxPub {
 		if ss.core.boxPub[idx] > sinfo.theirPermPub[idx] {
@@ -428,6 +439,7 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 	bs := ping.encode()
 	shared := ss.getSharedKey(&ss.core.boxPriv, &sinfo.theirPermPub)
 	payload, nonce := crypto.BoxSeal(shared, bs, nil)
+	sinfo.coordsMutex.RLock()
 	p := wire_protoTrafficPacket{
 		Coords:  sinfo.coords,
 		ToKey:   sinfo.theirPermPub,
@@ -435,10 +447,13 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 		Nonce:   *nonce,
 		Payload: payload,
 	}
+	sinfo.coordsMutex.RUnlock()
 	packet := p.encode()
 	ss.core.router.out(packet)
 	if !isPong {
+		sinfo.timeMutex.Lock()
 		sinfo.pingSend = time.Now()
+		sinfo.timeMutex.Unlock()
 	}
 }
 
@@ -465,10 +480,11 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 		ss.listenerMutex.Lock()
 		if ss.listener != nil {
 			conn := &Conn{
-				core:     ss.core,
-				session:  sinfo,
-				nodeID:   crypto.GetNodeID(&sinfo.theirPermPub),
-				nodeMask: &crypto.NodeID{},
+				core:         ss.core,
+				session:      sinfo,
+				sessionMutex: &sync.RWMutex{},
+				nodeID:       crypto.GetNodeID(&sinfo.theirPermPub),
+				nodeMask:     &crypto.NodeID{},
 			}
 			for i := range conn.nodeMask {
 				conn.nodeMask[i] = 0xFF
@@ -537,6 +553,8 @@ func (sinfo *sessionInfo) updateNonce(theirNonce *crypto.BoxNonce) {
 // Called after coord changes, so attemtps to use a session will trigger a new ping and notify the remote end of the coord change.
 func (ss *sessions) resetInits() {
 	for _, sinfo := range ss.sinfos {
+		sinfo.initMutex.Lock()
 		sinfo.init = false
+		sinfo.initMutex.Unlock()
 	}
 }

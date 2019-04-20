@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/gologme/log"
@@ -273,7 +274,9 @@ func (c *Core) ListenConn() (*Listener, error) {
 // and the second parameter should contain a hexadecimal representation of the
 // target node ID.
 func (c *Core) Dial(network, address string) (Conn, error) {
-	conn := Conn{}
+	conn := Conn{
+		sessionMutex: &sync.RWMutex{},
+	}
 	nodeID := crypto.NodeID{}
 	nodeMask := crypto.NodeID{}
 	// Process
@@ -298,6 +301,8 @@ func (c *Core) Dial(network, address string) (Conn, error) {
 	conn.core.router.doAdmin(func() {
 		conn.startSearch()
 	})
+	conn.sessionMutex.Lock()
+	defer conn.sessionMutex.Unlock()
 	return conn, nil
 }
 

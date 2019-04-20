@@ -291,6 +291,10 @@ func (r *router) sendPacket(bs []byte) {
 	if destSnet.IsValid() {
 		sinfo, isIn = r.core.sessions.getByTheirSubnet(&destSnet)
 	}
+	sinfo.timeMutex.Lock()
+	sinfo.initMutex.RLock()
+	defer sinfo.timeMutex.Unlock()
+	defer sinfo.initMutex.RUnlock()
 	switch {
 	case !isIn || !sinfo.init:
 		// No or unintiialized session, so we need to search first
@@ -306,6 +310,7 @@ func (r *router) sendPacket(bs []byte) {
 		} else {
 			// We haven't heard about the dest in a while
 			now := time.Now()
+
 			if !sinfo.time.Before(sinfo.pingTime) {
 				// Update pingTime to start the clock for searches (above)
 				sinfo.pingTime = now
@@ -315,6 +320,7 @@ func (r *router) sendPacket(bs []byte) {
 				sinfo.pingSend = now
 				r.core.sessions.sendPingPong(sinfo, false)
 			}
+			sinfo.timeMutex.Unlock()
 		}
 		fallthrough // Also send the packet
 	default:
