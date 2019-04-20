@@ -3,7 +3,7 @@ package tuntap
 // This manages the tun driver to send/recv packets to/from applications
 
 import (
-	"bytes"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -11,16 +11,12 @@ import (
 	"time"
 
 	"github.com/gologme/log"
-	"golang.org/x/net/icmp"
-	"golang.org/x/net/ipv6"
-
-	"github.com/songgao/packets/ethernet"
 	"github.com/yggdrasil-network/water"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
@@ -32,14 +28,20 @@ const tun_ETHER_HEADER_LENGTH = 14
 // you should pass this object to the yggdrasil.SetRouterAdapter() function
 // before calling yggdrasil.Start().
 type TunAdapter struct {
-	yggdrasil.Adapter
-	addr   address.Address
-	subnet address.Subnet
-	icmpv6 ICMPv6
-	mtu    int
-	iface  *water.Interface
-	mutex  sync.RWMutex // Protects the below
-	isOpen bool
+	config      *config.NodeState
+	log         *log.Logger
+	reconfigure chan chan error
+	conns       map[crypto.NodeID]yggdrasil.Conn
+	connsMutex  sync.RWMutex
+	listener    *yggdrasil.Listener
+	dialer      *yggdrasil.Dialer
+	addr        address.Address
+	subnet      address.Subnet
+	icmpv6      ICMPv6
+	mtu         int
+	iface       *water.Interface
+	mutex       sync.RWMutex // Protects the below
+	isOpen      bool
 }
 
 // Gets the maximum supported MTU for the platform based on the defaults in
@@ -94,62 +96,48 @@ func MaximumMTU() int {
 	return defaults.GetDefaults().MaximumIfMTU
 }
 
-// Init initialises the TUN/TAP adapter.
-func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, send chan<- []byte, recv <-chan []byte, reject <-chan yggdrasil.RejectedPacket) {
-	tun.Adapter.Init(config, log, send, recv, reject)
-	tun.icmpv6.Init(tun)
-	go func() {
-		for {
-			e := <-tun.Reconfigure
-			tun.Config.Mutex.RLock()
-			updated := tun.Config.Current.IfName != tun.Config.Previous.IfName ||
-				tun.Config.Current.IfTAPMode != tun.Config.Previous.IfTAPMode ||
-				tun.Config.Current.IfMTU != tun.Config.Previous.IfMTU
-			tun.Config.Mutex.RUnlock()
-			if updated {
-				tun.Log.Warnln("Reconfiguring TUN/TAP is not supported yet")
-				e <- nil
-			} else {
-				e <- nil
-			}
-		}
-	}()
+// Init initialises the TUN/TAP module. You must have acquired a Listener from
+// the Yggdrasil core before this point and it must not be in use elsewhere.
+func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener *yggdrasil.Listener, dialer *yggdrasil.Dialer) {
+	tun.config = config
+	tun.log = log
+	tun.listener = listener
+	tun.dialer = dialer
+	tun.conns = make(map[crypto.NodeID]yggdrasil.Conn)
 }
 
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
 // read/write goroutines to handle packets on that interface.
-func (tun *TunAdapter) Start(a address.Address, s address.Subnet) error {
-	tun.addr = a
-	tun.subnet = s
-	if tun.Config == nil {
+func (tun *TunAdapter) Start() error {
+	tun.config.Mutex.Lock()
+	defer tun.config.Mutex.Unlock()
+	if tun.config == nil || tun.listener == nil || tun.dialer == nil {
 		return errors.New("No configuration available to TUN/TAP")
 	}
-	tun.Config.Mutex.RLock()
-	ifname := tun.Config.Current.IfName
-	iftapmode := tun.Config.Current.IfTAPMode
-	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
-	mtu := tun.Config.Current.IfMTU
-	tun.Config.Mutex.RUnlock()
+	var boxPub crypto.BoxPubKey
+	boxPubHex, err := hex.DecodeString(tun.config.Current.EncryptionPublicKey)
+	if err != nil {
+		return err
+	}
+	copy(boxPub[:], boxPubHex)
+	nodeID := crypto.GetNodeID(&boxPub)
+	tun.addr = *address.AddrForNodeID(nodeID)
+	tun.subnet = *address.SubnetForNodeID(nodeID)
+	tun.mtu = tun.config.Current.IfMTU
+	ifname := tun.config.Current.IfName
+	iftapmode := tun.config.Current.IfTAPMode
 	if ifname != "none" {
-		if err := tun.setup(ifname, iftapmode, addr, mtu); err != nil {
+		if err := tun.setup(ifname, iftapmode, net.IP(tun.addr[:]).String(), tun.mtu); err != nil {
 			return err
 		}
 	}
 	if ifname == "none" || ifname == "dummy" {
-		tun.Log.Debugln("Not starting TUN/TAP as ifname is none or dummy")
+		tun.log.Debugln("Not starting TUN/TAP as ifname is none or dummy")
 		return nil
 	}
 	tun.mutex.Lock()
 	tun.isOpen = true
 	tun.mutex.Unlock()
-	go func() {
-		tun.Log.Debugln("Starting TUN/TAP reader goroutine")
-		tun.Log.Errorln("WARNING: tun.read() exited with error:", tun.read())
-	}()
-	go func() {
-		tun.Log.Debugln("Starting TUN/TAP writer goroutine")
-		tun.Log.Errorln("WARNING: tun.write() exited with error:", tun.write())
-	}()
 	if iftapmode {
 		go func() {
 			for {
@@ -167,74 +155,215 @@ func (tun *TunAdapter) Start(a address.Address, s address.Subnet) error {
 			}
 		}()
 	}
+	tun.icmpv6.Init(tun)
+	go func() {
+		for {
+			e := <-tun.reconfigure
+			e <- nil
+		}
+	}()
+	go tun.handler()
+	go tun.ifaceReader()
 	return nil
+}
+
+func (tun *TunAdapter) handler() error {
+	for {
+		// Accept the incoming connection
+		conn, err := tun.listener.Accept()
+		if err != nil {
+			tun.log.Errorln("TUN/TAP error accepting connection:", err)
+			return err
+		}
+		tun.log.Println("Accepted connection from", conn.RemoteAddr())
+		go tun.connReader(conn)
+	}
+}
+
+func (tun *TunAdapter) connReader(conn *yggdrasil.Conn) error {
+	b := make([]byte, 65535)
+	for {
+		n, err := conn.Read(b)
+		if err != nil {
+			tun.log.Errorln("TUN/TAP read error:", err)
+			return err
+		}
+		if n == 0 {
+			continue
+		}
+		w, err := tun.iface.Write(b[:n])
+		if err != nil {
+			tun.log.Errorln("TUN/TAP failed to write to interface:", err)
+			continue
+		}
+		if w != n {
+			tun.log.Errorln("TUN/TAP wrote", w, "instead of", n, "which is bad")
+			continue
+		}
+	}
+}
+
+func (tun *TunAdapter) ifaceReader() error {
+	tun.log.Println("Start TUN reader")
+	bs := make([]byte, 65535)
+	for {
+		n, err := tun.iface.Read(bs)
+		if err != nil {
+			tun.log.Errorln("TUN/TAP iface read error:", err)
+		}
+		// Look up if the dstination address is somewhere we already have an
+		// open connection to
+		var srcAddr address.Address
+		var dstAddr address.Address
+		var dstNodeID *crypto.NodeID
+		var dstNodeIDMask *crypto.NodeID
+		var dstSnet address.Subnet
+		var addrlen int
+		if bs[0]&0xf0 == 0x60 {
+			// Check if we have a fully-sized header
+			if len(bs) < 40 {
+				panic("Tried to send a packet shorter than an IPv6 header...")
+			}
+			// IPv6 address
+			addrlen = 16
+			copy(srcAddr[:addrlen], bs[8:])
+			copy(dstAddr[:addrlen], bs[24:])
+			copy(dstSnet[:addrlen/2], bs[24:])
+		} else if bs[0]&0xf0 == 0x40 {
+			// Check if we have a fully-sized header
+			if len(bs) < 20 {
+				panic("Tried to send a packet shorter than an IPv4 header...")
+			}
+			// IPv4 address
+			addrlen = 4
+			copy(srcAddr[:addrlen], bs[12:])
+			copy(dstAddr[:addrlen], bs[16:])
+		} else {
+			// Unknown address length
+			continue
+		}
+		dstNodeID, dstNodeIDMask = dstAddr.GetNodeIDandMask()
+		// Do we have an active connection for this node ID?
+		if conn, isIn := tun.conns[*dstNodeID]; isIn {
+			fmt.Println("We have a connection for", *dstNodeID)
+			w, err := conn.Write(bs)
+			if err != nil {
+				fmt.Println("Unable to write to remote:", err)
+				continue
+			}
+			if w != n {
+				continue
+			}
+		} else {
+			fmt.Println("Opening connection for", *dstNodeID)
+			tun.connsMutex.Lock()
+			maskstr := hex.EncodeToString(dstNodeID[:])
+			masklen := dstNodeIDMask.PrefixLength()
+			cidr := fmt.Sprintf("%s/%d", maskstr, masklen)
+			if conn, err := tun.dialer.Dial("nodeid", cidr); err == nil {
+				tun.conns[*dstNodeID] = conn
+				go tun.connReader(&conn)
+			} else {
+				fmt.Println("Error dialing:", err)
+			}
+			tun.connsMutex.Unlock()
+		}
+
+		/*if !r.cryptokey.isValidSource(srcAddr, addrlen) {
+			// The packet had a src address that doesn't belong to us or our
+			// configured crypto-key routing src subnets
+			return
+		}
+		if !dstAddr.IsValid() && !dstSnet.IsValid() {
+			// The addresses didn't match valid Yggdrasil node addresses so let's see
+			// whether it matches a crypto-key routing range instead
+			if key, err := r.cryptokey.getPublicKeyForAddress(dstAddr, addrlen); err == nil {
+				// A public key was found, get the node ID for the search
+				dstPubKey = &key
+				dstNodeID = crypto.GetNodeID(dstPubKey)
+				// Do a quick check to ensure that the node ID refers to a vaild Yggdrasil
+				// address or subnet - this might be superfluous
+				addr := *address.AddrForNodeID(dstNodeID)
+				copy(dstAddr[:], addr[:])
+				copy(dstSnet[:], addr[:])
+				if !dstAddr.IsValid() && !dstSnet.IsValid() {
+					return
+				}
+			} else {
+				// No public key was found in the CKR table so we've exhausted our options
+				return
+			}
+		}*/
+
+	}
 }
 
 // Writes a packet to the TUN/TAP adapter. If the adapter is running in TAP
 // mode then additional ethernet encapsulation is added for the benefit of the
 // host operating system.
+/*
 func (tun *TunAdapter) write() error {
 	for {
 		select {
 		case reject := <-tun.Reject:
-			switch reject.Reason {
-			case yggdrasil.PacketTooBig:
-				if mtu, ok := reject.Detail.(int); ok {
-					// Create the Packet Too Big response
-					ptb := &icmp.PacketTooBig{
-						MTU:  int(mtu),
-						Data: reject.Packet,
-					}
-
-					// Create the ICMPv6 response from it
-					icmpv6Buf, err := CreateICMPv6(
-						reject.Packet[8:24], reject.Packet[24:40],
-						ipv6.ICMPTypePacketTooBig, 0, ptb)
-
-					// Send the ICMPv6 response back to the TUN/TAP adapter
-					if err == nil {
-						tun.iface.Write(icmpv6Buf)
-					}
+		switch reject.Reason {
+		case yggdrasil.PacketTooBig:
+			if mtu, ok := reject.Detail.(int); ok {
+				// Create the Packet Too Big response
+				ptb := &icmp.PacketTooBig{
+					MTU:  int(mtu),
+					Data: reject.Packet,
 				}
-				fallthrough
-			default:
-				continue
+
+				// Create the ICMPv6 response from it
+				icmpv6Buf, err := CreateICMPv6(
+					reject.Packet[8:24], reject.Packet[24:40],
+					ipv6.ICMPTypePacketTooBig, 0, ptb)
+
+				// Send the ICMPv6 response back to the TUN/TAP adapter
+				if err == nil {
+					tun.iface.Write(icmpv6Buf)
+				}
 			}
+			fallthrough
+		default:
+			continue
+		}
 		case data := <-tun.Recv:
 			if tun.iface == nil {
 				continue
 			}
 			if tun.iface.IsTAP() {
-				var destAddr address.Address
+				var dstAddr address.Address
 				if data[0]&0xf0 == 0x60 {
 					if len(data) < 40 {
 						//panic("Tried to send a packet shorter than an IPv6 header...")
 						util.PutBytes(data)
 						continue
 					}
-					copy(destAddr[:16], data[24:])
+					copy(dstAddr[:16], data[24:])
 				} else if data[0]&0xf0 == 0x40 {
 					if len(data) < 20 {
 						//panic("Tried to send a packet shorter than an IPv4 header...")
 						util.PutBytes(data)
 						continue
 					}
-					copy(destAddr[:4], data[16:])
+					copy(dstAddr[:4], data[16:])
 				} else {
 					return errors.New("Invalid address family")
 				}
-				sendndp := func(destAddr address.Address) {
-					neigh, known := tun.icmpv6.peermacs[destAddr]
+				sendndp := func(dstAddr address.Address) {
+					neigh, known := tun.icmpv6.peermacs[dstAddr]
 					known = known && (time.Since(neigh.lastsolicitation).Seconds() < 30)
 					if !known {
-						request, err := tun.icmpv6.CreateNDPL2(destAddr)
+						request, err := tun.icmpv6.CreateNDPL2(dstAddr)
 						if err != nil {
 							panic(err)
 						}
 						if _, err := tun.iface.Write(request); err != nil {
 							panic(err)
 						}
-						tun.icmpv6.peermacs[destAddr] = neighbor{
+						tun.icmpv6.peermacs[dstAddr] = neighbor{
 							lastsolicitation: time.Now(),
 						}
 					}
@@ -242,19 +371,19 @@ func (tun *TunAdapter) write() error {
 				var peermac macAddress
 				var peerknown bool
 				if data[0]&0xf0 == 0x40 {
-					destAddr = tun.addr
+					dstAddr = tun.addr
 				} else if data[0]&0xf0 == 0x60 {
-					if !bytes.Equal(tun.addr[:16], destAddr[:16]) && !bytes.Equal(tun.subnet[:8], destAddr[:8]) {
-						destAddr = tun.addr
+					if !bytes.Equal(tun.addr[:16], dstAddr[:16]) && !bytes.Equal(tun.subnet[:8], dstAddr[:8]) {
+						dstAddr = tun.addr
 					}
 				}
-				if neighbor, ok := tun.icmpv6.peermacs[destAddr]; ok && neighbor.learned {
+				if neighbor, ok := tun.icmpv6.peermacs[dstAddr]; ok && neighbor.learned {
 					peermac = neighbor.mac
 					peerknown = true
 				} else if neighbor, ok := tun.icmpv6.peermacs[tun.addr]; ok && neighbor.learned {
 					peermac = neighbor.mac
 					peerknown = true
-					sendndp(destAddr)
+					sendndp(dstAddr)
 				} else {
 					sendndp(tun.addr)
 				}
@@ -359,3 +488,4 @@ func (tun *TunAdapter) Close() error {
 	}
 	return tun.iface.Close()
 }
+*/

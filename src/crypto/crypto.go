@@ -37,8 +37,35 @@ func (n *NodeID) String() string {
 	return hex.EncodeToString(n[:])
 }
 
+// Network returns "nodeid" nearly always right now.
 func (n *NodeID) Network() string {
 	return "nodeid"
+}
+
+// PrefixLength returns the number of bits set in a masked NodeID.
+func (n *NodeID) PrefixLength() int {
+	var len int
+	for i, v := range *n {
+		_, _ = i, v
+		if v == 0xff {
+			len += 8
+			continue
+		}
+		for v&0x80 != 0 {
+			len++
+			v <<= 1
+		}
+		if v != 0 {
+			return -1
+		}
+		for i++; i < NodeIDLen; i++ {
+			if n[i] != 0 {
+				return -1
+			}
+		}
+		break
+	}
+	return len
 }
 
 func GetNodeID(pub *BoxPubKey) *NodeID {

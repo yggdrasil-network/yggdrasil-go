@@ -10,7 +10,6 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
 	"golang.org/x/text/encoding/unicode"
 
@@ -77,57 +76,44 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeCo
 		panic(err)
 	}
 	json.Unmarshal(confJson, &cfg)
-	// For now we will do a little bit to help the user adjust their
-	// configuration to match the new configuration format, as some of the key
-	// names have changed recently.
-	changes := map[string]string{
-		"Multicast":      "",
-		"ReadTimeout":    "",
-		"LinkLocal":      "MulticastInterfaces",
-		"BoxPub":         "EncryptionPublicKey",
-		"BoxPriv":        "EncryptionPrivateKey",
-		"SigPub":         "SigningPublicKey",
-		"SigPriv":        "SigningPrivateKey",
-		"AllowedBoxPubs": "AllowedEncryptionPublicKeys",
-	}
-	// Loop over the mappings aove and see if we have anything to fix.
-	for from, to := range changes {
-		if _, ok := dat[from]; ok {
-			if to == "" {
-				if !*normaliseconf {
-					log.Println("Warning: Config option", from, "is deprecated")
-				}
-			} else {
-				if !*normaliseconf {
-					log.Println("Warning: Config option", from, "has been renamed - please change to", to)
-				}
-				// If the configuration file doesn't already contain a line with the
-				// new name then set it to the old value. This makes sure that we
-				// don't overwrite something that was put there intentionally.
-				if _, ok := dat[to]; !ok {
-					dat[to] = dat[from]
+	/*
+		// For now we will do a little bit to help the user adjust their
+		// configuration to match the new configuration format, as some of the key
+		// names have changed recently.
+		changes := map[string]string{
+			"Multicast":      "",
+			"ReadTimeout":    "",
+			"LinkLocal":      "MulticastInterfaces",
+			"BoxPub":         "EncryptionPublicKey",
+			"BoxPriv":        "EncryptionPrivateKey",
+			"SigPub":         "SigningPublicKey",
+			"SigPriv":        "SigningPrivateKey",
+			"AllowedBoxPubs": "AllowedEncryptionPublicKeys",
+		}
+		// Loop over the mappings aove and see if we have anything to fix.
+		for from, to := range changes {
+			if _, ok := dat[from]; ok {
+				if to == "" {
+					if !*normaliseconf {
+						log.Println("Warning: Config option", from, "is deprecated")
+					}
+				} else {
+					if !*normaliseconf {
+						log.Println("Warning: Config option", from, "has been renamed - please change to", to)
+					}
+					// If the configuration file doesn't already contain a line with the
+					// new name then set it to the old value. This makes sure that we
+					// don't overwrite something that was put there intentionally.
+					if _, ok := dat[to]; !ok {
+						dat[to] = dat[from]
+					}
 				}
 			}
 		}
-	}
-	// Check to see if the peers are in a parsable format, if not then default
-	// them to the TCP scheme
-	if peers, ok := dat["Peers"].([]interface{}); ok {
-		for index, peer := range peers {
-			uri := peer.(string)
-			if strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, "socks://") {
-				continue
-			}
-			if strings.HasPrefix(uri, "tcp:") {
-				uri = uri[4:]
-			}
-			(dat["Peers"].([]interface{}))[index] = "tcp://" + uri
-		}
-	}
-	// Now do the same with the interface peers
-	if interfacepeers, ok := dat["InterfacePeers"].(map[string]interface{}); ok {
-		for intf, peers := range interfacepeers {
-			for index, peer := range peers.([]interface{}) {
+		// Check to see if the peers are in a parsable format, if not then default
+		// them to the TCP scheme
+		if peers, ok := dat["Peers"].([]interface{}); ok {
+			for index, peer := range peers {
 				uri := peer.(string)
 				if strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, "socks://") {
 					continue
@@ -135,19 +121,34 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeCo
 				if strings.HasPrefix(uri, "tcp:") {
 					uri = uri[4:]
 				}
-				((dat["InterfacePeers"].(map[string]interface{}))[intf]).([]interface{})[index] = "tcp://" + uri
+				(dat["Peers"].([]interface{}))[index] = "tcp://" + uri
 			}
 		}
-	}
-	// Do a quick check for old-format Listen statement so that mapstructure
-	// doesn't fail and crash
-	if listen, ok := dat["Listen"].(string); ok {
-		if strings.HasPrefix(listen, "tcp://") {
-			dat["Listen"] = []string{listen}
-		} else {
-			dat["Listen"] = []string{"tcp://" + listen}
+		// Now do the same with the interface peers
+		if interfacepeers, ok := dat["InterfacePeers"].(map[string]interface{}); ok {
+			for intf, peers := range interfacepeers {
+				for index, peer := range peers.([]interface{}) {
+					uri := peer.(string)
+					if strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, "socks://") {
+						continue
+					}
+					if strings.HasPrefix(uri, "tcp:") {
+						uri = uri[4:]
+					}
+					((dat["InterfacePeers"].(map[string]interface{}))[intf]).([]interface{})[index] = "tcp://" + uri
+				}
+			}
 		}
-	}
+		// Do a quick check for old-format Listen statement so that mapstructure
+		// doesn't fail and crash
+		if listen, ok := dat["Listen"].(string); ok {
+			if strings.HasPrefix(listen, "tcp://") {
+				dat["Listen"] = []string{listen}
+			} else {
+				dat["Listen"] = []string{"tcp://" + listen}
+			}
+		}
+	*/
 	// Overlay our newly mapped configuration onto the autoconf node config that
 	// we generated above.
 	if err = mapstructure.Decode(dat, &cfg); err != nil {
@@ -249,8 +250,6 @@ func main() {
 	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
 	// don't need to create this manually.
 	n := node{}
-	// Before we start the node, set the TUN/TAP to be our router adapter
-	n.core.SetRouterAdapter(&n.tuntap)
 	// Now start Yggdrasil - this starts the DHT, router, switch and other core
 	// components needed for Yggdrasil to operate
 	state, err := n.core.Start(cfg, logger)
@@ -263,72 +262,88 @@ func main() {
 	if err := n.multicast.Start(); err != nil {
 		logger.Errorln("An error occurred starting multicast:", err)
 	}
+	// Start the TUN/TAP interface
+	if listener, err := n.core.ConnListen(); err == nil {
+		if dialer, err := n.core.ConnDialer(); err == nil {
+			logger.Println("Got listener", listener, "and dialer", dialer)
+			n.tuntap.Init(state, logger, listener, dialer)
+			if err := n.tuntap.Start(); err != nil {
+				logger.Errorln("An error occurred starting TUN/TAP:", err)
+			}
+		} else {
+			logger.Errorln("Unable to get Dialer:", err)
+		}
+	} else {
+		logger.Errorln("Unable to get Listener:", err)
+	}
 	// The Stop function ensures that the TUN/TAP adapter is correctly shut down
 	// before the program exits.
 	defer func() {
 		n.core.Stop()
 	}()
 	// Listen for new sessions
-	go func() {
-		listener, err := n.core.ListenConn()
-		if err != nil {
-			logger.Errorln("Unable to listen for sessions:", err)
-			return
-		}
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				logger.Errorln("Accept:", err)
-				continue
-			}
-			logger.Println("Accepted")
-			for {
-				b := make([]byte, 100)
-				if n, err := conn.Read(b); err != nil {
-					logger.Errorln("Read failed:", err)
-					time.Sleep(time.Second * 2)
-				} else {
-					logger.Println("Read", n, "bytes:", b)
-					b = []byte{5, 5, 5}
-					if n, err := conn.Write(b); err != nil {
-						logger.Errorln("Write failed:", err)
-						time.Sleep(time.Second * 2)
-					} else {
-						logger.Println("Wrote", n, "bytes:", b)
-					}
-				}
-			}
-		}
-	}()
-	// Try creating new sessions
-	go func() {
-		if cfg.EncryptionPublicKey != "533574224115f835b7c7db6433986bc5aef855ff9c9568c01abeb0fbed3e8810" {
-			return
-		}
-		time.Sleep(time.Second * 2)
-		conn, err := n.core.Dial("nodeid", "9890e135604e8aa6039a909e40c629824d852042a70e51957d5b9d700195663d50552e8e869af132b4617d76f8ef00314d94cce23aa8d6b051b3b952a32a4966")
-		if err != nil {
-			logger.Errorln("Dial:", err)
-			return
-		}
+	/*
 		go func() {
+			listener, err := n.core.ListenConn()
+			if err != nil {
+				logger.Errorln("Unable to listen for sessions:", err)
+				return
+			}
 			for {
-				time.Sleep(time.Second * 2)
-				b := []byte{1, 2, 3, 4, 5}
-				if n, err := conn.Write(b); err != nil {
-					logger.Errorln("Write failed:", err)
-				} else {
-					logger.Println("Wrote", n, "bytes:", b)
-					b = make([]byte, 100)
+				conn, err := listener.Accept()
+				if err != nil {
+					logger.Errorln("Accept:", err)
+					continue
+				}
+				logger.Println("Accepted")
+				for {
+					b := make([]byte, 100)
 					if n, err := conn.Read(b); err != nil {
 						logger.Errorln("Read failed:", err)
+						time.Sleep(time.Second * 2)
 					} else {
 						logger.Println("Read", n, "bytes:", b)
+						b = []byte{5, 5, 5}
+						if n, err := conn.Write(b); err != nil {
+							logger.Errorln("Write failed:", err)
+							time.Sleep(time.Second * 2)
+						} else {
+							logger.Println("Wrote", n, "bytes:", b)
+						}
 					}
 				}
 			}
 		}()
-	}()
+		// Try creating new sessions
+		go func() {
+			if cfg.EncryptionPublicKey != "533574224115f835b7c7db6433986bc5aef855ff9c9568c01abeb0fbed3e8810" {
+				return
+			}
+			time.Sleep(time.Second * 2)
+			conn, err := n.core.Dial("nodeid", "9890e135604e8aa6039a909e40c629824d852042a70e51957d5b9d700195663d50552e8e869af132b4617d76f8ef00314d94cce23aa8d6b051b3b952a32a4966")
+			if err != nil {
+				logger.Errorln("Dial:", err)
+				return
+			}
+			go func() {
+				for {
+					time.Sleep(time.Second * 2)
+					b := []byte{1, 2, 3, 4, 5}
+					if n, err := conn.Write(b); err != nil {
+						logger.Errorln("Write failed:", err)
+					} else {
+						logger.Println("Wrote", n, "bytes:", b)
+						b = make([]byte, 100)
+						if n, err := conn.Read(b); err != nil {
+							logger.Errorln("Read failed:", err)
+						} else {
+							logger.Println("Read", n, "bytes:", b)
+						}
+					}
+				}
+			}()
+		}()
+	*/
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
 	address := n.core.Address()

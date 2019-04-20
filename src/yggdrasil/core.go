@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io/ioutil"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/gologme/log"
@@ -77,7 +76,6 @@ func (c *Core) init() error {
 	c.searches.init(c)
 	c.dht.init(c)
 	c.sessions.init(c)
-	//c.multicast.init(c)
 	c.peers.init(c)
 	c.router.init(c)
 	c.switchTable.init(c) // TODO move before peers? before router?
@@ -168,21 +166,6 @@ func BuildVersion() string {
 	return buildVersion
 }
 
-// SetRouterAdapter instructs Yggdrasil to use the given adapter when starting
-// the router. The adapter must implement the standard
-// adapter.adapterImplementation interface and should extend the adapter.Adapter
-// struct.
-func (c *Core) SetRouterAdapter(adapter interface{}) error {
-	// We do this because adapterImplementation is not a valid type for the
-	// gomobile bindings so we just ask for a generic interface and try to cast it
-	// to adapterImplementation instead
-	if a, ok := adapter.(adapterImplementation); ok {
-		c.router.adapter = a
-		return nil
-	}
-	return errors.New("unsuitable adapter")
-}
-
 // Start starts up Yggdrasil using the provided config.NodeConfig, and outputs
 // debug logging through the provided log.Logger. The started stack will include
 // TCP and UDP sockets, a multicast discovery socket, an admin socket, router,
@@ -233,13 +216,6 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState,
 		return nil, err
 	}
 
-	if c.router.adapter != nil {
-		if err := c.router.adapter.Start(c.router.addr, c.router.subnet); err != nil {
-			c.log.Errorln("Failed to start TUN/TAP")
-			return nil, err
-		}
-	}
-
 	go c.addPeerLoop()
 
 	c.log.Infoln("Startup complete")
@@ -249,14 +225,11 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState,
 // Stop shuts down the Yggdrasil node.
 func (c *Core) Stop() {
 	c.log.Infoln("Stopping...")
-	if c.router.adapter != nil {
-		c.router.adapter.Close()
-	}
 	c.admin.close()
 }
 
 // ListenConn returns a listener for Yggdrasil session connections.
-func (c *Core) ListenConn() (*Listener, error) {
+func (c *Core) ConnListen() (*Listener, error) {
 	c.sessions.listenerMutex.Lock()
 	defer c.sessions.listenerMutex.Unlock()
 	if c.sessions.listener != nil {
@@ -270,40 +243,11 @@ func (c *Core) ListenConn() (*Listener, error) {
 	return c.sessions.listener, nil
 }
 
-// Dial opens a session to the given node. The first paramter should be "nodeid"
-// and the second parameter should contain a hexadecimal representation of the
-// target node ID.
-func (c *Core) Dial(network, address string) (Conn, error) {
-	conn := Conn{
-		sessionMutex: &sync.RWMutex{},
-	}
-	nodeID := crypto.NodeID{}
-	nodeMask := crypto.NodeID{}
-	// Process
-	switch network {
-	case "nodeid":
-		// A node ID was provided - we don't need to do anything special with it
-		dest, err := hex.DecodeString(address)
-		if err != nil {
-			return Conn{}, err
-		}
-		copy(nodeID[:], dest)
-		for i := range nodeMask {
-			nodeMask[i] = 0xFF
-		}
-	default:
-		// An unexpected address type was given, so give up
-		return Conn{}, errors.New("unexpected address type")
-	}
-	conn.core = c
-	conn.nodeID = &nodeID
-	conn.nodeMask = &nodeMask
-	conn.core.router.doAdmin(func() {
-		conn.startSearch()
-	})
-	conn.sessionMutex.Lock()
-	defer conn.sessionMutex.Unlock()
-	return conn, nil
+// ConnDialer returns a dialer for Yggdrasil session connections.
+func (c *Core) ConnDialer() (*Dialer, error) {
+	return &Dialer{
+		core: c,
+	}, nil
 }
 
 // ListenTCP starts a new TCP listener. The input URI should match that of the

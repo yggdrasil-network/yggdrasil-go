@@ -16,7 +16,7 @@ type Conn struct {
 	nodeID        *crypto.NodeID
 	nodeMask      *crypto.NodeID
 	session       *sessionInfo
-	sessionMutex  *sync.RWMutex
+	mutex         *sync.RWMutex
 	readDeadline  time.Time
 	writeDeadline time.Time
 	expired       bool
@@ -30,9 +30,10 @@ func (c *Conn) startSearch() {
 			return
 		}
 		if sinfo != nil {
-			c.sessionMutex.Lock()
+			c.mutex.Lock()
 			c.session = sinfo
-			c.sessionMutex.Unlock()
+			c.nodeID, c.nodeMask = sinfo.theirAddr.GetNodeIDandMask()
+			c.mutex.Unlock()
 		}
 	}
 	doSearch := func() {
@@ -65,8 +66,8 @@ func (c *Conn) startSearch() {
 }
 
 func (c *Conn) Read(b []byte) (int, error) {
-	c.sessionMutex.RLock()
-	defer c.sessionMutex.RUnlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	if c.expired {
 		return 0, errors.New("session is closed")
 	}
@@ -119,8 +120,8 @@ func (c *Conn) Read(b []byte) (int, error) {
 }
 
 func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
-	c.sessionMutex.RLock()
-	defer c.sessionMutex.RUnlock()
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
 	if c.expired {
 		return 0, errors.New("session is closed")
 	}
@@ -175,7 +176,9 @@ func (c *Conn) LocalAddr() crypto.NodeID {
 }
 
 func (c *Conn) RemoteAddr() crypto.NodeID {
-	return *crypto.GetNodeID(&c.session.theirPermPub)
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	return *c.nodeID
 }
 
 func (c *Conn) SetDeadline(t time.Time) error {

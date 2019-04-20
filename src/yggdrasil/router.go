@@ -41,7 +41,6 @@ type router struct {
 	in          <-chan []byte          // packets we received from the network, link to peer's "out"
 	out         func([]byte)           // packets we're sending to the network, link to peer's "in"
 	toRecv      chan router_recvPacket // packets to handle via recvPacket()
-	adapter     adapterImplementation  // TUN/TAP adapter
 	recv        chan<- []byte          // place where the adapter pulls received packets from
 	send        <-chan []byte          // place where the adapter puts outgoing packets
 	reject      chan<- RejectedPacket  // place where we send error packets back to adapter
@@ -136,9 +135,6 @@ func (r *router) init(core *Core) {
 	r.nodeinfo.setNodeInfo(r.core.config.Current.NodeInfo, r.core.config.Current.NodeInfoPrivacy)
 	r.core.config.Mutex.RUnlock()
 	r.cryptokey.init(r.core)
-	if r.adapter != nil {
-		r.adapter.Init(&r.core.config, r.core.log, send, recv, reject)
-	}
 }
 
 // Starts the mainLoop goroutine.

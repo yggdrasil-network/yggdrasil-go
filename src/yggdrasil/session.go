@@ -289,9 +289,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.mySesPriv = *priv
 	sinfo.myNonce = *crypto.NewBoxNonce()
 	sinfo.theirMTU = 1280
-	if ss.core.router.adapter != nil {
-		sinfo.myMTU = uint16(ss.core.router.adapter.MTU())
-	}
+	sinfo.myMTU = 1280
 	now := time.Now()
 	sinfo.timeMutex.Lock()
 	sinfo.time = now
@@ -480,11 +478,11 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 		ss.listenerMutex.Lock()
 		if ss.listener != nil {
 			conn := &Conn{
-				core:         ss.core,
-				session:      sinfo,
-				sessionMutex: &sync.RWMutex{},
-				nodeID:       crypto.GetNodeID(&sinfo.theirPermPub),
-				nodeMask:     &crypto.NodeID{},
+				core:     ss.core,
+				session:  sinfo,
+				mutex:    &sync.RWMutex{},
+				nodeID:   crypto.GetNodeID(&sinfo.theirPermPub),
+				nodeMask: &crypto.NodeID{},
 			}
 			for i := range conn.nodeMask {
 				conn.nodeMask[i] = 0xFF
