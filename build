@@ -8,7 +8,7 @@ PKGVER=${PKGVER:-$(sh contrib/semver/version.sh --bare)}
 
 LDFLAGS="-X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
 
-while getopts "udaitc:l:" option
+while getopts "udaitc:l:r" option
 do
   case "${option}"
   in
@@ -19,6 +19,7 @@ do
   t) TABLES=true;;
   c) GCFLAGS="$GCFLAGS $OPTARG";;
   l) LDFLAGS="$LDFLAGS $OPTARG";;
+  r) RACE="-race";;
   esac
 done
 
@@ -43,9 +44,9 @@ else
     echo "Building: $CMD"
 
     if [ $DEBUG ]; then
-      go build -ldflags="$LDFLAGS" -gcflags="$GCFLAGS" -tags debug -v ./cmd/$CMD
+      go build $RACE -ldflags="$LDFLAGS" -gcflags="$GCFLAGS" -tags debug -v ./cmd/$CMD
     else
-      go build -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" -v ./cmd/$CMD
+      go build $RACE -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" -v ./cmd/$CMD
     fi
     if [ $UPX ]; then
       upx --brute $CMD
