@@ -5,7 +5,6 @@ package tuntap
 import (
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -245,26 +244,22 @@ func (tun *TunAdapter) ifaceReader() error {
 		dstNodeID, dstNodeIDMask = dstAddr.GetNodeIDandMask()
 		// Do we have an active connection for this node ID?
 		if conn, isIn := tun.conns[*dstNodeID]; isIn {
-			fmt.Println("We have a connection for", *dstNodeID)
 			w, err := conn.Write(bs)
 			if err != nil {
-				fmt.Println("Unable to write to remote:", err)
+				tun.log.Println("Unable to write to remote:", err)
 				continue
 			}
 			if w != n {
 				continue
 			}
 		} else {
-			fmt.Println("Opening connection for", *dstNodeID)
+			tun.log.Println("Opening connection for", *dstNodeID)
 			tun.connsMutex.Lock()
-			maskstr := hex.EncodeToString(dstNodeID[:])
-			masklen := dstNodeIDMask.PrefixLength()
-			cidr := fmt.Sprintf("%s/%d", maskstr, masklen)
-			if conn, err := tun.dialer.Dial("nodeid", cidr); err == nil {
+			if conn, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask); err == nil {
 				tun.conns[*dstNodeID] = conn
 				go tun.connReader(&conn)
 			} else {
-				fmt.Println("Error dialing:", err)
+				tun.log.Println("Error dialing:", err)
 			}
 			tun.connsMutex.Unlock()
 		}

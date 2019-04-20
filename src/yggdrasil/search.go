@@ -212,7 +212,9 @@ func (s *searches) checkDHTRes(info *searchInfo, res *dhtRes) bool {
 		}
 	}
 	// FIXME (!) replay attacks could mess with coords? Give it a handle (tstamp)?
+	sinfo.coordsMutex.Lock()
 	sinfo.coords = res.Coords
+	sinfo.coordsMutex.Unlock()
 	sinfo.packet = info.packet
 	s.core.sessions.ping(sinfo)
 	info.callback(sinfo, nil)

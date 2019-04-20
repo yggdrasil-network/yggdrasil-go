@@ -3,7 +3,6 @@ package yggdrasil
 import (
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,11 +19,8 @@ type Dialer struct {
 // and the second parameter should contain a hexadecimal representation of the
 // target node ID.
 func (d *Dialer) Dial(network, address string) (Conn, error) {
-	conn := Conn{
-		mutex: &sync.RWMutex{},
-	}
-	nodeID := crypto.NodeID{}
-	nodeMask := crypto.NodeID{}
+	var nodeID crypto.NodeID
+	var nodeMask crypto.NodeID
 	// Process
 	switch network {
 	case "nodeid":
@@ -42,8 +38,6 @@ func (d *Dialer) Dial(network, address string) (Conn, error) {
 			for idx := 0; idx < len; idx++ {
 				nodeMask[idx/8] |= 0x80 >> byte(idx%8)
 			}
-			fmt.Println(nodeID)
-			fmt.Println(nodeMask)
 		} else {
 			dest, err := hex.DecodeString(tokens[0])
 			if err != nil {
@@ -54,13 +48,22 @@ func (d *Dialer) Dial(network, address string) (Conn, error) {
 				nodeMask[i] = 0xFF
 			}
 		}
+		return d.DialByNodeIDandMask(&nodeID, &nodeMask)
 	default:
 		// An unexpected address type was given, so give up
 		return Conn{}, errors.New("unexpected address type")
 	}
+}
+
+// DialByNodeIDandMask opens a session to the given node based on raw
+// NodeID parameters.
+func (d *Dialer) DialByNodeIDandMask(nodeID, nodeMask *crypto.NodeID) (Conn, error) {
+	conn := Conn{
+		mutex: &sync.RWMutex{},
+	}
 	conn.core = d.core
-	conn.nodeID = &nodeID
-	conn.nodeMask = &nodeMask
+	conn.nodeID = nodeID
+	conn.nodeMask = nodeMask
 	conn.core.router.doAdmin(func() {
 		conn.startSearch()
 	})

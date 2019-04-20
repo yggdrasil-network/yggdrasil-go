@@ -27,6 +27,9 @@ func (c *Conn) startSearch() {
 	searchCompleted := func(sinfo *sessionInfo, err error) {
 		if err != nil {
 			c.core.log.Debugln("DHT search failed:", err)
+			c.mutex.Lock()
+			c.expired = true
+			c.mutex.Unlock()
 			return
 		}
 		if sinfo != nil {
