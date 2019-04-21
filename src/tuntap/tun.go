@@ -30,8 +30,7 @@ type TunAdapter struct {
 	config      *config.NodeState
 	log         *log.Logger
 	reconfigure chan chan error
-	conns       map[crypto.NodeID]yggdrasil.Conn
-	connsMutex  sync.RWMutex
+	conns       map[crypto.NodeID]*yggdrasil.Conn
 	listener    *yggdrasil.Listener
 	dialer      *yggdrasil.Dialer
 	addr        address.Address
@@ -102,7 +101,7 @@ func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener 
 	tun.log = log
 	tun.listener = listener
 	tun.dialer = dialer
-	tun.conns = make(map[crypto.NodeID]yggdrasil.Conn)
+	tun.conns = make(map[crypto.NodeID]*yggdrasil.Conn)
 }
 
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
@@ -180,6 +179,7 @@ func (tun *TunAdapter) handler() error {
 }
 
 func (tun *TunAdapter) connReader(conn *yggdrasil.Conn) error {
+	tun.conns[conn.RemoteAddr()] = conn
 	b := make([]byte, 65535)
 	for {
 		n, err := conn.Read(b)
@@ -203,7 +203,6 @@ func (tun *TunAdapter) connReader(conn *yggdrasil.Conn) error {
 }
 
 func (tun *TunAdapter) ifaceReader() error {
-	tun.log.Println("Start TUN reader")
 	bs := make([]byte, 65535)
 	for {
 		n, err := tun.iface.Read(bs)
@@ -244,6 +243,7 @@ func (tun *TunAdapter) ifaceReader() error {
 		dstNodeID, dstNodeIDMask = dstAddr.GetNodeIDandMask()
 		// Do we have an active connection for this node ID?
 		if conn, isIn := tun.conns[*dstNodeID]; isIn {
+			tun.log.Println("Got", &conn)
 			w, err := conn.Write(bs)
 			if err != nil {
 				tun.log.Println("Unable to write to remote:", err)
@@ -254,14 +254,12 @@ func (tun *TunAdapter) ifaceReader() error {
 			}
 		} else {
 			tun.log.Println("Opening connection for", *dstNodeID)
-			tun.connsMutex.Lock()
 			if conn, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask); err == nil {
-				tun.conns[*dstNodeID] = conn
+				tun.conns[*dstNodeID] = &conn
 				go tun.connReader(&conn)
 			} else {
 				tun.log.Println("Error dialing:", err)
 			}
-			tun.connsMutex.Unlock()
 		}
 
 		/*if !r.cryptokey.isValidSource(srcAddr, addrlen) {

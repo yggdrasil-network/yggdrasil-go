@@ -35,7 +35,7 @@ func (d *Dialer) Dial(network, address string) (Conn, error) {
 				return Conn{}, err
 			}
 			copy(nodeID[:], dest)
-			for idx := 0; idx < len; idx++ {
+			for idx := 0; idx <= len; idx++ {
 				nodeMask[idx/8] |= 0x80 >> byte(idx%8)
 			}
 		} else {
@@ -59,15 +59,13 @@ func (d *Dialer) Dial(network, address string) (Conn, error) {
 // NodeID parameters.
 func (d *Dialer) DialByNodeIDandMask(nodeID, nodeMask *crypto.NodeID) (Conn, error) {
 	conn := Conn{
-		mutex: &sync.RWMutex{},
+		core:     d.core,
+		mutex:    &sync.RWMutex{},
+		nodeID:   nodeID,
+		nodeMask: nodeMask,
 	}
-	conn.core = d.core
-	conn.nodeID = nodeID
-	conn.nodeMask = nodeMask
 	conn.core.router.doAdmin(func() {
 		conn.startSearch()
 	})
-	conn.mutex.Lock()
-	defer conn.mutex.Unlock()
 	return conn, nil
 }

@@ -18,41 +18,38 @@ import (
 // All the information we know about an active session.
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
 type sessionInfo struct {
-	core            *Core
-	reconfigure     chan chan error
-	theirAddr       address.Address
-	theirSubnet     address.Subnet
-	theirPermPub    crypto.BoxPubKey
-	theirSesPub     crypto.BoxPubKey
-	mySesPub        crypto.BoxPubKey
-	mySesPriv       crypto.BoxPrivKey
-	sharedSesKey    crypto.BoxSharedKey // derived from session keys
-	theirHandle     crypto.Handle
-	myHandle        crypto.Handle
-	theirNonce      crypto.BoxNonce
-	theirNonceMask  uint64
-	theirNonceMutex sync.Mutex // protects the above
-	myNonce         crypto.BoxNonce
-	myNonceMutex    sync.Mutex // protects the above
-	theirMTU        uint16
-	myMTU           uint16
-	wasMTUFixed     bool         // Was the MTU fixed by a receive error?
-	time            time.Time    // Time we last received a packet
-	mtuTime         time.Time    // time myMTU was last changed
-	pingTime        time.Time    // time the first ping was sent since the last received packet
-	pingSend        time.Time    // time the last ping was sent
-	timeMutex       sync.RWMutex // protects all time fields above
-	coords          []byte       // coords of destination
-	coordsMutex     sync.RWMutex // protects the above
-	packet          []byte       // a buffered packet, sent immediately on ping/pong
-	init            bool         // Reset if coords change
-	initMutex       sync.RWMutex
-	send            chan []byte
-	recv            chan *wire_trafficPacket
-	closed          chan interface{}
-	tstamp          int64  // ATOMIC - tstamp from their last session ping, replay attack mitigation
-	bytesSent       uint64 // Bytes of real traffic sent in this session
-	bytesRecvd      uint64 // Bytes of real traffic received in this session
+	core            *Core                    //
+	reconfigure     chan chan error          //
+	theirAddr       address.Address          //
+	theirSubnet     address.Subnet           //
+	theirPermPub    crypto.BoxPubKey         //
+	theirSesPub     crypto.BoxPubKey         //
+	mySesPub        crypto.BoxPubKey         //
+	mySesPriv       crypto.BoxPrivKey        //
+	sharedSesKey    crypto.BoxSharedKey      // derived from session keys
+	theirHandle     crypto.Handle            //
+	myHandle        crypto.Handle            //
+	theirNonce      crypto.BoxNonce          //
+	theirNonceMask  uint64                   //
+	theirNonceMutex sync.Mutex               // protects the above
+	myNonce         crypto.BoxNonce          //
+	myNonceMutex    sync.Mutex               // protects the above
+	theirMTU        uint16                   //
+	myMTU           uint16                   //
+	wasMTUFixed     bool                     // Was the MTU fixed by a receive error?
+	time            atomic.Value             // time.Time // Time we last received a packet
+	mtuTime         atomic.Value             // time.Time // time myMTU was last changed
+	pingTime        atomic.Value             // time.Time // time the first ping was sent since the last received packet
+	pingSend        atomic.Value             // time.Time // time the last ping was sent
+	coords          []byte                   // coords of destination
+	packet          []byte                   // a buffered packet, sent immediately on ping/pong
+	init            atomic.Value             // bool      // Reset if coords change
+	send            chan []byte              //
+	recv            chan *wire_trafficPacket //
+	closed          chan interface{}         //
+	tstamp          int64                    // ATOMIC - tstamp from their last session ping, replay attack mitigation
+	bytesSent       uint64                   // Bytes of real traffic sent in this session
+	bytesRecvd      uint64                   // Bytes of real traffic received in this session
 }
 
 // Represents a session ping/pong packet, andincludes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
@@ -60,10 +57,10 @@ type sessionPing struct {
 	SendPermPub crypto.BoxPubKey // Sender's permanent key
 	Handle      crypto.Handle    // Random number to ID session
 	SendSesPub  crypto.BoxPubKey // Session key to use
-	Coords      []byte
-	Tstamp      int64 // unix time, but the only real requirement is that it increases
-	IsPong      bool
-	MTU         uint16
+	Coords      []byte           //
+	Tstamp      int64            // unix time, but the only real requirement is that it increases
+	IsPong      bool             //
+	MTU         uint16           //
 }
 
 // Updates session info in response to a ping, after checking that the ping is OK.
@@ -93,21 +90,15 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 		s.coords = append(make([]byte, 0, len(p.Coords)+11), p.Coords...)
 	}
 	now := time.Now()
-	s.timeMutex.Lock()
-	s.time = now
-	s.timeMutex.Unlock()
+	s.time.Store(now)
 	atomic.StoreInt64(&s.tstamp, p.Tstamp)
-	s.initMutex.Lock()
-	s.init = true
-	s.initMutex.Unlock()
+	s.init.Store(true)
 	return true
 }
 
 // Returns true if the session has been idle for longer than the allowed timeout.
 func (s *sessionInfo) timedout() bool {
-	s.timeMutex.RLock()
-	defer s.timeMutex.RUnlock()
-	return time.Since(s.time) > time.Minute
+	return time.Since(s.time.Load().(time.Time)) > time.Minute
 }
 
 // Struct of all active sessions.
@@ -291,12 +282,10 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.theirMTU = 1280
 	sinfo.myMTU = 1280
 	now := time.Now()
-	sinfo.timeMutex.Lock()
-	sinfo.time = now
-	sinfo.mtuTime = now
-	sinfo.pingTime = now
-	sinfo.pingSend = now
-	sinfo.timeMutex.Unlock()
+	sinfo.time.Store(now)
+	sinfo.mtuTime.Store(now)
+	sinfo.pingTime.Store(now)
+	sinfo.pingSend.Store(now)
 	higher := false
 	for idx := range ss.core.boxPub {
 		if ss.core.boxPub[idx] > sinfo.theirPermPub[idx] {
@@ -437,7 +426,6 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 	bs := ping.encode()
 	shared := ss.getSharedKey(&ss.core.boxPriv, &sinfo.theirPermPub)
 	payload, nonce := crypto.BoxSeal(shared, bs, nil)
-	sinfo.coordsMutex.RLock()
 	p := wire_protoTrafficPacket{
 		Coords:  sinfo.coords,
 		ToKey:   sinfo.theirPermPub,
@@ -445,13 +433,10 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 		Nonce:   *nonce,
 		Payload: payload,
 	}
-	sinfo.coordsMutex.RUnlock()
 	packet := p.encode()
 	ss.core.router.out(packet)
 	if !isPong {
-		sinfo.timeMutex.Lock()
-		sinfo.pingSend = time.Now()
-		sinfo.timeMutex.Unlock()
+		sinfo.pingSend.Store(time.Now())
 	}
 }
 
@@ -551,8 +536,6 @@ func (sinfo *sessionInfo) updateNonce(theirNonce *crypto.BoxNonce) {
 // Called after coord changes, so attemtps to use a session will trigger a new ping and notify the remote end of the coord change.
 func (ss *sessions) resetInits() {
 	for _, sinfo := range ss.sinfos {
-		sinfo.initMutex.Lock()
-		sinfo.init = false
-		sinfo.initMutex.Unlock()
+		sinfo.init.Store(false)
 	}
 }

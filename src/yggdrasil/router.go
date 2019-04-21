@@ -287,16 +287,15 @@ func (r *router) sendPacket(bs []byte) {
 	if destSnet.IsValid() {
 		sinfo, isIn = r.core.sessions.getByTheirSubnet(&destSnet)
 	}
-	sinfo.timeMutex.Lock()
-	sinfo.initMutex.RLock()
-	defer sinfo.timeMutex.Unlock()
-	defer sinfo.initMutex.RUnlock()
+	sTime := sinfo.time.Load().(time.Time)
+	pingTime := sinfo.pingTime.Load().(time.Time)
+	pingSend := sinfo.pingSend.Load().(time.Time)
 	switch {
-	case !isIn || !sinfo.init:
+	case !isIn || !sinfo.init.Load().(bool):
 		// No or unintiialized session, so we need to search first
 		doSearch(bs)
-	case time.Since(sinfo.time) > 6*time.Second:
-		if sinfo.time.Before(sinfo.pingTime) && time.Since(sinfo.pingTime) > 6*time.Second {
+	case time.Since(sTime) > 6*time.Second:
+		if sTime.Before(pingTime) && time.Since(pingTime) > 6*time.Second {
 			// We haven't heard from the dest in a while
 			// We tried pinging but didn't get a response
 			// They may have changed coords
@@ -307,16 +306,15 @@ func (r *router) sendPacket(bs []byte) {
 			// We haven't heard about the dest in a while
 			now := time.Now()
 
-			if !sinfo.time.Before(sinfo.pingTime) {
+			if !sTime.Before(pingTime) {
 				// Update pingTime to start the clock for searches (above)
-				sinfo.pingTime = now
+				sinfo.pingTime.Store(now)
 			}
-			if time.Since(sinfo.pingSend) > time.Second {
+			if time.Since(pingSend) > time.Second {
 				// Send at most 1 ping per second
-				sinfo.pingSend = now
+				sinfo.pingSend.Store(now)
 				r.core.sessions.sendPingPong(sinfo, false)
 			}
-			sinfo.timeMutex.Unlock()
 		}
 		fallthrough // Also send the packet
 	default:

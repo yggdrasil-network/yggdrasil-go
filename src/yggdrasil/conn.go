@@ -1,8 +1,8 @@
 package yggdrasil
 
 import (
-	"encoding/hex"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -42,27 +42,27 @@ func (c *Conn) startSearch() {
 	doSearch := func() {
 		sinfo, isIn := c.core.searches.searches[*c.nodeID]
 		if !isIn {
-			c.core.log.Debugln("Starting search for", hex.EncodeToString(c.nodeID[:]))
 			sinfo = c.core.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
 		}
 		c.core.searches.continueSearch(sinfo)
 	}
-	var sinfo *sessionInfo
-	var isIn bool
 	switch {
-	case !isIn || !sinfo.init:
+	case c.session == nil || !c.session.init.Load().(bool):
 		doSearch()
-	case time.Since(sinfo.time) > 6*time.Second:
-		if sinfo.time.Before(sinfo.pingTime) && time.Since(sinfo.pingTime) > 6*time.Second {
+	case time.Since(c.session.time.Load().(time.Time)) > 6*time.Second:
+		sTime := c.session.time.Load().(time.Time)
+		pingTime := c.session.pingTime.Load().(time.Time)
+		if sTime.Before(pingTime) && time.Since(pingTime) > 6*time.Second {
 			doSearch()
 		} else {
+			pingSend := c.session.pingSend.Load().(time.Time)
 			now := time.Now()
-			if !sinfo.time.Before(sinfo.pingTime) {
-				sinfo.pingTime = now
+			if !sTime.Before(pingTime) {
+				c.session.pingTime.Store(now)
 			}
-			if time.Since(sinfo.pingSend) > time.Second {
-				sinfo.pingSend = now
-				c.core.sessions.sendPingPong(sinfo, false)
+			if time.Since(pingSend) > time.Second {
+				c.session.pingSend.Store(now)
+				c.core.sessions.sendPingPong(c.session, false)
 			}
 		}
 	}
@@ -77,12 +77,9 @@ func (c *Conn) Read(b []byte) (int, error) {
 	if c.session == nil {
 		return 0, errors.New("searching for remote side")
 	}
-	c.session.initMutex.RLock()
-	if !c.session.init {
-		c.session.initMutex.RUnlock()
+	if !c.session.init.Load().(bool) {
 		return 0, errors.New("waiting for remote side to accept")
 	}
-	c.session.initMutex.RUnlock()
 	select {
 	case p, ok := <-c.session.recv:
 		if !ok {
@@ -106,9 +103,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 				b = b[:len(bs)]
 			}
 			c.session.updateNonce(&p.Nonce)
-			c.session.timeMutex.Lock()
-			c.session.time = time.Now()
-			c.session.timeMutex.Unlock()
+			c.session.time.Store(time.Now())
 			return nil
 		}()
 		if err != nil {
@@ -129,22 +124,18 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 		return 0, errors.New("session is closed")
 	}
 	if c.session == nil {
+		fmt.Println("No session found, starting search for", &c)
 		c.core.router.doAdmin(func() {
 			c.startSearch()
 		})
 		return 0, errors.New("searching for remote side")
 	}
 	defer util.PutBytes(b)
-	c.session.initMutex.RLock()
-	if !c.session.init {
-		c.session.initMutex.RUnlock()
+	if !c.session.init.Load().(bool) {
 		return 0, errors.New("waiting for remote side to accept")
 	}
-	c.session.initMutex.RUnlock()
 	// code isn't multithreaded so appending to this is safe
-	c.session.coordsMutex.RLock()
 	coords := c.session.coords
-	c.session.coordsMutex.RUnlock()
 	// Prepare the payload
 	c.session.myNonceMutex.Lock()
 	payload, nonce := crypto.BoxSeal(&c.session.sharedSesKey, b, &c.session.myNonce)
