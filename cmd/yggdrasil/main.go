@@ -265,7 +265,6 @@ func main() {
 	// Start the TUN/TAP interface
 	if listener, err := n.core.ConnListen(); err == nil {
 		if dialer, err := n.core.ConnDialer(); err == nil {
-			logger.Println("Got listener", listener, "and dialer", dialer)
 			n.tuntap.Init(state, logger, listener, dialer)
 			if err := n.tuntap.Start(); err != nil {
 				logger.Errorln("An error occurred starting TUN/TAP:", err)

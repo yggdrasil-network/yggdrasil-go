@@ -2,7 +2,6 @@ package yggdrasil
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -124,7 +123,6 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 		return 0, errors.New("session is closed")
 	}
 	if c.session == nil {
-		fmt.Println("No session found, starting search for", &c)
 		c.core.router.doAdmin(func() {
 			c.startSearch()
 		})

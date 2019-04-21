@@ -30,7 +30,6 @@ type TunAdapter struct {
 	config      *config.NodeState
 	log         *log.Logger
 	reconfigure chan chan error
-	conns       map[crypto.NodeID]*yggdrasil.Conn
 	listener    *yggdrasil.Listener
 	dialer      *yggdrasil.Dialer
 	addr        address.Address
@@ -39,6 +38,7 @@ type TunAdapter struct {
 	mtu         int
 	iface       *water.Interface
 	mutex       sync.RWMutex // Protects the below
+	conns       map[crypto.NodeID]*yggdrasil.Conn
 	isOpen      bool
 }
 
@@ -173,13 +173,24 @@ func (tun *TunAdapter) handler() error {
 			tun.log.Errorln("TUN/TAP error accepting connection:", err)
 			return err
 		}
-		tun.log.Println("Accepted connection from", conn.RemoteAddr())
 		go tun.connReader(conn)
 	}
 }
 
 func (tun *TunAdapter) connReader(conn *yggdrasil.Conn) error {
-	tun.conns[conn.RemoteAddr()] = conn
+	remoteNodeID := conn.RemoteAddr()
+	tun.mutex.Lock()
+	if _, isIn := tun.conns[remoteNodeID]; isIn {
+		tun.mutex.Unlock()
+		return errors.New("duplicate connection")
+	}
+	tun.conns[remoteNodeID] = conn
+	tun.mutex.Unlock()
+	defer func() {
+		tun.mutex.Lock()
+		delete(tun.conns, remoteNodeID)
+		tun.mutex.Unlock()
+	}()
 	b := make([]byte, 65535)
 	for {
 		n, err := conn.Read(b)
@@ -242,8 +253,9 @@ func (tun *TunAdapter) ifaceReader() error {
 		}
 		dstNodeID, dstNodeIDMask = dstAddr.GetNodeIDandMask()
 		// Do we have an active connection for this node ID?
+		tun.mutex.Lock()
 		if conn, isIn := tun.conns[*dstNodeID]; isIn {
-			tun.log.Println("Got", &conn)
+			tun.mutex.Unlock()
 			w, err := conn.Write(bs)
 			if err != nil {
 				tun.log.Println("Unable to write to remote:", err)
@@ -253,11 +265,12 @@ func (tun *TunAdapter) ifaceReader() error {
 				continue
 			}
 		} else {
-			tun.log.Println("Opening connection for", *dstNodeID)
 			if conn, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask); err == nil {
 				tun.conns[*dstNodeID] = &conn
+				tun.mutex.Unlock()
 				go tun.connReader(&conn)
 			} else {
+				tun.mutex.Unlock()
 				tun.log.Println("Error dialing:", err)
 			}
 		}
