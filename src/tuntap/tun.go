@@ -170,7 +170,7 @@ func (tun *TunAdapter) handler() error {
 		// Accept the incoming connection
 		conn, err := tun.listener.Accept()
 		if err != nil {
-			tun.log.Errorln("TUN/TAP error accepting connection:", err)
+			tun.log.Errorln("TUN/TAP connection accept error:", err)
 			return err
 		}
 		go tun.connReader(conn)
@@ -195,7 +195,7 @@ func (tun *TunAdapter) connReader(conn *yggdrasil.Conn) error {
 	for {
 		n, err := conn.Read(b)
 		if err != nil {
-			tun.log.Errorln("TUN/TAP read error:", err)
+			tun.log.Errorln("TUN/TAP conn read error:", err)
 			return err
 		}
 		if n == 0 {
@@ -203,11 +203,11 @@ func (tun *TunAdapter) connReader(conn *yggdrasil.Conn) error {
 		}
 		w, err := tun.iface.Write(b[:n])
 		if err != nil {
-			tun.log.Errorln("TUN/TAP failed to write to interface:", err)
+			tun.log.Errorln("TUN/TAP iface write error:", err)
 			continue
 		}
 		if w != n {
-			tun.log.Errorln("TUN/TAP wrote", w, "instead of", n, "which is bad")
+			tun.log.Errorln("TUN/TAP iface write len didn't match conn read len")
 			continue
 		}
 	}
@@ -231,7 +231,7 @@ func (tun *TunAdapter) ifaceReader() error {
 		if bs[0]&0xf0 == 0x60 {
 			// Check if we have a fully-sized header
 			if len(bs) < 40 {
-				panic("Tried to send a packet shorter than an IPv6 header...")
+				continue
 			}
 			// IPv6 address
 			addrlen = 16
@@ -241,14 +241,14 @@ func (tun *TunAdapter) ifaceReader() error {
 		} else if bs[0]&0xf0 == 0x40 {
 			// Check if we have a fully-sized header
 			if len(bs) < 20 {
-				panic("Tried to send a packet shorter than an IPv4 header...")
+				continue
 			}
 			// IPv4 address
 			addrlen = 4
 			copy(srcAddr[:addrlen], bs[12:])
 			copy(dstAddr[:addrlen], bs[16:])
 		} else {
-			// Unknown address length
+			// Unknown address length or protocol
 			continue
 		}
 		dstNodeID, dstNodeIDMask = dstAddr.GetNodeIDandMask()
@@ -258,7 +258,7 @@ func (tun *TunAdapter) ifaceReader() error {
 			tun.mutex.Unlock()
 			w, err := conn.Write(bs)
 			if err != nil {
-				tun.log.Println("Unable to write to remote:", err)
+				tun.log.Println("TUN/TAP conn write error:", err)
 				continue
 			}
 			if w != n {
@@ -271,7 +271,7 @@ func (tun *TunAdapter) ifaceReader() error {
 				go tun.connReader(&conn)
 			} else {
 				tun.mutex.Unlock()
-				tun.log.Println("Error dialing:", err)
+				tun.log.Println("TUN/TAP dial error:", err)
 			}
 		}
 

@@ -2,6 +2,7 @@ package yggdrasil
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,6 +20,10 @@ type Conn struct {
 	readDeadline  time.Time
 	writeDeadline time.Time
 	expired       bool
+}
+
+func (c *Conn) String() string {
+	return fmt.Sprintf("c=%p", c)
 }
 
 // This method should only be called from the router goroutine
@@ -76,8 +81,8 @@ func (c *Conn) Read(b []byte) (int, error) {
 	if c.session == nil {
 		return 0, errors.New("searching for remote side")
 	}
-	if !c.session.init.Load().(bool) {
-		return 0, errors.New("waiting for remote side to accept")
+	if init, ok := c.session.init.Load().(bool); !ok || (ok && !init) {
+		return 0, errors.New("waiting for remote side to accept " + c.String())
 	}
 	select {
 	case p, ok := <-c.session.recv:
@@ -129,15 +134,12 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 		return 0, errors.New("searching for remote side")
 	}
 	defer util.PutBytes(b)
-	if !c.session.init.Load().(bool) {
-		return 0, errors.New("waiting for remote side to accept")
+	if init, ok := c.session.init.Load().(bool); !ok || (ok && !init) {
+		return 0, errors.New("waiting for remote side to accept " + c.String())
 	}
-	// code isn't multithreaded so appending to this is safe
 	coords := c.session.coords
-	// Prepare the payload
 	c.session.myNonceMutex.Lock()
 	payload, nonce := crypto.BoxSeal(&c.session.sharedSesKey, b, &c.session.myNonce)
-	c.session.myNonceMutex.Unlock()
 	defer util.PutBytes(payload)
 	p := wire_trafficPacket{
 		Coords:  coords,
@@ -146,6 +148,7 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 		Payload: payload,
 	}
 	packet := p.encode()
+	c.session.myNonceMutex.Unlock()
 	atomic.AddUint64(&c.session.bytesSent, uint64(len(b)))
 	select {
 	case c.session.send <- packet:
