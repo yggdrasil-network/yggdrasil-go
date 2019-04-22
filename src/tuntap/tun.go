@@ -260,9 +260,9 @@ func (tun *TunAdapter) ifaceReader() error {
 		}
 		dstNodeID, dstNodeIDMask = dstAddr.GetNodeIDandMask()
 		// Do we have an active connection for this node ID?
-		tun.mutex.Lock()
+		tun.mutex.RLock()
 		if conn, isIn := tun.conns[*dstNodeID]; isIn {
-			tun.mutex.Unlock()
+			tun.mutex.RUnlock()
 			w, err := conn.Write(bs[:n])
 			if err != nil {
 				tun.log.Errorln("TUN/TAP conn write error:", err)
@@ -273,14 +273,20 @@ func (tun *TunAdapter) ifaceReader() error {
 				continue
 			}
 		} else {
-			if conn, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask); err == nil {
-				tun.conns[*dstNodeID] = &conn
-				tun.mutex.Unlock()
-				go tun.connReader(&conn)
-			} else {
-				tun.mutex.Unlock()
-				tun.log.Errorln("TUN/TAP dial error:", err)
-			}
+			tun.mutex.RUnlock()
+			func() {
+				tun.mutex.Lock()
+				defer tun.mutex.Unlock()
+				if conn, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask); err == nil {
+					tun.log.Debugln("Opening new session connection")
+					tun.log.Debugln("Node:", dstNodeID)
+					tun.log.Debugln("Mask:", dstNodeIDMask)
+					tun.conns[*dstNodeID] = &conn
+					go tun.connReader(&conn)
+				} else {
+					tun.log.Errorln("TUN/TAP dial error:", err)
+				}
+			}()
 		}
 
 		/*if !r.cryptokey.isValidSource(srcAddr, addrlen) {

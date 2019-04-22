@@ -35,7 +35,7 @@ func (d *Dialer) Dial(network, address string) (Conn, error) {
 				return Conn{}, err
 			}
 			copy(nodeID[:], dest)
-			for idx := 0; idx <= len; idx++ {
+			for idx := 0; idx < len; idx++ {
 				nodeMask[idx/8] |= 0x80 >> byte(idx%8)
 			}
 		} else {
@@ -65,8 +65,8 @@ func (d *Dialer) DialByNodeIDandMask(nodeID, nodeMask *crypto.NodeID) (Conn, err
 		nodeMask: nodeMask,
 		recv:     make(chan *wire_trafficPacket, 32),
 	}
-	conn.core.router.doAdmin(func() {
+	conn.core.router.admin <- func() {
 		conn.startSearch()
-	})
+	}
 	return conn, nil
 }
