@@ -387,6 +387,7 @@ func (sinfo *sessionInfo) close() {
 	delete(sinfo.core.sessions.addrToPerm, sinfo.theirAddr)
 	delete(sinfo.core.sessions.subnetToPerm, sinfo.theirSubnet)
 	close(sinfo.worker)
+	sinfo.init = false
 }
 
 // Returns a session ping appropriate for the given session info.

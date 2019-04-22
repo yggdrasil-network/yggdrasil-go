@@ -65,8 +65,5 @@ func (d *Dialer) DialByNodeIDandMask(nodeID, nodeMask *crypto.NodeID) (Conn, err
 		nodeMask: nodeMask,
 		recv:     make(chan *wire_trafficPacket, 32),
 	}
-	conn.core.router.admin <- func() {
-		conn.startSearch()
-	}
 	return conn, nil
 }

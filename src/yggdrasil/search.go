@@ -90,11 +90,10 @@ func (s *searches) handleDHTRes(res *dhtRes) {
 	if !isIn || s.checkDHTRes(sinfo, res) {
 		// Either we don't recognize this search, or we just finished it
 		return
-	} else {
-		// Add to the search and continue
-		s.addToSearch(sinfo, res)
-		s.doSearchStep(sinfo)
 	}
+	// Add to the search and continue
+	s.addToSearch(sinfo, res)
+	s.doSearchStep(sinfo)
 }
 
 // Adds the information from a dhtRes to an ongoing search.

@@ -193,12 +193,11 @@ func (tun *TunAdapter) connReader(conn *yggdrasil.Conn) error {
 		delete(tun.conns, remoteNodeID)
 		tun.mutex.Unlock()
 	}()
-	tun.log.Debugln("Start connection reader for", conn.String())
 	b := make([]byte, 65535)
 	for {
 		n, err := conn.Read(b)
 		if err != nil {
-			tun.log.Errorln("TUN/TAP conn read error:", err)
+			tun.log.Errorln(conn.String(), "TUN/TAP conn read error:", err)
 			continue
 		}
 		if n == 0 {
@@ -206,11 +205,11 @@ func (tun *TunAdapter) connReader(conn *yggdrasil.Conn) error {
 		}
 		w, err := tun.iface.Write(b[:n])
 		if err != nil {
-			tun.log.Errorln("TUN/TAP iface write error:", err)
+			tun.log.Errorln(conn.String(), "TUN/TAP iface write error:", err)
 			continue
 		}
 		if w != n {
-			tun.log.Errorln("TUN/TAP iface write mismatch:", w, "bytes written vs", n, "bytes given")
+			tun.log.Errorln(conn.String(), "TUN/TAP iface write mismatch:", w, "bytes written vs", n, "bytes given")
 			continue
 		}
 	}
@@ -219,20 +218,24 @@ func (tun *TunAdapter) connReader(conn *yggdrasil.Conn) error {
 func (tun *TunAdapter) ifaceReader() error {
 	bs := make([]byte, 65535)
 	for {
+		// Wait for a packet to be delivered to us through the TUN/TAP adapter
 		n, err := tun.iface.Read(bs)
 		if err != nil {
 			continue
 		}
-		// Look up if the dstination address is somewhere we already have an
-		// open connection to
+		// From the IP header, work out what our source and destination addresses
+		// and node IDs are. We will need these in order to work out where to send
+		// the packet
 		var srcAddr address.Address
 		var dstAddr address.Address
 		var dstNodeID *crypto.NodeID
 		var dstNodeIDMask *crypto.NodeID
 		var dstSnet address.Subnet
 		var addrlen int
+		// Check the IP protocol - if it doesn't match then we drop the packet and
+		// do nothing with it
 		if bs[0]&0xf0 == 0x60 {
-			// Check if we have a fully-sized header
+			// Check if we have a fully-sized IPv6 header
 			if len(bs) < 40 {
 				continue
 			}
@@ -242,7 +245,7 @@ func (tun *TunAdapter) ifaceReader() error {
 			copy(dstAddr[:addrlen], bs[24:])
 			copy(dstSnet[:addrlen/2], bs[24:])
 		} else if bs[0]&0xf0 == 0x40 {
-			// Check if we have a fully-sized header
+			// Check if we have a fully-sized IPv4 header
 			if len(bs) < 20 {
 				continue
 			}
@@ -251,7 +254,7 @@ func (tun *TunAdapter) ifaceReader() error {
 			copy(srcAddr[:addrlen], bs[12:])
 			copy(dstAddr[:addrlen], bs[16:])
 		} else {
-			// Unknown address length or protocol
+			// Unknown address length or protocol, so drop the packet and ignore it
 			continue
 		}
 		if !dstAddr.IsValid() && !dstSnet.IsValid() {
@@ -261,32 +264,39 @@ func (tun *TunAdapter) ifaceReader() error {
 		dstNodeID, dstNodeIDMask = dstAddr.GetNodeIDandMask()
 		// Do we have an active connection for this node ID?
 		tun.mutex.RLock()
-		if conn, isIn := tun.conns[*dstNodeID]; isIn {
-			tun.mutex.RUnlock()
+		conn, isIn := tun.conns[*dstNodeID]
+		tun.mutex.RUnlock()
+		// If we don't have a connection then we should open one
+		if !isIn {
+			// Dial to the remote node
+			if c, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask); err == nil {
+				// We've been given a connection, so save it in our connections so we
+				// can refer to it the next time we send a packet to this destination
+				tun.mutex.Lock()
+				tun.conns[*dstNodeID] = &c
+				tun.mutex.Unlock()
+				// Start the connection reader goroutine
+				go tun.connReader(&c)
+				// Then update our reference to the connection
+				conn, isIn = &c, true
+			} else {
+				// We weren't able to dial for some reason so there's no point in
+				// continuing this iteration - skip to the next one
+				continue
+			}
+		}
+		// If we have an open connection, either because we already had one or
+		// because we opened one above, try writing the packet to it
+		if isIn && conn != nil {
 			w, err := conn.Write(bs[:n])
 			if err != nil {
-				tun.log.Errorln("TUN/TAP conn write error:", err)
+				tun.log.Errorln(conn.String(), "TUN/TAP conn write error:", err)
 				continue
 			}
 			if w != n {
-				tun.log.Errorln("TUN/TAP conn write mismatch:", w, "bytes written vs", n, "bytes given")
+				tun.log.Errorln(conn.String(), "TUN/TAP conn write mismatch:", w, "bytes written vs", n, "bytes given")
 				continue
 			}
-		} else {
-			tun.mutex.RUnlock()
-			func() {
-				tun.mutex.Lock()
-				defer tun.mutex.Unlock()
-				if conn, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask); err == nil {
-					tun.log.Debugln("Opening new session connection")
-					tun.log.Debugln("Node:", dstNodeID)
-					tun.log.Debugln("Mask:", dstNodeIDMask)
-					tun.conns[*dstNodeID] = &conn
-					go tun.connReader(&conn)
-				} else {
-					tun.log.Errorln("TUN/TAP dial error:", err)
-				}
-			}()
 		}
 
 		/*if !r.cryptokey.isValidSource(srcAddr, addrlen) {
