@@ -2,11 +2,11 @@ package tuntap
 
 // This manages the tun driver to send/recv packets to/from applications
 
-// TODO: Crypto-key routing
+// TODO: Crypto-key routing support
 // TODO: Set MTU of session properly
-// TODO: Reject packets that exceed session MTU
-// TODO: Connection timeouts (call Close() when done)
-// TODO: Keep packet that was used to set up a session and send it when done
+// TODO: Reject packets that exceed session MTU with ICMPv6 for PMTU Discovery
+// TODO: Connection timeouts (call Conn.Close() when we want to time out)
+// TODO: Don't block in ifaceReader on writes that are pending searches
 
 import (
 	"encoding/hex"
