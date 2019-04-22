@@ -263,7 +263,7 @@ func (tun *TunAdapter) ifaceReader() error {
 		tun.mutex.Lock()
 		if conn, isIn := tun.conns[*dstNodeID]; isIn {
 			tun.mutex.Unlock()
-			w, err := conn.Write(bs)
+			w, err := conn.Write(bs[:n])
 			if err != nil {
 				tun.log.Errorln("TUN/TAP conn write error:", err)
 				continue
