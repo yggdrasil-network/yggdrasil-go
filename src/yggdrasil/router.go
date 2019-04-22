@@ -23,7 +23,7 @@ package yggdrasil
 //  The router then runs some sanity checks before passing it to the adapter
 
 import (
-	"bytes"
+	//"bytes"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
@@ -42,12 +42,12 @@ type router struct {
 	out         func([]byte)           // packets we're sending to the network, link to peer's "in"
 	toRecv      chan router_recvPacket // packets to handle via recvPacket()
 	recv        chan<- []byte          // place where the adapter pulls received packets from
-	send        <-chan []byte          // place where the adapter puts outgoing packets
-	reject      chan<- RejectedPacket  // place where we send error packets back to adapter
-	reset       chan struct{}          // signal that coords changed (re-init sessions/dht)
-	admin       chan func()            // pass a lambda for the admin socket to query stuff
-	cryptokey   cryptokey
-	nodeinfo    nodeinfo
+	//send        <-chan []byte          // place where the adapter puts outgoing packets
+	reject    chan<- RejectedPacket // place where we send error packets back to adapter
+	reset     chan struct{}         // signal that coords changed (re-init sessions/dht)
+	admin     chan func()           // pass a lambda for the admin socket to query stuff
+	cryptokey cryptokey
+	nodeinfo  nodeinfo
 }
 
 // Packet and session info, used to check that the packet matches a valid IP range or CKR prefix before sending to the adapter.
@@ -122,11 +122,11 @@ func (r *router) init(core *Core) {
 	}()
 	r.out = func(packet []byte) { out2 <- packet }
 	r.toRecv = make(chan router_recvPacket, 32)
-	recv := make(chan []byte, 32)
-	send := make(chan []byte, 32)
+	//recv := make(chan []byte, 32)
+	//send := make(chan []byte, 32)
 	reject := make(chan RejectedPacket, 32)
-	r.recv = recv
-	r.send = send
+	//r.recv = recv
+	//r.send = send
 	r.reject = reject
 	r.reset = make(chan struct{}, 1)
 	r.admin = make(chan func(), 32)
@@ -157,8 +157,8 @@ func (r *router) mainLoop() {
 			r.recvPacket(rp.bs, rp.sinfo)
 		case p := <-r.in:
 			r.handleIn(p)
-		case p := <-r.send:
-			r.sendPacket(p)
+		//case p := <-r.send:
+		//	r.sendPacket(p)
 		case info := <-r.core.dht.peers:
 			r.core.dht.insertPeer(info)
 		case <-r.reset:
@@ -181,6 +181,7 @@ func (r *router) mainLoop() {
 	}
 }
 
+/*
 // Checks a packet's to/from address to make sure it's in the allowed range.
 // If a session to the destination exists, gets the session and passes the packet to it.
 // If no session exists, it triggers (or continues) a search.
@@ -353,6 +354,7 @@ func (r *router) sendPacket(bs []byte) {
 		sinfo.send <- bs
 	}
 }
+*/
 
 // Called for incoming traffic by the session worker for that connection.
 // Checks that the IP address is correct (matches the session) and passes the packet to the adapter.
@@ -429,7 +431,11 @@ func (r *router) handleTraffic(packet []byte) {
 	if !isIn {
 		return
 	}
-	sinfo.recv <- &p
+	select {
+	case sinfo.recv <- &p: // FIXME ideally this should be FIFO
+	default:
+		util.PutBytes(p.Payload)
+	}
 }
 
 // Handles protocol traffic by decrypting it, checking its type, and passing it to the appropriate handler for that traffic type.

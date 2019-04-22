@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
@@ -15,10 +14,11 @@ type Conn struct {
 	core          *Core
 	nodeID        *crypto.NodeID
 	nodeMask      *crypto.NodeID
-	session       *sessionInfo
+	recv          chan *wire_trafficPacket // Eventually gets attached to session.recv
 	mutex         *sync.RWMutex
-	readDeadline  time.Time
-	writeDeadline time.Time
+	session       *sessionInfo
+	readDeadline  time.Time // TODO timer
+	writeDeadline time.Time // TODO timer
 	expired       bool
 }
 
@@ -39,6 +39,7 @@ func (c *Conn) startSearch() {
 		if sinfo != nil {
 			c.mutex.Lock()
 			c.session = sinfo
+			c.session.recv = c.recv
 			c.nodeID, c.nodeMask = sinfo.theirAddr.GetNodeIDandMask()
 			c.mutex.Unlock()
 		}
@@ -50,113 +51,124 @@ func (c *Conn) startSearch() {
 		}
 		c.core.searches.continueSearch(sinfo)
 	}
-	switch {
-	case c.session == nil || !c.session.init.Load().(bool):
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	if c.session == nil {
 		doSearch()
-	case time.Since(c.session.time.Load().(time.Time)) > 6*time.Second:
-		sTime := c.session.time.Load().(time.Time)
-		pingTime := c.session.pingTime.Load().(time.Time)
-		if sTime.Before(pingTime) && time.Since(pingTime) > 6*time.Second {
-			doSearch()
-		} else {
-			pingSend := c.session.pingSend.Load().(time.Time)
-			now := time.Now()
-			if !sTime.Before(pingTime) {
-				c.session.pingTime.Store(now)
-			}
-			if time.Since(pingSend) > time.Second {
-				c.session.pingSend.Store(now)
-				c.core.sessions.sendPingPong(c.session, false)
+	} else {
+		sinfo := c.session // In case c.session is somehow changed meanwhile
+		sinfo.worker <- func() {
+			switch {
+			case !sinfo.init:
+				doSearch()
+			case time.Since(sinfo.time) > 6*time.Second:
+				if sinfo.time.Before(sinfo.pingTime) && time.Since(sinfo.pingTime) > 6*time.Second {
+					// TODO double check that the above condition is correct
+					doSearch()
+				} else {
+					c.core.sessions.ping(sinfo)
+				}
+			default: // Don't do anything, to keep traffic throttled
 			}
 		}
 	}
 }
 
 func (c *Conn) Read(b []byte) (int, error) {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
-	if c.expired {
-		return 0, errors.New("session is closed")
-	}
-	if c.session == nil {
-		return 0, errors.New("searching for remote side")
-	}
-	if init, ok := c.session.init.Load().(bool); !ok || (ok && !init) {
-		return 0, errors.New("waiting for remote side to accept " + c.String())
+	err := func() error {
+		c.mutex.RLock()
+		defer c.mutex.RUnlock()
+		if c.expired {
+			return errors.New("session is closed")
+		}
+		return nil
+	}()
+	if err != nil {
+		return 0, err
 	}
 	select {
-	case p, ok := <-c.session.recv:
+	// TODO...
+	case p, ok := <-c.recv:
 		if !ok {
+			c.mutex.Lock()
 			c.expired = true
+			c.mutex.Unlock()
 			return 0, errors.New("session is closed")
 		}
 		defer util.PutBytes(p.Payload)
-		err := func() error {
-			c.session.theirNonceMutex.Lock()
-			defer c.session.theirNonceMutex.Unlock()
-			if !c.session.nonceIsOK(&p.Nonce) {
-				return errors.New("packet dropped due to invalid nonce")
+		c.mutex.RLock()
+		sinfo := c.session
+		c.mutex.RUnlock()
+		var err error
+		sinfo.doWorker(func() {
+			if !sinfo.nonceIsOK(&p.Nonce) {
+				err = errors.New("packet dropped due to invalid nonce")
+				return
 			}
-			bs, isOK := crypto.BoxOpen(&c.session.sharedSesKey, p.Payload, &p.Nonce)
+			bs, isOK := crypto.BoxOpen(&sinfo.sharedSesKey, p.Payload, &p.Nonce)
 			if !isOK {
 				util.PutBytes(bs)
-				return errors.New("packet dropped due to decryption failure")
+				err = errors.New("packet dropped due to decryption failure")
+				return
 			}
 			copy(b, bs)
 			if len(bs) < len(b) {
 				b = b[:len(bs)]
 			}
-			c.session.updateNonce(&p.Nonce)
-			c.session.time.Store(time.Now())
-			return nil
-		}()
+			sinfo.updateNonce(&p.Nonce)
+			sinfo.time = time.Now()
+			sinfo.bytesRecvd += uint64(len(b))
+		})
 		if err != nil {
 			return 0, err
 		}
-		atomic.AddUint64(&c.session.bytesRecvd, uint64(len(b)))
 		return len(b), nil
-	case <-c.session.closed:
-		c.expired = true
-		return len(b), errors.New("session is closed")
+		//case <-c.recvTimeout:
+		//case <-c.session.closed:
+		//	c.expired = true
+		//	return len(b), errors.New("session is closed")
 	}
 }
 
 func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
-	if c.expired {
-		return 0, errors.New("session is closed")
+	var sinfo *sessionInfo
+	err = func() error {
+		c.mutex.RLock()
+		defer c.mutex.RUnlock()
+		if c.expired {
+			return errors.New("session is closed")
+		}
+		sinfo = c.session
+		return nil
+	}()
+	if err != nil {
+		return 0, err
 	}
-	if c.session == nil {
+	if sinfo == nil {
 		c.core.router.doAdmin(func() {
 			c.startSearch()
 		})
 		return 0, errors.New("searching for remote side")
 	}
-	defer util.PutBytes(b)
-	if init, ok := c.session.init.Load().(bool); !ok || (ok && !init) {
-		return 0, errors.New("waiting for remote side to accept " + c.String())
-	}
-	coords := c.session.coords
-	c.session.myNonceMutex.Lock()
-	payload, nonce := crypto.BoxSeal(&c.session.sharedSesKey, b, &c.session.myNonce)
-	defer util.PutBytes(payload)
-	p := wire_trafficPacket{
-		Coords:  coords,
-		Handle:  c.session.theirHandle,
-		Nonce:   *nonce,
-		Payload: payload,
-	}
-	packet := p.encode()
-	c.session.myNonceMutex.Unlock()
-	atomic.AddUint64(&c.session.bytesSent, uint64(len(b)))
-	select {
-	case c.session.send <- packet:
-	case <-c.session.closed:
-		c.expired = true
-		return len(b), errors.New("session is closed")
-	}
-	c.session.core.router.out(packet)
+	//defer util.PutBytes(b)
+	var packet []byte
+	sinfo.doWorker(func() {
+		if !sinfo.init {
+			err = errors.New("waiting for remote side to accept " + c.String())
+			return
+		}
+		payload, nonce := crypto.BoxSeal(&sinfo.sharedSesKey, b, &sinfo.myNonce)
+		defer util.PutBytes(payload)
+		p := wire_trafficPacket{
+			Coords:  sinfo.coords,
+			Handle:  sinfo.theirHandle,
+			Nonce:   *nonce,
+			Payload: payload,
+		}
+		packet = p.encode()
+		sinfo.bytesSent += uint64(len(b))
+	})
+	sinfo.core.router.out(packet)
 	return len(b), nil
 }
 

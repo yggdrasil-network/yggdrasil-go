@@ -63,6 +63,7 @@ func (d *Dialer) DialByNodeIDandMask(nodeID, nodeMask *crypto.NodeID) (Conn, err
 		mutex:    &sync.RWMutex{},
 		nodeID:   nodeID,
 		nodeMask: nodeMask,
+		recv:     make(chan *wire_trafficPacket, 32),
 	}
 	conn.core.router.doAdmin(func() {
 		conn.startSearch()
