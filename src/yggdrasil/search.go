@@ -140,7 +140,7 @@ func (s *searches) doSearchStep(sinfo *searchInfo) {
 	if len(sinfo.toVisit) == 0 {
 		// Dead end, do cleanup
 		delete(s.searches, sinfo.dest)
-		sinfo.callback(nil, errors.New("search reached dead end"))
+		go sinfo.callback(nil, errors.New("search reached dead end"))
 		return
 	}
 	// Send to the next search target
@@ -203,7 +203,7 @@ func (s *searches) checkDHTRes(info *searchInfo, res *dhtRes) bool {
 		sinfo = s.core.sessions.createSession(&res.Key)
 		if sinfo == nil {
 			// nil if the DHT search finished but the session wasn't allowed
-			info.callback(nil, errors.New("session not allowed"))
+			go info.callback(nil, errors.New("session not allowed"))
 			return true
 		}
 		_, isIn := s.core.sessions.getByTheirPerm(&res.Key)
@@ -215,7 +215,7 @@ func (s *searches) checkDHTRes(info *searchInfo, res *dhtRes) bool {
 	sinfo.coords = res.Coords
 	sinfo.packet = info.packet
 	s.core.sessions.ping(sinfo)
-	info.callback(sinfo, nil)
+	go info.callback(sinfo, nil)
 	// Cleanup
 	delete(s.searches, res.Dest)
 	return true
