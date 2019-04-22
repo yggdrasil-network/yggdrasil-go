@@ -2,6 +2,12 @@ package tuntap
 
 // This manages the tun driver to send/recv packets to/from applications
 
+// TODO: Crypto-key routing
+// TODO: Set MTU of session properly
+// TODO: Reject packets that exceed session MTU
+// TODO: Connection timeouts (call Close() when done)
+// TODO: Keep packet that was used to set up a session and send it when done
+
 import (
 	"encoding/hex"
 	"errors"
@@ -38,9 +44,9 @@ type TunAdapter struct {
 	icmpv6       ICMPv6
 	mtu          int
 	iface        *water.Interface
-	mutex        sync.RWMutex // Protects the below
-	addrToConn   map[address.Address]*yggdrasil.Conn
-	subnetToConn map[address.Subnet]*yggdrasil.Conn
+	mutex        sync.RWMutex                        // Protects the below
+	addrToConn   map[address.Address]*yggdrasil.Conn // Managed by connReader
+	subnetToConn map[address.Subnet]*yggdrasil.Conn  // Managed by connReader
 	isOpen       bool
 }
 
@@ -312,7 +318,7 @@ func (tun *TunAdapter) ifaceReader() error {
 			}
 		}
 		// If we have a connection now, try writing to it
-		if conn != nil {
+		if isIn && conn != nil {
 			// If we have an open connection, either because we already had one or
 			// because we opened one above, try writing the packet to it
 			w, err := conn.Write(bs[:n])

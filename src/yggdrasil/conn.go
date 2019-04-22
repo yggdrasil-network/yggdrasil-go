@@ -110,21 +110,24 @@ func (c *Conn) Read(b []byte) (int, error) {
 	c.mutex.RLock()
 	sinfo := c.session
 	c.mutex.RUnlock()
+	// If there is a search in progress then wait for the result
+	if searching, ok := c.searching.Load().(bool); ok && searching {
+		<-c.searchwait
+	}
 	// If the session is not initialised, do nothing. Currently in this instance
 	// in a write, we would trigger a new session, but it doesn't make sense for
 	// us to block forever here if the session will not reopen.
 	// TODO: should this return an error or just a zero-length buffer?
 	if sinfo == nil || !sinfo.init {
-		// block
-		<-c.searchwait
-		// return 0, errors.New("session is closed")
+		time.Sleep(time.Second)
+		return 0, errors.New("session is closed")
 	}
 	// Wait for some traffic to come through from the session
-	fmt.Println("Start select")
+	fmt.Println(c.String(), "Start select")
 	select {
 	// TODO...
 	case p, ok := <-c.recv:
-		fmt.Println("Finish select")
+		fmt.Println(c.String(), "Finish select")
 		// If the session is closed then do nothing
 		if !ok {
 			return 0, errors.New("session is closed")
@@ -176,8 +179,9 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 	c.mutex.RLock()
 	sinfo := c.session
 	c.mutex.RUnlock()
-	// A search is already taking place so wait for it to finish
-	if sinfo == nil || !sinfo.init {
+	// If there is a search in progress then wait for the result
+	if searching, ok := c.searching.Load().(bool); ok && searching {
+		<-c.searchwait
 	}
 	// If the session doesn't exist, or isn't initialised (which probably means
 	// that the search didn't complete successfully) then try to search again
