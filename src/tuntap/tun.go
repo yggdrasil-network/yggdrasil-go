@@ -216,7 +216,7 @@ func (tun *TunAdapter) connReader(conn *yggdrasil.Conn) error {
 	for {
 		n, err := conn.Read(b)
 		if err != nil {
-			//tun.log.Errorln(conn.String(), "TUN/TAP conn read error:", err)
+			tun.log.Errorln(conn.String(), "TUN/TAP conn read error:", err)
 			continue
 		}
 		if n == 0 {
