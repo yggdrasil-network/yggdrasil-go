@@ -20,7 +20,6 @@ type Conn struct {
 	session       *sessionInfo
 	readDeadline  atomic.Value // time.Time // TODO timer
 	writeDeadline atomic.Value // time.Time // TODO timer
-	expired       atomic.Value // bool
 	searching     atomic.Value // bool
 }
 
@@ -30,39 +29,58 @@ func (c *Conn) String() string {
 
 // This method should only be called from the router goroutine
 func (c *Conn) startSearch() {
+	// The searchCompleted callback is given to the search
 	searchCompleted := func(sinfo *sessionInfo, err error) {
+		// Update the connection with the fact that the search completed, which
+		// allows another search to be triggered if necessary
 		c.searching.Store(false)
-		c.mutex.Lock()
-		defer c.mutex.Unlock()
+		// If the search failed for some reason, e.g. it hit a dead end or timed
+		// out, then do nothing
 		if err != nil {
 			c.core.log.Debugln(c.String(), "DHT search failed:", err)
-			c.expired.Store(true)
 			return
 		}
+		// Take the connection mutex
+		c.mutex.Lock()
+		defer c.mutex.Unlock()
+		// Were we successfully given a sessionInfo pointeR?
 		if sinfo != nil {
+			// Store it, and update the nodeID and nodeMask (which may have been
+			// wildcarded before now) with their complete counterparts
 			c.core.log.Debugln(c.String(), "DHT search completed")
 			c.session = sinfo
-			c.nodeID, c.nodeMask = sinfo.theirAddr.GetNodeIDandMask()
-			c.expired.Store(false)
+			c.nodeID = crypto.GetNodeID(&sinfo.theirPermPub)
+			for i := range c.nodeMask {
+				c.nodeMask[i] = 0xFF
+			}
 		} else {
-			c.core.log.Debugln(c.String(), "DHT search failed: no session returned")
-			c.expired.Store(true)
-			return
+			// No session was returned - this shouldn't really happen because we
+			// should always return an error reason if we don't return a session
+			panic("DHT search didn't return an error or a sessionInfo")
 		}
 	}
+	// doSearch will be called below in response to one or more conditions
 	doSearch := func() {
+		// Store the fact that we're searching, so that we don't start additional
+		// searches until this one has completed
 		c.searching.Store(true)
+		// Check to see if there is a search already matching the destination
 		sinfo, isIn := c.core.searches.searches[*c.nodeID]
 		if !isIn {
+			// Nothing was found, so create a new search
 			sinfo = c.core.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
 			c.core.log.Debugf("%s DHT search started: %p", c.String(), sinfo)
 		}
+		// Continue the search
 		c.core.searches.continueSearch(sinfo)
 	}
+	// Take a copy of the session object, in case it changes later
 	c.mutex.RLock()
 	sinfo := c.session
 	c.mutex.RUnlock()
 	if c.session == nil {
+		// No session object is present so previous searches, if we ran any, have
+		// not yielded a useful result (dead end, remote host not found)
 		doSearch()
 	} else {
 		sinfo.worker <- func() {
@@ -83,10 +101,6 @@ func (c *Conn) startSearch() {
 }
 
 func (c *Conn) Read(b []byte) (int, error) {
-	// If the session is marked as expired then do nothing at this point
-	if e, ok := c.expired.Load().(bool); ok && e {
-		return 0, errors.New("session is closed")
-	}
 	// Take a copy of the session object
 	c.mutex.RLock()
 	sinfo := c.session
@@ -95,17 +109,15 @@ func (c *Conn) Read(b []byte) (int, error) {
 	// in a write, we would trigger a new session, but it doesn't make sense for
 	// us to block forever here if the session will not reopen.
 	// TODO: should this return an error or just a zero-length buffer?
-	if !sinfo.init {
+	if sinfo == nil || !sinfo.init {
 		return 0, errors.New("session is closed")
 	}
 	// Wait for some traffic to come through from the session
 	select {
 	// TODO...
 	case p, ok := <-c.recv:
-		// If the channel was closed then mark the connection as expired, this will
-		// mean that the next write will start a new search and reopen the session
+		// If the session is closed then do nothing
 		if !ok {
-			c.expired.Store(true)
 			return 0, errors.New("session is closed")
 		}
 		defer util.PutBytes(p.Payload)
@@ -155,13 +167,9 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 	c.mutex.RLock()
 	sinfo := c.session
 	c.mutex.RUnlock()
-	// Check whether the connection is expired, if it is we can start a new
-	// search to revive it
-	expired, eok := c.expired.Load().(bool)
 	// If the session doesn't exist, or isn't initialised (which probably means
-	// that the session was never set up or it closed by timeout), or the conn
-	// is marked as expired, then see if we can start a new search
-	if sinfo == nil || !sinfo.init || (eok && expired) {
+	// that the search didn't complete successfully) then try to search again
+	if sinfo == nil || !sinfo.init {
 		// Is a search already taking place?
 		if searching, sok := c.searching.Load().(bool); !sok || (sok && !searching) {
 			// No search was already taking place so start a new one
@@ -173,7 +181,7 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 		// A search is already taking place so wait for it to finish
 		return 0, errors.New("waiting for search to complete")
 	}
-	//defer util.PutBytes(b)
+	// defer util.PutBytes(b)
 	var packet []byte
 	// Hand over to the session worker
 	sinfo.doWorker(func() {
@@ -197,11 +205,9 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 }
 
 func (c *Conn) Close() error {
-	// Mark the connection as expired, so that a future read attempt will fail
-	// and a future write attempt will start a new search
-	c.expired.Store(true)
 	// Close the session, if it hasn't been closed already
 	c.session.close()
+	c.session = nil
 	// This can't fail yet - TODO?
 	return nil
 }

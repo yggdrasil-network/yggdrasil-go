@@ -28,19 +28,20 @@ const tun_ETHER_HEADER_LENGTH = 14
 // you should pass this object to the yggdrasil.SetRouterAdapter() function
 // before calling yggdrasil.Start().
 type TunAdapter struct {
-	config      *config.NodeState
-	log         *log.Logger
-	reconfigure chan chan error
-	listener    *yggdrasil.Listener
-	dialer      *yggdrasil.Dialer
-	addr        address.Address
-	subnet      address.Subnet
-	icmpv6      ICMPv6
-	mtu         int
-	iface       *water.Interface
-	mutex       sync.RWMutex // Protects the below
-	conns       map[crypto.NodeID]*yggdrasil.Conn
-	isOpen      bool
+	config       *config.NodeState
+	log          *log.Logger
+	reconfigure  chan chan error
+	listener     *yggdrasil.Listener
+	dialer       *yggdrasil.Dialer
+	addr         address.Address
+	subnet       address.Subnet
+	icmpv6       ICMPv6
+	mtu          int
+	iface        *water.Interface
+	mutex        sync.RWMutex // Protects the below
+	addrToConn   map[address.Address]*yggdrasil.Conn
+	subnetToConn map[address.Subnet]*yggdrasil.Conn
+	isOpen       bool
 }
 
 // Gets the maximum supported MTU for the platform based on the defaults in
@@ -102,7 +103,8 @@ func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener 
 	tun.log = log
 	tun.listener = listener
 	tun.dialer = dialer
-	tun.conns = make(map[crypto.NodeID]*yggdrasil.Conn)
+	tun.addrToConn = make(map[address.Address]*yggdrasil.Conn)
+	tun.subnetToConn = make(map[address.Subnet]*yggdrasil.Conn)
 }
 
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
@@ -181,23 +183,40 @@ func (tun *TunAdapter) handler() error {
 
 func (tun *TunAdapter) connReader(conn *yggdrasil.Conn) error {
 	remoteNodeID := conn.RemoteAddr()
-	tun.mutex.Lock()
-	if _, isIn := tun.conns[remoteNodeID]; isIn {
-		tun.mutex.Unlock()
-		return errors.New("duplicate connection")
+	remoteAddr := address.AddrForNodeID(&remoteNodeID)
+	remoteSubnet := address.SubnetForNodeID(&remoteNodeID)
+	err := func() error {
+		tun.mutex.RLock()
+		defer tun.mutex.RUnlock()
+		if _, isIn := tun.addrToConn[*remoteAddr]; isIn {
+			return errors.New("duplicate connection for address " + net.IP(remoteAddr[:]).String())
+		}
+		if _, isIn := tun.subnetToConn[*remoteSubnet]; isIn {
+			return errors.New("duplicate connection for subnet " + net.IP(remoteSubnet[:]).String())
+		}
+		return nil
+	}()
+	if err != nil {
+		//return err
+		panic(err)
 	}
-	tun.conns[remoteNodeID] = conn
+	// Store the connection mapped to address and subnet
+	tun.mutex.Lock()
+	tun.addrToConn[*remoteAddr] = conn
+	tun.subnetToConn[*remoteSubnet] = conn
 	tun.mutex.Unlock()
+	// Make sure to clean those up later when the connection is closed
 	defer func() {
 		tun.mutex.Lock()
-		delete(tun.conns, remoteNodeID)
+		delete(tun.addrToConn, *remoteAddr)
+		delete(tun.subnetToConn, *remoteSubnet)
 		tun.mutex.Unlock()
 	}()
 	b := make([]byte, 65535)
 	for {
 		n, err := conn.Read(b)
 		if err != nil {
-			tun.log.Errorln(conn.String(), "TUN/TAP conn read error:", err)
+			//tun.log.Errorln(conn.String(), "TUN/TAP conn read error:", err)
 			continue
 		}
 		if n == 0 {
@@ -261,21 +280,28 @@ func (tun *TunAdapter) ifaceReader() error {
 			// For now don't deal with any non-Yggdrasil ranges
 			continue
 		}
-		dstNodeID, dstNodeIDMask = dstAddr.GetNodeIDandMask()
-		// Do we have an active connection for this node ID?
+		// Do we have an active connection for this node address?
 		tun.mutex.RLock()
-		conn, isIn := tun.conns[*dstNodeID]
+		conn, isIn := tun.addrToConn[dstAddr]
+		if !isIn || conn == nil {
+			conn, isIn = tun.subnetToConn[dstSnet]
+			if !isIn || conn == nil {
+				// Neither an address nor a subnet mapping matched, therefore populate
+				// the node ID and mask to commence a search
+				dstNodeID, dstNodeIDMask = dstAddr.GetNodeIDandMask()
+			}
+		}
 		tun.mutex.RUnlock()
 		// If we don't have a connection then we should open one
-		if !isIn {
+		if !isIn || conn == nil {
+			// Check we haven't been given empty node ID, really this shouldn't ever
+			// happen but just to be sure...
+			if dstNodeID == nil || dstNodeIDMask == nil {
+				panic("Given empty dstNodeID and dstNodeIDMask - this shouldn't happen")
+			}
 			// Dial to the remote node
 			if c, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask); err == nil {
-				// We've been given a connection, so save it in our connections so we
-				// can refer to it the next time we send a packet to this destination
-				tun.mutex.Lock()
-				tun.conns[*dstNodeID] = &c
-				tun.mutex.Unlock()
-				// Start the connection reader goroutine
+				// We've been given a connection so start the connection reader goroutine
 				go tun.connReader(&c)
 				// Then update our reference to the connection
 				conn, isIn = &c, true
@@ -285,9 +311,10 @@ func (tun *TunAdapter) ifaceReader() error {
 				continue
 			}
 		}
-		// If we have an open connection, either because we already had one or
-		// because we opened one above, try writing the packet to it
-		if isIn && conn != nil {
+		// If we have a connection now, try writing to it
+		if conn != nil {
+			// If we have an open connection, either because we already had one or
+			// because we opened one above, try writing the packet to it
 			w, err := conn.Write(bs[:n])
 			if err != nil {
 				tun.log.Errorln(conn.String(), "TUN/TAP conn write error:", err)

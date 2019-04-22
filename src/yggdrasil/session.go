@@ -107,15 +107,6 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 	return true
 }
 
-// Returns true if the session has been idle for longer than the allowed timeout.
-func (s *sessionInfo) timedout() bool {
-	var timedout bool
-	s.doWorker(func() {
-		timedout = time.Since(s.time) > time.Minute
-	})
-	return timedout
-}
-
 // Struct of all active sessions.
 // Sessions are indexed by handle.
 // Additionally, stores maps of address/subnet onto keys, and keys onto handles.
@@ -233,10 +224,6 @@ func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) b
 // Gets the session corresponding to a given handle.
 func (ss *sessions) getSessionForHandle(handle *crypto.Handle) (*sessionInfo, bool) {
 	sinfo, isIn := ss.sinfos[*handle]
-	if isIn && sinfo.timedout() {
-		// We have a session, but it has timed out
-		return nil, false
-	}
 	return sinfo, isIn
 }
 
@@ -280,8 +267,9 @@ func (ss *sessions) getByTheirSubnet(snet *address.Subnet) (*sessionInfo, bool) 
 	return sinfo, isIn
 }
 
-// Creates a new session and lazily cleans up old/timedout existing sessions.
-// This includse initializing session info to sane defaults (e.g. lowest supported MTU).
+// Creates a new session and lazily cleans up old existing sessions. This
+// includse initializing session info to sane defaults (e.g. lowest supported
+// MTU).
 func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	if !ss.isSessionAllowed(theirPermKey, true) {
 		return nil
@@ -341,11 +329,6 @@ func (ss *sessions) cleanup() {
 	if time.Since(ss.lastCleanup) < time.Minute {
 		return
 	}
-	for _, s := range ss.sinfos {
-		if s.timedout() {
-			s.close()
-		}
-	}
 	permShared := make(map[crypto.BoxPubKey]*crypto.BoxSharedKey, len(ss.permShared))
 	for k, v := range ss.permShared {
 		permShared[k] = v
@@ -387,7 +370,6 @@ func (sinfo *sessionInfo) close() {
 	delete(sinfo.core.sessions.addrToPerm, sinfo.theirAddr)
 	delete(sinfo.core.sessions.subnetToPerm, sinfo.theirSubnet)
 	close(sinfo.worker)
-	sinfo.init = false
 }
 
 // Returns a session ping appropriate for the given session info.
@@ -465,17 +447,16 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 			return
 		}
 	}
-	if !isIn || sinfo.timedout() {
-		if isIn {
-			sinfo.close()
-		}
+	if !isIn {
 		ss.createSession(&ping.SendPermPub)
 		sinfo, isIn = ss.getByTheirPerm(&ping.SendPermPub)
 		if !isIn {
 			panic("This should not happen")
 		}
 		ss.listenerMutex.Lock()
-		if ss.listener != nil {
+		// Check and see if there's a Listener waiting to accept connections
+		// TODO: this should not block if nothing is accepting
+		if !ping.IsPong && ss.listener != nil {
 			conn := &Conn{
 				core:     ss.core,
 				session:  sinfo,
@@ -488,8 +469,6 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 				conn.nodeMask[i] = 0xFF
 			}
 			ss.listener.conn <- conn
-		} else {
-			ss.core.log.Debugln("Received new session but there is no listener, ignoring")
 		}
 		ss.listenerMutex.Unlock()
 	}
