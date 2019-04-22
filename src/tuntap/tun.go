@@ -5,6 +5,7 @@ package tuntap
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -124,8 +125,9 @@ func (tun *TunAdapter) Start() error {
 	tun.mtu = tun.config.Current.IfMTU
 	ifname := tun.config.Current.IfName
 	iftapmode := tun.config.Current.IfTAPMode
+	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
 	if ifname != "none" {
-		if err := tun.setup(ifname, iftapmode, net.IP(tun.addr[:]).String(), tun.mtu); err != nil {
+		if err := tun.setup(ifname, iftapmode, addr, tun.mtu); err != nil {
 			return err
 		}
 	}
