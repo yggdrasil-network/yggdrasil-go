@@ -321,6 +321,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.theirAddr = *address.AddrForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
 	sinfo.theirSubnet = *address.SubnetForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
 	sinfo.worker = make(chan func(), 1)
+	sinfo.recv = make(chan *wire_trafficPacket, 32)
 	ss.sinfos[sinfo.myHandle] = &sinfo
 	ss.byMySes[sinfo.mySesPub] = &sinfo.myHandle
 	ss.byTheirPerm[sinfo.theirPermPub] = &sinfo.myHandle
@@ -480,12 +481,11 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 				mutex:    &sync.RWMutex{},
 				nodeID:   crypto.GetNodeID(&sinfo.theirPermPub),
 				nodeMask: &crypto.NodeID{},
-				recv:     make(chan *wire_trafficPacket, 32),
+				recv:     sinfo.recv,
 			}
 			for i := range conn.nodeMask {
 				conn.nodeMask[i] = 0xFF
 			}
-			sinfo.recv = conn.recv
 			ss.listener.conn <- conn
 		} else {
 			ss.core.log.Debugln("Received new session but there is no listener, ignoring")

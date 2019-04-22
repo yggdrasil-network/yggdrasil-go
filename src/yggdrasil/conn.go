@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
@@ -17,9 +18,9 @@ type Conn struct {
 	recv          chan *wire_trafficPacket // Eventually gets attached to session.recv
 	mutex         *sync.RWMutex
 	session       *sessionInfo
-	readDeadline  time.Time // TODO timer
-	writeDeadline time.Time // TODO timer
-	expired       bool
+	readDeadline  atomic.Value // time.Time // TODO timer
+	writeDeadline atomic.Value // time.Time // TODO timer
+	expired       atomic.Value // bool
 }
 
 func (c *Conn) String() string {
@@ -32,14 +33,12 @@ func (c *Conn) startSearch() {
 		if err != nil {
 			c.core.log.Debugln("DHT search failed:", err)
 			c.mutex.Lock()
-			c.expired = true
-			c.mutex.Unlock()
+			c.expired.Store(true)
 			return
 		}
 		if sinfo != nil {
 			c.mutex.Lock()
 			c.session = sinfo
-			c.session.recv = c.recv
 			c.nodeID, c.nodeMask = sinfo.theirAddr.GetNodeIDandMask()
 			c.mutex.Unlock()
 		}
@@ -75,30 +74,20 @@ func (c *Conn) startSearch() {
 }
 
 func (c *Conn) Read(b []byte) (int, error) {
-	err := func() error {
-		c.mutex.RLock()
-		defer c.mutex.RUnlock()
-		if c.expired {
-			return errors.New("session is closed")
-		}
-		return nil
-	}()
-	if err != nil {
-		return 0, err
+	if e, ok := c.expired.Load().(bool); ok && e {
+		return 0, errors.New("session is closed")
 	}
+	c.mutex.RLock()
+	sinfo := c.session
+	c.mutex.RUnlock()
 	select {
 	// TODO...
 	case p, ok := <-c.recv:
 		if !ok {
-			c.mutex.Lock()
-			c.expired = true
-			c.mutex.Unlock()
+			c.expired.Store(true)
 			return 0, errors.New("session is closed")
 		}
 		defer util.PutBytes(p.Payload)
-		c.mutex.RLock()
-		sinfo := c.session
-		c.mutex.RUnlock()
 		var err error
 		sinfo.doWorker(func() {
 			if !sinfo.nonceIsOK(&p.Nonce) {
@@ -131,19 +120,12 @@ func (c *Conn) Read(b []byte) (int, error) {
 }
 
 func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
-	var sinfo *sessionInfo
-	err = func() error {
-		c.mutex.RLock()
-		defer c.mutex.RUnlock()
-		if c.expired {
-			return errors.New("session is closed")
-		}
-		sinfo = c.session
-		return nil
-	}()
-	if err != nil {
-		return 0, err
+	if e, ok := c.expired.Load().(bool); ok && e {
+		return 0, errors.New("session is closed")
 	}
+	c.mutex.RLock()
+	sinfo := c.session
+	c.mutex.RUnlock()
 	if sinfo == nil {
 		c.core.router.doAdmin(func() {
 			c.startSearch()
@@ -173,7 +155,7 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 }
 
 func (c *Conn) Close() error {
-	c.expired = true
+	c.expired.Store(true)
 	c.session.close()
 	return nil
 }
@@ -195,11 +177,11 @@ func (c *Conn) SetDeadline(t time.Time) error {
 }
 
 func (c *Conn) SetReadDeadline(t time.Time) error {
-	c.readDeadline = t
+	c.readDeadline.Store(t)
 	return nil
 }
 
 func (c *Conn) SetWriteDeadline(t time.Time) error {
-	c.writeDeadline = t
+	c.writeDeadline.Store(t)
 	return nil
 }

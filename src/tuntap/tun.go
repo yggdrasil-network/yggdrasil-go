@@ -193,12 +193,13 @@ func (tun *TunAdapter) connReader(conn *yggdrasil.Conn) error {
 		delete(tun.conns, remoteNodeID)
 		tun.mutex.Unlock()
 	}()
+	tun.log.Debugln("Start connection reader for", conn.String())
 	b := make([]byte, 65535)
 	for {
 		n, err := conn.Read(b)
 		if err != nil {
 			tun.log.Errorln("TUN/TAP conn read error:", err)
-			return err
+			continue
 		}
 		if n == 0 {
 			continue
@@ -209,7 +210,7 @@ func (tun *TunAdapter) connReader(conn *yggdrasil.Conn) error {
 			continue
 		}
 		if w != n {
-			tun.log.Errorln("TUN/TAP iface write len didn't match conn read len")
+			tun.log.Errorln("TUN/TAP iface write mismatch:", w, "bytes written vs", n, "bytes given")
 			continue
 		}
 	}
@@ -220,7 +221,7 @@ func (tun *TunAdapter) ifaceReader() error {
 	for {
 		n, err := tun.iface.Read(bs)
 		if err != nil {
-			tun.log.Errorln("TUN/TAP iface read error:", err)
+			continue
 		}
 		// Look up if the dstination address is somewhere we already have an
 		// open connection to
@@ -253,6 +254,10 @@ func (tun *TunAdapter) ifaceReader() error {
 			// Unknown address length or protocol
 			continue
 		}
+		if !dstAddr.IsValid() && !dstSnet.IsValid() {
+			// For now don't deal with any non-Yggdrasil ranges
+			continue
+		}
 		dstNodeID, dstNodeIDMask = dstAddr.GetNodeIDandMask()
 		// Do we have an active connection for this node ID?
 		tun.mutex.Lock()
@@ -260,10 +265,11 @@ func (tun *TunAdapter) ifaceReader() error {
 			tun.mutex.Unlock()
 			w, err := conn.Write(bs)
 			if err != nil {
-				tun.log.Println("TUN/TAP conn write error:", err)
+				tun.log.Errorln("TUN/TAP conn write error:", err)
 				continue
 			}
 			if w != n {
+				tun.log.Errorln("TUN/TAP conn write mismatch:", w, "bytes written vs", n, "bytes given")
 				continue
 			}
 		} else {
@@ -273,7 +279,7 @@ func (tun *TunAdapter) ifaceReader() error {
 				go tun.connReader(&conn)
 			} else {
 				tun.mutex.Unlock()
-				tun.log.Println("TUN/TAP dial error:", err)
+				tun.log.Errorln("TUN/TAP dial error:", err)
 			}
 		}
 
