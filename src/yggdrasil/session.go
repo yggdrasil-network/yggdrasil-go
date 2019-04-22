@@ -458,12 +458,12 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 		// TODO: this should not block if nothing is accepting
 		if !ping.IsPong && ss.listener != nil {
 			conn := &Conn{
-				core:     ss.core,
-				session:  sinfo,
-				mutex:    &sync.RWMutex{},
-				nodeID:   crypto.GetNodeID(&sinfo.theirPermPub),
-				nodeMask: &crypto.NodeID{},
-				recv:     sinfo.recv,
+				core:       ss.core,
+				session:    sinfo,
+				mutex:      &sync.RWMutex{},
+				nodeID:     crypto.GetNodeID(&sinfo.theirPermPub),
+				nodeMask:   &crypto.NodeID{},
+				searchwait: make(chan interface{}),
 			}
 			for i := range conn.nodeMask {
 				conn.nodeMask[i] = 0xFF

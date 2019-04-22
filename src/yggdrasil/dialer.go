@@ -59,11 +59,11 @@ func (d *Dialer) Dial(network, address string) (Conn, error) {
 // NodeID parameters.
 func (d *Dialer) DialByNodeIDandMask(nodeID, nodeMask *crypto.NodeID) (Conn, error) {
 	conn := Conn{
-		core:     d.core,
-		mutex:    &sync.RWMutex{},
-		nodeID:   nodeID,
-		nodeMask: nodeMask,
-		recv:     make(chan *wire_trafficPacket, 32),
+		core:       d.core,
+		mutex:      &sync.RWMutex{},
+		nodeID:     nodeID,
+		nodeMask:   nodeMask,
+		searchwait: make(chan interface{}),
 	}
 	return conn, nil
 }
