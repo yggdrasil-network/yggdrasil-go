@@ -114,7 +114,6 @@ func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener 
 	tun.dialer = dialer
 	tun.addrToConn = make(map[address.Address]*yggdrasil.Conn)
 	tun.subnetToConn = make(map[address.Subnet]*yggdrasil.Conn)
-	tun.icmpv6.Init(tun)
 }
 
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
@@ -175,6 +174,7 @@ func (tun *TunAdapter) Start() error {
 	}()
 	go tun.handler()
 	go tun.ifaceReader()
+	tun.icmpv6.Init(tun)
 	return nil
 }
 
@@ -328,17 +328,20 @@ func (tun *TunAdapter) ifaceReader() error {
 		}
 		// If it's a TAP adapter, update the buffer slice so that we no longer
 		// include the ethernet headers
+		offset := 0
 		if tun.iface.IsTAP() {
-			bs = bs[tun_ETHER_HEADER_LENGTH:]
-		}
-		// If we detect an ICMP packet then hand it to the ICMPv6 module
-		if bs[6] == 58 {
-			if tun.iface.IsTAP() {
+			// Set our offset to beyond the ethernet headers
+			offset = tun_ETHER_HEADER_LENGTH
+			// If we detect an ICMP packet then hand it to the ICMPv6 module
+			if bs[offset+6] == 58 {
 				// Found an ICMPv6 packet
 				b := make([]byte, n)
 				copy(b, bs)
 				go tun.icmpv6.ParsePacket(b)
 			}
+			// Then offset the buffer so that we can now just treat it as an IP
+			// packet from now on
+			bs = bs[offset:]
 		}
 		// From the IP header, work out what our source and destination addresses
 		// and node IDs are. We will need these in order to work out where to send
@@ -357,7 +360,7 @@ func (tun *TunAdapter) ifaceReader() error {
 				continue
 			}
 			// Check the packet size
-			if n != 256*int(bs[4])+int(bs[5])+tun_IPv6_HEADER_LENGTH {
+			if n != 256*int(bs[4])+int(bs[5])+offset+tun_IPv6_HEADER_LENGTH {
 				continue
 			}
 			// IPv6 address
@@ -371,7 +374,7 @@ func (tun *TunAdapter) ifaceReader() error {
 				continue
 			}
 			// Check the packet size
-			if bs[0]&0xf0 == 0x40 && n != 256*int(bs[2])+int(bs[3]) {
+			if n != 256*int(bs[2])+int(bs[3])+offset {
 				continue
 			}
 			// IPv4 address
