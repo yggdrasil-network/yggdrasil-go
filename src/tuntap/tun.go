@@ -9,6 +9,7 @@ package tuntap
 // TODO: Don't block in ifaceReader on writes that are pending searches
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -17,12 +18,14 @@ import (
 	"time"
 
 	"github.com/gologme/log"
+	"github.com/songgao/packets/ethernet"
 	"github.com/yggdrasil-network/water"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
@@ -111,6 +114,7 @@ func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener 
 	tun.dialer = dialer
 	tun.addrToConn = make(map[address.Address]*yggdrasil.Conn)
 	tun.subnetToConn = make(map[address.Subnet]*yggdrasil.Conn)
+	tun.icmpv6.Init(tun)
 }
 
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
@@ -163,7 +167,6 @@ func (tun *TunAdapter) Start() error {
 			}
 		}()
 	}
-	tun.icmpv6.Init(tun)
 	go func() {
 		for {
 			e := <-tun.reconfigure
@@ -228,7 +231,82 @@ func (tun *TunAdapter) connReader(conn *yggdrasil.Conn) error {
 		if n == 0 {
 			continue
 		}
-		w, err := tun.iface.Write(b[:n])
+		var w int
+		if tun.iface.IsTAP() {
+			var dstAddr address.Address
+			if b[0]&0xf0 == 0x60 {
+				if len(b) < 40 {
+					//panic("Tried to sendb a packet shorter than an IPv6 header...")
+					util.PutBytes(b)
+					continue
+				}
+				copy(dstAddr[:16], b[24:])
+			} else if b[0]&0xf0 == 0x40 {
+				if len(b) < 20 {
+					//panic("Tried to send a packet shorter than an IPv4 header...")
+					util.PutBytes(b)
+					continue
+				}
+				copy(dstAddr[:4], b[16:])
+			} else {
+				return errors.New("Invalid address family")
+			}
+			sendndp := func(dstAddr address.Address) {
+				neigh, known := tun.icmpv6.peermacs[dstAddr]
+				known = known && (time.Since(neigh.lastsolicitation).Seconds() < 30)
+				if !known {
+					request, err := tun.icmpv6.CreateNDPL2(dstAddr)
+					if err != nil {
+						panic(err)
+					}
+					if _, err := tun.iface.Write(request); err != nil {
+						panic(err)
+					}
+					tun.icmpv6.peermacs[dstAddr] = neighbor{
+						lastsolicitation: time.Now(),
+					}
+				}
+			}
+			var peermac macAddress
+			var peerknown bool
+			if b[0]&0xf0 == 0x40 {
+				dstAddr = tun.addr
+			} else if b[0]&0xf0 == 0x60 {
+				if !bytes.Equal(tun.addr[:16], dstAddr[:16]) && !bytes.Equal(tun.subnet[:8], dstAddr[:8]) {
+					dstAddr = tun.addr
+				}
+			}
+			if neighbor, ok := tun.icmpv6.peermacs[dstAddr]; ok && neighbor.learned {
+				peermac = neighbor.mac
+				peerknown = true
+			} else if neighbor, ok := tun.icmpv6.peermacs[tun.addr]; ok && neighbor.learned {
+				peermac = neighbor.mac
+				peerknown = true
+				sendndp(dstAddr)
+			} else {
+				sendndp(tun.addr)
+			}
+			if peerknown {
+				var proto ethernet.Ethertype
+				switch {
+				case b[0]&0xf0 == 0x60:
+					proto = ethernet.IPv6
+				case b[0]&0xf0 == 0x40:
+					proto = ethernet.IPv4
+				}
+				var frame ethernet.Frame
+				frame.Prepare(
+					peermac[:6],          // Destination MAC address
+					tun.icmpv6.mymac[:6], // Source MAC address
+					ethernet.NotTagged,   // VLAN tagging
+					proto,                // Ethertype
+					len(b))               // Payload length
+				copy(frame[tun_ETHER_HEADER_LENGTH:], b[:])
+				w, err = tun.iface.Write(b[:n])
+			}
+		} else {
+			w, err = tun.iface.Write(b[:n])
+		}
 		if err != nil {
 			tun.log.Errorln(conn.String(), "TUN/TAP iface write error:", err)
 			continue
@@ -248,6 +326,20 @@ func (tun *TunAdapter) ifaceReader() error {
 		if err != nil {
 			continue
 		}
+		// If it's a TAP adapter, update the buffer slice so that we no longer
+		// include the ethernet headers
+		if tun.iface.IsTAP() {
+			bs = bs[tun_ETHER_HEADER_LENGTH:]
+		}
+		// If we detect an ICMP packet then hand it to the ICMPv6 module
+		if bs[6] == 58 {
+			if tun.iface.IsTAP() {
+				// Found an ICMPv6 packet
+				b := make([]byte, n)
+				copy(b, bs)
+				go tun.icmpv6.ParsePacket(b)
+			}
+		}
 		// From the IP header, work out what our source and destination addresses
 		// and node IDs are. We will need these in order to work out where to send
 		// the packet
@@ -264,6 +356,10 @@ func (tun *TunAdapter) ifaceReader() error {
 			if len(bs) < 40 {
 				continue
 			}
+			// Check the packet size
+			if n != 256*int(bs[4])+int(bs[5])+tun_IPv6_HEADER_LENGTH {
+				continue
+			}
 			// IPv6 address
 			addrlen = 16
 			copy(srcAddr[:addrlen], bs[8:])
@@ -272,6 +368,10 @@ func (tun *TunAdapter) ifaceReader() error {
 		} else if bs[0]&0xf0 == 0x40 {
 			// Check if we have a fully-sized IPv4 header
 			if len(bs) < 20 {
+				continue
+			}
+			// Check the packet size
+			if bs[0]&0xf0 == 0x40 && n != 256*int(bs[2])+int(bs[3]) {
 				continue
 			}
 			// IPv4 address
