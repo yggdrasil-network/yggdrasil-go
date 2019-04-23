@@ -249,7 +249,7 @@ func (a *admin) init(c *Core) {
 			}, errors.New("Failed to remove allowed key")
 		}
 	})
-	a.addHandler("getTunnelRouting", []string{}, func(in admin_info) (admin_info, error) {
+	/*a.addHandler("getTunnelRouting", []string{}, func(in admin_info) (admin_info, error) {
 		enabled := false
 		a.core.router.doAdmin(func() {
 			enabled = a.core.router.cryptokey.isEnabled()
@@ -335,7 +335,7 @@ func (a *admin) init(c *Core) {
 		} else {
 			return admin_info{"not_removed": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, errors.New("Failed to remove route")
 		}
-	})
+	})*/
 	a.addHandler("dhtPing", []string{"box_pub_key", "coords", "[target]"}, func(in admin_info) (admin_info, error) {
 		if in["target"] == nil {
 			in["target"] = "none"

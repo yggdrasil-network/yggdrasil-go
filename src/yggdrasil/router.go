@@ -43,7 +43,6 @@ type router struct {
 	out         func([]byte)  // packets we're sending to the network, link to peer's "in"
 	reset       chan struct{} // signal that coords changed (re-init sessions/dht)
 	admin       chan func()   // pass a lambda for the admin socket to query stuff
-	cryptokey   cryptokey
 	nodeinfo    nodeinfo
 }
 
@@ -97,7 +96,6 @@ func (r *router) init(core *Core) {
 	r.core.config.Mutex.RLock()
 	r.nodeinfo.setNodeInfo(r.core.config.Current.NodeInfo, r.core.config.Current.NodeInfoPrivacy)
 	r.core.config.Mutex.RUnlock()
-	r.cryptokey.init(r.core)
 }
 
 // Starts the mainLoop goroutine.

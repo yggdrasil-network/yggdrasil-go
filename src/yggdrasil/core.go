@@ -127,7 +127,6 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 		c.sessions.reconfigure,
 		c.peers.reconfigure,
 		c.router.reconfigure,
-		c.router.cryptokey.reconfigure,
 		c.switchTable.reconfigure,
 		c.link.reconfigure,
 	}
