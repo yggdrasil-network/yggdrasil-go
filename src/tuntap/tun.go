@@ -236,7 +236,7 @@ func (tun *TunAdapter) connReader(conn *yggdrasil.Conn) error {
 			var dstAddr address.Address
 			if b[0]&0xf0 == 0x60 {
 				if len(b) < 40 {
-					//panic("Tried to sendb a packet shorter than an IPv6 header...")
+					//panic("Tried to send a packet shorter than an IPv6 header...")
 					util.PutBytes(b)
 					continue
 				}
@@ -301,8 +301,9 @@ func (tun *TunAdapter) connReader(conn *yggdrasil.Conn) error {
 					ethernet.NotTagged,   // VLAN tagging
 					proto,                // Ethertype
 					len(b))               // Payload length
-				copy(frame[tun_ETHER_HEADER_LENGTH:], b[:])
-				w, err = tun.iface.Write(b[:n])
+				copy(frame[tun_ETHER_HEADER_LENGTH:], b[:n])
+				n += tun_ETHER_HEADER_LENGTH
+				w, err = tun.iface.Write(frame[:n])
 			}
 		} else {
 			w, err = tun.iface.Write(b[:n])

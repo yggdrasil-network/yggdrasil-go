@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
@@ -78,7 +77,7 @@ type sessionPing struct {
 // Updates session info in response to a ping, after checking that the ping is OK.
 // Returns true if the session was updated, or false otherwise.
 func (s *sessionInfo) update(p *sessionPing) bool {
-	if !(p.Tstamp > atomic.LoadInt64(&s.tstamp)) {
+	if !(p.Tstamp > s.tstamp) {
 		// To protect against replay attacks
 		return false
 	}
