@@ -15,12 +15,26 @@ type Conn struct {
 	core          *Core
 	nodeID        *crypto.NodeID
 	nodeMask      *crypto.NodeID
-	mutex         *sync.RWMutex
+	mutex         sync.RWMutex
 	session       *sessionInfo
 	readDeadline  atomic.Value // time.Time // TODO timer
 	writeDeadline atomic.Value // time.Time // TODO timer
 	searching     atomic.Value // bool
-	searchwait    chan interface{}
+	searchwait    chan struct{}
+}
+
+// TODO func NewConn() that initializes atomic and channel fields so things don't crash or block indefinitely
+func newConn(core *Core, nodeID *crypto.NodeID, nodeMask *crypto.NodeID, session *sessionInfo) *Conn {
+	conn := Conn{
+		core:       core,
+		nodeID:     nodeID,
+		nodeMask:   nodeMask,
+		session:    session,
+		searchwait: make(chan struct{}),
+	}
+	conn.SetDeadline(time.Time{})
+	conn.searching.Store(false)
+	return &conn
 }
 
 func (c *Conn) String() string {
@@ -33,9 +47,9 @@ func (c *Conn) startSearch() {
 	searchCompleted := func(sinfo *sessionInfo, err error) {
 		// Make sure that any blocks on read/write operations are lifted
 		defer func() {
+			defer func() { recover() }() // In case searchwait was closed by another goroutine
 			c.searching.Store(false)
-			close(c.searchwait)
-			c.searchwait = make(chan interface{})
+			close(c.searchwait) // Never reset this to an open channel
 		}()
 		// If the search failed for some reason, e.g. it hit a dead end or timed
 		// out, then do nothing
@@ -106,6 +120,8 @@ func (c *Conn) Read(b []byte) (int, error) {
 	c.mutex.RLock()
 	sinfo := c.session
 	c.mutex.RUnlock()
+	timer := time.NewTimer(0)
+	util.TimerStop(timer)
 	// If there is a search in progress then wait for the result
 	if sinfo == nil {
 		// Wait for the search to complete

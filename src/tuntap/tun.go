@@ -412,9 +412,9 @@ func (tun *TunAdapter) ifaceReader() error {
 			// Dial to the remote node
 			if c, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask); err == nil {
 				// We've been given a connection so start the connection reader goroutine
-				go tun.connReader(&c)
+				go tun.connReader(c)
 				// Then update our reference to the connection
-				conn, isIn = &c, true
+				conn, isIn = c, true
 			} else {
 				// We weren't able to dial for some reason so there's no point in
 				// continuing this iteration - skip to the next one

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 )
@@ -18,7 +17,7 @@ type Dialer struct {
 // Dial opens a session to the given node. The first paramter should be "nodeid"
 // and the second parameter should contain a hexadecimal representation of the
 // target node ID.
-func (d *Dialer) Dial(network, address string) (Conn, error) {
+func (d *Dialer) Dial(network, address string) (*Conn, error) {
 	var nodeID crypto.NodeID
 	var nodeMask crypto.NodeID
 	// Process
@@ -28,11 +27,11 @@ func (d *Dialer) Dial(network, address string) (Conn, error) {
 		if tokens := strings.Split(address, "/"); len(tokens) == 2 {
 			len, err := strconv.Atoi(tokens[1])
 			if err != nil {
-				return Conn{}, err
+				return nil, err
 			}
 			dest, err := hex.DecodeString(tokens[0])
 			if err != nil {
-				return Conn{}, err
+				return nil, err
 			}
 			copy(nodeID[:], dest)
 			for idx := 0; idx < len; idx++ {
@@ -41,7 +40,7 @@ func (d *Dialer) Dial(network, address string) (Conn, error) {
 		} else {
 			dest, err := hex.DecodeString(tokens[0])
 			if err != nil {
-				return Conn{}, err
+				return nil, err
 			}
 			copy(nodeID[:], dest)
 			for i := range nodeMask {
@@ -51,19 +50,13 @@ func (d *Dialer) Dial(network, address string) (Conn, error) {
 		return d.DialByNodeIDandMask(&nodeID, &nodeMask)
 	default:
 		// An unexpected address type was given, so give up
-		return Conn{}, errors.New("unexpected address type")
+		return nil, errors.New("unexpected address type")
 	}
 }
 
 // DialByNodeIDandMask opens a session to the given node based on raw
 // NodeID parameters.
-func (d *Dialer) DialByNodeIDandMask(nodeID, nodeMask *crypto.NodeID) (Conn, error) {
-	conn := Conn{
-		core:       d.core,
-		mutex:      &sync.RWMutex{},
-		nodeID:     nodeID,
-		nodeMask:   nodeMask,
-		searchwait: make(chan interface{}),
-	}
+func (d *Dialer) DialByNodeIDandMask(nodeID, nodeMask *crypto.NodeID) (*Conn, error) {
+	conn := newConn(d.core, nodeID, nodeMask, nil)
 	return conn, nil
 }

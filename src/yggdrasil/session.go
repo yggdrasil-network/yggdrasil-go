@@ -456,14 +456,7 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 		// Check and see if there's a Listener waiting to accept connections
 		// TODO: this should not block if nothing is accepting
 		if !ping.IsPong && ss.listener != nil {
-			conn := &Conn{
-				core:       ss.core,
-				session:    sinfo,
-				mutex:      &sync.RWMutex{},
-				nodeID:     crypto.GetNodeID(&sinfo.theirPermPub),
-				nodeMask:   &crypto.NodeID{},
-				searchwait: make(chan interface{}),
-			}
+			conn := newConn(ss.core, crypto.GetNodeID(&sinfo.theirPermPub), &crypto.NodeID{}, sinfo)
 			for i := range conn.nodeMask {
 				conn.nodeMask[i] = 0xFF
 			}
