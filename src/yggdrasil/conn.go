@@ -144,7 +144,7 @@ func (c *Conn) startSearch() {
 }
 
 func getDeadlineTimer(value *atomic.Value) *time.Timer {
-	timer := time.NewTimer(0)
+	timer := time.NewTimer(24 * 365 * time.Hour) // FIXME for some reason setting this to 0 doesn't always let it stop and drain the channel correctly
 	util.TimerStop(timer)
 	if deadline, ok := value.Load().(time.Time); ok {
 		timer.Reset(time.Until(deadline))

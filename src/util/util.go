@@ -48,13 +48,12 @@ func PutBytes(bs []byte) {
 
 // This is a workaround to go's broken timer implementation
 func TimerStop(t *time.Timer) bool {
-	if !t.Stop() {
-		select {
-		case <-t.C:
-		default:
-		}
+	stopped := t.Stop()
+	select {
+	case <-t.C:
+	default:
 	}
-	return true
+	return stopped
 }
 
 // Run a blocking function with a timeout.
