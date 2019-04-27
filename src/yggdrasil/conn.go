@@ -60,7 +60,6 @@ func (c *Conn) String() string {
 func (c *Conn) startSearch() {
 	// The searchCompleted callback is given to the search
 	searchCompleted := func(sinfo *sessionInfo, err error) {
-		defer c.searching.Store(false)
 		// If the search failed for some reason, e.g. it hit a dead end or timed
 		// out, then do nothing
 		if err != nil {
@@ -77,6 +76,7 @@ func (c *Conn) startSearch() {
 			}()
 			return
 		}
+		defer c.searching.Store(false)
 		// Take the connection mutex
 		c.mutex.Lock()
 		defer c.mutex.Unlock()
@@ -180,6 +180,8 @@ func (c *Conn) Read(b []byte) (int, error) {
 	}
 	// Wait for some traffic to come through from the session
 	select {
+	case <-timer.C:
+		return 0, ConnError{errors.New("Timeout"), true, false}
 	case p, ok := <-sinfo.recv:
 		// If the session is closed then do nothing
 		if !ok {
@@ -197,10 +199,10 @@ func (c *Conn) Read(b []byte) (int, error) {
 			}
 			// Decrypt the packet
 			bs, isOK := crypto.BoxOpen(&sinfo.sharedSesKey, p.Payload, &p.Nonce)
+			defer util.PutBytes(bs)
 			// Check if we were unable to decrypt the packet for some reason and
 			// return an error if we couldn't
 			if !isOK {
-				util.PutBytes(bs)
 				err = errors.New("packet dropped due to decryption failure")
 				return
 			}
@@ -249,9 +251,7 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 		// Is a search already taking place?
 		if searching, sok := c.searching.Load().(bool); !sok || (sok && !searching) {
 			// No search was already taking place so start a new one
-			c.core.router.doAdmin(func() {
-				c.startSearch()
-			})
+			c.core.router.doAdmin(c.startSearch)
 		}
 		// Wait for the search to complete
 		select {
