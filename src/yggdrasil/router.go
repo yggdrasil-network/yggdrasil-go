@@ -341,7 +341,7 @@ func (r *router) handleTraffic(packet []byte) {
 		return
 	}
 	select {
-	case sinfo.recv <- &p: // FIXME ideally this should be FIFO
+	case sinfo.recv <- &p: // FIXME ideally this should be front drop
 	default:
 		util.PutBytes(p.Payload)
 	}

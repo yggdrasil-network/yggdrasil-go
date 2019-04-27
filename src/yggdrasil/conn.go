@@ -199,7 +199,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 			}
 			// Decrypt the packet
 			bs, isOK := crypto.BoxOpen(&sinfo.sharedSesKey, p.Payload, &p.Nonce)
-			defer util.PutBytes(bs)
+			defer util.PutBytes(bs) // FIXME commenting this out leads to illegal buffer reuse, this implies there's a memory error somewhere and that this is just flooding things out of the finite pool of old slices that get reused
 			// Check if we were unable to decrypt the packet for some reason and
 			// return an error if we couldn't
 			if !isOK {
@@ -223,11 +223,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 		case <-timer.C:
 			return 0, ConnError{errors.New("Timeout"), true, false}
 		}
-		select { // Wait for worker to return
-		case <-done:
-		case <-timer.C:
-			return 0, ConnError{errors.New("Timeout"), true, false}
-		}
+		<-done // Wait for the worker to finish, failing this can cause memory errors (util.[Get||Put]Bytes stuff)
 		// Something went wrong in the session worker so abort
 		if err != nil {
 			return 0, err
@@ -270,7 +266,6 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 			return 0, errors.New("search failed")
 		}
 	}
-	// defer util.PutBytes(b)
 	var packet []byte
 	done := make(chan struct{})
 	workerFunc := func() {
@@ -294,11 +289,7 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 	case <-timer.C:
 		return 0, ConnError{errors.New("Timeout"), true, false}
 	}
-	select { // Wait for worker to return
-	case <-done:
-	case <-timer.C:
-		return 0, ConnError{errors.New("Timeout"), true, false}
-	}
+	<-done // Wait for the worker to finish, failing this can cause memory errors (util.[Get||Put]Bytes stuff)
 	// Give the packet to the router
 	sinfo.core.router.out(packet)
 	// Finally return the number of bytes we wrote
