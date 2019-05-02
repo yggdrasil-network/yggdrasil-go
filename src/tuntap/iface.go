@@ -95,6 +95,7 @@ func (tun *TunAdapter) writer() error {
 			}
 		} else {
 			w, err = tun.iface.Write(b[:n])
+			util.PutBytes(b)
 		}
 		if err != nil {
 			tun.log.Errorln("TUN/TAP iface write error:", err)
@@ -219,9 +220,11 @@ func (tun *TunAdapter) reader() error {
 		}
 		// If we have a connection now, try writing to it
 		if isIn && session != nil {
+			packet := append(util.GetBytes(), bs[:n]...)
 			select {
-			case session.send <- bs[:n]:
+			case session.send <- packet:
 			default:
+				util.PutBytes(packet)
 			}
 		}
 

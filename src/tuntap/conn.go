@@ -3,6 +3,7 @@ package tuntap
 import (
 	"errors"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
@@ -40,7 +41,7 @@ func (s *tunConn) reader() error {
 		select {
 		case <-read:
 			if n > 0 {
-				s.tun.send <- b[:n]
+				s.tun.send <- append(util.GetBytes(), b[:n]...)
 			}
 		case <-s.stop:
 			s.tun.log.Debugln("Stopping conn reader for", s)
@@ -68,8 +69,8 @@ func (s *tunConn) writer() error {
 			}
 			if _, err := s.conn.Write(b); err != nil {
 				s.tun.log.Errorln(s.conn.String(), "TUN/TAP conn write error:", err)
-				continue
 			}
+			util.PutBytes(b)
 		}
 	}
 }
