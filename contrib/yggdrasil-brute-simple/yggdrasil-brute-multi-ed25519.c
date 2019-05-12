@@ -40,7 +40,6 @@ int main(int argc, char **argv) {
 	unsigned int runs = 0;
 	int where;
 
-
 	if (argc != 2) {
 		fprintf(stderr, "usage: ./yggdrasil-brute-multi-curve25519 <seconds>\n");
 		return 1;
@@ -88,7 +87,6 @@ int main(int argc, char **argv) {
 		}
 	} while (time(NULL) - starttime < requestedtime || runs < NUMKEYS);
 
-
 	fprintf(stderr, "!! Secret key is seed concatenated with public !!\n");
 	fprintf(stderr, "---hash--- ------------------------------seed------------------------------ -----------------------------public-----------------------------\n");
 	for (i = 0; i < NUMKEYS; ++i) {
@@ -106,4 +104,3 @@ int main(int argc, char **argv) {
 
 	return 0;
 }
-

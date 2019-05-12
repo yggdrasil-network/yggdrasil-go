@@ -42,7 +42,6 @@ int main(int argc, char **argv) {
 	unsigned int runs = 0;
 	int where;
 
-
 	if (argc != 2) {
 		fprintf(stderr, "usage: ./yggdrasil-brute-multi-curve25519 <seconds>\n");
 		return 1;
@@ -104,4 +103,3 @@ int main(int argc, char **argv) {
 
 	return 0;
 }
-
