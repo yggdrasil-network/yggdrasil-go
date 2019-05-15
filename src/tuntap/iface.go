@@ -190,7 +190,11 @@ func (tun *TunAdapter) reader() error {
 			if !isIn || session == nil {
 				// Neither an address nor a subnet mapping matched, therefore populate
 				// the node ID and mask to commence a search
-				dstNodeID, dstNodeIDMask = dstAddr.GetNodeIDandMask()
+				if dstAddr.IsValid() {
+					dstNodeID, dstNodeIDMask = dstAddr.GetNodeIDandMask()
+				} else {
+					dstNodeID, dstNodeIDMask = dstSnet.GetNodeIDandMask()
+				}
 			}
 		}
 		tun.mutex.RUnlock()

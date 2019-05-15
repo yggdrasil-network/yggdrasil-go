@@ -41,7 +41,12 @@ func (s *tunConn) reader() error {
 		select {
 		case <-read:
 			if n > 0 {
-				s.tun.send <- append(util.GetBytes(), b[:n]...)
+				bs := append(util.GetBytes(), b[:n]...)
+				select {
+				case s.tun.send <- bs:
+				default:
+					util.PutBytes(bs)
+				}
 			}
 		case <-s.stop:
 			s.tun.log.Debugln("Stopping conn reader for", s)
