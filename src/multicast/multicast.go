@@ -60,7 +60,8 @@ func (m *Multicast) Init(core *yggdrasil.Core, state *config.NodeState, log *log
 // listen for multicast beacons from other hosts and will advertise multicast
 // beacons out to the network.
 func (m *Multicast) Start() error {
-	if len(m.interfaces()) == 0 {
+	current, _ := m.config.Get()
+	if len(current.MulticastInterfaces) == 0 {
 		m.log.Infoln("Multicast discovery is disabled")
 	} else {
 		m.log.Infoln("Multicast discovery is enabled")
