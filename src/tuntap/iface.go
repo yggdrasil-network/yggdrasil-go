@@ -178,9 +178,28 @@ func (tun *TunAdapter) reader() error {
 			// Unknown address length or protocol, so drop the packet and ignore it
 			continue
 		}
-		if !dstAddr.IsValid() && !dstSnet.IsValid() {
-			// For now don't deal with any non-Yggdrasil ranges
+		if !tun.ckr.isValidSource(srcAddr, addrlen) {
+			// The packet had a source address that doesn't belong to us or our
+			// configured crypto-key routing source subnets
 			continue
+		}
+		if !dstAddr.IsValid() && !dstSnet.IsValid() {
+			if key, err := tun.ckr.getPublicKeyForAddress(dstAddr, addrlen); err == nil {
+				// A public key was found, get the node ID for the search
+				dstNodeID = crypto.GetNodeID(&key)
+				// Do a quick check to ensure that the node ID refers to a vaild
+				// Yggdrasil address or subnet - this might be superfluous
+				addr := *address.AddrForNodeID(dstNodeID)
+				copy(dstAddr[:], addr[:])
+				copy(dstSnet[:], addr[:])
+				// Are we certain we looked up a valid node?
+				if !dstAddr.IsValid() && !dstSnet.IsValid() {
+					continue
+				}
+			} else {
+				// No public key was found in the CKR table so we've exhausted our options
+				continue
+			}
 		}
 		// Do we have an active connection for this node address?
 		tun.mutex.RLock()
@@ -231,32 +250,5 @@ func (tun *TunAdapter) reader() error {
 				util.PutBytes(packet)
 			}
 		}
-
-		/*if !r.cryptokey.isValidSource(srcAddr, addrlen) {
-			// The packet had a src address that doesn't belong to us or our
-			// configured crypto-key routing src subnets
-			return
-		}
-		if !dstAddr.IsValid() && !dstSnet.IsValid() {
-			// The addresses didn't match valid Yggdrasil node addresses so let's see
-			// whether it matches a crypto-key routing range instead
-			if key, err := r.cryptokey.getPublicKeyForAddress(dstAddr, addrlen); err == nil {
-				// A public key was found, get the node ID for the search
-				dstPubKey = &key
-				dstNodeID = crypto.GetNodeID(dstPubKey)
-				// Do a quick check to ensure that the node ID refers to a vaild Yggdrasil
-				// address or subnet - this might be superfluous
-				addr := *address.AddrForNodeID(dstNodeID)
-				copy(dstAddr[:], addr[:])
-				copy(dstSnet[:], addr[:])
-				if !dstAddr.IsValid() && !dstSnet.IsValid() {
-					return
-				}
-			} else {
-				// No public key was found in the CKR table so we've exhausted our options
-				return
-			}
-		}*/
-
 	}
 }

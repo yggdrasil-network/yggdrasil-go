@@ -41,6 +41,7 @@ type TunAdapter struct {
 	dialer       *yggdrasil.Dialer
 	addr         address.Address
 	subnet       address.Subnet
+	ckr          cryptokey
 	icmpv6       ICMPv6
 	mtu          int
 	iface        *water.Interface
@@ -117,8 +118,8 @@ func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener 
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
 // read/write goroutines to handle packets on that interface.
 func (tun *TunAdapter) Start() error {
-	tun.config.Mutex.Lock()
-	defer tun.config.Mutex.Unlock()
+	tun.config.Mutex.RLock()
+	defer tun.config.Mutex.RUnlock()
 	if tun.config == nil || tun.listener == nil || tun.dialer == nil {
 		return errors.New("No configuration available to TUN/TAP")
 	}
@@ -173,6 +174,7 @@ func (tun *TunAdapter) Start() error {
 	go tun.reader()
 	go tun.writer()
 	tun.icmpv6.Init(tun)
+	tun.ckr.init(tun)
 	return nil
 }
 
