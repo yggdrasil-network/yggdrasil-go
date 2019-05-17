@@ -148,6 +148,7 @@ func (tun *TunAdapter) Start() error {
 	tun.mutex.Lock()
 	tun.isOpen = true
 	tun.send = make(chan []byte, 32) // TODO: is this a sensible value?
+	tun.reconfigure = make(chan chan error)
 	tun.mutex.Unlock()
 	if iftapmode {
 		go func() {
@@ -176,6 +177,37 @@ func (tun *TunAdapter) Start() error {
 	tun.icmpv6.Init(tun)
 	tun.ckr.init(tun)
 	return nil
+}
+
+// UpdateConfig updates the TUN/TAP module with the provided config.NodeConfig
+// and then signals the various module goroutines to reconfigure themselves if
+// needed.
+func (tun *TunAdapter) UpdateConfig(config *config.NodeConfig) {
+	tun.log.Debugln("Reloading TUN/TAP configuration...")
+
+	tun.config.Replace(*config)
+
+	errors := 0
+
+	components := []chan chan error{
+		tun.reconfigure,
+		tun.ckr.reconfigure,
+	}
+
+	for _, component := range components {
+		response := make(chan error)
+		component <- response
+		if err := <-response; err != nil {
+			tun.log.Errorln(err)
+			errors++
+		}
+	}
+
+	if errors > 0 {
+		tun.log.Warnln(errors, "TUN/TAP module(s) reported errors during configuration reload")
+	} else {
+		tun.log.Infoln("TUN/TAP configuration reloaded successfully")
+	}
 }
 
 func (tun *TunAdapter) handler() error {

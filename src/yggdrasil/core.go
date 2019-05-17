@@ -114,7 +114,7 @@ func (c *Core) addPeerLoop() {
 // config.NodeConfig and then signals the various module goroutines to
 // reconfigure themselves if needed.
 func (c *Core) UpdateConfig(config *config.NodeConfig) {
-	c.log.Infoln("Reloading configuration...")
+	c.log.Debugln("Reloading node configuration...")
 
 	c.config.Replace(*config)
 
@@ -141,9 +141,9 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 	}
 
 	if errors > 0 {
-		c.log.Warnln(errors, "modules reported errors during configuration reload")
+		c.log.Warnln(errors, "node module(s) reported errors during configuration reload")
 	} else {
-		c.log.Infoln("Configuration reloaded successfully")
+		c.log.Infoln("Node configuration reloaded successfully")
 	}
 }
 

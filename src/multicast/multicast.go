@@ -41,6 +41,10 @@ func (m *Multicast) Init(core *yggdrasil.Core, state *config.NodeState, log *log
 	go func() {
 		for {
 			e := <-m.reconfigure
+			// There's nothing particularly to do here because the multicast module
+			// already consults the config.NodeState when enumerating multicast
+			// interfaces on each pass. We just need to return nil so that the
+			// reconfiguration doesn't block indefinitely
 			e <- nil
 		}
 	}()
@@ -87,6 +91,36 @@ func (m *Multicast) Start() error {
 // Stop is not implemented for multicast yet.
 func (m *Multicast) Stop() error {
 	return nil
+}
+
+// UpdateConfig updates the multicast module with the provided config.NodeConfig
+// and then signals the various module goroutines to reconfigure themselves if
+// needed.
+func (m *Multicast) UpdateConfig(config *config.NodeConfig) {
+	m.log.Debugln("Reloading multicast configuration...")
+
+	m.config.Replace(*config)
+
+	errors := 0
+
+	components := []chan chan error{
+		m.reconfigure,
+	}
+
+	for _, component := range components {
+		response := make(chan error)
+		component <- response
+		if err := <-response; err != nil {
+			m.log.Errorln(err)
+			errors++
+		}
+	}
+
+	if errors > 0 {
+		m.log.Warnln(errors, "multicast module(s) reported errors during configuration reload")
+	} else {
+		m.log.Infoln("Multicast configuration reloaded successfully")
+	}
 }
 
 func (m *Multicast) interfaces() map[string]net.Interface {
