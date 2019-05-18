@@ -2,14 +2,11 @@ package yggdrasil
 
 import (
 	"encoding/hex"
-	"errors"
 	"io/ioutil"
-	"net"
 	"time"
 
 	"github.com/gologme/log"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 )
@@ -147,24 +144,6 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 	}
 }
 
-// BuildName gets the current build name. This is usually injected if built
-// from git, or returns "unknown" otherwise.
-func BuildName() string {
-	if buildName == "" {
-		return "unknown"
-	}
-	return buildName
-}
-
-// BuildVersion gets the current build version. This is usually injected if
-// built from git, or returns "unknown" otherwise.
-func BuildVersion() string {
-	if buildVersion == "" {
-		return "unknown"
-	}
-	return buildVersion
-}
-
 // Start starts up Yggdrasil using the provided config.NodeConfig, and outputs
 // debug logging through the provided log.Logger. The started stack will include
 // TCP and UDP sockets, a multicast discovery socket, an admin socket, router,
@@ -225,138 +204,4 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState,
 func (c *Core) Stop() {
 	c.log.Infoln("Stopping...")
 	c.admin.close()
-}
-
-// ListenConn returns a listener for Yggdrasil session connections.
-func (c *Core) ConnListen() (*Listener, error) {
-	c.sessions.listenerMutex.Lock()
-	defer c.sessions.listenerMutex.Unlock()
-	if c.sessions.listener != nil {
-		return nil, errors.New("a listener already exists")
-	}
-	c.sessions.listener = &Listener{
-		core:  c,
-		conn:  make(chan *Conn),
-		close: make(chan interface{}),
-	}
-	return c.sessions.listener, nil
-}
-
-// ConnDialer returns a dialer for Yggdrasil session connections.
-func (c *Core) ConnDialer() (*Dialer, error) {
-	return &Dialer{
-		core: c,
-	}, nil
-}
-
-// ListenTCP starts a new TCP listener. The input URI should match that of the
-// "Listen" configuration item, e.g.
-// 		tcp://a.b.c.d:e
-func (c *Core) ListenTCP(uri string) (*TcpListener, error) {
-	return c.link.tcp.listen(uri)
-}
-
-// NewEncryptionKeys generates a new encryption keypair. The encryption keys are
-// used to encrypt traffic and to derive the IPv6 address/subnet of the node.
-func (c *Core) NewEncryptionKeys() (*crypto.BoxPubKey, *crypto.BoxPrivKey) {
-	return crypto.NewBoxKeys()
-}
-
-// NewSigningKeys generates a new signing keypair. The signing keys are used to
-// derive the structure of the spanning tree.
-func (c *Core) NewSigningKeys() (*crypto.SigPubKey, *crypto.SigPrivKey) {
-	return crypto.NewSigKeys()
-}
-
-// NodeID gets the node ID.
-func (c *Core) NodeID() *crypto.NodeID {
-	return crypto.GetNodeID(&c.boxPub)
-}
-
-// TreeID gets the tree ID.
-func (c *Core) TreeID() *crypto.TreeID {
-	return crypto.GetTreeID(&c.sigPub)
-}
-
-// SigPubKey gets the node's signing public key.
-func (c *Core) SigPubKey() string {
-	return hex.EncodeToString(c.sigPub[:])
-}
-
-// BoxPubKey gets the node's encryption public key.
-func (c *Core) BoxPubKey() string {
-	return hex.EncodeToString(c.boxPub[:])
-}
-
-// Address gets the IPv6 address of the Yggdrasil node. This is always a /128
-// address.
-func (c *Core) Address() *net.IP {
-	address := net.IP(address.AddrForNodeID(c.NodeID())[:])
-	return &address
-}
-
-// Subnet gets the routed IPv6 subnet of the Yggdrasil node. This is always a
-// /64 subnet.
-func (c *Core) Subnet() *net.IPNet {
-	subnet := address.SubnetForNodeID(c.NodeID())[:]
-	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
-	return &net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
-}
-
-// RouterAddresses returns the raw address and subnet types as used by the
-// router
-func (c *Core) RouterAddresses() (address.Address, address.Subnet) {
-	return c.router.addr, c.router.subnet
-}
-
-// NodeInfo gets the currently configured nodeinfo.
-func (c *Core) NodeInfo() nodeinfoPayload {
-	return c.router.nodeinfo.getNodeInfo()
-}
-
-// SetNodeInfo the lcal nodeinfo. Note that nodeinfo can be any value or struct,
-// it will be serialised into JSON automatically.
-func (c *Core) SetNodeInfo(nodeinfo interface{}, nodeinfoprivacy bool) {
-	c.router.nodeinfo.setNodeInfo(nodeinfo, nodeinfoprivacy)
-}
-
-// SetLogger sets the output logger of the Yggdrasil node after startup. This
-// may be useful if you want to redirect the output later.
-func (c *Core) SetLogger(log *log.Logger) {
-	c.log = log
-}
-
-// AddPeer adds a peer. This should be specified in the peer URI format, e.g.:
-// 		tcp://a.b.c.d:e
-//		socks://a.b.c.d:e/f.g.h.i:j
-// This adds the peer to the peer list, so that they will be called again if the
-// connection drops.
-func (c *Core) AddPeer(addr string, sintf string) error {
-	if err := c.CallPeer(addr, sintf); err != nil {
-		return err
-	}
-	c.config.Mutex.Lock()
-	if sintf == "" {
-		c.config.Current.Peers = append(c.config.Current.Peers, addr)
-	} else {
-		c.config.Current.InterfacePeers[sintf] = append(c.config.Current.InterfacePeers[sintf], addr)
-	}
-	c.config.Mutex.Unlock()
-	return nil
-}
-
-// CallPeer calls a peer once. This should be specified in the peer URI format,
-// e.g.:
-// 		tcp://a.b.c.d:e
-//		socks://a.b.c.d:e/f.g.h.i:j
-// This does not add the peer to the peer list, so if the connection drops, the
-// peer will not be called again automatically.
-func (c *Core) CallPeer(addr string, sintf string) error {
-	return c.link.call(addr, sintf)
-}
-
-// AddAllowedEncryptionPublicKey adds an allowed public key. This allow peerings
-// to be restricted only to keys that you have selected.
-func (c *Core) AddAllowedEncryptionPublicKey(boxStr string) error {
-	return c.admin.addAllowedEncryptionPublicKey(boxStr)
 }
