@@ -255,13 +255,6 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 			if err != nil {
 				return
 			}
-			conn = &wrappedConn{
-				c: conn,
-				raddr: &wrappedAddr{
-					network: "tcp",
-					addr:    saddr,
-				},
-			}
 			t.handler(conn, false, dialerdst.String())
 		} else {
 			dst, err := net.ResolveTCPAddr("tcp", saddr)
