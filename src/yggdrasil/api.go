@@ -38,14 +38,44 @@ type SwitchPeer struct {
 	Protocol   string
 }
 
+// DHTEntry represents a single DHT entry that has been learned or cached from
+// DHT searches.
 type DHTEntry struct {
 	PublicKey crypto.BoxPubKey
 	Coords    []byte
 	LastSeen  time.Duration
 }
 
-type SwitchQueue struct{}
-type Session struct{}
+// SwitchQueues represents information from the switch related to link
+// congestion and a list of switch queues created in response to congestion on a
+// given link.
+type SwitchQueues struct {
+	Queues       []SwitchQueue
+	Count        uint64
+	Size         uint64
+	HighestCount uint64
+	HighestSize  uint64
+	MaximumSize  uint64
+}
+
+// SwitchQueue represents a single switch queue, which is created in response
+// to congestion on a given link.
+type SwitchQueue struct {
+	ID      string
+	Size    uint64
+	Packets uint64
+	Port    uint64
+}
+
+// Session represents an open session with another node.
+type Session struct {
+	PublicKey   crypto.BoxPubKey
+	Coords      []byte
+	BytesSent   uint64
+	BytesRecvd  uint64
+	MTU         uint16
+	WasMTUFixed bool
+}
 
 // GetPeers returns one or more Peer objects containing information about active
 // peerings with other Yggdrasil nodes, where one of the responses always
@@ -104,88 +134,80 @@ func (c *Core) GetSwitchPeers() []SwitchPeer {
 	return switchpeers
 }
 
+// GetDHT returns zero or more entries as stored in the DHT, cached primarily
+// from searches that have already taken place.
 func (c *Core) GetDHT() []DHTEntry {
-	/*
-	  var infos []admin_nodeInfo
-	  getDHT := func() {
-	    now := time.Now()
-	    var dhtInfos []*dhtInfo
-	    for _, v := range a.core.dht.table {
-	      dhtInfos = append(dhtInfos, v)
-	    }
-	    sort.SliceStable(dhtInfos, func(i, j int) bool {
-	      return dht_ordered(&a.core.dht.nodeID, dhtInfos[i].getNodeID(), dhtInfos[j].getNodeID())
-	    })
-	    for _, v := range dhtInfos {
-	      addr := *address.AddrForNodeID(v.getNodeID())
-	      info := admin_nodeInfo{
-	        {"ip", net.IP(addr[:]).String()},
-	        {"coords", fmt.Sprint(v.coords)},
-	        {"last_seen", int(now.Sub(v.recv).Seconds())},
-	        {"box_pub_key", hex.EncodeToString(v.key[:])},
-	      }
-	      infos = append(infos, info)
-	    }
-	  }
-	  a.core.router.doAdmin(getDHT)
-	  return infos
-	*/
-	return []DHTEntry{}
+	var dhtentries []DHTEntry
+	getDHT := func() {
+		now := time.Now()
+		var dhtentry []*dhtInfo
+		for _, v := range c.dht.table {
+			dhtentry = append(dhtentry, v)
+		}
+		sort.SliceStable(dhtentry, func(i, j int) bool {
+			return dht_ordered(&c.dht.nodeID, dhtentry[i].getNodeID(), dhtentry[j].getNodeID())
+		})
+		for _, v := range dhtentry {
+			info := DHTEntry{
+				Coords:   v.coords,
+				LastSeen: now.Sub(v.recv),
+			}
+			copy(info.PublicKey[:], v.key[:])
+			dhtentries = append(dhtentries, info)
+		}
+	}
+	c.router.doAdmin(getDHT)
+	return dhtentries
 }
 
-func (c *Core) GetSwitchQueues() []SwitchQueue {
-	/*
-	  var peerInfos admin_nodeInfo
-	  switchTable := &a.core.switchTable
-	  getSwitchQueues := func() {
-	    queues := make([]map[string]interface{}, 0)
-	    for k, v := range switchTable.queues.bufs {
-	      nexthop := switchTable.bestPortForCoords([]byte(k))
-	      queue := map[string]interface{}{
-	        "queue_id":      k,
-	        "queue_size":    v.size,
-	        "queue_packets": len(v.packets),
-	        "queue_port":    nexthop,
-	      }
-	      queues = append(queues, queue)
-	    }
-	    peerInfos = admin_nodeInfo{
-	      {"queues", queues},
-	      {"queues_count", len(switchTable.queues.bufs)},
-	      {"queues_size", switchTable.queues.size},
-	      {"highest_queues_count", switchTable.queues.maxbufs},
-	      {"highest_queues_size", switchTable.queues.maxsize},
-	      {"maximum_queues_size", switchTable.queueTotalMaxSize},
-	    }
-	  }
-	  a.core.switchTable.doAdmin(getSwitchQueues)
-	  return peerInfos
-	*/
-	return []SwitchQueue{}
+// GetSwitchQueues returns information about the switch queues that are
+// currently in effect. These values can change within an instant.
+func (c *Core) GetSwitchQueues() SwitchQueues {
+	var switchqueues SwitchQueues
+	switchTable := &c.switchTable
+	getSwitchQueues := func() {
+		switchqueues = SwitchQueues{
+			Count:        uint64(len(switchTable.queues.bufs)),
+			Size:         switchTable.queues.size,
+			HighestCount: uint64(switchTable.queues.maxbufs),
+			HighestSize:  switchTable.queues.maxsize,
+			MaximumSize:  switchTable.queueTotalMaxSize,
+		}
+		for k, v := range switchTable.queues.bufs {
+			nexthop := switchTable.bestPortForCoords([]byte(k))
+			queue := SwitchQueue{
+				ID:      k,
+				Size:    v.size,
+				Packets: uint64(len(v.packets)),
+				Port:    uint64(nexthop),
+			}
+			switchqueues.Queues = append(switchqueues.Queues, queue)
+		}
+
+	}
+	c.switchTable.doAdmin(getSwitchQueues)
+	return switchqueues
 }
 
+// GetSessions returns a list of open sessions from this node to other nodes.
 func (c *Core) GetSessions() []Session {
-	/*
-	  var infos []admin_nodeInfo
-	  getSessions := func() {
-	    for _, sinfo := range a.core.sessions.sinfos {
-	      // TODO? skipped known but timed out sessions?
-	      info := admin_nodeInfo{
-	        {"ip", net.IP(sinfo.theirAddr[:]).String()},
-	        {"coords", fmt.Sprint(sinfo.coords)},
-	        {"mtu", sinfo.getMTU()},
-	        {"was_mtu_fixed", sinfo.wasMTUFixed},
-	        {"bytes_sent", sinfo.bytesSent},
-	        {"bytes_recvd", sinfo.bytesRecvd},
-	        {"box_pub_key", hex.EncodeToString(sinfo.theirPermPub[:])},
-	      }
-	      infos = append(infos, info)
-	    }
-	  }
-	  a.core.router.doAdmin(getSessions)
-	  return infos
-	*/
-	return []Session{}
+	var sessions []Session
+	getSessions := func() {
+		for _, sinfo := range c.sessions.sinfos {
+			// TODO? skipped known but timed out sessions?
+			session := Session{
+				Coords:      sinfo.coords,
+				MTU:         sinfo.getMTU(),
+				BytesSent:   sinfo.bytesSent,
+				BytesRecvd:  sinfo.bytesRecvd,
+				WasMTUFixed: sinfo.wasMTUFixed,
+			}
+			copy(session.PublicKey[:], sinfo.theirPermPub[:])
+			sessions = append(sessions, session)
+		}
+	}
+	c.router.doAdmin(getSessions)
+	return sessions
 }
 
 // BuildName gets the current build name. This is usually injected if built
