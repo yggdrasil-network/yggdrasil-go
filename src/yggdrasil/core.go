@@ -30,7 +30,6 @@ type Core struct {
 	sessions    sessions
 	router      router
 	dht         dht
-	admin       admin
 	searches    searches
 	link        link
 	log         *log.Logger
@@ -69,7 +68,6 @@ func (c *Core) init() error {
 	copy(c.sigPub[:], sigPubHex)
 	copy(c.sigPriv[:], sigPrivHex)
 
-	c.admin.init(c)
 	c.searches.init(c)
 	c.dht.init(c)
 	c.sessions.init(c)
@@ -118,7 +116,6 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 	errors := 0
 
 	components := []chan chan error{
-		c.admin.reconfigure,
 		c.searches.reconfigure,
 		c.dht.reconfigure,
 		c.sessions.reconfigure,
@@ -189,11 +186,6 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState,
 		return nil, err
 	}
 
-	if err := c.admin.start(); err != nil {
-		c.log.Errorln("Failed to start admin socket")
-		return nil, err
-	}
-
 	go c.addPeerLoop()
 
 	c.log.Infoln("Startup complete")
@@ -203,5 +195,4 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState,
 // Stop shuts down the Yggdrasil node.
 func (c *Core) Stop() {
 	c.log.Infoln("Stopping...")
-	c.admin.close()
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/kardianos/minwinsvc"
 	"github.com/mitchellh/mapstructure"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
@@ -31,6 +32,7 @@ type node struct {
 	core      Core
 	tuntap    tuntap.TunAdapter
 	multicast multicast.Multicast
+	admin     admin.AdminSocket
 }
 
 func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeConfig {
@@ -183,6 +185,11 @@ func main() {
 	if err != nil {
 		logger.Errorln("An error occurred during startup")
 		panic(err)
+	}
+	// Start the admin socket
+	n.admin.Init(&n.core, state, logger, nil)
+	if err := n.admin.Start(); err != nil {
+		logger.Errorln("An error occurred starting admin socket:", err)
 	}
 	// Start the multicast interface
 	n.multicast.Init(&n.core, state, logger, nil)

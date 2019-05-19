@@ -36,6 +36,7 @@ type SwitchPeer struct {
 	BytesRecvd uint64
 	Port       uint64
 	Protocol   string
+	Endpoint   string
 }
 
 // DHTEntry represents a single DHT entry that has been learned or cached from
@@ -127,6 +128,7 @@ func (c *Core) GetSwitchPeers() []SwitchPeer {
 			BytesRecvd: atomic.LoadUint64(&peer.bytesRecvd),
 			Port:       uint64(elem.port),
 			Protocol:   peer.intf.info.linkType,
+			Endpoint:   peer.intf.info.remote,
 		}
 		copy(info.PublicKey[:], peer.box[:])
 		switchpeers = append(switchpeers, info)
@@ -289,6 +291,12 @@ func (c *Core) BoxPubKey() string {
 	return hex.EncodeToString(c.boxPub[:])
 }
 
+// Coords returns the current coordinates of the node.
+func (c *Core) Coords() []byte {
+	table := c.switchTable.table.Load().(lookupTable)
+	return table.self.getCoords()
+}
+
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128
 // address.
 func (c *Core) Address() *net.IP {
@@ -359,5 +367,6 @@ func (c *Core) CallPeer(addr string, sintf string) error {
 // AddAllowedEncryptionPublicKey adds an allowed public key. This allow peerings
 // to be restricted only to keys that you have selected.
 func (c *Core) AddAllowedEncryptionPublicKey(boxStr string) error {
-	return c.admin.addAllowedEncryptionPublicKey(boxStr)
+	//return c.admin.addAllowedEncryptionPublicKey(boxStr)
+	return nil
 }
