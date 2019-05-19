@@ -196,6 +196,7 @@ func main() {
 	if err := n.multicast.Start(); err != nil {
 		logger.Errorln("An error occurred starting multicast:", err)
 	}
+	n.multicast.SetupAdminHandlers(&n.admin)
 	// Start the TUN/TAP interface
 	if listener, err := n.core.ConnListen(); err == nil {
 		if dialer, err := n.core.ConnDialer(); err == nil {
@@ -203,6 +204,7 @@ func main() {
 			if err := n.tuntap.Start(); err != nil {
 				logger.Errorln("An error occurred starting TUN/TAP:", err)
 			}
+			n.tuntap.SetupAdminHandlers(&n.admin)
 		} else {
 			logger.Errorln("Unable to get Dialer:", err)
 		}
