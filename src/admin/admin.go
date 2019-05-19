@@ -396,7 +396,7 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 
 		// Decode the input
 		if err := decoder.Decode(&recv); err != nil {
-			//	fmt.Println("Admin socket JSON decode error:", err)
+			a.log.Debugln("Admin socket JSON decode error:", err)
 			return
 		}
 
@@ -412,8 +412,6 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 
 		n := strings.ToLower(recv["request"].(string))
 		if h, ok := a.handlers[strings.ToLower(n)]; ok {
-			fmt.Println("HANDLER FOUND", n, h)
-
 			// Check that we have all the required arguments
 			for _, arg := range h.args {
 				// An argument in [square brackets] is optional and not required,
