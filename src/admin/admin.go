@@ -1,12 +1,14 @@
 package admin
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -166,132 +168,131 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 		}
 		return Info{"sessions": sessions}, nil
 	})
-	/*
-		a.AddHandler("addPeer", []string{"uri", "[interface]"}, func(in Info) (Info, error) {
-			// Set sane defaults
-			intf := ""
-			// Has interface been specified?
-			if itf, ok := in["interface"]; ok {
-				intf = itf.(string)
-			}
-			if a.addPeer(in["uri"].(string), intf) == nil {
-				return Info{
-					"added": []string{
-						in["uri"].(string),
-					},
-				}, nil
-			} else {
-				return Info{
-					"not_added": []string{
-						in["uri"].(string),
-					},
-				}, errors.New("Failed to add peer")
-			}
-		})
-		a.AddHandler("removePeer", []string{"port"}, func(in Info) (Info, error) {
-			if a.removePeer(fmt.Sprint(in["port"])) == nil {
-				return Info{
-					"removed": []string{
-						fmt.Sprint(in["port"]),
-					},
-				}, nil
-			} else {
-				return Info{
-					"not_removed": []string{
-						fmt.Sprint(in["port"]),
-					},
-				}, errors.New("Failed to remove peer")
-			}
-		})
-		a.AddHandler("getAllowedEncryptionPublicKeys", []string{}, func(in Info) (Info, error) {
-			return Info{"allowed_box_pubs": a.getAllowedEncryptionPublicKeys()}, nil
-		})
-		a.AddHandler("addAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in Info) (Info, error) {
-			if a.addAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
-				return Info{
-					"added": []string{
-						in["box_pub_key"].(string),
-					},
-				}, nil
-			} else {
-				return Info{
-					"not_added": []string{
-						in["box_pub_key"].(string),
-					},
-				}, errors.New("Failed to add allowed key")
-			}
-		})
-		a.AddHandler("removeAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in Info) (Info, error) {
-			if a.removeAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
-				return Info{
-					"removed": []string{
-						in["box_pub_key"].(string),
-					},
-				}, nil
-			} else {
-				return Info{
-					"not_removed": []string{
-						in["box_pub_key"].(string),
-					},
-				}, errors.New("Failed to remove allowed key")
-			}
-		})
-		a.AddHandler("dhtPing", []string{"box_pub_key", "coords", "[target]"}, func(in Info) (Info, error) {
-			if in["target"] == nil {
-				in["target"] = "none"
-			}
-			result, err := a.admin_dhtPing(in["box_pub_key"].(string), in["coords"].(string), in["target"].(string))
-			if err == nil {
-				infos := make(map[string]map[string]string, len(result.Infos))
-				for _, dinfo := range result.Infos {
-					info := map[string]string{
-						"box_pub_key": hex.EncodeToString(dinfo.key[:]),
-						"coords":      fmt.Sprintf("%v", dinfo.coords),
-					}
-					addr := net.IP(address.AddrForNodeID(crypto.GetNodeID(&dinfo.key))[:]).String()
-					infos[addr] = info
+	a.AddHandler("addPeer", []string{"uri", "[interface]"}, func(in Info) (Info, error) {
+		// Set sane defaults
+		intf := ""
+		// Has interface been specified?
+		if itf, ok := in["interface"]; ok {
+			intf = itf.(string)
+		}
+		if a.core.AddPeer(in["uri"].(string), intf) == nil {
+			return Info{
+				"added": []string{
+					in["uri"].(string),
+				},
+			}, nil
+		} else {
+			return Info{
+				"not_added": []string{
+					in["uri"].(string),
+				},
+			}, errors.New("Failed to add peer")
+		}
+	})
+	a.AddHandler("removePeer", []string{"port"}, func(in Info) (Info, error) {
+		port, err := strconv.ParseInt(fmt.Sprint(in["port"]), 10, 64)
+		if err != nil {
+			return Info{}, err
+		}
+		if a.core.DisconnectPeer(uint64(port)) == nil {
+			return Info{
+				"removed": []string{
+					fmt.Sprint(port),
+				},
+			}, nil
+		} else {
+			return Info{
+				"not_removed": []string{
+					fmt.Sprint(port),
+				},
+			}, errors.New("Failed to remove peer")
+		}
+	})
+	a.AddHandler("getAllowedEncryptionPublicKeys", []string{}, func(in Info) (Info, error) {
+		return Info{"allowed_box_pubs": a.core.GetAllowedEncryptionPublicKeys()}, nil
+	})
+	a.AddHandler("addAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in Info) (Info, error) {
+		if a.core.AddAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
+			return Info{
+				"added": []string{
+					in["box_pub_key"].(string),
+				},
+			}, nil
+		} else {
+			return Info{
+				"not_added": []string{
+					in["box_pub_key"].(string),
+				},
+			}, errors.New("Failed to add allowed key")
+		}
+	})
+	a.AddHandler("removeAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in Info) (Info, error) {
+		if a.core.RemoveAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
+			return Info{
+				"removed": []string{
+					in["box_pub_key"].(string),
+				},
+			}, nil
+		} else {
+			return Info{
+				"not_removed": []string{
+					in["box_pub_key"].(string),
+				},
+			}, errors.New("Failed to remove allowed key")
+		}
+	})
+	a.AddHandler("dhtPing", []string{"box_pub_key", "coords", "[target]"}, func(in Info) (Info, error) {
+		if in["target"] == nil {
+			in["target"] = "none"
+		}
+		result, err := a.core.DHTPing(in["box_pub_key"].(string), in["coords"].(string), in["target"].(string))
+		if err == nil {
+			infos := make(map[string]map[string]string, len(result.Infos))
+			for _, dinfo := range result.Infos {
+				info := map[string]string{
+					"box_pub_key": hex.EncodeToString(dinfo.PublicKey[:]),
+					"coords":      fmt.Sprintf("%v", dinfo.Coords),
 				}
-				return Info{"nodes": infos}, nil
+				addr := net.IP(address.AddrForNodeID(crypto.GetNodeID(&dinfo.PublicKey))[:]).String()
+				infos[addr] = info
+			}
+			return Info{"nodes": infos}, nil
+		} else {
+			return Info{}, err
+		}
+	})
+	a.AddHandler("getNodeInfo", []string{"[box_pub_key]", "[coords]", "[nocache]"}, func(in Info) (Info, error) {
+		var nocache bool
+		if in["nocache"] != nil {
+			nocache = in["nocache"].(string) == "true"
+		}
+		var box_pub_key, coords string
+		if in["box_pub_key"] == nil && in["coords"] == nil {
+			nodeinfo := a.core.MyNodeInfo()
+			var jsoninfo interface{}
+			if err := json.Unmarshal(nodeinfo, &jsoninfo); err != nil {
+				return Info{}, err
+			} else {
+				return Info{"nodeinfo": jsoninfo}, nil
+			}
+		} else if in["box_pub_key"] == nil || in["coords"] == nil {
+			return Info{}, errors.New("Expecting both box_pub_key and coords")
+		} else {
+			box_pub_key = in["box_pub_key"].(string)
+			coords = in["coords"].(string)
+		}
+		result, err := a.core.GetNodeInfo(box_pub_key, coords, nocache)
+		if err == nil {
+			var m map[string]interface{}
+			if err = json.Unmarshal(result, &m); err == nil {
+				return Info{"nodeinfo": m}, nil
 			} else {
 				return Info{}, err
 			}
-		})
-		a.AddHandler("getNodeInfo", []string{"[box_pub_key]", "[coords]", "[nocache]"}, func(in Info) (Info, error) {
-			var nocache bool
-			if in["nocache"] != nil {
-				nocache = in["nocache"].(string) == "true"
-			}
-			var box_pub_key, coords string
-			if in["box_pub_key"] == nil && in["coords"] == nil {
-				var nodeinfo []byte
-				a.core.router.doAdmin(func() {
-					nodeinfo = []byte(a.core.router.nodeinfo.getNodeInfo())
-				})
-				var jsoninfo interface{}
-				if err := json.Unmarshal(nodeinfo, &jsoninfo); err != nil {
-					return Info{}, err
-				} else {
-					return Info{"nodeinfo": jsoninfo}, nil
-				}
-			} else if in["box_pub_key"] == nil || in["coords"] == nil {
-				return Info{}, errors.New("Expecting both box_pub_key and coords")
-			} else {
-				box_pub_key = in["box_pub_key"].(string)
-				coords = in["coords"].(string)
-			}
-			result, err := a.admin_getNodeInfo(box_pub_key, coords, nocache)
-			if err == nil {
-				var m map[string]interface{}
-				if err = json.Unmarshal(result, &m); err == nil {
-					return Info{"nodeinfo": m}, nil
-				} else {
-					return Info{}, err
-				}
-			} else {
-				return Info{}, err
-			}
-		})
-	*/
+		} else {
+			return Info{}, err
+		}
+	})
 }
 
 // start runs the admin API socket to listen for / respond to admin API calls.
@@ -457,112 +458,6 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 		}
 	}
 }
-
-/*
-// Send a DHT ping to the node with the provided key and coords, optionally looking up the specified target NodeID.
-func (a *AdminSocket) admin_dhtPing(keyString, coordString, targetString string) (dhtRes, error) {
-	var key crypto.BoxPubKey
-	if keyBytes, err := hex.DecodeString(keyString); err != nil {
-		return dhtRes{}, err
-	} else {
-		copy(key[:], keyBytes)
-	}
-	var coords []byte
-	for _, cstr := range strings.Split(strings.Trim(coordString, "[]"), " ") {
-		if cstr == "" {
-			// Special case, happens if trimmed is the empty string, e.g. this is the root
-			continue
-		}
-		if u64, err := strconv.ParseUint(cstr, 10, 8); err != nil {
-			return dhtRes{}, err
-		} else {
-			coords = append(coords, uint8(u64))
-		}
-	}
-	resCh := make(chan *dhtRes, 1)
-	info := dhtInfo{
-		key:    key,
-		coords: coords,
-	}
-	target := *info.getNodeID()
-	if targetString == "none" {
-		// Leave the default target in place
-	} else if targetBytes, err := hex.DecodeString(targetString); err != nil {
-		return dhtRes{}, err
-	} else if len(targetBytes) != len(target) {
-		return dhtRes{}, errors.New("Incorrect target NodeID length")
-	} else {
-		var target crypto.NodeID
-		copy(target[:], targetBytes)
-	}
-	rq := dhtReqKey{info.key, target}
-	sendPing := func() {
-		a.core.dht.addCallback(&rq, func(res *dhtRes) {
-			defer func() { recover() }()
-			select {
-			case resCh <- res:
-			default:
-			}
-		})
-		a.core.dht.ping(&info, &target)
-	}
-	a.core.router.doAdmin(sendPing)
-	go func() {
-		time.Sleep(6 * time.Second)
-		close(resCh)
-	}()
-	for res := range resCh {
-		return *res, nil
-	}
-	return dhtRes{}, errors.New(fmt.Sprintf("DHT ping timeout: %s", keyString))
-}
-
-func (a *AdminSocket) admin_getNodeInfo(keyString, coordString string, nocache bool) (nodeinfoPayload, error) {
-	var key crypto.BoxPubKey
-	if keyBytes, err := hex.DecodeString(keyString); err != nil {
-		return nodeinfoPayload{}, err
-	} else {
-		copy(key[:], keyBytes)
-	}
-	if !nocache {
-		if response, err := a.core.router.nodeinfo.getCachedNodeInfo(key); err == nil {
-			return response, nil
-		}
-	}
-	var coords []byte
-	for _, cstr := range strings.Split(strings.Trim(coordString, "[]"), " ") {
-		if cstr == "" {
-			// Special case, happens if trimmed is the empty string, e.g. this is the root
-			continue
-		}
-		if u64, err := strconv.ParseUint(cstr, 10, 8); err != nil {
-			return nodeinfoPayload{}, err
-		} else {
-			coords = append(coords, uint8(u64))
-		}
-	}
-	response := make(chan *nodeinfoPayload, 1)
-	sendNodeInfoRequest := func() {
-		a.core.router.nodeinfo.addCallback(key, func(nodeinfo *nodeinfoPayload) {
-			defer func() { recover() }()
-			select {
-			case response <- nodeinfo:
-			default:
-			}
-		})
-		a.core.router.nodeinfo.sendNodeInfo(key, coords, false)
-	}
-	a.core.router.doAdmin(sendNodeInfoRequest)
-	go func() {
-		time.Sleep(6 * time.Second)
-		close(response)
-	}()
-	for res := range response {
-		return *res, nil
-	}
-	return nodeinfoPayload{}, errors.New(fmt.Sprintf("getNodeInfo timeout: %s", keyString))
-}
-*/
 
 // getResponse_dot returns a response for a graphviz dot formatted
 // representation of the known parts of the network. This is color-coded and
