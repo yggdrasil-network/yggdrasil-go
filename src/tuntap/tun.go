@@ -236,26 +236,26 @@ func (tun *TunAdapter) wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 	}
 	// Get the remote address and subnet of the other side
 	remoteNodeID := conn.RemoteAddr()
-	remoteAddr := address.AddrForNodeID(&remoteNodeID)
-	remoteSubnet := address.SubnetForNodeID(&remoteNodeID)
+	s.addr = *address.AddrForNodeID(&remoteNodeID)
+	s.snet = *address.SubnetForNodeID(&remoteNodeID)
 	// Work out if this is already a destination we already know about
 	tun.mutex.Lock()
 	defer tun.mutex.Unlock()
-	atc, aok := tun.addrToConn[*remoteAddr]
-	stc, sok := tun.subnetToConn[*remoteSubnet]
+	atc, aok := tun.addrToConn[s.addr]
+	stc, sok := tun.subnetToConn[s.snet]
 	// If we know about a connection for this destination already then assume it
 	// is no longer valid and close it
 	if aok {
-		atc.close()
+		atc._close_nomutex()
 		err = errors.New("replaced connection for address")
 	} else if sok {
-		stc.close()
+		stc._close_nomutex()
 		err = errors.New("replaced connection for subnet")
 	}
 	// Save the session wrapper so that we can look it up quickly next time
 	// we receive a packet through the interface for this address
-	tun.addrToConn[*remoteAddr] = &s
-	tun.subnetToConn[*remoteSubnet] = &s
+	tun.addrToConn[s.addr] = &s
+	tun.subnetToConn[s.snet] = &s
 	// Start the connection goroutines
 	go s.reader()
 	go s.writer()
