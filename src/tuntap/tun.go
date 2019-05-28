@@ -229,10 +229,11 @@ func (tun *TunAdapter) handler() error {
 func (tun *TunAdapter) wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 	// Prepare a session wrapper for the given connection
 	s := tunConn{
-		tun:  tun,
-		conn: conn,
-		send: make(chan []byte, 32), // TODO: is this a sensible value?
-		stop: make(chan interface{}),
+		tun:   tun,
+		conn:  conn,
+		send:  make(chan []byte, 32), // TODO: is this a sensible value?
+		stop:  make(chan struct{}),
+		alive: make(chan struct{}, 1),
 	}
 	// Get the remote address and subnet of the other side
 	remoteNodeID := conn.RemoteAddr()
@@ -259,6 +260,7 @@ func (tun *TunAdapter) wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 	// Start the connection goroutines
 	go s.reader()
 	go s.writer()
+	go s.checkForTimeouts()
 	// Return
 	return c, err
 }
