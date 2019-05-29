@@ -7,6 +7,8 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
+	"golang.org/x/net/icmp"
+	"golang.org/x/net/ipv6"
 )
 
 type tunConn struct {
@@ -97,7 +99,21 @@ func (s *tunConn) writer() error {
 			}
 			// TODO write timeout and close
 			if _, err := s.conn.Write(b); err != nil {
-				s.tun.log.Errorln(s.conn.String(), "TUN/TAP conn write error:", err)
+				e, eok := err.(yggdrasil.ConnError)
+				if !eok {
+					s.tun.log.Errorln(s.conn.String(), "TUN/TAP generic write error:", err)
+				} else if ispackettoobig, maxsize := e.PacketTooBig(); ispackettoobig {
+					// TODO: This currently isn't aware of IPv4 for CKR
+					ptb := &icmp.PacketTooBig{
+						MTU:  int(maxsize),
+						Data: b[:900],
+					}
+					if packet, err := CreateICMPv6(b[8:24], b[24:40], ipv6.ICMPTypePacketTooBig, 0, ptb); err == nil {
+						s.tun.send <- packet
+					}
+				} else {
+					s.tun.log.Errorln(s.conn.String(), "TUN/TAP conn write error:", err)
+				}
 			}
 			util.PutBytes(b)
 			s.stillAlive()
