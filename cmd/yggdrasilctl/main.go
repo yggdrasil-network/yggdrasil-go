@@ -200,7 +200,7 @@ func main() {
 					if !keysOrdered {
 						for k := range slv.(map[string]interface{}) {
 							if !*verbose {
-								if k == "box_pub_key" || k == "box_sig_key" || k == "nodeinfo" {
+								if k == "box_pub_key" || k == "box_sig_key" || k == "nodeinfo" || k == "was_mtu_fixed" {
 									continue
 								}
 							}
@@ -277,6 +277,9 @@ func main() {
 					fmt.Println("Coords:", coords)
 				}
 				if *verbose {
+					if nodeID, ok := v.(map[string]interface{})["node_id"].(string); ok {
+						fmt.Println("Node ID:", nodeID)
+					}
 					if boxPubKey, ok := v.(map[string]interface{})["box_pub_key"].(string); ok {
 						fmt.Println("Public encryption key:", boxPubKey)
 					}

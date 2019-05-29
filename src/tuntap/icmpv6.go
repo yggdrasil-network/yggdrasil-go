@@ -169,7 +169,6 @@ func (i *ICMPv6) UnmarshalPacket(datain []byte, datamac *[]byte) ([]byte, error)
 			if err != nil {
 				return nil, err
 			}
-
 			// Send it back
 			return responsePacket, nil
 		} else {
@@ -186,7 +185,7 @@ func (i *ICMPv6) UnmarshalPacket(datain []byte, datamac *[]byte) ([]byte, error)
 			copy(addr[:], ipv6Header.Src[:])
 			copy(target[:], datain[48:64])
 			copy(mac[:], (*datamac)[:])
-			// i.tun.core.log.Printf("Learning peer MAC %x for %x\n", mac, target)
+			// fmt.Printf("Learning peer MAC %x for %x\n", mac, target)
 			neighbor := i.peermacs[target]
 			neighbor.mac = mac
 			neighbor.learned = true

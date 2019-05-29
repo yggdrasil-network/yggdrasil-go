@@ -18,6 +18,7 @@ import (
 	"github.com/kardianos/minwinsvc"
 	"github.com/mitchellh/mapstructure"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
@@ -31,6 +32,7 @@ type node struct {
 	core      Core
 	tuntap    tuntap.TunAdapter
 	multicast multicast.Multicast
+	admin     admin.AdminSocket
 }
 
 func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeConfig {
@@ -76,77 +78,6 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeCo
 		panic(err)
 	}
 	json.Unmarshal(confJson, &cfg)
-	// For now we will do a little bit to help the user adjust their
-	// configuration to match the new configuration format, as some of the key
-	// names have changed recently.
-	changes := map[string]string{
-		"Multicast":      "",
-		"ReadTimeout":    "",
-		"LinkLocal":      "MulticastInterfaces",
-		"BoxPub":         "EncryptionPublicKey",
-		"BoxPriv":        "EncryptionPrivateKey",
-		"SigPub":         "SigningPublicKey",
-		"SigPriv":        "SigningPrivateKey",
-		"AllowedBoxPubs": "AllowedEncryptionPublicKeys",
-	}
-	// Loop over the mappings aove and see if we have anything to fix.
-	for from, to := range changes {
-		if _, ok := dat[from]; ok {
-			if to == "" {
-				if !*normaliseconf {
-					log.Println("Warning: Config option", from, "is deprecated")
-				}
-			} else {
-				if !*normaliseconf {
-					log.Println("Warning: Config option", from, "has been renamed - please change to", to)
-				}
-				// If the configuration file doesn't already contain a line with the
-				// new name then set it to the old value. This makes sure that we
-				// don't overwrite something that was put there intentionally.
-				if _, ok := dat[to]; !ok {
-					dat[to] = dat[from]
-				}
-			}
-		}
-	}
-	// Check to see if the peers are in a parsable format, if not then default
-	// them to the TCP scheme
-	if peers, ok := dat["Peers"].([]interface{}); ok {
-		for index, peer := range peers {
-			uri := peer.(string)
-			if strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, "socks://") {
-				continue
-			}
-			if strings.HasPrefix(uri, "tcp:") {
-				uri = uri[4:]
-			}
-			(dat["Peers"].([]interface{}))[index] = "tcp://" + uri
-		}
-	}
-	// Now do the same with the interface peers
-	if interfacepeers, ok := dat["InterfacePeers"].(map[string]interface{}); ok {
-		for intf, peers := range interfacepeers {
-			for index, peer := range peers.([]interface{}) {
-				uri := peer.(string)
-				if strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, "socks://") {
-					continue
-				}
-				if strings.HasPrefix(uri, "tcp:") {
-					uri = uri[4:]
-				}
-				((dat["InterfacePeers"].(map[string]interface{}))[intf]).([]interface{})[index] = "tcp://" + uri
-			}
-		}
-	}
-	// Do a quick check for old-format Listen statement so that mapstructure
-	// doesn't fail and crash
-	if listen, ok := dat["Listen"].(string); ok {
-		if strings.HasPrefix(listen, "tcp://") {
-			dat["Listen"] = []string{listen}
-		} else {
-			dat["Listen"] = []string{"tcp://" + listen}
-		}
-	}
 	// Overlay our newly mapped configuration onto the autoconf node config that
 	// we generated above.
 	if err = mapstructure.Decode(dat, &cfg); err != nil {
@@ -248,8 +179,6 @@ func main() {
 	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
 	// don't need to create this manually.
 	n := node{}
-	// Before we start the node, set the TUN/TAP to be our router adapter
-	n.core.SetRouterAdapter(&n.tuntap)
 	// Now start Yggdrasil - this starts the DHT, router, switch and other core
 	// components needed for Yggdrasil to operate
 	state, err := n.core.Start(cfg, logger)
@@ -257,10 +186,30 @@ func main() {
 		logger.Errorln("An error occurred during startup")
 		panic(err)
 	}
+	// Start the admin socket
+	n.admin.Init(&n.core, state, logger, nil)
+	if err := n.admin.Start(); err != nil {
+		logger.Errorln("An error occurred starting admin socket:", err)
+	}
 	// Start the multicast interface
 	n.multicast.Init(&n.core, state, logger, nil)
 	if err := n.multicast.Start(); err != nil {
 		logger.Errorln("An error occurred starting multicast:", err)
+	}
+	n.multicast.SetupAdminHandlers(&n.admin)
+	// Start the TUN/TAP interface
+	if listener, err := n.core.ConnListen(); err == nil {
+		if dialer, err := n.core.ConnDialer(); err == nil {
+			n.tuntap.Init(state, logger, listener, dialer)
+			if err := n.tuntap.Start(); err != nil {
+				logger.Errorln("An error occurred starting TUN/TAP:", err)
+			}
+			n.tuntap.SetupAdminHandlers(&n.admin)
+		} else {
+			logger.Errorln("Unable to get Dialer:", err)
+		}
+	} else {
+		logger.Errorln("Unable to get Listener:", err)
 	}
 	// The Stop function ensures that the TUN/TAP adapter is correctly shut down
 	// before the program exits.
@@ -291,6 +240,8 @@ func main() {
 			if *useconffile != "" {
 				cfg = readConfig(useconf, useconffile, normaliseconf)
 				n.core.UpdateConfig(cfg)
+				n.tuntap.UpdateConfig(cfg)
+				n.multicast.UpdateConfig(cfg)
 			} else {
 				logger.Errorln("Reloading config at runtime is only possible with -useconffile")
 			}

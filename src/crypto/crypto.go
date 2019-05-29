@@ -13,6 +13,7 @@ It also defines NodeID and TreeID as hashes of keys, and wraps hash functions
 import (
 	"crypto/rand"
 	"crypto/sha512"
+	"encoding/hex"
 
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/nacl/box"
@@ -31,6 +32,41 @@ const handleLen = 8
 type NodeID [NodeIDLen]byte
 type TreeID [TreeIDLen]byte
 type Handle [handleLen]byte
+
+func (n *NodeID) String() string {
+	return hex.EncodeToString(n[:])
+}
+
+// Network returns "nodeid" nearly always right now.
+func (n *NodeID) Network() string {
+	return "nodeid"
+}
+
+// PrefixLength returns the number of bits set in a masked NodeID.
+func (n *NodeID) PrefixLength() int {
+	var len int
+	for i, v := range *n {
+		_, _ = i, v
+		if v == 0xff {
+			len += 8
+			continue
+		}
+		for v&0x80 != 0 {
+			len++
+			v <<= 1
+		}
+		if v != 0 {
+			return -1
+		}
+		for i++; i < NodeIDLen; i++ {
+			if n[i] != 0 {
+				return -1
+			}
+		}
+		break
+	}
+	return len
+}
 
 func GetNodeID(pub *BoxPubKey) *NodeID {
 	h := sha512.Sum512(pub[:])

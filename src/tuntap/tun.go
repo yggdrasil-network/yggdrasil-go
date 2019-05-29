@@ -2,8 +2,14 @@ package tuntap
 
 // This manages the tun driver to send/recv packets to/from applications
 
+// TODO: Crypto-key routing support
+// TODO: Set MTU of session properly
+// TODO: Reject packets that exceed session MTU with ICMPv6 for PMTU Discovery
+// TODO: Connection timeouts (call Conn.Close() when we want to time out)
+// TODO: Don't block in reader on writes that are pending searches
+
 import (
-	"bytes"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -11,16 +17,12 @@ import (
 	"time"
 
 	"github.com/gologme/log"
-	"golang.org/x/net/icmp"
-	"golang.org/x/net/ipv6"
-
-	"github.com/songgao/packets/ethernet"
 	"github.com/yggdrasil-network/water"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
@@ -32,14 +34,22 @@ const tun_ETHER_HEADER_LENGTH = 14
 // you should pass this object to the yggdrasil.SetRouterAdapter() function
 // before calling yggdrasil.Start().
 type TunAdapter struct {
-	yggdrasil.Adapter
-	addr   address.Address
-	subnet address.Subnet
-	icmpv6 ICMPv6
-	mtu    int
-	iface  *water.Interface
-	mutex  sync.RWMutex // Protects the below
-	isOpen bool
+	config       *config.NodeState
+	log          *log.Logger
+	reconfigure  chan chan error
+	listener     *yggdrasil.Listener
+	dialer       *yggdrasil.Dialer
+	addr         address.Address
+	subnet       address.Subnet
+	ckr          cryptokey
+	icmpv6       ICMPv6
+	mtu          int
+	iface        *water.Interface
+	send         chan []byte
+	mutex        sync.RWMutex // Protects the below
+	addrToConn   map[address.Address]*tunConn
+	subnetToConn map[address.Subnet]*tunConn
+	isOpen       bool
 }
 
 // Gets the maximum supported MTU for the platform based on the defaults in
@@ -94,62 +104,52 @@ func MaximumMTU() int {
 	return defaults.GetDefaults().MaximumIfMTU
 }
 
-// Init initialises the TUN/TAP adapter.
-func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, send chan<- []byte, recv <-chan []byte, reject <-chan yggdrasil.RejectedPacket) {
-	tun.Adapter.Init(config, log, send, recv, reject)
-	tun.icmpv6.Init(tun)
-	go func() {
-		for {
-			e := <-tun.Reconfigure
-			tun.Config.Mutex.RLock()
-			updated := tun.Config.Current.IfName != tun.Config.Previous.IfName ||
-				tun.Config.Current.IfTAPMode != tun.Config.Previous.IfTAPMode ||
-				tun.Config.Current.IfMTU != tun.Config.Previous.IfMTU
-			tun.Config.Mutex.RUnlock()
-			if updated {
-				tun.Log.Warnln("Reconfiguring TUN/TAP is not supported yet")
-				e <- nil
-			} else {
-				e <- nil
-			}
-		}
-	}()
+// Init initialises the TUN/TAP module. You must have acquired a Listener from
+// the Yggdrasil core before this point and it must not be in use elsewhere.
+func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener *yggdrasil.Listener, dialer *yggdrasil.Dialer) {
+	tun.config = config
+	tun.log = log
+	tun.listener = listener
+	tun.dialer = dialer
+	tun.addrToConn = make(map[address.Address]*tunConn)
+	tun.subnetToConn = make(map[address.Subnet]*tunConn)
 }
 
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
 // read/write goroutines to handle packets on that interface.
-func (tun *TunAdapter) Start(a address.Address, s address.Subnet) error {
-	tun.addr = a
-	tun.subnet = s
-	if tun.Config == nil {
+func (tun *TunAdapter) Start() error {
+	tun.config.Mutex.RLock()
+	defer tun.config.Mutex.RUnlock()
+	if tun.config == nil || tun.listener == nil || tun.dialer == nil {
 		return errors.New("No configuration available to TUN/TAP")
 	}
-	tun.Config.Mutex.RLock()
-	ifname := tun.Config.Current.IfName
-	iftapmode := tun.Config.Current.IfTAPMode
+	var boxPub crypto.BoxPubKey
+	boxPubHex, err := hex.DecodeString(tun.config.Current.EncryptionPublicKey)
+	if err != nil {
+		return err
+	}
+	copy(boxPub[:], boxPubHex)
+	nodeID := crypto.GetNodeID(&boxPub)
+	tun.addr = *address.AddrForNodeID(nodeID)
+	tun.subnet = *address.SubnetForNodeID(nodeID)
+	tun.mtu = tun.config.Current.IfMTU
+	ifname := tun.config.Current.IfName
+	iftapmode := tun.config.Current.IfTAPMode
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
-	mtu := tun.Config.Current.IfMTU
-	tun.Config.Mutex.RUnlock()
 	if ifname != "none" {
-		if err := tun.setup(ifname, iftapmode, addr, mtu); err != nil {
+		if err := tun.setup(ifname, iftapmode, addr, tun.mtu); err != nil {
 			return err
 		}
 	}
 	if ifname == "none" || ifname == "dummy" {
-		tun.Log.Debugln("Not starting TUN/TAP as ifname is none or dummy")
+		tun.log.Debugln("Not starting TUN/TAP as ifname is none or dummy")
 		return nil
 	}
 	tun.mutex.Lock()
 	tun.isOpen = true
+	tun.send = make(chan []byte, 32) // TODO: is this a sensible value?
+	tun.reconfigure = make(chan chan error)
 	tun.mutex.Unlock()
-	go func() {
-		tun.Log.Debugln("Starting TUN/TAP reader goroutine")
-		tun.Log.Errorln("WARNING: tun.read() exited with error:", tun.read())
-	}()
-	go func() {
-		tun.Log.Debugln("Starting TUN/TAP writer goroutine")
-		tun.Log.Errorln("WARNING: tun.write() exited with error:", tun.write())
-	}()
 	if iftapmode {
 		go func() {
 			for {
@@ -160,202 +160,107 @@ func (tun *TunAdapter) Start(a address.Address, s address.Subnet) error {
 				if err != nil {
 					panic(err)
 				}
-				if _, err := tun.iface.Write(request); err != nil {
-					panic(err)
-				}
+				tun.send <- request
 				time.Sleep(time.Second)
 			}
 		}()
 	}
+	go func() {
+		for {
+			e := <-tun.reconfigure
+			e <- nil
+		}
+	}()
+	go tun.handler()
+	go tun.reader()
+	go tun.writer()
+	tun.icmpv6.Init(tun)
+	tun.ckr.init(tun)
 	return nil
 }
 
-// Writes a packet to the TUN/TAP adapter. If the adapter is running in TAP
-// mode then additional ethernet encapsulation is added for the benefit of the
-// host operating system.
-func (tun *TunAdapter) write() error {
-	for {
-		select {
-		case reject := <-tun.Reject:
-			switch reject.Reason {
-			case yggdrasil.PacketTooBig:
-				if mtu, ok := reject.Detail.(int); ok {
-					// Create the Packet Too Big response
-					ptb := &icmp.PacketTooBig{
-						MTU:  int(mtu),
-						Data: reject.Packet,
-					}
+// UpdateConfig updates the TUN/TAP module with the provided config.NodeConfig
+// and then signals the various module goroutines to reconfigure themselves if
+// needed.
+func (tun *TunAdapter) UpdateConfig(config *config.NodeConfig) {
+	tun.log.Debugln("Reloading TUN/TAP configuration...")
 
-					// Create the ICMPv6 response from it
-					icmpv6Buf, err := CreateICMPv6(
-						reject.Packet[8:24], reject.Packet[24:40],
-						ipv6.ICMPTypePacketTooBig, 0, ptb)
+	tun.config.Replace(*config)
 
-					// Send the ICMPv6 response back to the TUN/TAP adapter
-					if err == nil {
-						tun.iface.Write(icmpv6Buf)
-					}
-				}
-				fallthrough
-			default:
-				continue
-			}
-		case data := <-tun.Recv:
-			if tun.iface == nil {
-				continue
-			}
-			if tun.iface.IsTAP() {
-				var destAddr address.Address
-				if data[0]&0xf0 == 0x60 {
-					if len(data) < 40 {
-						//panic("Tried to send a packet shorter than an IPv6 header...")
-						util.PutBytes(data)
-						continue
-					}
-					copy(destAddr[:16], data[24:])
-				} else if data[0]&0xf0 == 0x40 {
-					if len(data) < 20 {
-						//panic("Tried to send a packet shorter than an IPv4 header...")
-						util.PutBytes(data)
-						continue
-					}
-					copy(destAddr[:4], data[16:])
-				} else {
-					return errors.New("Invalid address family")
-				}
-				sendndp := func(destAddr address.Address) {
-					neigh, known := tun.icmpv6.peermacs[destAddr]
-					known = known && (time.Since(neigh.lastsolicitation).Seconds() < 30)
-					if !known {
-						request, err := tun.icmpv6.CreateNDPL2(destAddr)
-						if err != nil {
-							panic(err)
-						}
-						if _, err := tun.iface.Write(request); err != nil {
-							panic(err)
-						}
-						tun.icmpv6.peermacs[destAddr] = neighbor{
-							lastsolicitation: time.Now(),
-						}
-					}
-				}
-				var peermac macAddress
-				var peerknown bool
-				if data[0]&0xf0 == 0x40 {
-					destAddr = tun.addr
-				} else if data[0]&0xf0 == 0x60 {
-					if !bytes.Equal(tun.addr[:16], destAddr[:16]) && !bytes.Equal(tun.subnet[:8], destAddr[:8]) {
-						destAddr = tun.addr
-					}
-				}
-				if neighbor, ok := tun.icmpv6.peermacs[destAddr]; ok && neighbor.learned {
-					peermac = neighbor.mac
-					peerknown = true
-				} else if neighbor, ok := tun.icmpv6.peermacs[tun.addr]; ok && neighbor.learned {
-					peermac = neighbor.mac
-					peerknown = true
-					sendndp(destAddr)
-				} else {
-					sendndp(tun.addr)
-				}
-				if peerknown {
-					var proto ethernet.Ethertype
-					switch {
-					case data[0]&0xf0 == 0x60:
-						proto = ethernet.IPv6
-					case data[0]&0xf0 == 0x40:
-						proto = ethernet.IPv4
-					}
-					var frame ethernet.Frame
-					frame.Prepare(
-						peermac[:6],          // Destination MAC address
-						tun.icmpv6.mymac[:6], // Source MAC address
-						ethernet.NotTagged,   // VLAN tagging
-						proto,                // Ethertype
-						len(data))            // Payload length
-					copy(frame[tun_ETHER_HEADER_LENGTH:], data[:])
-					if _, err := tun.iface.Write(frame); err != nil {
-						tun.mutex.RLock()
-						open := tun.isOpen
-						tun.mutex.RUnlock()
-						if !open {
-							return nil
-						} else {
-							panic(err)
-						}
-					}
-				}
-			} else {
-				if _, err := tun.iface.Write(data); err != nil {
-					tun.mutex.RLock()
-					open := tun.isOpen
-					tun.mutex.RUnlock()
-					if !open {
-						return nil
-					} else {
-						panic(err)
-					}
-				}
-			}
-			util.PutBytes(data)
+	errors := 0
+
+	components := []chan chan error{
+		tun.reconfigure,
+		tun.ckr.reconfigure,
+	}
+
+	for _, component := range components {
+		response := make(chan error)
+		component <- response
+		if err := <-response; err != nil {
+			tun.log.Errorln(err)
+			errors++
 		}
+	}
+
+	if errors > 0 {
+		tun.log.Warnln(errors, "TUN/TAP module(s) reported errors during configuration reload")
+	} else {
+		tun.log.Infoln("TUN/TAP configuration reloaded successfully")
 	}
 }
 
-// Reads any packets that are waiting on the TUN/TAP adapter. If the adapter
-// is running in TAP mode then the ethernet headers will automatically be
-// processed and stripped if necessary. If an ICMPv6 packet is found, then
-// the relevant helper functions in icmpv6.go are called.
-func (tun *TunAdapter) read() error {
-	mtu := tun.mtu
-	if tun.iface.IsTAP() {
-		mtu += tun_ETHER_HEADER_LENGTH
-	}
-	buf := make([]byte, mtu)
+func (tun *TunAdapter) handler() error {
 	for {
-		n, err := tun.iface.Read(buf)
+		// Accept the incoming connection
+		conn, err := tun.listener.Accept()
 		if err != nil {
-			tun.mutex.RLock()
-			open := tun.isOpen
-			tun.mutex.RUnlock()
-			if !open {
-				return nil
-			} else {
-				return err
-			}
+			tun.log.Errorln("TUN/TAP connection accept error:", err)
+			return err
 		}
-		o := 0
-		if tun.iface.IsTAP() {
-			o = tun_ETHER_HEADER_LENGTH
+		if _, err := tun.wrap(conn); err != nil {
+			// Something went wrong when storing the connection, typically that
+			// something already exists for this address or subnet
+			tun.log.Debugln("TUN/TAP handler wrap:", err)
 		}
-		switch {
-		case buf[o]&0xf0 == 0x60 && n == 256*int(buf[o+4])+int(buf[o+5])+tun_IPv6_HEADER_LENGTH+o:
-		case buf[o]&0xf0 == 0x40 && n == 256*int(buf[o+2])+int(buf[o+3])+o:
-		default:
-			continue
-		}
-		if buf[o+6] == 58 {
-			if tun.iface.IsTAP() {
-				// Found an ICMPv6 packet
-				b := make([]byte, n)
-				copy(b, buf)
-				go tun.icmpv6.ParsePacket(b)
-			}
-		}
-		packet := append(util.GetBytes(), buf[o:n]...)
-		tun.Send <- packet
 	}
 }
 
-// Closes the TUN/TAP adapter. This is only usually called when the Yggdrasil
-// process stops. Typically this operation will happen quickly, but on macOS
-// it can block until a read operation is completed.
-func (tun *TunAdapter) Close() error {
-	tun.mutex.Lock()
-	tun.isOpen = false
-	tun.mutex.Unlock()
-	if tun.iface == nil {
-		return nil
+func (tun *TunAdapter) wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
+	// Prepare a session wrapper for the given connection
+	s := tunConn{
+		tun:   tun,
+		conn:  conn,
+		send:  make(chan []byte, 32), // TODO: is this a sensible value?
+		stop:  make(chan struct{}),
+		alive: make(chan struct{}, 1),
 	}
-	return tun.iface.Close()
+	// Get the remote address and subnet of the other side
+	remoteNodeID := conn.RemoteAddr()
+	s.addr = *address.AddrForNodeID(&remoteNodeID)
+	s.snet = *address.SubnetForNodeID(&remoteNodeID)
+	// Work out if this is already a destination we already know about
+	tun.mutex.Lock()
+	defer tun.mutex.Unlock()
+	atc, aok := tun.addrToConn[s.addr]
+	stc, sok := tun.subnetToConn[s.snet]
+	// If we know about a connection for this destination already then assume it
+	// is no longer valid and close it
+	if aok {
+		atc._close_nomutex()
+		err = errors.New("replaced connection for address")
+	} else if sok {
+		stc._close_nomutex()
+		err = errors.New("replaced connection for subnet")
+	}
+	// Save the session wrapper so that we can look it up quickly next time
+	// we receive a packet through the interface for this address
+	tun.addrToConn[s.addr] = &s
+	tun.subnetToConn[s.snet] = &s
+	// Start the connection goroutines
+	go s.reader()
+	go s.writer()
+	go s.checkForTimeouts()
+	// Return
+	return c, err
 }

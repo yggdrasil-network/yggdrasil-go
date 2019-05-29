@@ -15,6 +15,7 @@ package yggdrasil
 //  Some kind of max search steps, in case the node is offline, so we don't crawl through too much of the network looking for a destination that isn't there?
 
 import (
+	"errors"
 	"sort"
 	"time"
 
@@ -32,12 +33,13 @@ const search_RETRY_TIME = time.Second
 // Information about an ongoing search.
 // Includes the target NodeID, the bitmask to match it to an IP, and the list of nodes to visit / already visited.
 type searchInfo struct {
-	dest    crypto.NodeID
-	mask    crypto.NodeID
-	time    time.Time
-	packet  []byte
-	toVisit []*dhtInfo
-	visited map[crypto.NodeID]bool
+	dest     crypto.NodeID
+	mask     crypto.NodeID
+	time     time.Time
+	packet   []byte
+	toVisit  []*dhtInfo
+	visited  map[crypto.NodeID]bool
+	callback func(*sessionInfo, error)
 }
 
 // This stores a map of active searches.
@@ -61,7 +63,7 @@ func (s *searches) init(core *Core) {
 }
 
 // Creates a new search info, adds it to the searches struct, and returns a pointer to the info.
-func (s *searches) createSearch(dest *crypto.NodeID, mask *crypto.NodeID) *searchInfo {
+func (s *searches) createSearch(dest *crypto.NodeID, mask *crypto.NodeID, callback func(*sessionInfo, error)) *searchInfo {
 	now := time.Now()
 	for dest, sinfo := range s.searches {
 		if now.Sub(sinfo.time) > time.Minute {
@@ -69,9 +71,10 @@ func (s *searches) createSearch(dest *crypto.NodeID, mask *crypto.NodeID) *searc
 		}
 	}
 	info := searchInfo{
-		dest: *dest,
-		mask: *mask,
-		time: now.Add(-time.Second),
+		dest:     *dest,
+		mask:     *mask,
+		time:     now.Add(-time.Second),
+		callback: callback,
 	}
 	s.searches[*dest] = &info
 	return &info
@@ -87,11 +90,10 @@ func (s *searches) handleDHTRes(res *dhtRes) {
 	if !isIn || s.checkDHTRes(sinfo, res) {
 		// Either we don't recognize this search, or we just finished it
 		return
-	} else {
-		// Add to the search and continue
-		s.addToSearch(sinfo, res)
-		s.doSearchStep(sinfo)
 	}
+	// Add to the search and continue
+	s.addToSearch(sinfo, res)
+	s.doSearchStep(sinfo)
 }
 
 // Adds the information from a dhtRes to an ongoing search.
@@ -137,15 +139,15 @@ func (s *searches) doSearchStep(sinfo *searchInfo) {
 	if len(sinfo.toVisit) == 0 {
 		// Dead end, do cleanup
 		delete(s.searches, sinfo.dest)
+		go sinfo.callback(nil, errors.New("search reached dead end"))
 		return
-	} else {
-		// Send to the next search target
-		var next *dhtInfo
-		next, sinfo.toVisit = sinfo.toVisit[0], sinfo.toVisit[1:]
-		rq := dhtReqKey{next.key, sinfo.dest}
-		s.core.dht.addCallback(&rq, s.handleDHTRes)
-		s.core.dht.ping(next, &sinfo.dest)
 	}
+	// Send to the next search target
+	var next *dhtInfo
+	next, sinfo.toVisit = sinfo.toVisit[0], sinfo.toVisit[1:]
+	rq := dhtReqKey{next.key, sinfo.dest}
+	s.core.dht.addCallback(&rq, s.handleDHTRes)
+	s.core.dht.ping(next, &sinfo.dest)
 }
 
 // If we've recenty sent a ping for this search, do nothing.
@@ -173,8 +175,8 @@ func (s *searches) continueSearch(sinfo *searchInfo) {
 }
 
 // Calls create search, and initializes the iterative search parts of the struct before returning it.
-func (s *searches) newIterSearch(dest *crypto.NodeID, mask *crypto.NodeID) *searchInfo {
-	sinfo := s.createSearch(dest, mask)
+func (s *searches) newIterSearch(dest *crypto.NodeID, mask *crypto.NodeID, callback func(*sessionInfo, error)) *searchInfo {
+	sinfo := s.createSearch(dest, mask, callback)
 	sinfo.toVisit = s.core.dht.lookup(dest, true)
 	sinfo.visited = make(map[crypto.NodeID]bool)
 	return sinfo
@@ -200,6 +202,7 @@ func (s *searches) checkDHTRes(info *searchInfo, res *dhtRes) bool {
 		sinfo = s.core.sessions.createSession(&res.Key)
 		if sinfo == nil {
 			// nil if the DHT search finished but the session wasn't allowed
+			go info.callback(nil, errors.New("session not allowed"))
 			return true
 		}
 		_, isIn := s.core.sessions.getByTheirPerm(&res.Key)
@@ -211,6 +214,7 @@ func (s *searches) checkDHTRes(info *searchInfo, res *dhtRes) bool {
 	sinfo.coords = res.Coords
 	sinfo.packet = info.packet
 	s.core.sessions.ping(sinfo)
+	go info.callback(sinfo, nil)
 	// Cleanup
 	delete(s.searches, res.Dest)
 	return true
