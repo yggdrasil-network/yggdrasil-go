@@ -89,6 +89,7 @@ type Session struct {
 	BytesSent   uint64
 	BytesRecvd  uint64
 	MTU         uint16
+	Uptime      time.Duration
 	WasMTUFixed bool
 }
 
@@ -216,6 +217,7 @@ func (c *Core) GetSessions() []Session {
 				MTU:         sinfo.getMTU(),
 				BytesSent:   sinfo.bytesSent,
 				BytesRecvd:  sinfo.bytesRecvd,
+				Uptime:      time.Now().Sub(sinfo.timeOpened),
 				WasMTUFixed: sinfo.wasMTUFixed,
 			}
 			copy(session.PublicKey[:], sinfo.theirPermPub[:])

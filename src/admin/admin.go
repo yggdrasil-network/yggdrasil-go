@@ -162,6 +162,7 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 				"bytes_sent":    s.BytesSent,
 				"bytes_recvd":   s.BytesRecvd,
 				"mtu":           s.MTU,
+				"uptime":        s.Uptime.Seconds(),
 				"was_mtu_fixed": s.WasMTUFixed,
 				"box_pub_key":   s.PublicKey,
 			}

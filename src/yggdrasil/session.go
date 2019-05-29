@@ -34,6 +34,7 @@ type sessionInfo struct {
 	theirMTU       uint16                   //
 	myMTU          uint16                   //
 	wasMTUFixed    bool                     // Was the MTU fixed by a receive error?
+	timeOpened     time.Time                // Time the sessino was opened
 	time           time.Time                // Time we last received a packet
 	mtuTime        time.Time                // time myMTU was last changed
 	pingTime       time.Time                // time the first ping was sent since the last received packet
@@ -284,6 +285,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.theirMTU = 1280
 	sinfo.myMTU = 1280
 	now := time.Now()
+	sinfo.timeOpened = now
 	sinfo.time = now
 	sinfo.mtuTime = now
 	sinfo.pingTime = now

@@ -200,7 +200,7 @@ func main() {
 					if !keysOrdered {
 						for k := range slv.(map[string]interface{}) {
 							if !*verbose {
-								if k == "box_pub_key" || k == "box_sig_key" || k == "nodeinfo" {
+								if k == "box_pub_key" || k == "box_sig_key" || k == "nodeinfo" || k == "was_mtu_fixed" {
 									continue
 								}
 							}
