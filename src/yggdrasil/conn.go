@@ -11,19 +11,31 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
-// Error implements the net.Error interface
+// ConnError implements the net.Error interface
 type ConnError struct {
 	error
 	timeout   bool
 	temporary bool
+	maxsize   int
 }
 
+// Timeout returns true if the error relates to a timeout condition on the
+// connection.
 func (e *ConnError) Timeout() bool {
 	return e.timeout
 }
 
+// Temporary return true if the error is temporary or false if it is a permanent
+// error condition.
 func (e *ConnError) Temporary() bool {
 	return e.temporary
+}
+
+// PacketTooBig returns in response to sending a packet that is too large, and
+// if so, the maximum supported packet size that should be used for the
+// connection.
+func (e *ConnError) PacketTooBig() (bool, int) {
+	return e.maxsize > 0, e.maxsize
 }
 
 type Conn struct {
@@ -166,7 +178,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 		select {
 		case <-c.searchwait:
 		case <-timer.C:
-			return 0, ConnError{errors.New("Timeout"), true, false}
+			return 0, ConnError{errors.New("timeout"), true, false, 0}
 		}
 		// Retrieve our session info again
 		c.mutex.RLock()
@@ -182,7 +194,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 	// Wait for some traffic to come through from the session
 	select {
 	case <-timer.C:
-		return 0, ConnError{errors.New("Timeout"), true, false}
+		return 0, ConnError{errors.New("timeout"), true, false, 0}
 	case p, ok := <-sinfo.recv:
 		// If the session is closed then do nothing
 		if !ok {
@@ -222,7 +234,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 		select { // Send to worker
 		case sinfo.worker <- workerFunc:
 		case <-timer.C:
-			return 0, ConnError{errors.New("Timeout"), true, false}
+			return 0, ConnError{errors.New("timeout"), true, false, 0}
 		}
 		<-done // Wait for the worker to finish, failing this can cause memory errors (util.[Get||Put]Bytes stuff)
 		// Something went wrong in the session worker so abort
@@ -260,8 +272,14 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 	}
 	var packet []byte
 	done := make(chan struct{})
+	written := len(b)
 	workerFunc := func() {
 		defer close(done)
+		// Does the packet exceed the permitted size for the session?
+		if uint16(len(b)) > sinfo.getMTU() {
+			written, err = 0, ConnError{errors.New("packet too big"), true, false, int(sinfo.getMTU())}
+			return
+		}
 		// Encrypt the packet
 		payload, nonce := crypto.BoxSeal(&sinfo.sharedSesKey, b, &sinfo.myNonce)
 		defer util.PutBytes(payload)
@@ -282,14 +300,16 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 	select { // Send to worker
 	case sinfo.worker <- workerFunc:
 	case <-timer.C:
-		return 0, ConnError{errors.New("Timeout"), true, false}
+		return 0, ConnError{errors.New("timeout"), true, false, 0}
 	}
 	// Wait for the worker to finish, otherwise there are memory errors ([Get||Put]Bytes stuff)
 	<-done
 	// Give the packet to the router
-	sinfo.core.router.out(packet)
+	if written > 0 {
+		sinfo.core.router.out(packet)
+	}
 	// Finally return the number of bytes we wrote
-	return len(b), nil
+	return written, err
 }
 
 func (c *Conn) Close() error {
