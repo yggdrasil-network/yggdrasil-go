@@ -58,13 +58,18 @@ func (s *tunConn) reader() error {
 			// TODO don't start a new goroutine for every packet read, this is probably a big part of the slowdowns we saw when refactoring
 			if n, err = s.conn.Read(b); err != nil {
 				s.tun.log.Errorln(s.conn.String(), "TUN/TAP conn read error:", err)
+				if e, eok := err.(yggdrasil.ConnError); eok && !e.Temporary() {
+					close(s.stop)
+				} else {
+					read <- false
+				}
 				return
 			}
 			read <- true
 		}()
 		select {
-		case <-read:
-			if n > 0 {
+		case r := <-read:
+			if r && n > 0 {
 				bs := append(util.GetBytes(), b[:n]...)
 				select {
 				case s.tun.send <- bs:

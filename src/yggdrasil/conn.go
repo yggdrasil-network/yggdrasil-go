@@ -207,7 +207,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 			defer close(done)
 			// If the nonce is bad then drop the packet and return an error
 			if !sinfo.nonceIsOK(&p.Nonce) {
-				err = errors.New("packet dropped due to invalid nonce")
+				err = ConnError{errors.New("packet dropped due to invalid nonce"), false, true, 0}
 				return
 			}
 			// Decrypt the packet
