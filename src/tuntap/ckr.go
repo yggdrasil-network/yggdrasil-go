@@ -115,12 +115,13 @@ func (c *cryptokey) configure() error {
 
 // Enable or disable crypto-key routing.
 func (c *cryptokey) setEnabled(enabled bool) {
-	c.enabled.Store(true)
+	c.enabled.Store(enabled)
 }
 
 // Check if crypto-key routing is enabled.
 func (c *cryptokey) isEnabled() bool {
-	return c.enabled.Load().(bool)
+	enabled, ok := c.enabled.Load().(bool)
+	return ok && enabled
 }
 
 // Check whether the given address (with the address length specified in bytes)
