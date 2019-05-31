@@ -191,59 +191,64 @@ func (c *Conn) Read(b []byte) (int, error) {
 			return 0, errors.New("search failed")
 		}
 	}
-	// Wait for some traffic to come through from the session
-	select {
-	case <-timer.C:
-		return 0, ConnError{errors.New("timeout"), true, false, 0}
-	case p, ok := <-sinfo.recv:
-		// If the session is closed then do nothing
-		if !ok {
-			return 0, errors.New("session is closed")
-		}
-		defer util.PutBytes(p.Payload)
-		var err error
-		done := make(chan struct{})
-		workerFunc := func() {
-			defer close(done)
-			// If the nonce is bad then drop the packet and return an error
-			if !sinfo.nonceIsOK(&p.Nonce) {
-				err = ConnError{errors.New("packet dropped due to invalid nonce"), false, true, 0}
-				return
-			}
-			// Decrypt the packet
-			bs, isOK := crypto.BoxOpen(&sinfo.sharedSesKey, p.Payload, &p.Nonce)
-			defer util.PutBytes(bs) // FIXME commenting this out leads to illegal buffer reuse, this implies there's a memory error somewhere and that this is just flooding things out of the finite pool of old slices that get reused
-			// Check if we were unable to decrypt the packet for some reason and
-			// return an error if we couldn't
-			if !isOK {
-				err = errors.New("packet dropped due to decryption failure")
-				return
-			}
-			// Return the newly decrypted buffer back to the slice we were given
-			copy(b, bs)
-			// Trim the slice down to size based on the data we received
-			if len(bs) < len(b) {
-				b = b[:len(bs)]
-			}
-			// Update the session
-			sinfo.updateNonce(&p.Nonce)
-			sinfo.time = time.Now()
-			sinfo.bytesRecvd += uint64(len(b))
-		}
-		// Hand over to the session worker
-		select { // Send to worker
-		case sinfo.worker <- workerFunc:
+	for {
+		// Wait for some traffic to come through from the session
+		select {
 		case <-timer.C:
 			return 0, ConnError{errors.New("timeout"), true, false, 0}
+		case p, ok := <-sinfo.recv:
+			// If the session is closed then do nothing
+			if !ok {
+				return 0, errors.New("session is closed")
+			}
+			defer util.PutBytes(p.Payload)
+			var err error
+			done := make(chan struct{})
+			workerFunc := func() {
+				defer close(done)
+				// If the nonce is bad then drop the packet and return an error
+				if !sinfo.nonceIsOK(&p.Nonce) {
+					err = ConnError{errors.New("packet dropped due to invalid nonce"), false, true, 0}
+					return
+				}
+				// Decrypt the packet
+				bs, isOK := crypto.BoxOpen(&sinfo.sharedSesKey, p.Payload, &p.Nonce)
+				defer util.PutBytes(bs) // FIXME commenting this out leads to illegal buffer reuse, this implies there's a memory error somewhere and that this is just flooding things out of the finite pool of old slices that get reused
+				// Check if we were unable to decrypt the packet for some reason and
+				// return an error if we couldn't
+				if !isOK {
+					err = ConnError{errors.New("packet dropped due to decryption failure"), false, true, 0}
+					return
+				}
+				// Return the newly decrypted buffer back to the slice we were given
+				copy(b, bs)
+				// Trim the slice down to size based on the data we received
+				if len(bs) < len(b) {
+					b = b[:len(bs)]
+				}
+				// Update the session
+				sinfo.updateNonce(&p.Nonce)
+				sinfo.time = time.Now()
+				sinfo.bytesRecvd += uint64(len(b))
+			}
+			// Hand over to the session worker
+			select { // Send to worker
+			case sinfo.worker <- workerFunc:
+			case <-timer.C:
+				return 0, ConnError{errors.New("timeout"), true, false, 0}
+			}
+			<-done // Wait for the worker to finish, failing this can cause memory errors (util.[Get||Put]Bytes stuff)
+			// Something went wrong in the session worker so abort
+			if err != nil {
+				if ce, ok := err.(*ConnError); ok && ce.Temporary() {
+					continue
+				}
+				return 0, err
+			}
+			// If we've reached this point then everything went to plan, return the
+			// number of bytes we populated back into the given slice
+			return len(b), nil
 		}
-		<-done // Wait for the worker to finish, failing this can cause memory errors (util.[Get||Put]Bytes stuff)
-		// Something went wrong in the session worker so abort
-		if err != nil {
-			return 0, err
-		}
-		// If we've reached this point then everything went to plan, return the
-		// number of bytes we populated back into the given slice
-		return len(b), nil
 	}
 }
 
