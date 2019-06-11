@@ -274,6 +274,10 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 			c.writebuf = c.writebuf[1:]
 		}
 		return len(b), nil
+	} else {
+		// This triggers some session keepalive traffic
+		// FIXME this desparately needs to be refactored, since the ping case needlessly goes through the router goroutine just to have it pass a function to the session worker when it determines that a session already exists.
+		c.core.router.doAdmin(c.startSearch)
 	}
 	var packet []byte
 	done := make(chan struct{})
