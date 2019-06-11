@@ -6,7 +6,6 @@ package yggdrasil
 
 import (
 	"bytes"
-	"encoding/hex"
 	"sync"
 	"time"
 
@@ -111,18 +110,20 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 // Sessions are indexed by handle.
 // Additionally, stores maps of address/subnet onto keys, and keys onto handles.
 type sessions struct {
-	core          *Core
-	listener      *Listener
-	listenerMutex sync.Mutex
-	reconfigure   chan chan error
-	lastCleanup   time.Time
-	permShared    map[crypto.BoxPubKey]*crypto.BoxSharedKey // Maps known permanent keys to their shared key, used by DHT a lot
-	sinfos        map[crypto.Handle]*sessionInfo            // Maps (secret) handle onto session info
-	conns         map[crypto.Handle]*Conn                   // Maps (secret) handle onto connections
-	byMySes       map[crypto.BoxPubKey]*crypto.Handle       // Maps mySesPub onto handle
-	byTheirPerm   map[crypto.BoxPubKey]*crypto.Handle       // Maps theirPermPub onto handle
-	addrToPerm    map[address.Address]*crypto.BoxPubKey
-	subnetToPerm  map[address.Subnet]*crypto.BoxPubKey
+	core             *Core
+	listener         *Listener
+	listenerMutex    sync.Mutex
+	reconfigure      chan chan error
+	lastCleanup      time.Time
+	isAllowedHandler func(pubkey *crypto.BoxPubKey, initiator bool) bool // Returns true or false if session setup is allowed
+	isAllowedMutex   sync.RWMutex                                        // Protects the above
+	permShared       map[crypto.BoxPubKey]*crypto.BoxSharedKey           // Maps known permanent keys to their shared key, used by DHT a lot
+	sinfos           map[crypto.Handle]*sessionInfo                      // Maps (secret) handle onto session info
+	conns            map[crypto.Handle]*Conn                             // Maps (secret) handle onto connections
+	byMySes          map[crypto.BoxPubKey]*crypto.Handle                 // Maps mySesPub onto handle
+	byTheirPerm      map[crypto.BoxPubKey]*crypto.Handle                 // Maps theirPermPub onto handle
+	addrToPerm       map[address.Address]*crypto.BoxPubKey
+	subnetToPerm     map[address.Subnet]*crypto.BoxPubKey
 }
 
 // Initializes the session struct.
@@ -155,70 +156,17 @@ func (ss *sessions) init(core *Core) {
 	ss.lastCleanup = time.Now()
 }
 
-// Determines whether the session firewall is enabled.
-func (ss *sessions) isSessionFirewallEnabled() bool {
-	ss.core.config.Mutex.RLock()
-	defer ss.core.config.Mutex.RUnlock()
-
-	return ss.core.config.Current.SessionFirewall.Enable
-}
-
 // Determines whether the session with a given publickey is allowed based on
 // session firewall rules.
 func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) bool {
-	ss.core.config.Mutex.RLock()
-	defer ss.core.config.Mutex.RUnlock()
+	ss.isAllowedMutex.RLock()
+	defer ss.isAllowedMutex.RUnlock()
 
-	// Allow by default if the session firewall is disabled
-	if !ss.isSessionFirewallEnabled() {
+	if ss.isAllowedHandler == nil {
 		return true
 	}
-	// Prepare for checking whitelist/blacklist
-	var box crypto.BoxPubKey
-	// Reject blacklisted nodes
-	for _, b := range ss.core.config.Current.SessionFirewall.BlacklistEncryptionPublicKeys {
-		key, err := hex.DecodeString(b)
-		if err == nil {
-			copy(box[:crypto.BoxPubKeyLen], key)
-			if box == *pubkey {
-				return false
-			}
-		}
-	}
-	// Allow whitelisted nodes
-	for _, b := range ss.core.config.Current.SessionFirewall.WhitelistEncryptionPublicKeys {
-		key, err := hex.DecodeString(b)
-		if err == nil {
-			copy(box[:crypto.BoxPubKeyLen], key)
-			if box == *pubkey {
-				return true
-			}
-		}
-	}
-	// Allow outbound sessions if appropriate
-	if ss.core.config.Current.SessionFirewall.AlwaysAllowOutbound {
-		if initiator {
-			return true
-		}
-	}
-	// Look and see if the pubkey is that of a direct peer
-	var isDirectPeer bool
-	for _, peer := range ss.core.peers.ports.Load().(map[switchPort]*peer) {
-		if peer.box == *pubkey {
-			isDirectPeer = true
-			break
-		}
-	}
-	// Allow direct peers if appropriate
-	if ss.core.config.Current.SessionFirewall.AllowFromDirect && isDirectPeer {
-		return true
-	}
-	// Allow remote nodes if appropriate
-	if ss.core.config.Current.SessionFirewall.AllowFromRemote && !isDirectPeer {
-		return true
-	}
-	// Finally, default-deny if not matching any of the above rules
-	return false
+
+	return ss.isAllowedHandler(pubkey, initiator)
 }
 
 // Gets the session corresponding to a given handle.
@@ -444,12 +392,11 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 func (ss *sessions) handlePing(ping *sessionPing) {
 	// Get the corresponding session (or create a new session)
 	sinfo, isIn := ss.getByTheirPerm(&ping.SendPermPub)
-	// Check the session firewall
-	if !isIn && ss.isSessionFirewallEnabled() {
-		if !ss.isSessionAllowed(&ping.SendPermPub, false) {
-			return
-		}
+	// Check if the session is allowed
+	if !isIn && !ss.isSessionAllowed(&ping.SendPermPub, false) {
+		return
 	}
+	// Create the session if it doesn't already exist
 	if !isIn {
 		ss.createSession(&ping.SendPermPub)
 		sinfo, isIn = ss.getByTheirPerm(&ping.SendPermPub)
