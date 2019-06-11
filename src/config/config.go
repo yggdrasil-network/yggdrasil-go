@@ -102,7 +102,7 @@ func GenerateConfig() *NodeConfig {
 	cfg.Peers = []string{}
 	cfg.InterfacePeers = map[string][]string{}
 	cfg.AllowedEncryptionPublicKeys = []string{}
-	cfg.MulticastInterfaces = []string{".*"}
+	cfg.MulticastInterfaces = defaults.GetDefaults().DefaultMulticastInterfaces
 	cfg.IfName = defaults.GetDefaults().DefaultIfName
 	cfg.IfMTU = defaults.GetDefaults().DefaultIfMTU
 	cfg.IfTAPMode = defaults.GetDefaults().DefaultIfTAPMode

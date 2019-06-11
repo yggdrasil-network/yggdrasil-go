@@ -12,6 +12,14 @@ func GetDefaults() platformDefaultParameters {
 		// Configuration (used for yggdrasilctl)
 		DefaultConfigFile: "/etc/yggdrasil.conf",
 
+		// Multicast interfaces
+		DefaultMulticastInterfaces: []string{
+			"en*",
+			"eth*",
+			"wlan*",
+			"br*",
+		},
+
 		// TUN/TAP
 		MaximumIfMTU:     65535,
 		DefaultIfMTU:     65535,
