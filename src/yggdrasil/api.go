@@ -398,8 +398,9 @@ func (c *Core) GetNodeInfo(keyString, coordString string, nocache bool) (NodeInf
 // SetSessionGatekeeper allows you to configure a handler function for deciding
 // whether a session should be allowed or not. The default session firewall is
 // implemented in this way. The function receives the public key of the remote
-// side, and a boolean which is true if we initiated the session or false if we
-// received an incoming session request.
+// side and a boolean which is true if we initiated the session or false if we
+// received an incoming session request. The function should return true to
+// allow the session or false to reject it.
 func (c *Core) SetSessionGatekeeper(f func(pubkey *crypto.BoxPubKey, initiator bool) bool) {
 	c.sessions.isAllowedMutex.Lock()
 	defer c.sessions.isAllowedMutex.Unlock()
