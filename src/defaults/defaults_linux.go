@@ -14,10 +14,7 @@ func GetDefaults() platformDefaultParameters {
 
 		// Multicast interfaces
 		DefaultMulticastInterfaces: []string{
-			"en*",
-			"eth*",
-			"wlan*",
-			"br*",
+			".*",
 		},
 
 		// TUN/TAP
