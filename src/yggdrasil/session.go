@@ -219,6 +219,7 @@ func (ss *sessions) getByTheirSubnet(snet *address.Subnet) (*sessionInfo, bool) 
 // includse initializing session info to sane defaults (e.g. lowest supported
 // MTU).
 func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
+	// TODO: this check definitely needs to be moved
 	if !ss.isSessionAllowed(theirPermKey, true) {
 		return nil
 	}
@@ -393,6 +394,7 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 	// Get the corresponding session (or create a new session)
 	sinfo, isIn := ss.getByTheirPerm(&ping.SendPermPub)
 	// Check if the session is allowed
+	// TODO: this check may need to be moved
 	if !isIn && !ss.isSessionAllowed(&ping.SendPermPub, false) {
 		return
 	}
