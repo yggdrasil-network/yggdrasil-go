@@ -446,6 +446,8 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 					send["response"] = response
 				}
 			}
+		} else { // Command not found in []a.handlers
+			send["error"] = "Command does not exist. Run \'yggdrasilctl list\' to get a list of commands."
 		}
 
 		// Send the response back
