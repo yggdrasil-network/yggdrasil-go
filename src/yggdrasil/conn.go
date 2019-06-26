@@ -128,7 +128,7 @@ func (c *Conn) startSearch() {
 			c.core.log.Debugf("%s DHT search started: %p", c.String(), sinfo)
 		}
 		// Continue the search
-		c.core.searches.continueSearch(sinfo)
+		sinfo.continueSearch()
 	}
 	// Take a copy of the session object, in case it changes later
 	c.mutex.RLock()

@@ -68,9 +68,9 @@ type dht struct {
 	core        *Core
 	reconfigure chan chan error
 	nodeID      crypto.NodeID
-	peers       chan *dhtInfo                  // other goroutines put incoming dht updates here
-	reqs        map[dhtReqKey]time.Time        // Keeps track of recent outstanding requests
-	callbacks   map[dhtReqKey]dht_callbackInfo // Search and admin lookup callbacks
+	peers       chan *dhtInfo                    // other goroutines put incoming dht updates here
+	reqs        map[dhtReqKey]time.Time          // Keeps track of recent outstanding requests
+	callbacks   map[dhtReqKey][]dht_callbackInfo // Search and admin lookup callbacks
 	// These next two could be replaced by a single linked list or similar...
 	table map[crypto.NodeID]*dhtInfo
 	imp   []*dhtInfo
@@ -88,7 +88,7 @@ func (t *dht) init(c *Core) {
 	}()
 	t.nodeID = *t.core.NodeID()
 	t.peers = make(chan *dhtInfo, 1024)
-	t.callbacks = make(map[dhtReqKey]dht_callbackInfo)
+	t.callbacks = make(map[dhtReqKey][]dht_callbackInfo)
 	t.reset()
 }
 
@@ -244,15 +244,17 @@ type dht_callbackInfo struct {
 // Adds a callback and removes it after some timeout.
 func (t *dht) addCallback(rq *dhtReqKey, callback func(*dhtRes)) {
 	info := dht_callbackInfo{callback, time.Now().Add(6 * time.Second)}
-	t.callbacks[*rq] = info
+	t.callbacks[*rq] = append(t.callbacks[*rq], info)
 }
 
 // Reads a lookup response, checks that we had sent a matching request, and processes the response info.
 // This mainly consists of updating the node we asked in our DHT (they responded, so we know they're still alive), and deciding if we want to do anything with their responses
 func (t *dht) handleRes(res *dhtRes) {
 	rq := dhtReqKey{res.Key, res.Dest}
-	if callback, isIn := t.callbacks[rq]; isIn {
-		callback.f(res)
+	if callbacks, isIn := t.callbacks[rq]; isIn {
+		for _, callback := range callbacks {
+			callback.f(res)
+		}
 		delete(t.callbacks, rq)
 	}
 	_, isIn := t.reqs[rq]
@@ -326,10 +328,15 @@ func (t *dht) doMaintenance() {
 		}
 	}
 	t.reqs = newReqs
-	newCallbacks := make(map[dhtReqKey]dht_callbackInfo, len(t.callbacks))
-	for key, callback := range t.callbacks {
-		if now.Before(callback.time) {
-			newCallbacks[key] = callback
+	newCallbacks := make(map[dhtReqKey][]dht_callbackInfo, len(t.callbacks))
+	for key, cs := range t.callbacks {
+		for _, c := range cs {
+			if now.Before(c.time) {
+				newCallbacks[key] = append(newCallbacks[key], c)
+			} else {
+				// Signal failure
+				c.f(nil)
+			}
 		}
 	}
 	t.callbacks = newCallbacks

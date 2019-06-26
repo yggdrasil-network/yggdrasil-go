@@ -517,21 +517,14 @@ func (c *Core) DHTPing(keyString, coordString, targetString string) (DHTRes, err
 	rq := dhtReqKey{info.key, target}
 	sendPing := func() {
 		c.dht.addCallback(&rq, func(res *dhtRes) {
-			defer func() { recover() }()
-			select {
-			case resCh <- res:
-			default:
-			}
+			resCh <- res
 		})
 		c.dht.ping(&info, &target)
 	}
 	c.router.doAdmin(sendPing)
-	go func() {
-		time.Sleep(6 * time.Second)
-		close(resCh)
-	}()
 	// TODO: do something better than the below...
-	for res := range resCh {
+	res := <-resCh
+	if res != nil {
 		r := DHTRes{
 			Coords: append([]byte{}, res.Coords...),
 		}
