@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log/syslog"
 	"os"
 	"os/signal"
 	"strings"
@@ -114,6 +115,7 @@ func main() {
 	autoconf := flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
 	version := flag.Bool("version", false, "prints the version of this build")
 	logging := flag.String("logging", "info,warn,error", "comma-separated list of logging levels to enable")
+	logto := flag.String("logto", "stdout", "file path to log to, \"syslog\" or \"stdout\"")
 	flag.Parse()
 
 	var cfg *config.NodeConfig
@@ -161,7 +163,23 @@ func main() {
 		return
 	}
 	// Create a new logger that logs output to stdout.
-	logger := log.New(os.Stdout, "", log.Flags())
+	var logger *log.Logger
+	switch *logto {
+	case "stdout":
+		logger = log.New(os.Stdout, "", log.Flags())
+	case "syslog":
+		if syslogwriter, err := syslog.New(syslog.LOG_INFO, yggdrasil.BuildName()); err == nil {
+			logger = log.New(syslogwriter, "", log.Flags())
+		}
+	default:
+		if logfd, err := os.Create(*logto); err == nil {
+			logger = log.New(logfd, "", log.Flags())
+		}
+	}
+	if logger == nil {
+		logger = log.New(os.Stdout, "", log.Flags())
+		logger.Warnln("Logging defaulting to stdout")
+	}
 	//logger.EnableLevel("error")
 	//logger.EnableLevel("warn")
 	//logger.EnableLevel("info")

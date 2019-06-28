@@ -232,7 +232,7 @@ func (c *Core) GetSessions() []Session {
 // from git, or returns "unknown" otherwise.
 func BuildName() string {
 	if buildName == "" {
-		return "unknown"
+		return "yggdrasil"
 	}
 	return buildName
 }
