@@ -35,12 +35,12 @@ func (m *Multicast) multicastStarted() {
 	if awdlGoroutineStarted {
 		return
 	}
-	m.log.Infoln("Multicast discovery will wake up AWDL if required")
 	awdlGoroutineStarted = true
 	for {
 		C.StopAWDLBrowsing()
-		for _, intf := range m.interfaces() {
-			if intf.Name == "awdl0" {
+		for intf := range m.Interfaces() {
+			if intf == "awdl0" {
+				m.log.Infoln("Multicast discovery is using AWDL discovery")
 				C.StartAWDLBrowsing()
 				break
 			}
