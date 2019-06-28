@@ -134,7 +134,7 @@ func (tun *TunAdapter) reader() error {
 			}
 			// Then offset the buffer so that we can now just treat it as an IP
 			// packet from now on
-			bs = bs[offset:]
+			bs = bs[offset:] // FIXME this breaks bs for the next read and means n is the wrong value
 		}
 		// From the IP header, work out what our source and destination addresses
 		// and node IDs are. We will need these in order to work out where to send
@@ -225,21 +225,46 @@ func (tun *TunAdapter) reader() error {
 				panic("Given empty dstNodeID and dstNodeIDMask - this shouldn't happen")
 			}
 			// Dial to the remote node
-			if conn, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask); err == nil {
-				// We've been given a connection so prepare the session wrapper
-				if s, err := tun.wrap(conn); err != nil {
-					// Something went wrong when storing the connection, typically that
-					// something already exists for this address or subnet
-					tun.log.Debugln("TUN/TAP iface wrap:", err)
-				} else {
-					// Update our reference to the connection
-					session, isIn = s, true
+			go func() {
+				// FIXME just spitting out a goroutine to do this is kind of ugly and means we drop packets until the dial finishes
+				tun.mutex.Lock()
+				_, known := tun.dials[*dstNodeID]
+				packet := append(util.GetBytes(), bs[:n]...)
+				tun.dials[*dstNodeID] = append(tun.dials[*dstNodeID], packet)
+				for len(tun.dials[*dstNodeID]) > 32 {
+					util.PutBytes(tun.dials[*dstNodeID][0])
+					tun.dials[*dstNodeID] = tun.dials[*dstNodeID][1:]
 				}
-			} else {
-				// We weren't able to dial for some reason so there's no point in
-				// continuing this iteration - skip to the next one
-				continue
-			}
+				tun.mutex.Unlock()
+				if known {
+					return
+				}
+				var tc *tunConn
+				if conn, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask); err == nil {
+					// We've been given a connection so prepare the session wrapper
+					if tc, err = tun.wrap(conn); err != nil {
+						// Something went wrong when storing the connection, typically that
+						// something already exists for this address or subnet
+						tun.log.Debugln("TUN/TAP iface wrap:", err)
+					}
+				}
+				tun.mutex.Lock()
+				packets := tun.dials[*dstNodeID]
+				delete(tun.dials, *dstNodeID)
+				tun.mutex.Unlock()
+				if tc != nil {
+					for _, packet := range packets {
+						select {
+						case tc.send <- packet:
+						default:
+							util.PutBytes(packet)
+						}
+					}
+				}
+			}()
+			// While the dial is going on we can't do much else
+			// continuing this iteration - skip to the next one
+			continue
 		}
 		// If we have a connection now, try writing to it
 		if isIn && session != nil {
