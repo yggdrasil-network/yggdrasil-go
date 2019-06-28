@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log/syslog"
 	"os"
 	"os/signal"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gologme/log"
+	gsyslog "github.com/hashicorp/go-syslog"
 	"github.com/hjson/hjson-go"
 	"github.com/kardianos/minwinsvc"
 	"github.com/mitchellh/mapstructure"
@@ -168,8 +168,8 @@ func main() {
 	case "stdout":
 		logger = log.New(os.Stdout, "", log.Flags())
 	case "syslog":
-		if syslogwriter, err := syslog.New(syslog.LOG_INFO, yggdrasil.BuildName()); err == nil {
-			logger = log.New(syslogwriter, "", log.Flags())
+		if syslogger, err := gsyslog.NewLogger(gsyslog.LOG_NOTICE, "DAEMON", yggdrasil.BuildName()); err == nil {
+			logger = log.New(syslogger, "", log.Flags())
 		}
 	default:
 		if logfd, err := os.Create(*logto); err == nil {
