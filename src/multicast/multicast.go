@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"regexp"
-	"sync"
 	"time"
 
 	"github.com/gologme/log"
@@ -20,16 +19,13 @@ import (
 // configured multicast interface, Yggdrasil will attempt to peer with that node
 // automatically.
 type Multicast struct {
-	core            *yggdrasil.Core
-	config          *config.NodeState
-	log             *log.Logger
-	sock            *ipv6.PacketConn
-	groupAddr       string
-	listeners       map[string]*yggdrasil.TcpListener
-	listenPort      uint16
-	interfaces      map[string]net.Interface
-	interfacesMutex sync.RWMutex
-	interfacesTime  time.Time
+	core       *yggdrasil.Core
+	config     *config.NodeState
+	log        *log.Logger
+	sock       *ipv6.PacketConn
+	groupAddr  string
+	listeners  map[string]*yggdrasil.TcpListener
+	listenPort uint16
 }
 
 // Init prepares the multicast interface for use.
@@ -38,23 +34,9 @@ func (m *Multicast) Init(core *yggdrasil.Core, state *config.NodeState, log *log
 	m.config = state
 	m.log = log
 	m.listeners = make(map[string]*yggdrasil.TcpListener)
-	m.interfaces = make(map[string]net.Interface)
 	current, _ := m.config.Get()
 	m.listenPort = current.LinkLocalTCPPort
 	m.groupAddr = "[ff02::114]:9001"
-	// Perform our first check for multicast interfaces
-	if count := m.UpdateInterfaces(); count != 0 {
-		m.log.Infoln("Found", count, "multicast interface(s)")
-	} else {
-		m.log.Infoln("Multicast is not enabled on any interfaces")
-	}
-	// Keep checking quietly every minute in case they change
-	go func() {
-		for {
-			time.Sleep(time.Minute)
-			m.UpdateInterfaces()
-		}
-	}()
 	return nil
 }
 
@@ -96,40 +78,19 @@ func (m *Multicast) Stop() error {
 // needed.
 func (m *Multicast) UpdateConfig(config *config.NodeConfig) {
 	m.log.Debugln("Reloading multicast configuration...")
-
 	m.config.Replace(*config)
-
 	m.log.Infoln("Multicast configuration reloaded successfully")
-
-	if count := m.UpdateInterfaces(); count != 0 {
-		m.log.Infoln("Found", count, "multicast interface(s)")
-	} else {
-		m.log.Infoln("Multicast is not enabled on any interfaces")
-	}
 }
 
 // GetInterfaces returns the currently known/enabled multicast interfaces. It is
 // expected that UpdateInterfaces has been called at least once before calling
 // this method.
-func (m *Multicast) GetInterfaces() map[string]net.Interface {
-	m.interfacesMutex.RLock()
-	defer m.interfacesMutex.RUnlock()
-	return m.interfaces
-}
-
-// UpdateInterfaces re-enumerates the available multicast interfaces on the
-// system, using the current MulticastInterfaces config option as a template.
-// The number of selected interfaces is returned.
-func (m *Multicast) UpdateInterfaces() int {
-	m.interfacesMutex.Lock()
-	defer m.interfacesMutex.Unlock()
+func (m *Multicast) Interfaces() map[string]net.Interface {
+	interfaces := make(map[string]net.Interface)
 	// Get interface expressions from config
 	current, _ := m.config.Get()
 	exprs := current.MulticastInterfaces
 	// Ask the system for network interfaces
-	for i := range m.interfaces {
-		delete(m.interfaces, i)
-	}
 	allifaces, err := net.Interfaces()
 	if err != nil {
 		panic(err)
@@ -156,12 +117,11 @@ func (m *Multicast) UpdateInterfaces() int {
 			}
 			// Does the interface match the regular expression? Store it if so
 			if e.MatchString(iface.Name) {
-				m.interfaces[iface.Name] = iface
+				interfaces[iface.Name] = iface
 			}
 		}
 	}
-	m.interfacesTime = time.Now()
-	return len(m.interfaces)
+	return interfaces
 }
 
 func (m *Multicast) announce() {
@@ -174,7 +134,7 @@ func (m *Multicast) announce() {
 		panic(err)
 	}
 	for {
-		interfaces := m.GetInterfaces()
+		interfaces := m.Interfaces()
 		// There might be interfaces that we configured listeners for but are no
 		// longer up - if that's the case then we should stop the listeners
 		for name, listener := range m.listeners {
@@ -308,7 +268,7 @@ func (m *Multicast) listen() {
 		if addr.IP.String() != from.IP.String() {
 			continue
 		}
-		if _, ok := m.GetInterfaces()[from.Zone]; ok {
+		if _, ok := m.Interfaces()[from.Zone]; ok {
 			addr.Zone = ""
 			if err := m.core.CallPeer("tcp://"+addr.String(), from.Zone); err != nil {
 				m.log.Debugln("Call from multicast failed:", err)
