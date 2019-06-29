@@ -237,6 +237,7 @@ func (tun *TunAdapter) wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 		stop:  make(chan struct{}),
 		alive: make(chan struct{}, 1),
 	}
+	c = &s
 	// Get the remote address and subnet of the other side
 	remoteNodeID := conn.RemoteAddr()
 	s.addr = *address.AddrForNodeID(&remoteNodeID)
