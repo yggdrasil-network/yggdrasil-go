@@ -256,7 +256,7 @@ func (c *Conn) Close() error {
 	defer c.mutex.Unlock()
 	if c.session != nil {
 		// Close the session, if it hasn't been closed already
-		c.session.close()
+		c.core.router.doAdmin(c.session.close)
 	}
 	// This can't fail yet - TODO?
 	c.closed = true
