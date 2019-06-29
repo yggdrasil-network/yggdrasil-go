@@ -64,9 +64,11 @@ func (c *Conn) String() string {
 	return fmt.Sprintf("conn=%p", c)
 }
 
-// This should only be called from the router goroutine
+// This should never be called from the router goroutine
 func (c *Conn) search() error {
-	sinfo, isIn := c.core.searches.searches[*c.nodeID]
+	var sinfo *searchInfo
+	var isIn bool
+	c.core.router.doAdmin(func() { sinfo, isIn = c.core.searches.searches[*c.nodeID] })
 	if !isIn {
 		done := make(chan struct{}, 1)
 		var sess *sessionInfo
@@ -80,8 +82,10 @@ func (c *Conn) search() error {
 			default:
 			}
 		}
-		sinfo = c.core.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
-		sinfo.continueSearch()
+		c.core.router.doAdmin(func() {
+			sinfo = c.core.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
+			sinfo.continueSearch()
+		})
 		<-done
 		c.session = sess
 		if c.session == nil && err == nil {
