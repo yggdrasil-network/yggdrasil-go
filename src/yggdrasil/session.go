@@ -269,8 +269,11 @@ func (ss *sessions) cleanup() {
 
 // Closes a session, removing it from sessions maps and killing the worker goroutine.
 func (sinfo *sessionInfo) close() {
-	delete(sinfo.core.sessions.sinfos, sinfo.myHandle)
-	delete(sinfo.core.sessions.byTheirPerm, sinfo.theirPermPub)
+	if s := sinfo.core.sessions.sinfos[sinfo.myHandle]; s == sinfo {
+		delete(sinfo.core.sessions.sinfos, sinfo.myHandle)
+		delete(sinfo.core.sessions.byTheirPerm, sinfo.theirPermPub)
+	}
+	defer func() { recover() }()
 	close(sinfo.worker)
 }
 
