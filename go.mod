@@ -3,6 +3,7 @@ module github.com/yggdrasil-network/yggdrasil-go
 require (
 	github.com/docker/libcontainer v2.2.1+incompatible
 	github.com/gologme/log v0.0.0-20181207131047-4e5d8ccb38e8
+	github.com/hashicorp/go-syslog v1.0.0
 	github.com/hjson/hjson-go v0.0.0-20181010104306-a25ecf6bd222
 	github.com/kardianos/minwinsvc v0.0.0-20151122163309-cad6b2b879b0
 	github.com/mitchellh/mapstructure v1.1.2
