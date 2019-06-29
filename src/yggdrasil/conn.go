@@ -45,23 +45,18 @@ type Conn struct {
 	mutex         sync.RWMutex
 	closed        bool
 	session       *sessionInfo
-	readDeadline  atomic.Value  // time.Time // TODO timer
-	writeDeadline atomic.Value  // time.Time // TODO timer
-	searching     atomic.Value  // bool
-	searchwait    chan struct{} // Never reset this, it's only used for the initial search
-	writebuf      [][]byte      // Packets to be sent if/when the search finishes
+	readDeadline  atomic.Value // time.Time // TODO timer
+	writeDeadline atomic.Value // time.Time // TODO timer
 }
 
 // TODO func NewConn() that initializes additional fields as needed
 func newConn(core *Core, nodeID *crypto.NodeID, nodeMask *crypto.NodeID, session *sessionInfo) *Conn {
 	conn := Conn{
-		core:       core,
-		nodeID:     nodeID,
-		nodeMask:   nodeMask,
-		session:    session,
-		searchwait: make(chan struct{}),
+		core:     core,
+		nodeID:   nodeID,
+		nodeMask: nodeMask,
+		session:  session,
 	}
-	conn.searching.Store(false)
 	return &conn
 }
 
@@ -69,91 +64,38 @@ func (c *Conn) String() string {
 	return fmt.Sprintf("conn=%p", c)
 }
 
-// This method should only be called from the router goroutine
-func (c *Conn) startSearch() {
-	// The searchCompleted callback is given to the search
-	searchCompleted := func(sinfo *sessionInfo, err error) {
-		defer c.searching.Store(false)
-		// If the search failed for some reason, e.g. it hit a dead end or timed
-		// out, then do nothing
-		if err != nil {
-			c.core.log.Debugln(c.String(), "DHT search failed:", err)
-			return
-		}
-		// Take the connection mutex
-		c.mutex.Lock()
-		defer c.mutex.Unlock()
-		// Were we successfully given a sessionInfo pointer?
-		if sinfo != nil {
-			// Store it, and update the nodeID and nodeMask (which may have been
-			// wildcarded before now) with their complete counterparts
-			c.core.log.Debugln(c.String(), "DHT search completed")
-			c.session = sinfo
-			c.nodeID = crypto.GetNodeID(&sinfo.theirPermPub)
-			for i := range c.nodeMask {
-				c.nodeMask[i] = 0xFF
+// This should only be called from the router goroutine
+func (c *Conn) search() error {
+	sinfo, isIn := c.core.searches.searches[*c.nodeID]
+	if !isIn {
+		done := make(chan struct{}, 1)
+		var sess *sessionInfo
+		var err error
+		searchCompleted := func(sinfo *sessionInfo, e error) {
+			sess = sinfo
+			err = e
+			// FIXME close can be called multiple times, do a non-blocking send instead
+			select {
+			case done <- struct{}{}:
+			default:
 			}
-			// Make sure that any blocks on read/write operations are lifted
-			defer func() { recover() }() // So duplicate searches don't panic
-			close(c.searchwait)
-		} else {
-			// No session was returned - this shouldn't really happen because we
-			// should always return an error reason if we don't return a session
-			panic("DHT search didn't return an error or a sessionInfo")
 		}
-		if c.closed {
-			// Things were closed before the search returned
-			// Go ahead and close it again to make sure the session is cleaned up
-			go c.Close()
-		} else {
-			// Send any messages we may have buffered
-			var msgs [][]byte
-			msgs, c.writebuf = c.writebuf, nil
-			go func() {
-				for _, msg := range msgs {
-					c.Write(msg)
-					util.PutBytes(msg)
-				}
-			}()
+		sinfo = c.core.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
+		sinfo.continueSearch()
+		<-done
+		c.session = sess
+		if c.session == nil && err == nil {
+			panic("search failed but returend no error")
 		}
-	}
-	// doSearch will be called below in response to one or more conditions
-	doSearch := func() {
-		c.searching.Store(true)
-		// Check to see if there is a search already matching the destination
-		sinfo, isIn := c.core.searches.searches[*c.nodeID]
-		if !isIn {
-			// Nothing was found, so create a new search
-			sinfo = c.core.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
-			c.core.log.Debugf("%s DHT search started: %p", c.String(), sinfo)
+		c.nodeID = crypto.GetNodeID(&c.session.theirPermPub)
+		for i := range c.nodeMask {
+			c.nodeMask[i] = 0xFF
 		}
-		// Continue the search
-		c.core.searches.continueSearch(sinfo)
-	}
-	// Take a copy of the session object, in case it changes later
-	c.mutex.RLock()
-	sinfo := c.session
-	c.mutex.RUnlock()
-	if c.session == nil {
-		// No session object is present so previous searches, if we ran any, have
-		// not yielded a useful result (dead end, remote host not found)
-		doSearch()
+		return err
 	} else {
-		sinfo.worker <- func() {
-			switch {
-			case !sinfo.init:
-				doSearch()
-			case time.Since(sinfo.time) > 6*time.Second:
-				if sinfo.time.Before(sinfo.pingTime) && time.Since(sinfo.pingTime) > 6*time.Second {
-					// TODO double check that the above condition is correct
-					doSearch()
-				} else {
-					c.core.sessions.ping(sinfo)
-				}
-			default: // Don't do anything, to keep traffic throttled
-			}
-		}
+		return errors.New("search already exists")
 	}
+	return nil
 }
 
 func getDeadlineTimer(value *atomic.Value) *time.Timer {
@@ -167,30 +109,9 @@ func getDeadlineTimer(value *atomic.Value) *time.Timer {
 
 func (c *Conn) Read(b []byte) (int, error) {
 	// Take a copy of the session object
-	c.mutex.RLock()
 	sinfo := c.session
-	c.mutex.RUnlock()
 	timer := getDeadlineTimer(&c.readDeadline)
 	defer util.TimerStop(timer)
-	// If there is a search in progress then wait for the result
-	if sinfo == nil {
-		// Wait for the search to complete
-		select {
-		case <-c.searchwait:
-		case <-timer.C:
-			return 0, ConnError{errors.New("timeout"), true, false, 0}
-		}
-		// Retrieve our session info again
-		c.mutex.RLock()
-		sinfo = c.session
-		c.mutex.RUnlock()
-		// If sinfo is still nil at this point then the search failed and the
-		// searchwait channel has been recreated, so might as well give up and
-		// return an error code
-		if sinfo == nil {
-			return 0, errors.New("search failed")
-		}
-	}
 	for {
 		// Wait for some traffic to come through from the session
 		select {
@@ -253,32 +174,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 }
 
 func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
-	c.mutex.RLock()
 	sinfo := c.session
-	c.mutex.RUnlock()
-	// If the session doesn't exist, or isn't initialised (which probably means
-	// that the search didn't complete successfully) then we may need to wait for
-	// the search to complete or start the search again
-	if sinfo == nil || !sinfo.init {
-		// Is a search already taking place?
-		if searching, sok := c.searching.Load().(bool); !sok || (sok && !searching) {
-			// No search was already taking place so start a new one
-			c.core.router.doAdmin(c.startSearch)
-		}
-		// Buffer the packet to be sent if/when the search is finished
-		c.mutex.Lock()
-		defer c.mutex.Unlock()
-		c.writebuf = append(c.writebuf, append(util.GetBytes(), b...))
-		for len(c.writebuf) > 32 {
-			util.PutBytes(c.writebuf[0])
-			c.writebuf = c.writebuf[1:]
-		}
-		return len(b), nil
-	} else {
-		// This triggers some session keepalive traffic
-		// FIXME this desparately needs to be refactored, since the ping case needlessly goes through the router goroutine just to have it pass a function to the session worker when it determines that a session already exists.
-		c.core.router.doAdmin(c.startSearch)
-	}
 	var packet []byte
 	done := make(chan struct{})
 	written := len(b)
@@ -301,6 +197,34 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 		}
 		packet = p.encode()
 		sinfo.bytesSent += uint64(len(b))
+		// The rest of this work is session keep-alive traffic
+		doSearch := func() {
+			routerWork := func() {
+				// Check to see if there is a search already matching the destination
+				sinfo, isIn := c.core.searches.searches[*c.nodeID]
+				if !isIn {
+					// Nothing was found, so create a new search
+					searchCompleted := func(sinfo *sessionInfo, e error) {}
+					sinfo = c.core.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
+					c.core.log.Debugf("%s DHT search started: %p", c.String(), sinfo)
+				}
+				// Continue the search
+				sinfo.continueSearch()
+			}
+			go func() { c.core.router.admin <- routerWork }()
+		}
+		switch {
+		case !sinfo.init:
+			sinfo.core.sessions.ping(sinfo)
+		case time.Since(sinfo.time) > 6*time.Second:
+			if sinfo.time.Before(sinfo.pingTime) && time.Since(sinfo.pingTime) > 6*time.Second {
+				// TODO double check that the above condition is correct
+				doSearch()
+			} else {
+				sinfo.core.sessions.ping(sinfo)
+			}
+		default: // Don't do anything, to keep traffic throttled
+		}
 	}
 	// Set up a timer so this doesn't block forever
 	timer := getDeadlineTimer(&c.writeDeadline)
@@ -327,7 +251,6 @@ func (c *Conn) Close() error {
 	if c.session != nil {
 		// Close the session, if it hasn't been closed already
 		c.session.close()
-		c.session = nil
 	}
 	// This can't fail yet - TODO?
 	c.closed = true

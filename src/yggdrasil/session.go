@@ -39,7 +39,6 @@ type sessionInfo struct {
 	pingTime       time.Time                // time the first ping was sent since the last received packet
 	pingSend       time.Time                // time the last ping was sent
 	coords         []byte                   // coords of destination
-	packet         []byte                   // a buffered packet, sent immediately on ping/pong
 	init           bool                     // Reset if coords change
 	tstamp         int64                    // ATOMIC - tstamp from their last session ping, replay attack mitigation
 	bytesSent      uint64                   // Bytes of real traffic sent in this session
@@ -118,12 +117,8 @@ type sessions struct {
 	isAllowedHandler func(pubkey *crypto.BoxPubKey, initiator bool) bool // Returns true or false if session setup is allowed
 	isAllowedMutex   sync.RWMutex                                        // Protects the above
 	permShared       map[crypto.BoxPubKey]*crypto.BoxSharedKey           // Maps known permanent keys to their shared key, used by DHT a lot
-	sinfos           map[crypto.Handle]*sessionInfo                      // Maps (secret) handle onto session info
-	conns            map[crypto.Handle]*Conn                             // Maps (secret) handle onto connections
-	byMySes          map[crypto.BoxPubKey]*crypto.Handle                 // Maps mySesPub onto handle
+	sinfos           map[crypto.Handle]*sessionInfo                      // Maps handle onto session info
 	byTheirPerm      map[crypto.BoxPubKey]*crypto.Handle                 // Maps theirPermPub onto handle
-	addrToPerm       map[address.Address]*crypto.BoxPubKey
-	subnetToPerm     map[address.Subnet]*crypto.BoxPubKey
 }
 
 // Initializes the session struct.
@@ -149,10 +144,7 @@ func (ss *sessions) init(core *Core) {
 	}()
 	ss.permShared = make(map[crypto.BoxPubKey]*crypto.BoxSharedKey)
 	ss.sinfos = make(map[crypto.Handle]*sessionInfo)
-	ss.byMySes = make(map[crypto.BoxPubKey]*crypto.Handle)
 	ss.byTheirPerm = make(map[crypto.BoxPubKey]*crypto.Handle)
-	ss.addrToPerm = make(map[address.Address]*crypto.BoxPubKey)
-	ss.subnetToPerm = make(map[address.Subnet]*crypto.BoxPubKey)
 	ss.lastCleanup = time.Now()
 }
 
@@ -175,16 +167,6 @@ func (ss *sessions) getSessionForHandle(handle *crypto.Handle) (*sessionInfo, bo
 	return sinfo, isIn
 }
 
-// Gets a session corresponding to an ephemeral session key used by this node.
-func (ss *sessions) getByMySes(key *crypto.BoxPubKey) (*sessionInfo, bool) {
-	h, isIn := ss.byMySes[*key]
-	if !isIn {
-		return nil, false
-	}
-	sinfo, isIn := ss.getSessionForHandle(h)
-	return sinfo, isIn
-}
-
 // Gets a session corresponding to a permanent key used by the remote node.
 func (ss *sessions) getByTheirPerm(key *crypto.BoxPubKey) (*sessionInfo, bool) {
 	h, isIn := ss.byTheirPerm[*key]
@@ -192,26 +174,6 @@ func (ss *sessions) getByTheirPerm(key *crypto.BoxPubKey) (*sessionInfo, bool) {
 		return nil, false
 	}
 	sinfo, isIn := ss.getSessionForHandle(h)
-	return sinfo, isIn
-}
-
-// Gets a session corresponding to an IPv6 address used by the remote node.
-func (ss *sessions) getByTheirAddr(addr *address.Address) (*sessionInfo, bool) {
-	p, isIn := ss.addrToPerm[*addr]
-	if !isIn {
-		return nil, false
-	}
-	sinfo, isIn := ss.getByTheirPerm(p)
-	return sinfo, isIn
-}
-
-// Gets a session corresponding to an IPv6 /64 subnet used by the remote node/network.
-func (ss *sessions) getByTheirSubnet(snet *address.Subnet) (*sessionInfo, bool) {
-	p, isIn := ss.subnetToPerm[*snet]
-	if !isIn {
-		return nil, false
-	}
-	sinfo, isIn := ss.getByTheirPerm(p)
 	return sinfo, isIn
 }
 
@@ -263,10 +225,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.worker = make(chan func(), 1)
 	sinfo.recv = make(chan *wire_trafficPacket, 32)
 	ss.sinfos[sinfo.myHandle] = &sinfo
-	ss.byMySes[sinfo.mySesPub] = &sinfo.myHandle
 	ss.byTheirPerm[sinfo.theirPermPub] = &sinfo.myHandle
-	ss.addrToPerm[sinfo.theirAddr] = &sinfo.theirPermPub
-	ss.subnetToPerm[sinfo.theirSubnet] = &sinfo.theirPermPub
 	go sinfo.workerMain()
 	return &sinfo
 }
@@ -291,36 +250,18 @@ func (ss *sessions) cleanup() {
 		sinfos[k] = v
 	}
 	ss.sinfos = sinfos
-	byMySes := make(map[crypto.BoxPubKey]*crypto.Handle, len(ss.byMySes))
-	for k, v := range ss.byMySes {
-		byMySes[k] = v
-	}
-	ss.byMySes = byMySes
 	byTheirPerm := make(map[crypto.BoxPubKey]*crypto.Handle, len(ss.byTheirPerm))
 	for k, v := range ss.byTheirPerm {
 		byTheirPerm[k] = v
 	}
 	ss.byTheirPerm = byTheirPerm
-	addrToPerm := make(map[address.Address]*crypto.BoxPubKey, len(ss.addrToPerm))
-	for k, v := range ss.addrToPerm {
-		addrToPerm[k] = v
-	}
-	ss.addrToPerm = addrToPerm
-	subnetToPerm := make(map[address.Subnet]*crypto.BoxPubKey, len(ss.subnetToPerm))
-	for k, v := range ss.subnetToPerm {
-		subnetToPerm[k] = v
-	}
-	ss.subnetToPerm = subnetToPerm
 	ss.lastCleanup = time.Now()
 }
 
 // Closes a session, removing it from sessions maps and killing the worker goroutine.
 func (sinfo *sessionInfo) close() {
 	delete(sinfo.core.sessions.sinfos, sinfo.myHandle)
-	delete(sinfo.core.sessions.byMySes, sinfo.mySesPub)
 	delete(sinfo.core.sessions.byTheirPerm, sinfo.theirPermPub)
-	delete(sinfo.core.sessions.addrToPerm, sinfo.theirAddr)
-	delete(sinfo.core.sessions.subnetToPerm, sinfo.theirSubnet)
 	close(sinfo.worker)
 }
 
@@ -383,8 +324,8 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 	}
 	packet := p.encode()
 	ss.core.router.out(packet)
-	if !isPong {
-		sinfo.pingSend = time.Now()
+	if sinfo.pingTime.Before(sinfo.time) {
+		sinfo.pingTime = time.Now()
 	}
 }
 
@@ -424,15 +365,6 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 		}
 		if !ping.IsPong {
 			ss.sendPingPong(sinfo, true)
-		}
-		if sinfo.packet != nil {
-			/* FIXME this needs to live in the net.Conn or something, needs work in Write
-			// send
-			var bs []byte
-			bs, sinfo.packet = sinfo.packet, nil
-			ss.core.router.sendPacket(bs) // FIXME this needs to live in the net.Conn or something, needs work in Write
-			*/
-			sinfo.packet = nil
 		}
 	})
 }

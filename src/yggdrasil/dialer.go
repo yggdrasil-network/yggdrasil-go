@@ -14,6 +14,8 @@ type Dialer struct {
 	core *Core
 }
 
+// TODO DialContext that allows timeouts/cancellation, Dial should just call this with no timeout set in the context
+
 // Dial opens a session to the given node. The first paramter should be "nodeid"
 // and the second parameter should contain a hexadecimal representation of the
 // target node ID.
@@ -58,5 +60,8 @@ func (d *Dialer) Dial(network, address string) (*Conn, error) {
 // NodeID parameters.
 func (d *Dialer) DialByNodeIDandMask(nodeID, nodeMask *crypto.NodeID) (*Conn, error) {
 	conn := newConn(d.core, nodeID, nodeMask, nil)
+	if err := conn.search(); err != nil {
+		return nil, err
+	}
 	return conn, nil
 }
