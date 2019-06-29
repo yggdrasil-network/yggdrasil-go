@@ -236,6 +236,11 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 	timer := getDeadlineTimer(&c.writeDeadline)
 	defer util.TimerStop(timer)
 	// Hand over to the session worker
+	defer func() {
+		if recover() != nil {
+			err = errors.New("write failed")
+		}
+	}() // In case we're racing with a close
 	select { // Send to worker
 	case sinfo.worker <- workerFunc:
 	case <-timer.C:
