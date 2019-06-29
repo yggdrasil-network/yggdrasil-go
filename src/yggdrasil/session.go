@@ -39,7 +39,6 @@ type sessionInfo struct {
 	pingTime       time.Time                // time the first ping was sent since the last received packet
 	pingSend       time.Time                // time the last ping was sent
 	coords         []byte                   // coords of destination
-	packet         []byte                   // a buffered packet, sent immediately on ping/pong
 	init           bool                     // Reset if coords change
 	tstamp         int64                    // ATOMIC - tstamp from their last session ping, replay attack mitigation
 	bytesSent      uint64                   // Bytes of real traffic sent in this session
@@ -325,8 +324,8 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 	}
 	packet := p.encode()
 	ss.core.router.out(packet)
-	if !isPong {
-		sinfo.pingSend = time.Now()
+	if sinfo.pingTime.Before(sinfo.time) {
+		sinfo.pingTime = time.Now()
 	}
 }
 
@@ -366,15 +365,6 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 		}
 		if !ping.IsPong {
 			ss.sendPingPong(sinfo, true)
-		}
-		if sinfo.packet != nil {
-			/* FIXME this needs to live in the net.Conn or something, needs work in Write
-			// send
-			var bs []byte
-			bs, sinfo.packet = sinfo.packet, nil
-			ss.core.router.sendPacket(bs) // FIXME this needs to live in the net.Conn or something, needs work in Write
-			*/
-			sinfo.packet = nil
 		}
 	})
 }

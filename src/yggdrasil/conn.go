@@ -215,7 +215,7 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 		}
 		switch {
 		case !sinfo.init:
-			doSearch()
+			sinfo.core.sessions.ping(sinfo)
 		case time.Since(sinfo.time) > 6*time.Second:
 			if sinfo.time.Before(sinfo.pingTime) && time.Since(sinfo.pingTime) > 6*time.Second {
 				// TODO double check that the above condition is correct

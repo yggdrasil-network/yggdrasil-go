@@ -37,7 +37,6 @@ type searchInfo struct {
 	dest     crypto.NodeID
 	mask     crypto.NodeID
 	time     time.Time
-	packet   []byte
 	toVisit  []*dhtInfo
 	visited  map[crypto.NodeID]bool
 	callback func(*sessionInfo, error)
@@ -215,7 +214,6 @@ func (sinfo *searchInfo) checkDHTRes(res *dhtRes) bool {
 	}
 	// FIXME (!) replay attacks could mess with coords? Give it a handle (tstamp)?
 	sess.coords = res.Coords
-	sess.packet = sinfo.packet
 	sinfo.core.sessions.ping(sess)
 	sinfo.callback(sess, nil)
 	// Cleanup
