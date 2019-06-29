@@ -39,12 +39,13 @@ type sessionInfo struct {
 	pingTime       time.Time                // time the first ping was sent since the last received packet
 	pingSend       time.Time                // time the last ping was sent
 	coords         []byte                   // coords of destination
-	init           bool                     // Reset if coords change
+	reset          bool                     // reset if coords change
 	tstamp         int64                    // ATOMIC - tstamp from their last session ping, replay attack mitigation
 	bytesSent      uint64                   // Bytes of real traffic sent in this session
 	bytesRecvd     uint64                   // Bytes of real traffic received in this session
 	worker         chan func()              // Channel to send work to the session worker
 	recv           chan *wire_trafficPacket // Received packets go here, picked up by the associated Conn
+	init           chan struct{}            // Closed when the first session pong arrives, used to signal that the session is ready for initial use
 }
 
 func (sinfo *sessionInfo) doWorker(f func()) {
@@ -101,7 +102,14 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 	}
 	s.time = time.Now()
 	s.tstamp = p.Tstamp
-	s.init = true
+	s.reset = false
+	defer func() { recover() }() // Recover if the below panics
+	select {
+	case <-s.init:
+	default:
+		// Unblock anything waiting for the session to initialize
+		close(s.init)
+	}
 	return true
 }
 
@@ -203,6 +211,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.mtuTime = now
 	sinfo.pingTime = now
 	sinfo.pingSend = now
+	sinfo.init = make(chan struct{})
 	higher := false
 	for idx := range ss.core.boxPub {
 		if ss.core.boxPub[idx] > sinfo.theirPermPub[idx] {
@@ -410,10 +419,10 @@ func (sinfo *sessionInfo) updateNonce(theirNonce *crypto.BoxNonce) {
 
 // Resets all sessions to an uninitialized state.
 // Called after coord changes, so attemtps to use a session will trigger a new ping and notify the remote end of the coord change.
-func (ss *sessions) resetInits() {
+func (ss *sessions) reset() {
 	for _, sinfo := range ss.sinfos {
 		sinfo.doWorker(func() {
-			sinfo.init = false
+			sinfo.reset = true
 		})
 	}
 }

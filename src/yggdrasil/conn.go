@@ -89,11 +89,13 @@ func (c *Conn) search() error {
 		<-done
 		c.session = sess
 		if c.session == nil && err == nil {
-			panic("search failed but returend no error")
+			panic("search failed but returned no error")
 		}
-		c.nodeID = crypto.GetNodeID(&c.session.theirPermPub)
-		for i := range c.nodeMask {
-			c.nodeMask[i] = 0xFF
+		if c.session != nil {
+			c.nodeID = crypto.GetNodeID(&c.session.theirPermPub)
+			for i := range c.nodeMask {
+				c.nodeMask[i] = 0xFF
+			}
 		}
 		return err
 	} else {
@@ -218,8 +220,6 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 			go func() { c.core.router.admin <- routerWork }()
 		}
 		switch {
-		case !sinfo.init:
-			sinfo.core.sessions.ping(sinfo)
 		case time.Since(sinfo.time) > 6*time.Second:
 			if sinfo.time.Before(sinfo.pingTime) && time.Since(sinfo.pingTime) > 6*time.Second {
 				// TODO double check that the above condition is correct
@@ -227,6 +227,8 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 			} else {
 				sinfo.core.sessions.ping(sinfo)
 			}
+		case sinfo.reset && sinfo.pingTime.Before(sinfo.time):
+			sinfo.core.sessions.ping(sinfo)
 		default: // Don't do anything, to keep traffic throttled
 		}
 	}

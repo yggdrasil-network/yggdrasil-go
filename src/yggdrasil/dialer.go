@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 )
@@ -61,7 +62,16 @@ func (d *Dialer) Dial(network, address string) (*Conn, error) {
 func (d *Dialer) DialByNodeIDandMask(nodeID, nodeMask *crypto.NodeID) (*Conn, error) {
 	conn := newConn(d.core, nodeID, nodeMask, nil)
 	if err := conn.search(); err != nil {
+		conn.Close()
 		return nil, err
 	}
-	return conn, nil
+	t := time.NewTimer(6 * time.Second) // TODO use a context instead
+	defer t.Stop()
+	select {
+	case <-conn.session.init:
+		return conn, nil
+	case <-t.C:
+		conn.Close()
+		return nil, errors.New("session handshake timeout")
+	}
 }
