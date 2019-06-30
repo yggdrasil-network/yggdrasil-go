@@ -225,11 +225,11 @@ func (tun *TunAdapter) reader() error {
 				panic("Given empty dstNodeID and dstNodeIDMask - this shouldn't happen")
 			}
 			// Dial to the remote node
+			packet := append(util.GetBytes(), bs[:n]...)
 			go func() {
 				// FIXME just spitting out a goroutine to do this is kind of ugly and means we drop packets until the dial finishes
 				tun.mutex.Lock()
 				_, known := tun.dials[*dstNodeID]
-				packet := append(util.GetBytes(), bs[:n]...)
 				tun.dials[*dstNodeID] = append(tun.dials[*dstNodeID], packet)
 				for len(tun.dials[*dstNodeID]) > 32 {
 					util.PutBytes(tun.dials[*dstNodeID][0])

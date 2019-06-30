@@ -211,16 +211,31 @@ func (c *Core) GetSessions() []Session {
 	var sessions []Session
 	getSessions := func() {
 		for _, sinfo := range c.sessions.sinfos {
-			// TODO? skipped known but timed out sessions?
-			session := Session{
-				Coords:      append([]byte{}, sinfo.coords...),
-				MTU:         sinfo.getMTU(),
-				BytesSent:   sinfo.bytesSent,
-				BytesRecvd:  sinfo.bytesRecvd,
-				Uptime:      time.Now().Sub(sinfo.timeOpened),
-				WasMTUFixed: sinfo.wasMTUFixed,
+			var session Session
+			workerFunc := func() {
+				session := Session{
+					Coords:      append([]byte{}, sinfo.coords...),
+					MTU:         sinfo.getMTU(),
+					BytesSent:   sinfo.bytesSent,
+					BytesRecvd:  sinfo.bytesRecvd,
+					Uptime:      time.Now().Sub(sinfo.timeOpened),
+					WasMTUFixed: sinfo.wasMTUFixed,
+				}
+				copy(session.PublicKey[:], sinfo.theirPermPub[:])
 			}
-			copy(session.PublicKey[:], sinfo.theirPermPub[:])
+			var skip bool
+			func() {
+				defer func() {
+					if recover() != nil {
+						skip = true
+					}
+				}()
+				sinfo.doWorker(workerFunc)
+			}()
+			if skip {
+				continue
+			}
+			// TODO? skipped known but timed out sessions?
 			sessions = append(sessions, session)
 		}
 	}
