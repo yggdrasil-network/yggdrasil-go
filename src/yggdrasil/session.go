@@ -298,6 +298,8 @@ func (ss *sessions) getPing(sinfo *sessionInfo) sessionPing {
 // This comes up with dht req/res and session ping/pong traffic.
 func (ss *sessions) getSharedKey(myPriv *crypto.BoxPrivKey,
 	theirPub *crypto.BoxPubKey) *crypto.BoxSharedKey {
+	return crypto.GetSharedKey(myPriv, theirPub)
+	// FIXME concurrency issues with the below, so for now we just burn the CPU every time
 	if skey, isIn := ss.permShared[*theirPub]; isIn {
 		return skey
 	}
