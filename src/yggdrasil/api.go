@@ -213,7 +213,7 @@ func (c *Core) GetSessions() []Session {
 		for _, sinfo := range c.sessions.sinfos {
 			var session Session
 			workerFunc := func() {
-				session := Session{
+				session = Session{
 					Coords:      append([]byte{}, sinfo.coords...),
 					MTU:         sinfo.getMTU(),
 					BytesSent:   sinfo.bytesSent,
