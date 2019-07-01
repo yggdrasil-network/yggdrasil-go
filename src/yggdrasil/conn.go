@@ -159,6 +159,12 @@ func (c *Conn) Read(b []byte) (int, error) {
 				sinfo.bytesRecvd += uint64(len(b))
 			}
 			// Hand over to the session worker
+			defer func() {
+				if recover() != nil {
+					err = errors.New("read failed, session already closed")
+					close(done)
+				}
+			}() // In case we're racing with a close
 			select { // Send to worker
 			case sinfo.worker <- workerFunc:
 			case <-timer.C:
@@ -238,7 +244,8 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 	// Hand over to the session worker
 	defer func() {
 		if recover() != nil {
-			err = errors.New("write failed")
+			err = errors.New("write failed, session already closed")
+			close(done)
 		}
 	}() // In case we're racing with a close
 	select { // Send to worker
