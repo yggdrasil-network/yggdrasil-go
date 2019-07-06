@@ -172,7 +172,7 @@ func main() {
 			logger = log.New(syslogger, "", log.Flags())
 		}
 	default:
-		if logfd, err := os.Create(*logto); err == nil {
+		if logfd, err := os.OpenFile(*logto, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
 			logger = log.New(logfd, "", log.Flags())
 		}
 	}
@@ -231,11 +231,6 @@ func main() {
 	} else {
 		logger.Errorln("Unable to get Listener:", err)
 	}
-	// The Stop function ensures that the TUN/TAP adapter is correctly shut down
-	// before the program exits.
-	defer func() {
-		n.core.Stop()
-	}()
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
 	address := n.core.Address()
@@ -247,15 +242,15 @@ func main() {
 	r := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	signal.Notify(r, os.Interrupt, syscall.SIGHUP)
-	// Create a function to capture the service being stopped on Windows.
-	winTerminate := func() {
-		c <- os.Interrupt
-	}
-	minwinsvc.SetOnExit(winTerminate)
+	// Capture the service being stopped on Windows.
+	minwinsvc.SetOnExit(n.shutdown)
+	defer n.shutdown()
 	// Wait for the terminate/interrupt signal. Once a signal is received, the
 	// deferred Stop function above will run which will shut down TUN/TAP.
 	for {
 		select {
+		case _ = <-c:
+			goto exit
 		case _ = <-r:
 			if *useconffile != "" {
 				cfg = readConfig(useconf, useconffile, normaliseconf)
@@ -265,11 +260,17 @@ func main() {
 			} else {
 				logger.Errorln("Reloading config at runtime is only possible with -useconffile")
 			}
-		case _ = <-c:
-			goto exit
 		}
 	}
 exit:
+}
+
+func (n *node) shutdown() {
+	n.core.Stop()
+	n.admin.Stop()
+	n.multicast.Stop()
+	n.tuntap.Stop()
+	os.Exit(0)
 }
 
 func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {

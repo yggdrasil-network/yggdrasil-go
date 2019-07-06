@@ -26,6 +26,7 @@ type Multicast struct {
 	groupAddr  string
 	listeners  map[string]*yggdrasil.TcpListener
 	listenPort uint16
+	isOpen     bool
 }
 
 // Init prepares the multicast interface for use.
@@ -61,6 +62,7 @@ func (m *Multicast) Start() error {
 		// Windows can't set this flag, so we need to handle it in other ways
 	}
 
+	m.isOpen = true
 	go m.multicastStarted()
 	go m.listen()
 	go m.announce()
@@ -70,6 +72,8 @@ func (m *Multicast) Start() error {
 
 // Stop is not implemented for multicast yet.
 func (m *Multicast) Stop() error {
+	m.isOpen = false
+	m.sock.Close()
 	return nil
 }
 
@@ -246,6 +250,9 @@ func (m *Multicast) listen() {
 	for {
 		nBytes, rcm, fromAddr, err := m.sock.ReadFrom(bs)
 		if err != nil {
+			if !m.isOpen {
+				return
+			}
 			panic(err)
 		}
 		if rcm != nil {

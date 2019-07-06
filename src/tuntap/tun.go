@@ -181,6 +181,16 @@ func (tun *TunAdapter) Start() error {
 	return nil
 }
 
+// Start the setup process for the TUN/TAP adapter. If successful, starts the
+// read/write goroutines to handle packets on that interface.
+func (tun *TunAdapter) Stop() error {
+	tun.isOpen = false
+	// TODO: we have nothing that cleanly stops all the various goroutines opened
+	// by TUN/TAP, e.g. readers/writers, sessions
+	tun.iface.Close()
+	return nil
+}
+
 // UpdateConfig updates the TUN/TAP module with the provided config.NodeConfig
 // and then signals the various module goroutines to reconfigure themselves if
 // needed.
