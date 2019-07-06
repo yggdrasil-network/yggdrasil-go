@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"net"
+	"sync"
 	"time"
 
 	"golang.org/x/net/icmp"
@@ -21,19 +22,18 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 )
 
-type macAddress [6]byte
-
 const len_ETHER = 14
 
 type ICMPv6 struct {
-	tun      *TunAdapter
-	mylladdr net.IP
-	mymac    macAddress
-	peermacs map[address.Address]neighbor
+	tun           *TunAdapter
+	mylladdr      net.IP
+	mymac         net.HardwareAddr
+	peermacs      map[address.Address]neighbor
+	peermacsmutex sync.RWMutex
 }
 
 type neighbor struct {
-	mac               macAddress
+	mac               net.HardwareAddr
 	learned           bool
 	lastadvertisement time.Time
 	lastsolicitation  time.Time
@@ -61,10 +61,12 @@ func ipv6Header_Marshal(h *ipv6.Header) ([]byte, error) {
 // addresses.
 func (i *ICMPv6) Init(t *TunAdapter) {
 	i.tun = t
+	i.peermacsmutex.Lock()
 	i.peermacs = make(map[address.Address]neighbor)
+	i.peermacsmutex.Unlock()
 
 	// Our MAC address and link-local address
-	i.mymac = macAddress{
+	i.mymac = net.HardwareAddr{
 		0x02, 0x00, 0x00, 0x00, 0x00, 0x02}
 	i.mylladdr = net.IP{
 		0xFE, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -181,16 +183,30 @@ func (i *ICMPv6) UnmarshalPacket(datain []byte, datamac *[]byte) ([]byte, error)
 		if datamac != nil {
 			var addr address.Address
 			var target address.Address
-			var mac macAddress
+			mac := net.HardwareAddr{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 			copy(addr[:], ipv6Header.Src[:])
 			copy(target[:], datain[48:64])
 			copy(mac[:], (*datamac)[:])
-			// fmt.Printf("Learning peer MAC %x for %x\n", mac, target)
+			i.peermacsmutex.Lock()
 			neighbor := i.peermacs[target]
 			neighbor.mac = mac
 			neighbor.learned = true
 			neighbor.lastadvertisement = time.Now()
 			i.peermacs[target] = neighbor
+			i.peermacsmutex.Unlock()
+			i.tun.log.Debugln("Learned peer MAC", mac.String(), "for", net.IP(target[:]).String())
+			/*
+				i.tun.log.Debugln("Peer MAC table:")
+				i.peermacsmutex.RLock()
+				for t, n := range i.peermacs {
+					if n.learned {
+						i.tun.log.Debugln("- Target", net.IP(t[:]).String(), "has MAC", n.mac.String())
+					} else {
+						i.tun.log.Debugln("- Target", net.IP(t[:]).String(), "is not learned yet")
+					}
+				}
+				i.peermacsmutex.RUnlock()
+			*/
 		}
 		return nil, errors.New("No response needed")
 	}
@@ -201,7 +217,7 @@ func (i *ICMPv6) UnmarshalPacket(datain []byte, datamac *[]byte) ([]byte, error)
 // Creates an ICMPv6 packet based on the given icmp.MessageBody and other
 // parameters, complete with ethernet and IP headers, which can be written
 // directly to a TAP adapter.
-func (i *ICMPv6) CreateICMPv6L2(dstmac macAddress, dst net.IP, src net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
+func (i *ICMPv6) CreateICMPv6L2(dstmac net.HardwareAddr, dst net.IP, src net.IP, mtype ipv6.ICMPType, mcode int, mbody icmp.MessageBody) ([]byte, error) {
 	// Pass through to CreateICMPv6
 	ipv6packet, err := CreateICMPv6(dst, src, mtype, mcode, mbody)
 	if err != nil {
@@ -264,13 +280,46 @@ func CreateICMPv6(dst net.IP, src net.IP, mtype ipv6.ICMPType, mcode int, mbody 
 	return responsePacket, nil
 }
 
-func (i *ICMPv6) CreateNDPL2(dst address.Address) ([]byte, error) {
+func (i *ICMPv6) Solicit(addr address.Address) {
+	retries := 5
+	for retries > 0 {
+		retries--
+		i.peermacsmutex.RLock()
+		if n, ok := i.peermacs[addr]; ok && n.learned {
+			i.tun.log.Debugln("MAC learned for", net.IP(addr[:]).String())
+			i.peermacsmutex.RUnlock()
+			return
+		}
+		i.peermacsmutex.RUnlock()
+		i.tun.log.Debugln("Sending neighbor solicitation for", net.IP(addr[:]).String())
+		i.peermacsmutex.Lock()
+		if n, ok := i.peermacs[addr]; !ok {
+			i.peermacs[addr] = neighbor{
+				lastsolicitation: time.Now(),
+			}
+		} else {
+			n.lastsolicitation = time.Now()
+		}
+		i.peermacsmutex.Unlock()
+		request, err := i.createNDPL2(addr)
+		if err != nil {
+			panic(err)
+		}
+		if _, err := i.tun.iface.Write(request); err != nil {
+			panic(err)
+		}
+		i.tun.log.Debugln("Sent neighbor solicitation for", net.IP(addr[:]).String())
+		time.Sleep(time.Second)
+	}
+}
+
+func (i *ICMPv6) createNDPL2(dst address.Address) ([]byte, error) {
 	// Create the ND payload
 	var payload [28]byte
-	copy(payload[:4], []byte{0x00, 0x00, 0x00, 0x00})
-	copy(payload[4:20], dst[:])
-	copy(payload[20:22], []byte{0x01, 0x01})
-	copy(payload[22:28], i.mymac[:6])
+	copy(payload[:4], []byte{0x00, 0x00, 0x00, 0x00}) // Flags
+	copy(payload[4:20], dst[:])                       // Destination
+	copy(payload[20:22], []byte{0x01, 0x01})          // Type & length
+	copy(payload[22:28], i.mymac[:6])                 // Link layer address
 
 	// Create the ICMPv6 solicited-node address
 	var dstaddr address.Address
@@ -281,7 +330,7 @@ func (i *ICMPv6) CreateNDPL2(dst address.Address) ([]byte, error) {
 	copy(dstaddr[13:], dst[13:16])
 
 	// Create the multicast MAC
-	var dstmac macAddress
+	dstmac := net.HardwareAddr{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 	copy(dstmac[:2], []byte{0x33, 0x33})
 	copy(dstmac[2:6], dstaddr[12:16])
 
@@ -293,9 +342,6 @@ func (i *ICMPv6) CreateNDPL2(dst address.Address) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	neighbor := i.peermacs[dstaddr]
-	neighbor.lastsolicitation = time.Now()
-	i.peermacs[dstaddr] = neighbor
 
 	return requestPacket, nil
 }
@@ -319,10 +365,10 @@ func (i *ICMPv6) HandleNDP(in []byte) ([]byte, error) {
 
 	// Create our NDP message body response
 	body := make([]byte, 28)
-	binary.BigEndian.PutUint32(body[:4], uint32(0x20000000))
-	copy(body[4:20], in[8:24]) // Target address
-	body[20] = uint8(2)
-	body[21] = uint8(1)
+	binary.BigEndian.PutUint32(body[:4], uint32(0x40000000)) // Flags
+	copy(body[4:20], in[8:24])                               // Target address
+	body[20] = uint8(2)                                      // Type: Target link-layer address
+	body[21] = uint8(1)                                      // Length: 1x address (8 bytes)
 	copy(body[22:28], i.mymac[:6])
 
 	// Send it back

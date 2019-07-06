@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/gologme/log"
 	"github.com/yggdrasil-network/water"
@@ -152,21 +151,6 @@ func (tun *TunAdapter) Start() error {
 	tun.send = make(chan []byte, 32) // TODO: is this a sensible value?
 	tun.reconfigure = make(chan chan error)
 	tun.mutex.Unlock()
-	if iftapmode {
-		go func() {
-			for {
-				if _, ok := tun.icmpv6.peermacs[tun.addr]; ok {
-					break
-				}
-				request, err := tun.icmpv6.CreateNDPL2(tun.addr)
-				if err != nil {
-					panic(err)
-				}
-				tun.send <- request
-				time.Sleep(time.Second)
-			}
-		}()
-	}
 	go func() {
 		for {
 			e := <-tun.reconfigure
@@ -177,6 +161,9 @@ func (tun *TunAdapter) Start() error {
 	go tun.reader()
 	go tun.writer()
 	tun.icmpv6.Init(tun)
+	if iftapmode {
+		go tun.icmpv6.Solicit(tun.addr)
+	}
 	tun.ckr.init(tun)
 	return nil
 }

@@ -48,8 +48,11 @@ func (c *cryptokey) init(tun *TunAdapter) {
 		}
 	}()
 
+	c.tun.log.Debugln("Configuring CKR...")
 	if err := c.configure(); err != nil {
 		c.tun.log.Errorln("CKR configuration failed:", err)
+	} else {
+		c.tun.log.Debugln("CKR configured")
 	}
 }
 
