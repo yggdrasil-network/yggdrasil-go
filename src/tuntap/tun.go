@@ -119,13 +119,12 @@ func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener 
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
 // read/write goroutines to handle packets on that interface.
 func (tun *TunAdapter) Start() error {
-	tun.config.Mutex.RLock()
-	defer tun.config.Mutex.RUnlock()
+	current, _ := tun.config.Get()
 	if tun.config == nil || tun.listener == nil || tun.dialer == nil {
 		return errors.New("No configuration available to TUN/TAP")
 	}
 	var boxPub crypto.BoxPubKey
-	boxPubHex, err := hex.DecodeString(tun.config.Current.EncryptionPublicKey)
+	boxPubHex, err := hex.DecodeString(current.EncryptionPublicKey)
 	if err != nil {
 		return err
 	}
@@ -133,9 +132,9 @@ func (tun *TunAdapter) Start() error {
 	nodeID := crypto.GetNodeID(&boxPub)
 	tun.addr = *address.AddrForNodeID(nodeID)
 	tun.subnet = *address.SubnetForNodeID(nodeID)
-	tun.mtu = tun.config.Current.IfMTU
-	ifname := tun.config.Current.IfName
-	iftapmode := tun.config.Current.IfTAPMode
+	tun.mtu = current.IfMTU
+	ifname := current.IfName
+	iftapmode := current.IfTAPMode
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
 	if ifname != "none" {
 		if err := tun.setup(ifname, iftapmode, addr, tun.mtu); err != nil {

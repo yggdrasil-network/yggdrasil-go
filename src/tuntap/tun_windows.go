@@ -31,18 +31,18 @@ func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 	}
 	// Disable/enable the interface to resets its configuration (invalidating iface)
 	cmd := exec.Command("netsh", "interface", "set", "interface", iface.Name(), "admin=DISABLED")
-	tun.log.Printf("netsh command: %v", strings.Join(cmd.Args, " "))
+	tun.log.Debugln("netsh command:", strings.Join(cmd.Args, " "))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		tun.log.Errorf("Windows netsh failed: %v.", err)
+		tun.log.Errorln("Windows netsh failed:", err)
 		tun.log.Traceln(string(output))
 		return err
 	}
 	cmd = exec.Command("netsh", "interface", "set", "interface", iface.Name(), "admin=ENABLED")
-	tun.log.Printf("netsh command: %v", strings.Join(cmd.Args, " "))
+	tun.log.Debugln("netsh command:", strings.Join(cmd.Args, " "))
 	output, err = cmd.CombinedOutput()
 	if err != nil {
-		tun.log.Errorf("Windows netsh failed: %v.", err)
+		tun.log.Errorln("Windows netsh failed:", err)
 		tun.log.Traceln(string(output))
 		return err
 	}
@@ -71,10 +71,10 @@ func (tun *TunAdapter) setupMTU(mtu int) error {
 		fmt.Sprintf("interface=%s", tun.iface.Name()),
 		fmt.Sprintf("mtu=%d", mtu),
 		"store=active")
-	tun.log.Debugln("netsh command: %v", strings.Join(cmd.Args, " "))
+	tun.log.Debugln("netsh command:", strings.Join(cmd.Args, " "))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		tun.log.Errorf("Windows netsh failed: %v.", err)
+		tun.log.Errorln("Windows netsh failed:", err)
 		tun.log.Traceln(string(output))
 		return err
 	}
@@ -88,10 +88,10 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 		fmt.Sprintf("interface=%s", tun.iface.Name()),
 		fmt.Sprintf("addr=%s", addr),
 		"store=active")
-	tun.log.Debugln("netsh command: %v", strings.Join(cmd.Args, " "))
+	tun.log.Debugln("netsh command:", strings.Join(cmd.Args, " "))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		tun.log.Errorf("Windows netsh failed: %v.", err)
+		tun.log.Errorln("Windows netsh failed:", err)
 		tun.log.Traceln(string(output))
 		return err
 	}
