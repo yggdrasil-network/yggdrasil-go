@@ -172,7 +172,7 @@ func main() {
 			logger = log.New(syslogger, "", log.Flags())
 		}
 	default:
-		if logfd, err := os.Create(*logto); err == nil {
+		if logfd, err := os.OpenFile(*logto, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
 			logger = log.New(logfd, "", log.Flags())
 		}
 	}
@@ -242,11 +242,16 @@ func main() {
 	r := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	signal.Notify(r, os.Interrupt, syscall.SIGHUP)
-	// Create a function to capture the service being stopped on Windows.
-	winTerminate := func() {
-		c <- os.Interrupt
+	// Define what happens when we want to stop Yggdrasil.
+	terminate := func() {
+		n.core.Stop()
+		n.admin.Stop()
+		n.multicast.Stop()
+		n.tuntap.Stop()
+		os.Exit(0)
 	}
-	minwinsvc.SetOnExit(winTerminate)
+	// Capture the service being stopped on Windows.
+	minwinsvc.SetOnExit(terminate)
 	// Wait for the terminate/interrupt signal. Once a signal is received, the
 	// deferred Stop function above will run which will shut down TUN/TAP.
 	for {
@@ -265,13 +270,7 @@ func main() {
 		}
 	}
 exit:
-	// When gracefully shutting down we should try and clean up as much as
-	// possible, although not all of these functions are necessarily implemented
-	// yet
-	n.core.Stop()
-	n.admin.Stop()
-	n.multicast.Stop()
-	n.tuntap.Stop()
+	terminate()
 }
 
 func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
