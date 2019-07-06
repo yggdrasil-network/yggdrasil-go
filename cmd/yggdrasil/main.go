@@ -231,11 +231,6 @@ func main() {
 	} else {
 		logger.Errorln("Unable to get Listener:", err)
 	}
-	// The Stop function ensures that the TUN/TAP adapter is correctly shut down
-	// before the program exits.
-	defer func() {
-		n.core.Stop()
-	}()
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
 	address := n.core.Address()
@@ -256,6 +251,8 @@ func main() {
 	// deferred Stop function above will run which will shut down TUN/TAP.
 	for {
 		select {
+		case _ = <-c:
+			goto exit
 		case _ = <-r:
 			if *useconffile != "" {
 				cfg = readConfig(useconf, useconffile, normaliseconf)
@@ -265,11 +262,16 @@ func main() {
 			} else {
 				logger.Errorln("Reloading config at runtime is only possible with -useconffile")
 			}
-		case _ = <-c:
-			goto exit
 		}
 	}
 exit:
+	// When gracefully shutting down we should try and clean up as much as
+	// possible, although not all of these functions are necessarily implemented
+	// yet
+	n.core.Stop()
+	n.admin.Stop()
+	n.multicast.Stop()
+	n.tuntap.Stop()
 }
 
 func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {

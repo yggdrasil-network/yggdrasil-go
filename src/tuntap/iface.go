@@ -98,6 +98,9 @@ func (tun *TunAdapter) writer() error {
 			util.PutBytes(b)
 		}
 		if err != nil {
+			if !tun.isOpen {
+				return err
+			}
 			tun.log.Errorln("TUN/TAP iface write error:", err)
 			continue
 		}
@@ -114,6 +117,9 @@ func (tun *TunAdapter) reader() error {
 		// Wait for a packet to be delivered to us through the TUN/TAP adapter
 		n, err := tun.iface.Read(bs)
 		if err != nil {
+			if !tun.isOpen {
+				return err
+			}
 			panic(err)
 		}
 		if n == 0 {
