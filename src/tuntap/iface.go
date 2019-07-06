@@ -3,6 +3,7 @@ package tuntap
 import (
 	"bytes"
 	"errors"
+	"net"
 	"time"
 
 	"github.com/songgao/packets/ethernet"
@@ -40,22 +41,13 @@ func (tun *TunAdapter) writer() error {
 				return errors.New("Invalid address family")
 			}
 			sendndp := func(dstAddr address.Address) {
-				neigh, known := tun.icmpv6.peermacs[dstAddr]
+				neigh, known := tun.icmpv6.getNeighbor(dstAddr)
 				known = known && (time.Since(neigh.lastsolicitation).Seconds() < 30)
 				if !known {
-					request, err := tun.icmpv6.CreateNDPL2(dstAddr)
-					if err != nil {
-						panic(err)
-					}
-					if _, err := tun.iface.Write(request); err != nil {
-						panic(err)
-					}
-					tun.icmpv6.peermacs[dstAddr] = neighbor{
-						lastsolicitation: time.Now(),
-					}
+					tun.icmpv6.Solicit(dstAddr)
 				}
 			}
-			var peermac macAddress
+			peermac := net.HardwareAddr{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 			var peerknown bool
 			if b[0]&0xf0 == 0x40 {
 				dstAddr = tun.addr
@@ -64,15 +56,20 @@ func (tun *TunAdapter) writer() error {
 					dstAddr = tun.addr
 				}
 			}
-			if neighbor, ok := tun.icmpv6.peermacs[dstAddr]; ok && neighbor.learned {
+			if neighbor, ok := tun.icmpv6.getNeighbor(dstAddr); ok && neighbor.learned {
+				// If we've learned the MAC of a 300::/7 address, for example, or a CKR
+				// address, use the MAC address of that
 				peermac = neighbor.mac
 				peerknown = true
-			} else if neighbor, ok := tun.icmpv6.peermacs[tun.addr]; ok && neighbor.learned {
+			} else if neighbor, ok := tun.icmpv6.getNeighbor(tun.addr); ok && neighbor.learned {
+				// Otherwise send directly to the MAC address of the host if that's
+				// known instead
 				peermac = neighbor.mac
 				peerknown = true
-				sendndp(dstAddr)
 			} else {
+				// Nothing has been discovered, try to discover the destination
 				sendndp(tun.addr)
+
 			}
 			if peerknown {
 				var proto ethernet.Ethertype
@@ -92,6 +89,8 @@ func (tun *TunAdapter) writer() error {
 				copy(frame[tun_ETHER_HEADER_LENGTH:], b[:n])
 				n += tun_ETHER_HEADER_LENGTH
 				w, err = tun.iface.Write(frame[:n])
+			} else {
+				tun.log.Errorln("TUN/TAP iface write error: no peer MAC known for", net.IP(dstAddr[:]).String(), "- dropping packet")
 			}
 		} else {
 			w, err = tun.iface.Write(b[:n])
@@ -184,7 +183,7 @@ func (tun *TunAdapter) reader() error {
 			// Unknown address length or protocol, so drop the packet and ignore it
 			continue
 		}
-		if !tun.ckr.isValidSource(srcAddr, addrlen) {
+		if tun.ckr.isEnabled() && !tun.ckr.isValidSource(srcAddr, addrlen) {
 			// The packet had a source address that doesn't belong to us or our
 			// configured crypto-key routing source subnets
 			continue

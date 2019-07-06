@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/gologme/log"
 	"github.com/yggdrasil-network/water"
@@ -120,13 +119,12 @@ func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener 
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
 // read/write goroutines to handle packets on that interface.
 func (tun *TunAdapter) Start() error {
-	tun.config.Mutex.RLock()
-	defer tun.config.Mutex.RUnlock()
+	current, _ := tun.config.Get()
 	if tun.config == nil || tun.listener == nil || tun.dialer == nil {
 		return errors.New("No configuration available to TUN/TAP")
 	}
 	var boxPub crypto.BoxPubKey
-	boxPubHex, err := hex.DecodeString(tun.config.Current.EncryptionPublicKey)
+	boxPubHex, err := hex.DecodeString(current.EncryptionPublicKey)
 	if err != nil {
 		return err
 	}
@@ -134,9 +132,9 @@ func (tun *TunAdapter) Start() error {
 	nodeID := crypto.GetNodeID(&boxPub)
 	tun.addr = *address.AddrForNodeID(nodeID)
 	tun.subnet = *address.SubnetForNodeID(nodeID)
-	tun.mtu = tun.config.Current.IfMTU
-	ifname := tun.config.Current.IfName
-	iftapmode := tun.config.Current.IfTAPMode
+	tun.mtu = current.IfMTU
+	ifname := current.IfName
+	iftapmode := current.IfTAPMode
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
 	if ifname != "none" {
 		if err := tun.setup(ifname, iftapmode, addr, tun.mtu); err != nil {
@@ -152,21 +150,6 @@ func (tun *TunAdapter) Start() error {
 	tun.send = make(chan []byte, 32) // TODO: is this a sensible value?
 	tun.reconfigure = make(chan chan error)
 	tun.mutex.Unlock()
-	if iftapmode {
-		go func() {
-			for {
-				if _, ok := tun.icmpv6.peermacs[tun.addr]; ok {
-					break
-				}
-				request, err := tun.icmpv6.CreateNDPL2(tun.addr)
-				if err != nil {
-					panic(err)
-				}
-				tun.send <- request
-				time.Sleep(time.Second)
-			}
-		}()
-	}
 	go func() {
 		for {
 			e := <-tun.reconfigure
@@ -177,6 +160,9 @@ func (tun *TunAdapter) Start() error {
 	go tun.reader()
 	go tun.writer()
 	tun.icmpv6.Init(tun)
+	if iftapmode {
+		go tun.icmpv6.Solicit(tun.addr)
+	}
 	tun.ckr.init(tun)
 	return nil
 }
