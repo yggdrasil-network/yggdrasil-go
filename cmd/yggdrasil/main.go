@@ -242,16 +242,9 @@ func main() {
 	r := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	signal.Notify(r, os.Interrupt, syscall.SIGHUP)
-	// Define what happens when we want to stop Yggdrasil.
-	terminate := func() {
-		n.core.Stop()
-		n.admin.Stop()
-		n.multicast.Stop()
-		n.tuntap.Stop()
-		os.Exit(0)
-	}
 	// Capture the service being stopped on Windows.
-	minwinsvc.SetOnExit(terminate)
+	minwinsvc.SetOnExit(n.shutdown)
+	defer n.shutdown()
 	// Wait for the terminate/interrupt signal. Once a signal is received, the
 	// deferred Stop function above will run which will shut down TUN/TAP.
 	for {
@@ -270,7 +263,14 @@ func main() {
 		}
 	}
 exit:
-	terminate()
+}
+
+func (n *node) shutdown() {
+	n.core.Stop()
+	n.admin.Stop()
+	n.multicast.Stop()
+	n.tuntap.Stop()
+	os.Exit(0)
 }
 
 func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
