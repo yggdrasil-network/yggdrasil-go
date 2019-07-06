@@ -41,7 +41,7 @@ func (tun *TunAdapter) writer() error {
 				return errors.New("Invalid address family")
 			}
 			sendndp := func(dstAddr address.Address) {
-				neigh, known := tun.icmpv6.peermacs[dstAddr]
+				neigh, known := tun.icmpv6.getNeighbor(dstAddr)
 				known = known && (time.Since(neigh.lastsolicitation).Seconds() < 30)
 				if !known {
 					tun.icmpv6.Solicit(dstAddr)
@@ -56,12 +56,12 @@ func (tun *TunAdapter) writer() error {
 					dstAddr = tun.addr
 				}
 			}
-			if neighbor, ok := tun.icmpv6.peermacs[dstAddr]; ok && neighbor.learned {
+			if neighbor, ok := tun.icmpv6.getNeighbor(dstAddr); ok && neighbor.learned {
 				// If we've learned the MAC of a 300::/7 address, for example, or a CKR
 				// address, use the MAC address of that
 				peermac = neighbor.mac
 				peerknown = true
-			} else if neighbor, ok := tun.icmpv6.peermacs[tun.addr]; ok && neighbor.learned {
+			} else if neighbor, ok := tun.icmpv6.getNeighbor(tun.addr); ok && neighbor.learned {
 				// Otherwise send directly to the MAC address of the host if that's
 				// known instead
 				peermac = neighbor.mac

@@ -313,6 +313,14 @@ func (i *ICMPv6) Solicit(addr address.Address) {
 	}
 }
 
+func (i *ICMPv6) getNeighbor(addr address.Address) (neighbor, bool) {
+	i.peermacsmutex.RLock()
+	defer i.peermacsmutex.RUnlock()
+
+	n, ok := i.peermacs[addr]
+	return n, ok
+}
+
 func (i *ICMPv6) createNDPL2(dst address.Address) ([]byte, error) {
 	// Create the ND payload
 	var payload [28]byte
