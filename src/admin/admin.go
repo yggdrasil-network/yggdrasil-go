@@ -381,11 +381,11 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 		if r != nil {
 			send = Info{
 				"status": "error",
-				"error":  "Unrecoverable error, possibly as a result of invalid input types or malformed syntax",
+				"error":  "Check your syntax and input types",
 			}
-			a.log.Errorln("Admin socket error:", r)
+			a.log.Debugln("Admin socket error:", r)
 			if err := encoder.Encode(&send); err != nil {
-				a.log.Errorln("Admin socket JSON encode error:", err)
+				a.log.Debugln("Admin socket JSON encode error:", err)
 			}
 			conn.Close()
 		}
@@ -407,13 +407,14 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 		send["request"] = recv
 		send["status"] = "error"
 
+		n := strings.ToLower(recv["request"].(string))
+
 		if _, ok := recv["request"]; !ok {
 			send["error"] = "No request sent"
-			break
+			goto respond
 		}
 
-		n := strings.ToLower(recv["request"].(string))
-		if h, ok := a.handlers[strings.ToLower(n)]; ok {
+		if h, ok := a.handlers[n]; ok {
 			// Check that we have all the required arguments
 			for _, arg := range h.args {
 				// An argument in [square brackets] is optional and not required,
@@ -428,7 +429,7 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 						"error":     "Expected field missing: " + arg,
 						"expecting": arg,
 					}
-					break
+					goto respond
 				}
 			}
 
@@ -439,16 +440,28 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 				send["error"] = err.Error()
 				if response != nil {
 					send["response"] = response
+					goto respond
 				}
 			} else {
 				send["status"] = "success"
 				if response != nil {
 					send["response"] = response
+					goto respond
 				}
 			}
+		} else {
+			// Start with a clean response on each request, which defaults to an error
+			// state. If a handler is found below then this will be overwritten
+			send = Info{
+				"request": recv,
+				"status":  "error",
+				"error":   fmt.Sprintf("Unknown action '%s', try 'list' for help", recv["request"].(string)),
+			}
+			goto respond
 		}
 
 		// Send the response back
+	respond:
 		if err := encoder.Encode(&send); err != nil {
 			return
 		}
