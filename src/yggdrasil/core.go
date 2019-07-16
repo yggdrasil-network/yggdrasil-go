@@ -2,6 +2,7 @@ package yggdrasil
 
 import (
 	"encoding/hex"
+	"errors"
 	"io/ioutil"
 	"time"
 
@@ -46,27 +47,36 @@ func (c *Core) init() error {
 
 	current, _ := c.config.Get()
 
-	boxPubHex, err := hex.DecodeString(current.EncryptionPublicKey)
-	if err != nil {
-		return err
-	}
 	boxPrivHex, err := hex.DecodeString(current.EncryptionPrivateKey)
 	if err != nil {
 		return err
 	}
-	sigPubHex, err := hex.DecodeString(current.SigningPublicKey)
-	if err != nil {
-		return err
+	if len(boxPrivHex) < crypto.BoxPrivKeyLen {
+		return errors.New("EncryptionPrivateKey is incorrect length")
 	}
+
 	sigPrivHex, err := hex.DecodeString(current.SigningPrivateKey)
 	if err != nil {
 		return err
 	}
+	if len(sigPrivHex) < crypto.SigPrivKeyLen {
+		return errors.New("SigningPrivateKey is incorrect length")
+	}
 
-	copy(c.boxPub[:], boxPubHex)
 	copy(c.boxPriv[:], boxPrivHex)
-	copy(c.sigPub[:], sigPubHex)
 	copy(c.sigPriv[:], sigPrivHex)
+
+	boxPub, sigPub := c.boxPriv.Public(), c.sigPriv.Public()
+
+	copy(c.boxPub[:], boxPub[:])
+	copy(c.sigPub[:], sigPub[:])
+
+	if bp := hex.EncodeToString(c.boxPub[:]); current.EncryptionPublicKey != bp {
+		c.log.Warnln("EncryptionPublicKey in config is incorrect, should be", bp)
+	}
+	if sp := hex.EncodeToString(c.sigPub[:]); current.SigningPublicKey != sp {
+		c.log.Warnln("SigningPublicKey in config is incorrect, should be", sp)
+	}
 
 	c.searches.init(c)
 	c.dht.init(c)

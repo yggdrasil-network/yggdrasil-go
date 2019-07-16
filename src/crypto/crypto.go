@@ -15,6 +15,7 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 
+	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/nacl/box"
 
@@ -124,6 +125,15 @@ func Verify(pub *SigPubKey, msg []byte, sig *SigBytes) bool {
 	return ed25519.Verify(pub[:], msg, sig[:])
 }
 
+func (p SigPrivKey) Public() SigPubKey {
+	priv := make(ed25519.PrivateKey, ed25519.PrivateKeySize)
+	copy(priv[:], p[:])
+	pub := priv.Public().(ed25519.PublicKey)
+	var sigPub SigPubKey
+	copy(sigPub[:], pub[:])
+	return sigPub
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // NaCl-like crypto "box" (curve25519+xsalsa20+poly1305)
@@ -202,6 +212,14 @@ func (n *BoxNonce) Increment() {
 			n[i] += 1
 		}
 	}
+}
+
+func (p BoxPrivKey) Public() BoxPubKey {
+	var boxPub [BoxPubKeyLen]byte
+	var boxPriv [BoxPrivKeyLen]byte
+	copy(boxPriv[:BoxPrivKeyLen], p[:BoxPrivKeyLen])
+	curve25519.ScalarBaseMult(&boxPub, &boxPriv)
+	return boxPub
 }
 
 // Used to subtract one nonce from another, staying in the range +- 64.
