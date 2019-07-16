@@ -20,7 +20,7 @@ jobs:
               case "$CINAME" in \
                 "yggdrasil") (echo 'export CICONFLICTS=yggdrasil-develop' >> $BASH_ENV) ;; \
                 "yggdrasil-develop") (echo 'export CICONFLICTS=yggdrasil' >> $BASH_ENV) ;; \
-                *) (echo 'export CICONFLICTS=yggdrasil yggdrasil-develop' >> $BASH_ENV) ;; \
+                *) (echo 'export CICONFLICTS="yggdrasil yggdrasil-develop"' >> $BASH_ENV) ;; \
               esac
               git config --global user.email "$(git log --format='%ae' HEAD -1)";
               git config --global user.name "$(git log --format='%an' HEAD -1)";
