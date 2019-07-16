@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/gologme/log"
 	"github.com/yggdrasil-network/water"
@@ -49,6 +48,7 @@ type TunAdapter struct {
 	mutex        sync.RWMutex // Protects the below
 	addrToConn   map[address.Address]*tunConn
 	subnetToConn map[address.Subnet]*tunConn
+	dials        map[crypto.NodeID][][]byte // Buffer of packets to send after dialing finishes
 	isOpen       bool
 }
 
@@ -113,18 +113,18 @@ func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener 
 	tun.dialer = dialer
 	tun.addrToConn = make(map[address.Address]*tunConn)
 	tun.subnetToConn = make(map[address.Subnet]*tunConn)
+	tun.dials = make(map[crypto.NodeID][][]byte)
 }
 
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
 // read/write goroutines to handle packets on that interface.
 func (tun *TunAdapter) Start() error {
-	tun.config.Mutex.RLock()
-	defer tun.config.Mutex.RUnlock()
+	current, _ := tun.config.Get()
 	if tun.config == nil || tun.listener == nil || tun.dialer == nil {
 		return errors.New("No configuration available to TUN/TAP")
 	}
 	var boxPub crypto.BoxPubKey
-	boxPubHex, err := hex.DecodeString(tun.config.Current.EncryptionPublicKey)
+	boxPubHex, err := hex.DecodeString(current.EncryptionPublicKey)
 	if err != nil {
 		return err
 	}
@@ -132,9 +132,9 @@ func (tun *TunAdapter) Start() error {
 	nodeID := crypto.GetNodeID(&boxPub)
 	tun.addr = *address.AddrForNodeID(nodeID)
 	tun.subnet = *address.SubnetForNodeID(nodeID)
-	tun.mtu = tun.config.Current.IfMTU
-	ifname := tun.config.Current.IfName
-	iftapmode := tun.config.Current.IfTAPMode
+	tun.mtu = current.IfMTU
+	ifname := current.IfName
+	iftapmode := current.IfTAPMode
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
 	if ifname != "none" {
 		if err := tun.setup(ifname, iftapmode, addr, tun.mtu); err != nil {
@@ -150,21 +150,6 @@ func (tun *TunAdapter) Start() error {
 	tun.send = make(chan []byte, 32) // TODO: is this a sensible value?
 	tun.reconfigure = make(chan chan error)
 	tun.mutex.Unlock()
-	if iftapmode {
-		go func() {
-			for {
-				if _, ok := tun.icmpv6.peermacs[tun.addr]; ok {
-					break
-				}
-				request, err := tun.icmpv6.CreateNDPL2(tun.addr)
-				if err != nil {
-					panic(err)
-				}
-				tun.send <- request
-				time.Sleep(time.Second)
-			}
-		}()
-	}
 	go func() {
 		for {
 			e := <-tun.reconfigure
@@ -175,7 +160,20 @@ func (tun *TunAdapter) Start() error {
 	go tun.reader()
 	go tun.writer()
 	tun.icmpv6.Init(tun)
+	if iftapmode {
+		go tun.icmpv6.Solicit(tun.addr)
+	}
 	tun.ckr.init(tun)
+	return nil
+}
+
+// Start the setup process for the TUN/TAP adapter. If successful, starts the
+// read/write goroutines to handle packets on that interface.
+func (tun *TunAdapter) Stop() error {
+	tun.isOpen = false
+	// TODO: we have nothing that cleanly stops all the various goroutines opened
+	// by TUN/TAP, e.g. readers/writers, sessions
+	tun.iface.Close()
 	return nil
 }
 
@@ -235,6 +233,7 @@ func (tun *TunAdapter) wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 		stop:  make(chan struct{}),
 		alive: make(chan struct{}, 1),
 	}
+	c = &s
 	// Get the remote address and subnet of the other side
 	remoteNodeID := conn.RemoteAddr()
 	s.addr = *address.AddrForNodeID(&remoteNodeID)

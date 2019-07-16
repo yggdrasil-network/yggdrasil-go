@@ -88,14 +88,14 @@ func (c *Core) addPeerLoop() {
 
 		// Add peers from the Peers section
 		for _, peer := range current.Peers {
-			c.AddPeer(peer, "")
+			go c.AddPeer(peer, "")
 			time.Sleep(time.Second)
 		}
 
 		// Add peers from the InterfacePeers section
 		for intf, intfpeers := range current.InterfacePeers {
 			for _, peer := range intfpeers {
-				c.AddPeer(peer, intf)
+				go c.AddPeer(peer, intf)
 				time.Sleep(time.Second)
 			}
 		}

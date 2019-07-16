@@ -119,7 +119,7 @@ func (r *router) mainLoop() {
 		case info := <-r.core.dht.peers:
 			r.core.dht.insertPeer(info)
 		case <-r.reset:
-			r.core.sessions.resetInits()
+			r.core.sessions.reset()
 			r.core.dht.reset()
 		case <-ticker.C:
 			{

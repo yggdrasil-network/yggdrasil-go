@@ -211,16 +211,31 @@ func (c *Core) GetSessions() []Session {
 	var sessions []Session
 	getSessions := func() {
 		for _, sinfo := range c.sessions.sinfos {
-			// TODO? skipped known but timed out sessions?
-			session := Session{
-				Coords:      append([]byte{}, sinfo.coords...),
-				MTU:         sinfo.getMTU(),
-				BytesSent:   sinfo.bytesSent,
-				BytesRecvd:  sinfo.bytesRecvd,
-				Uptime:      time.Now().Sub(sinfo.timeOpened),
-				WasMTUFixed: sinfo.wasMTUFixed,
+			var session Session
+			workerFunc := func() {
+				session = Session{
+					Coords:      append([]byte{}, sinfo.coords...),
+					MTU:         sinfo.getMTU(),
+					BytesSent:   sinfo.bytesSent,
+					BytesRecvd:  sinfo.bytesRecvd,
+					Uptime:      time.Now().Sub(sinfo.timeOpened),
+					WasMTUFixed: sinfo.wasMTUFixed,
+				}
+				copy(session.PublicKey[:], sinfo.theirPermPub[:])
 			}
-			copy(session.PublicKey[:], sinfo.theirPermPub[:])
+			var skip bool
+			func() {
+				defer func() {
+					if recover() != nil {
+						skip = true
+					}
+				}()
+				sinfo.doWorker(workerFunc)
+			}()
+			if skip {
+				continue
+			}
+			// TODO? skipped known but timed out sessions?
 			sessions = append(sessions, session)
 		}
 	}
@@ -232,7 +247,7 @@ func (c *Core) GetSessions() []Session {
 // from git, or returns "unknown" otherwise.
 func BuildName() string {
 	if buildName == "" {
-		return "unknown"
+		return "yggdrasil"
 	}
 	return buildName
 }
@@ -395,6 +410,19 @@ func (c *Core) GetNodeInfo(keyString, coordString string, nocache bool) (NodeInf
 	return NodeInfoPayload{}, errors.New(fmt.Sprintf("getNodeInfo timeout: %s", keyString))
 }
 
+// SetSessionGatekeeper allows you to configure a handler function for deciding
+// whether a session should be allowed or not. The default session firewall is
+// implemented in this way. The function receives the public key of the remote
+// side and a boolean which is true if we initiated the session or false if we
+// received an incoming session request. The function should return true to
+// allow the session or false to reject it.
+func (c *Core) SetSessionGatekeeper(f func(pubkey *crypto.BoxPubKey, initiator bool) bool) {
+	c.sessions.isAllowedMutex.Lock()
+	defer c.sessions.isAllowedMutex.Unlock()
+
+	c.sessions.isAllowedHandler = f
+}
+
 // SetLogger sets the output logger of the Yggdrasil node after startup. This
 // may be useful if you want to redirect the output later.
 func (c *Core) SetLogger(log *log.Logger) {
@@ -504,21 +532,14 @@ func (c *Core) DHTPing(keyString, coordString, targetString string) (DHTRes, err
 	rq := dhtReqKey{info.key, target}
 	sendPing := func() {
 		c.dht.addCallback(&rq, func(res *dhtRes) {
-			defer func() { recover() }()
-			select {
-			case resCh <- res:
-			default:
-			}
+			resCh <- res
 		})
 		c.dht.ping(&info, &target)
 	}
 	c.router.doAdmin(sendPing)
-	go func() {
-		time.Sleep(6 * time.Second)
-		close(resCh)
-	}()
 	// TODO: do something better than the below...
-	for res := range resCh {
+	res := <-resCh
+	if res != nil {
 		r := DHTRes{
 			Coords: append([]byte{}, res.Coords...),
 		}

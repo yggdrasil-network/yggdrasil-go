@@ -6,7 +6,6 @@ package yggdrasil
 
 import (
 	"bytes"
-	"encoding/hex"
 	"sync"
 	"time"
 
@@ -40,13 +39,13 @@ type sessionInfo struct {
 	pingTime       time.Time                // time the first ping was sent since the last received packet
 	pingSend       time.Time                // time the last ping was sent
 	coords         []byte                   // coords of destination
-	packet         []byte                   // a buffered packet, sent immediately on ping/pong
-	init           bool                     // Reset if coords change
+	reset          bool                     // reset if coords change
 	tstamp         int64                    // ATOMIC - tstamp from their last session ping, replay attack mitigation
 	bytesSent      uint64                   // Bytes of real traffic sent in this session
 	bytesRecvd     uint64                   // Bytes of real traffic received in this session
 	worker         chan func()              // Channel to send work to the session worker
 	recv           chan *wire_trafficPacket // Received packets go here, picked up by the associated Conn
+	init           chan struct{}            // Closed when the first session pong arrives, used to signal that the session is ready for initial use
 }
 
 func (sinfo *sessionInfo) doWorker(f func()) {
@@ -103,7 +102,14 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 	}
 	s.time = time.Now()
 	s.tstamp = p.Tstamp
-	s.init = true
+	s.reset = false
+	defer func() { recover() }() // Recover if the below panics
+	select {
+	case <-s.init:
+	default:
+		// Unblock anything waiting for the session to initialize
+		close(s.init)
+	}
 	return true
 }
 
@@ -111,18 +117,16 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 // Sessions are indexed by handle.
 // Additionally, stores maps of address/subnet onto keys, and keys onto handles.
 type sessions struct {
-	core          *Core
-	listener      *Listener
-	listenerMutex sync.Mutex
-	reconfigure   chan chan error
-	lastCleanup   time.Time
-	permShared    map[crypto.BoxPubKey]*crypto.BoxSharedKey // Maps known permanent keys to their shared key, used by DHT a lot
-	sinfos        map[crypto.Handle]*sessionInfo            // Maps (secret) handle onto session info
-	conns         map[crypto.Handle]*Conn                   // Maps (secret) handle onto connections
-	byMySes       map[crypto.BoxPubKey]*crypto.Handle       // Maps mySesPub onto handle
-	byTheirPerm   map[crypto.BoxPubKey]*crypto.Handle       // Maps theirPermPub onto handle
-	addrToPerm    map[address.Address]*crypto.BoxPubKey
-	subnetToPerm  map[address.Subnet]*crypto.BoxPubKey
+	core             *Core
+	listener         *Listener
+	listenerMutex    sync.Mutex
+	reconfigure      chan chan error
+	lastCleanup      time.Time
+	isAllowedHandler func(pubkey *crypto.BoxPubKey, initiator bool) bool // Returns true or false if session setup is allowed
+	isAllowedMutex   sync.RWMutex                                        // Protects the above
+	permShared       map[crypto.BoxPubKey]*crypto.BoxSharedKey           // Maps known permanent keys to their shared key, used by DHT a lot
+	sinfos           map[crypto.Handle]*sessionInfo                      // Maps handle onto session info
+	byTheirPerm      map[crypto.BoxPubKey]*crypto.Handle                 // Maps theirPermPub onto handle
 }
 
 // Initializes the session struct.
@@ -148,92 +152,26 @@ func (ss *sessions) init(core *Core) {
 	}()
 	ss.permShared = make(map[crypto.BoxPubKey]*crypto.BoxSharedKey)
 	ss.sinfos = make(map[crypto.Handle]*sessionInfo)
-	ss.byMySes = make(map[crypto.BoxPubKey]*crypto.Handle)
 	ss.byTheirPerm = make(map[crypto.BoxPubKey]*crypto.Handle)
-	ss.addrToPerm = make(map[address.Address]*crypto.BoxPubKey)
-	ss.subnetToPerm = make(map[address.Subnet]*crypto.BoxPubKey)
 	ss.lastCleanup = time.Now()
-}
-
-// Determines whether the session firewall is enabled.
-func (ss *sessions) isSessionFirewallEnabled() bool {
-	ss.core.config.Mutex.RLock()
-	defer ss.core.config.Mutex.RUnlock()
-
-	return ss.core.config.Current.SessionFirewall.Enable
 }
 
 // Determines whether the session with a given publickey is allowed based on
 // session firewall rules.
 func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) bool {
-	ss.core.config.Mutex.RLock()
-	defer ss.core.config.Mutex.RUnlock()
+	ss.isAllowedMutex.RLock()
+	defer ss.isAllowedMutex.RUnlock()
 
-	// Allow by default if the session firewall is disabled
-	if !ss.isSessionFirewallEnabled() {
+	if ss.isAllowedHandler == nil {
 		return true
 	}
-	// Prepare for checking whitelist/blacklist
-	var box crypto.BoxPubKey
-	// Reject blacklisted nodes
-	for _, b := range ss.core.config.Current.SessionFirewall.BlacklistEncryptionPublicKeys {
-		key, err := hex.DecodeString(b)
-		if err == nil {
-			copy(box[:crypto.BoxPubKeyLen], key)
-			if box == *pubkey {
-				return false
-			}
-		}
-	}
-	// Allow whitelisted nodes
-	for _, b := range ss.core.config.Current.SessionFirewall.WhitelistEncryptionPublicKeys {
-		key, err := hex.DecodeString(b)
-		if err == nil {
-			copy(box[:crypto.BoxPubKeyLen], key)
-			if box == *pubkey {
-				return true
-			}
-		}
-	}
-	// Allow outbound sessions if appropriate
-	if ss.core.config.Current.SessionFirewall.AlwaysAllowOutbound {
-		if initiator {
-			return true
-		}
-	}
-	// Look and see if the pubkey is that of a direct peer
-	var isDirectPeer bool
-	for _, peer := range ss.core.peers.ports.Load().(map[switchPort]*peer) {
-		if peer.box == *pubkey {
-			isDirectPeer = true
-			break
-		}
-	}
-	// Allow direct peers if appropriate
-	if ss.core.config.Current.SessionFirewall.AllowFromDirect && isDirectPeer {
-		return true
-	}
-	// Allow remote nodes if appropriate
-	if ss.core.config.Current.SessionFirewall.AllowFromRemote && !isDirectPeer {
-		return true
-	}
-	// Finally, default-deny if not matching any of the above rules
-	return false
+
+	return ss.isAllowedHandler(pubkey, initiator)
 }
 
 // Gets the session corresponding to a given handle.
 func (ss *sessions) getSessionForHandle(handle *crypto.Handle) (*sessionInfo, bool) {
 	sinfo, isIn := ss.sinfos[*handle]
-	return sinfo, isIn
-}
-
-// Gets a session corresponding to an ephemeral session key used by this node.
-func (ss *sessions) getByMySes(key *crypto.BoxPubKey) (*sessionInfo, bool) {
-	h, isIn := ss.byMySes[*key]
-	if !isIn {
-		return nil, false
-	}
-	sinfo, isIn := ss.getSessionForHandle(h)
 	return sinfo, isIn
 }
 
@@ -247,30 +185,11 @@ func (ss *sessions) getByTheirPerm(key *crypto.BoxPubKey) (*sessionInfo, bool) {
 	return sinfo, isIn
 }
 
-// Gets a session corresponding to an IPv6 address used by the remote node.
-func (ss *sessions) getByTheirAddr(addr *address.Address) (*sessionInfo, bool) {
-	p, isIn := ss.addrToPerm[*addr]
-	if !isIn {
-		return nil, false
-	}
-	sinfo, isIn := ss.getByTheirPerm(p)
-	return sinfo, isIn
-}
-
-// Gets a session corresponding to an IPv6 /64 subnet used by the remote node/network.
-func (ss *sessions) getByTheirSubnet(snet *address.Subnet) (*sessionInfo, bool) {
-	p, isIn := ss.subnetToPerm[*snet]
-	if !isIn {
-		return nil, false
-	}
-	sinfo, isIn := ss.getByTheirPerm(p)
-	return sinfo, isIn
-}
-
 // Creates a new session and lazily cleans up old existing sessions. This
 // includse initializing session info to sane defaults (e.g. lowest supported
 // MTU).
 func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
+	// TODO: this check definitely needs to be moved
 	if !ss.isSessionAllowed(theirPermKey, true) {
 		return nil
 	}
@@ -292,6 +211,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.mtuTime = now
 	sinfo.pingTime = now
 	sinfo.pingSend = now
+	sinfo.init = make(chan struct{})
 	higher := false
 	for idx := range ss.core.boxPub {
 		if ss.core.boxPub[idx] > sinfo.theirPermPub[idx] {
@@ -314,10 +234,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.worker = make(chan func(), 1)
 	sinfo.recv = make(chan *wire_trafficPacket, 32)
 	ss.sinfos[sinfo.myHandle] = &sinfo
-	ss.byMySes[sinfo.mySesPub] = &sinfo.myHandle
 	ss.byTheirPerm[sinfo.theirPermPub] = &sinfo.myHandle
-	ss.addrToPerm[sinfo.theirAddr] = &sinfo.theirPermPub
-	ss.subnetToPerm[sinfo.theirSubnet] = &sinfo.theirPermPub
 	go sinfo.workerMain()
 	return &sinfo
 }
@@ -342,36 +259,21 @@ func (ss *sessions) cleanup() {
 		sinfos[k] = v
 	}
 	ss.sinfos = sinfos
-	byMySes := make(map[crypto.BoxPubKey]*crypto.Handle, len(ss.byMySes))
-	for k, v := range ss.byMySes {
-		byMySes[k] = v
-	}
-	ss.byMySes = byMySes
 	byTheirPerm := make(map[crypto.BoxPubKey]*crypto.Handle, len(ss.byTheirPerm))
 	for k, v := range ss.byTheirPerm {
 		byTheirPerm[k] = v
 	}
 	ss.byTheirPerm = byTheirPerm
-	addrToPerm := make(map[address.Address]*crypto.BoxPubKey, len(ss.addrToPerm))
-	for k, v := range ss.addrToPerm {
-		addrToPerm[k] = v
-	}
-	ss.addrToPerm = addrToPerm
-	subnetToPerm := make(map[address.Subnet]*crypto.BoxPubKey, len(ss.subnetToPerm))
-	for k, v := range ss.subnetToPerm {
-		subnetToPerm[k] = v
-	}
-	ss.subnetToPerm = subnetToPerm
 	ss.lastCleanup = time.Now()
 }
 
 // Closes a session, removing it from sessions maps and killing the worker goroutine.
 func (sinfo *sessionInfo) close() {
-	delete(sinfo.core.sessions.sinfos, sinfo.myHandle)
-	delete(sinfo.core.sessions.byMySes, sinfo.mySesPub)
-	delete(sinfo.core.sessions.byTheirPerm, sinfo.theirPermPub)
-	delete(sinfo.core.sessions.addrToPerm, sinfo.theirAddr)
-	delete(sinfo.core.sessions.subnetToPerm, sinfo.theirSubnet)
+	if s := sinfo.core.sessions.sinfos[sinfo.myHandle]; s == sinfo {
+		delete(sinfo.core.sessions.sinfos, sinfo.myHandle)
+		delete(sinfo.core.sessions.byTheirPerm, sinfo.theirPermPub)
+	}
+	defer func() { recover() }()
 	close(sinfo.worker)
 }
 
@@ -396,6 +298,8 @@ func (ss *sessions) getPing(sinfo *sessionInfo) sessionPing {
 // This comes up with dht req/res and session ping/pong traffic.
 func (ss *sessions) getSharedKey(myPriv *crypto.BoxPrivKey,
 	theirPub *crypto.BoxPubKey) *crypto.BoxSharedKey {
+	return crypto.GetSharedKey(myPriv, theirPub)
+	// FIXME concurrency issues with the below, so for now we just burn the CPU every time
 	if skey, isIn := ss.permShared[*theirPub]; isIn {
 		return skey
 	}
@@ -434,8 +338,8 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 	}
 	packet := p.encode()
 	ss.core.router.out(packet)
-	if !isPong {
-		sinfo.pingSend = time.Now()
+	if sinfo.pingTime.Before(sinfo.time) {
+		sinfo.pingTime = time.Now()
 	}
 }
 
@@ -444,12 +348,12 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 func (ss *sessions) handlePing(ping *sessionPing) {
 	// Get the corresponding session (or create a new session)
 	sinfo, isIn := ss.getByTheirPerm(&ping.SendPermPub)
-	// Check the session firewall
-	if !isIn && ss.isSessionFirewallEnabled() {
-		if !ss.isSessionAllowed(&ping.SendPermPub, false) {
-			return
-		}
+	// Check if the session is allowed
+	// TODO: this check may need to be moved
+	if !isIn && !ss.isSessionAllowed(&ping.SendPermPub, false) {
+		return
 	}
+	// Create the session if it doesn't already exist
 	if !isIn {
 		ss.createSession(&ping.SendPermPub)
 		sinfo, isIn = ss.getByTheirPerm(&ping.SendPermPub)
@@ -475,15 +379,6 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 		}
 		if !ping.IsPong {
 			ss.sendPingPong(sinfo, true)
-		}
-		if sinfo.packet != nil {
-			/* FIXME this needs to live in the net.Conn or something, needs work in Write
-			// send
-			var bs []byte
-			bs, sinfo.packet = sinfo.packet, nil
-			ss.core.router.sendPacket(bs) // FIXME this needs to live in the net.Conn or something, needs work in Write
-			*/
-			sinfo.packet = nil
 		}
 	})
 }
@@ -529,10 +424,10 @@ func (sinfo *sessionInfo) updateNonce(theirNonce *crypto.BoxNonce) {
 
 // Resets all sessions to an uninitialized state.
 // Called after coord changes, so attemtps to use a session will trigger a new ping and notify the remote end of the coord change.
-func (ss *sessions) resetInits() {
+func (ss *sessions) reset() {
 	for _, sinfo := range ss.sinfos {
 		sinfo.doWorker(func() {
-			sinfo.init = false
+			sinfo.reset = true
 		})
 	}
 }

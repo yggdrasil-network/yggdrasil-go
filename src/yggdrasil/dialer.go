@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 )
@@ -13,6 +14,8 @@ import (
 type Dialer struct {
 	core *Core
 }
+
+// TODO DialContext that allows timeouts/cancellation, Dial should just call this with no timeout set in the context
 
 // Dial opens a session to the given node. The first paramter should be "nodeid"
 // and the second parameter should contain a hexadecimal representation of the
@@ -58,5 +61,17 @@ func (d *Dialer) Dial(network, address string) (*Conn, error) {
 // NodeID parameters.
 func (d *Dialer) DialByNodeIDandMask(nodeID, nodeMask *crypto.NodeID) (*Conn, error) {
 	conn := newConn(d.core, nodeID, nodeMask, nil)
-	return conn, nil
+	if err := conn.search(); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	t := time.NewTimer(6 * time.Second) // TODO use a context instead
+	defer t.Stop()
+	select {
+	case <-conn.session.init:
+		return conn, nil
+	case <-t.C:
+		conn.Close()
+		return nil, errors.New("session handshake timeout")
+	}
 }

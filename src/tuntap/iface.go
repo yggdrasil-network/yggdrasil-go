@@ -3,6 +3,7 @@ package tuntap
 import (
 	"bytes"
 	"errors"
+	"net"
 	"time"
 
 	"github.com/songgao/packets/ethernet"
@@ -40,22 +41,13 @@ func (tun *TunAdapter) writer() error {
 				return errors.New("Invalid address family")
 			}
 			sendndp := func(dstAddr address.Address) {
-				neigh, known := tun.icmpv6.peermacs[dstAddr]
+				neigh, known := tun.icmpv6.getNeighbor(dstAddr)
 				known = known && (time.Since(neigh.lastsolicitation).Seconds() < 30)
 				if !known {
-					request, err := tun.icmpv6.CreateNDPL2(dstAddr)
-					if err != nil {
-						panic(err)
-					}
-					if _, err := tun.iface.Write(request); err != nil {
-						panic(err)
-					}
-					tun.icmpv6.peermacs[dstAddr] = neighbor{
-						lastsolicitation: time.Now(),
-					}
+					tun.icmpv6.Solicit(dstAddr)
 				}
 			}
-			var peermac macAddress
+			peermac := net.HardwareAddr{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
 			var peerknown bool
 			if b[0]&0xf0 == 0x40 {
 				dstAddr = tun.addr
@@ -64,15 +56,20 @@ func (tun *TunAdapter) writer() error {
 					dstAddr = tun.addr
 				}
 			}
-			if neighbor, ok := tun.icmpv6.peermacs[dstAddr]; ok && neighbor.learned {
+			if neighbor, ok := tun.icmpv6.getNeighbor(dstAddr); ok && neighbor.learned {
+				// If we've learned the MAC of a 300::/7 address, for example, or a CKR
+				// address, use the MAC address of that
 				peermac = neighbor.mac
 				peerknown = true
-			} else if neighbor, ok := tun.icmpv6.peermacs[tun.addr]; ok && neighbor.learned {
+			} else if neighbor, ok := tun.icmpv6.getNeighbor(tun.addr); ok && neighbor.learned {
+				// Otherwise send directly to the MAC address of the host if that's
+				// known instead
 				peermac = neighbor.mac
 				peerknown = true
-				sendndp(dstAddr)
 			} else {
+				// Nothing has been discovered, try to discover the destination
 				sendndp(tun.addr)
+
 			}
 			if peerknown {
 				var proto ethernet.Ethertype
@@ -92,12 +89,17 @@ func (tun *TunAdapter) writer() error {
 				copy(frame[tun_ETHER_HEADER_LENGTH:], b[:n])
 				n += tun_ETHER_HEADER_LENGTH
 				w, err = tun.iface.Write(frame[:n])
+			} else {
+				tun.log.Errorln("TUN/TAP iface write error: no peer MAC known for", net.IP(dstAddr[:]).String(), "- dropping packet")
 			}
 		} else {
 			w, err = tun.iface.Write(b[:n])
 			util.PutBytes(b)
 		}
 		if err != nil {
+			if !tun.isOpen {
+				return err
+			}
 			tun.log.Errorln("TUN/TAP iface write error:", err)
 			continue
 		}
@@ -114,6 +116,9 @@ func (tun *TunAdapter) reader() error {
 		// Wait for a packet to be delivered to us through the TUN/TAP adapter
 		n, err := tun.iface.Read(bs)
 		if err != nil {
+			if !tun.isOpen {
+				return err
+			}
 			panic(err)
 		}
 		if n == 0 {
@@ -134,7 +139,7 @@ func (tun *TunAdapter) reader() error {
 			}
 			// Then offset the buffer so that we can now just treat it as an IP
 			// packet from now on
-			bs = bs[offset:]
+			bs = bs[offset:] // FIXME this breaks bs for the next read and means n is the wrong value
 		}
 		// From the IP header, work out what our source and destination addresses
 		// and node IDs are. We will need these in order to work out where to send
@@ -178,7 +183,7 @@ func (tun *TunAdapter) reader() error {
 			// Unknown address length or protocol, so drop the packet and ignore it
 			continue
 		}
-		if !tun.ckr.isValidSource(srcAddr, addrlen) {
+		if tun.ckr.isEnabled() && !tun.ckr.isValidSource(srcAddr, addrlen) {
 			// The packet had a source address that doesn't belong to us or our
 			// configured crypto-key routing source subnets
 			continue
@@ -225,21 +230,46 @@ func (tun *TunAdapter) reader() error {
 				panic("Given empty dstNodeID and dstNodeIDMask - this shouldn't happen")
 			}
 			// Dial to the remote node
-			if conn, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask); err == nil {
-				// We've been given a connection so prepare the session wrapper
-				if s, err := tun.wrap(conn); err != nil {
-					// Something went wrong when storing the connection, typically that
-					// something already exists for this address or subnet
-					tun.log.Debugln("TUN/TAP iface wrap:", err)
-				} else {
-					// Update our reference to the connection
-					session, isIn = s, true
+			packet := append(util.GetBytes(), bs[:n]...)
+			go func() {
+				// FIXME just spitting out a goroutine to do this is kind of ugly and means we drop packets until the dial finishes
+				tun.mutex.Lock()
+				_, known := tun.dials[*dstNodeID]
+				tun.dials[*dstNodeID] = append(tun.dials[*dstNodeID], packet)
+				for len(tun.dials[*dstNodeID]) > 32 {
+					util.PutBytes(tun.dials[*dstNodeID][0])
+					tun.dials[*dstNodeID] = tun.dials[*dstNodeID][1:]
 				}
-			} else {
-				// We weren't able to dial for some reason so there's no point in
-				// continuing this iteration - skip to the next one
-				continue
-			}
+				tun.mutex.Unlock()
+				if known {
+					return
+				}
+				var tc *tunConn
+				if conn, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask); err == nil {
+					// We've been given a connection so prepare the session wrapper
+					if tc, err = tun.wrap(conn); err != nil {
+						// Something went wrong when storing the connection, typically that
+						// something already exists for this address or subnet
+						tun.log.Debugln("TUN/TAP iface wrap:", err)
+					}
+				}
+				tun.mutex.Lock()
+				packets := tun.dials[*dstNodeID]
+				delete(tun.dials, *dstNodeID)
+				tun.mutex.Unlock()
+				if tc != nil {
+					for _, packet := range packets {
+						select {
+						case tc.send <- packet:
+						default:
+							util.PutBytes(packet)
+						}
+					}
+				}
+			}()
+			// While the dial is going on we can't do much else
+			// continuing this iteration - skip to the next one
+			continue
 		}
 		// If we have a connection now, try writing to it
 		if isIn && session != nil {

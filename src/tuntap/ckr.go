@@ -48,19 +48,21 @@ func (c *cryptokey) init(tun *TunAdapter) {
 		}
 	}()
 
+	c.tun.log.Debugln("Configuring CKR...")
 	if err := c.configure(); err != nil {
 		c.tun.log.Errorln("CKR configuration failed:", err)
+	} else {
+		c.tun.log.Debugln("CKR configured")
 	}
 }
 
 // Configure the CKR routes - this must only ever be called from the router
 // goroutine, e.g. through router.doAdmin
 func (c *cryptokey) configure() error {
-	c.tun.config.Mutex.RLock()
-	defer c.tun.config.Mutex.RUnlock()
+	current, _ := c.tun.config.Get()
 
 	// Set enabled/disabled state
-	c.setEnabled(c.tun.config.Current.TunnelRouting.Enable)
+	c.setEnabled(current.TunnelRouting.Enable)
 
 	// Clear out existing routes
 	c.mutexroutes.Lock()
@@ -69,14 +71,14 @@ func (c *cryptokey) configure() error {
 	c.mutexroutes.Unlock()
 
 	// Add IPv6 routes
-	for ipv6, pubkey := range c.tun.config.Current.TunnelRouting.IPv6Destinations {
+	for ipv6, pubkey := range current.TunnelRouting.IPv6Destinations {
 		if err := c.addRoute(ipv6, pubkey); err != nil {
 			return err
 		}
 	}
 
 	// Add IPv4 routes
-	for ipv4, pubkey := range c.tun.config.Current.TunnelRouting.IPv4Destinations {
+	for ipv4, pubkey := range current.TunnelRouting.IPv4Destinations {
 		if err := c.addRoute(ipv4, pubkey); err != nil {
 			return err
 		}
@@ -90,7 +92,7 @@ func (c *cryptokey) configure() error {
 
 	// Add IPv6 sources
 	c.ipv6sources = make([]net.IPNet, 0)
-	for _, source := range c.tun.config.Current.TunnelRouting.IPv6Sources {
+	for _, source := range current.TunnelRouting.IPv6Sources {
 		if err := c.addSourceSubnet(source); err != nil {
 			return err
 		}
@@ -98,7 +100,7 @@ func (c *cryptokey) configure() error {
 
 	// Add IPv4 sources
 	c.ipv4sources = make([]net.IPNet, 0)
-	for _, source := range c.tun.config.Current.TunnelRouting.IPv4Sources {
+	for _, source := range current.TunnelRouting.IPv4Sources {
 		if err := c.addSourceSubnet(source); err != nil {
 			return err
 		}

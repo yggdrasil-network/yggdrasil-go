@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -14,28 +15,28 @@ import (
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gologme/log"
+	gsyslog "github.com/hashicorp/go-syslog"
 	"github.com/hjson/hjson-go"
 	"github.com/kardianos/minwinsvc"
 	"github.com/mitchellh/mapstructure"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
-type nodeConfig = config.NodeConfig
-type Core = yggdrasil.Core
-
 type node struct {
-	core      Core
+	core      yggdrasil.Core
+	state     *config.NodeState
 	tuntap    tuntap.TunAdapter
 	multicast multicast.Multicast
 	admin     admin.AdminSocket
 }
 
-func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeConfig {
+func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *config.NodeConfig {
 	// Use a configuration file. If -useconf, the configuration will be read
 	// from stdin. If -useconffile, the configuration will be read from the
 	// filesystem.
@@ -114,9 +115,10 @@ func main() {
 	autoconf := flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
 	version := flag.Bool("version", false, "prints the version of this build")
 	logging := flag.String("logging", "info,warn,error", "comma-separated list of logging levels to enable")
+	logto := flag.String("logto", "stdout", "file path to log to, \"syslog\" or \"stdout\"")
 	flag.Parse()
 
-	var cfg *nodeConfig
+	var cfg *config.NodeConfig
 	var err error
 	switch {
 	case *version:
@@ -161,7 +163,23 @@ func main() {
 		return
 	}
 	// Create a new logger that logs output to stdout.
-	logger := log.New(os.Stdout, "", log.Flags())
+	var logger *log.Logger
+	switch *logto {
+	case "stdout":
+		logger = log.New(os.Stdout, "", log.Flags())
+	case "syslog":
+		if syslogger, err := gsyslog.NewLogger(gsyslog.LOG_NOTICE, "DAEMON", yggdrasil.BuildName()); err == nil {
+			logger = log.New(syslogger, "", log.Flags())
+		}
+	default:
+		if logfd, err := os.OpenFile(*logto, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+			logger = log.New(logfd, "", log.Flags())
+		}
+	}
+	if logger == nil {
+		logger = log.New(os.Stdout, "", log.Flags())
+		logger.Warnln("Logging defaulting to stdout")
+	}
 	//logger.EnableLevel("error")
 	//logger.EnableLevel("warn")
 	//logger.EnableLevel("info")
@@ -181,18 +199,20 @@ func main() {
 	n := node{}
 	// Now start Yggdrasil - this starts the DHT, router, switch and other core
 	// components needed for Yggdrasil to operate
-	state, err := n.core.Start(cfg, logger)
+	n.state, err = n.core.Start(cfg, logger)
 	if err != nil {
 		logger.Errorln("An error occurred during startup")
 		panic(err)
 	}
+	// Register the session firewall gatekeeper function
+	n.core.SetSessionGatekeeper(n.sessionFirewall)
 	// Start the admin socket
-	n.admin.Init(&n.core, state, logger, nil)
+	n.admin.Init(&n.core, n.state, logger, nil)
 	if err := n.admin.Start(); err != nil {
 		logger.Errorln("An error occurred starting admin socket:", err)
 	}
 	// Start the multicast interface
-	n.multicast.Init(&n.core, state, logger, nil)
+	n.multicast.Init(&n.core, n.state, logger, nil)
 	if err := n.multicast.Start(); err != nil {
 		logger.Errorln("An error occurred starting multicast:", err)
 	}
@@ -200,7 +220,7 @@ func main() {
 	// Start the TUN/TAP interface
 	if listener, err := n.core.ConnListen(); err == nil {
 		if dialer, err := n.core.ConnDialer(); err == nil {
-			n.tuntap.Init(state, logger, listener, dialer)
+			n.tuntap.Init(n.state, logger, listener, dialer)
 			if err := n.tuntap.Start(); err != nil {
 				logger.Errorln("An error occurred starting TUN/TAP:", err)
 			}
@@ -211,11 +231,6 @@ func main() {
 	} else {
 		logger.Errorln("Unable to get Listener:", err)
 	}
-	// The Stop function ensures that the TUN/TAP adapter is correctly shut down
-	// before the program exits.
-	defer func() {
-		n.core.Stop()
-	}()
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
 	address := n.core.Address()
@@ -227,15 +242,15 @@ func main() {
 	r := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	signal.Notify(r, os.Interrupt, syscall.SIGHUP)
-	// Create a function to capture the service being stopped on Windows.
-	winTerminate := func() {
-		c <- os.Interrupt
-	}
-	minwinsvc.SetOnExit(winTerminate)
+	// Capture the service being stopped on Windows.
+	minwinsvc.SetOnExit(n.shutdown)
+	defer n.shutdown()
 	// Wait for the terminate/interrupt signal. Once a signal is received, the
 	// deferred Stop function above will run which will shut down TUN/TAP.
 	for {
 		select {
+		case _ = <-c:
+			goto exit
 		case _ = <-r:
 			if *useconffile != "" {
 				cfg = readConfig(useconf, useconffile, normaliseconf)
@@ -245,9 +260,78 @@ func main() {
 			} else {
 				logger.Errorln("Reloading config at runtime is only possible with -useconffile")
 			}
-		case _ = <-c:
-			goto exit
 		}
 	}
 exit:
+}
+
+func (n *node) shutdown() {
+	n.core.Stop()
+	n.admin.Stop()
+	n.multicast.Stop()
+	n.tuntap.Stop()
+	os.Exit(0)
+}
+
+func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
+	n.state.Mutex.RLock()
+	defer n.state.Mutex.RUnlock()
+
+	// Allow by default if the session firewall is disabled
+	if !n.state.Current.SessionFirewall.Enable {
+		return true
+	}
+
+	// Prepare for checking whitelist/blacklist
+	var box crypto.BoxPubKey
+	// Reject blacklisted nodes
+	for _, b := range n.state.Current.SessionFirewall.BlacklistEncryptionPublicKeys {
+		key, err := hex.DecodeString(b)
+		if err == nil {
+			copy(box[:crypto.BoxPubKeyLen], key)
+			if box == *pubkey {
+				return false
+			}
+		}
+	}
+
+	// Allow whitelisted nodes
+	for _, b := range n.state.Current.SessionFirewall.WhitelistEncryptionPublicKeys {
+		key, err := hex.DecodeString(b)
+		if err == nil {
+			copy(box[:crypto.BoxPubKeyLen], key)
+			if box == *pubkey {
+				return true
+			}
+		}
+	}
+
+	// Allow outbound sessions if appropriate
+	if n.state.Current.SessionFirewall.AlwaysAllowOutbound {
+		if initiator {
+			return true
+		}
+	}
+
+	// Look and see if the pubkey is that of a direct peer
+	var isDirectPeer bool
+	for _, peer := range n.core.GetPeers() {
+		if peer.PublicKey == *pubkey {
+			isDirectPeer = true
+			break
+		}
+	}
+
+	// Allow direct peers if appropriate
+	if n.state.Current.SessionFirewall.AllowFromDirect && isDirectPeer {
+		return true
+	}
+
+	// Allow remote nodes if appropriate
+	if n.state.Current.SessionFirewall.AllowFromRemote && !isDirectPeer {
+		return true
+	}
+
+	// Finally, default-deny if not matching any of the above rules
+	return false
 }
