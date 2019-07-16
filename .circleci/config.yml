@@ -17,6 +17,11 @@ jobs:
               echo 'export CINAME=$(sh contrib/semver/name.sh)' >> $BASH_ENV
               echo 'export CIVERSION=$(sh contrib/semver/version.sh --bare)' >> $BASH_ENV
               echo 'export CIVERSIONRPM=$(sh contrib/semver/version.sh --bare | tr "-" ".")' >> $BASH_ENV
+              case "$CINAME" in \
+                "yggdrasil") (echo 'export CICONFLICTS=yggdrasil-develop' >> $BASH_ENV) ;; \
+                "yggdrasil-develop") (echo 'export CICONFLICTS=yggdrasil' >> $BASH_ENV) ;; \
+                *) (echo 'export CICONFLICTS=yggdrasil yggdrasil-develop' >> $BASH_ENV) ;; \
+              esac
               git config --global user.email "$(git log --format='%ae' HEAD -1)";
               git config --global user.name "$(git log --format='%an' HEAD -1)";
 
@@ -53,6 +58,7 @@ jobs:
               sed -i "s/^PKGNAME=yggdrasil/PKGNAME=yggdrasil-$CIRCLE_BRANCH/" ~/rpmbuild/SPECS/yggdrasil.spec
               sed -i "s/^Name\:.*/Name\:           $CINAME/" ~/rpmbuild/SPECS/yggdrasil.spec
               sed -i "s/^Version\:.*/Version\:        $CIVERSIONRPM/" ~/rpmbuild/SPECS/yggdrasil.spec
+              sed -i "s/^Conflicts\:.*/Conflicts\:      $CICONFLICTS/" ~/rpmbuild/SPECS/yggdrasil.spec
               cat ~/rpmbuild/SPECS/yggdrasil.spec
               GOARCH=amd64 rpmbuild -v --nodeps --target=x86_64 -ba ~/rpmbuild/SPECS/yggdrasil.spec
               #GOARCH=386 rpmbuild -v --nodeps --target=i386 -bb ~/rpmbuild/SPECS/yggdrasil.spec
