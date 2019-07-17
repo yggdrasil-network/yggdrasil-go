@@ -122,6 +122,7 @@ func (s *tunConn) writer() error {
 }
 
 func (s *tunConn) stillAlive() {
+	defer func() { recover() }()
 	select {
 	case s.alive <- struct{}{}:
 	default:
