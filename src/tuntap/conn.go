@@ -11,6 +11,8 @@ import (
 	"golang.org/x/net/ipv6"
 )
 
+const tunConnTimeout = 2 * time.Minute
+
 type tunConn struct {
 	tun   *TunAdapter
 	conn  *yggdrasil.Conn
@@ -49,24 +51,37 @@ func (s *tunConn) reader() error {
 		}
 	default:
 	}
+	s.tun.log.Debugln("Starting conn reader for", s)
 	var n int
 	var err error
 	read := make(chan bool)
 	b := make([]byte, 65535)
-	for {
-		go func() {
-			// TODO don't start a new goroutine for every packet read, this is probably a big part of the slowdowns we saw when refactoring
+	go func() {
+		s.tun.log.Debugln("Starting conn reader helper for", s)
+		for {
+			s.conn.SetReadDeadline(time.Now().Add(tunConnTimeout))
 			if n, err = s.conn.Read(b); err != nil {
 				s.tun.log.Errorln(s.conn.String(), "TUN/TAP conn read error:", err)
-				if e, eok := err.(yggdrasil.ConnError); eok && !e.Temporary() {
-					close(s.stop)
-				} else {
-					read <- false
+				if e, eok := err.(yggdrasil.ConnError); eok {
+					switch {
+					case e.Temporary():
+						read <- false
+						continue
+					case e.Timeout():
+						s.tun.log.Debugln("Conn reader for helper", s, "timed out")
+						fallthrough
+					default:
+						s.tun.log.Debugln("Stopping conn reader helper for", s)
+						s.close()
+						return
+					}
 				}
-				return
+				read <- false
 			}
 			read <- true
-		}()
+		}
+	}()
+	for {
 		select {
 		case r := <-read:
 			if r && n > 0 {
@@ -93,6 +108,7 @@ func (s *tunConn) writer() error {
 		}
 	default:
 	}
+	s.tun.log.Debugln("Starting conn writer for", s)
 	for {
 		select {
 		case <-s.stop:
@@ -134,8 +150,7 @@ func (s *tunConn) stillAlive() {
 }
 
 func (s *tunConn) checkForTimeouts() error {
-	const timeout = 2 * time.Minute
-	timer := time.NewTimer(timeout)
+	timer := time.NewTimer(tunConnTimeout)
 	defer util.TimerStop(timer)
 	defer s.close()
 	for {
@@ -145,7 +160,7 @@ func (s *tunConn) checkForTimeouts() error {
 				return errors.New("connection closed")
 			}
 			util.TimerStop(timer)
-			timer.Reset(timeout)
+			timer.Reset(tunConnTimeout)
 		case <-timer.C:
 			return errors.New("timed out")
 		}
