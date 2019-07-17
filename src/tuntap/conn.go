@@ -113,9 +113,10 @@ func (s *tunConn) writer() error {
 				} else {
 					s.tun.log.Errorln(s.conn.String(), "TUN/TAP conn write error:", err)
 				}
+			} else {
+				s.stillAlive()
 			}
 			util.PutBytes(b)
-			s.stillAlive()
 		}
 	}
 }
