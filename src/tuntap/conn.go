@@ -43,7 +43,7 @@ func (s *tunConn) _close_nomutex() {
 	}()
 }
 
-func (s *tunConn) reader() error {
+func (s *tunConn) reader() (err error) {
 	select {
 	case _, ok := <-s.stop:
 		if !ok {
@@ -51,55 +51,29 @@ func (s *tunConn) reader() error {
 		}
 	default:
 	}
-	s.tun.log.Debugln("Starting conn reader for", s)
-	defer s.tun.log.Debugln("Stopping conn reader for", s)
+	s.tun.log.Debugln("Starting conn reader for", s.conn.String())
+	defer s.tun.log.Debugln("Stopping conn reader for", s.conn.String())
 	var n int
-	var err error
-	read := make(chan bool)
 	b := make([]byte, 65535)
-	go func() {
-		s.tun.log.Debugln("Starting conn reader helper for", s)
-		defer s.tun.log.Debugln("Stopping conn reader helper for", s)
-		for {
-			s.conn.SetReadDeadline(time.Now().Add(tunConnTimeout))
-			if n, err = s.conn.Read(b); err != nil {
-				s.tun.log.Errorln(s.conn.String(), "TUN/TAP conn read error:", err)
-				if e, eok := err.(yggdrasil.ConnError); eok {
-					s.tun.log.Debugln("Conn reader helper", s, "error:", e)
-					switch {
-					case e.Temporary():
-						fallthrough
-					case e.Timeout():
-						read <- false
-						continue
-					case e.Closed():
-						fallthrough
-					default:
-						s.close()
-						return
-					}
-				}
-				read <- false
-			}
-			read <- true
-		}
-	}()
 	for {
 		select {
-		case r, ok := <-read:
-			if r && n > 0 {
-				bs := append(util.GetBytes(), b[:n]...)
-				select {
-				case s.tun.send <- bs:
-				default:
-					util.PutBytes(bs)
-				}
-			}
-			if ok {
-				s.stillAlive() // TODO? Only stay alive if we read >0 bytes?
-			}
 		case <-s.stop:
 			return nil
+		default:
+		}
+		if n, err = s.conn.Read(b); err != nil {
+			if e, eok := err.(yggdrasil.ConnError); eok && !e.Temporary() {
+				s.tun.log.Errorln(s.conn.String(), "TUN/TAP conn read error:", err)
+				return e
+			}
+		} else if n > 0 {
+			bs := append(util.GetBytes(), b[:n]...)
+			select {
+			case s.tun.send <- bs:
+			default:
+				util.PutBytes(bs)
+			}
+			s.stillAlive()
 		}
 	}
 }
@@ -112,8 +86,8 @@ func (s *tunConn) writer() error {
 		}
 	default:
 	}
-	s.tun.log.Debugln("Starting conn writer for", s)
-	defer s.tun.log.Debugln("Stopping conn writer for", s)
+	s.tun.log.Debugln("Starting conn writer for", s.conn.String())
+	defer s.tun.log.Debugln("Stopping conn writer for", s.conn.String())
 	for {
 		select {
 		case <-s.stop:

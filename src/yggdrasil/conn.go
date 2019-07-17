@@ -49,7 +49,7 @@ type Conn struct {
 	nodeID        *crypto.NodeID
 	nodeMask      *crypto.NodeID
 	mutex         sync.RWMutex
-	closed        bool
+	close         chan bool
 	session       *sessionInfo
 	readDeadline  atomic.Value // time.Time // TODO timer
 	writeDeadline atomic.Value // time.Time // TODO timer
@@ -62,6 +62,7 @@ func newConn(core *Core, nodeID *crypto.NodeID, nodeMask *crypto.NodeID, session
 		nodeID:   nodeID,
 		nodeMask: nodeMask,
 		session:  session,
+		close:    make(chan bool),
 	}
 	return &conn
 }
@@ -127,12 +128,14 @@ func (c *Conn) Read(b []byte) (int, error) {
 	for {
 		// Wait for some traffic to come through from the session
 		select {
+		case <-c.close:
+			return 0, ConnError{errors.New("session closed"), false, false, true, 0}
 		case <-timer.C:
-			return 0, ConnError{errors.New("timeout"), true, false, false, 0}
+			return 0, ConnError{errors.New("read timeout"), true, false, false, 0}
 		case p, ok := <-sinfo.recv:
 			// If the session is closed then do nothing
 			if !ok {
-				return 0, ConnError{errors.New("session is closed"), false, false, true, 0}
+				return 0, ConnError{errors.New("session closed"), false, false, true, 0}
 			}
 			defer util.PutBytes(p.Payload)
 			var err error
@@ -167,16 +170,26 @@ func (c *Conn) Read(b []byte) (int, error) {
 			// Hand over to the session worker
 			defer func() {
 				if recover() != nil {
-					err = errors.New("read failed, session already closed")
+					err = ConnError{errors.New("read failed, session already closed"), false, false, true, 0}
 					close(done)
 				}
 			}() // In case we're racing with a close
-			select { // Send to worker
+			// Send to worker
+			select {
 			case sinfo.worker <- workerFunc:
+			case <-c.close:
+				return 0, ConnError{errors.New("session closed"), false, false, true, 0}
 			case <-timer.C:
-				return 0, ConnError{errors.New("timeout"), true, false, false, 0}
+				return 0, ConnError{errors.New("read timeout"), true, false, false, 0}
 			}
-			<-done // Wait for the worker to finish, failing this can cause memory errors (util.[Get||Put]Bytes stuff)
+			// Wait for the worker to finish
+			select {
+			case <-done: // Wait for the worker to finish, failing this can cause memory errors (util.[Get||Put]Bytes stuff)
+			case <-c.close:
+				return 0, ConnError{errors.New("session closed"), false, false, true, 0}
+			case <-timer.C:
+				return 0, ConnError{errors.New("read timeout"), true, false, false, 0}
+			}
 			// Something went wrong in the session worker so abort
 			if err != nil {
 				if ce, ok := err.(*ConnError); ok && ce.Temporary() {
@@ -257,7 +270,7 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 	select { // Send to worker
 	case sinfo.worker <- workerFunc:
 	case <-timer.C:
-		return 0, ConnError{errors.New("timeout"), true, false, false, 0}
+		return 0, ConnError{errors.New("write timeout"), true, false, false, 0}
 	}
 	// Wait for the worker to finish, otherwise there are memory errors ([Get||Put]Bytes stuff)
 	<-done
@@ -269,16 +282,21 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 	return written, err
 }
 
-func (c *Conn) Close() error {
+func (c *Conn) Close() (err error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	if c.session != nil {
 		// Close the session, if it hasn't been closed already
 		c.core.router.doAdmin(c.session.close)
 	}
-	// This can't fail yet - TODO?
-	c.closed = true
-	return nil
+	func() {
+		defer func() {
+			recover()
+			err = ConnError{errors.New("close failed, session already closed"), false, false, true, 0}
+		}()
+		close(c.close) // Closes reader/writer goroutines
+	}()
+	return
 }
 
 func (c *Conn) LocalAddr() crypto.NodeID {
