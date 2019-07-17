@@ -16,6 +16,7 @@ type ConnError struct {
 	error
 	timeout   bool
 	temporary bool
+	closed    bool
 	maxsize   int
 }
 
@@ -36,6 +37,11 @@ func (e *ConnError) Temporary() bool {
 // connection.
 func (e *ConnError) PacketTooBig() (bool, int) {
 	return e.maxsize > 0, e.maxsize
+}
+
+// Closed returns if the session is already closed and is now unusable.
+func (e *ConnError) Closed() bool {
+	return e.closed
 }
 
 type Conn struct {
@@ -122,11 +128,11 @@ func (c *Conn) Read(b []byte) (int, error) {
 		// Wait for some traffic to come through from the session
 		select {
 		case <-timer.C:
-			return 0, ConnError{errors.New("timeout"), true, false, 0}
+			return 0, ConnError{errors.New("timeout"), true, false, false, 0}
 		case p, ok := <-sinfo.recv:
 			// If the session is closed then do nothing
 			if !ok {
-				return 0, errors.New("session is closed")
+				return 0, ConnError{errors.New("session is closed"), false, false, true, 0}
 			}
 			defer util.PutBytes(p.Payload)
 			var err error
@@ -135,7 +141,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 				defer close(done)
 				// If the nonce is bad then drop the packet and return an error
 				if !sinfo.nonceIsOK(&p.Nonce) {
-					err = ConnError{errors.New("packet dropped due to invalid nonce"), false, true, 0}
+					err = ConnError{errors.New("packet dropped due to invalid nonce"), false, true, false, 0}
 					return
 				}
 				// Decrypt the packet
@@ -144,7 +150,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 				// Check if we were unable to decrypt the packet for some reason and
 				// return an error if we couldn't
 				if !isOK {
-					err = ConnError{errors.New("packet dropped due to decryption failure"), false, true, 0}
+					err = ConnError{errors.New("packet dropped due to decryption failure"), false, true, false, 0}
 					return
 				}
 				// Return the newly decrypted buffer back to the slice we were given
@@ -168,7 +174,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 			select { // Send to worker
 			case sinfo.worker <- workerFunc:
 			case <-timer.C:
-				return 0, ConnError{errors.New("timeout"), true, false, 0}
+				return 0, ConnError{errors.New("timeout"), true, false, false, 0}
 			}
 			<-done // Wait for the worker to finish, failing this can cause memory errors (util.[Get||Put]Bytes stuff)
 			// Something went wrong in the session worker so abort
@@ -194,7 +200,7 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 		defer close(done)
 		// Does the packet exceed the permitted size for the session?
 		if uint16(len(b)) > sinfo.getMTU() {
-			written, err = 0, ConnError{errors.New("packet too big"), true, false, int(sinfo.getMTU())}
+			written, err = 0, ConnError{errors.New("packet too big"), true, false, false, int(sinfo.getMTU())}
 			return
 		}
 		// Encrypt the packet
@@ -244,14 +250,14 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 	// Hand over to the session worker
 	defer func() {
 		if recover() != nil {
-			err = errors.New("write failed, session already closed")
+			err = ConnError{errors.New("write failed, session already closed"), false, false, true, 0}
 			close(done)
 		}
 	}() // In case we're racing with a close
 	select { // Send to worker
 	case sinfo.worker <- workerFunc:
 	case <-timer.C:
-		return 0, ConnError{errors.New("timeout"), true, false, 0}
+		return 0, ConnError{errors.New("timeout"), true, false, false, 0}
 	}
 	// Wait for the worker to finish, otherwise there are memory errors ([Get||Put]Bytes stuff)
 	<-done

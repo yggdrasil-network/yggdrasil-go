@@ -52,26 +52,29 @@ func (s *tunConn) reader() error {
 	default:
 	}
 	s.tun.log.Debugln("Starting conn reader for", s)
+	defer s.tun.log.Debugln("Stopping conn reader for", s)
 	var n int
 	var err error
 	read := make(chan bool)
 	b := make([]byte, 65535)
 	go func() {
 		s.tun.log.Debugln("Starting conn reader helper for", s)
+		defer s.tun.log.Debugln("Stopping conn reader helper for", s)
 		for {
 			s.conn.SetReadDeadline(time.Now().Add(tunConnTimeout))
 			if n, err = s.conn.Read(b); err != nil {
 				s.tun.log.Errorln(s.conn.String(), "TUN/TAP conn read error:", err)
 				if e, eok := err.(yggdrasil.ConnError); eok {
+					s.tun.log.Debugln("Conn reader helper", s, "error:", e)
 					switch {
 					case e.Temporary():
+						fallthrough
+					case e.Timeout():
 						read <- false
 						continue
-					case e.Timeout():
-						s.tun.log.Debugln("Conn reader for helper", s, "timed out")
+					case e.Closed():
 						fallthrough
 					default:
-						s.tun.log.Debugln("Stopping conn reader helper for", s)
 						s.close()
 						return
 					}
@@ -94,7 +97,6 @@ func (s *tunConn) reader() error {
 			}
 			s.stillAlive() // TODO? Only stay alive if we read >0 bytes?
 		case <-s.stop:
-			s.tun.log.Debugln("Stopping conn reader for", s)
 			return nil
 		}
 	}
@@ -109,10 +111,10 @@ func (s *tunConn) writer() error {
 	default:
 	}
 	s.tun.log.Debugln("Starting conn writer for", s)
+	defer s.tun.log.Debugln("Stopping conn writer for", s)
 	for {
 		select {
 		case <-s.stop:
-			s.tun.log.Debugln("Stopping conn writer for", s)
 			return nil
 		case b, ok := <-s.send:
 			if !ok {
