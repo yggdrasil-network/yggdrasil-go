@@ -259,7 +259,6 @@ func (tun *TunAdapter) wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 	// Start the connection goroutines
 	go s.reader()
 	go s.writer()
-	go s.checkForTimeouts()
 	// Return
 	return c, err
 }
