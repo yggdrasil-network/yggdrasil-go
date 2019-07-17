@@ -86,7 +86,7 @@ func (s *tunConn) reader() error {
 	}()
 	for {
 		select {
-		case r := <-read:
+		case r, ok := <-read:
 			if r && n > 0 {
 				bs := append(util.GetBytes(), b[:n]...)
 				select {
@@ -95,7 +95,9 @@ func (s *tunConn) reader() error {
 					util.PutBytes(bs)
 				}
 			}
-			s.stillAlive() // TODO? Only stay alive if we read >0 bytes?
+			if ok {
+				s.stillAlive() // TODO? Only stay alive if we read >0 bytes?
+			}
 		case <-s.stop:
 			return nil
 		}
