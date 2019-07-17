@@ -125,6 +125,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 	sinfo := c.session
 	timer := getDeadlineTimer(&c.readDeadline)
 	defer util.TimerStop(timer)
+	var bs []byte
 	for {
 		// Wait for some traffic to come through from the session
 		select {
@@ -148,24 +149,18 @@ func (c *Conn) Read(b []byte) (int, error) {
 					return
 				}
 				// Decrypt the packet
-				bs, isOK := crypto.BoxOpen(&sinfo.sharedSesKey, p.Payload, &p.Nonce)
-				defer util.PutBytes(bs) // FIXME commenting this out leads to illegal buffer reuse, this implies there's a memory error somewhere and that this is just flooding things out of the finite pool of old slices that get reused
+				var isOK bool
+				bs, isOK = crypto.BoxOpen(&sinfo.sharedSesKey, p.Payload, &p.Nonce)
 				// Check if we were unable to decrypt the packet for some reason and
 				// return an error if we couldn't
 				if !isOK {
 					err = ConnError{errors.New("packet dropped due to decryption failure"), false, true, false, 0}
 					return
 				}
-				// Return the newly decrypted buffer back to the slice we were given
-				copy(b, bs)
-				// Trim the slice down to size based on the data we received
-				if len(bs) < len(b) {
-					b = b[:len(bs)]
-				}
 				// Update the session
 				sinfo.updateNonce(&p.Nonce)
 				sinfo.time = time.Now()
-				sinfo.bytesRecvd += uint64(len(b))
+				sinfo.bytesRecvd += uint64(len(bs))
 			}
 			// Hand over to the session worker
 			defer func() {
@@ -197,9 +192,12 @@ func (c *Conn) Read(b []byte) (int, error) {
 				}
 				return 0, err
 			}
+			// Copy results to the output slice and clean up
+			copy(b, bs)
+			util.PutBytes(bs)
 			// If we've reached this point then everything went to plan, return the
 			// number of bytes we populated back into the given slice
-			return len(b), nil
+			return len(bs), nil
 		}
 	}
 }
