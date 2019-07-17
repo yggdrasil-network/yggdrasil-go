@@ -64,19 +64,16 @@ func (s *tunConn) reader() error {
 			s.conn.SetReadDeadline(time.Now().Add(tunConnTimeout))
 			if n, err = s.conn.Read(b); err != nil {
 				s.tun.log.Errorln(s.conn.String(), "TUN/TAP conn read error:", err)
-				if e, eok := err.(yggdrasil.ConnError); eok && !e.Temporary() {
+				if e, eok := err.(yggdrasil.ConnError); eok {
 					s.tun.log.Debugln("Conn reader helper", s, "error:", e)
 					switch {
-					// The timeout probably means we've waited for the timeout period and
-					// nothing has happened so close the connection
+					case e.Temporary():
+						fallthrough
 					case e.Timeout():
-						s.close()
+						read <- false
 						continue
-					// The connection is already closed, so we anticipate that the main
-					// reader goroutine has already exited. Also stop in that case
 					case e.Closed():
-						return
-					// Some other case that we don't know about - close the connection
+						fallthrough
 					default:
 						s.close()
 						return
@@ -89,7 +86,7 @@ func (s *tunConn) reader() error {
 	}()
 	for {
 		select {
-		case r := <-read:
+		case r, ok := <-read:
 			if r && n > 0 {
 				bs := append(util.GetBytes(), b[:n]...)
 				select {
@@ -97,6 +94,9 @@ func (s *tunConn) reader() error {
 				default:
 					util.PutBytes(bs)
 				}
+			}
+			if ok {
+				s.stillAlive() // TODO? Only stay alive if we read >0 bytes?
 			}
 		case <-s.stop:
 			return nil
@@ -123,7 +123,6 @@ func (s *tunConn) writer() error {
 				return errors.New("send closed")
 			}
 			// TODO write timeout and close
-			s.conn.SetWriteDeadline(time.Now().Add(tunConnTimeout))
 			if _, err := s.conn.Write(b); err != nil {
 				e, eok := err.(yggdrasil.ConnError)
 				if !eok {
@@ -142,6 +141,32 @@ func (s *tunConn) writer() error {
 				}
 			}
 			util.PutBytes(b)
+			s.stillAlive()
+		}
+	}
+}
+
+func (s *tunConn) stillAlive() {
+	select {
+	case s.alive <- struct{}{}:
+	default:
+	}
+}
+
+func (s *tunConn) checkForTimeouts() error {
+	timer := time.NewTimer(tunConnTimeout)
+	defer util.TimerStop(timer)
+	defer s.close()
+	for {
+		select {
+		case _, ok := <-s.alive:
+			if !ok {
+				return errors.New("connection closed")
+			}
+			util.TimerStop(timer)
+			timer.Reset(tunConnTimeout)
+		case <-timer.C:
+			return errors.New("timed out")
 		}
 	}
 }
