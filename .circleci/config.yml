@@ -203,66 +203,33 @@ jobs:
           command: |
               echo 'export CINAME=$(sh contrib/semver/name.sh)' >> $BASH_ENV
               echo 'export CIVERSION=$(sh contrib/semver/version.sh --bare)' >> $BASH_ENV
+              echo 'export DOCKER_BUILDKIT=1' >> $BASH_ENV
 
       - run:
           name: Build images
-          # docker-copyedit is used because of https://github.com/moby/moby/issues/36552
+          # TODO: don't use latest for develop
+          # TODO: tag using semver https://medium.com/@mccode/using-semantic-versioning-for-docker-image-tags-dfde8be06699
           command: |
-              wget https://raw.githubusercontent.com/gdraheim/docker-copyedit/master/docker-copyedit.py && chmod +x docker-copyedit.py
-              cp /tmp/upload/${CINAME}-${CIVERSION}-linux-amd64 yggdrasil && \
-                docker build -t ${DOCKER_NAMESPACE}:temp . && \
-                ./docker-copyedit.py FROM ${DOCKER_NAMESPACE}:temp INTO ${DOCKER_NAMESPACE}:amd64 SET arch amd64 -vv
-              cp /tmp/upload/${CINAME}-${CIVERSION}-linux-i386 yggdrasil && \
-                docker build -t ${DOCKER_NAMESPACE}:temp . && \
-                ./docker-copyedit.py FROM ${DOCKER_NAMESPACE}:temp INTO ${DOCKER_NAMESPACE}:i386 SET arch i386 -vv
-              cp /tmp/upload/${CINAME}-${CIVERSION}-linux-mipsel yggdrasil && \
-                docker build -t ${DOCKER_NAMESPACE}:temp . && \
-                ./docker-copyedit.py FROM ${DOCKER_NAMESPACE}:temp INTO ${DOCKER_NAMESPACE}:mipsel SET arch mipsel -vv
-              cp /tmp/upload/${CINAME}-${CIVERSION}-linux-mips yggdrasil && \
-                docker build -t ${DOCKER_NAMESPACE}:temp . && \
-                ./docker-copyedit.py FROM ${DOCKER_NAMESPACE}:temp INTO ${DOCKER_NAMESPACE}:mips SET arch mips -vv
-              cp /tmp/upload/${CINAME}-${CIVERSION}-linux-armhf yggdrasil && \
-                docker build -t ${DOCKER_NAMESPACE}:temp . && \
-                ./docker-copyedit.py FROM ${DOCKER_NAMESPACE}:temp INTO ${DOCKER_NAMESPACE}:armhf SET arch armhf -vv
-              cp /tmp/upload/${CINAME}-${CIVERSION}-linux-arm64 yggdrasil && \
-                docker build -t ${DOCKER_NAMESPACE}:temp . && \
-                ./docker-copyedit.py FROM ${DOCKER_NAMESPACE}:temp INTO ${DOCKER_NAMESPACE}:arm64 SET arch arm64 -vv
-
-      - run:
-          name: Tag images
-          command: |
-              docker tag ${DOCKER_NAMESPACE}:amd64 ${DOCKER_NAMESPACE}:${CIVERSION}-amd64
-              docker tag ${DOCKER_NAMESPACE}:i386 ${DOCKER_NAMESPACE}:${CIVERSION}-i386
-              docker tag ${DOCKER_NAMESPACE}:mipsel ${DOCKER_NAMESPACE}:${CIVERSION}-mipsel
-              docker tag ${DOCKER_NAMESPACE}:mips ${DOCKER_NAMESPACE}:${CIVERSION}-mips
-              docker tag ${DOCKER_NAMESPACE}:armhf ${DOCKER_NAMESPACE}:${CIVERSION}-armhf
-              docker tag ${DOCKER_NAMESPACE}:arm64 ${DOCKER_NAMESPACE}:${CIVERSION}-arm64
+              mkdir -p linux/amd64 && \
+                cp /tmp/upload/${CINAME}-${CIVERSION}-linux-amd64 linux/amd64/yggdrasil
+                cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-amd64 linux/amd64/yggdrasilctl
+              mkdir -p linux/arm64 && \
+                cp /tmp/upload/${CINAME}-${CIVERSION}-linux-arm64 linux/arm64/yggdrasil
+                cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-arm64 linux/arm64/yggdrasilctl
+              docker build \
+                --tag=${DOCKER_NAMESPACE}:${CIVERSION} \
+                --tag=${DOCKER_NAMESPACE}:latest \
+                --platform=linux/amd64 \
+                --platform=linux/arm64 \
+                --file=contrib/docker/ci/alpine/Dockerfile \
+                .
 
       - run:
           name: Push images
           command: |
               docker login -u $DOCKER_USER -p $DOCKER_PASS
-              docker push ${DOCKER_NAMESPACE}:amd64
-              docker push ${DOCKER_NAMESPACE}:${CIVERSION}-amd64
-              docker push ${DOCKER_NAMESPACE}:i386
-              docker push ${DOCKER_NAMESPACE}:${CIVERSION}-i386
-              docker push ${DOCKER_NAMESPACE}:mipsel
-              docker push ${DOCKER_NAMESPACE}:${CIVERSION}-mipsel
-              docker push ${DOCKER_NAMESPACE}:mips
-              docker push ${DOCKER_NAMESPACE}:${CIVERSION}-mips
-              docker push ${DOCKER_NAMESPACE}:armhf
-              docker push ${DOCKER_NAMESPACE}:${CIVERSION}-armhf
-              docker push ${DOCKER_NAMESPACE}:arm64
-              docker push ${DOCKER_NAMESPACE}:${CIVERSION}-arm64
-
-      # - run:
-      #     name: Create and push release manifest
-      #     # We need to enable experimental features for cli in order to use docker manifest
-      #     command: |
-      #         mkdir -p ~/.docker && echo $'{\n    "experimental": "enabled"\n}' >| ~/.docker/config.json
-      #         docker login -u $DOCKER_USER -p $DOCKER_PASS
-      #         docker manifest create --amend ${DOCKER_NAMESPACE}:${CIVERSION} ${DOCKER_NAMESPACE}:${CIVERSION}-amd64 ${DOCKER_NAMESPACE}:${CIVERSION}-i386 ${DOCKER_NAMESPACE}:${CIVERSION}-mipsel ${DOCKER_NAMESPACE}:${CIVERSION}-mips ${DOCKER_NAMESPACE}:${CIVERSION}-armhf ${DOCKER_NAMESPACE}:${CIVERSION}-arm64
-      #         docker manifest push ${DOCKER_NAMESPACE}:${CIVERSION}
+              docker push ${DOCKER_NAMESPACE}:${CIVERSION}
+              docker push ${DOCKER_NAMESPACE}:latest
 
   upload:
     machine: true
