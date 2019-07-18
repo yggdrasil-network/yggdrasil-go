@@ -202,6 +202,10 @@ jobs:
       - run:
           name: Set variables
           command: |
+              echo 'export DOCKER_TAG_MAIN=$(sh contrib/semver/docker.sh main)' >> $BASH_ENV
+              echo 'export DOCKER_TAG_MAJOR=$(sh contrib/semver/docker.sh major)' >> $BASH_ENV
+              echo 'export DOCKER_TAG_MAJORMINOR=$(sh contrib/semver/docker.sh majorminor)' >> $BASH_ENV
+              echo 'export DOCKER_TAG_FULL=$(sh contrib/semver/docker.sh full)' >> $BASH_ENV
               echo 'export DOCKER_BUILDKIT=1' >> $BASH_ENV
               echo 'export CINAME=$(sh contrib/semver/name.sh)' >> $BASH_ENV
               echo 'export CIVERSION=$(sh contrib/semver/version.sh --bare)' >> $BASH_ENV
@@ -212,8 +216,6 @@ jobs:
 
       - run:
           name: Build images
-          # TODO: don't use latest for develop
-          # TODO: tag using semver https://medium.com/@mccode/using-semantic-versioning-for-docker-image-tags-dfde8be06699
           # We need to enable experimental features for cli in order to use docker buildx backend
           command: |
               mkdir -p ~/.docker && echo $'{\n    "experimental": "enabled"\n}' >| ~/.docker/config.json
@@ -224,19 +226,23 @@ jobs:
                 cp /tmp/upload/${CINAME}-${CIVERSION}-linux-arm64 linux/arm64/yggdrasil
                 cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-arm64 linux/arm64/yggdrasilctl
               docker build \
-                --tag=${DOCKER_NAMESPACE}:${CIVERSION} \
-                --tag=${DOCKER_NAMESPACE}:latest \
+                --tag=${DOCKER_NAMESPACE}:${DOCKER_TAG_MAIN} \
+                --tag=${DOCKER_NAMESPACE}:${DOCKER_TAG_MAJOR} \
+                --tag=${DOCKER_NAMESPACE}:${DOCKER_TAG_MAJORMINOR} \
+                --tag=${DOCKER_NAMESPACE}:${DOCKER_TAG_FULL} \
                 --platform=linux/amd64 \
                 --platform=linux/arm64 \
-                --file=contrib/docker/ci/alpine/Dockerfile \
+                --file=contrib/docker/ci/scratch/Dockerfile \
                 .
 
       - run:
           name: Push images
           command: |
               docker login -u $DOCKER_USER -p $DOCKER_PASS
-              docker push ${DOCKER_NAMESPACE}:${CIVERSION}
-              docker push ${DOCKER_NAMESPACE}:latest
+              docker push ${DOCKER_NAMESPACE}:${DOCKER_TAG_MAIN}
+              docker push ${DOCKER_NAMESPACE}:${DOCKER_TAG_MAJOR}
+              docker push ${DOCKER_NAMESPACE}:${DOCKER_TAG_MAJORMINOR}
+              docker push ${DOCKER_NAMESPACE}:${DOCKER_TAG_FULL}
 
   upload:
     machine: true
