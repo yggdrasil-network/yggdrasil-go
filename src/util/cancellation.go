@@ -75,6 +75,8 @@ func CancellationChild(parent Cancellation) Cancellation {
 	return child
 }
 
+var CancellationTimeoutError = errors.New("timeout")
+
 func CancellationWithTimeout(parent Cancellation, timeout time.Duration) Cancellation {
 	child := CancellationChild(parent)
 	go func() {
@@ -83,7 +85,7 @@ func CancellationWithTimeout(parent Cancellation, timeout time.Duration) Cancell
 		select {
 		case <-child.Finished():
 		case <-timer.C:
-			child.Cancel(errors.New("timeout"))
+			child.Cancel(CancellationTimeoutError)
 		}
 	}()
 	return child
