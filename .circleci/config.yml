@@ -46,6 +46,7 @@ jobs:
               CGO_ENABLED=0 PKGARCH=i386 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-i386 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-i386;
               CGO_ENABLED=0 PKGARCH=mipsel sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-mipsel && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-mipsel;
               CGO_ENABLED=0 PKGARCH=mips sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-mips && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-mips;
+              CGO_ENABLED=0 PKGARCH=armel sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-armel && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-armel;
               CGO_ENABLED=0 PKGARCH=armhf sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-armhf && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-armhf;
               CGO_ENABLED=0 PKGARCH=arm64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-arm64 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-arm64;
               mv *.deb /tmp/upload/
@@ -219,18 +220,31 @@ jobs:
               sudo chmod +x /usr/bin/buildx
 
       - run:
-          name: Build images
+          name: Build and push docker images
+          # TODO: build armv7 binaries
           command: |
               mkdir -p linux/amd64 && \
                 cp /tmp/upload/${CINAME}-${CIVERSION}-linux-amd64 linux/amd64/yggdrasil
                 cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-amd64 linux/amd64/yggdrasilctl
-              mkdir -p linux/arm64 && \
-                cp /tmp/upload/${CINAME}-${CIVERSION}-linux-arm64 linux/arm64/yggdrasil
-                cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-arm64 linux/arm64/yggdrasilctl
+              mkdir -p linux/386 && \
+                cp /tmp/upload/${CINAME}-${CIVERSION}-linux-i386 linux/386/yggdrasil
+                cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-i386 linux/386/yggdrasilctl
+              mkdir -p linux/arm/v5 && \
+                cp /tmp/upload/${CINAME}-${CIVERSION}-linux-armel linux/arm/v5/yggdrasil
+                cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-armel linux/arm/v5/yggdrasilctl
+              mkdir -p linux/arm/v6 && \
+                cp /tmp/upload/${CINAME}-${CIVERSION}-linux-armhf linux/arm/v6/yggdrasil
+                cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-armhf linux/arm/v6/yggdrasilctl
+              mkdir -p linux/arm/v7 && \
+                cp /tmp/upload/${CINAME}-${CIVERSION}-linux-armhf linux/arm/v7/yggdrasil
+                cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-armhf linux/arm/v7/yggdrasilctl
+              mkdir -p linux/arm64/v8 && \
+                cp /tmp/upload/${CINAME}-${CIVERSION}-linux-arm64 linux/arm64/v8/yggdrasil
+                cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-arm64 linux/arm64/v8/yggdrasilctl
               docker login -u $DOCKER_USER -p $DOCKER_PASS
               buildx build \
                 --push \
-                --platform=linux/amd64,linux/arm64 \
+                --platform=linux/amd64,linux/386,linux/arm/v5,linux/arm/v6,linux/arm/v7,linux/arm64/v8 \
                 --tag=${DOCKER_NAMESPACE}:${DOCKER_TAG_MAIN} \
                 --tag=${DOCKER_NAMESPACE}:${DOCKER_TAG_MAJOR} \
                 --tag=${DOCKER_NAMESPACE}:${DOCKER_TAG_MAJORMINOR} \
