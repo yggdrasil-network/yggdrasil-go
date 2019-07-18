@@ -4,6 +4,8 @@ set -e
 
 CONF_DIR="/etc/yggdrasil-network"
 
+mkdir -p $CONF_DIR
+
 if [ ! -f "$CONF_DIR/config.conf" ]; then
   echo "generate $CONF_DIR/config.conf"
   yggdrasil --genconf > "$CONF_DIR/config.conf"
