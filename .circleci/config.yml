@@ -201,48 +201,42 @@ jobs:
 
       - run:
           name: Set variables
+          # We need to enable experimental features in order to use docker buildx
           command: |
               echo 'export DOCKER_TAG_MAIN=$(sh contrib/semver/docker.sh main)' >> $BASH_ENV
               echo 'export DOCKER_TAG_MAJOR=$(sh contrib/semver/docker.sh major)' >> $BASH_ENV
               echo 'export DOCKER_TAG_MAJORMINOR=$(sh contrib/semver/docker.sh majorminor)' >> $BASH_ENV
               echo 'export DOCKER_TAG_FULL=$(sh contrib/semver/docker.sh full)' >> $BASH_ENV
-              echo 'export DOCKER_BUILDKIT=1' >> $BASH_ENV
               echo 'export CINAME=$(sh contrib/semver/name.sh)' >> $BASH_ENV
               echo 'export CIVERSION=$(sh contrib/semver/version.sh --bare)' >> $BASH_ENV
               git config --global user.email "$(git log --format='%ae' HEAD -1)";
               git config --global user.name "$(git log --format='%an' HEAD -1)";
+              echo 'export DOCKER_BUILDKIT=1' >> $BASH_ENV
               sudo mkdir -p /etc/docker && echo $'{\n    "experimental": true\n}' | sudo dd of=/etc/docker/daemon.json
               sudo systemctl restart docker
+              mkdir -p ~/.docker && echo $'{\n    "experimental": "enabled"\n}' >| ~/.docker/config.json
+              sudo curl -L -o /usr/bin/buildx https://github.com/docker/buildx/releases/download/v0.2.2/buildx-v0.2.2.linux-amd64
+              sudo chmod +x /usr/bin/buildx
 
       - run:
           name: Build images
-          # We need to enable experimental features for cli in order to use docker buildx backend
           command: |
-              mkdir -p ~/.docker && echo $'{\n    "experimental": "enabled"\n}' >| ~/.docker/config.json
               mkdir -p linux/amd64 && \
                 cp /tmp/upload/${CINAME}-${CIVERSION}-linux-amd64 linux/amd64/yggdrasil
                 cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-amd64 linux/amd64/yggdrasilctl
               mkdir -p linux/arm64 && \
                 cp /tmp/upload/${CINAME}-${CIVERSION}-linux-arm64 linux/arm64/yggdrasil
                 cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-arm64 linux/arm64/yggdrasilctl
-              docker build \
+              docker login -u $DOCKER_USER -p $DOCKER_PASS
+              buildx build \
+                --push \
+                --platform=linux/amd64,linux/arm64 \
                 --tag=${DOCKER_NAMESPACE}:${DOCKER_TAG_MAIN} \
                 --tag=${DOCKER_NAMESPACE}:${DOCKER_TAG_MAJOR} \
                 --tag=${DOCKER_NAMESPACE}:${DOCKER_TAG_MAJORMINOR} \
                 --tag=${DOCKER_NAMESPACE}:${DOCKER_TAG_FULL} \
-                --platform=linux/amd64 \
-                --platform=linux/arm64 \
                 --file=contrib/docker/ci/scratch/Dockerfile \
                 .
-
-      - run:
-          name: Push images
-          command: |
-              docker login -u $DOCKER_USER -p $DOCKER_PASS
-              docker push ${DOCKER_NAMESPACE}:${DOCKER_TAG_MAIN}
-              docker push ${DOCKER_NAMESPACE}:${DOCKER_TAG_MAJOR}
-              docker push ${DOCKER_NAMESPACE}:${DOCKER_TAG_MAJORMINOR}
-              docker push ${DOCKER_NAMESPACE}:${DOCKER_TAG_FULL}
 
   upload:
     machine: true
