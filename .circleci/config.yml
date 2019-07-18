@@ -190,7 +190,8 @@ jobs:
             - upload
 
   build-docker:
-    machine: true
+    machine:
+      image: ubuntu-1604:201903-01
 
     steps:
       - attach_workspace:
@@ -199,17 +200,23 @@ jobs:
       - checkout
 
       - run:
-          name: Set environment
+          name: Set variables
           command: |
+              echo 'export DOCKER_BUILDKIT=1' >> $BASH_ENV
               echo 'export CINAME=$(sh contrib/semver/name.sh)' >> $BASH_ENV
               echo 'export CIVERSION=$(sh contrib/semver/version.sh --bare)' >> $BASH_ENV
-              echo 'export DOCKER_BUILDKIT=1' >> $BASH_ENV
+              git config --global user.email "$(git log --format='%ae' HEAD -1)";
+              git config --global user.name "$(git log --format='%an' HEAD -1)";
+              sudo mkdir -p /etc/docker && echo $'{\n    "experimental": true\n}' | sudo dd of=/etc/docker/daemon.json
+              sudo systemctl restart docker
 
       - run:
           name: Build images
           # TODO: don't use latest for develop
           # TODO: tag using semver https://medium.com/@mccode/using-semantic-versioning-for-docker-image-tags-dfde8be06699
+          # We need to enable experimental features for cli in order to use docker buildx backend
           command: |
+              mkdir -p ~/.docker && echo $'{\n    "experimental": "enabled"\n}' >| ~/.docker/config.json
               mkdir -p linux/amd64 && \
                 cp /tmp/upload/${CINAME}-${CIVERSION}-linux-amd64 linux/amd64/yggdrasil
                 cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-amd64 linux/amd64/yggdrasilctl
