@@ -42,12 +42,12 @@ jobs:
           name: Build for Linux (including Debian packages)
           command: |
               rm -f {yggdrasil,yggdrasilctl}
-              PKGARCH=amd64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-amd64 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-amd64;
-              PKGARCH=i386 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-i386 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-i386;
-              PKGARCH=mipsel sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-mipsel && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-mipsel;
-              PKGARCH=mips sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-mips && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-mips;
-              PKGARCH=armhf sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-armhf && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-armhf;
-              PKGARCH=arm64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-arm64 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-arm64;
+              CGO_ENABLED=0 PKGARCH=amd64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-amd64 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-amd64;
+              CGO_ENABLED=0 PKGARCH=i386 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-i386 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-i386;
+              CGO_ENABLED=0 PKGARCH=mipsel sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-mipsel && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-mipsel;
+              CGO_ENABLED=0 PKGARCH=mips sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-mips && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-mips;
+              CGO_ENABLED=0 PKGARCH=armhf sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-armhf && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-armhf;
+              CGO_ENABLED=0 PKGARCH=arm64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-arm64 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-arm64;
               mv *.deb /tmp/upload/
 
       - run:
