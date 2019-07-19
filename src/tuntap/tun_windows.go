@@ -1,6 +1,7 @@
 package tuntap
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -27,23 +28,13 @@ func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 	}
 	iface, err := water.New(config)
 	if err != nil {
-		panic(err)
-	}
-	// Disable/enable the interface to resets its configuration (invalidating iface)
-	cmd := exec.Command("netsh", "interface", "set", "interface", iface.Name(), "admin=DISABLED")
-	tun.log.Debugln("netsh command:", strings.Join(cmd.Args, " "))
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		tun.log.Errorln("Windows netsh failed:", err)
-		tun.log.Traceln(string(output))
 		return err
 	}
-	cmd = exec.Command("netsh", "interface", "set", "interface", iface.Name(), "admin=ENABLED")
-	tun.log.Debugln("netsh command:", strings.Join(cmd.Args, " "))
-	output, err = cmd.CombinedOutput()
-	if err != nil {
-		tun.log.Errorln("Windows netsh failed:", err)
-		tun.log.Traceln(string(output))
+	if iface.Name() == "" {
+		return errors.New("unable to find TAP adapter with component ID " + config.PlatformSpecificParams.ComponentID)
+	}
+	// Reset the adapter - this invalidates iface so we'll need to get a new one
+	if err := tun.resetAdapter(); err != nil {
 		return err
 	}
 	// Get a new iface
@@ -62,6 +53,29 @@ func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 	tun.log.Infof("Interface IPv6: %s", addr)
 	tun.log.Infof("Interface MTU: %d", tun.mtu)
 	return tun.setupAddress(addr)
+}
+
+// Disable/enable the interface to reset its configuration (invalidating iface).
+func (tun *TunAdapter) resetAdapter() error {
+	// Bring down the interface first
+	cmd := exec.Command("netsh", "interface", "set", "interface", tun.iface.Name(), "admin=DISABLED")
+	tun.log.Debugln("netsh command:", strings.Join(cmd.Args, " "))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		tun.log.Errorln("Windows netsh failed:", err)
+		tun.log.Traceln(string(output))
+		return err
+	}
+	// Bring the interface back up
+	cmd = exec.Command("netsh", "interface", "set", "interface", tun.iface.Name(), "admin=ENABLED")
+	tun.log.Debugln("netsh command:", strings.Join(cmd.Args, " "))
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		tun.log.Errorln("Windows netsh failed:", err)
+		tun.log.Traceln(string(output))
+		return err
+	}
+	return nil
 }
 
 // Sets the MTU of the TAP adapter.
