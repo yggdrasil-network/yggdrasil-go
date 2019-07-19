@@ -15,6 +15,7 @@ github.com/songgao/packets v0.0.0-20160404182456-549a10cd4091/go.mod h1:N20Z5Y8o
 github.com/yggdrasil-network/water v0.0.0-20180615095340-f732c88f34ae h1:MYCANF1kehCG6x6G+/9txLfq6n3lS5Vp0Mxn1hdiBAc=
 github.com/yggdrasil-network/water v0.0.0-20180615095340-f732c88f34ae/go.mod h1:R0SBCsugm+Sf1katgTb2t7GXMm+nRIv43tM4VDZbaOs=
 github.com/yggdrasil-network/water v0.0.0-20190719211521-a76871ea954b/go.mod h1:R0SBCsugm+Sf1katgTb2t7GXMm+nRIv43tM4VDZbaOs=
+github.com/yggdrasil-network/water v0.0.0-20190719213007-b160316e362e/go.mod h1:R0SBCsugm+Sf1katgTb2t7GXMm+nRIv43tM4VDZbaOs=
 golang.org/x/crypto v0.0.0-20181203042331-505ab145d0a9 h1:mKdxBk7AujPs8kU4m80U72y/zjbZ3UcXC7dClwKbUI0=
 golang.org/x/crypto v0.0.0-20181203042331-505ab145d0a9/go.mod h1:6SG95UA2DQfeDnfUPMdvaQW0Q7yPrPDi9nlGo2tz2b4=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
