@@ -78,8 +78,9 @@ func (i *ICMPv6) Init(t *TunAdapter) {
 // Parses an incoming ICMPv6 packet. The packet provided may be either an
 // ethernet frame containing an IP packet, or the IP packet alone. This is
 // determined by whether the TUN/TAP adapter is running in TUN (layer 3) or
-// TAP (layer 2) mode.
-func (i *ICMPv6) ParsePacket(datain []byte) {
+// TAP (layer 2) mode. Returns an error condition which is nil if the ICMPv6
+// module handled the packet or contains the error if not.
+func (i *ICMPv6) ParsePacket(datain []byte) error {
 	var response []byte
 	var err error
 
@@ -91,11 +92,12 @@ func (i *ICMPv6) ParsePacket(datain []byte) {
 	}
 
 	if err != nil {
-		return
+		return err
 	}
 
 	// Write the packet to TUN/TAP
 	i.tun.iface.Write(response)
+	return nil
 }
 
 // Unwraps the ethernet headers of an incoming ICMPv6 packet and hands off
@@ -105,7 +107,7 @@ func (i *ICMPv6) ParsePacket(datain []byte) {
 func (i *ICMPv6) UnmarshalPacketL2(datain []byte) ([]byte, error) {
 	// Ignore non-IPv6 frames
 	if binary.BigEndian.Uint16(datain[12:14]) != uint16(0x86DD) {
-		return nil, nil
+		return nil, errors.New("Ignoring non-IPv6 frame")
 	}
 
 	// Hand over to ParsePacket to interpret the IPv6 packet
@@ -141,12 +143,12 @@ func (i *ICMPv6) UnmarshalPacket(datain []byte, datamac *[]byte) ([]byte, error)
 
 	// Check if the packet is IPv6
 	if ipv6Header.Version != ipv6.Version {
-		return nil, err
+		return nil, errors.New("Ignoring non-IPv6 packet")
 	}
 
 	// Check if the packet is ICMPv6
 	if ipv6Header.NextHeader != 58 {
-		return nil, err
+		return nil, errors.New("Ignoring non-ICMPv6 packet")
 	}
 
 	// Parse the ICMPv6 message contents

@@ -71,6 +71,9 @@ func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 
 // Sets the MTU of the TAP adapter.
 func (tun *TunAdapter) setupMTU(mtu int) error {
+	if tun.iface == nil || tun.iface.Name() == "" {
+		return errors.New("Can't configure MTU as TAP adapter is not present")
+	}
 	// Set MTU
 	cmd := exec.Command("netsh", "interface", "ipv6", "set", "subinterface",
 		fmt.Sprintf("interface=%s", tun.iface.Name()),
@@ -88,6 +91,9 @@ func (tun *TunAdapter) setupMTU(mtu int) error {
 
 // Sets the IPv6 address of the TAP adapter.
 func (tun *TunAdapter) setupAddress(addr string) error {
+	if tun.iface == nil || tun.iface.Name() == "" {
+		return errors.New("Can't configure IPv6 address as TAP adapter is not present")
+	}
 	// Set address
 	cmd := exec.Command("netsh", "interface", "ipv6", "add", "address",
 		fmt.Sprintf("interface=%s", tun.iface.Name()),

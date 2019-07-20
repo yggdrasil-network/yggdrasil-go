@@ -111,7 +111,7 @@ func (tun *TunAdapter) writer() error {
 }
 
 func (tun *TunAdapter) reader() error {
-	recvd := make([]byte, 65535)
+	recvd := make([]byte, 65535+tun_ETHER_HEADER_LENGTH)
 	for {
 		// Wait for a packet to be delivered to us through the TUN/TAP adapter
 		n, err := tun.iface.Read(recvd)
@@ -134,17 +134,22 @@ func (tun *TunAdapter) reader() error {
 			if len(recvd) <= offset {
 				continue
 			}
-			// If we detect an ICMP packet then hand it to the ICMPv6 module
-			if recvd[offset+6] == 58 {
-				// Found an ICMPv6 packet
-				b := make([]byte, n)
-				copy(b, recvd)
-				go tun.icmpv6.ParsePacket(b)
-			}
 		}
 		// Offset the buffer from now on so that we can ignore ethernet frames if
 		// they are present
-		bs := recvd[offset:]
+		bs := recvd[offset : offset+n]
+		n -= offset
+		// If we detect an ICMP packet then hand it to the ICMPv6 module
+		if bs[6] == 58 {
+			// Found an ICMPv6 packet - we need to make sure to give ICMPv6 the full
+			// Ethernet frame rather than just the IPv6 packet as this is needed for
+			// NDP to work correctly
+			if err := tun.icmpv6.ParsePacket(recvd); err == nil {
+				// We acted on the packet in the ICMPv6 module so don't forward or do
+				// anything else with it
+				continue
+			}
+		}
 		// From the IP header, work out what our source and destination addresses
 		// and node IDs are. We will need these in order to work out where to send
 		// the packet
@@ -162,7 +167,7 @@ func (tun *TunAdapter) reader() error {
 				continue
 			}
 			// Check the packet size
-			if n != 256*int(bs[4])+int(bs[5])+offset+tun_IPv6_HEADER_LENGTH {
+			if n-tun_IPv6_HEADER_LENGTH != 256*int(bs[4])+int(bs[5]) {
 				continue
 			}
 			// IPv6 address
@@ -176,7 +181,7 @@ func (tun *TunAdapter) reader() error {
 				continue
 			}
 			// Check the packet size
-			if n != 256*int(bs[2])+int(bs[3])+offset {
+			if n != 256*int(bs[2])+int(bs[3]) {
 				continue
 			}
 			// IPv4 address
@@ -185,6 +190,7 @@ func (tun *TunAdapter) reader() error {
 			copy(dstAddr[:addrlen], bs[16:])
 		} else {
 			// Unknown address length or protocol, so drop the packet and ignore it
+			tun.log.Traceln("Unknown packet type, dropping")
 			continue
 		}
 		if tun.ckr.isEnabled() && !tun.ckr.isValidSource(srcAddr, addrlen) {
