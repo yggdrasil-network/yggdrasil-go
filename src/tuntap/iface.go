@@ -111,10 +111,10 @@ func (tun *TunAdapter) writer() error {
 }
 
 func (tun *TunAdapter) reader() error {
-	bs := make([]byte, 65535)
+	recvd := make([]byte, 65535)
 	for {
 		// Wait for a packet to be delivered to us through the TUN/TAP adapter
-		n, err := tun.iface.Read(bs)
+		n, err := tun.iface.Read(recvd)
 		if err != nil {
 			if !tun.isOpen {
 				return err
@@ -130,17 +130,21 @@ func (tun *TunAdapter) reader() error {
 		if tun.iface.IsTAP() {
 			// Set our offset to beyond the ethernet headers
 			offset = tun_ETHER_HEADER_LENGTH
+			// Check first of all that we can go beyond the ethernet headers
+			if len(recvd) <= offset {
+				continue
+			}
 			// If we detect an ICMP packet then hand it to the ICMPv6 module
-			if bs[offset+6] == 58 {
+			if recvd[offset+6] == 58 {
 				// Found an ICMPv6 packet
 				b := make([]byte, n)
-				copy(b, bs)
+				copy(b, recvd)
 				go tun.icmpv6.ParsePacket(b)
 			}
-			// Then offset the buffer so that we can now just treat it as an IP
-			// packet from now on
-			bs = bs[offset:] // FIXME this breaks bs for the next read and means n is the wrong value
 		}
+		// Offset the buffer from now on so that we can ignore ethernet frames if
+		// they are present
+		bs := recvd[offset:]
 		// From the IP header, work out what our source and destination addresses
 		// and node IDs are. We will need these in order to work out where to send
 		// the packet
