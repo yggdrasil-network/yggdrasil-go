@@ -35,9 +35,9 @@ func init() {
 	hostPort := os.Getenv(envVarName)
 	switch {
 	case hostPort == "":
-		fmt.Printf("DEBUG: %s not set, profiler not started.\n", envVarName)
+		fmt.Fprintf(os.Stderr, "DEBUG: %s not set, profiler not started.\n", envVarName)
 	default:
-		fmt.Printf("DEBUG: Starting pprof on %s\n", hostPort)
+		fmt.Fprintf(os.Stderr, "DEBUG: Starting pprof on %s\n", hostPort)
 		go func() { fmt.Println(http.ListenAndServe(hostPort, nil)) }()
 	}
 }
