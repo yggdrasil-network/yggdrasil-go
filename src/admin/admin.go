@@ -103,7 +103,6 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 			addr := *address.AddrForNodeID(crypto.GetNodeID(&p.PublicKey))
 			so := net.IP(addr[:]).String()
 			peers[so] = Info{
-				"ip":          so,
 				"port":        p.Port,
 				"uptime":      p.Uptime.Seconds(),
 				"bytes_sent":  p.BytesSent,
