@@ -63,7 +63,11 @@ func (s *tunConn) reader() (err error) {
 		}
 		if n, err = s.conn.Read(b); err != nil {
 			if e, eok := err.(yggdrasil.ConnError); eok && !e.Temporary() {
-				s.tun.log.Errorln(s.conn.String(), "TUN/TAP conn read error:", err)
+				if e.Closed() {
+					s.tun.log.Debugln(s.conn.String(), "TUN/TAP conn read debug:", err)
+				} else {
+					s.tun.log.Errorln(s.conn.String(), "TUN/TAP conn read error:", err)
+				}
 				return e
 			}
 		} else if n > 0 {
@@ -98,9 +102,12 @@ func (s *tunConn) writer() error {
 			}
 			// TODO write timeout and close
 			if _, err := s.conn.Write(b); err != nil {
-				e, eok := err.(yggdrasil.ConnError)
-				if !eok {
-					s.tun.log.Errorln(s.conn.String(), "TUN/TAP generic write error:", err)
+				if e, eok := err.(yggdrasil.ConnError); !eok {
+					if e.Closed() {
+						s.tun.log.Debugln(s.conn.String(), "TUN/TAP generic write debug:", err)
+					} else {
+						s.tun.log.Errorln(s.conn.String(), "TUN/TAP generic write error:", err)
+					}
 				} else if ispackettoobig, maxsize := e.PacketTooBig(); ispackettoobig {
 					// TODO: This currently isn't aware of IPv4 for CKR
 					ptb := &icmp.PacketTooBig{
@@ -111,7 +118,11 @@ func (s *tunConn) writer() error {
 						s.tun.send <- packet
 					}
 				} else {
-					s.tun.log.Errorln(s.conn.String(), "TUN/TAP conn write error:", err)
+					if e.Closed() {
+						s.tun.log.Debugln(s.conn.String(), "TUN/TAP conn write debug:", err)
+					} else {
+						s.tun.log.Errorln(s.conn.String(), "TUN/TAP conn write error:", err)
+					}
 				}
 			} else {
 				s.stillAlive()
