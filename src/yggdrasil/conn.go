@@ -143,9 +143,9 @@ func (c *Conn) Read(b []byte) (int, error) {
 			if !ok {
 				return 0, ConnError{errors.New("session closed"), false, false, true, 0}
 			}
-			defer util.PutBytes(p.Payload)
 			var err error
-			workerFunc := func() {
+			sessionFunc := func() {
+				defer util.PutBytes(p.Payload)
 				// If the nonce is bad then drop the packet and return an error
 				if !sinfo.nonceIsOK(&p.Nonce) {
 					err = ConnError{errors.New("packet dropped due to invalid nonce"), false, true, false, 0}
@@ -165,7 +165,7 @@ func (c *Conn) Read(b []byte) (int, error) {
 				sinfo.time = time.Now()
 				sinfo.bytesRecvd += uint64(len(bs))
 			}
-			sinfo.doFunc(workerFunc)
+			sinfo.doFunc(sessionFunc)
 			// Something went wrong in the session worker so abort
 			if err != nil {
 				if ce, ok := err.(*ConnError); ok && ce.Temporary() {
@@ -187,7 +187,7 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 	sinfo := c.session
 	var packet []byte
 	written := len(b)
-	workerFunc := func() {
+	sessionFunc := func() {
 		// Does the packet exceed the permitted size for the session?
 		if uint16(len(b)) > sinfo.getMTU() {
 			written, err = 0, ConnError{errors.New("packet too big"), true, false, false, int(sinfo.getMTU())}
@@ -234,7 +234,7 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 		default: // Don't do anything, to keep traffic throttled
 		}
 	}
-	sinfo.doFunc(workerFunc)
+	sinfo.doFunc(sessionFunc)
 	// Give the packet to the router
 	if written > 0 {
 		sinfo.core.router.out(packet)
