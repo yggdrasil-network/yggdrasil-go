@@ -17,6 +17,7 @@ jobs:
               echo 'export CINAME=$(sh contrib/semver/name.sh)' >> $BASH_ENV
               echo 'export CIVERSION=$(sh contrib/semver/version.sh --bare)' >> $BASH_ENV
               echo 'export CIVERSIONRPM=$(sh contrib/semver/version.sh --bare | tr "-" ".")' >> $BASH_ENV
+              echo 'export CIBRANCH=$(echo $CIRCLE_BRANCH | tr -d "/")'
               case "$CINAME" in \
                 "yggdrasil") (echo 'export CICONFLICTS=yggdrasil-develop' >> $BASH_ENV) ;; \
                 "yggdrasil-develop") (echo 'export CICONFLICTS=yggdrasil' >> $BASH_ENV) ;; \
@@ -53,9 +54,9 @@ jobs:
           name: Build for Linux (RPM packages)
           command: |
               git clone https://github.com/yggdrasil-network/yggdrasil-package-rpm ~/rpmbuild/SPECS
-              cd ../ && tar -czvf ~/rpmbuild/SOURCES/v$CIVERSIONRPM --transform "s/project/yggdrasil-go-$CIRCLE_BRANCH-$CIVERSIONRPM/" project
-              sed -i "s/yggdrasil-go/yggdrasil-go-$CIRCLE_BRANCH/" ~/rpmbuild/SPECS/yggdrasil.spec
-              sed -i "s/^PKGNAME=yggdrasil/PKGNAME=yggdrasil-$CIRCLE_BRANCH/" ~/rpmbuild/SPECS/yggdrasil.spec
+              cd ../ && tar -czvf ~/rpmbuild/SOURCES/v$CIVERSIONRPM --transform "s/project/yggdrasil-go-$CIBRANCH-$CIVERSIONRPM/" project
+              sed -i "s/yggdrasil-go/yggdrasil-go-$CIBRANCH/" ~/rpmbuild/SPECS/yggdrasil.spec
+              sed -i "s/^PKGNAME=yggdrasil/PKGNAME=yggdrasil-$CIBRANCH/" ~/rpmbuild/SPECS/yggdrasil.spec
               sed -i "s/^Name\:.*/Name\:           $CINAME/" ~/rpmbuild/SPECS/yggdrasil.spec
               sed -i "s/^Version\:.*/Version\:        $CIVERSIONRPM/" ~/rpmbuild/SPECS/yggdrasil.spec
               sed -i "s/^Conflicts\:.*/Conflicts\:      $CICONFLICTS/" ~/rpmbuild/SPECS/yggdrasil.spec
