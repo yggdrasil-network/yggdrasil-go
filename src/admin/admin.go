@@ -60,7 +60,7 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 	go func() {
 		for {
 			e := <-a.reconfigure
-			current, previous := state.Get()
+			current, previous := state.GetCurrent(), state.GetPrevious()
 			if current.AdminListen != previous.AdminListen {
 				a.listenaddr = current.AdminListen
 				a.Stop()
@@ -69,7 +69,7 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 			e <- nil
 		}
 	}()
-	current, _ := state.Get()
+	current := state.GetCurrent()
 	a.listenaddr = current.AdminListen
 	a.AddHandler("list", []string{}, func(in Info) (Info, error) {
 		handlers := make(map[string]interface{})

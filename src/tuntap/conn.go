@@ -108,10 +108,10 @@ func (s *tunConn) writer() error {
 					} else {
 						s.tun.log.Errorln(s.conn.String(), "TUN/TAP generic write error:", err)
 					}
-				} else if ispackettoobig, maxsize := e.PacketTooBig(); ispackettoobig {
+				} else if e.PacketTooBig() {
 					// TODO: This currently isn't aware of IPv4 for CKR
 					ptb := &icmp.PacketTooBig{
-						MTU:  int(maxsize),
+						MTU:  int(e.PacketMaximumSize()),
 						Data: b[:900],
 					}
 					if packet, err := CreateICMPv6(b[8:24], b[24:40], ipv6.ICMPTypePacketTooBig, 0, ptb); err == nil {

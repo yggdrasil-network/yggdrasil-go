@@ -10,7 +10,6 @@ import (
 	hjson "github.com/hjson/hjson-go"
 	"github.com/mitchellh/mapstructure"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	"github.com/yggdrasil-network/yggdrasil-go/src/dummy"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
@@ -24,7 +23,6 @@ type Yggdrasil struct {
 	core      yggdrasil.Core
 	multicast multicast.Multicast
 	log       MobileLogger
-	dummy.DummyAdapter
 }
 
 func (m *Yggdrasil) addStaticPeers(cfg *config.NodeConfig) {
@@ -59,10 +57,10 @@ func (m *Yggdrasil) StartAutoconfigure() error {
 	if hostname, err := os.Hostname(); err == nil {
 		nc.NodeInfo = map[string]interface{}{"name": hostname}
 	}
-	if err := m.core.SetRouterAdapter(m); err != nil {
+	/*if err := m.core.SetRouterAdapter(m); err != nil {
 		logger.Errorln("An error occured setting router adapter:", err)
 		return err
-	}
+	}*/
 	state, err := m.core.Start(nc, logger)
 	if err != nil {
 		logger.Errorln("An error occured starting Yggdrasil:", err)
@@ -92,10 +90,10 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 		return err
 	}
 	nc.IfName = "dummy"
-	if err := m.core.SetRouterAdapter(m); err != nil {
+	/*if err := m.core.SetRouterAdapter(m); err != nil {
 		logger.Errorln("An error occured setting router adapter:", err)
 		return err
-	}
+	}*/
 	state, err := m.core.Start(nc, logger)
 	if err != nil {
 		logger.Errorln("An error occured starting Yggdrasil:", err)

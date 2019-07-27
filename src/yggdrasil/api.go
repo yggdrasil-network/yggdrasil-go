@@ -290,18 +290,6 @@ func (c *Core) ListenTCP(uri string) (*TcpListener, error) {
 	return c.link.tcp.listen(uri)
 }
 
-// NewEncryptionKeys generates a new encryption keypair. The encryption keys are
-// used to encrypt traffic and to derive the IPv6 address/subnet of the node.
-func (c *Core) NewEncryptionKeys() (*crypto.BoxPubKey, *crypto.BoxPrivKey) {
-	return crypto.NewBoxKeys()
-}
-
-// NewSigningKeys generates a new signing keypair. The signing keys are used to
-// derive the structure of the spanning tree.
-func (c *Core) NewSigningKeys() (*crypto.SigPubKey, *crypto.SigPrivKey) {
-	return crypto.NewSigKeys()
-}
-
 // NodeID gets the node ID.
 func (c *Core) NodeID() *crypto.NodeID {
 	return crypto.GetNodeID(&c.boxPub)
@@ -341,12 +329,6 @@ func (c *Core) Subnet() *net.IPNet {
 	subnet := address.SubnetForNodeID(c.NodeID())[:]
 	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
 	return &net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
-}
-
-// RouterAddresses returns the raw address and subnet types as used by the
-// router
-func (c *Core) RouterAddresses() (address.Address, address.Subnet) {
-	return c.router.addr, c.router.subnet
 }
 
 // NodeInfo gets the currently configured nodeinfo.
@@ -471,6 +453,16 @@ func (c *Core) CallPeer(addr string, sintf string) error {
 func (c *Core) DisconnectPeer(port uint64) error {
 	c.peers.removePeer(switchPort(port))
 	return nil
+}
+
+// RouterAddress returns the raw address as used by the router.
+func (c *Core) RouterAddress() address.Address {
+	return c.router.addr
+}
+
+// RouterSubnet returns the raw address as used by the router.
+func (c *Core) RouterSubnet() address.Subnet {
+	return c.router.subnet
 }
 
 // GetAllowedEncryptionPublicKeys returns the public keys permitted for incoming

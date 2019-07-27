@@ -132,7 +132,7 @@ func (r *router) mainLoop() {
 		case f := <-r.admin:
 			f()
 		case e := <-r.reconfigure:
-			current, _ := r.core.config.Get()
+			current := r.core.config.GetCurrent()
 			e <- r.nodeinfo.setNodeInfo(current.NodeInfo, current.NodeInfoPrivacy)
 		}
 	}

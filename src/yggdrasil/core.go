@@ -45,7 +45,7 @@ func (c *Core) init() error {
 		c.log = log.New(ioutil.Discard, "", 0)
 	}
 
-	current, _ := c.config.Get()
+	current := c.config.GetCurrent()
 
 	boxPrivHex, err := hex.DecodeString(current.EncryptionPrivateKey)
 	if err != nil {
@@ -94,7 +94,7 @@ func (c *Core) init() error {
 func (c *Core) addPeerLoop() {
 	for {
 		//  the peers from the config - these could change!
-		current, _ := c.config.Get()
+		current := c.config.GetCurrent()
 
 		// Add peers from the Peers section
 		for _, peer := range current.Peers {

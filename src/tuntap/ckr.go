@@ -59,7 +59,7 @@ func (c *cryptokey) init(tun *TunAdapter) {
 // Configure the CKR routes - this must only ever be called from the router
 // goroutine, e.g. through router.doAdmin
 func (c *cryptokey) configure() error {
-	current, _ := c.tun.config.Get()
+	current := c.tun.config.GetCurrent()
 
 	// Set enabled/disabled state
 	c.setEnabled(current.TunnelRouting.Enable)
