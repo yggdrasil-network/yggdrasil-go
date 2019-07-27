@@ -17,6 +17,7 @@ jobs:
               echo 'export CINAME=$(sh contrib/semver/name.sh)' >> $BASH_ENV
               echo 'export CIVERSION=$(sh contrib/semver/version.sh --bare)' >> $BASH_ENV
               echo 'export CIVERSIONRPM=$(sh contrib/semver/version.sh --bare | tr "-" ".")' >> $BASH_ENV
+              echo 'export CIBRANCH=$(echo $CIRCLE_BRANCH | tr -d "/")' >> $BASH_ENV
               case "$CINAME" in \
                 "yggdrasil") (echo 'export CICONFLICTS=yggdrasil-develop' >> $BASH_ENV) ;; \
                 "yggdrasil-develop") (echo 'export CICONFLICTS=yggdrasil' >> $BASH_ENV) ;; \
@@ -31,11 +32,11 @@ jobs:
               sudo apt-get install -y rpm file
               mkdir -p ~/rpmbuild/BUILD ~/rpmbuild/RPMS ~/rpmbuild/SOURCES ~/rpmbuild/SPECS ~/rpmbuild/SRPMS
 
-    #  - run:
-    #      name: Test debug builds
-    #      command: |
-    #          ./build -d
-    #          test -f yggdrasil && test -f yggdrasilctl
+      - run:
+          name: Test debug builds
+          command: |
+              ./build -d
+              test -f yggdrasil && test -f yggdrasilctl
 
       - run:
           name: Build for Linux (including Debian packages)
@@ -53,9 +54,9 @@ jobs:
           name: Build for Linux (RPM packages)
           command: |
               git clone https://github.com/yggdrasil-network/yggdrasil-package-rpm ~/rpmbuild/SPECS
-              cd ../ && tar -czvf ~/rpmbuild/SOURCES/v$CIVERSIONRPM --transform "s/project/yggdrasil-go-$CIRCLE_BRANCH-$CIVERSIONRPM/" project
-              sed -i "s/yggdrasil-go/yggdrasil-go-$CIRCLE_BRANCH/" ~/rpmbuild/SPECS/yggdrasil.spec
-              sed -i "s/^PKGNAME=yggdrasil/PKGNAME=yggdrasil-$CIRCLE_BRANCH/" ~/rpmbuild/SPECS/yggdrasil.spec
+              cd ../ && tar -czvf ~/rpmbuild/SOURCES/v$CIVERSIONRPM --transform "s/project/yggdrasil-go-$CIBRANCH-$CIVERSIONRPM/" project
+              sed -i "s/yggdrasil-go/yggdrasil-go-$CIBRANCH/" ~/rpmbuild/SPECS/yggdrasil.spec
+              sed -i "s/^PKGNAME=yggdrasil/PKGNAME=yggdrasil-$CIBRANCH/" ~/rpmbuild/SPECS/yggdrasil.spec
               sed -i "s/^Name\:.*/Name\:           $CINAME/" ~/rpmbuild/SPECS/yggdrasil.spec
               sed -i "s/^Version\:.*/Version\:        $CIVERSIONRPM/" ~/rpmbuild/SPECS/yggdrasil.spec
               sed -i "s/^Conflicts\:.*/Conflicts\:      $CICONFLICTS/" ~/rpmbuild/SPECS/yggdrasil.spec
@@ -101,11 +102,11 @@ jobs:
               echo -e "Host *\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
 
       - run:
-          name: Install Go 1.12
+          name: Install Go 1.12.7
           command: |
               cd /tmp
-              curl -LO https://dl.google.com/go/go1.12.darwin-amd64.pkg
-              sudo installer -pkg /tmp/go1.12.darwin-amd64.pkg -target /
+              curl -LO https://dl.google.com/go/go1.12.7.darwin-amd64.pkg
+              sudo installer -pkg /tmp/go1.12.7.darwin-amd64.pkg -target /
 
       #- run:
       #    name: Install Gomobile

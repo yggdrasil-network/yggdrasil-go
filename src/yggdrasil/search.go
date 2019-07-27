@@ -179,8 +179,12 @@ func (sinfo *searchInfo) continueSearch() {
 // Calls create search, and initializes the iterative search parts of the struct before returning it.
 func (s *searches) newIterSearch(dest *crypto.NodeID, mask *crypto.NodeID, callback func(*sessionInfo, error)) *searchInfo {
 	sinfo := s.createSearch(dest, mask, callback)
-	sinfo.toVisit = s.core.dht.lookup(dest, true)
 	sinfo.visited = make(map[crypto.NodeID]bool)
+	loc := s.core.switchTable.getLocator()
+	sinfo.toVisit = append(sinfo.toVisit, &dhtInfo{
+		key:    s.core.boxPub,
+		coords: loc.getCoords(),
+	}) // Start the search by asking ourself, useful if we're the destination
 	return sinfo
 }
 
