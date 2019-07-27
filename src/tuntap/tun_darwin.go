@@ -30,7 +30,12 @@ func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 	return tun.setupAddress(addr)
 }
 
-const darwin_SIOCAIFADDR_IN6 = 2155899162
+const (
+	darwin_SIOCAIFADDR_IN6       = 2155899162 // netinet6/in6_var.h
+	darwin_IN6_IFF_NODAD         = 0x0020     // netinet6/in6_var.h
+	darwin_IN6_IFF_SECURED       = 0x0400     // netinet6/in6_var.h
+	darwin_ND6_INFINITE_LIFETIME = 0xFFFFFFFF // netinet6/nd6.h
+)
 
 type in6_addrlifetime struct {
 	ia6t_expire    float64
@@ -91,8 +96,11 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 		ar.ifra_addr.sin6_addr[i] = uint16(binary.BigEndian.Uint16(b))
 	}
 
-	ar.ifra_lifetime.ia6t_vltime = 0xFFFFFFFF
-	ar.ifra_lifetime.ia6t_pltime = 0xFFFFFFFF
+	ar.ifra_flags |= darwin_IN6_IFF_NODAD
+	ar.ifra_flags |= darwin_IN6_IFF_SECURED
+
+	ar.ifra_lifetime.ia6t_vltime = darwin_ND6_INFINITE_LIFETIME
+	ar.ifra_lifetime.ia6t_pltime = darwin_ND6_INFINITE_LIFETIME
 
 	var ir ifreq
 	copy(ir.ifr_name[:], tun.iface.Name())
