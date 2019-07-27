@@ -32,11 +32,11 @@ jobs:
               sudo apt-get install -y rpm file
               mkdir -p ~/rpmbuild/BUILD ~/rpmbuild/RPMS ~/rpmbuild/SOURCES ~/rpmbuild/SPECS ~/rpmbuild/SRPMS
 
-    #  - run:
-    #      name: Test debug builds
-    #      command: |
-    #          ./build -d
-    #          test -f yggdrasil && test -f yggdrasilctl
+      - run:
+          name: Test debug builds
+          command: |
+              ./build -d
+              test -f yggdrasil && test -f yggdrasilctl
 
       - run:
           name: Build for Linux (including Debian packages)
@@ -102,11 +102,11 @@ jobs:
               echo -e "Host *\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
 
       - run:
-          name: Install Go 1.12
+          name: Install Go 1.12.7
           command: |
               cd /tmp
-              curl -LO https://dl.google.com/go/go1.12.darwin-amd64.pkg
-              sudo installer -pkg /tmp/go1.12.darwin-amd64.pkg -target /
+              curl -LO https://dl.google.com/go/go1.12.7.darwin-amd64.pkg
+              sudo installer -pkg /tmp/go1.12.7.darwin-amd64.pkg -target /
 
       #- run:
       #    name: Install Gomobile
