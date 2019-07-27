@@ -3,6 +3,7 @@ package util
 // These are misc. utility functions that didn't really fit anywhere else
 
 import "runtime"
+import "sync"
 import "time"
 
 // A wrapper around runtime.Gosched() so it doesn't need to be imported elsewhere.
@@ -21,29 +22,27 @@ func UnlockThread() {
 }
 
 // This is used to buffer recently used slices of bytes, to prevent allocations in the hot loops.
-// It's used like a sync.Pool, but with a fixed size and typechecked without type casts to/from interface{} (which were making the profiles look ugly).
-var byteStore chan []byte
+var byteStoreMutex sync.Mutex
+var byteStore [][]byte
 
-func init() {
-	byteStore = make(chan []byte, 32)
-}
-
-// Gets an empty slice from the byte store, if one is available, or else returns a new nil slice.
+// Gets an empty slice from the byte store.
 func GetBytes() []byte {
-	select {
-	case bs := <-byteStore:
-		return bs[:0]
-	default:
+	byteStoreMutex.Lock()
+	defer byteStoreMutex.Unlock()
+	if len(byteStore) > 0 {
+		var bs []byte
+		bs, byteStore = byteStore[len(byteStore)-1][:0], byteStore[:len(byteStore)-1]
+		return bs
+	} else {
 		return nil
 	}
 }
 
-// Puts a slice in the store, if there's room, or else returns and lets the slice get collected.
+// Puts a slice in the store.
 func PutBytes(bs []byte) {
-	select {
-	case byteStore <- bs:
-	default:
-	}
+	byteStoreMutex.Lock()
+	defer byteStoreMutex.Unlock()
+	byteStore = append(byteStore, bs)
 }
 
 // This is a workaround to go's broken timer implementation

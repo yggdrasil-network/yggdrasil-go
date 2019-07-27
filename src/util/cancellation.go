@@ -13,33 +13,25 @@ type Cancellation interface {
 	Error() error
 }
 
+var CancellationFinalized = errors.New("finalizer called")
+var CancellationTimeoutError = errors.New("timeout")
+
 func CancellationFinalizer(c Cancellation) {
-	c.Cancel(errors.New("finalizer called"))
+	c.Cancel(CancellationFinalized)
 }
 
 type cancellation struct {
-	signal chan error
 	cancel chan struct{}
-	errMtx sync.RWMutex
+	mutex  sync.RWMutex
 	err    error
-}
-
-func (c *cancellation) worker() {
-	// Launch this in a separate goroutine when creating a cancellation
-	err := <-c.signal
-	c.errMtx.Lock()
-	c.err = err
-	c.errMtx.Unlock()
-	close(c.cancel)
+	done   bool
 }
 
 func NewCancellation() Cancellation {
 	c := cancellation{
-		signal: make(chan error),
 		cancel: make(chan struct{}),
 	}
 	runtime.SetFinalizer(&c, CancellationFinalizer)
-	go c.worker()
 	return &c
 }
 
@@ -48,18 +40,22 @@ func (c *cancellation) Finished() <-chan struct{} {
 }
 
 func (c *cancellation) Cancel(err error) error {
-	select {
-	case c.signal <- err:
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	if c.done {
+		return c.err
+	} else {
+		c.err = err
+		c.done = true
+		close(c.cancel)
 		return nil
-	case <-c.cancel:
-		return c.Error()
 	}
 }
 
 func (c *cancellation) Error() error {
-	c.errMtx.RLock()
+	c.mutex.RLock()
 	err := c.err
-	c.errMtx.RUnlock()
+	c.mutex.RUnlock()
 	return err
 }
 
@@ -74,8 +70,6 @@ func CancellationChild(parent Cancellation) Cancellation {
 	}()
 	return child
 }
-
-var CancellationTimeoutError = errors.New("timeout")
 
 func CancellationWithTimeout(parent Cancellation, timeout time.Duration) Cancellation {
 	child := CancellationChild(parent)

@@ -145,9 +145,9 @@ func (c *Conn) Read(b []byte) (int, error) {
 			}
 			defer util.PutBytes(p.Payload)
 			var err error
-			done := make(chan struct{})
+			//done := make(chan struct{})
 			workerFunc := func() {
-				defer close(done)
+				//defer close(done)
 				// If the nonce is bad then drop the packet and return an error
 				if !sinfo.nonceIsOK(&p.Nonce) {
 					err = ConnError{errors.New("packet dropped due to invalid nonce"), false, true, false, 0}
@@ -167,33 +167,36 @@ func (c *Conn) Read(b []byte) (int, error) {
 				sinfo.time = time.Now()
 				sinfo.bytesRecvd += uint64(len(bs))
 			}
-			// Hand over to the session worker
-			defer func() {
-				if recover() != nil {
-					err = ConnError{errors.New("read failed, session already closed"), false, false, true, 0}
-					close(done)
+			sinfo.doFunc(workerFunc)
+			/*
+				// Hand over to the session worker
+				defer func() {
+					if recover() != nil {
+						err = ConnError{errors.New("read failed, session already closed"), false, false, true, 0}
+						close(done)
+					}
+				}() // In case we're racing with a close
+				// Send to worker
+				select {
+				case sinfo.worker <- workerFunc:
+				case <-cancel.Finished():
+					if cancel.Error() == util.CancellationTimeoutError {
+						return 0, ConnError{errors.New("read timeout"), true, false, false, 0}
+					} else {
+						return 0, ConnError{errors.New("session closed"), false, false, true, 0}
+					}
 				}
-			}() // In case we're racing with a close
-			// Send to worker
-			select {
-			case sinfo.worker <- workerFunc:
-			case <-cancel.Finished():
-				if cancel.Error() == util.CancellationTimeoutError {
-					return 0, ConnError{errors.New("read timeout"), true, false, false, 0}
-				} else {
-					return 0, ConnError{errors.New("session closed"), false, false, true, 0}
+				// Wait for the worker to finish
+				select {
+				case <-done: // Wait for the worker to finish, failing this can cause memory errors (util.[Get||Put]Bytes stuff)
+				case <-cancel.Finished():
+					if cancel.Error() == util.CancellationTimeoutError {
+						return 0, ConnError{errors.New("read timeout"), true, false, false, 0}
+					} else {
+						return 0, ConnError{errors.New("session closed"), false, false, true, 0}
+					}
 				}
-			}
-			// Wait for the worker to finish
-			select {
-			case <-done: // Wait for the worker to finish, failing this can cause memory errors (util.[Get||Put]Bytes stuff)
-			case <-cancel.Finished():
-				if cancel.Error() == util.CancellationTimeoutError {
-					return 0, ConnError{errors.New("read timeout"), true, false, false, 0}
-				} else {
-					return 0, ConnError{errors.New("session closed"), false, false, true, 0}
-				}
-			}
+			*/
 			// Something went wrong in the session worker so abort
 			if err != nil {
 				if ce, ok := err.(*ConnError); ok && ce.Temporary() {
@@ -214,10 +217,10 @@ func (c *Conn) Read(b []byte) (int, error) {
 func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 	sinfo := c.session
 	var packet []byte
-	done := make(chan struct{})
+	//done := make(chan struct{})
 	written := len(b)
 	workerFunc := func() {
-		defer close(done)
+		//defer close(done)
 		// Does the packet exceed the permitted size for the session?
 		if uint16(len(b)) > sinfo.getMTU() {
 			written, err = 0, ConnError{errors.New("packet too big"), true, false, false, int(sinfo.getMTU())}
@@ -264,27 +267,30 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 		default: // Don't do anything, to keep traffic throttled
 		}
 	}
-	// Set up a timer so this doesn't block forever
-	cancel := c.getDeadlineCancellation(&c.writeDeadline)
-	defer cancel.Cancel(nil)
-	// Hand over to the session worker
-	defer func() {
-		if recover() != nil {
-			err = ConnError{errors.New("write failed, session already closed"), false, false, true, 0}
-			close(done)
+	sinfo.doFunc(workerFunc)
+	/*
+		// Set up a timer so this doesn't block forever
+		cancel := c.getDeadlineCancellation(&c.writeDeadline)
+		defer cancel.Cancel(nil)
+		// Hand over to the session worker
+		defer func() {
+			if recover() != nil {
+				err = ConnError{errors.New("write failed, session already closed"), false, false, true, 0}
+				close(done)
+			}
+		}() // In case we're racing with a close
+		select { // Send to worker
+		case sinfo.worker <- workerFunc:
+		case <-cancel.Finished():
+			if cancel.Error() == util.CancellationTimeoutError {
+				return 0, ConnError{errors.New("write timeout"), true, false, false, 0}
+			} else {
+				return 0, ConnError{errors.New("session closed"), false, false, true, 0}
+			}
 		}
-	}() // In case we're racing with a close
-	select { // Send to worker
-	case sinfo.worker <- workerFunc:
-	case <-cancel.Finished():
-		if cancel.Error() == util.CancellationTimeoutError {
-			return 0, ConnError{errors.New("write timeout"), true, false, false, 0}
-		} else {
-			return 0, ConnError{errors.New("session closed"), false, false, true, 0}
-		}
-	}
-	// Wait for the worker to finish, otherwise there are memory errors ([Get||Put]Bytes stuff)
-	<-done
+		// Wait for the worker to finish, otherwise there are memory errors ([Get||Put]Bytes stuff)
+		<-done
+	*/
 	// Give the packet to the router
 	if written > 0 {
 		sinfo.core.router.out(packet)
