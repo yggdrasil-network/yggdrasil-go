@@ -17,7 +17,7 @@ jobs:
               echo 'export CINAME=$(sh contrib/semver/name.sh)' >> $BASH_ENV
               echo 'export CIVERSION=$(sh contrib/semver/version.sh --bare)' >> $BASH_ENV
               echo 'export CIVERSIONRPM=$(sh contrib/semver/version.sh --bare | tr "-" ".")' >> $BASH_ENV
-              echo 'export CIBRANCH=$(echo $CIRCLE_BRANCH | tr -d "/")'
+              echo 'export CIBRANCH=$(echo $CIRCLE_BRANCH | tr -d "/")' >> $BASH_ENV
               case "$CINAME" in \
                 "yggdrasil") (echo 'export CICONFLICTS=yggdrasil-develop' >> $BASH_ENV) ;; \
                 "yggdrasil-develop") (echo 'export CICONFLICTS=yggdrasil' >> $BASH_ENV) ;; \
