@@ -35,7 +35,7 @@ func (m *Multicast) Init(core *yggdrasil.Core, state *config.NodeState, log *log
 	m.config = state
 	m.log = log
 	m.listeners = make(map[string]*yggdrasil.TcpListener)
-	current, _ := m.config.Get()
+	current := m.config.GetCurrent()
 	m.listenPort = current.LinkLocalTCPPort
 	m.groupAddr = "[ff02::114]:9001"
 	return nil
@@ -92,7 +92,7 @@ func (m *Multicast) UpdateConfig(config *config.NodeConfig) {
 func (m *Multicast) Interfaces() map[string]net.Interface {
 	interfaces := make(map[string]net.Interface)
 	// Get interface expressions from config
-	current, _ := m.config.Get()
+	current := m.config.GetCurrent()
 	exprs := current.MulticastInterfaces
 	// Ask the system for network interfaces
 	allifaces, err := net.Interfaces()

@@ -59,7 +59,7 @@ type DHTRes struct {
 }
 
 // NodeInfoPayload represents a RequestNodeInfo response, in bytes.
-type NodeInfoPayload nodeinfoPayload
+type NodeInfoPayload []byte
 
 // SwitchQueues represents information from the switch related to link
 // congestion and a list of switch queues created in response to congestion on a
@@ -261,7 +261,7 @@ func BuildVersion() string {
 	return buildVersion
 }
 
-// ListenConn returns a listener for Yggdrasil session connections.
+// ConnListen returns a listener for Yggdrasil session connections.
 func (c *Core) ConnListen() (*Listener, error) {
 	c.sessions.listenerMutex.Lock()
 	defer c.sessions.listenerMutex.Unlock()
@@ -290,18 +290,6 @@ func (c *Core) ListenTCP(uri string) (*TcpListener, error) {
 	return c.link.tcp.listen(uri)
 }
 
-// NewEncryptionKeys generates a new encryption keypair. The encryption keys are
-// used to encrypt traffic and to derive the IPv6 address/subnet of the node.
-func (c *Core) NewEncryptionKeys() (*crypto.BoxPubKey, *crypto.BoxPrivKey) {
-	return crypto.NewBoxKeys()
-}
-
-// NewSigningKeys generates a new signing keypair. The signing keys are used to
-// derive the structure of the spanning tree.
-func (c *Core) NewSigningKeys() (*crypto.SigPubKey, *crypto.SigPrivKey) {
-	return crypto.NewSigKeys()
-}
-
 // NodeID gets the node ID.
 func (c *Core) NodeID() *crypto.NodeID {
 	return crypto.GetNodeID(&c.boxPub)
@@ -312,13 +300,13 @@ func (c *Core) TreeID() *crypto.TreeID {
 	return crypto.GetTreeID(&c.sigPub)
 }
 
-// SigPubKey gets the node's signing public key.
-func (c *Core) SigPubKey() string {
+// SigningPublicKey gets the node's signing public key.
+func (c *Core) SigningPublicKey() string {
 	return hex.EncodeToString(c.sigPub[:])
 }
 
-// BoxPubKey gets the node's encryption public key.
-func (c *Core) BoxPubKey() string {
+// EncryptionPublicKey gets the node's encryption public key.
+func (c *Core) EncryptionPublicKey() string {
 	return hex.EncodeToString(c.boxPub[:])
 }
 
@@ -330,27 +318,21 @@ func (c *Core) Coords() []byte {
 
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128
 // address.
-func (c *Core) Address() *net.IP {
+func (c *Core) Address() net.IP {
 	address := net.IP(address.AddrForNodeID(c.NodeID())[:])
-	return &address
+	return address
 }
 
 // Subnet gets the routed IPv6 subnet of the Yggdrasil node. This is always a
 // /64 subnet.
-func (c *Core) Subnet() *net.IPNet {
+func (c *Core) Subnet() net.IPNet {
 	subnet := address.SubnetForNodeID(c.NodeID())[:]
 	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
-	return &net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
+	return net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
 }
 
-// RouterAddresses returns the raw address and subnet types as used by the
-// router
-func (c *Core) RouterAddresses() (address.Address, address.Subnet) {
-	return c.router.addr, c.router.subnet
-}
-
-// NodeInfo gets the currently configured nodeinfo.
-func (c *Core) MyNodeInfo() nodeinfoPayload {
+// MyNodeInfo gets the currently configured nodeinfo.
+func (c *Core) MyNodeInfo() NodeInfoPayload {
 	return c.router.nodeinfo.getNodeInfo()
 }
 
@@ -373,7 +355,7 @@ func (c *Core) GetNodeInfo(keyString, coordString string, nocache bool) (NodeInf
 	}
 	if !nocache {
 		if response, err := c.router.nodeinfo.getCachedNodeInfo(key); err == nil {
-			return NodeInfoPayload(response), nil
+			return response, nil
 		}
 	}
 	var coords []byte
@@ -388,9 +370,9 @@ func (c *Core) GetNodeInfo(keyString, coordString string, nocache bool) (NodeInf
 			coords = append(coords, uint8(u64))
 		}
 	}
-	response := make(chan *nodeinfoPayload, 1)
+	response := make(chan *NodeInfoPayload, 1)
 	sendNodeInfoRequest := func() {
-		c.router.nodeinfo.addCallback(key, func(nodeinfo *nodeinfoPayload) {
+		c.router.nodeinfo.addCallback(key, func(nodeinfo *NodeInfoPayload) {
 			defer func() { recover() }()
 			select {
 			case response <- nodeinfo:
@@ -405,9 +387,9 @@ func (c *Core) GetNodeInfo(keyString, coordString string, nocache bool) (NodeInf
 		close(response)
 	}()
 	for res := range response {
-		return NodeInfoPayload(*res), nil
+		return *res, nil
 	}
-	return NodeInfoPayload{}, errors.New(fmt.Sprintf("getNodeInfo timeout: %s", keyString))
+	return NodeInfoPayload{}, fmt.Errorf("getNodeInfo timeout: %s", keyString)
 }
 
 // SetSessionGatekeeper allows you to configure a handler function for deciding
@@ -493,7 +475,8 @@ func (c *Core) RemoveAllowedEncryptionPublicKey(bstr string) (err error) {
 	return nil
 }
 
-// Send a DHT ping to the node with the provided key and coords, optionally looking up the specified target NodeID.
+// DHTPing sends a DHT ping to the node with the provided key and coords,
+// optionally looking up the specified target NodeID.
 func (c *Core) DHTPing(keyString, coordString, targetString string) (DHTRes, error) {
 	var key crypto.BoxPubKey
 	if keyBytes, err := hex.DecodeString(keyString); err != nil {
@@ -553,5 +536,5 @@ func (c *Core) DHTPing(keyString, coordString, targetString string) (DHTRes, err
 		}
 		return r, nil
 	}
-	return DHTRes{}, errors.New(fmt.Sprintf("DHT ping timeout: %s", keyString))
+	return DHTRes{}, fmt.Errorf("DHT ping timeout: %s", keyString)
 }

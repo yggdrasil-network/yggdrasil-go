@@ -35,8 +35,17 @@ func (e *ConnError) Temporary() bool {
 // PacketTooBig returns in response to sending a packet that is too large, and
 // if so, the maximum supported packet size that should be used for the
 // connection.
-func (e *ConnError) PacketTooBig() (bool, int) {
-	return e.maxsize > 0, e.maxsize
+func (e *ConnError) PacketTooBig() bool {
+	return e.maxsize > 0
+}
+
+// PacketMaximumSize returns the maximum supported packet size. This will only
+// return a non-zero value if ConnError.PacketTooBig() returns true.
+func (e *ConnError) PacketMaximumSize() int {
+	if !e.PacketTooBig() {
+		return 0
+	}
+	return e.maxsize
 }
 
 // Closed returns if the session is already closed and is now unusable.

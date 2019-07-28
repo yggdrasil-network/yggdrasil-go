@@ -119,7 +119,7 @@ func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener 
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
 // read/write goroutines to handle packets on that interface.
 func (tun *TunAdapter) Start() error {
-	current, _ := tun.config.Get()
+	current := tun.config.GetCurrent()
 	if tun.config == nil || tun.listener == nil || tun.dialer == nil {
 		return errors.New("No configuration available to TUN/TAP")
 	}

@@ -60,7 +60,7 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 	go func() {
 		for {
 			e := <-a.reconfigure
-			current, previous := state.Get()
+			current, previous := state.GetCurrent(), state.GetPrevious()
 			if current.AdminListen != previous.AdminListen {
 				a.listenaddr = current.AdminListen
 				a.Stop()
@@ -69,7 +69,7 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 			e <- nil
 		}
 	}()
-	current, _ := state.Get()
+	current := state.GetCurrent()
 	a.listenaddr = current.AdminListen
 	a.AddHandler("list", []string{}, func(in Info) (Info, error) {
 		handlers := make(map[string]interface{})
@@ -85,14 +85,15 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 	*/
 	a.AddHandler("getSelf", []string{}, func(in Info) (Info, error) {
 		ip := c.Address().String()
+		subnet := c.Subnet()
 		return Info{
 			"self": Info{
 				ip: Info{
-					"box_pub_key":   c.BoxPubKey(),
+					"box_pub_key":   c.EncryptionPublicKey(),
 					"build_name":    yggdrasil.BuildName(),
 					"build_version": yggdrasil.BuildVersion(),
 					"coords":        fmt.Sprintf("%v", c.Coords()),
-					"subnet":        c.Subnet().String(),
+					"subnet":        subnet.String(),
 				},
 			},
 		}, nil
