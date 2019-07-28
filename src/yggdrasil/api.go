@@ -59,7 +59,7 @@ type DHTRes struct {
 }
 
 // NodeInfoPayload represents a RequestNodeInfo response, in bytes.
-type NodeInfoPayload nodeinfoPayload
+type NodeInfoPayload []byte
 
 // SwitchQueues represents information from the switch related to link
 // congestion and a list of switch queues created in response to congestion on a
@@ -301,12 +301,12 @@ func (c *Core) TreeID() *crypto.TreeID {
 }
 
 // SigPubKey gets the node's signing public key.
-func (c *Core) SigPubKey() string {
+func (c *Core) SigningPublicKey() string {
 	return hex.EncodeToString(c.sigPub[:])
 }
 
 // BoxPubKey gets the node's encryption public key.
-func (c *Core) BoxPubKey() string {
+func (c *Core) EncryptionPublicKey() string {
 	return hex.EncodeToString(c.boxPub[:])
 }
 
@@ -318,21 +318,21 @@ func (c *Core) Coords() []byte {
 
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128
 // address.
-func (c *Core) Address() *net.IP {
+func (c *Core) Address() net.IP {
 	address := net.IP(address.AddrForNodeID(c.NodeID())[:])
-	return &address
+	return address
 }
 
 // Subnet gets the routed IPv6 subnet of the Yggdrasil node. This is always a
 // /64 subnet.
-func (c *Core) Subnet() *net.IPNet {
+func (c *Core) Subnet() net.IPNet {
 	subnet := address.SubnetForNodeID(c.NodeID())[:]
 	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
-	return &net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
+	return net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
 }
 
-// NodeInfo gets the currently configured nodeinfo.
-func (c *Core) MyNodeInfo() nodeinfoPayload {
+// MyNodeInfo gets the currently configured nodeinfo.
+func (c *Core) MyNodeInfo() NodeInfoPayload {
 	return c.router.nodeinfo.getNodeInfo()
 }
 
@@ -355,7 +355,7 @@ func (c *Core) GetNodeInfo(keyString, coordString string, nocache bool) (NodeInf
 	}
 	if !nocache {
 		if response, err := c.router.nodeinfo.getCachedNodeInfo(key); err == nil {
-			return NodeInfoPayload(response), nil
+			return response, nil
 		}
 	}
 	var coords []byte
@@ -370,9 +370,9 @@ func (c *Core) GetNodeInfo(keyString, coordString string, nocache bool) (NodeInf
 			coords = append(coords, uint8(u64))
 		}
 	}
-	response := make(chan *nodeinfoPayload, 1)
+	response := make(chan *NodeInfoPayload, 1)
 	sendNodeInfoRequest := func() {
-		c.router.nodeinfo.addCallback(key, func(nodeinfo *nodeinfoPayload) {
+		c.router.nodeinfo.addCallback(key, func(nodeinfo *NodeInfoPayload) {
 			defer func() { recover() }()
 			select {
 			case response <- nodeinfo:
@@ -387,7 +387,7 @@ func (c *Core) GetNodeInfo(keyString, coordString string, nocache bool) (NodeInf
 		close(response)
 	}()
 	for res := range response {
-		return NodeInfoPayload(*res), nil
+		return *res, nil
 	}
 	return NodeInfoPayload{}, errors.New(fmt.Sprintf("getNodeInfo timeout: %s", keyString))
 }
@@ -453,16 +453,6 @@ func (c *Core) CallPeer(addr string, sintf string) error {
 func (c *Core) DisconnectPeer(port uint64) error {
 	c.peers.removePeer(switchPort(port))
 	return nil
-}
-
-// RouterAddress returns the raw address as used by the router.
-func (c *Core) RouterAddress() address.Address {
-	return c.router.addr
-}
-
-// RouterSubnet returns the raw address as used by the router.
-func (c *Core) RouterSubnet() address.Subnet {
-	return c.router.subnet
 }
 
 // GetAllowedEncryptionPublicKeys returns the public keys permitted for incoming

@@ -394,7 +394,7 @@ func (p *nodeinfoReqRes) decode(bs []byte) bool {
 		if len(bs) == 0 {
 			return false
 		}
-		p.NodeInfo = make(nodeinfoPayload, len(bs))
+		p.NodeInfo = make(NodeInfoPayload, len(bs))
 		if !wire_chop_slice(p.NodeInfo[:], &bs) {
 			return false
 		}

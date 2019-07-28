@@ -85,14 +85,15 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 	*/
 	a.AddHandler("getSelf", []string{}, func(in Info) (Info, error) {
 		ip := c.Address().String()
+		subnet := c.Subnet()
 		return Info{
 			"self": Info{
 				ip: Info{
-					"box_pub_key":   c.BoxPubKey(),
+					"box_pub_key":   c.EncryptionPublicKey(),
 					"build_name":    yggdrasil.BuildName(),
 					"build_version": yggdrasil.BuildVersion(),
 					"coords":        fmt.Sprintf("%v", c.Coords()),
-					"subnet":        c.Subnet().String(),
+					"subnet":        subnet.String(),
 				},
 			},
 		}, nil

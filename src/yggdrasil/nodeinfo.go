@@ -13,7 +13,7 @@ import (
 
 type nodeinfo struct {
 	core            *Core
-	myNodeInfo      nodeinfoPayload
+	myNodeInfo      NodeInfoPayload
 	myNodeInfoMutex sync.RWMutex
 	callbacks       map[crypto.BoxPubKey]nodeinfoCallback
 	callbacksMutex  sync.Mutex
@@ -21,15 +21,13 @@ type nodeinfo struct {
 	cacheMutex      sync.RWMutex
 }
 
-type nodeinfoPayload []byte
-
 type nodeinfoCached struct {
-	payload nodeinfoPayload
+	payload NodeInfoPayload
 	created time.Time
 }
 
 type nodeinfoCallback struct {
-	call    func(nodeinfo *nodeinfoPayload)
+	call    func(nodeinfo *NodeInfoPayload)
 	created time.Time
 }
 
@@ -38,7 +36,7 @@ type nodeinfoReqRes struct {
 	SendPermPub crypto.BoxPubKey // Sender's permanent key
 	SendCoords  []byte           // Sender's coords
 	IsResponse  bool
-	NodeInfo    nodeinfoPayload
+	NodeInfo    NodeInfoPayload
 }
 
 // Initialises the nodeinfo cache/callback maps, and starts a goroutine to keep
@@ -70,7 +68,7 @@ func (m *nodeinfo) init(core *Core) {
 }
 
 // Add a callback for a nodeinfo lookup
-func (m *nodeinfo) addCallback(sender crypto.BoxPubKey, call func(nodeinfo *nodeinfoPayload)) {
+func (m *nodeinfo) addCallback(sender crypto.BoxPubKey, call func(nodeinfo *NodeInfoPayload)) {
 	m.callbacksMutex.Lock()
 	defer m.callbacksMutex.Unlock()
 	m.callbacks[sender] = nodeinfoCallback{
@@ -80,7 +78,7 @@ func (m *nodeinfo) addCallback(sender crypto.BoxPubKey, call func(nodeinfo *node
 }
 
 // Handles the callback, if there is one
-func (m *nodeinfo) callback(sender crypto.BoxPubKey, nodeinfo nodeinfoPayload) {
+func (m *nodeinfo) callback(sender crypto.BoxPubKey, nodeinfo NodeInfoPayload) {
 	m.callbacksMutex.Lock()
 	defer m.callbacksMutex.Unlock()
 	if callback, ok := m.callbacks[sender]; ok {
@@ -90,7 +88,7 @@ func (m *nodeinfo) callback(sender crypto.BoxPubKey, nodeinfo nodeinfoPayload) {
 }
 
 // Get the current node's nodeinfo
-func (m *nodeinfo) getNodeInfo() nodeinfoPayload {
+func (m *nodeinfo) getNodeInfo() NodeInfoPayload {
 	m.myNodeInfoMutex.RLock()
 	defer m.myNodeInfoMutex.RUnlock()
 	return m.myNodeInfo
@@ -135,7 +133,7 @@ func (m *nodeinfo) setNodeInfo(given interface{}, privacy bool) error {
 }
 
 // Add nodeinfo into the cache for a node
-func (m *nodeinfo) addCachedNodeInfo(key crypto.BoxPubKey, payload nodeinfoPayload) {
+func (m *nodeinfo) addCachedNodeInfo(key crypto.BoxPubKey, payload NodeInfoPayload) {
 	m.cacheMutex.Lock()
 	defer m.cacheMutex.Unlock()
 	m.cache[key] = nodeinfoCached{
@@ -145,13 +143,13 @@ func (m *nodeinfo) addCachedNodeInfo(key crypto.BoxPubKey, payload nodeinfoPaylo
 }
 
 // Get a nodeinfo entry from the cache
-func (m *nodeinfo) getCachedNodeInfo(key crypto.BoxPubKey) (nodeinfoPayload, error) {
+func (m *nodeinfo) getCachedNodeInfo(key crypto.BoxPubKey) (NodeInfoPayload, error) {
 	m.cacheMutex.RLock()
 	defer m.cacheMutex.RUnlock()
 	if nodeinfo, ok := m.cache[key]; ok {
 		return nodeinfo.payload, nil
 	}
-	return nodeinfoPayload{}, errors.New("No cache entry found")
+	return NodeInfoPayload{}, errors.New("No cache entry found")
 }
 
 // Handles a nodeinfo request/response - called from the router
