@@ -261,7 +261,7 @@ func BuildVersion() string {
 	return buildVersion
 }
 
-// ListenConn returns a listener for Yggdrasil session connections.
+// ConnListen returns a listener for Yggdrasil session connections.
 func (c *Core) ConnListen() (*Listener, error) {
 	c.sessions.listenerMutex.Lock()
 	defer c.sessions.listenerMutex.Unlock()
@@ -300,12 +300,12 @@ func (c *Core) TreeID() *crypto.TreeID {
 	return crypto.GetTreeID(&c.sigPub)
 }
 
-// SigPubKey gets the node's signing public key.
+// SigningPublicKey gets the node's signing public key.
 func (c *Core) SigningPublicKey() string {
 	return hex.EncodeToString(c.sigPub[:])
 }
 
-// BoxPubKey gets the node's encryption public key.
+// EncryptionPublicKey gets the node's encryption public key.
 func (c *Core) EncryptionPublicKey() string {
 	return hex.EncodeToString(c.boxPub[:])
 }
@@ -389,7 +389,7 @@ func (c *Core) GetNodeInfo(keyString, coordString string, nocache bool) (NodeInf
 	for res := range response {
 		return *res, nil
 	}
-	return NodeInfoPayload{}, errors.New(fmt.Sprintf("getNodeInfo timeout: %s", keyString))
+	return NodeInfoPayload{}, fmt.Errorf("getNodeInfo timeout: %s", keyString)
 }
 
 // SetSessionGatekeeper allows you to configure a handler function for deciding
@@ -475,7 +475,8 @@ func (c *Core) RemoveAllowedEncryptionPublicKey(bstr string) (err error) {
 	return nil
 }
 
-// Send a DHT ping to the node with the provided key and coords, optionally looking up the specified target NodeID.
+// DHTPing sends a DHT ping to the node with the provided key and coords,
+// optionally looking up the specified target NodeID.
 func (c *Core) DHTPing(keyString, coordString, targetString string) (DHTRes, error) {
 	var key crypto.BoxPubKey
 	if keyBytes, err := hex.DecodeString(keyString); err != nil {
@@ -535,5 +536,5 @@ func (c *Core) DHTPing(keyString, coordString, targetString string) (DHTRes, err
 		}
 		return r, nil
 	}
-	return DHTRes{}, errors.New(fmt.Sprintf("DHT ping timeout: %s", keyString))
+	return DHTRes{}, fmt.Errorf("DHT ping timeout: %s", keyString)
 }
