@@ -230,7 +230,7 @@ func (c *Core) GetSessions() []Session {
 						skip = true
 					}
 				}()
-				sinfo.doWorker(workerFunc)
+				sinfo.doFunc(workerFunc)
 			}()
 			if skip {
 				continue

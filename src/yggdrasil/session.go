@@ -16,6 +16,7 @@ import (
 // All the information we know about an active session.
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
 type sessionInfo struct {
+	mutex          sync.Mutex               // Protects all of the below, use it any time you read/chance the contents of a session
 	core           *Core                    //
 	reconfigure    chan chan error          //
 	theirAddr      address.Address          //
@@ -43,24 +44,14 @@ type sessionInfo struct {
 	tstamp         int64                    // ATOMIC - tstamp from their last session ping, replay attack mitigation
 	bytesSent      uint64                   // Bytes of real traffic sent in this session
 	bytesRecvd     uint64                   // Bytes of real traffic received in this session
-	worker         chan func()              // Channel to send work to the session worker
 	recv           chan *wire_trafficPacket // Received packets go here, picked up by the associated Conn
 	init           chan struct{}            // Closed when the first session pong arrives, used to signal that the session is ready for initial use
 }
 
-func (sinfo *sessionInfo) doWorker(f func()) {
-	done := make(chan struct{})
-	sinfo.worker <- func() {
-		f()
-		close(done)
-	}
-	<-done
-}
-
-func (sinfo *sessionInfo) workerMain() {
-	for f := range sinfo.worker {
-		f()
-	}
+func (sinfo *sessionInfo) doFunc(f func()) {
+	sinfo.mutex.Lock()
+	defer sinfo.mutex.Unlock()
+	f()
 }
 
 // Represents a session ping/pong packet, andincludes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
@@ -231,11 +222,9 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.myHandle = *crypto.NewHandle()
 	sinfo.theirAddr = *address.AddrForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
 	sinfo.theirSubnet = *address.SubnetForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
-	sinfo.worker = make(chan func(), 1)
 	sinfo.recv = make(chan *wire_trafficPacket, 32)
 	ss.sinfos[sinfo.myHandle] = &sinfo
 	ss.byTheirPerm[sinfo.theirPermPub] = &sinfo.myHandle
-	go sinfo.workerMain()
 	return &sinfo
 }
 
@@ -267,14 +256,12 @@ func (ss *sessions) cleanup() {
 	ss.lastCleanup = time.Now()
 }
 
-// Closes a session, removing it from sessions maps and killing the worker goroutine.
+// Closes a session, removing it from sessions maps.
 func (sinfo *sessionInfo) close() {
 	if s := sinfo.core.sessions.sinfos[sinfo.myHandle]; s == sinfo {
 		delete(sinfo.core.sessions.sinfos, sinfo.myHandle)
 		delete(sinfo.core.sessions.byTheirPerm, sinfo.theirPermPub)
 	}
-	defer func() { recover() }()
-	close(sinfo.worker)
 }
 
 // Returns a session ping appropriate for the given session info.
@@ -372,7 +359,7 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 		}
 		ss.listenerMutex.Unlock()
 	}
-	sinfo.doWorker(func() {
+	sinfo.doFunc(func() {
 		// Update the session
 		if !sinfo.update(ping) { /*panic("Should not happen in testing")*/
 			return
@@ -426,7 +413,7 @@ func (sinfo *sessionInfo) updateNonce(theirNonce *crypto.BoxNonce) {
 // Called after coord changes, so attemtps to use a session will trigger a new ping and notify the remote end of the coord change.
 func (ss *sessions) reset() {
 	for _, sinfo := range ss.sinfos {
-		sinfo.doWorker(func() {
+		sinfo.doFunc(func() {
 			sinfo.reset = true
 		})
 	}
