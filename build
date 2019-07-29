@@ -7,24 +7,26 @@ PKGNAME=${PKGNAME:-$(sh contrib/semver/name.sh)}
 PKGVER=${PKGVER:-$(sh contrib/semver/version.sh --bare)}
 
 LDFLAGS="-X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
+ARGS="-v"
 
-while getopts "udaitc:l:r" option
+while getopts "uaitc:l:dro:" option
 do
-  case "${option}"
+  case "$option"
   in
   u) UPX=true;;
-  d) DEBUG=true;;
   i) IOS=true;;
   a) ANDROID=true;;
   t) TABLES=true;;
   c) GCFLAGS="$GCFLAGS $OPTARG";;
   l) LDFLAGS="$LDFLAGS $OPTARG";;
-  r) RACE="-race";;
+  d) ARGS="$ARGS -tags debug";;
+  r) ARGS="$ARGS -race";;
+  o) ARGS="$ARGS -o $OPTARG";;
   esac
 done
 
 if [ -z $TABLES ]; then
-  STRIP="-s -w"
+  LDFLAGS="$LDFLAGS -s -w"
 fi
 
 if [ $IOS ]; then
@@ -42,12 +44,8 @@ elif [ $ANDROID ]; then
 else
   for CMD in `ls cmd/` ; do
     echo "Building: $CMD"
+    go build $ARGS -ldflags="$LDFLAGS" -gcflags="$GCFLAGS" ./cmd/$CMD
 
-    if [ $DEBUG ]; then
-      go build $RACE -ldflags="$LDFLAGS" -gcflags="$GCFLAGS" -tags debug -v ./cmd/$CMD
-    else
-      go build $RACE -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" -v ./cmd/$CMD
-    fi
     if [ $UPX ]; then
       upx --brute $CMD
     fi
