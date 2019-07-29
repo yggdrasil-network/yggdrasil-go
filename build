@@ -19,16 +19,14 @@ do
   t) TABLES=true;;
   c) GCFLAGS="$GCFLAGS $OPTARG";;
   l) LDFLAGS="$LDFLAGS $OPTARG";;
-  d) ARGS="$ARGS -tags debug";;
+  d) ARGS="$ARGS -tags debug" DEBUG=true;;
   r) ARGS="$ARGS -race";;
   o) ARGS="$ARGS -o $OPTARG";;
   esac
 done
 
-if [ -z $TABLES ]; then
-  if [ "$ARGS" == "${ARGS/-tags debug/}" ]; then
-    LDFLAGS="$LDFLAGS -s -w"
-  fi
+if [ -z $TABLES ] && [ -z $DEBUG ]; then
+  LDFLAGS="$LDFLAGS -s -w"
 fi
 
 if [ $IOS ]; then
