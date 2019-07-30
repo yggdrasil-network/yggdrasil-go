@@ -25,6 +25,39 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.3.6] - 2019-08-03
+### Added
+- Yggdrasil now has a public API with interfaces such as `yggdrasil.ConnDialer`, `yggdrasil.ConnListener` and `yggdrasil.Conn` for using Yggdrasil as a transport directly within applications
+- Session gatekeeper functions, part of the API, which can be used to control whether to allow or reject incoming or outgoing sessions dynamically (compared to the previous fixed whitelist/blacklist approach)
+- Support for logging to files or syslog (where supported)
+- Platform defaults now include the ability to set sane defaults for multicast interfaces
+
+### Changed
+- Following a massive refactoring exercise, Yggdrasil's codebase has now been broken out into modules
+- Core node functionality in the `yggdrasil` package with a public API
+  - This allows Yggdrasil to be integrated directly into other applications and used as a transport
+  - IP-specific code has now been moved out of the core `yggdrasil` package, making Yggdrasil effectively protocol-agnostic
+- Multicast peer discovery functionality is now in the `multicast` package
+- Admin socket functionality is now in the `admin` package and uses the Yggdrasil public API
+- TUN/TAP, ICMPv6 and all IP-specific functionality is now in the `tuntap` package
+- `PPROF` debug output is now sent to `stderr` instead of `stdout`
+- Node IPv6 addresses on macOS are now configured as `secured`
+- Upstream dependency references have been updated, which includes a number of fixes in the Water library
+
+### Fixed
+- Multicast discovery is no longer disabled if the nominated interfaces aren't available on the system yet, e.g. during boot
+- Multicast interfaces are now re-evaluated more frequently so that Yggdrasil doesn't need to be restarted to use interfaces that have become available since startup
+- Admin socket error cases are now handled better
+- Various fixes in the TUN/TAP module, particularly surrounding Windows platform support
+- Invalid keys will now cause the node to fail to start, rather than starting but silently not working as before
+- Session MTUs are now always calculated correctly, in some cases they were incorrectly defaulting to 1280 before
+- Multiple searches now don't take place for a single connection
+- Concurrency bugs fixed
+- Fixed a number of bugs in the ICMPv6 neighbor solicitation in the TUN/TAP code 
+- A case where peers weren't always added correctly if one or more peers were unreachable has been fixed
+- Searches which include the local node are now handled correctly
+- Lots of small bug tweaks and clean-ups throughout the codebase
+
 ## [0.3.5] - 2019-03-13
 ### Fixed
 - The `AllowedEncryptionPublicKeys` option has now been fixed to handle incoming connections properly and no longer blocks outgoing connections (this was broken in v0.3.4)
