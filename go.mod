@@ -11,7 +11,7 @@ require (
 	github.com/yggdrasil-network/water v0.0.0-20190725123504-a16161896c34
 	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
 	golang.org/x/net v0.0.0-20190724013045-ca1201d0de80
-	golang.org/x/sys v0.0.0-20190726091711-fc99dfbffb4e
+	golang.org/x/sys v0.0.0-20190801041406-cbf593c0f2f3
 	golang.org/x/text v0.3.2
-	golang.org/x/tools v0.0.0-20190729092621-ff9f1409240a // indirect
+	golang.org/x/tools v0.0.0-20190802003818-e9bb7d36c060 // indirect
 )
