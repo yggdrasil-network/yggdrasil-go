@@ -1,6 +1,6 @@
 // +build !mobile
 
-package yggdrasil
+package tuntap
 
 // The linux platform specific tun parts
 
@@ -15,7 +15,7 @@ import (
 )
 
 // Configures the TAP adapter with the correct IPv6 address and MTU.
-func (tun *tunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
+func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	var config water.Config
 	if iftapmode {
 		config = water.Config{DeviceType: water.TAP}
@@ -40,9 +40,9 @@ func (tun *tunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 		}
 	}
 	// Friendly output
-	tun.core.log.Infof("Interface name: %s", tun.iface.Name())
-	tun.core.log.Infof("Interface IPv6: %s", addr)
-	tun.core.log.Infof("Interface MTU: %d", tun.mtu)
+	tun.log.Infof("Interface name: %s", tun.iface.Name())
+	tun.log.Infof("Interface IPv6: %s", addr)
+	tun.log.Infof("Interface MTU: %d", tun.mtu)
 	return tun.setupAddress(addr)
 }
 
@@ -50,7 +50,7 @@ func (tun *tunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 // is used to do this, so there is not a hard requirement on "ip" or "ifconfig"
 // to exist on the system, but this will fail if Netlink is not present in the
 // kernel (it nearly always is).
-func (tun *tunAdapter) setupAddress(addr string) error {
+func (tun *TunAdapter) setupAddress(addr string) error {
 	// Set address
 	var netIF *net.Interface
 	ifces, err := net.Interfaces()

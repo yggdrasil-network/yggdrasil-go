@@ -35,6 +35,7 @@ some of the below:
 - FreeBSD
 - OpenBSD
 - NetBSD
+- OpenWrt
 
 Please see our [Platforms](https://yggdrasil-network.github.io/) pages for more
 specific information about each of our supported platforms, including

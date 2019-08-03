@@ -5,7 +5,7 @@ version: 2.1
 jobs:
   build-linux:
     docker:
-      - image: circleci/golang:1.12
+      - image: circleci/golang:1.12.7
 
     steps:
       - checkout
@@ -16,13 +16,21 @@ jobs:
               mkdir /tmp/upload
               echo 'export CINAME=$(sh contrib/semver/name.sh)' >> $BASH_ENV
               echo 'export CIVERSION=$(sh contrib/semver/version.sh --bare)' >> $BASH_ENV
+              echo 'export CIVERSIONRPM=$(sh contrib/semver/version.sh --bare | tr "-" ".")' >> $BASH_ENV
+              echo 'export CIBRANCH=$(echo $CIRCLE_BRANCH | tr -d "/")' >> $BASH_ENV
+              case "$CINAME" in \
+                "yggdrasil") (echo 'export CICONFLICTS=yggdrasil-develop' >> $BASH_ENV) ;; \
+                "yggdrasil-develop") (echo 'export CICONFLICTS=yggdrasil' >> $BASH_ENV) ;; \
+                *) (echo 'export CICONFLICTS="yggdrasil yggdrasil-develop"' >> $BASH_ENV) ;; \
+              esac
               git config --global user.email "$(git log --format='%ae' HEAD -1)";
               git config --global user.name "$(git log --format='%an' HEAD -1)";
 
       - run:
-          name: Install alien
+          name: Install RPM utilities
           command: |
-              sudo apt-get install -y alien
+              sudo apt-get install -y rpm file
+              mkdir -p ~/rpmbuild/BUILD ~/rpmbuild/RPMS ~/rpmbuild/SOURCES ~/rpmbuild/SPECS ~/rpmbuild/SRPMS
 
       - run:
           name: Test debug builds
@@ -31,7 +39,7 @@ jobs:
               test -f yggdrasil && test -f yggdrasilctl
 
       - run:
-          name: Build for Linux (including Debian packages and RPMs)
+          name: Build for Linux (including Debian packages)
           command: |
               rm -f {yggdrasil,yggdrasilctl}
               PKGARCH=amd64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-amd64;
@@ -40,8 +48,23 @@ jobs:
               PKGARCH=mips sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-mips && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-mips;
               PKGARCH=armhf sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-armhf && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-armhf;
               PKGARCH=arm64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-arm64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-arm64;
-              sudo alien --to-rpm yggdrasil*.deb --scripts --keep-version && mv *.rpm /tmp/upload/;
               mv *.deb /tmp/upload/
+
+      - run:
+          name: Build for Linux (RPM packages)
+          command: |
+              git clone https://github.com/yggdrasil-network/yggdrasil-package-rpm ~/rpmbuild/SPECS
+              cd ../ && tar -czvf ~/rpmbuild/SOURCES/v$CIVERSIONRPM --transform "s/project/yggdrasil-go-$CIBRANCH-$CIVERSIONRPM/" project
+              sed -i "s/yggdrasil-go/yggdrasil-go-$CIBRANCH/" ~/rpmbuild/SPECS/yggdrasil.spec
+              sed -i "s/^PKGNAME=yggdrasil/PKGNAME=yggdrasil-$CIBRANCH/" ~/rpmbuild/SPECS/yggdrasil.spec
+              sed -i "s/^Name\:.*/Name\:           $CINAME/" ~/rpmbuild/SPECS/yggdrasil.spec
+              sed -i "s/^Version\:.*/Version\:        $CIVERSIONRPM/" ~/rpmbuild/SPECS/yggdrasil.spec
+              sed -i "s/^Conflicts\:.*/Conflicts\:      $CICONFLICTS/" ~/rpmbuild/SPECS/yggdrasil.spec
+              cat ~/rpmbuild/SPECS/yggdrasil.spec
+              GOARCH=amd64 rpmbuild -v --nodeps --target=x86_64 -ba ~/rpmbuild/SPECS/yggdrasil.spec
+              #GOARCH=386 rpmbuild -v --nodeps --target=i386 -bb ~/rpmbuild/SPECS/yggdrasil.spec
+              find ~/rpmbuild/RPMS/ -name '*.rpm' -exec mv {} /tmp/upload \;
+              find ~/rpmbuild/SRPMS/ -name '*.rpm' -exec mv {} /tmp/upload \;
 
       - run:
           name: Build for EdgeRouter
@@ -79,11 +102,11 @@ jobs:
               echo -e "Host *\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
 
       - run:
-          name: Install Go 1.12
+          name: Install Go 1.12.7
           command: |
               cd /tmp
-              curl -LO https://dl.google.com/go/go1.12.darwin-amd64.pkg
-              sudo installer -pkg /tmp/go1.12.darwin-amd64.pkg -target /
+              curl -LO https://dl.google.com/go/go1.12.7.darwin-amd64.pkg
+              sudo installer -pkg /tmp/go1.12.7.darwin-amd64.pkg -target /
 
       #- run:
       #    name: Install Gomobile
@@ -119,7 +142,7 @@ jobs:
 
   build-other:
     docker:
-      - image: circleci/golang:1.12
+      - image: circleci/golang:1.12.7
 
     steps:
       - checkout

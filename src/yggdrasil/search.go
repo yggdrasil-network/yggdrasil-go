@@ -15,6 +15,7 @@ package yggdrasil
 //  Some kind of max search steps, in case the node is offline, so we don't crawl through too much of the network looking for a destination that isn't there?
 
 import (
+	"errors"
 	"sort"
 	"time"
 
@@ -32,12 +33,14 @@ const search_RETRY_TIME = time.Second
 // Information about an ongoing search.
 // Includes the target NodeID, the bitmask to match it to an IP, and the list of nodes to visit / already visited.
 type searchInfo struct {
-	dest    crypto.NodeID
-	mask    crypto.NodeID
-	time    time.Time
-	packet  []byte
-	toVisit []*dhtInfo
-	visited map[crypto.NodeID]bool
+	core     *Core
+	dest     crypto.NodeID
+	mask     crypto.NodeID
+	time     time.Time
+	toVisit  []*dhtInfo
+	visited  map[crypto.NodeID]bool
+	callback func(*sessionInfo, error)
+	// TODO context.Context for timeout and cancellation
 }
 
 // This stores a map of active searches.
@@ -47,7 +50,7 @@ type searches struct {
 	searches    map[crypto.NodeID]*searchInfo
 }
 
-// Intializes the searches struct.
+// Initializes the searches struct.
 func (s *searches) init(core *Core) {
 	s.core = core
 	s.reconfigure = make(chan chan error, 1)
@@ -61,17 +64,19 @@ func (s *searches) init(core *Core) {
 }
 
 // Creates a new search info, adds it to the searches struct, and returns a pointer to the info.
-func (s *searches) createSearch(dest *crypto.NodeID, mask *crypto.NodeID) *searchInfo {
+func (s *searches) createSearch(dest *crypto.NodeID, mask *crypto.NodeID, callback func(*sessionInfo, error)) *searchInfo {
 	now := time.Now()
-	for dest, sinfo := range s.searches {
-		if now.Sub(sinfo.time) > time.Minute {
-			delete(s.searches, dest)
-		}
-	}
+	//for dest, sinfo := range s.searches {
+	//	if now.Sub(sinfo.time) > time.Minute {
+	//		delete(s.searches, dest)
+	//	}
+	//}
 	info := searchInfo{
-		dest: *dest,
-		mask: *mask,
-		time: now.Add(-time.Second),
+		core:     s.core,
+		dest:     *dest,
+		mask:     *mask,
+		time:     now.Add(-time.Second),
+		callback: callback,
 	}
 	s.searches[*dest] = &info
 	return &info
@@ -79,31 +84,29 @@ func (s *searches) createSearch(dest *crypto.NodeID, mask *crypto.NodeID) *searc
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Checks if there's an ongoing search relaed to a dhtRes.
+// Checks if there's an ongoing search related to a dhtRes.
 // If there is, it adds the response info to the search and triggers a new search step.
 // If there's no ongoing search, or we if the dhtRes finished the search (it was from the target node), then don't do anything more.
-func (s *searches) handleDHTRes(res *dhtRes) {
-	sinfo, isIn := s.searches[res.Dest]
-	if !isIn || s.checkDHTRes(sinfo, res) {
+func (sinfo *searchInfo) handleDHTRes(res *dhtRes) {
+	if res == nil || sinfo.checkDHTRes(res) {
 		// Either we don't recognize this search, or we just finished it
 		return
-	} else {
-		// Add to the search and continue
-		s.addToSearch(sinfo, res)
-		s.doSearchStep(sinfo)
 	}
+	// Add to the search and continue
+	sinfo.addToSearch(res)
+	sinfo.doSearchStep()
 }
 
 // Adds the information from a dhtRes to an ongoing search.
 // Info about a node that has already been visited is not re-added to the search.
 // Duplicate information about nodes toVisit is deduplicated (the newest information is kept).
 // The toVisit list is sorted in ascending order of keyspace distance from the destination.
-func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
+func (sinfo *searchInfo) addToSearch(res *dhtRes) {
 	// Add responses to toVisit if closer to dest than the res node
 	from := dhtInfo{key: res.Key, coords: res.Coords}
 	sinfo.visited[*from.getNodeID()] = true
 	for _, info := range res.Infos {
-		if *info.getNodeID() == s.core.dht.nodeID || sinfo.visited[*info.getNodeID()] {
+		if *info.getNodeID() == sinfo.core.dht.nodeID || sinfo.visited[*info.getNodeID()] {
 			continue
 		}
 		if dht_ordered(&sinfo.dest, info.getNodeID(), from.getNodeID()) {
@@ -133,85 +136,91 @@ func (s *searches) addToSearch(sinfo *searchInfo, res *dhtRes) {
 
 // If there are no nodes left toVisit, then this cleans up the search.
 // Otherwise, it pops the closest node to the destination (in keyspace) off of the toVisit list and sends a dht ping.
-func (s *searches) doSearchStep(sinfo *searchInfo) {
+func (sinfo *searchInfo) doSearchStep() {
 	if len(sinfo.toVisit) == 0 {
 		// Dead end, do cleanup
-		delete(s.searches, sinfo.dest)
+		delete(sinfo.core.searches.searches, sinfo.dest)
+		sinfo.callback(nil, errors.New("search reached dead end"))
 		return
-	} else {
-		// Send to the next search target
-		var next *dhtInfo
-		next, sinfo.toVisit = sinfo.toVisit[0], sinfo.toVisit[1:]
-		rq := dhtReqKey{next.key, sinfo.dest}
-		s.core.dht.addCallback(&rq, s.handleDHTRes)
-		s.core.dht.ping(next, &sinfo.dest)
 	}
+	// Send to the next search target
+	var next *dhtInfo
+	next, sinfo.toVisit = sinfo.toVisit[0], sinfo.toVisit[1:]
+	rq := dhtReqKey{next.key, sinfo.dest}
+	sinfo.core.dht.addCallback(&rq, sinfo.handleDHTRes)
+	sinfo.core.dht.ping(next, &sinfo.dest)
 }
 
 // If we've recenty sent a ping for this search, do nothing.
 // Otherwise, doSearchStep and schedule another continueSearch to happen after search_RETRY_TIME.
-func (s *searches) continueSearch(sinfo *searchInfo) {
+func (sinfo *searchInfo) continueSearch() {
 	if time.Since(sinfo.time) < search_RETRY_TIME {
 		return
 	}
 	sinfo.time = time.Now()
-	s.doSearchStep(sinfo)
+	sinfo.doSearchStep()
 	// In case the search dies, try to spawn another thread later
 	// Note that this will spawn multiple parallel searches as time passes
 	// Any that die aren't restarted, but a new one will start later
 	retryLater := func() {
-		newSearchInfo := s.searches[sinfo.dest]
+		// FIXME this keeps the search alive forever if not for the searches map, fix that
+		newSearchInfo := sinfo.core.searches.searches[sinfo.dest]
 		if newSearchInfo != sinfo {
 			return
 		}
-		s.continueSearch(sinfo)
+		sinfo.continueSearch()
 	}
 	go func() {
 		time.Sleep(search_RETRY_TIME)
-		s.core.router.admin <- retryLater
+		sinfo.core.router.admin <- retryLater
 	}()
 }
 
 // Calls create search, and initializes the iterative search parts of the struct before returning it.
-func (s *searches) newIterSearch(dest *crypto.NodeID, mask *crypto.NodeID) *searchInfo {
-	sinfo := s.createSearch(dest, mask)
-	sinfo.toVisit = s.core.dht.lookup(dest, true)
+func (s *searches) newIterSearch(dest *crypto.NodeID, mask *crypto.NodeID, callback func(*sessionInfo, error)) *searchInfo {
+	sinfo := s.createSearch(dest, mask, callback)
 	sinfo.visited = make(map[crypto.NodeID]bool)
+	loc := s.core.switchTable.getLocator()
+	sinfo.toVisit = append(sinfo.toVisit, &dhtInfo{
+		key:    s.core.boxPub,
+		coords: loc.getCoords(),
+	}) // Start the search by asking ourself, useful if we're the destination
 	return sinfo
 }
 
 // Checks if a dhtRes is good (called by handleDHTRes).
 // If the response is from the target, get/create a session, trigger a session ping, and return true.
 // Otherwise return false.
-func (s *searches) checkDHTRes(info *searchInfo, res *dhtRes) bool {
+func (sinfo *searchInfo) checkDHTRes(res *dhtRes) bool {
 	them := crypto.GetNodeID(&res.Key)
 	var destMasked crypto.NodeID
 	var themMasked crypto.NodeID
 	for idx := 0; idx < crypto.NodeIDLen; idx++ {
-		destMasked[idx] = info.dest[idx] & info.mask[idx]
-		themMasked[idx] = them[idx] & info.mask[idx]
+		destMasked[idx] = sinfo.dest[idx] & sinfo.mask[idx]
+		themMasked[idx] = them[idx] & sinfo.mask[idx]
 	}
 	if themMasked != destMasked {
 		return false
 	}
 	// They match, so create a session and send a sessionRequest
-	sinfo, isIn := s.core.sessions.getByTheirPerm(&res.Key)
+	sess, isIn := sinfo.core.sessions.getByTheirPerm(&res.Key)
 	if !isIn {
-		sinfo = s.core.sessions.createSession(&res.Key)
-		if sinfo == nil {
+		sess = sinfo.core.sessions.createSession(&res.Key)
+		if sess == nil {
 			// nil if the DHT search finished but the session wasn't allowed
+			sinfo.callback(nil, errors.New("session not allowed"))
 			return true
 		}
-		_, isIn := s.core.sessions.getByTheirPerm(&res.Key)
+		_, isIn := sinfo.core.sessions.getByTheirPerm(&res.Key)
 		if !isIn {
 			panic("This should never happen")
 		}
 	}
 	// FIXME (!) replay attacks could mess with coords? Give it a handle (tstamp)?
-	sinfo.coords = res.Coords
-	sinfo.packet = info.packet
-	s.core.sessions.ping(sinfo)
+	sess.coords = res.Coords
+	sinfo.core.sessions.ping(sess)
+	sinfo.callback(sess, nil)
 	// Cleanup
-	delete(s.searches, res.Dest)
+	delete(sinfo.core.searches.searches, res.Dest)
 	return true
 }

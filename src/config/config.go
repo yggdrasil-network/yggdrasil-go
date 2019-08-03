@@ -2,10 +2,42 @@ package config
 
 import (
 	"encoding/hex"
+	"sync"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
+
+// NodeState represents the active and previous configuration of the node and
+// protects it with a mutex
+type NodeState struct {
+	Current  NodeConfig
+	Previous NodeConfig
+	Mutex    sync.RWMutex
+}
+
+// Current returns the current node config
+func (s *NodeState) GetCurrent() NodeConfig {
+	s.Mutex.RLock()
+	defer s.Mutex.RUnlock()
+	return s.Current
+}
+
+// Previous returns the previous node config
+func (s *NodeState) GetPrevious() NodeConfig {
+	s.Mutex.RLock()
+	defer s.Mutex.RUnlock()
+	return s.Previous
+}
+
+// Replace the node configuration with new configuration. This method returns
+// both the new and the previous node configs
+func (s *NodeState) Replace(n NodeConfig) {
+	s.Mutex.Lock()
+	defer s.Mutex.Unlock()
+	s.Previous = s.Current
+	s.Current = n
+}
 
 // NodeConfig defines all configuration values needed to run a signle yggdrasil node
 type NodeConfig struct {
@@ -76,7 +108,7 @@ func GenerateConfig() *NodeConfig {
 	cfg.Peers = []string{}
 	cfg.InterfacePeers = map[string][]string{}
 	cfg.AllowedEncryptionPublicKeys = []string{}
-	cfg.MulticastInterfaces = []string{".*"}
+	cfg.MulticastInterfaces = defaults.GetDefaults().DefaultMulticastInterfaces
 	cfg.IfName = defaults.GetDefaults().DefaultIfName
 	cfg.IfMTU = defaults.GetDefaults().DefaultIfMTU
 	cfg.IfTAPMode = defaults.GetDefaults().DefaultIfTAPMode
@@ -88,4 +120,20 @@ func GenerateConfig() *NodeConfig {
 	cfg.NodeInfoPrivacy = false
 
 	return &cfg
+}
+
+// NewEncryptionKeys generates a new encryption keypair. The encryption keys are
+// used to encrypt traffic and to derive the IPv6 address/subnet of the node.
+func (cfg *NodeConfig) NewEncryptionKeys() {
+	bpub, bpriv := crypto.NewBoxKeys()
+	cfg.EncryptionPublicKey = hex.EncodeToString(bpub[:])
+	cfg.EncryptionPrivateKey = hex.EncodeToString(bpriv[:])
+}
+
+// NewSigningKeys generates a new signing keypair. The signing keys are used to
+// derive the structure of the spanning tree.
+func (cfg *NodeConfig) NewSigningKeys() {
+	spub, spriv := crypto.NewSigKeys()
+	cfg.SigningPublicKey = hex.EncodeToString(spub[:])
+	cfg.SigningPrivateKey = hex.EncodeToString(spriv[:])
 }

@@ -23,8 +23,7 @@ type link struct {
 	reconfigure chan chan error
 	mutex       sync.RWMutex // protects interfaces below
 	interfaces  map[linkInfo]*linkInterface
-	awdl        awdl // AWDL interface support
-	tcp         tcp  // TCP interface support
+	tcp         tcp // TCP interface support
 	// TODO timeout (to remove from switch), read from config.ReadTimeout
 }
 
@@ -68,23 +67,12 @@ func (l *link) init(c *Core) error {
 		return err
 	}
 
-	if err := l.awdl.init(l); err != nil {
-		c.log.Errorln("Failed to start AWDL interface")
-		return err
-	}
-
 	go func() {
 		for {
 			e := <-l.reconfigure
 			tcpresponse := make(chan error)
-			awdlresponse := make(chan error)
 			l.tcp.reconfigure <- tcpresponse
 			if err := <-tcpresponse; err != nil {
-				e <- err
-				continue
-			}
-			l.awdl.reconfigure <- awdlresponse
-			if err := <-awdlresponse; err != nil {
 				e <- err
 				continue
 			}

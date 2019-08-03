@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -14,22 +15,28 @@ import (
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gologme/log"
+	gsyslog "github.com/hashicorp/go-syslog"
 	"github.com/hjson/hjson-go"
 	"github.com/kardianos/minwinsvc"
 	"github.com/mitchellh/mapstructure"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
+	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
-type nodeConfig = config.NodeConfig
-type Core = yggdrasil.Core
-
 type node struct {
-	core Core
+	core      yggdrasil.Core
+	state     *config.NodeState
+	tuntap    tuntap.TunAdapter
+	multicast multicast.Multicast
+	admin     admin.AdminSocket
 }
 
-func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeConfig {
+func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *config.NodeConfig {
 	// Use a configuration file. If -useconf, the configuration will be read
 	// from stdin. If -useconffile, the configuration will be read from the
 	// filesystem.
@@ -72,77 +79,6 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *nodeCo
 		panic(err)
 	}
 	json.Unmarshal(confJson, &cfg)
-	// For now we will do a little bit to help the user adjust their
-	// configuration to match the new configuration format, as some of the key
-	// names have changed recently.
-	changes := map[string]string{
-		"Multicast":      "",
-		"ReadTimeout":    "",
-		"LinkLocal":      "MulticastInterfaces",
-		"BoxPub":         "EncryptionPublicKey",
-		"BoxPriv":        "EncryptionPrivateKey",
-		"SigPub":         "SigningPublicKey",
-		"SigPriv":        "SigningPrivateKey",
-		"AllowedBoxPubs": "AllowedEncryptionPublicKeys",
-	}
-	// Loop over the mappings aove and see if we have anything to fix.
-	for from, to := range changes {
-		if _, ok := dat[from]; ok {
-			if to == "" {
-				if !*normaliseconf {
-					log.Println("Warning: Config option", from, "is deprecated")
-				}
-			} else {
-				if !*normaliseconf {
-					log.Println("Warning: Config option", from, "has been renamed - please change to", to)
-				}
-				// If the configuration file doesn't already contain a line with the
-				// new name then set it to the old value. This makes sure that we
-				// don't overwrite something that was put there intentionally.
-				if _, ok := dat[to]; !ok {
-					dat[to] = dat[from]
-				}
-			}
-		}
-	}
-	// Check to see if the peers are in a parsable format, if not then default
-	// them to the TCP scheme
-	if peers, ok := dat["Peers"].([]interface{}); ok {
-		for index, peer := range peers {
-			uri := peer.(string)
-			if strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, "socks://") {
-				continue
-			}
-			if strings.HasPrefix(uri, "tcp:") {
-				uri = uri[4:]
-			}
-			(dat["Peers"].([]interface{}))[index] = "tcp://" + uri
-		}
-	}
-	// Now do the same with the interface peers
-	if interfacepeers, ok := dat["InterfacePeers"].(map[string]interface{}); ok {
-		for intf, peers := range interfacepeers {
-			for index, peer := range peers.([]interface{}) {
-				uri := peer.(string)
-				if strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, "socks://") {
-					continue
-				}
-				if strings.HasPrefix(uri, "tcp:") {
-					uri = uri[4:]
-				}
-				((dat["InterfacePeers"].(map[string]interface{}))[intf]).([]interface{})[index] = "tcp://" + uri
-			}
-		}
-	}
-	// Do a quick check for old-format Listen statement so that mapstructure
-	// doesn't fail and crash
-	if listen, ok := dat["Listen"].(string); ok {
-		if strings.HasPrefix(listen, "tcp://") {
-			dat["Listen"] = []string{listen}
-		} else {
-			dat["Listen"] = []string{"tcp://" + listen}
-		}
-	}
 	// Overlay our newly mapped configuration onto the autoconf node config that
 	// we generated above.
 	if err = mapstructure.Decode(dat, &cfg); err != nil {
@@ -179,14 +115,15 @@ func main() {
 	autoconf := flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
 	version := flag.Bool("version", false, "prints the version of this build")
 	logging := flag.String("logging", "info,warn,error", "comma-separated list of logging levels to enable")
+	logto := flag.String("logto", "stdout", "file path to log to, \"syslog\" or \"stdout\"")
 	flag.Parse()
 
-	var cfg *nodeConfig
+	var cfg *config.NodeConfig
 	var err error
 	switch {
 	case *version:
-		fmt.Println("Build name:", yggdrasil.GetBuildName())
-		fmt.Println("Build version:", yggdrasil.GetBuildVersion())
+		fmt.Println("Build name:", yggdrasil.BuildName())
+		fmt.Println("Build version:", yggdrasil.BuildVersion())
 		os.Exit(0)
 	case *autoconf:
 		// Use an autoconf-generated config, this will give us random keys and
@@ -226,7 +163,23 @@ func main() {
 		return
 	}
 	// Create a new logger that logs output to stdout.
-	logger := log.New(os.Stdout, "", log.Flags())
+	var logger *log.Logger
+	switch *logto {
+	case "stdout":
+		logger = log.New(os.Stdout, "", log.Flags())
+	case "syslog":
+		if syslogger, err := gsyslog.NewLogger(gsyslog.LOG_NOTICE, "DAEMON", yggdrasil.BuildName()); err == nil {
+			logger = log.New(syslogger, "", log.Flags())
+		}
+	default:
+		if logfd, err := os.OpenFile(*logto, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+			logger = log.New(logfd, "", log.Flags())
+		}
+	}
+	if logger == nil {
+		logger = log.New(os.Stdout, "", log.Flags())
+		logger.Warnln("Logging defaulting to stdout")
+	}
 	//logger.EnableLevel("error")
 	//logger.EnableLevel("warn")
 	//logger.EnableLevel("info")
@@ -244,22 +197,44 @@ func main() {
 	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
 	// don't need to create this manually.
 	n := node{}
-	// Now that we have a working configuration, we can now actually start
-	// Yggdrasil. This will start the router, switch, DHT node, TCP and UDP
-	// sockets, TUN/TAP adapter and multicast discovery port.
-	if err := n.core.Start(cfg, logger); err != nil {
+	// Now start Yggdrasil - this starts the DHT, router, switch and other core
+	// components needed for Yggdrasil to operate
+	n.state, err = n.core.Start(cfg, logger)
+	if err != nil {
 		logger.Errorln("An error occurred during startup")
 		panic(err)
 	}
-	// The Stop function ensures that the TUN/TAP adapter is correctly shut down
-	// before the program exits.
-	defer func() {
-		n.core.Stop()
-	}()
+	// Register the session firewall gatekeeper function
+	n.core.SetSessionGatekeeper(n.sessionFirewall)
+	// Start the admin socket
+	n.admin.Init(&n.core, n.state, logger, nil)
+	if err := n.admin.Start(); err != nil {
+		logger.Errorln("An error occurred starting admin socket:", err)
+	}
+	// Start the multicast interface
+	n.multicast.Init(&n.core, n.state, logger, nil)
+	if err := n.multicast.Start(); err != nil {
+		logger.Errorln("An error occurred starting multicast:", err)
+	}
+	n.multicast.SetupAdminHandlers(&n.admin)
+	// Start the TUN/TAP interface
+	if listener, err := n.core.ConnListen(); err == nil {
+		if dialer, err := n.core.ConnDialer(); err == nil {
+			n.tuntap.Init(n.state, logger, listener, dialer)
+			if err := n.tuntap.Start(); err != nil {
+				logger.Errorln("An error occurred starting TUN/TAP:", err)
+			}
+			n.tuntap.SetupAdminHandlers(&n.admin)
+		} else {
+			logger.Errorln("Unable to get Dialer:", err)
+		}
+	} else {
+		logger.Errorln("Unable to get Listener:", err)
+	}
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
-	address := n.core.GetAddress()
-	subnet := n.core.GetSubnet()
+	address := n.core.Address()
+	subnet := n.core.Subnet()
 	logger.Infof("Your IPv6 address is %s", address.String())
 	logger.Infof("Your IPv6 subnet is %s", subnet.String())
 	// Catch interrupts from the operating system to exit gracefully.
@@ -267,25 +242,96 @@ func main() {
 	r := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	signal.Notify(r, os.Interrupt, syscall.SIGHUP)
-	// Create a function to capture the service being stopped on Windows.
-	winTerminate := func() {
-		c <- os.Interrupt
-	}
-	minwinsvc.SetOnExit(winTerminate)
+	// Capture the service being stopped on Windows.
+	minwinsvc.SetOnExit(n.shutdown)
+	defer n.shutdown()
 	// Wait for the terminate/interrupt signal. Once a signal is received, the
 	// deferred Stop function above will run which will shut down TUN/TAP.
 	for {
 		select {
+		case _ = <-c:
+			goto exit
 		case _ = <-r:
 			if *useconffile != "" {
 				cfg = readConfig(useconf, useconffile, normaliseconf)
 				n.core.UpdateConfig(cfg)
+				n.tuntap.UpdateConfig(cfg)
+				n.multicast.UpdateConfig(cfg)
 			} else {
 				logger.Errorln("Reloading config at runtime is only possible with -useconffile")
 			}
-		case _ = <-c:
-			goto exit
 		}
 	}
 exit:
+}
+
+func (n *node) shutdown() {
+	n.core.Stop()
+	n.admin.Stop()
+	n.multicast.Stop()
+	n.tuntap.Stop()
+	os.Exit(0)
+}
+
+func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
+	n.state.Mutex.RLock()
+	defer n.state.Mutex.RUnlock()
+
+	// Allow by default if the session firewall is disabled
+	if !n.state.Current.SessionFirewall.Enable {
+		return true
+	}
+
+	// Prepare for checking whitelist/blacklist
+	var box crypto.BoxPubKey
+	// Reject blacklisted nodes
+	for _, b := range n.state.Current.SessionFirewall.BlacklistEncryptionPublicKeys {
+		key, err := hex.DecodeString(b)
+		if err == nil {
+			copy(box[:crypto.BoxPubKeyLen], key)
+			if box == *pubkey {
+				return false
+			}
+		}
+	}
+
+	// Allow whitelisted nodes
+	for _, b := range n.state.Current.SessionFirewall.WhitelistEncryptionPublicKeys {
+		key, err := hex.DecodeString(b)
+		if err == nil {
+			copy(box[:crypto.BoxPubKeyLen], key)
+			if box == *pubkey {
+				return true
+			}
+		}
+	}
+
+	// Allow outbound sessions if appropriate
+	if n.state.Current.SessionFirewall.AlwaysAllowOutbound {
+		if initiator {
+			return true
+		}
+	}
+
+	// Look and see if the pubkey is that of a direct peer
+	var isDirectPeer bool
+	for _, peer := range n.core.GetPeers() {
+		if peer.PublicKey == *pubkey {
+			isDirectPeer = true
+			break
+		}
+	}
+
+	// Allow direct peers if appropriate
+	if n.state.Current.SessionFirewall.AllowFromDirect && isDirectPeer {
+		return true
+	}
+
+	// Allow remote nodes if appropriate
+	if n.state.Current.SessionFirewall.AllowFromRemote && !isDirectPeer {
+		return true
+	}
+
+	// Finally, default-deny if not matching any of the above rules
+	return false
 }
