@@ -22,27 +22,16 @@ func UnlockThread() {
 }
 
 // This is used to buffer recently used slices of bytes, to prevent allocations in the hot loops.
-var byteStoreMutex sync.Mutex
-var byteStore [][]byte
+var byteStore = sync.Pool{New: func() interface{} { return []byte(nil) }}
 
 // Gets an empty slice from the byte store.
 func GetBytes() []byte {
-	byteStoreMutex.Lock()
-	defer byteStoreMutex.Unlock()
-	if len(byteStore) > 0 {
-		var bs []byte
-		bs, byteStore = byteStore[len(byteStore)-1][:0], byteStore[:len(byteStore)-1]
-		return bs
-	} else {
-		return nil
-	}
+	return byteStore.Get().([]byte)[:0]
 }
 
 // Puts a slice in the store.
 func PutBytes(bs []byte) {
-	byteStoreMutex.Lock()
-	defer byteStoreMutex.Unlock()
-	byteStore = append(byteStore, bs)
+	byteStore.Put(bs)
 }
 
 // This is a workaround to go's broken timer implementation
