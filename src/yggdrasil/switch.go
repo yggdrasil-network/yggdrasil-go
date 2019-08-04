@@ -814,17 +814,23 @@ func (t *switchTable) doWorker() {
 	go func() {
 		// Keep taking packets from the idle worker and sending them to the above whenever it's idle, keeping anything extra in a (fifo, head-drop) buffer
 		var buf [][]byte
+		var size int
 		for {
-			buf = append(buf, <-t.toRouter)
+			bs := <-t.toRouter
+			size += len(bs)
+			buf = append(buf, bs)
 			for len(buf) > 0 {
 				select {
 				case bs := <-t.toRouter:
+					size += len(bs)
 					buf = append(buf, bs)
-					for len(buf) > 32 {
+					for size > int(t.queueTotalMaxSize) {
+						size -= len(buf[0])
 						util.PutBytes(buf[0])
 						buf = buf[1:]
 					}
 				case sendingToRouter <- buf[0]:
+					size -= len(buf[0])
 					buf = buf[1:]
 				}
 			}
