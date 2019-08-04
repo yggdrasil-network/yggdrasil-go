@@ -495,6 +495,7 @@ func (sinfo *sessionInfo) sendWorker() {
 			// TODO
 			var packet []byte
 			sessionFunc := func() {
+				defer util.PutBytes(bs)
 				sinfo.bytesSent += uint64(len(bs))
 				payload, nonce := crypto.BoxSeal(&sinfo.sharedSesKey, bs, &sinfo.myNonce)
 				defer util.PutBytes(payload)
