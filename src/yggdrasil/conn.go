@@ -149,72 +149,89 @@ func (c *Conn) getDeadlineCancellation(value *atomic.Value) util.Cancellation {
 	}
 }
 
-func (c *Conn) Read(b []byte) (int, error) {
-	// Take a copy of the session object
-	sinfo := c.session
+// Used internally by Read, the caller is responsible for util.PutBytes when they're done.
+func (c *Conn) ReadNoCopy() ([]byte, error) {
 	cancel := c.getDeadlineCancellation(&c.readDeadline)
 	defer cancel.Cancel(nil)
 	// Wait for some traffic to come through from the session
 	select {
 	case <-cancel.Finished():
 		if cancel.Error() == util.CancellationTimeoutError {
-			return 0, ConnError{errors.New("read timeout"), true, false, false, 0}
+			return nil, ConnError{errors.New("read timeout"), true, false, false, 0}
 		} else {
-			return 0, ConnError{errors.New("session closed"), false, false, true, 0}
+			return nil, ConnError{errors.New("session closed"), false, false, true, 0}
 		}
-	case bs := <-sinfo.recv:
-		var err error
-		n := len(bs)
-		if len(bs) > len(b) {
-			n = len(b)
-			err = ConnError{errors.New("read buffer too small for entire packet"), false, true, false, 0}
-		}
-		// Copy results to the output slice and clean up
-		copy(b, bs)
-		util.PutBytes(bs)
-		// If we've reached this point then everything went to plan, return the
-		// number of bytes we populated back into the given slice
-		return n, err
+	case bs := <-c.session.recv:
+		return bs, nil
 	}
 }
 
-func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
-	sinfo := c.session
-	written := len(b)
+// Implements net.Conn.Read
+func (c *Conn) Read(b []byte) (int, error) {
+	bs, err := c.ReadNoCopy()
+	if err != nil {
+		return 0, err
+	}
+	n := len(bs)
+	if len(bs) > len(b) {
+		n = len(b)
+		err = ConnError{errors.New("read buffer too small for entire packet"), false, true, false, 0}
+	}
+	// Copy results to the output slice and clean up
+	copy(b, bs)
+	util.PutBytes(bs)
+	// Return the number of bytes copied to the slice, along with any error
+	return n, err
+}
+
+// Used internally by Write, the caller must not reuse the argument bytes when no error occurs
+func (c *Conn) WriteNoCopy(bs []byte) error {
+	var err error
 	sessionFunc := func() {
 		// Does the packet exceed the permitted size for the session?
-		if uint16(len(b)) > sinfo.getMTU() {
-			written, err = 0, ConnError{errors.New("packet too big"), true, false, false, int(sinfo.getMTU())}
+		if uint16(len(bs)) > c.session.getMTU() {
+			err = ConnError{errors.New("packet too big"), true, false, false, int(c.session.getMTU())}
 			return
 		}
 		// The rest of this work is session keep-alive traffic
 		switch {
-		case time.Since(sinfo.time) > 6*time.Second:
-			if sinfo.time.Before(sinfo.pingTime) && time.Since(sinfo.pingTime) > 6*time.Second {
+		case time.Since(c.session.time) > 6*time.Second:
+			if c.session.time.Before(c.session.pingTime) && time.Since(c.session.pingTime) > 6*time.Second {
 				// TODO double check that the above condition is correct
 				c.doSearch()
 			} else {
-				sinfo.core.sessions.ping(sinfo)
+				c.core.sessions.ping(c.session)
 			}
-		case sinfo.reset && sinfo.pingTime.Before(sinfo.time):
-			sinfo.core.sessions.ping(sinfo)
+		case c.session.reset && c.session.pingTime.Before(c.session.time):
+			c.core.sessions.ping(c.session)
 		default: // Don't do anything, to keep traffic throttled
 		}
 	}
-	sinfo.doFunc(sessionFunc)
-	if written > 0 {
-		bs := append(util.GetBytes(), b...)
+	c.session.doFunc(sessionFunc)
+	if err == nil {
 		cancel := c.getDeadlineCancellation(&c.writeDeadline)
 		defer cancel.Cancel(nil)
 		select {
 		case <-cancel.Finished():
 			if cancel.Error() == util.CancellationTimeoutError {
-				return 0, ConnError{errors.New("write timeout"), true, false, false, 0}
+				err = ConnError{errors.New("write timeout"), true, false, false, 0}
 			} else {
-				return 0, ConnError{errors.New("session closed"), false, false, true, 0}
+				err = ConnError{errors.New("session closed"), false, false, true, 0}
 			}
-		case sinfo.send <- bs:
+		case c.session.send <- bs:
 		}
+	}
+	return err
+}
+
+// Implements net.Conn.Write
+func (c *Conn) Write(b []byte) (int, error) {
+	written := len(b)
+	bs := append(util.GetBytes(), b...)
+	err := c.WriteNoCopy(bs)
+	if err != nil {
+		util.PutBytes(bs)
+		written = 0
 	}
 	return written, err
 }
