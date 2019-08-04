@@ -72,11 +72,7 @@ func (s *tunConn) reader() (err error) {
 			}
 		} else if n > 0 {
 			bs := append(util.GetBytes(), b[:n]...)
-			select {
-			case s.tun.send <- bs:
-			default:
-				util.PutBytes(bs)
-			}
+			s.tun.send <- bs
 			s.stillAlive()
 		}
 	}

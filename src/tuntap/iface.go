@@ -260,11 +260,8 @@ func (tun *TunAdapter) readerPacketHandler(ch chan []byte) {
 				tun.mutex.Unlock()
 				if tc != nil {
 					for _, packet := range packets {
-						select {
-						case tc.send <- packet:
-						default:
-							util.PutBytes(packet)
-						}
+						p := packet // Possibly required because of how range
+						tc.send <- p
 					}
 				}
 			}()
@@ -274,11 +271,7 @@ func (tun *TunAdapter) readerPacketHandler(ch chan []byte) {
 		}
 		// If we have a connection now, try writing to it
 		if isIn && session != nil {
-			select {
-			case session.send <- bs:
-			default:
-				util.PutBytes(bs)
-			}
+			session.send <- bs
 		}
 	}
 }
