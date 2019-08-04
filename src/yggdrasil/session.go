@@ -492,23 +492,27 @@ func (sinfo *sessionInfo) sendWorker() {
 		case <-sinfo.cancel.Finished():
 			return
 		case bs := <-sinfo.send:
-			// TODO
-			var packet []byte
+			var p wire_trafficPacket
+			var k crypto.BoxSharedKey
 			sessionFunc := func() {
-				defer util.PutBytes(bs)
 				sinfo.bytesSent += uint64(len(bs))
-				payload, nonce := crypto.BoxSeal(&sinfo.sharedSesKey, bs, &sinfo.myNonce)
-				defer util.PutBytes(payload)
-				// Construct the wire packet to send to the router
-				p := wire_trafficPacket{
-					Coords:  sinfo.coords,
-					Handle:  sinfo.theirHandle,
-					Nonce:   *nonce,
-					Payload: payload,
+				p = wire_trafficPacket{
+					Coords: append([]byte(nil), sinfo.coords...),
+					Handle: sinfo.theirHandle,
+					Nonce:  sinfo.myNonce,
 				}
-				packet = p.encode()
+				sinfo.myNonce.Increment()
+				k = sinfo.sharedSesKey
 			}
+			// Get the mutex-protected info needed to encrypt the packet
 			sinfo.doFunc(sessionFunc)
+			// Encrypt the packet
+			p.Payload, _ = crypto.BoxSeal(&k, bs, &p.Nonce)
+			packet := p.encode()
+			// Cleanup
+			util.PutBytes(bs)
+			util.PutBytes(p.Payload)
+			// Send the packet
 			sinfo.core.router.out(packet)
 		}
 	}
