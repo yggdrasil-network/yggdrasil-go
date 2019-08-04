@@ -227,7 +227,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.myHandle = *crypto.NewHandle()
 	sinfo.theirAddr = *address.AddrForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
 	sinfo.theirSubnet = *address.SubnetForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
-	sinfo.fromRouter = make(chan *wire_trafficPacket, 32)
+	sinfo.fromRouter = make(chan *wire_trafficPacket, 1)
 	sinfo.recv = make(chan []byte, 32)
 	sinfo.send = make(chan []byte, 32)
 	ss.sinfos[sinfo.myHandle] = &sinfo
