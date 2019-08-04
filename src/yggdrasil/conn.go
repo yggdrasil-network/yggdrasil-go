@@ -82,7 +82,7 @@ func (c *Conn) String() string {
 	return fmt.Sprintf("conn=%p", c)
 }
 
-// This should never be called from the router goroutine
+// This should never be called from the router goroutine, used in the dial functions
 func (c *Conn) search() error {
 	var sinfo *searchInfo
 	var isIn bool
@@ -120,6 +120,23 @@ func (c *Conn) search() error {
 		return errors.New("search already exists")
 	}
 	return nil
+}
+
+// Used in session keep-alive traffic in Conn.Write
+func (c *Conn) doSearch() {
+	routerWork := func() {
+		// Check to see if there is a search already matching the destination
+		sinfo, isIn := c.core.searches.searches[*c.nodeID]
+		if !isIn {
+			// Nothing was found, so create a new search
+			searchCompleted := func(sinfo *sessionInfo, e error) {}
+			sinfo = c.core.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
+			c.core.log.Debugf("%s DHT search started: %p", c.String(), sinfo)
+		}
+		// Continue the search
+		sinfo.continueSearch()
+	}
+	go func() { c.core.router.admin <- routerWork }()
 }
 
 func (c *Conn) getDeadlineCancellation(value *atomic.Value) util.Cancellation {
@@ -173,26 +190,11 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 			return
 		}
 		// The rest of this work is session keep-alive traffic
-		doSearch := func() {
-			routerWork := func() {
-				// Check to see if there is a search already matching the destination
-				sinfo, isIn := c.core.searches.searches[*c.nodeID]
-				if !isIn {
-					// Nothing was found, so create a new search
-					searchCompleted := func(sinfo *sessionInfo, e error) {}
-					sinfo = c.core.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
-					c.core.log.Debugf("%s DHT search started: %p", c.String(), sinfo)
-				}
-				// Continue the search
-				sinfo.continueSearch()
-			}
-			go func() { c.core.router.admin <- routerWork }()
-		}
 		switch {
 		case time.Since(sinfo.time) > 6*time.Second:
 			if sinfo.time.Before(sinfo.pingTime) && time.Since(sinfo.pingTime) > 6*time.Second {
 				// TODO double check that the above condition is correct
-				doSearch()
+				c.doSearch()
 			} else {
 				sinfo.core.sessions.ping(sinfo)
 			}
