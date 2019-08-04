@@ -449,36 +449,42 @@ func (sinfo *sessionInfo) recvWorker() {
 		case p := <-sinfo.fromRouter:
 			var bs []byte
 			var err error
+			var k crypto.BoxSharedKey
 			sessionFunc := func() {
-				defer util.PutBytes(p.Payload)
-				// If the nonce is bad then drop the packet and return an error
 				if !sinfo.nonceIsOK(&p.Nonce) {
 					err = ConnError{errors.New("packet dropped due to invalid nonce"), false, true, false, 0}
 					return
 				}
-				// Decrypt the packet
-				var isOK bool
-				bs, isOK = crypto.BoxOpen(&sinfo.sharedSesKey, p.Payload, &p.Nonce)
-				// Check if we were unable to decrypt the packet for some reason and
-				// return an error if we couldn't
-				if !isOK {
-					err = ConnError{errors.New("packet dropped due to decryption failure"), false, true, false, 0}
+				k = sinfo.sharedSesKey
+			}
+			sinfo.doFunc(sessionFunc)
+			if err != nil {
+				util.PutBytes(p.Payload)
+				continue
+			}
+			var isOK bool
+			bs, isOK = crypto.BoxOpen(&k, p.Payload, &p.Nonce)
+			if !isOK {
+				util.PutBytes(bs)
+				continue
+			}
+			sessionFunc = func() {
+				if k != sinfo.sharedSesKey || !sinfo.nonceIsOK(&p.Nonce) {
+					// The session updated in the mean time, so return an error
+					err = ConnError{errors.New("session updated during crypto operation"), false, true, false, 0}
 					return
 				}
-				// Update the session
 				sinfo.updateNonce(&p.Nonce)
 				sinfo.time = time.Now()
 				sinfo.bytesRecvd += uint64(len(bs))
 			}
 			sinfo.doFunc(sessionFunc)
-			if len(bs) > 0 {
-				if err != nil {
-					// Bad packet, drop it
-					util.PutBytes(bs)
-				} else {
-					// Pass the packet to the buffer for Conn.Read
-					sinfo.recv <- bs
-				}
+			if err != nil {
+				// Not sure what else to do with this packet, I guess just drop it
+				util.PutBytes(bs)
+			} else {
+				// Pass the packet to the buffer for Conn.Read
+				sinfo.recv <- bs
 			}
 		}
 	}
