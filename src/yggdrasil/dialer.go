@@ -69,6 +69,7 @@ func (d *Dialer) DialByNodeIDandMask(nodeID, nodeMask *crypto.NodeID) (*Conn, er
 	defer t.Stop()
 	select {
 	case <-conn.session.init:
+		conn.session.startWorkers(conn.cancel)
 		return conn, nil
 	case <-t.C:
 		conn.Close()
