@@ -137,6 +137,27 @@ type peerInfo struct {
 // This is just a uint64 with a named type for clarity reasons.
 type switchPort uint64
 
+func coordsUint64stoBytes(in []uint64) (out []byte) {
+	for _, coord := range in {
+		c := wire_encode_uint64(coord)
+		out = append(out, c...)
+	}
+	return out
+}
+
+func coordsBytestoUint64s(in []byte) (out []uint64) {
+	offset := 0
+	for {
+		coord, length := wire_decode_uint64(in[offset:])
+		if length == 0 {
+			break
+		}
+		out = append(out, coord)
+		offset += length
+	}
+	return out
+}
+
 // This is the subset of the information about a peer needed to make routing decisions, and it stored separately in an atomically accessed table, which gets hammered in the "hot loop" of the routing logic (see: peer.handleTraffic in peers.go).
 type tableElem struct {
 	port    switchPort

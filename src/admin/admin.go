@@ -17,6 +17,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
@@ -243,31 +244,46 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 		}
 	})
 	a.AddHandler("dhtPing", []string{"box_pub_key", "coords", "[target]"}, func(in Info) (Info, error) {
+		var reserr error
+		var result yggdrasil.DHTRes
 		if in["target"] == nil {
 			in["target"] = "none"
 		}
-		result, err := a.core.DHTPing(in["box_pub_key"].(string), in["coords"].(string), in["target"].(string))
-		if err == nil {
-			infos := make(map[string]map[string]string, len(result.Infos))
-			for _, dinfo := range result.Infos {
-				info := map[string]string{
-					"box_pub_key": hex.EncodeToString(dinfo.PublicKey[:]),
-					"coords":      fmt.Sprintf("%v", dinfo.Coords),
-				}
-				addr := net.IP(address.AddrForNodeID(crypto.GetNodeID(&dinfo.PublicKey))[:]).String()
-				infos[addr] = info
+		coords := util.DecodeCoordString(in["coords"].(string))
+		var boxPubKey crypto.BoxPubKey
+		if b, err := hex.DecodeString(in["box_pub_key"].(string)); err == nil {
+			copy(boxPubKey[:], b[:])
+			if n, err := hex.DecodeString(in["target"].(string)); err == nil {
+				var targetNodeID crypto.NodeID
+				copy(targetNodeID[:], n[:])
+				result, reserr = a.core.DHTPing(boxPubKey, coords, &targetNodeID)
+			} else {
+				result, reserr = a.core.DHTPing(boxPubKey, coords, nil)
 			}
-			return Info{"nodes": infos}, nil
 		} else {
 			return Info{}, err
 		}
+		if reserr != nil {
+			return Info{}, reserr
+		}
+		infos := make(map[string]map[string]string, len(result.Infos))
+		for _, dinfo := range result.Infos {
+			info := map[string]string{
+				"box_pub_key": hex.EncodeToString(dinfo.PublicKey[:]),
+				"coords":      fmt.Sprintf("%v", dinfo.Coords),
+			}
+			addr := net.IP(address.AddrForNodeID(crypto.GetNodeID(&dinfo.PublicKey))[:]).String()
+			infos[addr] = info
+		}
+		return Info{"nodes": infos}, nil
 	})
 	a.AddHandler("getNodeInfo", []string{"[box_pub_key]", "[coords]", "[nocache]"}, func(in Info) (Info, error) {
 		var nocache bool
 		if in["nocache"] != nil {
 			nocache = in["nocache"].(string) == "true"
 		}
-		var box_pub_key, coords string
+		var box_pub_key string
+		var coords []uint64
 		if in["box_pub_key"] == nil && in["coords"] == nil {
 			nodeinfo := a.core.MyNodeInfo()
 			var jsoninfo interface{}
@@ -280,7 +296,7 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 			return Info{}, errors.New("Expecting both box_pub_key and coords")
 		} else {
 			box_pub_key = in["box_pub_key"].(string)
-			coords = in["coords"].(string)
+			coords = util.DecodeCoordString(in["coords"].(string))
 		}
 		result, err := a.core.GetNodeInfo(box_pub_key, coords, nocache)
 		if err == nil {
