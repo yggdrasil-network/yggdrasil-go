@@ -154,29 +154,27 @@ func (c *Conn) Read(b []byte) (int, error) {
 	sinfo := c.session
 	cancel := c.getDeadlineCancellation(&c.readDeadline)
 	defer cancel.Cancel(nil)
-	for {
-		// Wait for some traffic to come through from the session
-		select {
-		case <-cancel.Finished():
-			if cancel.Error() == util.CancellationTimeoutError {
-				return 0, ConnError{errors.New("read timeout"), true, false, false, 0}
-			} else {
-				return 0, ConnError{errors.New("session closed"), false, false, true, 0}
-			}
-		case bs := <-sinfo.recv:
-			var err error
-			n := len(bs)
-			if len(bs) > len(b) {
-				n = len(b)
-				err = ConnError{errors.New("read buffer too small for entire packet"), false, true, false, 0}
-			}
-			// Copy results to the output slice and clean up
-			copy(b, bs)
-			util.PutBytes(bs)
-			// If we've reached this point then everything went to plan, return the
-			// number of bytes we populated back into the given slice
-			return n, err
+	// Wait for some traffic to come through from the session
+	select {
+	case <-cancel.Finished():
+		if cancel.Error() == util.CancellationTimeoutError {
+			return 0, ConnError{errors.New("read timeout"), true, false, false, 0}
+		} else {
+			return 0, ConnError{errors.New("session closed"), false, false, true, 0}
 		}
+	case bs := <-sinfo.recv:
+		var err error
+		n := len(bs)
+		if len(bs) > len(b) {
+			n = len(b)
+			err = ConnError{errors.New("read buffer too small for entire packet"), false, true, false, 0}
+		}
+		// Copy results to the output slice and clean up
+		copy(b, bs)
+		util.PutBytes(bs)
+		// If we've reached this point then everything went to plan, return the
+		// number of bytes we populated back into the given slice
+		return n, err
 	}
 }
 
@@ -206,7 +204,17 @@ func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
 	sinfo.doFunc(sessionFunc)
 	if written > 0 {
 		bs := append(util.GetBytes(), b...)
-		sinfo.send <- bs
+		cancel := c.getDeadlineCancellation(&c.writeDeadline)
+		defer cancel.Cancel(nil)
+		select {
+		case <-cancel.Finished():
+			if cancel.Error() == util.CancellationTimeoutError {
+				return 0, ConnError{errors.New("write timeout"), true, false, false, 0}
+			} else {
+				return 0, ConnError{errors.New("session closed"), false, false, true, 0}
+			}
+		case sinfo.send <- bs:
+		}
 	}
 	return written, err
 }
