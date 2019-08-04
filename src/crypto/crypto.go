@@ -172,7 +172,6 @@ func BoxOpen(shared *BoxSharedKey,
 	boxed []byte,
 	nonce *BoxNonce) ([]byte, bool) {
 	out := util.GetBytes()
-	//return append(out, boxed...), true //FIXME disabled crypto for benchmarking
 	s := (*[BoxSharedKeyLen]byte)(shared)
 	n := (*[BoxNonceLen]byte)(nonce)
 	unboxed, success := box.OpenAfterPrecomputation(out, boxed, n, s)
@@ -185,7 +184,6 @@ func BoxSeal(shared *BoxSharedKey, unboxed []byte, nonce *BoxNonce) ([]byte, *Bo
 	}
 	nonce.Increment()
 	out := util.GetBytes()
-	//return append(out, unboxed...), nonce // FIXME disabled crypto for benchmarking
 	s := (*[BoxSharedKeyLen]byte)(shared)
 	n := (*[BoxNonceLen]byte)(nonce)
 	boxed := box.SealAfterPrecomputation(out, unboxed, n, s)

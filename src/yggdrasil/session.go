@@ -463,8 +463,8 @@ func (sinfo *sessionInfo) recvWorker() {
 		ch := make(chan func(), 1)
 		poolFunc := func() {
 			bs, isOK = crypto.BoxOpen(&k, p.Payload, &p.Nonce)
-			util.PutBytes(p.Payload)
 			callback := func() {
+				util.PutBytes(p.Payload)
 				if !isOK {
 					util.PutBytes(bs)
 					return
@@ -539,11 +539,14 @@ func (sinfo *sessionInfo) sendWorker() {
 			// Encrypt the packet
 			p.Payload, _ = crypto.BoxSeal(&k, bs, &p.Nonce)
 			packet := p.encode()
-			// Cleanup
-			util.PutBytes(bs)
-			util.PutBytes(p.Payload)
 			// The callback will send the packet
-			callback := func() { sinfo.core.router.out(packet) }
+			callback := func() {
+				// Cleanup
+				util.PutBytes(bs)
+				util.PutBytes(p.Payload)
+				// Send the packet
+				sinfo.core.router.out(packet)
+			}
 			ch <- callback
 		}
 		// Send to the worker and wait for it to finish
