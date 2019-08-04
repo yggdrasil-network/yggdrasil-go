@@ -463,6 +463,7 @@ func (sinfo *sessionInfo) recvWorker() {
 		ch := make(chan func(), 1)
 		poolFunc := func() {
 			bs, isOK = crypto.BoxOpen(&k, p.Payload, &p.Nonce)
+			util.PutBytes(p.Payload)
 			callback := func() {
 				if !isOK {
 					util.PutBytes(bs)
