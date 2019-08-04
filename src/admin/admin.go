@@ -110,7 +110,7 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 				"bytes_recvd": p.BytesRecvd,
 				"proto":       p.Protocol,
 				"endpoint":    p.Endpoint,
-				"box_pub_key": p.PublicKey,
+				"box_pub_key": hex.EncodeToString(p.PublicKey[:]),
 			}
 		}
 		return Info{"peers": peers}, nil
@@ -128,7 +128,7 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 				"bytes_recvd": s.BytesRecvd,
 				"proto":       s.Protocol,
 				"endpoint":    s.Endpoint,
-				"box_pub_key": s.PublicKey,
+				"box_pub_key": hex.EncodeToString(s.PublicKey[:]),
 			}
 		}
 		return Info{"switchpeers": switchpeers}, nil
@@ -147,7 +147,7 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 			dht[so] = Info{
 				"coords":      fmt.Sprintf("%v", d.Coords),
 				"last_seen":   d.LastSeen.Seconds(),
-				"box_pub_key": d.PublicKey,
+				"box_pub_key": hex.EncodeToString(d.PublicKey[:]),
 			}
 		}
 		return Info{"dht": dht}, nil
@@ -164,7 +164,7 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 				"mtu":           s.MTU,
 				"uptime":        s.Uptime.Seconds(),
 				"was_mtu_fixed": s.WasMTUFixed,
-				"box_pub_key":   s.PublicKey,
+				"box_pub_key":   hex.EncodeToString(s.PublicKey[:]),
 			}
 		}
 		return Info{"sessions": sessions}, nil
