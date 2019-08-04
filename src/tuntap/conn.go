@@ -54,13 +54,13 @@ func (s *tunConn) reader() (err error) {
 	s.tun.log.Debugln("Starting conn reader for", s.conn.String())
 	defer s.tun.log.Debugln("Stopping conn reader for", s.conn.String())
 	var n int
-	b := make([]byte, 65535)
 	for {
 		select {
 		case <-s.stop:
 			return nil
 		default:
 		}
+		b := util.ResizeBytes(util.GetBytes(), 65535)
 		if n, err = s.conn.Read(b); err != nil {
 			if e, eok := err.(yggdrasil.ConnError); eok && !e.Temporary() {
 				if e.Closed() {
@@ -71,9 +71,10 @@ func (s *tunConn) reader() (err error) {
 				return e
 			}
 		} else if n > 0 {
-			bs := append(util.GetBytes(), b[:n]...)
-			s.tun.send <- bs
+			s.tun.send <- b[:n]
 			s.stillAlive()
+		} else {
+			util.PutBytes(b)
 		}
 	}
 }
