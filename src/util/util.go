@@ -34,6 +34,15 @@ func PutBytes(bs []byte) {
 	byteStore.Put(bs)
 }
 
+// Gets a slice of the appropriate length, reusing existing slice capacity when possible
+func ResizeBytes(bs []byte, length int) []byte {
+	if cap(bs) >= length {
+		return bs[:length]
+	} else {
+		return make([]byte, length)
+	}
+}
+
 // This is a workaround to go's broken timer implementation
 func TimerStop(t *time.Timer) bool {
 	stopped := t.Stop()

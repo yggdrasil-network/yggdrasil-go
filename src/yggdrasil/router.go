@@ -127,7 +127,6 @@ func (r *router) mainLoop() {
 				r.core.switchTable.doMaintenance()
 				r.core.dht.doMaintenance()
 				r.core.sessions.cleanup()
-				util.GetBytes() // To slowly drain things
 			}
 		case f := <-r.admin:
 			f()

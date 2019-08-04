@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
@@ -12,10 +13,11 @@ import (
 var _ = linkInterfaceMsgIO(&stream{})
 
 type stream struct {
-	rwc          io.ReadWriteCloser
-	inputBuffer  []byte                  // Incoming packet stream
-	frag         [2 * streamMsgSize]byte // Temporary data read off the underlying rwc, on its way to the inputBuffer
-	outputBuffer [2 * streamMsgSize]byte // Temporary data about to be written to the rwc
+	rwc         io.ReadWriteCloser
+	inputBuffer []byte                  // Incoming packet stream
+	frag        [2 * streamMsgSize]byte // Temporary data read off the underlying rwc, on its way to the inputBuffer
+	//outputBuffer [2 * streamMsgSize]byte // Temporary data about to be written to the rwc
+	outputBuffer net.Buffers
 }
 
 func (s *stream) close() error {
@@ -35,14 +37,17 @@ func (s *stream) init(rwc io.ReadWriteCloser) {
 // writeMsg writes a message with stream padding, and is *not* thread safe.
 func (s *stream) writeMsg(bs []byte) (int, error) {
 	buf := s.outputBuffer[:0]
-	buf = append(buf, streamMsg[:]...)
-	buf = wire_put_uint64(uint64(len(bs)), buf)
-	padLen := len(buf)
-	buf = append(buf, bs...)
+	buf = append(buf, streamMsg[:])
+	l := wire_put_uint64(uint64(len(bs)), util.GetBytes())
+	defer util.PutBytes(l)
+	buf = append(buf, l)
+	padLen := len(buf[0]) + len(buf[1])
+	buf = append(buf, bs)
+	totalLen := padLen + len(bs)
 	var bn int
-	for bn < len(buf) {
-		n, err := s.rwc.Write(buf[bn:])
-		bn += n
+	for bn < totalLen {
+		n, err := buf.WriteTo(s.rwc)
+		bn += int(n)
 		if err != nil {
 			l := bn - padLen
 			if l < 0 {
