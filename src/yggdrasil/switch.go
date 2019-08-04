@@ -820,7 +820,7 @@ func (t *switchTable) doWorker() {
 				select {
 				case bs := <-t.toRouter:
 					buf = append(buf, bs)
-					for len(buf) > 32768 { // FIXME realistically don't drop anything, just for testing
+					for len(buf) > 32 {
 						util.PutBytes(buf[0])
 						buf = buf[1:]
 					}
