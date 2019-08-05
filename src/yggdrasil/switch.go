@@ -188,9 +188,7 @@ func (t *switchTable) init(core *Core) {
 	now := time.Now()
 	t.core = core
 	t.reconfigure = make(chan chan error, 1)
-	t.core.configMutex.RLock()
 	t.key = t.core.sigPub
-	t.core.configMutex.RUnlock()
 	locator := switchLocator{root: t.key, tstamp: now.Unix()}
 	peers := make(map[switchPort]peerInfo)
 	t.data = switchData{locator: locator, peers: peers}
@@ -579,23 +577,28 @@ func (t *switchTable) start() error {
 	return nil
 }
 
+type closerInfo struct {
+	port switchPort
+	dist int
+}
+
 // Return a map of ports onto distance, keeping only ports closer to the destination than this node
 // If the map is empty (or nil), then no peer is closer
-func (t *switchTable) getCloser(dest []byte) map[switchPort]int {
+func (t *switchTable) getCloser(dest []byte) []closerInfo {
 	table := t.getTable()
 	myDist := table.self.dist(dest)
 	if myDist == 0 {
 		// Skip the iteration step if it's impossible to be closer
 		return nil
 	}
-	closer := make(map[switchPort]int, len(table.elems))
+	t.queues.closer = t.queues.closer[:0]
 	for _, info := range table.elems {
 		dist := info.locator.dist(dest)
 		if dist < myDist {
-			closer[info.port] = dist
+			t.queues.closer = append(t.queues.closer, closerInfo{info.port, dist})
 		}
 	}
-	return closer
+	return t.queues.closer
 }
 
 // Returns true if the peer is closer to the destination than ourself
@@ -658,9 +661,9 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]time.Time) boo
 	var bestDist int
 	var bestTime time.Time
 	ports := t.core.peers.getPorts()
-	for port, dist := range closer {
-		to := ports[port]
-		thisTime, isIdle := idle[port]
+	for _, cinfo := range closer {
+		to := ports[cinfo.port]
+		thisTime, isIdle := idle[cinfo.port]
 		var update bool
 		switch {
 		case to == nil:
@@ -669,9 +672,9 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]time.Time) boo
 			//nothing
 		case best == nil:
 			update = true
-		case dist < bestDist:
+		case cinfo.dist < bestDist:
 			update = true
-		case dist > bestDist:
+		case cinfo.dist > bestDist:
 			//nothing
 		case thisTime.Before(bestTime):
 			update = true
@@ -680,7 +683,7 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]time.Time) boo
 		}
 		if update {
 			best = to
-			bestDist = dist
+			bestDist = cinfo.dist
 			bestTime = thisTime
 		}
 	}
@@ -713,6 +716,7 @@ type switch_buffers struct {
 	size        uint64                   // Total size of all buffers, in bytes
 	maxbufs     int
 	maxsize     uint64
+	closer      []closerInfo // Scratch space
 }
 
 func (b *switch_buffers) cleanup(t *switchTable) {
@@ -810,17 +814,23 @@ func (t *switchTable) doWorker() {
 	go func() {
 		// Keep taking packets from the idle worker and sending them to the above whenever it's idle, keeping anything extra in a (fifo, head-drop) buffer
 		var buf [][]byte
+		var size int
 		for {
-			buf = append(buf, <-t.toRouter)
+			bs := <-t.toRouter
+			size += len(bs)
+			buf = append(buf, bs)
 			for len(buf) > 0 {
 				select {
 				case bs := <-t.toRouter:
+					size += len(bs)
 					buf = append(buf, bs)
-					for len(buf) > 32 {
+					for size > int(t.queueTotalMaxSize) {
+						size -= len(buf[0])
 						util.PutBytes(buf[0])
 						buf = buf[1:]
 					}
 				case sendingToRouter <- buf[0]:
+					size -= len(buf[0])
 					buf = buf[1:]
 				}
 			}

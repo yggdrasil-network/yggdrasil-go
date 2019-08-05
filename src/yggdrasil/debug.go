@@ -35,9 +35,9 @@ func init() {
 	hostPort := os.Getenv(envVarName)
 	switch {
 	case hostPort == "":
-		fmt.Printf("DEBUG: %s not set, profiler not started.\n", envVarName)
+		fmt.Fprintf(os.Stderr, "DEBUG: %s not set, profiler not started.\n", envVarName)
 	default:
-		fmt.Printf("DEBUG: Starting pprof on %s\n", hostPort)
+		fmt.Fprintf(os.Stderr, "DEBUG: Starting pprof on %s\n", hostPort)
 		go func() { fmt.Println(http.ListenAndServe(hostPort, nil)) }()
 	}
 }
@@ -59,13 +59,17 @@ func (c *Core) Init() {
 	hbpriv := hex.EncodeToString(bpriv[:])
 	hspub := hex.EncodeToString(spub[:])
 	hspriv := hex.EncodeToString(spriv[:])
-	c.config = config.NodeConfig{
+	cfg := config.NodeConfig{
 		EncryptionPublicKey:  hbpub,
 		EncryptionPrivateKey: hbpriv,
 		SigningPublicKey:     hspub,
 		SigningPrivateKey:    hspriv,
 	}
-	c.init( /*bpub, bpriv, spub, spriv*/ )
+	c.config = config.NodeState{
+		Current:  cfg,
+		Previous: cfg,
+	}
+	c.init()
 	c.switchTable.start()
 	c.router.start()
 }
@@ -82,6 +86,7 @@ func (c *Core) DEBUG_getEncryptionPublicKey() crypto.BoxPubKey {
 	return (crypto.BoxPubKey)(c.boxPub)
 }
 
+/*
 func (c *Core) DEBUG_getSend() chan<- []byte {
 	return c.router.tun.send
 }
@@ -89,6 +94,7 @@ func (c *Core) DEBUG_getSend() chan<- []byte {
 func (c *Core) DEBUG_getRecv() <-chan []byte {
 	return c.router.tun.recv
 }
+*/
 
 // Peer
 
@@ -317,6 +323,7 @@ func (c *Core) DEBUG_getAddr() *address.Address {
 	return address.AddrForNodeID(&c.dht.nodeID)
 }
 
+/*
 func (c *Core) DEBUG_startTun(ifname string, iftapmode bool) {
 	c.DEBUG_startTunWithMTU(ifname, iftapmode, 1280)
 }
@@ -338,6 +345,7 @@ func (c *Core) DEBUG_startTunWithMTU(ifname string, iftapmode bool, mtu int) {
 func (c *Core) DEBUG_stopTun() {
 	c.router.tun.close()
 }
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -382,13 +390,17 @@ func (c *Core) DEBUG_init(bpub []byte,
 	hbpriv := hex.EncodeToString(bpriv[:])
 	hspub := hex.EncodeToString(spub[:])
 	hspriv := hex.EncodeToString(spriv[:])
-	c.config = config.NodeConfig{
+	cfg := config.NodeConfig{
 		EncryptionPublicKey:  hbpub,
 		EncryptionPrivateKey: hbpriv,
 		SigningPublicKey:     hspub,
 		SigningPrivateKey:    hspriv,
 	}
-	c.init( /*bpub, bpriv, spub, spriv*/ )
+	c.config = config.NodeState{
+		Current:  cfg,
+		Previous: cfg,
+	}
+	c.init()
 
 	if err := c.router.start(); err != nil {
 		panic(err)
@@ -427,14 +439,14 @@ func (c *Core) DEBUG_maybeSendUDPKeys(saddr string) {
 */
 
 ////////////////////////////////////////////////////////////////////////////////
-
+/*
 func (c *Core) DEBUG_addPeer(addr string) {
 	err := c.admin.addPeer(addr, "")
 	if err != nil {
 		panic(err)
 	}
 }
-
+*/
 /*
 func (c *Core) DEBUG_addSOCKSConn(socksaddr, peeraddr string) {
 	go func() {
@@ -455,7 +467,7 @@ func (c *Core) DEBUG_addSOCKSConn(socksaddr, peeraddr string) {
 }
 */
 
-//*
+/*
 func (c *Core) DEBUG_setupAndStartGlobalTCPInterface(addrport string) {
 	c.config.Listen = []string{addrport}
 	if err := c.link.init(c); err != nil {
@@ -503,10 +515,11 @@ func (c *Core) DEBUG_addKCPConn(saddr string) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*
 func (c *Core) DEBUG_setupAndStartAdminInterface(addrport string) {
 	a := admin{}
 	c.config.AdminListen = addrport
-	a.init(c /*, addrport*/)
+	a.init()
 	c.admin = a
 }
 
@@ -516,6 +529,7 @@ func (c *Core) DEBUG_setupAndStartMulticastInterface() {
 	c.multicast = m
 	m.start()
 }
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -527,13 +541,14 @@ func (c *Core) DEBUG_setIfceExpr(expr *regexp.Regexp) {
 	c.log.Println("DEBUG_setIfceExpr no longer implemented")
 }
 
+/*
 func (c *Core) DEBUG_addAllowedEncryptionPublicKey(boxStr string) {
 	err := c.admin.addAllowedEncryptionPublicKey(boxStr)
 	if err != nil {
 		panic(err)
 	}
 }
-
+*/
 ////////////////////////////////////////////////////////////////////////////////
 
 func DEBUG_simLinkPeers(p, q *peer) {
@@ -579,9 +594,11 @@ func DEBUG_simLinkPeers(p, q *peer) {
 	q.core.switchTable.idleIn <- q.port
 }
 
+/*
 func (c *Core) DEBUG_simFixMTU() {
 	c.router.tun.mtu = 65535
 }
+*/
 
 ////////////////////////////////////////////////////////////////////////////////
 

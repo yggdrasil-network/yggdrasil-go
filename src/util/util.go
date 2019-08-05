@@ -2,8 +2,13 @@ package util
 
 // These are misc. utility functions that didn't really fit anywhere else
 
-import "runtime"
-import "time"
+import (
+	"runtime"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
 
 // A wrapper around runtime.Gosched() so it doesn't need to be imported elsewhere.
 func Yield() {
@@ -21,40 +26,35 @@ func UnlockThread() {
 }
 
 // This is used to buffer recently used slices of bytes, to prevent allocations in the hot loops.
-// It's used like a sync.Pool, but with a fixed size and typechecked without type casts to/from interface{} (which were making the profiles look ugly).
-var byteStore chan []byte
+var byteStore = sync.Pool{New: func() interface{} { return []byte(nil) }}
 
-func init() {
-	byteStore = make(chan []byte, 32)
-}
-
-// Gets an empty slice from the byte store, if one is available, or else returns a new nil slice.
+// Gets an empty slice from the byte store.
 func GetBytes() []byte {
-	select {
-	case bs := <-byteStore:
-		return bs[:0]
-	default:
-		return nil
-	}
+	return byteStore.Get().([]byte)[:0]
 }
 
-// Puts a slice in the store, if there's room, or else returns and lets the slice get collected.
+// Puts a slice in the store.
 func PutBytes(bs []byte) {
-	select {
-	case byteStore <- bs:
-	default:
+	byteStore.Put(bs)
+}
+
+// Gets a slice of the appropriate length, reusing existing slice capacity when possible
+func ResizeBytes(bs []byte, length int) []byte {
+	if cap(bs) >= length {
+		return bs[:length]
+	} else {
+		return make([]byte, length)
 	}
 }
 
 // This is a workaround to go's broken timer implementation
 func TimerStop(t *time.Timer) bool {
-	if !t.Stop() {
-		select {
-		case <-t.C:
-		default:
-		}
+	stopped := t.Stop()
+	select {
+	case <-t.C:
+	default:
 	}
-	return true
+	return stopped
 }
 
 // Run a blocking function with a timeout.
@@ -92,4 +92,17 @@ func Difference(a, b []string) []string {
 		}
 	}
 	return ab
+}
+
+// DecodeCoordString decodes a string representing coordinates in [1 2 3] format
+// and returns a []uint64.
+func DecodeCoordString(in string) (out []uint64) {
+	s := strings.Trim(in, "[]")
+	t := strings.Split(s, " ")
+	for _, a := range t {
+		if u, err := strconv.ParseUint(a, 0, 64); err == nil {
+			out = append(out, u)
+		}
+	}
+	return out
 }

@@ -44,42 +44,42 @@ func (ps *peers) init(c *Core) {
 // because the key is in the whitelist or because the whitelist is empty.
 func (ps *peers) isAllowedEncryptionPublicKey(box *crypto.BoxPubKey) bool {
 	boxstr := hex.EncodeToString(box[:])
-	ps.core.configMutex.RLock()
-	defer ps.core.configMutex.RUnlock()
-	for _, v := range ps.core.config.AllowedEncryptionPublicKeys {
+	ps.core.config.Mutex.RLock()
+	defer ps.core.config.Mutex.RUnlock()
+	for _, v := range ps.core.config.Current.AllowedEncryptionPublicKeys {
 		if v == boxstr {
 			return true
 		}
 	}
-	return len(ps.core.config.AllowedEncryptionPublicKeys) == 0
+	return len(ps.core.config.Current.AllowedEncryptionPublicKeys) == 0
 }
 
 // Adds a key to the whitelist.
 func (ps *peers) addAllowedEncryptionPublicKey(box string) {
-	ps.core.configMutex.RLock()
-	defer ps.core.configMutex.RUnlock()
-	ps.core.config.AllowedEncryptionPublicKeys =
-		append(ps.core.config.AllowedEncryptionPublicKeys, box)
+	ps.core.config.Mutex.RLock()
+	defer ps.core.config.Mutex.RUnlock()
+	ps.core.config.Current.AllowedEncryptionPublicKeys =
+		append(ps.core.config.Current.AllowedEncryptionPublicKeys, box)
 }
 
 // Removes a key from the whitelist.
 func (ps *peers) removeAllowedEncryptionPublicKey(box string) {
-	ps.core.configMutex.RLock()
-	defer ps.core.configMutex.RUnlock()
-	for k, v := range ps.core.config.AllowedEncryptionPublicKeys {
+	ps.core.config.Mutex.RLock()
+	defer ps.core.config.Mutex.RUnlock()
+	for k, v := range ps.core.config.Current.AllowedEncryptionPublicKeys {
 		if v == box {
-			ps.core.config.AllowedEncryptionPublicKeys =
-				append(ps.core.config.AllowedEncryptionPublicKeys[:k],
-					ps.core.config.AllowedEncryptionPublicKeys[k+1:]...)
+			ps.core.config.Current.AllowedEncryptionPublicKeys =
+				append(ps.core.config.Current.AllowedEncryptionPublicKeys[:k],
+					ps.core.config.Current.AllowedEncryptionPublicKeys[k+1:]...)
 		}
 	}
 }
 
 // Gets the whitelist of allowed keys for incoming connections.
 func (ps *peers) getAllowedEncryptionPublicKeys() []string {
-	ps.core.configMutex.RLock()
-	defer ps.core.configMutex.RUnlock()
-	return ps.core.config.AllowedEncryptionPublicKeys
+	ps.core.config.Mutex.RLock()
+	defer ps.core.config.Mutex.RUnlock()
+	return ps.core.config.Current.AllowedEncryptionPublicKeys
 }
 
 // Atomically gets a map[switchPort]*peer of known peers.

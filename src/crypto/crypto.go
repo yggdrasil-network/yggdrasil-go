@@ -13,7 +13,9 @@ It also defines NodeID and TreeID as hashes of keys, and wraps hash functions
 import (
 	"crypto/rand"
 	"crypto/sha512"
+	"encoding/hex"
 
+	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/nacl/box"
 
@@ -31,6 +33,41 @@ const handleLen = 8
 type NodeID [NodeIDLen]byte
 type TreeID [TreeIDLen]byte
 type Handle [handleLen]byte
+
+func (n *NodeID) String() string {
+	return hex.EncodeToString(n[:])
+}
+
+// Network returns "nodeid" nearly always right now.
+func (n *NodeID) Network() string {
+	return "nodeid"
+}
+
+// PrefixLength returns the number of bits set in a masked NodeID.
+func (n *NodeID) PrefixLength() int {
+	var len int
+	for i, v := range *n {
+		_, _ = i, v
+		if v == 0xff {
+			len += 8
+			continue
+		}
+		for v&0x80 != 0 {
+			len++
+			v <<= 1
+		}
+		if v != 0 {
+			return -1
+		}
+		for i++; i < NodeIDLen; i++ {
+			if n[i] != 0 {
+				return -1
+			}
+		}
+		break
+	}
+	return len
+}
 
 func GetNodeID(pub *BoxPubKey) *NodeID {
 	h := sha512.Sum512(pub[:])
@@ -86,6 +123,15 @@ func Verify(pub *SigPubKey, msg []byte, sig *SigBytes) bool {
 	// Should sig be an array instead of a slice?...
 	// It's fixed size, but
 	return ed25519.Verify(pub[:], msg, sig[:])
+}
+
+func (p SigPrivKey) Public() SigPubKey {
+	priv := make(ed25519.PrivateKey, ed25519.PrivateKeySize)
+	copy(priv[:], p[:])
+	pub := priv.Public().(ed25519.PublicKey)
+	var sigPub SigPubKey
+	copy(sigPub[:], pub[:])
+	return sigPub
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,6 +212,14 @@ func (n *BoxNonce) Increment() {
 			n[i] += 1
 		}
 	}
+}
+
+func (p BoxPrivKey) Public() BoxPubKey {
+	var boxPub [BoxPubKeyLen]byte
+	var boxPriv [BoxPrivKeyLen]byte
+	copy(boxPriv[:BoxPrivKeyLen], p[:BoxPrivKeyLen])
+	curve25519.ScalarBaseMult(&boxPub, &boxPriv)
+	return boxPub
 }
 
 // Used to subtract one nonce from another, staying in the range +- 64.

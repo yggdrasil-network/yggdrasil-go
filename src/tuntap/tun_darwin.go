@@ -1,6 +1,6 @@
 // +build !mobile
 
-package yggdrasil
+package tuntap
 
 // The darwin platform specific tun parts
 
@@ -16,9 +16,9 @@ import (
 )
 
 // Configures the "utun" adapter with the correct IPv6 address and MTU.
-func (tun *tunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
+func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	if iftapmode {
-		tun.core.log.Warnln("TAP mode is not supported on this platform, defaulting to TUN")
+		tun.log.Warnln("TAP mode is not supported on this platform, defaulting to TUN")
 	}
 	config := water.Config{DeviceType: water.TUN}
 	iface, err := water.New(config)
@@ -30,7 +30,12 @@ func (tun *tunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 	return tun.setupAddress(addr)
 }
 
-const darwin_SIOCAIFADDR_IN6 = 2155899162
+const (
+	darwin_SIOCAIFADDR_IN6       = 2155899162 // netinet6/in6_var.h
+	darwin_IN6_IFF_NODAD         = 0x0020     // netinet6/in6_var.h
+	darwin_IN6_IFF_SECURED       = 0x0400     // netinet6/in6_var.h
+	darwin_ND6_INFINITE_LIFETIME = 0xFFFFFFFF // netinet6/nd6.h
+)
 
 type in6_addrlifetime struct {
 	ia6t_expire    float64
@@ -64,12 +69,12 @@ type ifreq struct {
 
 // Sets the IPv6 address of the utun adapter. On Darwin/macOS this is done using
 // a system socket and making direct syscalls to the kernel.
-func (tun *tunAdapter) setupAddress(addr string) error {
+func (tun *TunAdapter) setupAddress(addr string) error {
 	var fd int
 	var err error
 
 	if fd, err = unix.Socket(unix.AF_INET6, unix.SOCK_DGRAM, 0); err != nil {
-		tun.core.log.Printf("Create AF_SYSTEM socket failed: %v.", err)
+		tun.log.Printf("Create AF_SYSTEM socket failed: %v.", err)
 		return err
 	}
 
@@ -91,26 +96,29 @@ func (tun *tunAdapter) setupAddress(addr string) error {
 		ar.ifra_addr.sin6_addr[i] = uint16(binary.BigEndian.Uint16(b))
 	}
 
-	ar.ifra_lifetime.ia6t_vltime = 0xFFFFFFFF
-	ar.ifra_lifetime.ia6t_pltime = 0xFFFFFFFF
+	ar.ifra_flags |= darwin_IN6_IFF_NODAD
+	ar.ifra_flags |= darwin_IN6_IFF_SECURED
+
+	ar.ifra_lifetime.ia6t_vltime = darwin_ND6_INFINITE_LIFETIME
+	ar.ifra_lifetime.ia6t_pltime = darwin_ND6_INFINITE_LIFETIME
 
 	var ir ifreq
 	copy(ir.ifr_name[:], tun.iface.Name())
 	ir.ifru_mtu = uint32(tun.mtu)
 
-	tun.core.log.Infof("Interface name: %s", ar.ifra_name)
-	tun.core.log.Infof("Interface IPv6: %s", addr)
-	tun.core.log.Infof("Interface MTU: %d", ir.ifru_mtu)
+	tun.log.Infof("Interface name: %s", ar.ifra_name)
+	tun.log.Infof("Interface IPv6: %s", addr)
+	tun.log.Infof("Interface MTU: %d", ir.ifru_mtu)
 
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(darwin_SIOCAIFADDR_IN6), uintptr(unsafe.Pointer(&ar))); errno != 0 {
 		err = errno
-		tun.core.log.Errorf("Error in darwin_SIOCAIFADDR_IN6: %v", errno)
+		tun.log.Errorf("Error in darwin_SIOCAIFADDR_IN6: %v", errno)
 		return err
 	}
 
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(unix.SIOCSIFMTU), uintptr(unsafe.Pointer(&ir))); errno != 0 {
 		err = errno
-		tun.core.log.Errorf("Error in SIOCSIFMTU: %v", errno)
+		tun.log.Errorf("Error in SIOCSIFMTU: %v", errno)
 		return err
 	}
 

@@ -1,4 +1,4 @@
-package yggdrasil
+package tuntap
 
 import (
 	"bytes"
@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net"
 	"sort"
+	"sync"
+	"sync/atomic"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
@@ -16,15 +18,18 @@ import (
 // allow traffic for non-Yggdrasil ranges to be routed over Yggdrasil.
 
 type cryptokey struct {
-	core        *Core
-	enabled     bool
-	reconfigure chan chan error
-	ipv4routes  []cryptokey_route
-	ipv6routes  []cryptokey_route
-	ipv4cache   map[address.Address]cryptokey_route
-	ipv6cache   map[address.Address]cryptokey_route
-	ipv4sources []net.IPNet
-	ipv6sources []net.IPNet
+	tun          *TunAdapter
+	enabled      atomic.Value // bool
+	reconfigure  chan chan error
+	ipv4routes   []cryptokey_route
+	ipv6routes   []cryptokey_route
+	ipv4cache    map[address.Address]cryptokey_route
+	ipv6cache    map[address.Address]cryptokey_route
+	ipv4sources  []net.IPNet
+	ipv6sources  []net.IPNet
+	mutexroutes  sync.RWMutex
+	mutexcaches  sync.RWMutex
+	mutexsources sync.RWMutex
 }
 
 type cryptokey_route struct {
@@ -33,59 +38,61 @@ type cryptokey_route struct {
 }
 
 // Initialise crypto-key routing. This must be done before any other CKR calls.
-func (c *cryptokey) init(core *Core) {
-	c.core = core
+func (c *cryptokey) init(tun *TunAdapter) {
+	c.tun = tun
 	c.reconfigure = make(chan chan error, 1)
 	go func() {
 		for {
 			e := <-c.reconfigure
-			var err error
-			c.core.router.doAdmin(func() {
-				err = c.core.router.cryptokey.configure()
-			})
-			e <- err
+			e <- nil
 		}
 	}()
 
+	c.tun.log.Debugln("Configuring CKR...")
 	if err := c.configure(); err != nil {
-		c.core.log.Errorln("CKR configuration failed:", err)
+		c.tun.log.Errorln("CKR configuration failed:", err)
+	} else {
+		c.tun.log.Debugln("CKR configured")
 	}
 }
 
 // Configure the CKR routes - this must only ever be called from the router
 // goroutine, e.g. through router.doAdmin
 func (c *cryptokey) configure() error {
-	c.core.configMutex.RLock()
-	defer c.core.configMutex.RUnlock()
+	current := c.tun.config.GetCurrent()
 
 	// Set enabled/disabled state
-	c.setEnabled(c.core.config.TunnelRouting.Enable)
+	c.setEnabled(current.TunnelRouting.Enable)
 
 	// Clear out existing routes
+	c.mutexroutes.Lock()
 	c.ipv6routes = make([]cryptokey_route, 0)
 	c.ipv4routes = make([]cryptokey_route, 0)
+	c.mutexroutes.Unlock()
 
 	// Add IPv6 routes
-	for ipv6, pubkey := range c.core.config.TunnelRouting.IPv6Destinations {
+	for ipv6, pubkey := range current.TunnelRouting.IPv6Destinations {
 		if err := c.addRoute(ipv6, pubkey); err != nil {
 			return err
 		}
 	}
 
 	// Add IPv4 routes
-	for ipv4, pubkey := range c.core.config.TunnelRouting.IPv4Destinations {
+	for ipv4, pubkey := range current.TunnelRouting.IPv4Destinations {
 		if err := c.addRoute(ipv4, pubkey); err != nil {
 			return err
 		}
 	}
 
 	// Clear out existing sources
+	c.mutexsources.Lock()
 	c.ipv6sources = make([]net.IPNet, 0)
 	c.ipv4sources = make([]net.IPNet, 0)
+	c.mutexsources.Unlock()
 
 	// Add IPv6 sources
 	c.ipv6sources = make([]net.IPNet, 0)
-	for _, source := range c.core.config.TunnelRouting.IPv6Sources {
+	for _, source := range current.TunnelRouting.IPv6Sources {
 		if err := c.addSourceSubnet(source); err != nil {
 			return err
 		}
@@ -93,43 +100,49 @@ func (c *cryptokey) configure() error {
 
 	// Add IPv4 sources
 	c.ipv4sources = make([]net.IPNet, 0)
-	for _, source := range c.core.config.TunnelRouting.IPv4Sources {
+	for _, source := range current.TunnelRouting.IPv4Sources {
 		if err := c.addSourceSubnet(source); err != nil {
 			return err
 		}
 	}
 
 	// Wipe the caches
+	c.mutexcaches.Lock()
 	c.ipv4cache = make(map[address.Address]cryptokey_route, 0)
 	c.ipv6cache = make(map[address.Address]cryptokey_route, 0)
+	c.mutexcaches.Unlock()
 
 	return nil
 }
 
 // Enable or disable crypto-key routing.
 func (c *cryptokey) setEnabled(enabled bool) {
-	c.enabled = enabled
+	c.enabled.Store(enabled)
 }
 
 // Check if crypto-key routing is enabled.
 func (c *cryptokey) isEnabled() bool {
-	return c.enabled
+	enabled, ok := c.enabled.Load().(bool)
+	return ok && enabled
 }
 
 // Check whether the given address (with the address length specified in bytes)
 // matches either the current node's address, the node's routed subnet or the
 // list of subnets specified in IPv4Sources/IPv6Sources.
 func (c *cryptokey) isValidSource(addr address.Address, addrlen int) bool {
+	c.mutexsources.RLock()
+	defer c.mutexsources.RUnlock()
+
 	ip := net.IP(addr[:addrlen])
 
 	if addrlen == net.IPv6len {
 		// Does this match our node's address?
-		if bytes.Equal(addr[:16], c.core.router.addr[:16]) {
+		if bytes.Equal(addr[:16], c.tun.addr[:16]) {
 			return true
 		}
 
 		// Does this match our node's subnet?
-		if bytes.Equal(addr[:8], c.core.router.subnet[:8]) {
+		if bytes.Equal(addr[:8], c.tun.subnet[:8]) {
 			return true
 		}
 	}
@@ -162,6 +175,9 @@ func (c *cryptokey) isValidSource(addr address.Address, addrlen int) bool {
 // Adds a source subnet, which allows traffic with these source addresses to
 // be tunnelled using crypto-key routing.
 func (c *cryptokey) addSourceSubnet(cidr string) error {
+	c.mutexsources.Lock()
+	defer c.mutexsources.Unlock()
+
 	// Is the CIDR we've been given valid?
 	_, ipnet, err := net.ParseCIDR(cidr)
 	if err != nil {
@@ -192,13 +208,18 @@ func (c *cryptokey) addSourceSubnet(cidr string) error {
 
 	// Add the source subnet
 	*routingsources = append(*routingsources, *ipnet)
-	c.core.log.Infoln("Added CKR source subnet", cidr)
+	c.tun.log.Infoln("Added CKR source subnet", cidr)
 	return nil
 }
 
 // Adds a destination route for the given CIDR to be tunnelled to the node
 // with the given BoxPubKey.
 func (c *cryptokey) addRoute(cidr string, dest string) error {
+	c.mutexroutes.Lock()
+	c.mutexcaches.Lock()
+	defer c.mutexroutes.Unlock()
+	defer c.mutexcaches.Unlock()
+
 	// Is the CIDR we've been given valid?
 	ipaddr, ipnet, err := net.ParseCIDR(cidr)
 	if err != nil {
@@ -264,7 +285,7 @@ func (c *cryptokey) addRoute(cidr string, dest string) error {
 			delete(*routingcache, k)
 		}
 
-		c.core.log.Infoln("Added CKR destination subnet", cidr)
+		c.tun.log.Infoln("Added CKR destination subnet", cidr)
 		return nil
 	}
 }
@@ -273,6 +294,8 @@ func (c *cryptokey) addRoute(cidr string, dest string) error {
 // length specified in bytes) from the crypto-key routing table. An error is
 // returned if the address is not suitable or no route was found.
 func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (crypto.BoxPubKey, error) {
+	c.mutexcaches.RLock()
+
 	// Check if the address is a valid Yggdrasil address - if so it
 	// is exempt from all CKR checking
 	if addr.IsValid() {
@@ -285,10 +308,8 @@ func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (c
 
 	// Check if the prefix is IPv4 or IPv6
 	if addrlen == net.IPv6len {
-		routingtable = &c.ipv6routes
 		routingcache = &c.ipv6cache
 	} else if addrlen == net.IPv4len {
-		routingtable = &c.ipv4routes
 		routingcache = &c.ipv4cache
 	} else {
 		return crypto.BoxPubKey{}, errors.New("Unexpected prefix size")
@@ -296,7 +317,22 @@ func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (c
 
 	// Check if there's a cache entry for this addr
 	if route, ok := (*routingcache)[addr]; ok {
+		c.mutexcaches.RUnlock()
 		return route.destination, nil
+	}
+
+	c.mutexcaches.RUnlock()
+
+	c.mutexroutes.RLock()
+	defer c.mutexroutes.RUnlock()
+
+	// Check if the prefix is IPv4 or IPv6
+	if addrlen == net.IPv6len {
+		routingtable = &c.ipv6routes
+	} else if addrlen == net.IPv4len {
+		routingtable = &c.ipv4routes
+	} else {
+		return crypto.BoxPubKey{}, errors.New("Unexpected prefix size")
 	}
 
 	// No cache was found - start by converting the address into a net.IP
@@ -308,6 +344,9 @@ func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (c
 	for _, route := range *routingtable {
 		// Does this subnet match the given IP?
 		if route.subnet.Contains(ip) {
+			c.mutexcaches.Lock()
+			defer c.mutexcaches.Unlock()
+
 			// Check if the routing cache is above a certain size, if it is evict
 			// a random entry so we can make room for this one. We take advantage
 			// of the fact that the iteration order is random here
@@ -333,6 +372,9 @@ func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (c
 // Removes a source subnet, which allows traffic with these source addresses to
 // be tunnelled using crypto-key routing.
 func (c *cryptokey) removeSourceSubnet(cidr string) error {
+	c.mutexsources.Lock()
+	defer c.mutexsources.Unlock()
+
 	// Is the CIDR we've been given valid?
 	_, ipnet, err := net.ParseCIDR(cidr)
 	if err != nil {
@@ -358,7 +400,7 @@ func (c *cryptokey) removeSourceSubnet(cidr string) error {
 	for idx, subnet := range *routingsources {
 		if subnet.String() == ipnet.String() {
 			*routingsources = append((*routingsources)[:idx], (*routingsources)[idx+1:]...)
-			c.core.log.Infoln("Removed CKR source subnet", cidr)
+			c.tun.log.Infoln("Removed CKR source subnet", cidr)
 			return nil
 		}
 	}
@@ -368,6 +410,11 @@ func (c *cryptokey) removeSourceSubnet(cidr string) error {
 // Removes a destination route for the given CIDR to be tunnelled to the node
 // with the given BoxPubKey.
 func (c *cryptokey) removeRoute(cidr string, dest string) error {
+	c.mutexroutes.Lock()
+	c.mutexcaches.Lock()
+	defer c.mutexroutes.Unlock()
+	defer c.mutexcaches.Unlock()
+
 	// Is the CIDR we've been given valid?
 	_, ipnet, err := net.ParseCIDR(cidr)
 	if err != nil {
@@ -407,7 +454,7 @@ func (c *cryptokey) removeRoute(cidr string, dest string) error {
 			for k := range *routingcache {
 				delete(*routingcache, k)
 			}
-			c.core.log.Infoln("Removed CKR destination subnet %s via %s\n", cidr, dest)
+			c.tun.log.Infof("Removed CKR destination subnet %s via %s\n", cidr, dest)
 			return nil
 		}
 	}

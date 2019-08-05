@@ -10,6 +10,9 @@ type platformDefaultParameters struct {
 	// Configuration (used for yggdrasilctl)
 	DefaultConfigFile string
 
+	// Multicast interfaces
+	DefaultMulticastInterfaces []string
+
 	// TUN/TAP
 	MaximumIfMTU     int
 	DefaultIfMTU     int

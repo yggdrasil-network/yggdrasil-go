@@ -72,13 +72,16 @@ func wire_decode_uint64(bs []byte) (uint64, int) {
 // Non-negative integers are mapped to even integers: 0 -> 0, 1 -> 2, etc.
 // Negative integers are mapped to odd integers: -1 -> 1, -2 -> 3, etc.
 // This means the least significant bit is a sign bit.
+// This is known as zigzag encoding.
 func wire_intToUint(i int64) uint64 {
-	return ((uint64(-(i+1))<<1)|0x01)*(uint64(i)>>63) + (uint64(i)<<1)*(^uint64(i)>>63)
+	// signed arithmetic shift
+	return uint64((i >> 63) ^ (i << 1))
 }
 
 // Converts uint64 back to int64, genreally when being read from the wire.
 func wire_intFromUint(u uint64) int64 {
-	return int64(u&0x01)*(-int64(u>>1)-1) + int64(^u&0x01)*int64(u>>1)
+	// non-arithmetic shift
+	return int64((u >> 1) ^ -(u & 1))
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,6 +113,29 @@ func wire_decode_coords(packet []byte) ([]byte, int) {
 		return nil, 0
 	}
 	return packet[coordBegin:coordEnd], coordEnd
+}
+
+// Converts a []uint64 set of coords to a []byte set of coords.
+func wire_coordsUint64stoBytes(in []uint64) (out []byte) {
+	for _, coord := range in {
+		c := wire_encode_uint64(coord)
+		out = append(out, c...)
+	}
+	return out
+}
+
+// Converts a []byte set of coords to a []uint64 set of coords.
+func wire_coordsBytestoUint64s(in []byte) (out []uint64) {
+	offset := 0
+	for {
+		coord, length := wire_decode_uint64(in[offset:])
+		if length == 0 {
+			break
+		}
+		out = append(out, coord)
+		offset += length
+	}
+	return out
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -391,7 +417,7 @@ func (p *nodeinfoReqRes) decode(bs []byte) bool {
 		if len(bs) == 0 {
 			return false
 		}
-		p.NodeInfo = make(nodeinfoPayload, len(bs))
+		p.NodeInfo = make(NodeInfoPayload, len(bs))
 		if !wire_chop_slice(p.NodeInfo[:], &bs) {
 			return false
 		}
