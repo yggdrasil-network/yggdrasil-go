@@ -282,7 +282,7 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 		if in["nocache"] != nil {
 			nocache = in["nocache"].(string) == "true"
 		}
-		var box_pub_key string
+		var boxPubKey crypto.BoxPubKey
 		var coords []uint64
 		if in["box_pub_key"] == nil && in["coords"] == nil {
 			nodeinfo := a.core.MyNodeInfo()
@@ -295,10 +295,14 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 		} else if in["box_pub_key"] == nil || in["coords"] == nil {
 			return Info{}, errors.New("Expecting both box_pub_key and coords")
 		} else {
-			box_pub_key = in["box_pub_key"].(string)
+			if b, err := hex.DecodeString(in["box_pub_key"].(string)); err == nil {
+				copy(boxPubKey[:], b[:])
+			} else {
+				return Info{}, err
+			}
 			coords = util.DecodeCoordString(in["coords"].(string))
 		}
-		result, err := a.core.GetNodeInfo(box_pub_key, coords, nocache)
+		result, err := a.core.GetNodeInfo(boxPubKey, coords, nocache)
 		if err == nil {
 			var m map[string]interface{}
 			if err = json.Unmarshal(result, &m); err == nil {

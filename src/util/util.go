@@ -97,7 +97,7 @@ func Difference(a, b []string) []string {
 }
 
 // DecodeCoordString decodes a string representing coordinates in [1 2 3] format
-// and returns a []byte.
+// and returns a []uint64.
 func DecodeCoordString(in string) (out []uint64) {
 	s := strings.Trim(in, "[]")
 	t := strings.Split(s, " ")

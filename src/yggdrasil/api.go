@@ -32,7 +32,7 @@ type Peer struct {
 // to a given node.
 type SwitchPeer struct {
 	PublicKey  crypto.BoxPubKey
-	Coords     []byte
+	Coords     []uint64
 	BytesSent  uint64
 	BytesRecvd uint64
 	Port       uint64
@@ -83,7 +83,7 @@ type SwitchQueue struct {
 // Session represents an open session with another node.
 type Session struct {
 	PublicKey   crypto.BoxPubKey
-	Coords      []byte
+	Coords      []uint64
 	BytesSent   uint64
 	BytesRecvd  uint64
 	MTU         uint16
@@ -136,7 +136,7 @@ func (c *Core) GetSwitchPeers() []SwitchPeer {
 		}
 		coords := elem.locator.getCoords()
 		info := SwitchPeer{
-			Coords:     append([]byte{}, coords...),
+			Coords:     append([]uint64{}, wire_coordsBytestoUint64s(coords)...),
 			BytesSent:  atomic.LoadUint64(&peer.bytesSent),
 			BytesRecvd: atomic.LoadUint64(&peer.bytesRecvd),
 			Port:       uint64(elem.port),
@@ -164,7 +164,7 @@ func (c *Core) GetDHT() []DHTEntry {
 		})
 		for _, v := range dhtentry {
 			info := DHTEntry{
-				Coords:   append([]uint64{}, coordsBytestoUint64s(v.coords)...),
+				Coords:   append([]uint64{}, wire_coordsBytestoUint64s(v.coords)...),
 				LastSeen: now.Sub(v.recv),
 			}
 			copy(info.PublicKey[:], v.key[:])
@@ -212,7 +212,7 @@ func (c *Core) GetSessions() []Session {
 			var session Session
 			workerFunc := func() {
 				session = Session{
-					Coords:      append([]byte{}, sinfo.coords...),
+					Coords:      append([]uint64{}, wire_coordsBytestoUint64s(sinfo.coords)...),
 					MTU:         sinfo.getMTU(),
 					BytesSent:   sinfo.bytesSent,
 					BytesRecvd:  sinfo.bytesRecvd,
@@ -309,9 +309,9 @@ func (c *Core) EncryptionPublicKey() string {
 }
 
 // Coords returns the current coordinates of the node.
-func (c *Core) Coords() []byte {
+func (c *Core) Coords() []uint64 {
 	table := c.switchTable.table.Load().(lookupTable)
-	return table.self.getCoords()
+	return wire_coordsBytestoUint64s(table.self.getCoords())
 }
 
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128
@@ -334,8 +334,8 @@ func (c *Core) MyNodeInfo() NodeInfoPayload {
 	return c.router.nodeinfo.getNodeInfo()
 }
 
-// SetNodeInfo the lcal nodeinfo. Note that nodeinfo can be any value or struct,
-// it will be serialised into JSON automatically.
+// SetNodeInfo sets the local nodeinfo. Note that nodeinfo can be any value or
+// struct, it will be serialised into JSON automatically.
 func (c *Core) SetNodeInfo(nodeinfo interface{}, nodeinfoprivacy bool) {
 	c.router.nodeinfo.setNodeInfo(nodeinfo, nodeinfoprivacy)
 }
@@ -344,7 +344,7 @@ func (c *Core) SetNodeInfo(nodeinfo interface{}, nodeinfoprivacy bool) {
 // key and coordinates specified. The third parameter specifies whether a cached
 // result is acceptable - this results in less traffic being generated than is
 // necessary when, e.g. crawling the network.
-func (c *Core) GetNodeInfo(key crypto.BoxPubKey, coords []byte, nocache bool) (NodeInfoPayload, error) {
+func (c *Core) GetNodeInfo(key crypto.BoxPubKey, coords []uint64, nocache bool) (NodeInfoPayload, error) {
 	response := make(chan *NodeInfoPayload, 1)
 	sendNodeInfoRequest := func() {
 		c.router.nodeinfo.addCallback(key, func(nodeinfo *NodeInfoPayload) {
@@ -354,7 +354,7 @@ func (c *Core) GetNodeInfo(key crypto.BoxPubKey, coords []byte, nocache bool) (N
 			default:
 			}
 		})
-		c.router.nodeinfo.sendNodeInfo(key, coords, false)
+		c.router.nodeinfo.sendNodeInfo(key, wire_coordsUint64stoBytes(coords), false)
 	}
 	c.router.doAdmin(sendNodeInfoRequest)
 	go func() {
@@ -456,7 +456,7 @@ func (c *Core) DHTPing(key crypto.BoxPubKey, coords []uint64, target *crypto.Nod
 	resCh := make(chan *dhtRes, 1)
 	info := dhtInfo{
 		key:    key,
-		coords: coordsUint64stoBytes(coords),
+		coords: wire_coordsUint64stoBytes(coords),
 	}
 	if target == nil {
 		target = info.getNodeID()
@@ -473,12 +473,12 @@ func (c *Core) DHTPing(key crypto.BoxPubKey, coords []uint64, target *crypto.Nod
 	res := <-resCh
 	if res != nil {
 		r := DHTRes{
-			Coords: append([]uint64{}, coordsBytestoUint64s(res.Coords)...),
+			Coords: append([]uint64{}, wire_coordsBytestoUint64s(res.Coords)...),
 		}
 		copy(r.PublicKey[:], res.Key[:])
 		for _, i := range res.Infos {
 			e := DHTEntry{
-				Coords: append([]uint64{}, coordsBytestoUint64s(i.coords)...),
+				Coords: append([]uint64{}, wire_coordsBytestoUint64s(i.coords)...),
 			}
 			copy(e.PublicKey[:], i.key[:])
 			r.Infos = append(r.Infos, e)
