@@ -82,7 +82,7 @@ func (c *Conn) String() string {
 	return fmt.Sprintf("conn=%p", c)
 }
 
-// This should never be called from the router goroutine
+// This should never be called from the router goroutine, used in the dial functions
 func (c *Conn) search() error {
 	var sinfo *searchInfo
 	var isIn bool
@@ -122,6 +122,23 @@ func (c *Conn) search() error {
 	return nil
 }
 
+// Used in session keep-alive traffic in Conn.Write
+func (c *Conn) doSearch() {
+	routerWork := func() {
+		// Check to see if there is a search already matching the destination
+		sinfo, isIn := c.core.searches.searches[*c.nodeID]
+		if !isIn {
+			// Nothing was found, so create a new search
+			searchCompleted := func(sinfo *sessionInfo, e error) {}
+			sinfo = c.core.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
+			c.core.log.Debugf("%s DHT search started: %p", c.String(), sinfo)
+		}
+		// Continue the search
+		sinfo.continueSearch()
+	}
+	go func() { c.core.router.admin <- routerWork }()
+}
+
 func (c *Conn) getDeadlineCancellation(value *atomic.Value) util.Cancellation {
 	if deadline, ok := value.Load().(time.Time); ok {
 		// A deadline is set, so return a Cancellation that uses it
@@ -132,123 +149,90 @@ func (c *Conn) getDeadlineCancellation(value *atomic.Value) util.Cancellation {
 	}
 }
 
-func (c *Conn) Read(b []byte) (int, error) {
-	// Take a copy of the session object
-	sinfo := c.session
+// Used internally by Read, the caller is responsible for util.PutBytes when they're done.
+func (c *Conn) ReadNoCopy() ([]byte, error) {
 	cancel := c.getDeadlineCancellation(&c.readDeadline)
 	defer cancel.Cancel(nil)
-	var bs []byte
-	for {
-		// Wait for some traffic to come through from the session
-		select {
-		case <-cancel.Finished():
-			if cancel.Error() == util.CancellationTimeoutError {
-				return 0, ConnError{errors.New("read timeout"), true, false, false, 0}
-			} else {
-				return 0, ConnError{errors.New("session closed"), false, false, true, 0}
-			}
-		case p, ok := <-sinfo.recv:
-			// If the session is closed then do nothing
-			if !ok {
-				return 0, ConnError{errors.New("session closed"), false, false, true, 0}
-			}
-			var err error
-			sessionFunc := func() {
-				defer util.PutBytes(p.Payload)
-				// If the nonce is bad then drop the packet and return an error
-				if !sinfo.nonceIsOK(&p.Nonce) {
-					err = ConnError{errors.New("packet dropped due to invalid nonce"), false, true, false, 0}
-					return
-				}
-				// Decrypt the packet
-				var isOK bool
-				bs, isOK = crypto.BoxOpen(&sinfo.sharedSesKey, p.Payload, &p.Nonce)
-				// Check if we were unable to decrypt the packet for some reason and
-				// return an error if we couldn't
-				if !isOK {
-					err = ConnError{errors.New("packet dropped due to decryption failure"), false, true, false, 0}
-					return
-				}
-				// Update the session
-				sinfo.updateNonce(&p.Nonce)
-				sinfo.time = time.Now()
-				sinfo.bytesRecvd += uint64(len(bs))
-			}
-			sinfo.doFunc(sessionFunc)
-			// Something went wrong in the session worker so abort
-			if err != nil {
-				if ce, ok := err.(*ConnError); ok && ce.Temporary() {
-					continue
-				}
-				return 0, err
-			}
-			// Copy results to the output slice and clean up
-			copy(b, bs)
-			util.PutBytes(bs)
-			// If we've reached this point then everything went to plan, return the
-			// number of bytes we populated back into the given slice
-			return len(bs), nil
+	// Wait for some traffic to come through from the session
+	select {
+	case <-cancel.Finished():
+		if cancel.Error() == util.CancellationTimeoutError {
+			return nil, ConnError{errors.New("read timeout"), true, false, false, 0}
+		} else {
+			return nil, ConnError{errors.New("session closed"), false, false, true, 0}
 		}
+	case bs := <-c.session.recv:
+		return bs, nil
 	}
 }
 
-func (c *Conn) Write(b []byte) (bytesWritten int, err error) {
-	sinfo := c.session
-	var packet []byte
-	written := len(b)
+// Implements net.Conn.Read
+func (c *Conn) Read(b []byte) (int, error) {
+	bs, err := c.ReadNoCopy()
+	if err != nil {
+		return 0, err
+	}
+	n := len(bs)
+	if len(bs) > len(b) {
+		n = len(b)
+		err = ConnError{errors.New("read buffer too small for entire packet"), false, true, false, 0}
+	}
+	// Copy results to the output slice and clean up
+	copy(b, bs)
+	util.PutBytes(bs)
+	// Return the number of bytes copied to the slice, along with any error
+	return n, err
+}
+
+// Used internally by Write, the caller must not reuse the argument bytes when no error occurs
+func (c *Conn) WriteNoCopy(bs []byte) error {
+	var err error
 	sessionFunc := func() {
 		// Does the packet exceed the permitted size for the session?
-		if uint16(len(b)) > sinfo.getMTU() {
-			written, err = 0, ConnError{errors.New("packet too big"), true, false, false, int(sinfo.getMTU())}
+		if uint16(len(bs)) > c.session.getMTU() {
+			err = ConnError{errors.New("packet too big"), true, false, false, int(c.session.getMTU())}
 			return
 		}
-		// Encrypt the packet
-		payload, nonce := crypto.BoxSeal(&sinfo.sharedSesKey, b, &sinfo.myNonce)
-		defer util.PutBytes(payload)
-		// Construct the wire packet to send to the router
-		p := wire_trafficPacket{
-			Coords:  sinfo.coords,
-			Handle:  sinfo.theirHandle,
-			Nonce:   *nonce,
-			Payload: payload,
-		}
-		packet = p.encode()
-		sinfo.bytesSent += uint64(len(b))
 		// The rest of this work is session keep-alive traffic
-		doSearch := func() {
-			routerWork := func() {
-				// Check to see if there is a search already matching the destination
-				sinfo, isIn := c.core.searches.searches[*c.nodeID]
-				if !isIn {
-					// Nothing was found, so create a new search
-					searchCompleted := func(sinfo *sessionInfo, e error) {}
-					sinfo = c.core.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
-					c.core.log.Debugf("%s DHT search started: %p", c.String(), sinfo)
-				}
-				// Continue the search
-				sinfo.continueSearch()
-			}
-			go func() { c.core.router.admin <- routerWork }()
-		}
 		switch {
-		case time.Since(sinfo.time) > 6*time.Second:
-			if sinfo.time.Before(sinfo.pingTime) && time.Since(sinfo.pingTime) > 6*time.Second {
+		case time.Since(c.session.time) > 6*time.Second:
+			if c.session.time.Before(c.session.pingTime) && time.Since(c.session.pingTime) > 6*time.Second {
 				// TODO double check that the above condition is correct
-				doSearch()
+				c.doSearch()
 			} else {
-				sinfo.core.sessions.ping(sinfo)
+				c.core.sessions.ping(c.session)
 			}
-		case sinfo.reset && sinfo.pingTime.Before(sinfo.time):
-			sinfo.core.sessions.ping(sinfo)
+		case c.session.reset && c.session.pingTime.Before(c.session.time):
+			c.core.sessions.ping(c.session)
 		default: // Don't do anything, to keep traffic throttled
 		}
 	}
-	sinfo.doFunc(sessionFunc)
-	// Give the packet to the router
-	if written > 0 {
-		sinfo.core.router.out(packet)
+	c.session.doFunc(sessionFunc)
+	if err == nil {
+		cancel := c.getDeadlineCancellation(&c.writeDeadline)
+		defer cancel.Cancel(nil)
+		select {
+		case <-cancel.Finished():
+			if cancel.Error() == util.CancellationTimeoutError {
+				err = ConnError{errors.New("write timeout"), true, false, false, 0}
+			} else {
+				err = ConnError{errors.New("session closed"), false, false, true, 0}
+			}
+		case c.session.send <- bs:
+		}
 	}
-	// Finally return the number of bytes we wrote
+	return err
+}
+
+// Implements net.Conn.Write
+func (c *Conn) Write(b []byte) (int, error) {
+	written := len(b)
+	bs := append(util.GetBytes(), b...)
+	err := c.WriteNoCopy(bs)
+	if err != nil {
+		util.PutBytes(bs)
+		written = 0
+	}
 	return written, err
 }
 

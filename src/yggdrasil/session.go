@@ -6,11 +6,13 @@ package yggdrasil
 
 import (
 	"bytes"
+	"errors"
 	"sync"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 // All the information we know about an active session.
@@ -44,8 +46,11 @@ type sessionInfo struct {
 	tstamp         int64                    // ATOMIC - tstamp from their last session ping, replay attack mitigation
 	bytesSent      uint64                   // Bytes of real traffic sent in this session
 	bytesRecvd     uint64                   // Bytes of real traffic received in this session
-	recv           chan *wire_trafficPacket // Received packets go here, picked up by the associated Conn
+	fromRouter     chan *wire_trafficPacket // Received packets go here, picked up by the associated Conn
 	init           chan struct{}            // Closed when the first session pong arrives, used to signal that the session is ready for initial use
+	cancel         util.Cancellation        // Used to terminate workers
+	recv           chan []byte
+	send           chan []byte
 }
 
 func (sinfo *sessionInfo) doFunc(f func()) {
@@ -222,7 +227,9 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.myHandle = *crypto.NewHandle()
 	sinfo.theirAddr = *address.AddrForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
 	sinfo.theirSubnet = *address.SubnetForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
-	sinfo.recv = make(chan *wire_trafficPacket, 32)
+	sinfo.fromRouter = make(chan *wire_trafficPacket, 1)
+	sinfo.recv = make(chan []byte, 32)
+	sinfo.send = make(chan []byte, 32)
 	ss.sinfos[sinfo.myHandle] = &sinfo
 	ss.byTheirPerm[sinfo.theirPermPub] = &sinfo.myHandle
 	return &sinfo
@@ -355,6 +362,7 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 			for i := range conn.nodeMask {
 				conn.nodeMask[i] = 0xFF
 			}
+			conn.session.startWorkers(conn.cancel)
 			ss.listener.conn <- conn
 		}
 		ss.listenerMutex.Unlock()
@@ -416,5 +424,152 @@ func (ss *sessions) reset() {
 		sinfo.doFunc(func() {
 			sinfo.reset = true
 		})
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//////////////////////////// Worker Functions Below ////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+func (sinfo *sessionInfo) startWorkers(cancel util.Cancellation) {
+	sinfo.cancel = cancel
+	go sinfo.recvWorker()
+	go sinfo.sendWorker()
+}
+
+func (sinfo *sessionInfo) recvWorker() {
+	// TODO move theirNonce etc into a struct that gets stored here, passed in over a channel
+	//  Since there's no reason for anywhere else in the session code to need to *read* it...
+	//  Only needs to be updated from the outside if a ping resets it...
+	//  That would get rid of the need to take a mutex for the sessionFunc
+	var callbacks []chan func()
+	doRecv := func(p *wire_trafficPacket) {
+		var bs []byte
+		var err error
+		var k crypto.BoxSharedKey
+		sessionFunc := func() {
+			if !sinfo.nonceIsOK(&p.Nonce) {
+				err = ConnError{errors.New("packet dropped due to invalid nonce"), false, true, false, 0}
+				return
+			}
+			k = sinfo.sharedSesKey
+		}
+		sinfo.doFunc(sessionFunc)
+		if err != nil {
+			util.PutBytes(p.Payload)
+			return
+		}
+		var isOK bool
+		ch := make(chan func(), 1)
+		poolFunc := func() {
+			bs, isOK = crypto.BoxOpen(&k, p.Payload, &p.Nonce)
+			callback := func() {
+				util.PutBytes(p.Payload)
+				if !isOK {
+					util.PutBytes(bs)
+					return
+				}
+				sessionFunc = func() {
+					if k != sinfo.sharedSesKey || !sinfo.nonceIsOK(&p.Nonce) {
+						// The session updated in the mean time, so return an error
+						err = ConnError{errors.New("session updated during crypto operation"), false, true, false, 0}
+						return
+					}
+					sinfo.updateNonce(&p.Nonce)
+					sinfo.time = time.Now()
+					sinfo.bytesRecvd += uint64(len(bs))
+				}
+				sinfo.doFunc(sessionFunc)
+				if err != nil {
+					// Not sure what else to do with this packet, I guess just drop it
+					util.PutBytes(bs)
+				} else {
+					// Pass the packet to the buffer for Conn.Read
+					sinfo.recv <- bs
+				}
+			}
+			ch <- callback
+		}
+		// Send to the worker and wait for it to finish
+		util.WorkerGo(poolFunc)
+		callbacks = append(callbacks, ch)
+	}
+	for {
+		for len(callbacks) > 0 {
+			select {
+			case f := <-callbacks[0]:
+				callbacks = callbacks[1:]
+				f()
+			case <-sinfo.cancel.Finished():
+				return
+			case p := <-sinfo.fromRouter:
+				doRecv(p)
+			}
+		}
+		select {
+		case <-sinfo.cancel.Finished():
+			return
+		case p := <-sinfo.fromRouter:
+			doRecv(p)
+		}
+	}
+}
+
+func (sinfo *sessionInfo) sendWorker() {
+	// TODO move info that this worker needs here, send updates via a channel
+	//  Otherwise we need to take a mutex to avoid races with update()
+	var callbacks []chan func()
+	doSend := func(bs []byte) {
+		var p wire_trafficPacket
+		var k crypto.BoxSharedKey
+		sessionFunc := func() {
+			sinfo.bytesSent += uint64(len(bs))
+			p = wire_trafficPacket{
+				Coords: append([]byte(nil), sinfo.coords...),
+				Handle: sinfo.theirHandle,
+				Nonce:  sinfo.myNonce,
+			}
+			sinfo.myNonce.Increment()
+			k = sinfo.sharedSesKey
+		}
+		// Get the mutex-protected info needed to encrypt the packet
+		sinfo.doFunc(sessionFunc)
+		ch := make(chan func(), 1)
+		poolFunc := func() {
+			// Encrypt the packet
+			p.Payload, _ = crypto.BoxSeal(&k, bs, &p.Nonce)
+			packet := p.encode()
+			// The callback will send the packet
+			callback := func() {
+				// Cleanup
+				util.PutBytes(bs)
+				util.PutBytes(p.Payload)
+				// Send the packet
+				sinfo.core.router.out(packet)
+			}
+			ch <- callback
+		}
+		// Send to the worker and wait for it to finish
+		util.WorkerGo(poolFunc)
+		callbacks = append(callbacks, ch)
+	}
+	for {
+		for len(callbacks) > 0 {
+			select {
+			case f := <-callbacks[0]:
+				callbacks = callbacks[1:]
+				f()
+			case <-sinfo.cancel.Finished():
+				return
+			case bs := <-sinfo.send:
+				doSend(bs)
+			}
+		}
+		select {
+		case <-sinfo.cancel.Finished():
+			return
+		case bs := <-sinfo.send:
+			doSend(bs)
+		}
 	}
 }
