@@ -79,11 +79,6 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 		}
 		return Info{"list": handlers}, nil
 	})
-	/*
-		a.AddHandler("dot", []string{}, func(in Info) (Info, error) {
-			return Info{"dot": string(a.getResponse_dot())}, nil
-		})
-	*/
 	a.AddHandler("getSelf", []string{}, func(in Info) (Info, error) {
 		ip := c.Address().String()
 		subnet := c.Subnet()
@@ -111,7 +106,7 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 				"bytes_recvd": p.BytesRecvd,
 				"proto":       p.Protocol,
 				"endpoint":    p.Endpoint,
-				"box_pub_key": p.PublicKey,
+				"box_pub_key": hex.EncodeToString(p.PublicKey[:]),
 			}
 		}
 		return Info{"peers": peers}, nil
@@ -129,7 +124,7 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 				"bytes_recvd": s.BytesRecvd,
 				"proto":       s.Protocol,
 				"endpoint":    s.Endpoint,
-				"box_pub_key": s.PublicKey,
+				"box_pub_key": hex.EncodeToString(s.PublicKey[:]),
 			}
 		}
 		return Info{"switchpeers": switchpeers}, nil
@@ -148,7 +143,7 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 			dht[so] = Info{
 				"coords":      fmt.Sprintf("%v", d.Coords),
 				"last_seen":   d.LastSeen.Seconds(),
-				"box_pub_key": d.PublicKey,
+				"box_pub_key": hex.EncodeToString(d.PublicKey[:]),
 			}
 		}
 		return Info{"dht": dht}, nil
@@ -165,7 +160,7 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 				"mtu":           s.MTU,
 				"uptime":        s.Uptime.Seconds(),
 				"was_mtu_fixed": s.WasMTUFixed,
-				"box_pub_key":   s.PublicKey,
+				"box_pub_key":   hex.EncodeToString(s.PublicKey[:]),
 			}
 		}
 		return Info{"sessions": sessions}, nil
@@ -492,133 +487,3 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 		}
 	}
 }
-
-// getResponse_dot returns a response for a graphviz dot formatted
-// representation of the known parts of the network. This is color-coded and
-// labeled, and includes the self node, switch peers, nodes known to the DHT,
-// and nodes with open sessions. The graph is structured as a tree with directed
-// links leading away from the root.
-/*
-func (a *AdminSocket) getResponse_dot() []byte {
-	//self := a.getData_getSelf()
-	peers := a.core.GetSwitchPeers()
-	dht := a.core.GetDHT()
-	sessions := a.core.GetSessions()
-	// Start building a tree from all known nodes
-	type nodeInfo struct {
-		name    string
-		key     string
-		parent  string
-		port    uint64
-		options string
-	}
-	infos := make(map[string]nodeInfo)
-	// Get coords as a slice of strings, FIXME? this looks very fragile
-	coordSlice := func(coords string) []string {
-		tmp := strings.Replace(coords, "[", "", -1)
-		tmp = strings.Replace(tmp, "]", "", -1)
-		return strings.Split(tmp, " ")
-	}
-	// First fill the tree with all known nodes, no parents
-	addInfo := func(nodes []admin_nodeInfo, options string, tag string) {
-		for _, node := range nodes {
-			n := node.asMap()
-			info := nodeInfo{
-				key:     n["coords"].(string),
-				options: options,
-			}
-			if len(tag) > 0 {
-				info.name = fmt.Sprintf("%s\n%s", n["ip"].(string), tag)
-			} else {
-				info.name = n["ip"].(string)
-			}
-			coordsSplit := coordSlice(info.key)
-			if len(coordsSplit) != 0 {
-				portStr := coordsSplit[len(coordsSplit)-1]
-				portUint, err := strconv.ParseUint(portStr, 10, 64)
-				if err == nil {
-					info.port = portUint
-				}
-			}
-			infos[info.key] = info
-		}
-	}
-	addInfo(dht, "fillcolor=\"#ffffff\" style=filled fontname=\"sans serif\"", "Known in DHT")                               // white
-	addInfo(sessions, "fillcolor=\"#acf3fd\" style=filled fontname=\"sans serif\"", "Open session")                          // blue
-	addInfo(peers, "fillcolor=\"#ffffb5\" style=filled fontname=\"sans serif\"", "Connected peer")                           // yellow
-	addInfo(append([]admin_nodeInfo(nil), *self), "fillcolor=\"#a5ff8a\" style=filled fontname=\"sans serif\"", "This node") // green
-	// Now go through and create placeholders for any missing nodes
-	for _, info := range infos {
-		// This is ugly string manipulation
-		coordsSplit := coordSlice(info.key)
-		for idx := range coordsSplit {
-			key := fmt.Sprintf("[%v]", strings.Join(coordsSplit[:idx], " "))
-			newInfo, isIn := infos[key]
-			if isIn {
-				continue
-			}
-			newInfo.name = "?"
-			newInfo.key = key
-			newInfo.options = "fontname=\"sans serif\" style=dashed color=\"#999999\" fontcolor=\"#999999\""
-
-			coordsSplit := coordSlice(newInfo.key)
-			if len(coordsSplit) != 0 {
-				portStr := coordsSplit[len(coordsSplit)-1]
-				portUint, err := strconv.ParseUint(portStr, 10, 64)
-				if err == nil {
-					newInfo.port = portUint
-				}
-			}
-
-			infos[key] = newInfo
-		}
-	}
-	// Now go through and attach parents
-	for _, info := range infos {
-		pSplit := coordSlice(info.key)
-		if len(pSplit) > 0 {
-			pSplit = pSplit[:len(pSplit)-1]
-		}
-		info.parent = fmt.Sprintf("[%v]", strings.Join(pSplit, " "))
-		infos[info.key] = info
-	}
-	// Finally, get a sorted list of keys, which we use to organize the output
-	var keys []string
-	for _, info := range infos {
-		keys = append(keys, info.key)
-	}
-	// sort
-	sort.SliceStable(keys, func(i, j int) bool {
-		return keys[i] < keys[j]
-	})
-	sort.SliceStable(keys, func(i, j int) bool {
-		return infos[keys[i]].port < infos[keys[j]].port
-	})
-	// Now print it all out
-	var out []byte
-	put := func(s string) {
-		out = append(out, []byte(s)...)
-	}
-	put("digraph {\n")
-	// First set the labels
-	for _, key := range keys {
-		info := infos[key]
-		put(fmt.Sprintf("\"%v\" [ label = \"%v\" %v ];\n", info.key, info.name, info.options))
-	}
-	// Then print the tree structure
-	for _, key := range keys {
-		info := infos[key]
-		if info.key == info.parent {
-			continue
-		} // happens for the root, skip it
-		port := fmt.Sprint(info.port)
-		style := "fontname=\"sans serif\""
-		if infos[info.parent].name == "?" || infos[info.key].name == "?" {
-			style = "fontname=\"sans serif\" style=dashed color=\"#999999\" fontcolor=\"#999999\""
-		}
-		put(fmt.Sprintf("  \"%+v\" -> \"%+v\" [ label = \"%v\" %s ];\n", info.parent, info.key, port, style))
-	}
-	put("}\n")
-	return out
-}
-*/
