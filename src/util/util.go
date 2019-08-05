@@ -2,9 +2,13 @@ package util
 
 // These are misc. utility functions that didn't really fit anywhere else
 
-import "runtime"
-import "sync"
-import "time"
+import (
+	"runtime"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
 
 // A wrapper around runtime.Gosched() so it doesn't need to be imported elsewhere.
 func Yield() {
@@ -90,4 +94,17 @@ func Difference(a, b []string) []string {
 		}
 	}
 	return ab
+}
+
+// DecodeCoordString decodes a string representing coordinates in [1 2 3] format
+// and returns a []uint64.
+func DecodeCoordString(in string) (out []uint64) {
+	s := strings.Trim(in, "[]")
+	t := strings.Split(s, " ")
+	for _, a := range t {
+		if u, err := strconv.ParseUint(a, 0, 64); err == nil {
+			out = append(out, u)
+		}
+	}
+	return out
 }

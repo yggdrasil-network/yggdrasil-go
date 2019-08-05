@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net"
 	"sort"
-	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -34,7 +32,7 @@ type Peer struct {
 // to a given node.
 type SwitchPeer struct {
 	PublicKey  crypto.BoxPubKey
-	Coords     []byte
+	Coords     []uint64
 	BytesSent  uint64
 	BytesRecvd uint64
 	Port       uint64
@@ -46,14 +44,14 @@ type SwitchPeer struct {
 // DHT searches.
 type DHTEntry struct {
 	PublicKey crypto.BoxPubKey
-	Coords    []byte
+	Coords    []uint64
 	LastSeen  time.Duration
 }
 
 // DHTRes represents a DHT response, as returned by DHTPing.
 type DHTRes struct {
 	PublicKey crypto.BoxPubKey // key of the sender
-	Coords    []byte           // coords of the sender
+	Coords    []uint64         // coords of the sender
 	Dest      crypto.NodeID    // the destination node ID
 	Infos     []DHTEntry       // response
 }
@@ -85,7 +83,7 @@ type SwitchQueue struct {
 // Session represents an open session with another node.
 type Session struct {
 	PublicKey   crypto.BoxPubKey
-	Coords      []byte
+	Coords      []uint64
 	BytesSent   uint64
 	BytesRecvd  uint64
 	MTU         uint16
@@ -138,7 +136,7 @@ func (c *Core) GetSwitchPeers() []SwitchPeer {
 		}
 		coords := elem.locator.getCoords()
 		info := SwitchPeer{
-			Coords:     append([]byte{}, coords...),
+			Coords:     append([]uint64{}, wire_coordsBytestoUint64s(coords)...),
 			BytesSent:  atomic.LoadUint64(&peer.bytesSent),
 			BytesRecvd: atomic.LoadUint64(&peer.bytesRecvd),
 			Port:       uint64(elem.port),
@@ -166,7 +164,7 @@ func (c *Core) GetDHT() []DHTEntry {
 		})
 		for _, v := range dhtentry {
 			info := DHTEntry{
-				Coords:   append([]byte{}, v.coords...),
+				Coords:   append([]uint64{}, wire_coordsBytestoUint64s(v.coords)...),
 				LastSeen: now.Sub(v.recv),
 			}
 			copy(info.PublicKey[:], v.key[:])
@@ -214,7 +212,7 @@ func (c *Core) GetSessions() []Session {
 			var session Session
 			workerFunc := func() {
 				session = Session{
-					Coords:      append([]byte{}, sinfo.coords...),
+					Coords:      append([]uint64{}, wire_coordsBytestoUint64s(sinfo.coords)...),
 					MTU:         sinfo.getMTU(),
 					BytesSent:   sinfo.bytesSent,
 					BytesRecvd:  sinfo.bytesRecvd,
@@ -311,9 +309,9 @@ func (c *Core) EncryptionPublicKey() string {
 }
 
 // Coords returns the current coordinates of the node.
-func (c *Core) Coords() []byte {
+func (c *Core) Coords() []uint64 {
 	table := c.switchTable.table.Load().(lookupTable)
-	return table.self.getCoords()
+	return wire_coordsBytestoUint64s(table.self.getCoords())
 }
 
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128
@@ -336,8 +334,8 @@ func (c *Core) MyNodeInfo() NodeInfoPayload {
 	return c.router.nodeinfo.getNodeInfo()
 }
 
-// SetNodeInfo the lcal nodeinfo. Note that nodeinfo can be any value or struct,
-// it will be serialised into JSON automatically.
+// SetNodeInfo sets the local nodeinfo. Note that nodeinfo can be any value or
+// struct, it will be serialised into JSON automatically.
 func (c *Core) SetNodeInfo(nodeinfo interface{}, nodeinfoprivacy bool) {
 	c.router.nodeinfo.setNodeInfo(nodeinfo, nodeinfoprivacy)
 }
@@ -346,30 +344,7 @@ func (c *Core) SetNodeInfo(nodeinfo interface{}, nodeinfoprivacy bool) {
 // key and coordinates specified. The third parameter specifies whether a cached
 // result is acceptable - this results in less traffic being generated than is
 // necessary when, e.g. crawling the network.
-func (c *Core) GetNodeInfo(keyString, coordString string, nocache bool) (NodeInfoPayload, error) {
-	var key crypto.BoxPubKey
-	if keyBytes, err := hex.DecodeString(keyString); err != nil {
-		return NodeInfoPayload{}, err
-	} else {
-		copy(key[:], keyBytes)
-	}
-	if !nocache {
-		if response, err := c.router.nodeinfo.getCachedNodeInfo(key); err == nil {
-			return response, nil
-		}
-	}
-	var coords []byte
-	for _, cstr := range strings.Split(strings.Trim(coordString, "[]"), " ") {
-		if cstr == "" {
-			// Special case, happens if trimmed is the empty string, e.g. this is the root
-			continue
-		}
-		if u64, err := strconv.ParseUint(cstr, 10, 8); err != nil {
-			return NodeInfoPayload{}, err
-		} else {
-			coords = append(coords, uint8(u64))
-		}
-	}
+func (c *Core) GetNodeInfo(key crypto.BoxPubKey, coords []uint64, nocache bool) (NodeInfoPayload, error) {
 	response := make(chan *NodeInfoPayload, 1)
 	sendNodeInfoRequest := func() {
 		c.router.nodeinfo.addCallback(key, func(nodeinfo *NodeInfoPayload) {
@@ -379,7 +354,7 @@ func (c *Core) GetNodeInfo(keyString, coordString string, nocache bool) (NodeInf
 			default:
 			}
 		})
-		c.router.nodeinfo.sendNodeInfo(key, coords, false)
+		c.router.nodeinfo.sendNodeInfo(key, wire_coordsUint64stoBytes(coords), false)
 	}
 	c.router.doAdmin(sendNodeInfoRequest)
 	go func() {
@@ -389,7 +364,7 @@ func (c *Core) GetNodeInfo(keyString, coordString string, nocache bool) (NodeInf
 	for res := range response {
 		return *res, nil
 	}
-	return NodeInfoPayload{}, fmt.Errorf("getNodeInfo timeout: %s", keyString)
+	return NodeInfoPayload{}, fmt.Errorf("getNodeInfo timeout: %s", hex.EncodeToString(key[:]))
 }
 
 // SetSessionGatekeeper allows you to configure a handler function for deciding
@@ -477,64 +452,38 @@ func (c *Core) RemoveAllowedEncryptionPublicKey(bstr string) (err error) {
 
 // DHTPing sends a DHT ping to the node with the provided key and coords,
 // optionally looking up the specified target NodeID.
-func (c *Core) DHTPing(keyString, coordString, targetString string) (DHTRes, error) {
-	var key crypto.BoxPubKey
-	if keyBytes, err := hex.DecodeString(keyString); err != nil {
-		return DHTRes{}, err
-	} else {
-		copy(key[:], keyBytes)
-	}
-	var coords []byte
-	for _, cstr := range strings.Split(strings.Trim(coordString, "[]"), " ") {
-		if cstr == "" {
-			// Special case, happens if trimmed is the empty string, e.g. this is the root
-			continue
-		}
-		if u64, err := strconv.ParseUint(cstr, 10, 8); err != nil {
-			return DHTRes{}, err
-		} else {
-			coords = append(coords, uint8(u64))
-		}
-	}
+func (c *Core) DHTPing(key crypto.BoxPubKey, coords []uint64, target *crypto.NodeID) (DHTRes, error) {
 	resCh := make(chan *dhtRes, 1)
 	info := dhtInfo{
 		key:    key,
-		coords: coords,
+		coords: wire_coordsUint64stoBytes(coords),
 	}
-	target := *info.getNodeID()
-	if targetString == "none" {
-		// Leave the default target in place
-	} else if targetBytes, err := hex.DecodeString(targetString); err != nil {
-		return DHTRes{}, err
-	} else if len(targetBytes) != len(target) {
-		return DHTRes{}, errors.New("Incorrect target NodeID length")
-	} else {
-		var target crypto.NodeID
-		copy(target[:], targetBytes)
+	if target == nil {
+		target = info.getNodeID()
 	}
-	rq := dhtReqKey{info.key, target}
+	rq := dhtReqKey{info.key, *target}
 	sendPing := func() {
 		c.dht.addCallback(&rq, func(res *dhtRes) {
 			resCh <- res
 		})
-		c.dht.ping(&info, &target)
+		c.dht.ping(&info, &rq.dest)
 	}
 	c.router.doAdmin(sendPing)
 	// TODO: do something better than the below...
 	res := <-resCh
 	if res != nil {
 		r := DHTRes{
-			Coords: append([]byte{}, res.Coords...),
+			Coords: append([]uint64{}, wire_coordsBytestoUint64s(res.Coords)...),
 		}
 		copy(r.PublicKey[:], res.Key[:])
 		for _, i := range res.Infos {
 			e := DHTEntry{
-				Coords: append([]byte{}, i.coords...),
+				Coords: append([]uint64{}, wire_coordsBytestoUint64s(i.coords)...),
 			}
 			copy(e.PublicKey[:], i.key[:])
 			r.Infos = append(r.Infos, e)
 		}
 		return r, nil
 	}
-	return DHTRes{}, fmt.Errorf("DHT ping timeout: %s", keyString)
+	return DHTRes{}, fmt.Errorf("DHT ping timeout: %s", hex.EncodeToString(key[:]))
 }
