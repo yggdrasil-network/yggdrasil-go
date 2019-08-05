@@ -161,7 +161,9 @@ func (r *router) handleTraffic(packet []byte) {
 		return
 	}
 	sinfo, isIn := r.core.sessions.getSessionForHandle(&p.Handle)
-	if !isIn {
+	if !isIn || sinfo.cancel == nil {
+		// FIXME make sure sinfo.cancel can never be nil
+		util.PutBytes(p.Payload)
 		return
 	}
 	select {
