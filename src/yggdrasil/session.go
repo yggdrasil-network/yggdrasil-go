@@ -208,6 +208,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.pingTime = now
 	sinfo.pingSend = now
 	sinfo.init = make(chan struct{})
+	sinfo.cancel = util.NewCancellation()
 	higher := false
 	for idx := range ss.core.boxPub {
 		if ss.core.boxPub[idx] > sinfo.theirPermPub[idx] {
@@ -232,6 +233,11 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.send = make(chan []byte, 32)
 	ss.sinfos[sinfo.myHandle] = &sinfo
 	ss.byTheirPerm[sinfo.theirPermPub] = &sinfo.myHandle
+	go func() {
+		// Run cleanup when the session is canceled
+		<-sinfo.cancel.Finished()
+		sinfo.core.router.doAdmin(sinfo.close)
+	}()
 	return &sinfo
 }
 
@@ -362,7 +368,7 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 			for i := range conn.nodeMask {
 				conn.nodeMask[i] = 0xFF
 			}
-			conn.session.startWorkers(conn.cancel)
+			conn.session.startWorkers()
 			ss.listener.conn <- conn
 		}
 		ss.listenerMutex.Unlock()
@@ -431,8 +437,7 @@ func (ss *sessions) reset() {
 //////////////////////////// Worker Functions Below ////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-func (sinfo *sessionInfo) startWorkers(cancel util.Cancellation) {
-	sinfo.cancel = cancel
+func (sinfo *sessionInfo) startWorkers() {
 	go sinfo.recvWorker()
 	go sinfo.sendWorker()
 }

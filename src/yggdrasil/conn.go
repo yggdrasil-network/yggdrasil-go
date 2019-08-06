@@ -57,7 +57,6 @@ type Conn struct {
 	core          *Core
 	readDeadline  atomic.Value // time.Time // TODO timer
 	writeDeadline atomic.Value // time.Time // TODO timer
-	cancel        util.Cancellation
 	mutex         sync.RWMutex // protects the below
 	nodeID        *crypto.NodeID
 	nodeMask      *crypto.NodeID
@@ -71,7 +70,6 @@ func newConn(core *Core, nodeID *crypto.NodeID, nodeMask *crypto.NodeID, session
 		nodeID:   nodeID,
 		nodeMask: nodeMask,
 		session:  session,
-		cancel:   util.NewCancellation(),
 	}
 	return &conn
 }
@@ -142,10 +140,10 @@ func (c *Conn) doSearch() {
 func (c *Conn) getDeadlineCancellation(value *atomic.Value) util.Cancellation {
 	if deadline, ok := value.Load().(time.Time); ok {
 		// A deadline is set, so return a Cancellation that uses it
-		return util.CancellationWithDeadline(c.cancel, deadline)
+		return util.CancellationWithDeadline(c.session.cancel, deadline)
 	} else {
 		// No cancellation was set, so return a child cancellation with no timeout
-		return util.CancellationChild(c.cancel)
+		return util.CancellationChild(c.session.cancel)
 	}
 }
 
@@ -241,10 +239,9 @@ func (c *Conn) Close() (err error) {
 	defer c.mutex.Unlock()
 	if c.session != nil {
 		// Close the session, if it hasn't been closed already
-		c.core.router.doAdmin(c.session.close)
-	}
-	if e := c.cancel.Cancel(errors.New("connection closed")); e != nil {
-		err = ConnError{errors.New("close failed, session already closed"), false, false, true, 0}
+		if e := c.session.cancel.Cancel(errors.New("connection closed")); e != nil {
+			err = ConnError{errors.New("close failed, session already closed"), false, false, true, 0}
+		}
 	}
 	return
 }
