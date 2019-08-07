@@ -495,7 +495,11 @@ func (sinfo *sessionInfo) recvWorker() {
 					util.PutBytes(bs)
 				} else {
 					// Pass the packet to the buffer for Conn.Read
-					sinfo.recv <- bs
+					select {
+					case <-sinfo.cancel.Finished():
+						util.PutBytes(bs)
+					case sinfo.recv <- bs:
+					}
 				}
 			}
 			ch <- callback
