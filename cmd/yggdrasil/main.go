@@ -74,6 +74,12 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *config
 	if err := hjson.Unmarshal(conf, &dat); err != nil {
 		panic(err)
 	}
+	// Check for fields that have changed type recently, e.g. the Listen config
+	// option is now a []string rather than a string
+	if listen, ok := dat["Listen"].(string); ok {
+		dat["Listen"] = []string{listen}
+	}
+	// Sanitise the config
 	confJson, err := json.Marshal(dat)
 	if err != nil {
 		panic(err)
