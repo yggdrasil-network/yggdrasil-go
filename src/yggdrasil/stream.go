@@ -44,6 +44,7 @@ func (s *stream) writeMsg(bs []byte) (int, error) {
 	padLen := len(buf[0]) + len(buf[1])
 	buf = append(buf, bs)
 	totalLen := padLen + len(bs)
+	s.outputBuffer = buf[:0] // So we can reuse the same underlying array later
 	var bn int
 	for bn < totalLen {
 		n, err := buf.WriteTo(s.rwc)
