@@ -508,6 +508,32 @@ func (sinfo *sessionInfo) recvWorker() {
 		util.WorkerGo(poolFunc)
 		callbacks = append(callbacks, ch)
 	}
+	fromHelper := make(chan wire_trafficPacket, 1)
+	go func() {
+		var buf []wire_trafficPacket
+		for {
+			for len(buf) > 0 {
+				select {
+				case <-sinfo.cancel.Finished():
+					return
+				case p := <-sinfo.fromRouter:
+					buf = append(buf, p)
+					for len(buf) > 64 { // Based on nonce window size
+						util.PutBytes(buf[0].Payload)
+						buf = buf[1:]
+					}
+				case fromHelper <- buf[0]:
+					buf = buf[1:]
+				}
+			}
+			select {
+			case <-sinfo.cancel.Finished():
+				return
+			case p := <-sinfo.fromRouter:
+				buf = append(buf, p)
+			}
+		}
+	}()
 	for {
 		for len(callbacks) > 0 {
 			select {
@@ -516,14 +542,14 @@ func (sinfo *sessionInfo) recvWorker() {
 				f()
 			case <-sinfo.cancel.Finished():
 				return
-			case p := <-sinfo.fromRouter:
+			case p := <-fromHelper:
 				doRecv(p)
 			}
 		}
 		select {
 		case <-sinfo.cancel.Finished():
 			return
-		case p := <-sinfo.fromRouter:
+		case p := <-fromHelper:
 			doRecv(p)
 		}
 	}
