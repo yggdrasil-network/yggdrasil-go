@@ -183,11 +183,11 @@ func (c *Conn) Read(b []byte) (int, error) {
 }
 
 // Used internally by Write, the caller must not reuse the argument bytes when no error occurs
-func (c *Conn) WriteNoCopy(bs []byte) error {
+func (c *Conn) WriteNoCopy(msg FlowKeyMessage) error {
 	var err error
 	sessionFunc := func() {
 		// Does the packet exceed the permitted size for the session?
-		if uint16(len(bs)) > c.session.getMTU() {
+		if uint16(len(msg.Message)) > c.session.getMTU() {
 			err = ConnError{errors.New("packet too big"), true, false, false, int(c.session.getMTU())}
 			return
 		}
@@ -216,7 +216,7 @@ func (c *Conn) WriteNoCopy(bs []byte) error {
 			} else {
 				err = ConnError{errors.New("session closed"), false, false, true, 0}
 			}
-		case c.session.send <- bs:
+		case c.session.send <- msg:
 		}
 	}
 	return err
@@ -225,10 +225,10 @@ func (c *Conn) WriteNoCopy(bs []byte) error {
 // Implements net.Conn.Write
 func (c *Conn) Write(b []byte) (int, error) {
 	written := len(b)
-	bs := append(util.GetBytes(), b...)
-	err := c.WriteNoCopy(bs)
+	msg := FlowKeyMessage{Message: append(util.GetBytes(), b...)}
+	err := c.WriteNoCopy(msg)
 	if err != nil {
-		util.PutBytes(bs)
+		util.PutBytes(msg.Message)
 		written = 0
 	}
 	return written, err
