@@ -96,8 +96,11 @@ func (s *tunConn) writer() error {
 			if !ok {
 				return errors.New("send closed")
 			}
-			// TODO write timeout and close
-			if err := s.conn.WriteNoCopy(bs); err != nil {
+			msg := yggdrasil.FlowKeyMessage{
+				FlowKey: util.GetFlowKey(bs),
+				Message: bs,
+			}
+			if err := s.conn.WriteNoCopy(msg); err != nil {
 				if e, eok := err.(yggdrasil.ConnError); !eok {
 					if e.Closed() {
 						s.tun.log.Debugln(s.conn.String(), "TUN/TAP generic write debug:", err)

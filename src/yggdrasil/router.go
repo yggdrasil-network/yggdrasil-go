@@ -166,7 +166,7 @@ func (r *router) handleTraffic(packet []byte) {
 		return
 	}
 	select {
-	case sinfo.fromRouter <- &p:
+	case sinfo.fromRouter <- p:
 	case <-sinfo.cancel.Finished():
 		util.PutBytes(p.Payload)
 	}
