@@ -36,6 +36,7 @@ type searchInfo struct {
 	core     *Core
 	dest     crypto.NodeID
 	mask     crypto.NodeID
+	time     time.Time
 	toVisit  []*dhtInfo
 	visited  map[crypto.NodeID]bool
 	callback func(*sessionInfo, error)
@@ -68,6 +69,7 @@ func (s *searches) createSearch(dest *crypto.NodeID, mask *crypto.NodeID, callba
 		core:     s.core,
 		dest:     *dest,
 		mask:     *mask,
+		time:     time.Now(),
 		callback: callback,
 	}
 	s.searches[*dest] = &info
@@ -130,9 +132,11 @@ func (sinfo *searchInfo) addToSearch(res *dhtRes) {
 // Otherwise, it pops the closest node to the destination (in keyspace) off of the toVisit list and sends a dht ping.
 func (sinfo *searchInfo) doSearchStep() {
 	if len(sinfo.toVisit) == 0 {
-		// Dead end, do cleanup
-		delete(sinfo.core.searches.searches, sinfo.dest)
-		sinfo.callback(nil, errors.New("search reached dead end"))
+		if time.Since(sinfo.time) > search_RETRY_TIME {
+			// Dead end and no response in too long, do cleanup
+			delete(sinfo.core.searches.searches, sinfo.dest)
+			sinfo.callback(nil, errors.New("search reached dead end"))
+		}
 		return
 	}
 	// Send to the next search target
@@ -141,6 +145,7 @@ func (sinfo *searchInfo) doSearchStep() {
 	rq := dhtReqKey{next.key, sinfo.dest}
 	sinfo.core.dht.addCallback(&rq, sinfo.handleDHTRes)
 	sinfo.core.dht.ping(next, &sinfo.dest)
+	sinfo.time = time.Now()
 }
 
 // If we've recenty sent a ping for this search, do nothing.
