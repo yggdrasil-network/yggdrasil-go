@@ -130,9 +130,9 @@ func (c *Conn) doSearch() {
 			searchCompleted := func(sinfo *sessionInfo, e error) {}
 			sinfo = c.core.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
 			c.core.log.Debugf("%s DHT search started: %p", c.String(), sinfo)
+			// Start the search
+			sinfo.continueSearch()
 		}
-		// Continue the search
-		sinfo.continueSearch()
 	}
 	go func() { c.core.router.admin <- routerWork }()
 }
