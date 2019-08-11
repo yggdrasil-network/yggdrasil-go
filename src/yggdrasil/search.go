@@ -36,7 +36,6 @@ type searchInfo struct {
 	core     *Core
 	dest     crypto.NodeID
 	mask     crypto.NodeID
-	time     time.Time
 	toVisit  []*dhtInfo
 	visited  map[crypto.NodeID]bool
 	callback func(*sessionInfo, error)
@@ -65,17 +64,10 @@ func (s *searches) init(core *Core) {
 
 // Creates a new search info, adds it to the searches struct, and returns a pointer to the info.
 func (s *searches) createSearch(dest *crypto.NodeID, mask *crypto.NodeID, callback func(*sessionInfo, error)) *searchInfo {
-	now := time.Now()
-	//for dest, sinfo := range s.searches {
-	//	if now.Sub(sinfo.time) > time.Minute {
-	//		delete(s.searches, dest)
-	//	}
-	//}
 	info := searchInfo{
 		core:     s.core,
 		dest:     *dest,
 		mask:     *mask,
-		time:     now.Add(-time.Second),
 		callback: callback,
 	}
 	s.searches[*dest] = &info
@@ -154,10 +146,6 @@ func (sinfo *searchInfo) doSearchStep() {
 // If we've recenty sent a ping for this search, do nothing.
 // Otherwise, doSearchStep and schedule another continueSearch to happen after search_RETRY_TIME.
 func (sinfo *searchInfo) continueSearch() {
-	if time.Since(sinfo.time) < search_RETRY_TIME {
-		return
-	}
-	sinfo.time = time.Now()
 	sinfo.doSearchStep()
 	// In case the search dies, try to spawn another thread later
 	// Note that this will spawn multiple parallel searches as time passes
@@ -209,6 +197,8 @@ func (sinfo *searchInfo) checkDHTRes(res *dhtRes) bool {
 		if sess == nil {
 			// nil if the DHT search finished but the session wasn't allowed
 			sinfo.callback(nil, errors.New("session not allowed"))
+			// Cleanup
+			delete(sinfo.core.searches.searches, res.Dest)
 			return true
 		}
 		_, isIn := sinfo.core.sessions.getByTheirPerm(&res.Key)
