@@ -348,40 +348,40 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 func (ss *sessions) handlePing(ping *sessionPing) {
 	// Get the corresponding session (or create a new session)
 	sinfo, isIn := ss.getByTheirPerm(&ping.SendPermPub)
-	// Check if the session is allowed
-	// TODO: this check may need to be moved
-	if !isIn && !ss.isSessionAllowed(&ping.SendPermPub, false) {
-		return
-	}
-	// Create the session if it doesn't already exist
-	if !isIn {
-		ss.createSession(&ping.SendPermPub)
-		sinfo, isIn = ss.getByTheirPerm(&ping.SendPermPub)
-		if !isIn {
-			panic("This should not happen")
-		}
+	switch {
+	case isIn: // Session already exists
+	case !ss.isSessionAllowed(&ping.SendPermPub, false): // Session is not allowed
+	case ping.IsPong: // This is a response, not an initial ping, so ignore it.
+	default:
 		ss.listenerMutex.Lock()
-		// Check and see if there's a Listener waiting to accept connections
-		// TODO: this should not block if nothing is accepting
-		if !ping.IsPong && ss.listener != nil {
+		if ss.listener != nil {
+			// This is a ping from an allowed node for which no session exists, and we have a listener ready to handle sessions.
+			// We need to create a session and pass it to the listener.
+			sinfo = ss.createSession(&ping.SendPermPub)
+			if s, _ := ss.getByTheirPerm(&ping.SendPermPub); s != sinfo {
+				panic("This should not happen")
+			}
 			conn := newConn(ss.core, crypto.GetNodeID(&sinfo.theirPermPub), &crypto.NodeID{}, sinfo)
 			for i := range conn.nodeMask {
 				conn.nodeMask[i] = 0xFF
 			}
 			conn.session.startWorkers()
-			ss.listener.conn <- conn
+			c := ss.listener.conn
+			go func() { c <- conn }()
 		}
 		ss.listenerMutex.Unlock()
 	}
-	sinfo.doFunc(func() {
-		// Update the session
-		if !sinfo.update(ping) { /*panic("Should not happen in testing")*/
-			return
-		}
-		if !ping.IsPong {
-			ss.sendPingPong(sinfo, true)
-		}
-	})
+	if sinfo != nil {
+		sinfo.doFunc(func() {
+			// Update the session
+			if !sinfo.update(ping) { /*panic("Should not happen in testing")*/
+				return
+			}
+			if !ping.IsPong {
+				ss.sendPingPong(sinfo, true)
+			}
+		})
+	}
 }
 
 // Get the MTU of the session.
