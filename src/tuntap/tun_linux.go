@@ -5,11 +5,7 @@ package tuntap
 // The linux platform specific tun parts
 
 import (
-	"errors"
-	"fmt"
-	"net"
-
-	"github.com/docker/libcontainer/netlink"
+	"github.com/vishvananda/netlink"
 
 	water "github.com/yggdrasil-network/water"
 )
@@ -51,35 +47,21 @@ func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 // to exist on the system, but this will fail if Netlink is not present in the
 // kernel (it nearly always is).
 func (tun *TunAdapter) setupAddress(addr string) error {
-	// Set address
-	var netIF *net.Interface
-	ifces, err := net.Interfaces()
+	nladdr, err := netlink.ParseAddr(addr)
 	if err != nil {
 		return err
 	}
-	for _, ifce := range ifces {
-		if ifce.Name == tun.iface.Name() {
-			var newIF = ifce
-			netIF = &newIF // Don't point inside ifces, it's apparently unsafe?...
-		}
-	}
-	if netIF == nil {
-		return errors.New(fmt.Sprintf("Failed to find interface: %s", tun.iface.Name()))
-	}
-	ip, ipNet, err := net.ParseCIDR(addr)
+	nlintf, err := netlink.LinkByName(tun.iface.Name())
 	if err != nil {
 		return err
 	}
-	err = netlink.NetworkLinkAddIp(netIF, ip, ipNet)
-	if err != nil {
+	if err := netlink.AddrAdd(nlintf, nladdr); err != nil {
 		return err
 	}
-	err = netlink.NetworkSetMTU(netIF, tun.mtu)
-	if err != nil {
+	if err := netlink.LinkSetMTU(nlintf, tun.mtu); err != nil {
 		return err
 	}
-	netlink.NetworkLinkUp(netIF)
-	if err != nil {
+	if err := netlink.LinkSetUp(nlintf); err != nil {
 		return err
 	}
 	return nil
