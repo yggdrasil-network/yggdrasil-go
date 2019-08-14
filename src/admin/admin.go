@@ -18,6 +18,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
+	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
@@ -86,8 +87,8 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 			"self": Info{
 				ip: Info{
 					"box_pub_key":   c.EncryptionPublicKey(),
-					"build_name":    yggdrasil.BuildName(),
-					"build_version": yggdrasil.BuildVersion(),
+					"build_name":    version.BuildName(),
+					"build_version": version.BuildVersion(),
 					"coords":        fmt.Sprintf("%v", c.Coords()),
 					"subnet":        subnet.String(),
 				},
