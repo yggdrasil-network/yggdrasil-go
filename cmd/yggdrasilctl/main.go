@@ -59,10 +59,10 @@ func main() {
 	args := flag.Args()
 
 	if *ver {
-		fmt.Println(os.Args[0], "build name:", version.BuildName())
-		fmt.Println(os.Args[0], "version:", version.BuildVersion())
-		fmt.Println("\nFor get yggdrasil version use\n - ", os.Args[0], "getSelf")
-		os.Exit(0)
+		fmt.Println("Build name:", version.BuildName())
+		fmt.Println("Build version:", version.BuildVersion())
+		fmt.Println("To get the version number of the running Yggdrasil node, run", os.Args[0], "getSelf")
+		return
 	}
 
 	if len(args) == 0 {

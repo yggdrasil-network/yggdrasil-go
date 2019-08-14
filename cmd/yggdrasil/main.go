@@ -120,7 +120,7 @@ func main() {
 	normaliseconf := flag.Bool("normaliseconf", false, "use in combination with either -useconf or -useconffile, outputs your configuration normalised")
 	confjson := flag.Bool("json", false, "print configuration from -genconf or -normaliseconf as JSON instead of HJSON")
 	autoconf := flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
-	ver      := flag.Bool("version", false, "prints the version of this build")
+	ver := flag.Bool("version", false, "prints the version of this build")
 	logging := flag.String("logging", "info,warn,error", "comma-separated list of logging levels to enable")
 	logto := flag.String("logto", "stdout", "file path to log to, \"syslog\" or \"stdout\"")
 	flag.Parse()
@@ -131,7 +131,7 @@ func main() {
 	case *ver:
 		fmt.Println("Build name:", version.BuildName())
 		fmt.Println("Build version:", version.BuildVersion())
-		os.Exit(0)
+		return
 	case *autoconf:
 		// Use an autoconf-generated config, this will give us random keys and
 		// port numbers, and will use an automatically selected TUN/TAP interface.
