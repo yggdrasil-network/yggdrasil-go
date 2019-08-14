@@ -676,7 +676,8 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]time.Time) boo
 			update = true
 		case cinfo.dist > bestDist:
 			//nothing
-		case thisTime.Before(bestTime):
+		case thisTime.After(bestTime):
+			// Pick the one that was used most recently -- at least this should pick the same link consistently in low-traffic scenarios
 			update = true
 		default:
 			//nothing
