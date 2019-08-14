@@ -241,24 +241,6 @@ func (c *Core) GetSessions() []Session {
 	return sessions
 }
 
-// BuildName gets the current build name. This is usually injected if built
-// from git, or returns "unknown" otherwise.
-func BuildName() string {
-	if buildName == "" {
-		return "yggdrasil"
-	}
-	return buildName
-}
-
-// BuildVersion gets the current build version. This is usually injected if
-// built from git, or returns "unknown" otherwise.
-func BuildVersion() string {
-	if buildVersion == "" {
-		return "unknown"
-	}
-	return buildVersion
-}
-
 // ConnListen returns a listener for Yggdrasil session connections.
 func (c *Core) ConnListen() (*Listener, error) {
 	c.sessions.listenerMutex.Lock()

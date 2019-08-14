@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 )
 
 type nodeinfo struct {
@@ -99,8 +100,8 @@ func (m *nodeinfo) setNodeInfo(given interface{}, privacy bool) error {
 	m.myNodeInfoMutex.Lock()
 	defer m.myNodeInfoMutex.Unlock()
 	defaults := map[string]interface{}{
-		"buildname":     BuildName(),
-		"buildversion":  BuildVersion(),
+		"buildname":     version.BuildName(),
+		"buildversion":  version.BuildVersion(),
 		"buildplatform": runtime.GOOS,
 		"buildarch":     runtime.GOARCH,
 	}

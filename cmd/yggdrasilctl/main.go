@@ -19,6 +19,7 @@ import (
 
 	"github.com/hjson/hjson-go"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 )
 
 type admin_info map[string]interface{}
@@ -53,8 +54,16 @@ func main() {
 	server := flag.String("endpoint", endpoint, "Admin socket endpoint")
 	injson := flag.Bool("json", false, "Output in JSON format (as opposed to pretty-print)")
 	verbose := flag.Bool("v", false, "Verbose output (includes public keys)")
+	ver := flag.Bool("version", false, "Prints the version of this build")
 	flag.Parse()
 	args := flag.Args()
+
+	if *ver {
+		fmt.Println(os.Args[0], "build name:", version.BuildName())
+		fmt.Println(os.Args[0], "version:", version.BuildVersion())
+		fmt.Println("\nFor get yggdrasil version use\n - ", os.Args[0], "getSelf")
+		os.Exit(0)
+	}
 
 	if len(args) == 0 {
 		flag.Usage()
