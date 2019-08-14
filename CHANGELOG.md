@@ -25,6 +25,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.3.7] - 2019-08-14
+### Fixed
+- A number of significant performance regressions introduced in version 0.3.6
+  have been fixed, resulting in better performance
+- Flow labels are now used to prioritise traffic flows again correctly
+- The `Listen` statement, when configured as a string rather than an array,
+  will now be parsed correctly
+- The admin socket now returns `coords` as a correct array of unsigned 64-bit
+  integers, rather than the internal representation
+- The admin socket now returns `box_pub_key` in string format again
+- Sessions no longer leak/block when no listener (e.g. TUN/TAP) is configured
+- Incoming session connections no longer block when a session already exists,
+  which reduces in less leaked goroutines
+- Flooded sessions will no longer block other sessions
+- Searches are now cleaned up properly and a couple of edge-cases with duplicate
+  searches have been fixed
+- A number of minor allocation and pointer fixes
+
 ## [0.3.6] - 2019-08-03
 ### Added
 - Yggdrasil now has a public API with interfaces such as `yggdrasil.ConnDialer`, `yggdrasil.ConnListener` and `yggdrasil.Conn` for using Yggdrasil as a transport directly within applications
@@ -53,7 +71,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Session MTUs are now always calculated correctly, in some cases they were incorrectly defaulting to 1280 before
 - Multiple searches now don't take place for a single connection
 - Concurrency bugs fixed
-- Fixed a number of bugs in the ICMPv6 neighbor solicitation in the TUN/TAP code 
+- Fixed a number of bugs in the ICMPv6 neighbor solicitation in the TUN/TAP code
 - A case where peers weren't always added correctly if one or more peers were unreachable has been fixed
 - Searches which include the local node are now handled correctly
 - Lots of small bug tweaks and clean-ups throughout the codebase
