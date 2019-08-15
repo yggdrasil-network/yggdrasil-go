@@ -18,39 +18,37 @@ import (
 // All the information we know about an active session.
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
 type sessionInfo struct {
-	mutex          sync.Mutex              // Protects all of the below, use it any time you read/chance the contents of a session
-	core           *Core                   //
-	reconfigure    chan chan error         //
-	theirAddr      address.Address         //
-	theirSubnet    address.Subnet          //
-	theirPermPub   crypto.BoxPubKey        //
-	theirSesPub    crypto.BoxPubKey        //
-	mySesPub       crypto.BoxPubKey        //
-	mySesPriv      crypto.BoxPrivKey       //
-	sharedSesKey   crypto.BoxSharedKey     // derived from session keys
-	theirHandle    crypto.Handle           //
-	myHandle       crypto.Handle           //
-	theirNonce     crypto.BoxNonce         //
-	theirNonceMask uint64                  //
-	myNonce        crypto.BoxNonce         //
-	theirMTU       uint16                  //
-	myMTU          uint16                  //
-	wasMTUFixed    bool                    // Was the MTU fixed by a receive error?
-	timeOpened     time.Time               // Time the sessino was opened
-	time           time.Time               // Time we last received a packet
-	mtuTime        time.Time               // time myMTU was last changed
-	pingTime       time.Time               // time the first ping was sent since the last received packet
-	pingSend       time.Time               // time the last ping was sent
-	coords         []byte                  // coords of destination
-	reset          bool                    // reset if coords change
-	tstamp         int64                   // ATOMIC - tstamp from their last session ping, replay attack mitigation
-	bytesSent      uint64                  // Bytes of real traffic sent in this session
-	bytesRecvd     uint64                  // Bytes of real traffic received in this session
-	init           chan struct{}           // Closed when the first session pong arrives, used to signal that the session is ready for initial use
-	cancel         util.Cancellation       // Used to terminate workers
-	fromRouter     chan wire_trafficPacket // Received packets go here, to be decrypted by the session
-	recv           chan []byte             // Decrypted packets go here, picked up by the associated Conn
-	send           chan FlowKeyMessage     // Packets with optional flow key go here, to be encrypted and sent
+	mutex        sync.Mutex              // Protects all of the below, use it any time you read/chance the contents of a session
+	core         *Core                   //
+	reconfigure  chan chan error         //
+	theirAddr    address.Address         //
+	theirSubnet  address.Subnet          //
+	theirPermPub crypto.BoxPubKey        //
+	theirSesPub  crypto.BoxPubKey        //
+	mySesPub     crypto.BoxPubKey        //
+	mySesPriv    crypto.BoxPrivKey       //
+	sharedSesKey crypto.BoxSharedKey     // derived from session keys
+	theirHandle  crypto.Handle           //
+	myHandle     crypto.Handle           //
+	myNonce      crypto.BoxNonce         //
+	theirMTU     uint16                  //
+	myMTU        uint16                  //
+	wasMTUFixed  bool                    // Was the MTU fixed by a receive error?
+	timeOpened   time.Time               // Time the sessino was opened
+	time         time.Time               // Time we last received a packet
+	mtuTime      time.Time               // time myMTU was last changed
+	pingTime     time.Time               // time the first ping was sent since the last received packet
+	pingSend     time.Time               // time the last ping was sent
+	coords       []byte                  // coords of destination
+	reset        bool                    // reset if coords change
+	tstamp       int64                   // ATOMIC - tstamp from their last session ping, replay attack mitigation
+	bytesSent    uint64                  // Bytes of real traffic sent in this session
+	bytesRecvd   uint64                  // Bytes of real traffic received in this session
+	init         chan struct{}           // Closed when the first session pong arrives, used to signal that the session is ready for initial use
+	cancel       util.Cancellation       // Used to terminate workers
+	fromRouter   chan wire_trafficPacket // Received packets go here, to be decrypted by the session
+	recv         chan []byte             // Decrypted packets go here, picked up by the associated Conn
+	send         chan FlowKeyMessage     // Packets with optional flow key go here, to be encrypted and sent
 }
 
 func (sinfo *sessionInfo) doFunc(f func()) {
@@ -86,8 +84,6 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 		s.theirSesPub = p.SendSesPub
 		s.theirHandle = p.Handle
 		s.sharedSesKey = *crypto.GetSharedKey(&s.mySesPriv, &s.theirSesPub)
-		s.theirNonce = crypto.BoxNonce{}
-		s.theirNonceMask = 0
 	}
 	if p.MTU >= 1280 || p.MTU == 0 {
 		s.theirMTU = p.MTU
@@ -397,32 +393,6 @@ func (sinfo *sessionInfo) getMTU() uint16 {
 	return sinfo.myMTU
 }
 
-// Checks if a packet's nonce is recent enough to fall within the window of allowed packets, and not already received.
-func (sinfo *sessionInfo) nonceIsOK(theirNonce *crypto.BoxNonce) bool {
-	// The bitmask is to allow for some non-duplicate out-of-order packets
-	diff := theirNonce.Minus(&sinfo.theirNonce)
-	if diff > 0 {
-		return true
-	}
-	return ^sinfo.theirNonceMask&(0x01<<uint64(-diff)) != 0
-}
-
-// Updates the nonce mask by (possibly) shifting the bitmask and setting the bit corresponding to this nonce to 1, and then updating the most recent nonce
-func (sinfo *sessionInfo) updateNonce(theirNonce *crypto.BoxNonce) {
-	// Shift nonce mask if needed
-	// Set bit
-	diff := theirNonce.Minus(&sinfo.theirNonce)
-	if diff > 0 {
-		// This nonce is newer, so shift the window before setting the bit, and update theirNonce in the session info.
-		sinfo.theirNonceMask <<= uint64(diff)
-		sinfo.theirNonceMask &= 0x01
-		sinfo.theirNonce = *theirNonce
-	} else {
-		// This nonce is older, so set the bit but do not shift the window.
-		sinfo.theirNonceMask &= 0x01 << uint64(-diff)
-	}
-}
-
 // Resets all sessions to an uninitialized state.
 // Called after coord changes, so attemtps to use a session will trigger a new ping and notify the remote end of the coord change.
 func (ss *sessions) reset() {
@@ -448,27 +418,18 @@ type FlowKeyMessage struct {
 }
 
 func (sinfo *sessionInfo) recvWorker() {
-	// TODO move theirNonce etc into a struct that gets stored here, passed in over a channel
+	// TODO move used fields into a struct that gets stored here, passed in over a channel
 	//  Since there's no reason for anywhere else in the session code to need to *read* it...
 	//  Only needs to be updated from the outside if a ping resets it...
 	//  That would get rid of the need to take a mutex for the sessionFunc
 	var callbacks []chan func()
 	doRecv := func(p wire_trafficPacket) {
 		var bs []byte
-		var err error
 		var k crypto.BoxSharedKey
 		sessionFunc := func() {
-			if !sinfo.nonceIsOK(&p.Nonce) {
-				err = ConnError{errors.New("packet dropped due to invalid nonce"), false, true, false, 0}
-				return
-			}
 			k = sinfo.sharedSesKey
 		}
 		sinfo.doFunc(sessionFunc)
-		if err != nil {
-			util.PutBytes(p.Payload)
-			return
-		}
 		var isOK bool
 		ch := make(chan func(), 1)
 		poolFunc := func() {
@@ -479,13 +440,13 @@ func (sinfo *sessionInfo) recvWorker() {
 					util.PutBytes(bs)
 					return
 				}
+				var err error
 				sessionFunc = func() {
-					if k != sinfo.sharedSesKey || !sinfo.nonceIsOK(&p.Nonce) {
+					if k != sinfo.sharedSesKey {
 						// The session updated in the mean time, so return an error
 						err = ConnError{errors.New("session updated during crypto operation"), false, true, false, 0}
 						return
 					}
-					sinfo.updateNonce(&p.Nonce)
 					sinfo.time = time.Now()
 					sinfo.bytesRecvd += uint64(len(bs))
 				}
