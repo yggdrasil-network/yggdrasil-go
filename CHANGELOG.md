@@ -27,23 +27,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [0.3.7] - 2019-08-14
 ### Fixed
-- A number of significant performance regressions introduced in version 0.3.6
-  have been fixed, resulting in better performance
+- A number of significant performance regressions introduced in version 0.3.6 have been fixed, resulting in better performance
 - Flow labels are now used to prioritise traffic flows again correctly
-- In low-traffic scenarios where there are multiple peerings between a pair of
-  nodes, Yggdrasil now prefers the most active peering instead of the least
-  active, helping to reduce packet reordering
-- The `Listen` statement, when configured as a string rather than an array,
-  will now be parsed correctly
-- The admin socket now returns `coords` as a correct array of unsigned 64-bit
-  integers, rather than the internal representation
+- In low-traffic scenarios where there are multiple peerings between a pair of nodes, Yggdrasil now prefers the most active peering instead of the least active, helping to reduce packet reordering
+- The `Listen` statement, when configured as a string rather than an array, will now be parsed correctly
+- The admin socket now returns `coords` as a correct array of unsigned 64-bit integers, rather than the internal representation
 - The admin socket now returns `box_pub_key` in string format again
 - Sessions no longer leak/block when no listener (e.g. TUN/TAP) is configured
-- Incoming session connections no longer block when a session already exists,
-  which reduces in less leaked goroutines
+- Incoming session connections no longer block when a session already exists, which reduces in less leaked goroutines
 - Flooded sessions will no longer block other sessions
-- Searches are now cleaned up properly and a couple of edge-cases with duplicate
-  searches have been fixed
+- Searches are now cleaned up properly and a couple of edge-cases with duplicate searches have been fixed
 - A number of minor allocation and pointer fixes
 
 ## [0.3.6] - 2019-08-03
