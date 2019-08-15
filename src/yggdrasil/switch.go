@@ -630,6 +630,16 @@ func switch_getPacketStreamID(packet []byte) string {
 	return string(switch_getPacketCoords(packet))
 }
 
+// Returns the flowlabel from a given set of coords
+func switch_getFlowLabelFromCoords(in []byte) []byte {
+	for i, v := range in {
+		if v == 0 {
+			return in[i+1:]
+		}
+	}
+	return []byte{}
+}
+
 // Find the best port for a given set of coords
 func (t *switchTable) bestPortForCoords(coords []byte) switchPort {
 	table := t.getTable()
@@ -667,19 +677,28 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]time.Time) boo
 		var update bool
 		switch {
 		case to == nil:
-			//nothing
+			// no port was found, ignore it
 		case !isIdle:
-			//nothing
+			// the port is busy, ignore it
 		case best == nil:
+			// this is the first idle port we've found, so select it until we find a
+			// better candidate port to use instead
 			update = true
 		case cinfo.dist < bestDist:
+			// the port takes a shorter path/is more direct than our current
+			// candidate, so select that instead
 			update = true
 		case cinfo.dist > bestDist:
-			//nothing
-		case thisTime.Before(bestTime):
+			// the port takes a longer path/is less direct than our current candidate,
+			// ignore it
+		case thisTime.After(bestTime):
+			// all else equal, this port was used more recently than our current
+			// candidate, so choose that instead. this should mean that, in low
+			// traffic scenarios, we consistently pick the same link which helps with
+			// packet ordering
 			update = true
 		default:
-			//nothing
+			// the search for a port has finished
 		}
 		if update {
 			best = to
@@ -692,10 +711,9 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]time.Time) boo
 		delete(idle, best.port)
 		best.sendPacket(packet)
 		return true
-	} else {
-		// Didn't find anyone idle to send it to
-		return false
 	}
+	// Didn't find anyone idle to send it to
+	return false
 }
 
 // Info about a buffered packet
