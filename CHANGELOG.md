@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - A number of significant performance regressions introduced in version 0.3.6
   have been fixed, resulting in better performance
 - Flow labels are now used to prioritise traffic flows again correctly
+- In low-traffic scenarios where there are multiple peerings between a pair of
+  nodes, Yggdrasil now prefers the most active peering instead of the least
+  active, helping to reduce packet reordering
 - The `Listen` statement, when configured as a string rather than an array,
   will now be parsed correctly
 - The admin socket now returns `coords` as a correct array of unsigned 64-bit
