@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 - The switch should now forward packets along a single path more consistently in cases where congestion is low and multiple equal-length paths exist, which should improve stability and result in fewer out-of-order packets
 - Sessions should now be more tolerant of out-of-order packets, by replacing a bitmask with a variable sized heap+map structure to track recently received nonces, which should reduce the number of packets dropped due to reordering when multiple paths are used or multiple independent flows are transmitted through the same session
+- The admin socket can no longer return a dotfile representation of the known parts of the network, this could be rebuilt by clients using information from `getSwitchPeers`,`getDHT` and `getSessions`
 
 ### Fixed
 - A number of significant performance regressions introduced in version 0.3.6 have been fixed, resulting in better performance
