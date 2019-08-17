@@ -20,11 +20,10 @@ import (
 const nonceWindow = time.Second
 
 // A heap of nonces, used with a map[nonce]time to allow out-of-order packets a little time to arrive without rejecting them
-// Less is backwards so the oldest node is the highest priority for Pop
 type nonceHeap []crypto.BoxNonce
 
 func (h nonceHeap) Len() int            { return len(h) }
-func (h nonceHeap) Less(i, j int) bool  { return h[i].Minus(&h[j]) > 0 }
+func (h nonceHeap) Less(i, j int) bool  { return h[i].Minus(&h[j]) < 0 }
 func (h nonceHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }
 func (h *nonceHeap) Push(x interface{}) { *h = append(*h, x.(crypto.BoxNonce)) }
 func (h *nonceHeap) Pop() interface{} {
