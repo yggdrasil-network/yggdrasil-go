@@ -709,7 +709,7 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]time.Time) boo
 	if best != nil {
 		// Send to the best idle next hop
 		delete(idle, best.port)
-		best.sendPacket(packet)
+		best.sendPackets([][]byte{packet})
 		return true
 	}
 	// Didn't find anyone idle to send it to
@@ -812,7 +812,7 @@ func (t *switchTable) handleIdle(port switchPort) bool {
 			// Need to update the map, since buf was retrieved by value
 			t.queues.bufs[best] = buf
 		}
-		to.sendPacket(packet.bytes)
+		to.sendPackets([][]byte{packet.bytes})
 		return true
 	} else {
 		return false
@@ -826,7 +826,7 @@ func (t *switchTable) doWorker() {
 		// Keep sending packets to the router
 		self := t.core.peers.getPorts()[0]
 		for bs := range sendingToRouter {
-			self.sendPacket(bs)
+			self.sendPackets([][]byte{bs})
 		}
 	}()
 	go func() {
