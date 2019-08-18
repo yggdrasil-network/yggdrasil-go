@@ -115,6 +115,29 @@ func wire_decode_coords(packet []byte) ([]byte, int) {
 	return packet[coordBegin:coordEnd], coordEnd
 }
 
+// Converts a []uint64 set of coords to a []byte set of coords.
+func wire_coordsUint64stoBytes(in []uint64) (out []byte) {
+	for _, coord := range in {
+		c := wire_encode_uint64(coord)
+		out = append(out, c...)
+	}
+	return out
+}
+
+// Converts a []byte set of coords to a []uint64 set of coords.
+func wire_coordsBytestoUint64s(in []byte) (out []uint64) {
+	offset := 0
+	for {
+		coord, length := wire_decode_uint64(in[offset:])
+		if length == 0 {
+			break
+		}
+		out = append(out, coord)
+		offset += length
+	}
+	return out
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Encodes a swtichMsg into its wire format.

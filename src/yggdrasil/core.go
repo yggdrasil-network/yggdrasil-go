@@ -10,10 +10,8 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 )
-
-var buildName string
-var buildVersion string
 
 // The Core object represents the Yggdrasil node. You should create a Core
 // object for each Yggdrasil node you plan to run.
@@ -164,10 +162,10 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState,
 		Previous: *nc,
 	}
 
-	if name := BuildName(); name != "unknown" {
+	if name := version.BuildName(); name != "unknown" {
 		c.log.Infoln("Build name:", name)
 	}
-	if version := BuildVersion(); version != "unknown" {
+	if version := version.BuildVersion(); version != "unknown" {
 		c.log.Infoln("Build version:", version)
 	}
 

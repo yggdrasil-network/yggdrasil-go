@@ -6,46 +6,71 @@ package yggdrasil
 
 import (
 	"bytes"
+	"container/heap"
+	"errors"
 	"sync"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
+
+// Duration that we keep track of old nonces per session, to allow some out-of-order packet delivery
+const nonceWindow = time.Second
+
+// A heap of nonces, used with a map[nonce]time to allow out-of-order packets a little time to arrive without rejecting them
+type nonceHeap []crypto.BoxNonce
+
+func (h nonceHeap) Len() int            { return len(h) }
+func (h nonceHeap) Less(i, j int) bool  { return h[i].Minus(&h[j]) < 0 }
+func (h nonceHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }
+func (h *nonceHeap) Push(x interface{}) { *h = append(*h, x.(crypto.BoxNonce)) }
+func (h *nonceHeap) Pop() interface{} {
+	l := len(*h)
+	var n crypto.BoxNonce
+	n, *h = (*h)[l-1], (*h)[:l-1]
+	return n
+}
+func (h nonceHeap) peek() *crypto.BoxNonce { return &h[len(h)-1] }
 
 // All the information we know about an active session.
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
 type sessionInfo struct {
-	mutex          sync.Mutex               // Protects all of the below, use it any time you read/chance the contents of a session
-	core           *Core                    //
-	reconfigure    chan chan error          //
-	theirAddr      address.Address          //
-	theirSubnet    address.Subnet           //
-	theirPermPub   crypto.BoxPubKey         //
-	theirSesPub    crypto.BoxPubKey         //
-	mySesPub       crypto.BoxPubKey         //
-	mySesPriv      crypto.BoxPrivKey        //
-	sharedSesKey   crypto.BoxSharedKey      // derived from session keys
-	theirHandle    crypto.Handle            //
-	myHandle       crypto.Handle            //
-	theirNonce     crypto.BoxNonce          //
-	theirNonceMask uint64                   //
-	myNonce        crypto.BoxNonce          //
-	theirMTU       uint16                   //
-	myMTU          uint16                   //
-	wasMTUFixed    bool                     // Was the MTU fixed by a receive error?
-	timeOpened     time.Time                // Time the sessino was opened
-	time           time.Time                // Time we last received a packet
-	mtuTime        time.Time                // time myMTU was last changed
-	pingTime       time.Time                // time the first ping was sent since the last received packet
-	pingSend       time.Time                // time the last ping was sent
-	coords         []byte                   // coords of destination
-	reset          bool                     // reset if coords change
-	tstamp         int64                    // ATOMIC - tstamp from their last session ping, replay attack mitigation
-	bytesSent      uint64                   // Bytes of real traffic sent in this session
-	bytesRecvd     uint64                   // Bytes of real traffic received in this session
-	recv           chan *wire_trafficPacket // Received packets go here, picked up by the associated Conn
-	init           chan struct{}            // Closed when the first session pong arrives, used to signal that the session is ready for initial use
+	mutex          sync.Mutex                    // Protects all of the below, use it any time you read/chance the contents of a session
+	core           *Core                         //
+	reconfigure    chan chan error               //
+	theirAddr      address.Address               //
+	theirSubnet    address.Subnet                //
+	theirPermPub   crypto.BoxPubKey              //
+	theirSesPub    crypto.BoxPubKey              //
+	mySesPub       crypto.BoxPubKey              //
+	mySesPriv      crypto.BoxPrivKey             //
+	sharedSesKey   crypto.BoxSharedKey           // derived from session keys
+	theirHandle    crypto.Handle                 //
+	myHandle       crypto.Handle                 //
+	theirNonce     crypto.BoxNonce               //
+	theirNonceHeap nonceHeap                     // priority queue to keep track of the lowest nonce we recently accepted
+	theirNonceMap  map[crypto.BoxNonce]time.Time // time we added each nonce to the heap
+	myNonce        crypto.BoxNonce               //
+	theirMTU       uint16                        //
+	myMTU          uint16                        //
+	wasMTUFixed    bool                          // Was the MTU fixed by a receive error?
+	timeOpened     time.Time                     // Time the sessino was opened
+	time           time.Time                     // Time we last received a packet
+	mtuTime        time.Time                     // time myMTU was last changed
+	pingTime       time.Time                     // time the first ping was sent since the last received packet
+	pingSend       time.Time                     // time the last ping was sent
+	coords         []byte                        // coords of destination
+	reset          bool                          // reset if coords change
+	tstamp         int64                         // ATOMIC - tstamp from their last session ping, replay attack mitigation
+	bytesSent      uint64                        // Bytes of real traffic sent in this session
+	bytesRecvd     uint64                        // Bytes of real traffic received in this session
+	init           chan struct{}                 // Closed when the first session pong arrives, used to signal that the session is ready for initial use
+	cancel         util.Cancellation             // Used to terminate workers
+	fromRouter     chan wire_trafficPacket       // Received packets go here, to be decrypted by the session
+	recv           chan []byte                   // Decrypted packets go here, picked up by the associated Conn
+	send           chan FlowKeyMessage           // Packets with optional flow key go here, to be encrypted and sent
 }
 
 func (sinfo *sessionInfo) doFunc(f func()) {
@@ -82,7 +107,8 @@ func (s *sessionInfo) update(p *sessionPing) bool {
 		s.theirHandle = p.Handle
 		s.sharedSesKey = *crypto.GetSharedKey(&s.mySesPriv, &s.theirSesPub)
 		s.theirNonce = crypto.BoxNonce{}
-		s.theirNonceMask = 0
+		s.theirNonceHeap = nil
+		s.theirNonceMap = make(map[crypto.BoxNonce]time.Time)
 	}
 	if p.MTU >= 1280 || p.MTU == 0 {
 		s.theirMTU = p.MTU
@@ -203,6 +229,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.pingTime = now
 	sinfo.pingSend = now
 	sinfo.init = make(chan struct{})
+	sinfo.cancel = util.NewCancellation()
 	higher := false
 	for idx := range ss.core.boxPub {
 		if ss.core.boxPub[idx] > sinfo.theirPermPub[idx] {
@@ -222,9 +249,16 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.myHandle = *crypto.NewHandle()
 	sinfo.theirAddr = *address.AddrForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
 	sinfo.theirSubnet = *address.SubnetForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
-	sinfo.recv = make(chan *wire_trafficPacket, 32)
+	sinfo.fromRouter = make(chan wire_trafficPacket, 1)
+	sinfo.recv = make(chan []byte, 32)
+	sinfo.send = make(chan FlowKeyMessage, 32)
 	ss.sinfos[sinfo.myHandle] = &sinfo
 	ss.byTheirPerm[sinfo.theirPermPub] = &sinfo.myHandle
+	go func() {
+		// Run cleanup when the session is canceled
+		<-sinfo.cancel.Finished()
+		sinfo.core.router.doAdmin(sinfo.close)
+	}()
 	return &sinfo
 }
 
@@ -335,39 +369,40 @@ func (ss *sessions) sendPingPong(sinfo *sessionInfo, isPong bool) {
 func (ss *sessions) handlePing(ping *sessionPing) {
 	// Get the corresponding session (or create a new session)
 	sinfo, isIn := ss.getByTheirPerm(&ping.SendPermPub)
-	// Check if the session is allowed
-	// TODO: this check may need to be moved
-	if !isIn && !ss.isSessionAllowed(&ping.SendPermPub, false) {
-		return
-	}
-	// Create the session if it doesn't already exist
-	if !isIn {
-		ss.createSession(&ping.SendPermPub)
-		sinfo, isIn = ss.getByTheirPerm(&ping.SendPermPub)
-		if !isIn {
-			panic("This should not happen")
-		}
+	switch {
+	case isIn: // Session already exists
+	case !ss.isSessionAllowed(&ping.SendPermPub, false): // Session is not allowed
+	case ping.IsPong: // This is a response, not an initial ping, so ignore it.
+	default:
 		ss.listenerMutex.Lock()
-		// Check and see if there's a Listener waiting to accept connections
-		// TODO: this should not block if nothing is accepting
-		if !ping.IsPong && ss.listener != nil {
+		if ss.listener != nil {
+			// This is a ping from an allowed node for which no session exists, and we have a listener ready to handle sessions.
+			// We need to create a session and pass it to the listener.
+			sinfo = ss.createSession(&ping.SendPermPub)
+			if s, _ := ss.getByTheirPerm(&ping.SendPermPub); s != sinfo {
+				panic("This should not happen")
+			}
 			conn := newConn(ss.core, crypto.GetNodeID(&sinfo.theirPermPub), &crypto.NodeID{}, sinfo)
 			for i := range conn.nodeMask {
 				conn.nodeMask[i] = 0xFF
 			}
-			ss.listener.conn <- conn
+			conn.session.startWorkers()
+			c := ss.listener.conn
+			go func() { c <- conn }()
 		}
 		ss.listenerMutex.Unlock()
 	}
-	sinfo.doFunc(func() {
-		// Update the session
-		if !sinfo.update(ping) { /*panic("Should not happen in testing")*/
-			return
-		}
-		if !ping.IsPong {
-			ss.sendPingPong(sinfo, true)
-		}
-	})
+	if sinfo != nil {
+		sinfo.doFunc(func() {
+			// Update the session
+			if !sinfo.update(ping) { /*panic("Should not happen in testing")*/
+				return
+			}
+			if !ping.IsPong {
+				ss.sendPingPong(sinfo, true)
+			}
+		})
+	}
 }
 
 // Get the MTU of the session.
@@ -386,27 +421,40 @@ func (sinfo *sessionInfo) getMTU() uint16 {
 // Checks if a packet's nonce is recent enough to fall within the window of allowed packets, and not already received.
 func (sinfo *sessionInfo) nonceIsOK(theirNonce *crypto.BoxNonce) bool {
 	// The bitmask is to allow for some non-duplicate out-of-order packets
-	diff := theirNonce.Minus(&sinfo.theirNonce)
-	if diff > 0 {
+	if theirNonce.Minus(&sinfo.theirNonce) > 0 {
+		// This is newer than the newest nonce we've seen
 		return true
 	}
-	return ^sinfo.theirNonceMask&(0x01<<uint64(-diff)) != 0
+	if len(sinfo.theirNonceHeap) > 0 {
+		if theirNonce.Minus(sinfo.theirNonceHeap.peek()) > 0 {
+			if _, isIn := sinfo.theirNonceMap[*theirNonce]; !isIn {
+				// This nonce is recent enough that we keep track of older nonces, but it's not one we've seen yet
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Updates the nonce mask by (possibly) shifting the bitmask and setting the bit corresponding to this nonce to 1, and then updating the most recent nonce
 func (sinfo *sessionInfo) updateNonce(theirNonce *crypto.BoxNonce) {
-	// Shift nonce mask if needed
-	// Set bit
-	diff := theirNonce.Minus(&sinfo.theirNonce)
-	if diff > 0 {
-		// This nonce is newer, so shift the window before setting the bit, and update theirNonce in the session info.
-		sinfo.theirNonceMask <<= uint64(diff)
-		sinfo.theirNonceMask &= 0x01
-		sinfo.theirNonce = *theirNonce
-	} else {
-		// This nonce is older, so set the bit but do not shift the window.
-		sinfo.theirNonceMask &= 0x01 << uint64(-diff)
+	// Start with some cleanup
+	for len(sinfo.theirNonceHeap) > 64 {
+		if time.Since(sinfo.theirNonceMap[*sinfo.theirNonceHeap.peek()]) < nonceWindow {
+			// This nonce is still fairly new, so keep it around
+			break
+		}
+		// TODO? reallocate the map in some cases, to free unused map space?
+		delete(sinfo.theirNonceMap, *sinfo.theirNonceHeap.peek())
+		heap.Pop(&sinfo.theirNonceHeap)
 	}
+	if theirNonce.Minus(&sinfo.theirNonce) > 0 {
+		// This nonce is the newest we've seen, so make a note of that
+		sinfo.theirNonce = *theirNonce
+	}
+	// Add it to the heap/map so we know not to allow it again
+	heap.Push(&sinfo.theirNonceHeap, *theirNonce)
+	sinfo.theirNonceMap[*theirNonce] = time.Now()
 }
 
 // Resets all sessions to an uninitialized state.
@@ -416,5 +464,193 @@ func (ss *sessions) reset() {
 		sinfo.doFunc(func() {
 			sinfo.reset = true
 		})
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//////////////////////////// Worker Functions Below ////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+func (sinfo *sessionInfo) startWorkers() {
+	go sinfo.recvWorker()
+	go sinfo.sendWorker()
+}
+
+type FlowKeyMessage struct {
+	FlowKey uint64
+	Message []byte
+}
+
+func (sinfo *sessionInfo) recvWorker() {
+	// TODO move theirNonce etc into a struct that gets stored here, passed in over a channel
+	//  Since there's no reason for anywhere else in the session code to need to *read* it...
+	//  Only needs to be updated from the outside if a ping resets it...
+	//  That would get rid of the need to take a mutex for the sessionFunc
+	var callbacks []chan func()
+	doRecv := func(p wire_trafficPacket) {
+		var bs []byte
+		var err error
+		var k crypto.BoxSharedKey
+		sessionFunc := func() {
+			if !sinfo.nonceIsOK(&p.Nonce) {
+				err = ConnError{errors.New("packet dropped due to invalid nonce"), false, true, false, 0}
+				return
+			}
+			k = sinfo.sharedSesKey
+		}
+		sinfo.doFunc(sessionFunc)
+		if err != nil {
+			util.PutBytes(p.Payload)
+			return
+		}
+		var isOK bool
+		ch := make(chan func(), 1)
+		poolFunc := func() {
+			bs, isOK = crypto.BoxOpen(&k, p.Payload, &p.Nonce)
+			callback := func() {
+				util.PutBytes(p.Payload)
+				if !isOK {
+					util.PutBytes(bs)
+					return
+				}
+				sessionFunc = func() {
+					if k != sinfo.sharedSesKey || !sinfo.nonceIsOK(&p.Nonce) {
+						// The session updated in the mean time, so return an error
+						err = ConnError{errors.New("session updated during crypto operation"), false, true, false, 0}
+						return
+					}
+					sinfo.updateNonce(&p.Nonce)
+					sinfo.time = time.Now()
+					sinfo.bytesRecvd += uint64(len(bs))
+				}
+				sinfo.doFunc(sessionFunc)
+				if err != nil {
+					// Not sure what else to do with this packet, I guess just drop it
+					util.PutBytes(bs)
+				} else {
+					// Pass the packet to the buffer for Conn.Read
+					select {
+					case <-sinfo.cancel.Finished():
+						util.PutBytes(bs)
+					case sinfo.recv <- bs:
+					}
+				}
+			}
+			ch <- callback
+		}
+		// Send to the worker and wait for it to finish
+		util.WorkerGo(poolFunc)
+		callbacks = append(callbacks, ch)
+	}
+	fromHelper := make(chan wire_trafficPacket, 1)
+	go func() {
+		var buf []wire_trafficPacket
+		for {
+			for len(buf) > 0 {
+				select {
+				case <-sinfo.cancel.Finished():
+					return
+				case p := <-sinfo.fromRouter:
+					buf = append(buf, p)
+					for len(buf) > 64 { // Based on nonce window size
+						util.PutBytes(buf[0].Payload)
+						buf = buf[1:]
+					}
+				case fromHelper <- buf[0]:
+					buf = buf[1:]
+				}
+			}
+			select {
+			case <-sinfo.cancel.Finished():
+				return
+			case p := <-sinfo.fromRouter:
+				buf = append(buf, p)
+			}
+		}
+	}()
+	for {
+		for len(callbacks) > 0 {
+			select {
+			case f := <-callbacks[0]:
+				callbacks = callbacks[1:]
+				f()
+			case <-sinfo.cancel.Finished():
+				return
+			case p := <-fromHelper:
+				doRecv(p)
+			}
+		}
+		select {
+		case <-sinfo.cancel.Finished():
+			return
+		case p := <-fromHelper:
+			doRecv(p)
+		}
+	}
+}
+
+func (sinfo *sessionInfo) sendWorker() {
+	// TODO move info that this worker needs here, send updates via a channel
+	//  Otherwise we need to take a mutex to avoid races with update()
+	var callbacks []chan func()
+	doSend := func(msg FlowKeyMessage) {
+		var p wire_trafficPacket
+		var k crypto.BoxSharedKey
+		sessionFunc := func() {
+			sinfo.bytesSent += uint64(len(msg.Message))
+			p = wire_trafficPacket{
+				Coords: append([]byte(nil), sinfo.coords...),
+				Handle: sinfo.theirHandle,
+				Nonce:  sinfo.myNonce,
+			}
+			if msg.FlowKey != 0 {
+				// Helps ensure that traffic from this flow ends up in a separate queue from other flows
+				// The zero padding relies on the fact that the self-peer is always on port 0
+				p.Coords = append(p.Coords, 0)
+				p.Coords = wire_put_uint64(msg.FlowKey, p.Coords)
+			}
+			sinfo.myNonce.Increment()
+			k = sinfo.sharedSesKey
+		}
+		// Get the mutex-protected info needed to encrypt the packet
+		sinfo.doFunc(sessionFunc)
+		ch := make(chan func(), 1)
+		poolFunc := func() {
+			// Encrypt the packet
+			p.Payload, _ = crypto.BoxSeal(&k, msg.Message, &p.Nonce)
+			// The callback will send the packet
+			callback := func() {
+				// Encoding may block on a util.GetBytes(), so kept out of the worker pool
+				packet := p.encode()
+				// Cleanup
+				util.PutBytes(msg.Message)
+				util.PutBytes(p.Payload)
+				// Send the packet
+				sinfo.core.router.out(packet)
+			}
+			ch <- callback
+		}
+		// Send to the worker and wait for it to finish
+		util.WorkerGo(poolFunc)
+		callbacks = append(callbacks, ch)
+	}
+	for {
+		for len(callbacks) > 0 {
+			select {
+			case f := <-callbacks[0]:
+				callbacks = callbacks[1:]
+				f()
+			case <-sinfo.cancel.Finished():
+				return
+			case msg := <-sinfo.send:
+				doSend(msg)
+			}
+		}
+		select {
+		case <-sinfo.cancel.Finished():
+			return
+		case bs := <-sinfo.send:
+			doSend(bs)
+		}
 	}
 }

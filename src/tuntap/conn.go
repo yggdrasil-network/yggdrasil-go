@@ -53,15 +53,14 @@ func (s *tunConn) reader() (err error) {
 	}
 	s.tun.log.Debugln("Starting conn reader for", s.conn.String())
 	defer s.tun.log.Debugln("Stopping conn reader for", s.conn.String())
-	var n int
-	b := make([]byte, 65535)
 	for {
 		select {
 		case <-s.stop:
 			return nil
 		default:
 		}
-		if n, err = s.conn.Read(b); err != nil {
+		var bs []byte
+		if bs, err = s.conn.ReadNoCopy(); err != nil {
 			if e, eok := err.(yggdrasil.ConnError); eok && !e.Temporary() {
 				if e.Closed() {
 					s.tun.log.Debugln(s.conn.String(), "TUN/TAP conn read debug:", err)
@@ -70,14 +69,11 @@ func (s *tunConn) reader() (err error) {
 				}
 				return e
 			}
-		} else if n > 0 {
-			bs := append(util.GetBytes(), b[:n]...)
-			select {
-			case s.tun.send <- bs:
-			default:
-				util.PutBytes(bs)
-			}
+		} else if len(bs) > 0 {
+			s.tun.send <- bs
 			s.stillAlive()
+		} else {
+			util.PutBytes(bs)
 		}
 	}
 }
@@ -96,12 +92,15 @@ func (s *tunConn) writer() error {
 		select {
 		case <-s.stop:
 			return nil
-		case b, ok := <-s.send:
+		case bs, ok := <-s.send:
 			if !ok {
 				return errors.New("send closed")
 			}
-			// TODO write timeout and close
-			if _, err := s.conn.Write(b); err != nil {
+			msg := yggdrasil.FlowKeyMessage{
+				FlowKey: util.GetFlowKey(bs),
+				Message: bs,
+			}
+			if err := s.conn.WriteNoCopy(msg); err != nil {
 				if e, eok := err.(yggdrasil.ConnError); !eok {
 					if e.Closed() {
 						s.tun.log.Debugln(s.conn.String(), "TUN/TAP generic write debug:", err)
@@ -112,9 +111,9 @@ func (s *tunConn) writer() error {
 					// TODO: This currently isn't aware of IPv4 for CKR
 					ptb := &icmp.PacketTooBig{
 						MTU:  int(e.PacketMaximumSize()),
-						Data: b[:900],
+						Data: bs[:900],
 					}
-					if packet, err := CreateICMPv6(b[8:24], b[24:40], ipv6.ICMPTypePacketTooBig, 0, ptb); err == nil {
+					if packet, err := CreateICMPv6(bs[8:24], bs[24:40], ipv6.ICMPTypePacketTooBig, 0, ptb); err == nil {
 						s.tun.send <- packet
 					}
 				} else {
@@ -127,7 +126,6 @@ func (s *tunConn) writer() error {
 			} else {
 				s.stillAlive()
 			}
-			util.PutBytes(b)
 		}
 	}
 }

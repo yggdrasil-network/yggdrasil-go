@@ -25,6 +25,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
+	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
@@ -74,6 +75,12 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *config
 	if err := hjson.Unmarshal(conf, &dat); err != nil {
 		panic(err)
 	}
+	// Check for fields that have changed type recently, e.g. the Listen config
+	// option is now a []string rather than a string
+	if listen, ok := dat["Listen"].(string); ok {
+		dat["Listen"] = []string{listen}
+	}
+	// Sanitise the config
 	confJson, err := json.Marshal(dat)
 	if err != nil {
 		panic(err)
@@ -113,7 +120,7 @@ func main() {
 	normaliseconf := flag.Bool("normaliseconf", false, "use in combination with either -useconf or -useconffile, outputs your configuration normalised")
 	confjson := flag.Bool("json", false, "print configuration from -genconf or -normaliseconf as JSON instead of HJSON")
 	autoconf := flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
-	version := flag.Bool("version", false, "prints the version of this build")
+	ver := flag.Bool("version", false, "prints the version of this build")
 	logging := flag.String("logging", "info,warn,error", "comma-separated list of logging levels to enable")
 	logto := flag.String("logto", "stdout", "file path to log to, \"syslog\" or \"stdout\"")
 	flag.Parse()
@@ -121,10 +128,10 @@ func main() {
 	var cfg *config.NodeConfig
 	var err error
 	switch {
-	case *version:
-		fmt.Println("Build name:", yggdrasil.BuildName())
-		fmt.Println("Build version:", yggdrasil.BuildVersion())
-		os.Exit(0)
+	case *ver:
+		fmt.Println("Build name:", version.BuildName())
+		fmt.Println("Build version:", version.BuildVersion())
+		return
 	case *autoconf:
 		// Use an autoconf-generated config, this will give us random keys and
 		// port numbers, and will use an automatically selected TUN/TAP interface.
@@ -168,7 +175,7 @@ func main() {
 	case "stdout":
 		logger = log.New(os.Stdout, "", log.Flags())
 	case "syslog":
-		if syslogger, err := gsyslog.NewLogger(gsyslog.LOG_NOTICE, "DAEMON", yggdrasil.BuildName()); err == nil {
+		if syslogger, err := gsyslog.NewLogger(gsyslog.LOG_NOTICE, "DAEMON", version.BuildName()); err == nil {
 			logger = log.New(syslogger, "", log.Flags())
 		}
 	default:

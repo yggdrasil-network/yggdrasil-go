@@ -139,8 +139,10 @@ func (tun *TunAdapter) readerPacketHandler(ch chan []byte) {
 				continue
 			}
 		}
-		// Shift forward to avoid leaking bytes off the front of the slide when we eventually store it
-		bs = append(recvd[:0], bs...)
+		if offset != 0 {
+			// Shift forward to avoid leaking bytes off the front of the slice when we eventually store it
+			bs = append(recvd[:0], bs...)
+		}
 		// From the IP header, work out what our source and destination addresses
 		// and node IDs are. We will need these in order to work out where to send
 		// the packet
@@ -260,11 +262,8 @@ func (tun *TunAdapter) readerPacketHandler(ch chan []byte) {
 				tun.mutex.Unlock()
 				if tc != nil {
 					for _, packet := range packets {
-						select {
-						case tc.send <- packet:
-						default:
-							util.PutBytes(packet)
-						}
+						p := packet // Possibly required because of how range
+						tc.send <- p
 					}
 				}
 			}()
@@ -274,21 +273,18 @@ func (tun *TunAdapter) readerPacketHandler(ch chan []byte) {
 		}
 		// If we have a connection now, try writing to it
 		if isIn && session != nil {
-			select {
-			case session.send <- bs:
-			default:
-				util.PutBytes(bs)
-			}
+			session.send <- bs
 		}
 	}
 }
 
 func (tun *TunAdapter) reader() error {
-	recvd := make([]byte, 65535+tun_ETHER_HEADER_LENGTH)
 	toWorker := make(chan []byte, 32)
 	defer close(toWorker)
 	go tun.readerPacketHandler(toWorker)
 	for {
+		// Get a slice to store the packet in
+		recvd := util.ResizeBytes(util.GetBytes(), 65535+tun_ETHER_HEADER_LENGTH)
 		// Wait for a packet to be delivered to us through the TUN/TAP adapter
 		n, err := tun.iface.Read(recvd)
 		if err != nil {
@@ -298,9 +294,10 @@ func (tun *TunAdapter) reader() error {
 			panic(err)
 		}
 		if n == 0 {
+			util.PutBytes(recvd)
 			continue
 		}
-		bs := append(util.GetBytes(), recvd[:n]...)
-		toWorker <- bs
+		// Send the packet to the worker
+		toWorker <- recvd[:n]
 	}
 }

@@ -179,7 +179,10 @@ func (intf *linkInterface) handler() error {
 		// That lets them do things like close connections on its own, avoid printing a connection message in the first place, etc.
 		intf.link.core.log.Debugln("DEBUG: found existing interface for", intf.name)
 		intf.msgIO.close()
-		<-oldIntf.closed
+		if !intf.incoming {
+			// Block outgoing connection attempts until the existing connection closes
+			<-oldIntf.closed
+		}
 		return nil
 	} else {
 		intf.closed = make(chan struct{})

@@ -127,7 +127,6 @@ func (r *router) mainLoop() {
 				r.core.switchTable.doMaintenance()
 				r.core.dht.doMaintenance()
 				r.core.sessions.cleanup()
-				util.GetBytes() // To slowly drain things
 			}
 		case f := <-r.admin:
 			f()
@@ -163,11 +162,12 @@ func (r *router) handleTraffic(packet []byte) {
 	}
 	sinfo, isIn := r.core.sessions.getSessionForHandle(&p.Handle)
 	if !isIn {
+		util.PutBytes(p.Payload)
 		return
 	}
 	select {
-	case sinfo.recv <- &p: // FIXME ideally this should be front drop
-	default:
+	case sinfo.fromRouter <- p:
+	case <-sinfo.cancel.Finished():
 		util.PutBytes(p.Payload)
 	}
 }

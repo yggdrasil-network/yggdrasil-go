@@ -8,10 +8,12 @@ require (
 	github.com/kardianos/minwinsvc v0.0.0-20151122163309-cad6b2b879b0
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/songgao/packets v0.0.0-20160404182456-549a10cd4091
-	github.com/yggdrasil-network/water v0.0.0-20190725123504-a16161896c34
+	github.com/vishvananda/netlink v1.0.0
+	github.com/vishvananda/netns v0.0.0-20190625233234-7109fa855b0f // indirect
+	github.com/yggdrasil-network/water v0.0.0-20190812103929-c83fe40250f8
 	golang.org/x/crypto v0.0.0-20190701094942-4def268fd1a4
-	golang.org/x/net v0.0.0-20190724013045-ca1201d0de80
-	golang.org/x/sys v0.0.0-20190801041406-cbf593c0f2f3
+	golang.org/x/net v0.0.0-20190813141303-74dc4d7220e7
+	golang.org/x/sys v0.0.0-20190813064441-fde4db37ae7a
 	golang.org/x/text v0.3.2
-	golang.org/x/tools v0.0.0-20190802003818-e9bb7d36c060 // indirect
+	golang.org/x/tools v0.0.0-20190814171936-5b18234b3ae0 // indirect
 )
