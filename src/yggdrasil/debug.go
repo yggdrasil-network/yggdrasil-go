@@ -556,8 +556,10 @@ func DEBUG_simLinkPeers(p, q *peer) {
 	goWorkers := func(source, dest *peer) {
 		source.linkOut = make(chan []byte, 1)
 		send := make(chan []byte, 1)
-		source.out = func(bs []byte) {
-			send <- bs
+		source.out = func(bss [][]byte) {
+			for _, bs := range bss {
+				send <- bs
+			}
 		}
 		go source.linkLoop()
 		go func() {
