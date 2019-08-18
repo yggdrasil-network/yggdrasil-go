@@ -76,9 +76,7 @@ type SessionFirewall struct {
 type TunnelRouting struct {
 	Enable           bool              `comment:"Enable or disable tunnel routing."`
 	IPv6Destinations map[string]string `comment:"IPv6 CIDR subnets, mapped to the EncryptionPublicKey to which they\nshould be routed, e.g. { \"aaaa:bbbb:cccc::/e\": \"boxpubkey\", ... }"`
-	IPv6Sources      []string          `comment:"Optional IPv6 source subnets which are allowed to be tunnelled in\naddition to this node's Yggdrasil address/subnet. If not\nspecified, only traffic originating from this node's Yggdrasil\naddress or subnet will be tunnelled."`
 	IPv4Destinations map[string]string `comment:"IPv4 CIDR subnets, mapped to the EncryptionPublicKey to which they\nshould be routed, e.g. { \"a.b.c.d/e\": \"boxpubkey\", ... }"`
-	IPv4Sources      []string          `comment:"IPv4 source subnets which are allowed to be tunnelled. Unlike for\nIPv6, this option is required for bridging IPv4 traffic. Only\ntraffic with a source matching these subnets will be tunnelled."`
 }
 
 // SwitchOptions contains tuning options for the switch

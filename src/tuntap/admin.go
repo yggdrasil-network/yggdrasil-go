@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 )
@@ -66,30 +65,12 @@ func (t *TunAdapter) SetupAdminHandlers(a *admin.AdminSocket) {
 		t.ckr.setEnabled(enabled)
 		return admin.Info{"enabled": enabled}, nil
 	})
-	a.AddHandler("addSourceSubnet", []string{"subnet"}, func(in admin.Info) (admin.Info, error) {
-		if err := t.ckr.addSourceSubnet(in["subnet"].(string)); err == nil {
-			return admin.Info{"added": []string{in["subnet"].(string)}}, nil
-		} else {
-			return admin.Info{"not_added": []string{in["subnet"].(string)}}, errors.New("Failed to add source subnet")
-		}
-	})
 	a.AddHandler("addRoute", []string{"subnet", "box_pub_key"}, func(in admin.Info) (admin.Info, error) {
 		if err := t.ckr.addRoute(in["subnet"].(string), in["box_pub_key"].(string)); err == nil {
 			return admin.Info{"added": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, nil
 		} else {
 			return admin.Info{"not_added": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, errors.New("Failed to add route")
 		}
-	})
-	a.AddHandler("getSourceSubnets", []string{}, func(in admin.Info) (admin.Info, error) {
-		var subnets []string
-		getSourceSubnets := func(snets []net.IPNet) {
-			for _, subnet := range snets {
-				subnets = append(subnets, subnet.String())
-			}
-		}
-		getSourceSubnets(t.ckr.ipv4sources)
-		getSourceSubnets(t.ckr.ipv6sources)
-		return admin.Info{"source_subnets": subnets}, nil
 	})
 	a.AddHandler("getRoutes", []string{}, func(in admin.Info) (admin.Info, error) {
 		routes := make(admin.Info)
@@ -101,13 +82,6 @@ func (t *TunAdapter) SetupAdminHandlers(a *admin.AdminSocket) {
 		getRoutes(t.ckr.ipv4routes)
 		getRoutes(t.ckr.ipv6routes)
 		return admin.Info{"routes": routes}, nil
-	})
-	a.AddHandler("removeSourceSubnet", []string{"subnet"}, func(in admin.Info) (admin.Info, error) {
-		if err := t.ckr.removeSourceSubnet(in["subnet"].(string)); err == nil {
-			return admin.Info{"removed": []string{in["subnet"].(string)}}, nil
-		} else {
-			return admin.Info{"not_removed": []string{in["subnet"].(string)}}, errors.New("Failed to remove source subnet")
-		}
 	})
 	a.AddHandler("removeRoute", []string{"subnet", "box_pub_key"}, func(in admin.Info) (admin.Info, error) {
 		if err := t.ckr.removeRoute(in["subnet"].(string), in["box_pub_key"].(string)); err == nil {

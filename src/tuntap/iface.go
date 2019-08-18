@@ -187,11 +187,6 @@ func (tun *TunAdapter) readerPacketHandler(ch chan []byte) {
 			tun.log.Traceln("Unknown packet type, dropping")
 			continue
 		}
-		if tun.ckr.isEnabled() && !tun.ckr.isValidSource(srcAddr, addrlen) {
-			// The packet had a source address that doesn't belong to us or our
-			// configured crypto-key routing source subnets
-			continue
-		}
 		if !dstAddr.IsValid() && !dstSnet.IsValid() {
 			if key, err := tun.ckr.getPublicKeyForAddress(dstAddr, addrlen); err == nil {
 				// A public key was found, get the node ID for the search

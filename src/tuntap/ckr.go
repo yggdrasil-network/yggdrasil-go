@@ -25,8 +25,6 @@ type cryptokey struct {
 	ipv6routes   []cryptokey_route
 	ipv4cache    map[address.Address]cryptokey_route
 	ipv6cache    map[address.Address]cryptokey_route
-	ipv4sources  []net.IPNet
-	ipv6sources  []net.IPNet
 	mutexroutes  sync.RWMutex
 	mutexcaches  sync.RWMutex
 	mutexsources sync.RWMutex
@@ -84,28 +82,6 @@ func (c *cryptokey) configure() error {
 		}
 	}
 
-	// Clear out existing sources
-	c.mutexsources.Lock()
-	c.ipv6sources = make([]net.IPNet, 0)
-	c.ipv4sources = make([]net.IPNet, 0)
-	c.mutexsources.Unlock()
-
-	// Add IPv6 sources
-	c.ipv6sources = make([]net.IPNet, 0)
-	for _, source := range current.TunnelRouting.IPv6Sources {
-		if err := c.addSourceSubnet(source); err != nil {
-			return err
-		}
-	}
-
-	// Add IPv4 sources
-	c.ipv4sources = make([]net.IPNet, 0)
-	for _, source := range current.TunnelRouting.IPv4Sources {
-		if err := c.addSourceSubnet(source); err != nil {
-			return err
-		}
-	}
-
 	// Wipe the caches
 	c.mutexcaches.Lock()
 	c.ipv4cache = make(map[address.Address]cryptokey_route, 0)
@@ -124,92 +100,6 @@ func (c *cryptokey) setEnabled(enabled bool) {
 func (c *cryptokey) isEnabled() bool {
 	enabled, ok := c.enabled.Load().(bool)
 	return ok && enabled
-}
-
-// Check whether the given address (with the address length specified in bytes)
-// matches either the current node's address, the node's routed subnet or the
-// list of subnets specified in IPv4Sources/IPv6Sources.
-func (c *cryptokey) isValidSource(addr address.Address, addrlen int) bool {
-	c.mutexsources.RLock()
-	defer c.mutexsources.RUnlock()
-
-	ip := net.IP(addr[:addrlen])
-
-	if addrlen == net.IPv6len {
-		// Does this match our node's address?
-		if bytes.Equal(addr[:16], c.tun.addr[:16]) {
-			return true
-		}
-
-		// Does this match our node's subnet?
-		if bytes.Equal(addr[:8], c.tun.subnet[:8]) {
-			return true
-		}
-	}
-
-	// Does it match a configured CKR source?
-	if c.isEnabled() {
-		// Build our references to the routing sources
-		var routingsources *[]net.IPNet
-
-		// Check if the prefix is IPv4 or IPv6
-		if addrlen == net.IPv6len {
-			routingsources = &c.ipv6sources
-		} else if addrlen == net.IPv4len {
-			routingsources = &c.ipv4sources
-		} else {
-			return false
-		}
-
-		for _, subnet := range *routingsources {
-			if subnet.Contains(ip) {
-				return true
-			}
-		}
-	}
-
-	// Doesn't match any of the above
-	return false
-}
-
-// Adds a source subnet, which allows traffic with these source addresses to
-// be tunnelled using crypto-key routing.
-func (c *cryptokey) addSourceSubnet(cidr string) error {
-	c.mutexsources.Lock()
-	defer c.mutexsources.Unlock()
-
-	// Is the CIDR we've been given valid?
-	_, ipnet, err := net.ParseCIDR(cidr)
-	if err != nil {
-		return err
-	}
-
-	// Get the prefix length and size
-	_, prefixsize := ipnet.Mask.Size()
-
-	// Build our references to the routing sources
-	var routingsources *[]net.IPNet
-
-	// Check if the prefix is IPv4 or IPv6
-	if prefixsize == net.IPv6len*8 {
-		routingsources = &c.ipv6sources
-	} else if prefixsize == net.IPv4len*8 {
-		routingsources = &c.ipv4sources
-	} else {
-		return errors.New("Unexpected prefix size")
-	}
-
-	// Check if we already have this CIDR
-	for _, subnet := range *routingsources {
-		if subnet.String() == ipnet.String() {
-			return errors.New("Source subnet already configured")
-		}
-	}
-
-	// Add the source subnet
-	*routingsources = append(*routingsources, *ipnet)
-	c.tun.log.Infoln("Added CKR source subnet", cidr)
-	return nil
 }
 
 // Adds a destination route for the given CIDR to be tunnelled to the node
@@ -367,44 +257,6 @@ func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (c
 
 	// No route was found if we got to this point
 	return crypto.BoxPubKey{}, errors.New(fmt.Sprintf("No route to %s", ip.String()))
-}
-
-// Removes a source subnet, which allows traffic with these source addresses to
-// be tunnelled using crypto-key routing.
-func (c *cryptokey) removeSourceSubnet(cidr string) error {
-	c.mutexsources.Lock()
-	defer c.mutexsources.Unlock()
-
-	// Is the CIDR we've been given valid?
-	_, ipnet, err := net.ParseCIDR(cidr)
-	if err != nil {
-		return err
-	}
-
-	// Get the prefix length and size
-	_, prefixsize := ipnet.Mask.Size()
-
-	// Build our references to the routing sources
-	var routingsources *[]net.IPNet
-
-	// Check if the prefix is IPv4 or IPv6
-	if prefixsize == net.IPv6len*8 {
-		routingsources = &c.ipv6sources
-	} else if prefixsize == net.IPv4len*8 {
-		routingsources = &c.ipv4sources
-	} else {
-		return errors.New("Unexpected prefix size")
-	}
-
-	// Check if we already have this CIDR
-	for idx, subnet := range *routingsources {
-		if subnet.String() == ipnet.String() {
-			*routingsources = append((*routingsources)[:idx], (*routingsources)[idx+1:]...)
-			c.tun.log.Infoln("Removed CKR source subnet", cidr)
-			return nil
-		}
-	}
-	return errors.New("Source subnet not found")
 }
 
 // Removes a destination route for the given CIDR to be tunnelled to the node
