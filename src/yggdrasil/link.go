@@ -37,7 +37,7 @@ type linkInfo struct {
 
 type linkInterfaceMsgIO interface {
 	readMsg() ([]byte, error)
-	writeMsg([]byte) (int, error)
+	writeMsgs([][]byte) (int, error)
 	close() error
 	// These are temporary workarounds to stream semantics
 	_sendMetaBytes([]byte) error
@@ -207,11 +207,11 @@ func (intf *linkInterface) handler() error {
 		intf.link.core.peers.removePeer(intf.peer.port)
 	}()
 	// Finish setting up the peer struct
-	out := make(chan []byte, 1)
+	out := make(chan [][]byte, 1)
 	defer close(out)
-	intf.peer.out = func(msg []byte) {
+	intf.peer.out = func(msgs [][]byte) {
 		defer func() { recover() }()
-		out <- msg
+		out <- msgs
 	}
 	intf.peer.linkOut = make(chan []byte, 1)
 	themAddr := address.AddrForNodeID(crypto.GetNodeID(&intf.info.box))
@@ -234,12 +234,12 @@ func (intf *linkInterface) handler() error {
 		interval := 4 * time.Second
 		tcpTimer := time.NewTimer(interval) // used for backwards compat with old tcp
 		defer util.TimerStop(tcpTimer)
-		send := func(bs []byte) {
+		send := func(bss [][]byte) {
 			sendBlocked.Reset(time.Second)
-			intf.msgIO.writeMsg(bs)
+			size, _ := intf.msgIO.writeMsgs(bss)
 			util.TimerStop(sendBlocked)
 			select {
-			case signalSent <- len(bs) > 0:
+			case signalSent <- size > 0:
 			default:
 			}
 		}
@@ -247,7 +247,7 @@ func (intf *linkInterface) handler() error {
 			// First try to send any link protocol traffic
 			select {
 			case msg := <-intf.peer.linkOut:
-				send(msg)
+				send([][]byte{msg})
 				continue
 			default:
 			}
@@ -259,19 +259,21 @@ func (intf *linkInterface) handler() error {
 			case <-tcpTimer.C:
 				intf.link.core.log.Tracef("Sending (legacy) keep-alive to %s: %s, source %s",
 					strings.ToUpper(intf.info.linkType), themString, intf.info.local)
-				send(nil)
+				send([][]byte{nil})
 			case <-sendAck:
 				intf.link.core.log.Tracef("Sending ack to %s: %s, source %s",
 					strings.ToUpper(intf.info.linkType), themString, intf.info.local)
-				send(nil)
+				send([][]byte{nil})
 			case msg := <-intf.peer.linkOut:
-				send(msg)
-			case msg, ok := <-out:
+				send([][]byte{msg})
+			case msgs, ok := <-out:
 				if !ok {
 					return
 				}
-				send(msg)
-				util.PutBytes(msg)
+				send(msgs)
+				for _, msg := range msgs {
+					util.PutBytes(msg)
+				}
 				select {
 				case signalReady <- struct{}{}:
 				default:

@@ -35,29 +35,19 @@ func (s *stream) init(rwc io.ReadWriteCloser) {
 }
 
 // writeMsg writes a message with stream padding, and is *not* thread safe.
-func (s *stream) writeMsg(bs []byte) (int, error) {
+func (s *stream) writeMsgs(bss [][]byte) (int, error) {
 	buf := s.outputBuffer[:0]
-	buf = append(buf, streamMsg[:])
-	l := wire_put_uint64(uint64(len(bs)), util.GetBytes())
-	defer util.PutBytes(l)
-	buf = append(buf, l)
-	padLen := len(buf[0]) + len(buf[1])
-	buf = append(buf, bs)
-	totalLen := padLen + len(bs)
-	s.outputBuffer = buf[:0] // So we can reuse the same underlying array later
-	var bn int
-	for bn < totalLen {
-		n, err := buf.WriteTo(s.rwc)
-		bn += int(n)
-		if err != nil {
-			l := bn - padLen
-			if l < 0 {
-				l = 0
-			}
-			return l, err
-		}
+	var written int
+	for _, bs := range bss {
+		buf = append(buf, streamMsg[:])
+		buf = append(buf, wire_encode_uint64(uint64(len(bs))))
+		buf = append(buf, bs)
+		written += len(bs)
 	}
-	return len(bs), nil
+	s.outputBuffer = buf[:0] // So we can reuse the same underlying array later
+	_, err := buf.WriteTo(s.rwc)
+	// TODO only include number of bytes from bs *successfully* written?
+	return written, err
 }
 
 // readMsg reads a message from the stream, accounting for stream padding, and is *not* thread safe.

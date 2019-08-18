@@ -709,7 +709,7 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]time.Time) boo
 	if best != nil {
 		// Send to the best idle next hop
 		delete(idle, best.port)
-		best.sendPacket(packet)
+		best.sendPackets([][]byte{packet})
 		return true
 	}
 	// Didn't find anyone idle to send it to
@@ -784,39 +784,49 @@ func (t *switchTable) handleIdle(port switchPort) bool {
 	if to == nil {
 		return true
 	}
-	var best string
-	var bestPriority float64
+	var packets [][]byte
+	var psize int
 	t.queues.cleanup(t)
 	now := time.Now()
-	for streamID, buf := range t.queues.bufs {
-		// Filter over the streams that this node is closer to
-		// Keep the one with the smallest queue
-		packet := buf.packets[0]
-		coords := switch_getPacketCoords(packet.bytes)
-		priority := float64(now.Sub(packet.time)) / float64(buf.size)
-		if priority > bestPriority && t.portIsCloser(coords, port) {
-			best = streamID
-			bestPriority = priority
+	for psize < 65535 {
+		var best string
+		var bestPriority float64
+		for streamID, buf := range t.queues.bufs {
+			// Filter over the streams that this node is closer to
+			// Keep the one with the smallest queue
+			packet := buf.packets[0]
+			coords := switch_getPacketCoords(packet.bytes)
+			priority := float64(now.Sub(packet.time)) / float64(buf.size)
+			if priority > bestPriority && t.portIsCloser(coords, port) {
+				best = streamID
+				bestPriority = priority
+			}
 		}
-	}
-	if bestPriority != 0 {
-		buf := t.queues.bufs[best]
-		var packet switch_packetInfo
-		// TODO decide if this should be LIFO or FIFO
-		packet, buf.packets = buf.packets[0], buf.packets[1:]
-		buf.size -= uint64(len(packet.bytes))
-		t.queues.size -= uint64(len(packet.bytes))
-		if len(buf.packets) == 0 {
-			delete(t.queues.bufs, best)
+		if bestPriority != 0 {
+			buf := t.queues.bufs[best]
+			var packet switch_packetInfo
+			// TODO decide if this should be LIFO or FIFO
+			packet, buf.packets = buf.packets[0], buf.packets[1:]
+			buf.size -= uint64(len(packet.bytes))
+			t.queues.size -= uint64(len(packet.bytes))
+			if len(buf.packets) == 0 {
+				delete(t.queues.bufs, best)
+			} else {
+				// Need to update the map, since buf was retrieved by value
+				t.queues.bufs[best] = buf
+			}
+			packets = append(packets, packet.bytes)
+			psize += len(packet.bytes)
 		} else {
-			// Need to update the map, since buf was retrieved by value
-			t.queues.bufs[best] = buf
+			// Finished finding packets
+			break
 		}
-		to.sendPacket(packet.bytes)
-		return true
-	} else {
-		return false
 	}
+	if len(packets) > 0 {
+		to.sendPackets(packets)
+		return true
+	}
+	return false
 }
 
 // The switch worker does routing lookups and sends packets to where they need to be
@@ -826,7 +836,7 @@ func (t *switchTable) doWorker() {
 		// Keep sending packets to the router
 		self := t.core.peers.getPorts()[0]
 		for bs := range sendingToRouter {
-			self.sendPacket(bs)
+			self.sendPackets([][]byte{bs})
 		}
 	}()
 	go func() {
