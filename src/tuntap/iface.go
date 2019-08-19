@@ -21,25 +21,50 @@ func (tun *TunAdapter) writer() error {
 		if n == 0 {
 			continue
 		}
-		if tun.iface.IsTAP() {
-			var dstAddr address.Address
-			if b[0]&0xf0 == 0x60 {
-				if len(b) < 40 {
-					//panic("Tried to send a packet shorter than an IPv6 header...")
-					util.PutBytes(b)
-					continue
-				}
-				copy(dstAddr[:16], b[24:])
-			} else if b[0]&0xf0 == 0x40 {
-				if len(b) < 20 {
-					//panic("Tried to send a packet shorter than an IPv4 header...")
-					util.PutBytes(b)
-					continue
-				}
-				copy(dstAddr[:4], b[16:])
-			} else {
-				return errors.New("Invalid address family")
+		var dstAddr address.Address
+		var addrlen int
+		// Check whether the packet is IPv4, IPv6 or neither
+		if b[0]&0xf0 == 0x60 {
+			// IPv6 packet found
+			if len(b) < 40 {
+				// Packet was too short
+				util.PutBytes(b)
+				continue
 			}
+			// Extract the destination IPv6 address
+			copy(dstAddr[:16], b[24:])
+			addrlen = 16
+		} else if b[0]&0xf0 == 0x40 {
+			// IPv4 packet found
+			if len(b) < 20 {
+				// Packet was too short
+				util.PutBytes(b)
+				continue
+			}
+			// Extract the destination IPv4 address
+			copy(dstAddr[:4], b[16:])
+			addrlen = 4
+		} else {
+			// Neither IPv4 nor IPv6
+			return errors.New("Invalid address family")
+		}
+		// Check the crypto-key routing rules next
+		if tun.ckr.isEnabled() {
+			if !tun.ckr.isValidLocalAddress(dstAddr, addrlen) {
+				util.PutBytes(b)
+				continue
+			}
+		} else {
+			if addrlen != 16 {
+				util.PutBytes(b)
+				continue
+			}
+			if !bytes.Equal(tun.addr[:16], dstAddr[:16]) && !bytes.Equal(tun.subnet[:8], dstAddr[:8]) {
+				util.PutBytes(b)
+				continue
+			}
+		}
+		if tun.iface.IsTAP() {
 			sendndp := func(dstAddr address.Address) {
 				neigh, known := tun.icmpv6.getNeighbor(dstAddr)
 				known = known && (time.Since(neigh.lastsolicitation).Seconds() < 30)
@@ -69,7 +94,6 @@ func (tun *TunAdapter) writer() error {
 			} else {
 				// Nothing has been discovered, try to discover the destination
 				sendndp(tun.addr)
-
 			}
 			if peerknown {
 				var proto ethernet.Ethertype
@@ -187,26 +211,33 @@ func (tun *TunAdapter) readerPacketHandler(ch chan []byte) {
 			tun.log.Traceln("Unknown packet type, dropping")
 			continue
 		}
-		if tun.ckr.isEnabled() && !tun.ckr.isValidSource(srcAddr, addrlen) {
-			// The packet had a source address that doesn't belong to us or our
-			// configured crypto-key routing source subnets
-			continue
-		}
-		if !dstAddr.IsValid() && !dstSnet.IsValid() {
-			if key, err := tun.ckr.getPublicKeyForAddress(dstAddr, addrlen); err == nil {
-				// A public key was found, get the node ID for the search
-				dstNodeID = crypto.GetNodeID(&key)
-				// Do a quick check to ensure that the node ID refers to a vaild
-				// Yggdrasil address or subnet - this might be superfluous
-				addr := *address.AddrForNodeID(dstNodeID)
-				copy(dstAddr[:], addr[:])
-				copy(dstSnet[:], addr[:])
-				// Are we certain we looked up a valid node?
-				if !dstAddr.IsValid() && !dstSnet.IsValid() {
+		if tun.ckr.isEnabled() {
+			if !tun.ckr.isValidLocalAddress(srcAddr, addrlen) {
+				continue
+			}
+			if !dstAddr.IsValid() && !dstSnet.IsValid() {
+				if key, err := tun.ckr.getPublicKeyForAddress(dstAddr, addrlen); err == nil {
+					// A public key was found, get the node ID for the search
+					dstNodeID = crypto.GetNodeID(&key)
+					// Do a quick check to ensure that the node ID refers to a vaild
+					// Yggdrasil address or subnet - this might be superfluous
+					addr := *address.AddrForNodeID(dstNodeID)
+					copy(dstAddr[:], addr[:])
+					copy(dstSnet[:], addr[:])
+					// Are we certain we looked up a valid node?
+					if !dstAddr.IsValid() && !dstSnet.IsValid() {
+						continue
+					}
+				} else {
+					// No public key was found in the CKR table so we've exhausted our options
 					continue
 				}
-			} else {
-				// No public key was found in the CKR table so we've exhausted our options
+			}
+		} else {
+			if addrlen != 16 {
+				continue
+			}
+			if !dstAddr.IsValid() && !dstSnet.IsValid() {
 				continue
 			}
 		}
