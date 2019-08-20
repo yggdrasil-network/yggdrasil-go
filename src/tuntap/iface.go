@@ -21,6 +21,7 @@ func (tun *TunAdapter) writer() error {
 		if n == 0 {
 			continue
 		}
+		var srcAddr address.Address
 		var dstAddr address.Address
 		var addrlen int
 		// Check whether the packet is IPv4, IPv6 or neither
@@ -31,8 +32,9 @@ func (tun *TunAdapter) writer() error {
 				util.PutBytes(b)
 				continue
 			}
-			// Extract the destination IPv6 address
-			copy(dstAddr[:16], b[24:])
+			// Extract the IPv6 addresses
+			copy(srcAddr[:16], b[8:24])
+			copy(dstAddr[:16], b[24:40])
 			addrlen = 16
 		} else if b[0]&0xf0 == 0x40 {
 			// IPv4 packet found
@@ -41,8 +43,9 @@ func (tun *TunAdapter) writer() error {
 				util.PutBytes(b)
 				continue
 			}
-			// Extract the destination IPv4 address
-			copy(dstAddr[:4], b[16:])
+			// Extract the IPv4 addresses
+			copy(srcAddr[:4], b[12:16])
+			copy(dstAddr[:4], b[16:20])
 			addrlen = 4
 		} else {
 			// Neither IPv4 nor IPv6
@@ -53,6 +56,16 @@ func (tun *TunAdapter) writer() error {
 			if !tun.ckr.isValidLocalAddress(dstAddr, addrlen) {
 				util.PutBytes(b)
 				continue
+			}
+			if srcAddr[0] != 0x02 && srcAddr[0] != 0x03 {
+				// TODO: is this check useful? this doesn't actually guarantee that the
+				// packet came from the configured public key for that remote, just that
+				// it came from *a* configured remote. at this stage we have no ability
+				// to know which Conn or public key was involved
+				if _, err := tun.ckr.getPublicKeyForAddress(srcAddr, addrlen); err != nil {
+					util.PutBytes(b)
+					continue
+				}
 			}
 		} else {
 			if addrlen != 16 {
