@@ -132,23 +132,9 @@ func (c *cryptokey) isEnabled() bool {
 func (c *cryptokey) isValidLocalAddress(addr address.Address, addrlen int) bool {
 	c.mutexlocals.RLock()
 	defer c.mutexlocals.RUnlock()
-
-	ip := net.IP(addr[:addrlen])
-
-	if addrlen == net.IPv6len {
-		// Does this match our node's address?
-		if bytes.Equal(addr[:16], c.tun.addr[:16]) {
-			return true
-		}
-
-		// Does this match our node's subnet?
-		if bytes.Equal(addr[:8], c.tun.subnet[:8]) {
-			return true
-		}
-	}
-
 	// Does it match a configured CKR source?
 	if c.isEnabled() {
+		ip := net.IP(addr[:addrlen])
 		// Build our references to the routing sources
 		var routingsources *[]net.IPNet
 
