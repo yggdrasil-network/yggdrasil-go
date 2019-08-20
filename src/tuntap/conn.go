@@ -1,6 +1,7 @@
 package tuntap
 
 import (
+	"bytes"
 	"errors"
 	"time"
 
@@ -70,6 +71,17 @@ func (s *tunConn) reader() (err error) {
 				return e
 			}
 		} else if len(bs) > 0 {
+			if bs[0]&0xf0 == 0x60 {
+				switch {
+				case bs[8] == 0x02 && !bytes.Equal(s.addr[:16], bs[8:24]): // source
+				case bs[8] == 0x03 && !bytes.Equal(s.snet[:8], bs[8:16]): // source
+				case bs[24] == 0x02 && !bytes.Equal(s.tun.addr[:16], bs[24:40]): // destination
+				case bs[24] == 0x03 && !bytes.Equal(s.tun.subnet[:8], bs[24:32]): // destination
+					util.PutBytes(bs)
+					continue
+				default:
+				}
+			}
 			s.tun.send <- bs
 			s.stillAlive()
 		} else {
@@ -95,6 +107,16 @@ func (s *tunConn) writer() error {
 		case bs, ok := <-s.send:
 			if !ok {
 				return errors.New("send closed")
+			}
+			if bs[0]&0xf0 == 0x60 {
+				switch {
+				case bs[8] == 0x02 && !bytes.Equal(s.tun.addr[:16], bs[8:24]): // source
+				case bs[8] == 0x03 && !bytes.Equal(s.tun.subnet[:8], bs[8:16]): // source
+				case bs[24] == 0x02 && !bytes.Equal(s.addr[:16], bs[24:40]): // destination
+				case bs[24] == 0x03 && !bytes.Equal(s.snet[:8], bs[24:32]): // destination
+					continue
+				default:
+				}
 			}
 			msg := yggdrasil.FlowKeyMessage{
 				FlowKey: util.GetFlowKey(bs),
