@@ -259,6 +259,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 		<-sinfo.cancel.Finished()
 		sinfo.core.router.doAdmin(sinfo.close)
 	}()
+	go sinfo.startWorkers()
 	return &sinfo
 }
 
@@ -386,7 +387,6 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 			for i := range conn.nodeMask {
 				conn.nodeMask[i] = 0xFF
 			}
-			conn.session.startWorkers()
 			c := ss.listener.conn
 			go func() { c <- conn }()
 		}
@@ -568,6 +568,12 @@ func (sinfo *sessionInfo) recvWorker() {
 			}
 		}
 	}()
+	select {
+	case <-sinfo.cancel.Finished():
+		return
+	case <-sinfo.init:
+		// Wait until the session has finished initializing before processing any packets
+	}
 	for {
 		for len(callbacks) > 0 {
 			select {
@@ -633,6 +639,12 @@ func (sinfo *sessionInfo) sendWorker() {
 		// Send to the worker and wait for it to finish
 		util.WorkerGo(poolFunc)
 		callbacks = append(callbacks, ch)
+	}
+	select {
+	case <-sinfo.cancel.Finished():
+		return
+	case <-sinfo.init:
+		// Wait until the session has finished initializing before processing any packets
 	}
 	for {
 		for len(callbacks) > 0 {
