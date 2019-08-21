@@ -25,6 +25,25 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.3.8] - 2019-08-21
+### Changed
+- Yggdrasil can now send multiple packets from the switch at once, which results in improved throughput with smaller packets or lower MTUs
+- Performance has been slightly improved by not allocating cancellations where not necessary
+- Crypto-key routing options have been renamed for clarity
+  - `IPv4Sources` is now named `IPv4LocalSubnets`
+  - `IPv6Sources` is now named `IPv6LocalSubnets`
+  - `IPv4Destinations` is now named `IPv4RemoteSubnets`
+  - `IPv6Destinations` is now named `IPv6RemoteSubnets`
+  - The old option names will continue to be accepted by the configuration parser for now but may not be indefinitely
+- When presented with multiple paths between two nodes, the switch now prefers the most recently used port when possible instead of the least recently used, helping to reduce packet reordering
+- New nonce tracking should help to reduce the number of packets dropped as a result of multiple/aggregate paths or congestion control in the switch
+
+### Fixed
+- **Security vulnerability**: Address verification was not strict enough, which could result in a malicious session sending traffic with unexpected or spoofed source or destination addresses which Yggdrasil could fail to reject
+  - Versions `0.3.6` and `0.3.7` are vulnerable - users of these versions should upgrade as soon as possible
+  - Versions `0.3.5` and earlier are not affected
+- A deadlock was fixed in the session code which could result in Yggdrasil failing to pass traffic after some time
+
 ## [0.3.7] - 2019-08-14
 ### Changed
 - The switch should now forward packets along a single path more consistently in cases where congestion is low and multiple equal-length paths exist, which should improve stability and result in fewer out-of-order packets
