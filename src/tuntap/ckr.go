@@ -21,15 +21,15 @@ type cryptokey struct {
 	tun          *TunAdapter
 	enabled      atomic.Value // bool
 	reconfigure  chan chan error
-	ipv4routes   []cryptokey_route
-	ipv6routes   []cryptokey_route
+	ipv4remotes  []cryptokey_route
+	ipv6remotes  []cryptokey_route
 	ipv4cache    map[address.Address]cryptokey_route
 	ipv6cache    map[address.Address]cryptokey_route
-	ipv4sources  []net.IPNet
-	ipv6sources  []net.IPNet
-	mutexroutes  sync.RWMutex
+	ipv4locals   []net.IPNet
+	ipv6locals   []net.IPNet
+	mutexremotes sync.RWMutex
 	mutexcaches  sync.RWMutex
-	mutexsources sync.RWMutex
+	mutexlocals  sync.RWMutex
 }
 
 type cryptokey_route struct {
@@ -65,43 +65,43 @@ func (c *cryptokey) configure() error {
 	c.setEnabled(current.TunnelRouting.Enable)
 
 	// Clear out existing routes
-	c.mutexroutes.Lock()
-	c.ipv6routes = make([]cryptokey_route, 0)
-	c.ipv4routes = make([]cryptokey_route, 0)
-	c.mutexroutes.Unlock()
+	c.mutexremotes.Lock()
+	c.ipv6remotes = make([]cryptokey_route, 0)
+	c.ipv4remotes = make([]cryptokey_route, 0)
+	c.mutexremotes.Unlock()
 
 	// Add IPv6 routes
-	for ipv6, pubkey := range current.TunnelRouting.IPv6Destinations {
-		if err := c.addRoute(ipv6, pubkey); err != nil {
+	for ipv6, pubkey := range current.TunnelRouting.IPv6RemoteSubnets {
+		if err := c.addRemoteSubnet(ipv6, pubkey); err != nil {
 			return err
 		}
 	}
 
 	// Add IPv4 routes
-	for ipv4, pubkey := range current.TunnelRouting.IPv4Destinations {
-		if err := c.addRoute(ipv4, pubkey); err != nil {
+	for ipv4, pubkey := range current.TunnelRouting.IPv4RemoteSubnets {
+		if err := c.addRemoteSubnet(ipv4, pubkey); err != nil {
 			return err
 		}
 	}
 
 	// Clear out existing sources
-	c.mutexsources.Lock()
-	c.ipv6sources = make([]net.IPNet, 0)
-	c.ipv4sources = make([]net.IPNet, 0)
-	c.mutexsources.Unlock()
+	c.mutexlocals.Lock()
+	c.ipv6locals = make([]net.IPNet, 0)
+	c.ipv4locals = make([]net.IPNet, 0)
+	c.mutexlocals.Unlock()
 
 	// Add IPv6 sources
-	c.ipv6sources = make([]net.IPNet, 0)
-	for _, source := range current.TunnelRouting.IPv6Sources {
-		if err := c.addSourceSubnet(source); err != nil {
+	c.ipv6locals = make([]net.IPNet, 0)
+	for _, source := range current.TunnelRouting.IPv6LocalSubnets {
+		if err := c.addLocalSubnet(source); err != nil {
 			return err
 		}
 	}
 
 	// Add IPv4 sources
-	c.ipv4sources = make([]net.IPNet, 0)
-	for _, source := range current.TunnelRouting.IPv4Sources {
-		if err := c.addSourceSubnet(source); err != nil {
+	c.ipv4locals = make([]net.IPNet, 0)
+	for _, source := range current.TunnelRouting.IPv4LocalSubnets {
+		if err := c.addLocalSubnet(source); err != nil {
 			return err
 		}
 	}
@@ -128,35 +128,21 @@ func (c *cryptokey) isEnabled() bool {
 
 // Check whether the given address (with the address length specified in bytes)
 // matches either the current node's address, the node's routed subnet or the
-// list of subnets specified in IPv4Sources/IPv6Sources.
-func (c *cryptokey) isValidSource(addr address.Address, addrlen int) bool {
-	c.mutexsources.RLock()
-	defer c.mutexsources.RUnlock()
-
-	ip := net.IP(addr[:addrlen])
-
-	if addrlen == net.IPv6len {
-		// Does this match our node's address?
-		if bytes.Equal(addr[:16], c.tun.addr[:16]) {
-			return true
-		}
-
-		// Does this match our node's subnet?
-		if bytes.Equal(addr[:8], c.tun.subnet[:8]) {
-			return true
-		}
-	}
-
+// list of subnets specified in ipv4locals/ipv6locals.
+func (c *cryptokey) isValidLocalAddress(addr address.Address, addrlen int) bool {
+	c.mutexlocals.RLock()
+	defer c.mutexlocals.RUnlock()
 	// Does it match a configured CKR source?
 	if c.isEnabled() {
+		ip := net.IP(addr[:addrlen])
 		// Build our references to the routing sources
 		var routingsources *[]net.IPNet
 
 		// Check if the prefix is IPv4 or IPv6
 		if addrlen == net.IPv6len {
-			routingsources = &c.ipv6sources
+			routingsources = &c.ipv6locals
 		} else if addrlen == net.IPv4len {
-			routingsources = &c.ipv4sources
+			routingsources = &c.ipv4locals
 		} else {
 			return false
 		}
@@ -174,9 +160,9 @@ func (c *cryptokey) isValidSource(addr address.Address, addrlen int) bool {
 
 // Adds a source subnet, which allows traffic with these source addresses to
 // be tunnelled using crypto-key routing.
-func (c *cryptokey) addSourceSubnet(cidr string) error {
-	c.mutexsources.Lock()
-	defer c.mutexsources.Unlock()
+func (c *cryptokey) addLocalSubnet(cidr string) error {
+	c.mutexlocals.Lock()
+	defer c.mutexlocals.Unlock()
 
 	// Is the CIDR we've been given valid?
 	_, ipnet, err := net.ParseCIDR(cidr)
@@ -192,9 +178,9 @@ func (c *cryptokey) addSourceSubnet(cidr string) error {
 
 	// Check if the prefix is IPv4 or IPv6
 	if prefixsize == net.IPv6len*8 {
-		routingsources = &c.ipv6sources
+		routingsources = &c.ipv6locals
 	} else if prefixsize == net.IPv4len*8 {
-		routingsources = &c.ipv4sources
+		routingsources = &c.ipv4locals
 	} else {
 		return errors.New("Unexpected prefix size")
 	}
@@ -214,10 +200,10 @@ func (c *cryptokey) addSourceSubnet(cidr string) error {
 
 // Adds a destination route for the given CIDR to be tunnelled to the node
 // with the given BoxPubKey.
-func (c *cryptokey) addRoute(cidr string, dest string) error {
-	c.mutexroutes.Lock()
+func (c *cryptokey) addRemoteSubnet(cidr string, dest string) error {
+	c.mutexremotes.Lock()
 	c.mutexcaches.Lock()
-	defer c.mutexroutes.Unlock()
+	defer c.mutexremotes.Unlock()
 	defer c.mutexcaches.Unlock()
 
 	// Is the CIDR we've been given valid?
@@ -235,10 +221,10 @@ func (c *cryptokey) addRoute(cidr string, dest string) error {
 
 	// Check if the prefix is IPv4 or IPv6
 	if prefixsize == net.IPv6len*8 {
-		routingtable = &c.ipv6routes
+		routingtable = &c.ipv6remotes
 		routingcache = &c.ipv6cache
 	} else if prefixsize == net.IPv4len*8 {
-		routingtable = &c.ipv4routes
+		routingtable = &c.ipv4remotes
 		routingcache = &c.ipv4cache
 	} else {
 		return errors.New("Unexpected prefix size")
@@ -323,14 +309,14 @@ func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (c
 
 	c.mutexcaches.RUnlock()
 
-	c.mutexroutes.RLock()
-	defer c.mutexroutes.RUnlock()
+	c.mutexremotes.RLock()
+	defer c.mutexremotes.RUnlock()
 
 	// Check if the prefix is IPv4 or IPv6
 	if addrlen == net.IPv6len {
-		routingtable = &c.ipv6routes
+		routingtable = &c.ipv6remotes
 	} else if addrlen == net.IPv4len {
-		routingtable = &c.ipv4routes
+		routingtable = &c.ipv4remotes
 	} else {
 		return crypto.BoxPubKey{}, errors.New("Unexpected prefix size")
 	}
@@ -339,7 +325,7 @@ func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (c
 	ip := make(net.IP, addrlen)
 	copy(ip[:addrlen], addr[:])
 
-	// Check if we have a route. At this point c.ipv6routes should be
+	// Check if we have a route. At this point c.ipv6remotes should be
 	// pre-sorted so that the most specific routes are first
 	for _, route := range *routingtable {
 		// Does this subnet match the given IP?
@@ -366,14 +352,14 @@ func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (c
 	}
 
 	// No route was found if we got to this point
-	return crypto.BoxPubKey{}, errors.New(fmt.Sprintf("No route to %s", ip.String()))
+	return crypto.BoxPubKey{}, fmt.Errorf("no route to %s", ip.String())
 }
 
 // Removes a source subnet, which allows traffic with these source addresses to
 // be tunnelled using crypto-key routing.
-func (c *cryptokey) removeSourceSubnet(cidr string) error {
-	c.mutexsources.Lock()
-	defer c.mutexsources.Unlock()
+func (c *cryptokey) removeLocalSubnet(cidr string) error {
+	c.mutexlocals.Lock()
+	defer c.mutexlocals.Unlock()
 
 	// Is the CIDR we've been given valid?
 	_, ipnet, err := net.ParseCIDR(cidr)
@@ -389,9 +375,9 @@ func (c *cryptokey) removeSourceSubnet(cidr string) error {
 
 	// Check if the prefix is IPv4 or IPv6
 	if prefixsize == net.IPv6len*8 {
-		routingsources = &c.ipv6sources
+		routingsources = &c.ipv6locals
 	} else if prefixsize == net.IPv4len*8 {
-		routingsources = &c.ipv4sources
+		routingsources = &c.ipv4locals
 	} else {
 		return errors.New("Unexpected prefix size")
 	}
@@ -409,10 +395,10 @@ func (c *cryptokey) removeSourceSubnet(cidr string) error {
 
 // Removes a destination route for the given CIDR to be tunnelled to the node
 // with the given BoxPubKey.
-func (c *cryptokey) removeRoute(cidr string, dest string) error {
-	c.mutexroutes.Lock()
+func (c *cryptokey) removeRemoteSubnet(cidr string, dest string) error {
+	c.mutexremotes.Lock()
 	c.mutexcaches.Lock()
-	defer c.mutexroutes.Unlock()
+	defer c.mutexremotes.Unlock()
 	defer c.mutexcaches.Unlock()
 
 	// Is the CIDR we've been given valid?
@@ -430,10 +416,10 @@ func (c *cryptokey) removeRoute(cidr string, dest string) error {
 
 	// Check if the prefix is IPv4 or IPv6
 	if prefixsize == net.IPv6len*8 {
-		routingtable = &c.ipv6routes
+		routingtable = &c.ipv6remotes
 		routingcache = &c.ipv6cache
 	} else if prefixsize == net.IPv4len*8 {
-		routingtable = &c.ipv4routes
+		routingtable = &c.ipv4remotes
 		routingcache = &c.ipv4cache
 	} else {
 		return errors.New("Unexpected prefix size")

@@ -80,6 +80,24 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *config
 	if listen, ok := dat["Listen"].(string); ok {
 		dat["Listen"] = []string{listen}
 	}
+	if tunnelrouting, ok := dat["TunnelRouting"].(map[string]interface{}); ok {
+		if c, ok := tunnelrouting["IPv4Sources"]; ok {
+			delete(tunnelrouting, "IPv4Sources")
+			tunnelrouting["IPv4LocalSubnets"] = c
+		}
+		if c, ok := tunnelrouting["IPv6Sources"]; ok {
+			delete(tunnelrouting, "IPv6Sources")
+			tunnelrouting["IPv6LocalSubnets"] = c
+		}
+		if c, ok := tunnelrouting["IPv4Destinations"]; ok {
+			delete(tunnelrouting, "IPv4Destinations")
+			tunnelrouting["IPv4RemoteSubnets"] = c
+		}
+		if c, ok := tunnelrouting["IPv6Destinations"]; ok {
+			delete(tunnelrouting, "IPv6Destinations")
+			tunnelrouting["IPv6RemoteSubnets"] = c
+		}
+	}
 	// Sanitise the config
 	confJson, err := json.Marshal(dat)
 	if err != nil {
