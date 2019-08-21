@@ -66,15 +66,15 @@ func (t *TunAdapter) SetupAdminHandlers(a *admin.AdminSocket) {
 		t.ckr.setEnabled(enabled)
 		return admin.Info{"enabled": enabled}, nil
 	})
-	a.AddHandler("addSourceSubnet", []string{"subnet"}, func(in admin.Info) (admin.Info, error) {
-		if err := t.ckr.addSourceSubnet(in["subnet"].(string)); err == nil {
+	a.AddHandler("addLocalSubnet", []string{"subnet"}, func(in admin.Info) (admin.Info, error) {
+		if err := t.ckr.addLocalSubnet(in["subnet"].(string)); err == nil {
 			return admin.Info{"added": []string{in["subnet"].(string)}}, nil
 		} else {
 			return admin.Info{"not_added": []string{in["subnet"].(string)}}, errors.New("Failed to add source subnet")
 		}
 	})
-	a.AddHandler("addRoute", []string{"subnet", "box_pub_key"}, func(in admin.Info) (admin.Info, error) {
-		if err := t.ckr.addRoute(in["subnet"].(string), in["box_pub_key"].(string)); err == nil {
+	a.AddHandler("addRemoteSubnet", []string{"subnet", "box_pub_key"}, func(in admin.Info) (admin.Info, error) {
+		if err := t.ckr.addRemoteSubnet(in["subnet"].(string), in["box_pub_key"].(string)); err == nil {
 			return admin.Info{"added": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, nil
 		} else {
 			return admin.Info{"not_added": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, errors.New("Failed to add route")
@@ -87,8 +87,8 @@ func (t *TunAdapter) SetupAdminHandlers(a *admin.AdminSocket) {
 				subnets = append(subnets, subnet.String())
 			}
 		}
-		getSourceSubnets(t.ckr.ipv4sources)
-		getSourceSubnets(t.ckr.ipv6sources)
+		getSourceSubnets(t.ckr.ipv4locals)
+		getSourceSubnets(t.ckr.ipv6locals)
 		return admin.Info{"source_subnets": subnets}, nil
 	})
 	a.AddHandler("getRoutes", []string{}, func(in admin.Info) (admin.Info, error) {
@@ -98,19 +98,19 @@ func (t *TunAdapter) SetupAdminHandlers(a *admin.AdminSocket) {
 				routes[ckr.subnet.String()] = hex.EncodeToString(ckr.destination[:])
 			}
 		}
-		getRoutes(t.ckr.ipv4routes)
-		getRoutes(t.ckr.ipv6routes)
+		getRoutes(t.ckr.ipv4remotes)
+		getRoutes(t.ckr.ipv6remotes)
 		return admin.Info{"routes": routes}, nil
 	})
-	a.AddHandler("removeSourceSubnet", []string{"subnet"}, func(in admin.Info) (admin.Info, error) {
-		if err := t.ckr.removeSourceSubnet(in["subnet"].(string)); err == nil {
+	a.AddHandler("removeLocalSubnet", []string{"subnet"}, func(in admin.Info) (admin.Info, error) {
+		if err := t.ckr.removeLocalSubnet(in["subnet"].(string)); err == nil {
 			return admin.Info{"removed": []string{in["subnet"].(string)}}, nil
 		} else {
 			return admin.Info{"not_removed": []string{in["subnet"].(string)}}, errors.New("Failed to remove source subnet")
 		}
 	})
-	a.AddHandler("removeRoute", []string{"subnet", "box_pub_key"}, func(in admin.Info) (admin.Info, error) {
-		if err := t.ckr.removeRoute(in["subnet"].(string), in["box_pub_key"].(string)); err == nil {
+	a.AddHandler("removeRemoteSubnet", []string{"subnet", "box_pub_key"}, func(in admin.Info) (admin.Info, error) {
+		if err := t.ckr.removeRemoteSubnet(in["subnet"].(string), in["box_pub_key"].(string)); err == nil {
 			return admin.Info{"removed": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, nil
 		} else {
 			return admin.Info{"not_removed": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, errors.New("Failed to remove route")

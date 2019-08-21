@@ -137,20 +137,23 @@ func (c *Conn) doSearch() {
 	go func() { c.core.router.admin <- routerWork }()
 }
 
-func (c *Conn) getDeadlineCancellation(value *atomic.Value) util.Cancellation {
+func (c *Conn) getDeadlineCancellation(value *atomic.Value) (util.Cancellation, bool) {
 	if deadline, ok := value.Load().(time.Time); ok {
 		// A deadline is set, so return a Cancellation that uses it
-		return util.CancellationWithDeadline(c.session.cancel, deadline)
+		c := util.CancellationWithDeadline(c.session.cancel, deadline)
+		return c, true
 	} else {
-		// No cancellation was set, so return a child cancellation with no timeout
-		return util.CancellationChild(c.session.cancel)
+		// No deadline was set, so just return the existinc cancellation and a dummy value
+		return c.session.cancel, false
 	}
 }
 
 // Used internally by Read, the caller is responsible for util.PutBytes when they're done.
 func (c *Conn) ReadNoCopy() ([]byte, error) {
-	cancel := c.getDeadlineCancellation(&c.readDeadline)
-	defer cancel.Cancel(nil)
+	cancel, doCancel := c.getDeadlineCancellation(&c.readDeadline)
+	if doCancel {
+		defer cancel.Cancel(nil)
+	}
 	// Wait for some traffic to come through from the session
 	select {
 	case <-cancel.Finished():
@@ -207,8 +210,10 @@ func (c *Conn) WriteNoCopy(msg FlowKeyMessage) error {
 	}
 	c.session.doFunc(sessionFunc)
 	if err == nil {
-		cancel := c.getDeadlineCancellation(&c.writeDeadline)
-		defer cancel.Cancel(nil)
+		cancel, doCancel := c.getDeadlineCancellation(&c.writeDeadline)
+		if doCancel {
+			defer cancel.Cancel(nil)
+		}
 		select {
 		case <-cancel.Finished():
 			if cancel.Error() == util.CancellationTimeoutError {

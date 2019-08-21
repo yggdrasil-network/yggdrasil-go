@@ -109,7 +109,7 @@ type peer struct {
 	linkOut    (chan []byte)   // used for protocol traffic (to bypass queues)
 	doSend     (chan struct{}) // tell the linkLoop to send a switchMsg
 	dinfo      (chan *dhtInfo) // used to keep the DHT working
-	out        func([]byte)    // Set up by whatever created the peers struct, used to send packets to other nodes
+	out        func([][]byte)  // Set up by whatever created the peers struct, used to send packets to other nodes
 	close      func()          // Called when a peer is removed, to close the underlying connection, or via admin api
 }
 
@@ -250,11 +250,15 @@ func (p *peer) handleTraffic(packet []byte, pTypeLen int) {
 }
 
 // This just calls p.out(packet) for now.
-func (p *peer) sendPacket(packet []byte) {
+func (p *peer) sendPackets(packets [][]byte) {
 	// Is there ever a case where something more complicated is needed?
 	// What if p.out blocks?
-	atomic.AddUint64(&p.bytesSent, uint64(len(packet)))
-	p.out(packet)
+	var size int
+	for _, packet := range packets {
+		size += len(packet)
+	}
+	atomic.AddUint64(&p.bytesSent, uint64(size))
+	p.out(packets)
 }
 
 // This wraps the packet in the inner (ephemeral) and outer (permanent) crypto layers.

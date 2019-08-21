@@ -2,7 +2,6 @@ package tuntap
 
 import (
 	"bytes"
-	"errors"
 	"net"
 	"time"
 
@@ -22,24 +21,6 @@ func (tun *TunAdapter) writer() error {
 			continue
 		}
 		if tun.iface.IsTAP() {
-			var dstAddr address.Address
-			if b[0]&0xf0 == 0x60 {
-				if len(b) < 40 {
-					//panic("Tried to send a packet shorter than an IPv6 header...")
-					util.PutBytes(b)
-					continue
-				}
-				copy(dstAddr[:16], b[24:])
-			} else if b[0]&0xf0 == 0x40 {
-				if len(b) < 20 {
-					//panic("Tried to send a packet shorter than an IPv4 header...")
-					util.PutBytes(b)
-					continue
-				}
-				copy(dstAddr[:4], b[16:])
-			} else {
-				return errors.New("Invalid address family")
-			}
 			sendndp := func(dstAddr address.Address) {
 				neigh, known := tun.icmpv6.getNeighbor(dstAddr)
 				known = known && (time.Since(neigh.lastsolicitation).Seconds() < 30)
@@ -48,6 +29,7 @@ func (tun *TunAdapter) writer() error {
 				}
 			}
 			peermac := net.HardwareAddr{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+			var dstAddr address.Address
 			var peerknown bool
 			if b[0]&0xf0 == 0x40 {
 				dstAddr = tun.addr
@@ -69,7 +51,6 @@ func (tun *TunAdapter) writer() error {
 			} else {
 				// Nothing has been discovered, try to discover the destination
 				sendndp(tun.addr)
-
 			}
 			if peerknown {
 				var proto ethernet.Ethertype
@@ -146,10 +127,7 @@ func (tun *TunAdapter) readerPacketHandler(ch chan []byte) {
 		// From the IP header, work out what our source and destination addresses
 		// and node IDs are. We will need these in order to work out where to send
 		// the packet
-		var srcAddr address.Address
 		var dstAddr address.Address
-		var dstNodeID *crypto.NodeID
-		var dstNodeIDMask *crypto.NodeID
 		var dstSnet address.Subnet
 		var addrlen int
 		n := len(bs)
@@ -166,7 +144,6 @@ func (tun *TunAdapter) readerPacketHandler(ch chan []byte) {
 			}
 			// IPv6 address
 			addrlen = 16
-			copy(srcAddr[:addrlen], bs[8:])
 			copy(dstAddr[:addrlen], bs[24:])
 			copy(dstSnet[:addrlen/2], bs[24:])
 		} else if bs[0]&0xf0 == 0x40 {
@@ -180,37 +157,29 @@ func (tun *TunAdapter) readerPacketHandler(ch chan []byte) {
 			}
 			// IPv4 address
 			addrlen = 4
-			copy(srcAddr[:addrlen], bs[12:])
 			copy(dstAddr[:addrlen], bs[16:])
 		} else {
 			// Unknown address length or protocol, so drop the packet and ignore it
 			tun.log.Traceln("Unknown packet type, dropping")
 			continue
 		}
-		if tun.ckr.isEnabled() && !tun.ckr.isValidSource(srcAddr, addrlen) {
-			// The packet had a source address that doesn't belong to us or our
-			// configured crypto-key routing source subnets
-			continue
-		}
-		if !dstAddr.IsValid() && !dstSnet.IsValid() {
-			if key, err := tun.ckr.getPublicKeyForAddress(dstAddr, addrlen); err == nil {
-				// A public key was found, get the node ID for the search
-				dstNodeID = crypto.GetNodeID(&key)
-				// Do a quick check to ensure that the node ID refers to a vaild
-				// Yggdrasil address or subnet - this might be superfluous
-				addr := *address.AddrForNodeID(dstNodeID)
-				copy(dstAddr[:], addr[:])
-				copy(dstSnet[:], addr[:])
-				// Are we certain we looked up a valid node?
-				if !dstAddr.IsValid() && !dstSnet.IsValid() {
-					continue
+		if tun.ckr.isEnabled() {
+			if addrlen != 16 || (!dstAddr.IsValid() && !dstSnet.IsValid()) {
+				if key, err := tun.ckr.getPublicKeyForAddress(dstAddr, addrlen); err == nil {
+					// A public key was found, get the node ID for the search
+					dstNodeID := crypto.GetNodeID(&key)
+					dstAddr = *address.AddrForNodeID(dstNodeID)
+					dstSnet = *address.SubnetForNodeID(dstNodeID)
+					addrlen = 16
 				}
-			} else {
-				// No public key was found in the CKR table so we've exhausted our options
-				continue
 			}
 		}
+		if addrlen != 16 || (!dstAddr.IsValid() && !dstSnet.IsValid()) {
+			// Couldn't find this node's ygg IP
+			continue
+		}
 		// Do we have an active connection for this node address?
+		var dstNodeID, dstNodeIDMask *crypto.NodeID
 		tun.mutex.RLock()
 		session, isIn := tun.addrToConn[dstAddr]
 		if !isIn || session == nil {

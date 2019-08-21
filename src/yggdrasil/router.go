@@ -39,10 +39,10 @@ type router struct {
 	reconfigure chan chan error
 	addr        address.Address
 	subnet      address.Subnet
-	in          <-chan []byte // packets we received from the network, link to peer's "out"
-	out         func([]byte)  // packets we're sending to the network, link to peer's "in"
-	reset       chan struct{} // signal that coords changed (re-init sessions/dht)
-	admin       chan func()   // pass a lambda for the admin socket to query stuff
+	in          <-chan [][]byte // packets we received from the network, link to peer's "out"
+	out         func([]byte)    // packets we're sending to the network, link to peer's "in"
+	reset       chan struct{}   // signal that coords changed (re-init sessions/dht)
+	admin       chan func()     // pass a lambda for the admin socket to query stuff
 	nodeinfo    nodeinfo
 }
 
@@ -52,7 +52,7 @@ func (r *router) init(core *Core) {
 	r.reconfigure = make(chan chan error, 1)
 	r.addr = *address.AddrForNodeID(&r.core.dht.nodeID)
 	r.subnet = *address.SubnetForNodeID(&r.core.dht.nodeID)
-	in := make(chan []byte, 1) // TODO something better than this...
+	in := make(chan [][]byte, 1) // TODO something better than this...
 	self := linkInterface{
 		name: "(self)",
 		info: linkInfo{
@@ -62,7 +62,7 @@ func (r *router) init(core *Core) {
 		},
 	}
 	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, &self, nil)
-	p.out = func(packet []byte) { in <- packet }
+	p.out = func(packets [][]byte) { in <- packets }
 	r.in = in
 	out := make(chan []byte, 32)
 	go func() {
@@ -114,8 +114,10 @@ func (r *router) mainLoop() {
 	defer ticker.Stop()
 	for {
 		select {
-		case p := <-r.in:
-			r.handleIn(p)
+		case ps := <-r.in:
+			for _, p := range ps {
+				r.handleIn(p)
+			}
 		case info := <-r.core.dht.peers:
 			r.core.dht.insertPeer(info)
 		case <-r.reset:
