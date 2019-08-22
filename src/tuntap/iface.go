@@ -203,16 +203,15 @@ func (tun *TunAdapter) readerPacketHandler(ch chan []byte) {
 				panic("Given empty dstNodeID and dstNodeIDMask - this shouldn't happen")
 			}
 			// Dial to the remote node
+			tun.mutex.Lock()
+			_, known := tun.dials[*dstNodeID]
+			tun.dials[*dstNodeID] = append(tun.dials[*dstNodeID], bs)
+			for len(tun.dials[*dstNodeID]) > 32 {
+				util.PutBytes(tun.dials[*dstNodeID][0])
+				tun.dials[*dstNodeID] = tun.dials[*dstNodeID][1:]
+			}
+			tun.mutex.Unlock()
 			go func() {
-				// FIXME just spitting out a goroutine to do this is kind of ugly and means we drop packets until the dial finishes
-				tun.mutex.Lock()
-				_, known := tun.dials[*dstNodeID]
-				tun.dials[*dstNodeID] = append(tun.dials[*dstNodeID], bs)
-				for len(tun.dials[*dstNodeID]) > 32 {
-					util.PutBytes(tun.dials[*dstNodeID][0])
-					tun.dials[*dstNodeID] = tun.dials[*dstNodeID][1:]
-				}
-				tun.mutex.Unlock()
 				if known {
 					return
 				}
@@ -232,7 +231,11 @@ func (tun *TunAdapter) readerPacketHandler(ch chan []byte) {
 				if tc != nil {
 					for _, packet := range packets {
 						p := packet // Possibly required because of how range
-						tc.send <- p
+						select {
+						case <-tc.stop:
+							util.PutBytes(p)
+						case tc.send <- p:
+						}
 					}
 				}
 			}()
