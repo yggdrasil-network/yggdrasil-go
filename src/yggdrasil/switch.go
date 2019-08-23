@@ -245,10 +245,7 @@ func (t *switchTable) cleanRoot() {
 		if t.data.locator.root != t.key {
 			t.data.seq++
 			t.updater.Store(&sync.Once{})
-			select {
-			case t.core.router.reset <- struct{}{}:
-			default:
-			}
+			t.core.router.reset(&t.core.router)
 		}
 		t.data.locator = switchLocator{root: t.key, tstamp: now.Unix()}
 		t.core.peers.sendSwitchMsgs()
@@ -511,10 +508,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		if !equiv(&sender.locator, &t.data.locator) {
 			doUpdate = true
 			t.data.seq++
-			select {
-			case t.core.router.reset <- struct{}{}:
-			default:
-			}
+			t.core.router.reset(&t.core.router)
 		}
 		if t.data.locator.tstamp != sender.locator.tstamp {
 			t.time = now

@@ -134,7 +134,7 @@ func (c *Conn) doSearch() {
 			sinfo.continueSearch()
 		}
 	}
-	go func() { c.core.router.admin <- routerWork }()
+	go c.core.router.doAdmin(routerWork)
 }
 
 func (c *Conn) getDeadlineCancellation(value *atomic.Value) (util.Cancellation, bool) {

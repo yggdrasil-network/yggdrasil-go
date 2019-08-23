@@ -68,7 +68,6 @@ type dht struct {
 	core        *Core
 	reconfigure chan chan error
 	nodeID      crypto.NodeID
-	peers       chan *dhtInfo                    // other goroutines put incoming dht updates here
 	reqs        map[dhtReqKey]time.Time          // Keeps track of recent outstanding requests
 	callbacks   map[dhtReqKey][]dht_callbackInfo // Search and admin lookup callbacks
 	// These next two could be replaced by a single linked list or similar...
@@ -87,7 +86,6 @@ func (t *dht) init(c *Core) {
 		}
 	}()
 	t.nodeID = *t.core.NodeID()
-	t.peers = make(chan *dhtInfo, 1024)
 	t.callbacks = make(map[dhtReqKey][]dht_callbackInfo)
 	t.reset()
 }

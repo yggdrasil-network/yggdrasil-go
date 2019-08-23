@@ -165,7 +165,7 @@ func (sinfo *searchInfo) continueSearch() {
 	}
 	go func() {
 		time.Sleep(search_RETRY_TIME)
-		sinfo.core.router.admin <- retryLater
+		sinfo.core.router.doAdmin(retryLater)
 	}()
 }
 
