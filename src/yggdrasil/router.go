@@ -65,32 +65,7 @@ func (r *router) init(core *Core) {
 		// TODO make peers and/or the switch into actors, have them pass themselves as the from field
 		r.handlePackets(r, packets)
 	}
-	out := make(chan []byte, 32)
-	go func() {
-		for packet := range out {
-			p.handlePacket(packet)
-		}
-	}()
-	out2 := make(chan []byte, 32)
-	go func() {
-		// This worker makes sure r.out never blocks
-		// It will buffer traffic long enough for the switch worker to take it
-		// If (somehow) you can send faster than the switch can receive, then this would use unbounded memory
-		// But crypto slows sends enough that the switch should always be able to take the packets...
-		var buf [][]byte
-		for {
-			buf = append(buf, <-out2)
-			for len(buf) > 0 {
-				select {
-				case bs := <-out2:
-					buf = append(buf, bs)
-				case out <- buf[0]:
-					buf = buf[1:]
-				}
-			}
-		}
-	}()
-	r.out = func(packet []byte) { out2 <- packet }
+	r.out = p.handlePacket // TODO if the peer becomes its own actor, then send a message here
 	r.nodeinfo.init(r.core)
 	r.core.config.Mutex.RLock()
 	r.nodeinfo.setNodeInfo(r.core.config.Current.NodeInfo, r.core.config.Current.NodeInfoPrivacy)
