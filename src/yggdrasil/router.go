@@ -75,7 +75,7 @@ func (r *router) init(core *Core) {
 // Starts the mainLoop goroutine.
 func (r *router) start() error {
 	r.core.log.Infoln("Starting router")
-	go r.mainLoop()
+	go r._mainLoop()
 	return nil
 }
 
@@ -83,7 +83,7 @@ func (r *router) start() error {
 func (r *router) handlePackets(from phony.IActor, packets [][]byte) {
 	r.EnqueueFrom(from, func() {
 		for _, packet := range packets {
-			r.handlePacket(packet)
+			r._handlePacket(packet)
 		}
 	})
 }
@@ -105,7 +105,7 @@ func (r *router) reset(from phony.IActor) {
 
 // TODO remove reconfigure so this is just a ticker loop
 // and then find something better than a ticker loop to schedule things...
-func (r *router) mainLoop() {
+func (r *router) _mainLoop() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
@@ -127,23 +127,23 @@ func (r *router) mainLoop() {
 }
 
 // Checks incoming traffic type and passes it to the appropriate handler.
-func (r *router) handlePacket(packet []byte) {
+func (r *router) _handlePacket(packet []byte) {
 	pType, pTypeLen := wire_decode_uint64(packet)
 	if pTypeLen == 0 {
 		return
 	}
 	switch pType {
 	case wire_Traffic:
-		r.handleTraffic(packet)
+		r._handleTraffic(packet)
 	case wire_ProtocolTraffic:
-		r.handleProto(packet)
+		r._handleProto(packet)
 	default:
 	}
 }
 
 // Handles incoming traffic, i.e. encapuslated ordinary IPv6 packets.
 // Passes them to the crypto session worker to be decrypted and sent to the adapter.
-func (r *router) handleTraffic(packet []byte) {
+func (r *router) _handleTraffic(packet []byte) {
 	defer util.PutBytes(packet)
 	p := wire_trafficPacket{}
 	if !p.decode(packet) {
@@ -162,7 +162,7 @@ func (r *router) handleTraffic(packet []byte) {
 }
 
 // Handles protocol traffic by decrypting it, checking its type, and passing it to the appropriate handler for that traffic type.
-func (r *router) handleProto(packet []byte) {
+func (r *router) _handleProto(packet []byte) {
 	// First parse the packet
 	p := wire_protoTrafficPacket{}
 	if !p.decode(packet) {
@@ -189,24 +189,24 @@ func (r *router) handleProto(packet []byte) {
 	}
 	switch bsType {
 	case wire_SessionPing:
-		r.handlePing(bs, &p.FromKey)
+		r._handlePing(bs, &p.FromKey)
 	case wire_SessionPong:
-		r.handlePong(bs, &p.FromKey)
+		r._handlePong(bs, &p.FromKey)
 	case wire_NodeInfoRequest:
 		fallthrough
 	case wire_NodeInfoResponse:
-		r.handleNodeInfo(bs, &p.FromKey)
+		r._handleNodeInfo(bs, &p.FromKey)
 	case wire_DHTLookupRequest:
-		r.handleDHTReq(bs, &p.FromKey)
+		r._handleDHTReq(bs, &p.FromKey)
 	case wire_DHTLookupResponse:
-		r.handleDHTRes(bs, &p.FromKey)
+		r._handleDHTRes(bs, &p.FromKey)
 	default:
 		util.PutBytes(packet)
 	}
 }
 
 // Decodes session pings from wire format and passes them to sessions.handlePing where they either create or update a session.
-func (r *router) handlePing(bs []byte, fromKey *crypto.BoxPubKey) {
+func (r *router) _handlePing(bs []byte, fromKey *crypto.BoxPubKey) {
 	ping := sessionPing{}
 	if !ping.decode(bs) {
 		return
@@ -216,12 +216,12 @@ func (r *router) handlePing(bs []byte, fromKey *crypto.BoxPubKey) {
 }
 
 // Handles session pongs (which are really pings with an extra flag to prevent acknowledgement).
-func (r *router) handlePong(bs []byte, fromKey *crypto.BoxPubKey) {
-	r.handlePing(bs, fromKey)
+func (r *router) _handlePong(bs []byte, fromKey *crypto.BoxPubKey) {
+	r._handlePing(bs, fromKey)
 }
 
 // Decodes dht requests and passes them to dht.handleReq to trigger a lookup/response.
-func (r *router) handleDHTReq(bs []byte, fromKey *crypto.BoxPubKey) {
+func (r *router) _handleDHTReq(bs []byte, fromKey *crypto.BoxPubKey) {
 	req := dhtReq{}
 	if !req.decode(bs) {
 		return
@@ -231,7 +231,7 @@ func (r *router) handleDHTReq(bs []byte, fromKey *crypto.BoxPubKey) {
 }
 
 // Decodes dht responses and passes them to dht.handleRes to update the DHT table and further pass them to the search code (if applicable).
-func (r *router) handleDHTRes(bs []byte, fromKey *crypto.BoxPubKey) {
+func (r *router) _handleDHTRes(bs []byte, fromKey *crypto.BoxPubKey) {
 	res := dhtRes{}
 	if !res.decode(bs) {
 		return
@@ -241,7 +241,7 @@ func (r *router) handleDHTRes(bs []byte, fromKey *crypto.BoxPubKey) {
 }
 
 // Decodes nodeinfo request
-func (r *router) handleNodeInfo(bs []byte, fromKey *crypto.BoxPubKey) {
+func (r *router) _handleNodeInfo(bs []byte, fromKey *crypto.BoxPubKey) {
 	req := nodeinfoReqRes{}
 	if !req.decode(bs) {
 		return
