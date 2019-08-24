@@ -229,7 +229,6 @@ func (tun *TunAdapter) wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 	s := tunConn{
 		tun:   tun,
 		conn:  conn,
-		send:  make(chan []byte, 32), // TODO: is this a sensible value?
 		stop:  make(chan struct{}),
 		alive: make(chan struct{}, 1),
 	}
@@ -256,14 +255,12 @@ func (tun *TunAdapter) wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 	// we receive a packet through the interface for this address
 	tun.addrToConn[s.addr] = &s
 	tun.subnetToConn[s.snet] = &s
-	// Start the connection goroutines
+	// Set the read callback and start the timeout goroutine
 	conn.SetReadCallback(func(bs []byte) {
 		s.EnqueueFrom(conn, func() {
 			s._read(bs)
 		})
 	})
-	//go s.reader()
-	//go s.writer()
 	go s.checkForTimeouts()
 	// Return
 	return c, err
