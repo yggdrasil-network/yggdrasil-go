@@ -213,7 +213,7 @@ func (c *Core) GetSessions() []Session {
 			workerFunc := func() {
 				session = Session{
 					Coords:      append([]uint64{}, wire_coordsBytestoUint64s(sinfo.coords)...),
-					MTU:         sinfo.getMTU(),
+					MTU:         sinfo._getMTU(),
 					BytesSent:   sinfo.bytesSent,
 					BytesRecvd:  sinfo.bytesRecvd,
 					Uptime:      time.Now().Sub(sinfo.timeOpened),

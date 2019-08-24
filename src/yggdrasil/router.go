@@ -98,7 +98,7 @@ func (r *router) insertPeer(from phony.IActor, info *dhtInfo) {
 // Reset sessions and DHT after the switch sees our coords change
 func (r *router) reset(from phony.IActor) {
 	r.EnqueueFrom(from, func() {
-		r.core.sessions.reset()
+		r.core.sessions.reset(r)
 		r.core.dht.reset()
 	})
 }
@@ -111,14 +111,14 @@ func (r *router) _mainLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			r.SyncExec(func() {
+			<-r.SyncExec(func() {
 				// Any periodic maintenance stuff goes here
 				r.core.switchTable.doMaintenance()
 				r.core.dht.doMaintenance()
 				r.core.sessions.cleanup()
 			})
 		case e := <-r.reconfigure:
-			r.SyncExec(func() {
+			<-r.SyncExec(func() {
 				current := r.core.config.GetCurrent()
 				e <- r.nodeinfo.setNodeInfo(current.NodeInfo, current.NodeInfoPrivacy)
 			})
@@ -252,5 +252,5 @@ func (r *router) _handleNodeInfo(bs []byte, fromKey *crypto.BoxPubKey) {
 
 // TODO remove this, have things either be actors that send message or else call SyncExec directly
 func (r *router) doAdmin(f func()) {
-	r.SyncExec(f)
+	<-r.SyncExec(f)
 }

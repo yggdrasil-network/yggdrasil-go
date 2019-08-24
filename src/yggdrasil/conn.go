@@ -190,8 +190,8 @@ func (c *Conn) WriteNoCopy(msg FlowKeyMessage) error {
 	var err error
 	sessionFunc := func() {
 		// Does the packet exceed the permitted size for the session?
-		if uint16(len(msg.Message)) > c.session.getMTU() {
-			err = ConnError{errors.New("packet too big"), true, false, false, int(c.session.getMTU())}
+		if uint16(len(msg.Message)) > c.session._getMTU() {
+			err = ConnError{errors.New("packet too big"), true, false, false, int(c.session._getMTU())}
 			return
 		}
 		// The rest of this work is session keep-alive traffic
@@ -201,10 +201,10 @@ func (c *Conn) WriteNoCopy(msg FlowKeyMessage) error {
 				// TODO double check that the above condition is correct
 				c.doSearch()
 			} else {
-				c.core.sessions.ping(c.session)
+				c.session.ping(c.session) // TODO send from self if this becomes an actor
 			}
 		case c.session.reset && c.session.pingTime.Before(c.session.time):
-			c.core.sessions.ping(c.session)
+			c.session.ping(c.session) // TODO send from self if this becomes an actor
 		default: // Don't do anything, to keep traffic throttled
 		}
 	}
