@@ -258,7 +258,7 @@ func DEBUG_wire_encode_coords(coords []byte) []byte {
 func (c *Core) DEBUG_getDHTSize() int {
 	var total int
 	c.router.doAdmin(func() {
-		total = len(c.dht.table)
+		total = len(c.router.dht.table)
 	})
 	return total
 }
@@ -320,7 +320,7 @@ func (c *Core) DEBUG_startLoopbackUDPInterface() {
 ////////////////////////////////////////////////////////////////////////////////
 
 func (c *Core) DEBUG_getAddr() *address.Address {
-	return address.AddrForNodeID(&c.dht.nodeID)
+	return address.AddrForNodeID(&c.router.dht.nodeID)
 }
 
 /*
