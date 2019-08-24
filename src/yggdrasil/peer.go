@@ -96,9 +96,6 @@ func (ps *peers) putPorts(ports map[switchPort]*peer) {
 
 // Information known about a peer, including thier box/sig keys, precomputed shared keys (static and ephemeral) and a handler for their outgoing traffic
 type peer struct {
-	bytesSent  uint64 // To track bandwidth usage for getPeers
-	bytesRecvd uint64 // To track bandwidth usage for getPeers
-	// BUG: sync/atomic, 32 bit platforms need the above to be the first element
 	phony.Actor
 	core       *Core
 	intf       *linkInterface
@@ -114,6 +111,9 @@ type peer struct {
 	out        func([][]byte)  // Set up by whatever created the peers struct, used to send packets to other nodes
 	done       (chan struct{}) // closed to exit the linkLoop
 	close      func()          // Called when a peer is removed, to close the underlying connection, or via admin api
+	// The below aren't actually useful internally, they're just gathered for getPeers statistics
+	bytesSent  uint64
+	bytesRecvd uint64
 }
 
 // Creates a new peer with the specified box, sig, and linkShared keys, using the lowest unoccupied port number.
@@ -217,7 +217,7 @@ func (p *peer) handlePacketFrom(from phony.IActor, packet []byte) {
 // Passes the packet to a handler for that packet type.
 func (p *peer) _handlePacket(packet []byte) {
 	// FIXME this is off by stream padding and msg length overhead, should be done in tcp.go
-	atomic.AddUint64(&p.bytesRecvd, uint64(len(packet)))
+	p.bytesRecvd += uint64(len(packet))
 	pType, pTypeLen := wire_decode_uint64(packet)
 	if pTypeLen == 0 {
 		return
@@ -259,9 +259,11 @@ func (p *peer) _sendPackets(packets [][]byte) {
 	for _, packet := range packets {
 		size += len(packet)
 	}
-	atomic.AddUint64(&p.bytesSent, uint64(size))
+	p.bytesSent += uint64(size)
 	p.out(packets)
 }
+
+var peerLinkOutHelper phony.Actor
 
 // This wraps the packet in the inner (ephemeral) and outer (permanent) crypto layers.
 // It sends it to p.linkOut, which bypasses the usual packet queues.
@@ -279,8 +281,12 @@ func (p *peer) _sendLinkPacket(packet []byte) {
 	}
 	packet = linkPacket.encode()
 	// TODO replace this with a message send if/when the link becomes an actor
-	// FIXME not 100% sure the channel send version is deadlock-free...
-	p.linkOut <- packet
+	peerLinkOutHelper.EnqueueFrom(nil, func() {
+		select {
+		case p.linkOut <- packet:
+		case <-p.done:
+		}
+	})
 }
 
 // Decrypts the outer (permanent) and inner (ephemeral) crypto layers on link traffic.

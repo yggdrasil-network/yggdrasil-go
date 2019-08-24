@@ -576,7 +576,7 @@ func DEBUG_simLinkPeers(p, q *peer) {
 				default:
 				}
 				if len(packets) > 0 {
-					dest.handlePacket(packets[0])
+					<-dest.SyncExec(func() { dest._handlePacket(packets[0]) })
 					packets = packets[1:]
 					continue
 				}

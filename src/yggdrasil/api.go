@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"sort"
-	"sync/atomic"
 	"time"
 
 	"github.com/gologme/log"
@@ -106,15 +105,18 @@ func (c *Core) GetPeers() []Peer {
 	sort.Slice(ps, func(i, j int) bool { return ps[i] < ps[j] })
 	for _, port := range ps {
 		p := ports[port]
-		info := Peer{
-			Endpoint:   p.intf.name,
-			BytesSent:  atomic.LoadUint64(&p.bytesSent),
-			BytesRecvd: atomic.LoadUint64(&p.bytesRecvd),
-			Protocol:   p.intf.info.linkType,
-			Port:       uint64(port),
-			Uptime:     time.Since(p.firstSeen),
-		}
-		copy(info.PublicKey[:], p.box[:])
+		var info Peer
+		<-p.SyncExec(func() {
+			info = Peer{
+				Endpoint:   p.intf.name,
+				BytesSent:  p.bytesSent,
+				BytesRecvd: p.bytesRecvd,
+				Protocol:   p.intf.info.linkType,
+				Port:       uint64(port),
+				Uptime:     time.Since(p.firstSeen),
+			}
+			copy(info.PublicKey[:], p.box[:])
+		})
 		peers = append(peers, info)
 	}
 	return peers
@@ -135,15 +137,18 @@ func (c *Core) GetSwitchPeers() []SwitchPeer {
 			continue
 		}
 		coords := elem.locator.getCoords()
-		info := SwitchPeer{
-			Coords:     append([]uint64{}, wire_coordsBytestoUint64s(coords)...),
-			BytesSent:  atomic.LoadUint64(&peer.bytesSent),
-			BytesRecvd: atomic.LoadUint64(&peer.bytesRecvd),
-			Port:       uint64(elem.port),
-			Protocol:   peer.intf.info.linkType,
-			Endpoint:   peer.intf.info.remote,
-		}
-		copy(info.PublicKey[:], peer.box[:])
+		var info SwitchPeer
+		<-peer.SyncExec(func() {
+			info = SwitchPeer{
+				Coords:     append([]uint64{}, wire_coordsBytestoUint64s(coords)...),
+				BytesSent:  peer.bytesSent,
+				BytesRecvd: peer.bytesRecvd,
+				Port:       uint64(elem.port),
+				Protocol:   peer.intf.info.linkType,
+				Endpoint:   peer.intf.info.remote,
+			}
+			copy(info.PublicKey[:], peer.box[:])
+		})
 		switchpeers = append(switchpeers, info)
 	}
 	return switchpeers
