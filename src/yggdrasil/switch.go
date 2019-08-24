@@ -177,7 +177,6 @@ type switchTable struct {
 	phony.Actor                                  // Owns the below
 	packetIn          chan []byte                // Incoming packets for the worker to handle
 	idleIn            chan switchPort            // Incoming idle notifications from peer links
-	admin             chan func()                // Pass a lambda for the admin socket to query stuff
 	queues            switch_buffers             // Queues - not atomic so ONLY use through admin chan
 	queueTotalMaxSize uint64                     // Maximum combined size of queues
 	idle              map[switchPort]time.Time   // idle peers
@@ -200,9 +199,10 @@ func (t *switchTable) init(core *Core) {
 	t.drop = make(map[crypto.SigPubKey]int64)
 	t.packetIn = make(chan []byte, 1024)
 	t.idleIn = make(chan switchPort, 1024)
-	t.admin = make(chan func())
 	t.queueTotalMaxSize = SwitchQueueTotalMinSize
 	t.idle = make(map[switchPort]time.Time)
+	t.queues.switchTable = t
+	t.queues.bufs = make(map[string]switch_buffer) // Packets per PacketStreamID (string)
 }
 
 // Safely gets a copy of this node's locator.
@@ -865,8 +865,6 @@ func (t *switchTable) _idleIn(port switchPort) {
 
 // The switch worker does routing lookups and sends packets to where they need to be
 func (t *switchTable) doWorker() {
-	t.queues.switchTable = t
-	t.queues.bufs = make(map[string]switch_buffer) // Packets per PacketStreamID (string)
 	for {
 		//t.core.log.Debugf("Switch state: idle = %d, buffers = %d", len(idle), len(t.queues.bufs))
 		select {
@@ -874,8 +872,6 @@ func (t *switchTable) doWorker() {
 			<-t.SyncExec(func() { t._packetIn(bytes) })
 		case port := <-t.idleIn:
 			<-t.SyncExec(func() { t._idleIn(port) })
-		case f := <-t.admin:
-			f()
 		case e := <-t.reconfigure:
 			e <- nil
 		}
@@ -885,13 +881,5 @@ func (t *switchTable) doWorker() {
 // Passed a function to call.
 // This will send the function to t.admin and block until it finishes.
 func (t *switchTable) doAdmin(f func()) {
-	// Pass this a function that needs to be run by the router's main goroutine
-	// It will pass the function to the router and wait for the router to finish
-	done := make(chan struct{})
-	newF := func() {
-		f()
-		close(done)
-	}
-	t.admin <- newF
-	<-done
+	<-t.SyncExec(f)
 }
