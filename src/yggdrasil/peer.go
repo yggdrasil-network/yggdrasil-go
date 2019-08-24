@@ -219,9 +219,15 @@ func (p *peer) linkLoop() {
 	}
 }
 
+func (p *peer) handlePacketFrom(from phony.IActor, packet []byte) {
+	p.EnqueueFrom(from, func() {
+		p._handlePacket(packet)
+	})
+}
+
 // Called to handle incoming packets.
 // Passes the packet to a handler for that packet type.
-func (p *peer) handlePacket(packet []byte) {
+func (p *peer) _handlePacket(packet []byte) {
 	// FIXME this is off by stream padding and msg length overhead, should be done in tcp.go
 	atomic.AddUint64(&p.bytesRecvd, uint64(len(packet)))
 	pType, pTypeLen := wire_decode_uint64(packet)

@@ -387,7 +387,8 @@ func (intf *linkInterface) handler() error {
 	for {
 		msg, err := intf.msgIO.readMsg()
 		if len(msg) > 0 {
-			intf.peer.handlePacket(msg)
+			// TODO rewrite this if the link becomes an actor
+			<-intf.peer.SyncExec(func() { intf.peer._handlePacket(msg) })
 		}
 		if err != nil {
 			if err != io.EOF {

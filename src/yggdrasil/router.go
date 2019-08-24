@@ -64,11 +64,8 @@ func (r *router) init(core *Core) {
 		},
 	}
 	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, &self, nil)
-	p.out = func(packets [][]byte) {
-		// TODO make peers and/or the switch into actors, have them pass themselves as the from field
-		r.handlePackets(nil, packets)
-	}
-	r.out = p.handlePacket // TODO if the peer becomes its own actor, then send a message here
+	p.out = func(packets [][]byte) { r.handlePackets(p, packets) }
+	r.out = func(bs []byte) { p.handlePacketFrom(r, bs) }
 	r.nodeinfo.init(r.core)
 	r.core.config.Mutex.RLock()
 	r.nodeinfo.setNodeInfo(r.core.config.Current.NodeInfo, r.core.config.Current.NodeInfoPrivacy)
