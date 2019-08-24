@@ -520,8 +520,12 @@ func (sinfo *sessionInfo) _recvPacket(p *wire_trafficPacket) {
 			sinfo.bytesRecvd += uint64(len(bs))
 			select {
 			case sinfo.toConn <- bs:
+			case <-sinfo.cancel.Finished():
+				util.PutBytes(bs)
 			default:
-				// We seem to have filled up the buffer in the mean time, so drop it
+				// We seem to have filled up the buffer in the mean time
+				// Since we need to not block, but the conn isn't an actor, we need to drop this packet
+				// TODO find some nicer way to interact with the Conn...
 				util.PutBytes(bs)
 			}
 		}
