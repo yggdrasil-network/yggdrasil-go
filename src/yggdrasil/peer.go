@@ -278,6 +278,8 @@ func (p *peer) _sendLinkPacket(packet []byte) {
 		Payload: bs,
 	}
 	packet = linkPacket.encode()
+	// TODO replace this with a message send if/when the link becomes an actor
+	// FIXME not 100% sure the channel send version is deadlock-free...
 	p.linkOut <- packet
 }
 
