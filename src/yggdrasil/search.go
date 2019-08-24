@@ -100,7 +100,7 @@ func (sinfo *searchInfo) addToSearch(res *dhtRes) {
 	from := dhtInfo{key: res.Key, coords: res.Coords}
 	sinfo.visited[*from.getNodeID()] = true
 	for _, info := range res.Infos {
-		if *info.getNodeID() == sinfo.core.dht.nodeID || sinfo.visited[*info.getNodeID()] {
+		if *info.getNodeID() == sinfo.core.router.dht.nodeID || sinfo.visited[*info.getNodeID()] {
 			continue
 		}
 		if dht_ordered(&sinfo.dest, info.getNodeID(), from.getNodeID()) {
@@ -134,7 +134,7 @@ func (sinfo *searchInfo) doSearchStep() {
 	if len(sinfo.toVisit) == 0 {
 		if time.Since(sinfo.time) > search_RETRY_TIME {
 			// Dead end and no response in too long, do cleanup
-			delete(sinfo.core.searches.searches, sinfo.dest)
+			delete(sinfo.core.router.searches.searches, sinfo.dest)
 			sinfo.callback(nil, errors.New("search reached dead end"))
 		}
 		return
@@ -143,8 +143,8 @@ func (sinfo *searchInfo) doSearchStep() {
 	var next *dhtInfo
 	next, sinfo.toVisit = sinfo.toVisit[0], sinfo.toVisit[1:]
 	rq := dhtReqKey{next.key, sinfo.dest}
-	sinfo.core.dht.addCallback(&rq, sinfo.handleDHTRes)
-	sinfo.core.dht.ping(next, &sinfo.dest)
+	sinfo.core.router.dht.addCallback(&rq, sinfo.handleDHTRes)
+	sinfo.core.router.dht.ping(next, &sinfo.dest)
 	sinfo.time = time.Now()
 }
 
@@ -157,7 +157,7 @@ func (sinfo *searchInfo) continueSearch() {
 	// Any that die aren't restarted, but a new one will start later
 	retryLater := func() {
 		// FIXME this keeps the search alive forever if not for the searches map, fix that
-		newSearchInfo := sinfo.core.searches.searches[sinfo.dest]
+		newSearchInfo := sinfo.core.router.searches.searches[sinfo.dest]
 		if newSearchInfo != sinfo {
 			return
 		}
@@ -196,17 +196,17 @@ func (sinfo *searchInfo) checkDHTRes(res *dhtRes) bool {
 		return false
 	}
 	// They match, so create a session and send a sessionRequest
-	sess, isIn := sinfo.core.sessions.getByTheirPerm(&res.Key)
+	sess, isIn := sinfo.core.router.sessions.getByTheirPerm(&res.Key)
 	if !isIn {
-		sess = sinfo.core.sessions.createSession(&res.Key)
+		sess = sinfo.core.router.sessions.createSession(&res.Key)
 		if sess == nil {
 			// nil if the DHT search finished but the session wasn't allowed
 			sinfo.callback(nil, errors.New("session not allowed"))
 			// Cleanup
-			delete(sinfo.core.searches.searches, res.Dest)
+			delete(sinfo.core.router.searches.searches, res.Dest)
 			return true
 		}
-		_, isIn := sinfo.core.sessions.getByTheirPerm(&res.Key)
+		_, isIn := sinfo.core.router.sessions.getByTheirPerm(&res.Key)
 		if !isIn {
 			panic("This should never happen")
 		}
@@ -216,6 +216,6 @@ func (sinfo *searchInfo) checkDHTRes(res *dhtRes) bool {
 	sess.ping(&sinfo.core.router)
 	sinfo.callback(sess, nil)
 	// Cleanup
-	delete(sinfo.core.searches.searches, res.Dest)
+	delete(sinfo.core.router.searches.searches, res.Dest)
 	return true
 }

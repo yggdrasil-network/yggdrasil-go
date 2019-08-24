@@ -43,15 +43,18 @@ type router struct {
 	addr        address.Address
 	subnet      address.Subnet
 	out         func([]byte) // packets we're sending to the network, link to peer's "in"
+	dht         dht
 	nodeinfo    nodeinfo
+	searches    searches
+	sessions    sessions
 }
 
 // Initializes the router struct, which includes setting up channels to/from the adapter.
 func (r *router) init(core *Core) {
 	r.core = core
 	r.reconfigure = make(chan chan error, 1)
-	r.addr = *address.AddrForNodeID(&r.core.dht.nodeID)
-	r.subnet = *address.SubnetForNodeID(&r.core.dht.nodeID)
+	r.addr = *address.AddrForNodeID(&r.dht.nodeID)
+	r.subnet = *address.SubnetForNodeID(&r.dht.nodeID)
 	self := linkInterface{
 		name: "(self)",
 		info: linkInfo{
@@ -91,15 +94,15 @@ func (r *router) handlePackets(from phony.IActor, packets [][]byte) {
 // Insert a peer info into the dht, TODO? make the dht a separate actor
 func (r *router) insertPeer(from phony.IActor, info *dhtInfo) {
 	r.EnqueueFrom(from, func() {
-		r.core.dht.insertPeer(info)
+		r.dht.insertPeer(info)
 	})
 }
 
 // Reset sessions and DHT after the switch sees our coords change
 func (r *router) reset(from phony.IActor) {
 	r.EnqueueFrom(from, func() {
-		r.core.sessions.reset(r)
-		r.core.dht.reset()
+		r.sessions.reset()
+		r.dht.reset()
 	})
 }
 
@@ -114,8 +117,8 @@ func (r *router) _mainLoop() {
 			<-r.SyncExec(func() {
 				// Any periodic maintenance stuff goes here
 				r.core.switchTable.doMaintenance()
-				r.core.dht.doMaintenance()
-				r.core.sessions.cleanup()
+				r.dht.doMaintenance()
+				r.sessions.cleanup()
 			})
 		case e := <-r.reconfigure:
 			<-r.SyncExec(func() {
@@ -149,7 +152,7 @@ func (r *router) _handleTraffic(packet []byte) {
 	if !p.decode(packet) {
 		return
 	}
-	sinfo, isIn := r.core.sessions.getSessionForHandle(&p.Handle)
+	sinfo, isIn := r.sessions.getSessionForHandle(&p.Handle)
 	if !isIn {
 		util.PutBytes(p.Payload)
 		return
@@ -172,7 +175,7 @@ func (r *router) _handleProto(packet []byte) {
 	var sharedKey *crypto.BoxSharedKey
 	if p.ToKey == r.core.boxPub {
 		// Try to open using our permanent key
-		sharedKey = r.core.sessions.getSharedKey(&r.core.boxPriv, &p.FromKey)
+		sharedKey = r.sessions.getSharedKey(&r.core.boxPriv, &p.FromKey)
 	} else {
 		return
 	}
@@ -212,7 +215,7 @@ func (r *router) _handlePing(bs []byte, fromKey *crypto.BoxPubKey) {
 		return
 	}
 	ping.SendPermPub = *fromKey
-	r.core.sessions.handlePing(&ping)
+	r.sessions.handlePing(&ping)
 }
 
 // Handles session pongs (which are really pings with an extra flag to prevent acknowledgement).
@@ -227,7 +230,7 @@ func (r *router) _handleDHTReq(bs []byte, fromKey *crypto.BoxPubKey) {
 		return
 	}
 	req.Key = *fromKey
-	r.core.dht.handleReq(&req)
+	r.dht.handleReq(&req)
 }
 
 // Decodes dht responses and passes them to dht.handleRes to update the DHT table and further pass them to the search code (if applicable).
@@ -237,7 +240,7 @@ func (r *router) _handleDHTRes(bs []byte, fromKey *crypto.BoxPubKey) {
 		return
 	}
 	res.Key = *fromKey
-	r.core.dht.handleRes(&res)
+	r.dht.handleRes(&res)
 }
 
 // Decodes nodeinfo request

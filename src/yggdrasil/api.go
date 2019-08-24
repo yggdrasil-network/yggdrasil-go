@@ -156,11 +156,11 @@ func (c *Core) GetDHT() []DHTEntry {
 	getDHT := func() {
 		now := time.Now()
 		var dhtentry []*dhtInfo
-		for _, v := range c.dht.table {
+		for _, v := range c.router.dht.table {
 			dhtentry = append(dhtentry, v)
 		}
 		sort.SliceStable(dhtentry, func(i, j int) bool {
-			return dht_ordered(&c.dht.nodeID, dhtentry[i].getNodeID(), dhtentry[j].getNodeID())
+			return dht_ordered(&c.router.dht.nodeID, dhtentry[i].getNodeID(), dhtentry[j].getNodeID())
 		})
 		for _, v := range dhtentry {
 			info := DHTEntry{
@@ -208,7 +208,7 @@ func (c *Core) GetSwitchQueues() SwitchQueues {
 func (c *Core) GetSessions() []Session {
 	var sessions []Session
 	getSessions := func() {
-		for _, sinfo := range c.sessions.sinfos {
+		for _, sinfo := range c.router.sessions.sinfos {
 			var session Session
 			workerFunc := func() {
 				session = Session{
@@ -243,17 +243,17 @@ func (c *Core) GetSessions() []Session {
 
 // ConnListen returns a listener for Yggdrasil session connections.
 func (c *Core) ConnListen() (*Listener, error) {
-	c.sessions.listenerMutex.Lock()
-	defer c.sessions.listenerMutex.Unlock()
-	if c.sessions.listener != nil {
+	c.router.sessions.listenerMutex.Lock()
+	defer c.router.sessions.listenerMutex.Unlock()
+	if c.router.sessions.listener != nil {
 		return nil, errors.New("a listener already exists")
 	}
-	c.sessions.listener = &Listener{
+	c.router.sessions.listener = &Listener{
 		core:  c,
 		conn:  make(chan *Conn),
 		close: make(chan interface{}),
 	}
-	return c.sessions.listener, nil
+	return c.router.sessions.listener, nil
 }
 
 // ConnDialer returns a dialer for Yggdrasil session connections.
@@ -356,10 +356,10 @@ func (c *Core) GetNodeInfo(key crypto.BoxPubKey, coords []uint64, nocache bool) 
 // received an incoming session request. The function should return true to
 // allow the session or false to reject it.
 func (c *Core) SetSessionGatekeeper(f func(pubkey *crypto.BoxPubKey, initiator bool) bool) {
-	c.sessions.isAllowedMutex.Lock()
-	defer c.sessions.isAllowedMutex.Unlock()
+	c.router.sessions.isAllowedMutex.Lock()
+	defer c.router.sessions.isAllowedMutex.Unlock()
 
-	c.sessions.isAllowedHandler = f
+	c.router.sessions.isAllowedHandler = f
 }
 
 // SetLogger sets the output logger of the Yggdrasil node after startup. This
@@ -445,10 +445,10 @@ func (c *Core) DHTPing(key crypto.BoxPubKey, coords []uint64, target *crypto.Nod
 	}
 	rq := dhtReqKey{info.key, *target}
 	sendPing := func() {
-		c.dht.addCallback(&rq, func(res *dhtRes) {
+		c.router.dht.addCallback(&rq, func(res *dhtRes) {
 			resCh <- res
 		})
-		c.dht.ping(&info, &rq.dest)
+		c.router.dht.ping(&info, &rq.dest)
 	}
 	c.router.doAdmin(sendPing)
 	// TODO: do something better than the below...

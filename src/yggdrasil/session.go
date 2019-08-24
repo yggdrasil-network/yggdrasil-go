@@ -261,7 +261,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 		// Run cleanup when the session is canceled
 		<-sinfo.cancel.Finished()
 		sinfo.core.router.doAdmin(func() {
-			sinfo.core.sessions.removeSession(&sinfo)
+			sinfo.core.router.sessions.removeSession(&sinfo)
 		})
 	}()
 	go sinfo.startWorkers()
@@ -298,9 +298,9 @@ func (ss *sessions) cleanup() {
 
 // Closes a session, removing it from sessions maps.
 func (ss *sessions) removeSession(sinfo *sessionInfo) {
-	if s := sinfo.core.sessions.sinfos[sinfo.myHandle]; s == sinfo {
-		delete(sinfo.core.sessions.sinfos, sinfo.myHandle)
-		delete(sinfo.core.sessions.byTheirPerm, sinfo.theirPermPub)
+	if s := sinfo.core.router.sessions.sinfos[sinfo.myHandle]; s == sinfo {
+		delete(sinfo.core.router.sessions.sinfos, sinfo.myHandle)
+		delete(sinfo.core.router.sessions.byTheirPerm, sinfo.theirPermPub)
 	}
 }
 
@@ -466,9 +466,9 @@ func (sinfo *sessionInfo) _updateNonce(theirNonce *crypto.BoxNonce) {
 
 // Resets all sessions to an uninitialized state.
 // Called after coord changes, so attemtps to use a session will trigger a new ping and notify the remote end of the coord change.
-func (ss *sessions) reset(from phony.IActor) {
+func (ss *sessions) reset() {
 	for _, sinfo := range ss.sinfos {
-		sinfo.EnqueueFrom(from, func() {
+		sinfo.EnqueueFrom(&ss.core.router, func() {
 			sinfo.reset = true
 		})
 	}

@@ -26,10 +26,7 @@ type Core struct {
 	sigPriv     crypto.SigPrivKey
 	switchTable switchTable
 	peers       peers
-	sessions    sessions
 	router      router
-	dht         dht
-	searches    searches
 	link        link
 	log         *log.Logger
 }
@@ -76,9 +73,9 @@ func (c *Core) init() error {
 		c.log.Warnln("SigningPublicKey in config is incorrect, should be", sp)
 	}
 
-	c.searches.init(c)
-	c.dht.init(c)
-	c.sessions.init(c)
+	c.router.searches.init(c)
+	c.router.dht.init(c)
+	c.router.sessions.init(c)
 	c.peers.init(c)
 	c.router.init(c)
 	c.switchTable.init(c) // TODO move before peers? before router?
@@ -124,9 +121,9 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 	errors := 0
 
 	components := []chan chan error{
-		c.searches.reconfigure,
-		c.dht.reconfigure,
-		c.sessions.reconfigure,
+		c.router.searches.reconfigure,
+		c.router.dht.reconfigure,
+		c.router.sessions.reconfigure,
 		c.peers.reconfigure,
 		c.router.reconfigure,
 		c.switchTable.reconfigure,

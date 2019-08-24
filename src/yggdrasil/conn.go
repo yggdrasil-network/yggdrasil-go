@@ -84,7 +84,7 @@ func (c *Conn) String() string {
 func (c *Conn) search() error {
 	var sinfo *searchInfo
 	var isIn bool
-	c.core.router.doAdmin(func() { sinfo, isIn = c.core.searches.searches[*c.nodeID] })
+	c.core.router.doAdmin(func() { sinfo, isIn = c.core.router.searches.searches[*c.nodeID] })
 	if !isIn {
 		done := make(chan struct{}, 1)
 		var sess *sessionInfo
@@ -99,7 +99,7 @@ func (c *Conn) search() error {
 			}
 		}
 		c.core.router.doAdmin(func() {
-			sinfo = c.core.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
+			sinfo = c.core.router.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
 			sinfo.continueSearch()
 		})
 		<-done
@@ -124,11 +124,11 @@ func (c *Conn) search() error {
 func (c *Conn) doSearch() {
 	routerWork := func() {
 		// Check to see if there is a search already matching the destination
-		sinfo, isIn := c.core.searches.searches[*c.nodeID]
+		sinfo, isIn := c.core.router.searches.searches[*c.nodeID]
 		if !isIn {
 			// Nothing was found, so create a new search
 			searchCompleted := func(sinfo *sessionInfo, e error) {}
-			sinfo = c.core.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
+			sinfo = c.core.router.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
 			c.core.log.Debugf("%s DHT search started: %p", c.String(), sinfo)
 			// Start the search
 			sinfo.continueSearch()
