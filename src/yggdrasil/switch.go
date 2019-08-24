@@ -566,7 +566,12 @@ func (t *switchTable) getTable() lookupTable {
 // Starts the switch worker
 func (t *switchTable) start() error {
 	t.core.log.Infoln("Starting switch")
-	go t.doWorker()
+	go func() {
+		// TODO find a better way to handle reconfiguration... and have the switch do something with the new configuration
+		for ch := range t.reconfigure {
+			ch <- nil
+		}
+	}()
 	return nil
 }
 
@@ -862,17 +867,6 @@ func (t *switchTable) _idleIn(port switchPort) {
 	if !t._handleIdle(port) {
 		// Didn't find anything ready to send yet, so stay idle
 		t.idle[port] = time.Now()
-	}
-}
-
-// The switch worker does routing lookups and sends packets to where they need to be
-func (t *switchTable) doWorker() {
-	for {
-		//t.core.log.Debugf("Switch state: idle = %d, buffers = %d", len(idle), len(t.queues.bufs))
-		select {
-		case e := <-t.reconfigure:
-			e <- nil
-		}
 	}
 }
 
