@@ -162,7 +162,7 @@ func (c *Conn) ReadNoCopy() ([]byte, error) {
 		} else {
 			return nil, ConnError{errors.New("session closed"), false, false, true, 0}
 		}
-	case bs := <-c.session.recv:
+	case bs := <-c.session.toConn:
 		return bs, nil
 	}
 }
@@ -221,7 +221,7 @@ func (c *Conn) WriteNoCopy(msg FlowKeyMessage) error {
 			} else {
 				err = ConnError{errors.New("session closed"), false, false, true, 0}
 			}
-		case c.session.send <- msg:
+		case <-c.session.SyncExec(func() { c.session._send(msg) }):
 		}
 	}
 	return err

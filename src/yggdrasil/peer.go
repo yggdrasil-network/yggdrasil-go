@@ -210,7 +210,7 @@ func (p *peer) linkLoop() {
 		case dinfo = <-p.dinfo:
 		case _ = <-tick.C:
 			if dinfo != nil {
-				p.core.router.insertPeer(&p.core.router, dinfo)
+				p.core.router.insertPeer(nil, dinfo)
 			}
 		}
 	}

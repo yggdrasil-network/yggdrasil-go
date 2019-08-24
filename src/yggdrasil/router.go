@@ -66,7 +66,7 @@ func (r *router) init(core *Core) {
 	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, &self, nil)
 	p.out = func(packets [][]byte) {
 		// TODO make peers and/or the switch into actors, have them pass themselves as the from field
-		r.handlePackets(r, packets)
+		r.handlePackets(nil, packets)
 	}
 	r.out = p.handlePacket // TODO if the peer becomes its own actor, then send a message here
 	r.nodeinfo.init(r.core)
@@ -160,6 +160,8 @@ func (r *router) _handleTraffic(packet []byte) {
 		util.PutBytes(p.Payload)
 		return
 	}
+	sinfo.recv(r, &p)
+	return
 	select {
 	case sinfo.fromRouter <- p:
 	case <-sinfo.cancel.Finished():

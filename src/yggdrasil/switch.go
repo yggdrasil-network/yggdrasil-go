@@ -245,7 +245,7 @@ func (t *switchTable) cleanRoot() {
 		if t.data.locator.root != t.key {
 			t.data.seq++
 			t.updater.Store(&sync.Once{})
-			t.core.router.reset(&t.core.router)
+			t.core.router.reset(nil)
 		}
 		t.data.locator = switchLocator{root: t.key, tstamp: now.Unix()}
 		t.core.peers.sendSwitchMsgs()
@@ -508,7 +508,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		if !equiv(&sender.locator, &t.data.locator) {
 			doUpdate = true
 			t.data.seq++
-			t.core.router.reset(&t.core.router)
+			t.core.router.reset(nil)
 		}
 		if t.data.locator.tstamp != sender.locator.tstamp {
 			t.time = now
