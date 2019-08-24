@@ -232,7 +232,7 @@ func (tun *TunAdapter) readerPacketHandler(ch chan []byte) {
 				if tc != nil {
 					for _, packet := range packets {
 						p := packet // Possibly required because of how range
-						tc.send <- p
+						<-tc.SyncExec(func() { tc._write(p) })
 					}
 				}
 			}()
@@ -242,7 +242,7 @@ func (tun *TunAdapter) readerPacketHandler(ch chan []byte) {
 		}
 		// If we have a connection now, try writing to it
 		if isIn && session != nil {
-			session.send <- bs
+			<-session.SyncExec(func() { session._write(bs) })
 		}
 	}
 }

@@ -257,8 +257,13 @@ func (tun *TunAdapter) wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 	tun.addrToConn[s.addr] = &s
 	tun.subnetToConn[s.snet] = &s
 	// Start the connection goroutines
-	go s.reader()
-	go s.writer()
+	conn.SetReadCallback(func(bs []byte) {
+		s.EnqueueFrom(conn, func() {
+			s._read(bs)
+		})
+	})
+	//go s.reader()
+	//go s.writer()
 	go s.checkForTimeouts()
 	// Return
 	return c, err
