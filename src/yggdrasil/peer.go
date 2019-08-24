@@ -224,9 +224,9 @@ func (p *peer) _handlePacket(packet []byte) {
 	}
 	switch pType {
 	case wire_Traffic:
-		p._handleTraffic(packet, pTypeLen)
+		p._handleTraffic(packet)
 	case wire_ProtocolTraffic:
-		p._handleTraffic(packet, pTypeLen)
+		p._handleTraffic(packet)
 	case wire_LinkProtocolTraffic:
 		p._handleLinkTraffic(packet)
 	default:
@@ -236,7 +236,7 @@ func (p *peer) _handlePacket(packet []byte) {
 
 // Called to handle traffic or protocolTraffic packets.
 // In either case, this reads from the coords of the packet header, does a switch lookup, and forwards to the next node.
-func (p *peer) _handleTraffic(packet []byte, pTypeLen int) {
+func (p *peer) _handleTraffic(packet []byte) {
 	table := p.core.switchTable.getTable()
 	if _, isIn := table.elems[p.port]; !isIn && p.port != 0 {
 		// Drop traffic if the peer isn't in the switch

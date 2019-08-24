@@ -708,7 +708,7 @@ func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]time.Time) bo
 	if best != nil {
 		// Send to the best idle next hop
 		delete(idle, best.port)
-		best.sendPacketsFrom(nil, [][]byte{packet})
+		best.sendPacketsFrom(t, [][]byte{packet})
 		return true
 	}
 	// Didn't find anyone idle to send it to
@@ -822,8 +822,7 @@ func (t *switchTable) _handleIdle(port switchPort) bool {
 		}
 	}
 	if len(packets) > 0 {
-		// TODO rewrite if/when the switch becomes an actor
-		to.sendPacketsFrom(nil, packets)
+		to.sendPacketsFrom(t, packets)
 		return true
 	}
 	return false
