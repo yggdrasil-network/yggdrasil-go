@@ -392,7 +392,10 @@ func (intf *linkInterface) handler() error {
 		msg, err := intf.msgIO.readMsg()
 		if len(msg) > 0 {
 			// TODO rewrite this if the link becomes an actor
-			<-intf.peer.SyncExec(func() { intf.peer._handlePacket(msg) })
+			// FIXME this could theoretically send traffic faster than the peer can handle
+			//  The alternative is to SyncExec, but that causes traffic to block while *other* links work
+			//  Need to figure out why and find a workaround
+			intf.peer.handlePacketFrom(nil, msg)
 		}
 		if err != nil {
 			if err != io.EOF {
