@@ -71,6 +71,7 @@ type sessionInfo struct {
 	init           chan struct{}                 // Closed when the first session pong arrives, used to signal that the session is ready for initial use
 	cancel         util.Cancellation             // Used to terminate workers
 	toConn         chan []byte                   // Decrypted packets go here, picked up by the associated Conn
+	conn           *Conn                         // The associated Conn object
 	callbacks      []chan func()                 // Finished work from crypto workers
 }
 
@@ -112,6 +113,9 @@ func (s *sessionInfo) _update(p *sessionPing) bool {
 	}
 	if p.MTU >= 1280 || p.MTU == 0 {
 		s.theirMTU = p.MTU
+		if s.conn != nil {
+			s.conn.setMTU(s, s._getMTU())
+		}
 	}
 	if !bytes.Equal(s.coords, p.Coords) {
 		// allocate enough space for additional coords
@@ -368,6 +372,13 @@ func (sinfo *sessionInfo) _sendPingPong(isPong bool) {
 	}
 }
 
+func (sinfo *sessionInfo) setConn(from phony.IActor, conn *Conn) {
+	sinfo.EnqueueFrom(from, func() {
+		sinfo.conn = conn
+		sinfo.conn.setMTU(sinfo, sinfo._getMTU())
+	})
+}
+
 // Handles a session ping, creating a session if needed and calling update, then possibly responding with a pong if the ping was in ping mode and the update was successful.
 // If the session has a packet cached (common when first setting up a session), it will be sent.
 func (ss *sessions) handlePing(ping *sessionPing) {
@@ -390,6 +401,7 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 			for i := range conn.nodeMask {
 				conn.nodeMask[i] = 0xFF
 			}
+			sinfo.setConn(ss.router, conn)
 			c := ss.listener.conn
 			go func() { c <- conn }()
 		}

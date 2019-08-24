@@ -61,6 +61,7 @@ type Conn struct {
 	nodeID        *crypto.NodeID
 	nodeMask      *crypto.NodeID
 	session       *sessionInfo
+	mtu           uint16
 }
 
 // TODO func NewConn() that initializes additional fields as needed
@@ -78,6 +79,10 @@ func (c *Conn) String() string {
 	var s string
 	<-c.SyncExec(func() { s = fmt.Sprintf("conn=%p", c) })
 	return s
+}
+
+func (c *Conn) setMTU(from phony.IActor, mtu uint16) {
+	c.EnqueueFrom(from, func() { c.mtu = mtu })
 }
 
 // This should never be called from the router goroutine, used in the dial functions
@@ -112,6 +117,7 @@ func (c *Conn) search() error {
 			for i := range c.nodeMask {
 				c.nodeMask[i] = 0xFF
 			}
+			c.session.conn = c
 		}
 		return err
 	} else {
@@ -120,7 +126,7 @@ func (c *Conn) search() error {
 	return nil
 }
 
-// Used in session keep-alive traffic in Conn.Write
+// Used in session keep-alive traffic
 func (c *Conn) doSearch() {
 	routerWork := func() {
 		// Check to see if there is a search already matching the destination
@@ -134,7 +140,7 @@ func (c *Conn) doSearch() {
 			sinfo.continueSearch()
 		}
 	}
-	go c.core.router.doAdmin(routerWork)
+	c.core.router.EnqueueFrom(c.session, routerWork)
 }
 
 func (c *Conn) _getDeadlineCancellation(t *time.Time) (util.Cancellation, bool) {
@@ -187,16 +193,14 @@ func (c *Conn) Read(b []byte) (int, error) {
 	return n, err
 }
 
-// Used internally by Write, the caller must not reuse the argument bytes when no error occurs
-func (c *Conn) WriteNoCopy(msg FlowKeyMessage) error {
-	var err error
-	sessionFunc := func() {
-		// Does the packet exceed the permitted size for the session?
-		if uint16(len(msg.Message)) > c.session._getMTU() {
-			err = ConnError{errors.New("packet too big"), true, false, false, int(c.session._getMTU())}
-			return
-		}
-		// The rest of this work is session keep-alive traffic
+func (c *Conn) _write(msg FlowKeyMessage) error {
+	if len(msg.Message) > int(c.mtu) {
+		return ConnError{errors.New("packet too big"), true, false, false, int(c.mtu)}
+	}
+	c.session.EnqueueFrom(c, func() {
+		// Send the packet
+		c.session._send(msg)
+		// Session keep-alive, while we wait for the crypto workers from send
 		switch {
 		case time.Since(c.session.time) > 6*time.Second:
 			if c.session.time.Before(c.session.pingTime) && time.Since(c.session.pingTime) > 6*time.Second {
@@ -209,24 +213,25 @@ func (c *Conn) WriteNoCopy(msg FlowKeyMessage) error {
 			c.session.ping(c.session) // TODO send from self if this becomes an actor
 		default: // Don't do anything, to keep traffic throttled
 		}
-	}
-	c.session.doFunc(sessionFunc)
-	if err == nil {
-		var cancel util.Cancellation
-		var doCancel bool
-		<-c.SyncExec(func() { cancel, doCancel = c._getDeadlineCancellation(c.writeDeadline) })
-		if doCancel {
-			defer cancel.Cancel(nil)
+	})
+	return nil
+}
+
+// Used internally by Write, the caller must not reuse the argument bytes when no error occurs
+func (c *Conn) WriteNoCopy(msg FlowKeyMessage) error {
+	var cancel util.Cancellation
+	var doCancel bool
+	<-c.SyncExec(func() { cancel, doCancel = c._getDeadlineCancellation(c.writeDeadline) })
+	var err error
+	select {
+	case <-cancel.Finished():
+		if cancel.Error() == util.CancellationTimeoutError {
+			err = ConnError{errors.New("write timeout"), true, false, false, 0}
+		} else {
+			err = ConnError{errors.New("session closed"), false, false, true, 0}
 		}
-		select {
-		case <-cancel.Finished():
-			if cancel.Error() == util.CancellationTimeoutError {
-				err = ConnError{errors.New("write timeout"), true, false, false, 0}
-			} else {
-				err = ConnError{errors.New("session closed"), false, false, true, 0}
-			}
-		case <-c.session.SyncExec(func() { c.session._send(msg) }):
-		}
+	default:
+		<-c.SyncExec(func() { err = c._write(msg) })
 	}
 	return err
 }
