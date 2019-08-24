@@ -33,7 +33,7 @@ func (h *nonceHeap) Pop() interface{} {
 	n, *h = (*h)[l-1], (*h)[:l-1]
 	return n
 }
-func (h nonceHeap) peek() *crypto.BoxNonce { return &h[len(h)-1] }
+func (h nonceHeap) peek() *crypto.BoxNonce { return &h[0] }
 
 // All the information we know about an active session.
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
