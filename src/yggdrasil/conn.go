@@ -62,15 +62,18 @@ type Conn struct {
 	nodeMask      *crypto.NodeID
 	session       *sessionInfo
 	mtu           uint16
+	readCallback  func([]byte)
+	readBuffer    chan []byte
 }
 
 // TODO func NewConn() that initializes additional fields as needed
 func newConn(core *Core, nodeID *crypto.NodeID, nodeMask *crypto.NodeID, session *sessionInfo) *Conn {
 	conn := Conn{
-		core:     core,
-		nodeID:   nodeID,
-		nodeMask: nodeMask,
-		session:  session,
+		core:       core,
+		nodeID:     nodeID,
+		nodeMask:   nodeMask,
+		session:    session,
+		readBuffer: make(chan []byte, 1024),
 	}
 	return &conn
 }
@@ -154,6 +157,45 @@ func (c *Conn) _getDeadlineCancellation(t *time.Time) (util.Cancellation, bool) 
 	}
 }
 
+// SetReadCallback sets a callback which will be called whenever a packet is received.
+// Note that calls to Read will fail if the callback has been set to a non-nil value.
+func (c *Conn) SetReadCallback(callback func([]byte)) {
+	c.EnqueueFrom(nil, func() {
+		c._setReadCallback(callback)
+	})
+}
+
+func (c *Conn) _setReadCallback(callback func([]byte)) {
+	c.readCallback = callback
+	c._drainReadBuffer()
+}
+
+func (c *Conn) _drainReadBuffer() {
+	if c.readCallback == nil {
+		return
+	}
+	select {
+	case bs := <-c.readBuffer:
+		c.readCallback(bs)
+		c.EnqueueFrom(nil, c._drainReadBuffer) // In case there's more
+	default:
+	}
+}
+
+// Called by the session to pass a new message to the Conn
+func (c *Conn) recvMsg(from phony.IActor, msg []byte) {
+	c.EnqueueFrom(from, func() {
+		if c.readCallback != nil {
+			c.readCallback(msg)
+		} else {
+			select {
+			case c.readBuffer <- msg:
+			default:
+			}
+		}
+	})
+}
+
 // Used internally by Read, the caller is responsible for util.PutBytes when they're done.
 func (c *Conn) ReadNoCopy() ([]byte, error) {
 	var cancel util.Cancellation
@@ -170,7 +212,7 @@ func (c *Conn) ReadNoCopy() ([]byte, error) {
 		} else {
 			return nil, ConnError{errors.New("session closed"), false, false, true, 0}
 		}
-	case bs := <-c.session.toConn:
+	case bs := <-c.readBuffer:
 		return bs, nil
 	}
 }
@@ -278,6 +320,7 @@ func (c *Conn) LocalAddr() crypto.NodeID {
 }
 
 func (c *Conn) RemoteAddr() crypto.NodeID {
+	// TODO warn that this can block while waiting for the Conn actor to run, so don't call it from other actors...
 	var n crypto.NodeID
 	<-c.SyncExec(func() { n = *c.nodeID })
 	return n
@@ -290,11 +333,13 @@ func (c *Conn) SetDeadline(t time.Time) error {
 }
 
 func (c *Conn) SetReadDeadline(t time.Time) error {
+	// TODO warn that this can block while waiting for the Conn actor to run, so don't call it from other actors...
 	<-c.SyncExec(func() { c.readDeadline = &t })
 	return nil
 }
 
 func (c *Conn) SetWriteDeadline(t time.Time) error {
+	// TODO warn that this can block while waiting for the Conn actor to run, so don't call it from other actors...
 	<-c.SyncExec(func() { c.writeDeadline = &t })
 	return nil
 }

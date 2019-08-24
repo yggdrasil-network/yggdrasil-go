@@ -70,7 +70,6 @@ type sessionInfo struct {
 	bytesRecvd     uint64                        // Bytes of real traffic received in this session
 	init           chan struct{}                 // Closed when the first session pong arrives, used to signal that the session is ready for initial use
 	cancel         util.Cancellation             // Used to terminate workers
-	toConn         chan []byte                   // Decrypted packets go here, picked up by the associated Conn
 	conn           *Conn                         // The associated Conn object
 	callbacks      []chan func()                 // Finished work from crypto workers
 }
@@ -254,7 +253,6 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.myHandle = *crypto.NewHandle()
 	sinfo.theirAddr = *address.AddrForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
 	sinfo.theirSubnet = *address.SubnetForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
-	sinfo.toConn = make(chan []byte, 32)
 	ss.sinfos[sinfo.myHandle] = &sinfo
 	ss.byTheirPerm[sinfo.theirPermPub] = &sinfo.myHandle
 	go func() {
@@ -505,15 +503,10 @@ func (sinfo *sessionInfo) _recvPacket(p *wire_trafficPacket) {
 		util.PutBytes(p.Payload)
 		return
 	}
-	switch {
-	case sinfo._nonceIsOK(&p.Nonce):
-	case len(sinfo.toConn) < cap(sinfo.toConn):
-	default:
-		// We're either full or don't like this nonce
+	if !sinfo._nonceIsOK(&p.Nonce) {
 		util.PutBytes(p.Payload)
 		return
 	}
-
 	k := sinfo.sharedSesKey
 	var isOK bool
 	var bs []byte
@@ -530,16 +523,7 @@ func (sinfo *sessionInfo) _recvPacket(p *wire_trafficPacket) {
 			sinfo._updateNonce(&p.Nonce)
 			sinfo.time = time.Now()
 			sinfo.bytesRecvd += uint64(len(bs))
-			select {
-			case sinfo.toConn <- bs:
-			case <-sinfo.cancel.Finished():
-				util.PutBytes(bs)
-			default:
-				// We seem to have filled up the buffer in the mean time
-				// Since we need to not block, but the conn isn't an actor, we need to drop this packet
-				// TODO find some nicer way to interact with the Conn...
-				util.PutBytes(bs)
-			}
+			sinfo.conn.recvMsg(sinfo, bs)
 		}
 		ch <- callback
 		sinfo.checkCallbacks()
