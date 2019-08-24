@@ -158,16 +158,11 @@ func (c *Conn) _getDeadlineCancellation(t *time.Time) (util.Cancellation, bool) 
 }
 
 // SetReadCallback sets a callback which will be called whenever a packet is received.
-// Note that calls to Read will fail if the callback has been set to a non-nil value.
 func (c *Conn) SetReadCallback(callback func([]byte)) {
 	c.EnqueueFrom(nil, func() {
-		c._setReadCallback(callback)
+		c.readCallback = callback
+		c._drainReadBuffer()
 	})
-}
-
-func (c *Conn) _setReadCallback(callback func([]byte)) {
-	c.readCallback = callback
-	c._drainReadBuffer()
 }
 
 func (c *Conn) _drainReadBuffer() {
