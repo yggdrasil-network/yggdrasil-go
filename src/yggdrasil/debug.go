@@ -571,7 +571,9 @@ func DEBUG_simLinkPeers(p, q *peer) {
 					continue
 				case packet := <-send:
 					packets = append(packets, packet)
-					source.core.switchTable.idleIn <- source.port
+					<-source.core.switchTable.SyncExec(func() {
+						source.core.switchTable._idleIn(source.port)
+					})
 					continue
 				default:
 				}
@@ -585,15 +587,21 @@ func DEBUG_simLinkPeers(p, q *peer) {
 					packets = append(packets, packet)
 				case packet := <-send:
 					packets = append(packets, packet)
-					source.core.switchTable.idleIn <- source.port
+					<-source.core.switchTable.SyncExec(func() {
+						source.core.switchTable._idleIn(source.port)
+					})
 				}
 			}
 		}()
 	}
 	goWorkers(p, q)
 	goWorkers(q, p)
-	p.core.switchTable.idleIn <- p.port
-	q.core.switchTable.idleIn <- q.port
+	<-p.core.switchTable.SyncExec(func() {
+		p.core.switchTable._idleIn(p.port)
+	})
+	<-q.core.switchTable.SyncExec(func() {
+		q.core.switchTable._idleIn(q.port)
+	})
 }
 
 /*
