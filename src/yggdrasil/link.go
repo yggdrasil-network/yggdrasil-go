@@ -318,7 +318,9 @@ func (intf *linkInterface) handler() error {
 				isAlive = true
 				if !isReady {
 					// (Re-)enable in the switch
-					intf.link.core.switchTable.idleIn <- intf.peer.port
+					intf.link.core.switchTable.EnqueueFrom(nil, func() {
+						intf.link.core.switchTable._idleIn(intf.peer.port)
+					})
 					isReady = true
 				}
 				if gotMsg && !sendTimerRunning {
@@ -355,7 +357,9 @@ func (intf *linkInterface) handler() error {
 					isReady = false
 				} else {
 					// Keep enabled in the switch
-					intf.link.core.switchTable.idleIn <- intf.peer.port
+					intf.link.core.switchTable.EnqueueFrom(nil, func() {
+						intf.link.core.switchTable._idleIn(intf.peer.port)
+					})
 					isReady = true
 				}
 			case <-sendBlocked.C:

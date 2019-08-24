@@ -191,7 +191,7 @@ func (c *Core) GetSwitchQueues() SwitchQueues {
 			Size:         switchTable.queues.size,
 			HighestCount: uint64(switchTable.queues.maxbufs),
 			HighestSize:  switchTable.queues.maxsize,
-			MaximumSize:  switchTable.queueTotalMaxSize,
+			MaximumSize:  switchTable.queues.totalMaxSize,
 		}
 		for k, v := range switchTable.queues.bufs {
 			nexthop := switchTable.bestPortForCoords([]byte(k))

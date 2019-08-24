@@ -174,7 +174,9 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState,
 
 	c.config.Mutex.RLock()
 	if c.config.Current.SwitchOptions.MaxTotalQueueSize >= SwitchQueueTotalMinSize {
-		c.switchTable.queueTotalMaxSize = c.config.Current.SwitchOptions.MaxTotalQueueSize
+		c.switchTable.doAdmin(func() {
+			c.switchTable.queues.totalMaxSize = c.config.Current.SwitchOptions.MaxTotalQueueSize
+		})
 	}
 	c.config.Mutex.RUnlock()
 

@@ -242,7 +242,7 @@ func (p *peer) _handleTraffic(packet []byte, pTypeLen int) {
 		// Drop traffic if the peer isn't in the switch
 		return
 	}
-	p.core.switchTable.packetIn <- packet
+	p.core.switchTable.packetInFrom(p, packet)
 }
 
 func (p *peer) sendPacketsFrom(from phony.IActor, packets [][]byte) {

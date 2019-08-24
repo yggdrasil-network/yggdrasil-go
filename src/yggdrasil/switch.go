@@ -164,22 +164,19 @@ type switchData struct {
 
 // All the information stored by the switch.
 type switchTable struct {
-	core              *Core
-	reconfigure       chan chan error
-	key               crypto.SigPubKey           // Our own key
-	time              time.Time                  // Time when locator.tstamp was last updated
-	drop              map[crypto.SigPubKey]int64 // Tstamp associated with a dropped root
-	mutex             sync.RWMutex               // Lock for reads/writes of switchData
-	parent            switchPort                 // Port of whatever peer is our parent, or self if we're root
-	data              switchData                 //
-	updater           atomic.Value               // *sync.Once
-	table             atomic.Value               // lookupTable
-	phony.Actor                                  // Owns the below
-	packetIn          chan []byte                // Incoming packets for the worker to handle
-	idleIn            chan switchPort            // Incoming idle notifications from peer links
-	queues            switch_buffers             // Queues - not atomic so ONLY use through admin chan
-	queueTotalMaxSize uint64                     // Maximum combined size of queues
-	idle              map[switchPort]time.Time   // idle peers
+	core        *Core
+	reconfigure chan chan error
+	key         crypto.SigPubKey           // Our own key
+	time        time.Time                  // Time when locator.tstamp was last updated
+	drop        map[crypto.SigPubKey]int64 // Tstamp associated with a dropped root
+	mutex       sync.RWMutex               // Lock for reads/writes of switchData
+	parent      switchPort                 // Port of whatever peer is our parent, or self if we're root
+	data        switchData                 //
+	updater     atomic.Value               // *sync.Once
+	table       atomic.Value               // lookupTable
+	phony.Actor                            // Owns the below
+	queues      switch_buffers             // Queues - not atomic so ONLY use through the actor
+	idle        map[switchPort]time.Time   // idle peers - not atomic so ONLY use through the actor
 }
 
 // Minimum allowed total size of switch queues.
@@ -197,12 +194,11 @@ func (t *switchTable) init(core *Core) {
 	t.updater.Store(&sync.Once{})
 	t.table.Store(lookupTable{})
 	t.drop = make(map[crypto.SigPubKey]int64)
-	t.packetIn = make(chan []byte, 1024)
-	t.idleIn = make(chan switchPort, 1024)
-	t.queueTotalMaxSize = SwitchQueueTotalMinSize
-	t.idle = make(map[switchPort]time.Time)
-	t.queues.switchTable = t
-	t.queues.bufs = make(map[string]switch_buffer) // Packets per PacketStreamID (string)
+	<-t.SyncExec(func() {
+		t.queues.totalMaxSize = SwitchQueueTotalMinSize
+		t.queues.bufs = make(map[string]switch_buffer)
+		t.idle = make(map[switchPort]time.Time)
+	})
 }
 
 // Safely gets a copy of this node's locator.
@@ -727,12 +723,12 @@ type switch_buffer struct {
 }
 
 type switch_buffers struct {
-	switchTable *switchTable
-	bufs        map[string]switch_buffer // Buffers indexed by StreamID
-	size        uint64                   // Total size of all buffers, in bytes
-	maxbufs     int
-	maxsize     uint64
-	closer      []closerInfo // Scratch space
+	totalMaxSize uint64
+	bufs         map[string]switch_buffer // Buffers indexed by StreamID
+	size         uint64                   // Total size of all buffers, in bytes
+	maxbufs      int
+	maxsize      uint64
+	closer       []closerInfo // Scratch space
 }
 
 func (b *switch_buffers) _cleanup(t *switchTable) {
@@ -749,7 +745,7 @@ func (b *switch_buffers) _cleanup(t *switchTable) {
 		}
 	}
 
-	for b.size > b.switchTable.queueTotalMaxSize {
+	for b.size > b.totalMaxSize {
 		// Drop a random queue
 		target := rand.Uint64() % b.size
 		var size uint64 // running total
@@ -828,6 +824,12 @@ func (t *switchTable) _handleIdle(port switchPort) bool {
 	return false
 }
 
+func (t *switchTable) packetInFrom(from phony.IActor, bytes []byte) {
+	t.EnqueueFrom(from, func() {
+		t._packetIn(bytes)
+	})
+}
+
 func (t *switchTable) _packetIn(bytes []byte) {
 	// Try to send it somewhere (or drop it if it's corrupt or at a dead end)
 	if !t._handleIn(bytes, t.idle) {
@@ -868,10 +870,6 @@ func (t *switchTable) doWorker() {
 	for {
 		//t.core.log.Debugf("Switch state: idle = %d, buffers = %d", len(idle), len(t.queues.bufs))
 		select {
-		case bytes := <-t.packetIn:
-			<-t.SyncExec(func() { t._packetIn(bytes) })
-		case port := <-t.idleIn:
-			<-t.SyncExec(func() { t._idleIn(port) })
 		case e := <-t.reconfigure:
 			e <- nil
 		}
