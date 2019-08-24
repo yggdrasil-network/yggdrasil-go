@@ -73,6 +73,9 @@ func (r *router) init(core *Core) {
 	r.core.config.Mutex.RLock()
 	r.nodeinfo.setNodeInfo(r.core.config.Current.NodeInfo, r.core.config.Current.NodeInfoPrivacy)
 	r.core.config.Mutex.RUnlock()
+	r.dht.init(r.core)
+	r.searches.init(r.core)
+	r.sessions.init(r.core)
 }
 
 // Starts the mainLoop goroutine.

@@ -73,9 +73,6 @@ func (c *Core) init() error {
 		c.log.Warnln("SigningPublicKey in config is incorrect, should be", sp)
 	}
 
-	c.router.searches.init(c)
-	c.router.dht.init(c)
-	c.router.sessions.init(c)
 	c.peers.init(c)
 	c.router.init(c)
 	c.switchTable.init(c) // TODO move before peers? before router?
