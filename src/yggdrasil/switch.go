@@ -703,7 +703,7 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]time.Time) boo
 	if best != nil {
 		// Send to the best idle next hop
 		delete(idle, best.port)
-		best.sendPackets([][]byte{packet})
+		best.sendPacketsFrom(nil, [][]byte{packet})
 		return true
 	}
 	// Didn't find anyone idle to send it to
@@ -817,7 +817,8 @@ func (t *switchTable) handleIdle(port switchPort) bool {
 		}
 	}
 	if len(packets) > 0 {
-		to.sendPackets(packets)
+		// TODO rewrite if/when the switch becomes an actor
+		to.sendPacketsFrom(nil, packets)
 		return true
 	}
 	return false
@@ -830,7 +831,8 @@ func (t *switchTable) doWorker() {
 		// Keep sending packets to the router
 		self := t.core.peers.getPorts()[0]
 		for bs := range sendingToRouter {
-			self.sendPackets([][]byte{bs})
+			// TODO remove this ugly mess of goroutines if/when the switch becomes an actor
+			<-self.SyncExec(func() { self._sendPackets([][]byte{bs}) })
 		}
 	}()
 	go func() {
