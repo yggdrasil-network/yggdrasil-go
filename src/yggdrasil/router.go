@@ -161,12 +161,6 @@ func (r *router) _handleTraffic(packet []byte) {
 		return
 	}
 	sinfo.recv(r, &p)
-	return
-	select {
-	case sinfo.fromRouter <- p:
-	case <-sinfo.cancel.Finished():
-		util.PutBytes(p.Payload)
-	}
 }
 
 // Handles protocol traffic by decrypting it, checking its type, and passing it to the appropriate handler for that traffic type.
