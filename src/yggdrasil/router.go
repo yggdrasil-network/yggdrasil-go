@@ -75,7 +75,7 @@ func (r *router) init(core *Core) {
 	r.core.config.Mutex.RUnlock()
 	r.dht.init(r)
 	r.searches.init(r)
-	r.sessions.init(r.core)
+	r.sessions.init(r)
 }
 
 // Starts the mainLoop goroutine.

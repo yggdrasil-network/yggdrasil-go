@@ -252,7 +252,7 @@ func (c *Conn) Close() (err error) {
 }
 
 func (c *Conn) LocalAddr() crypto.NodeID {
-	return *crypto.GetNodeID(&c.session.core.boxPub)
+	return *crypto.GetNodeID(&c.core.boxPub)
 }
 
 func (c *Conn) RemoteAddr() crypto.NodeID {
