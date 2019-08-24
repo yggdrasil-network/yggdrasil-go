@@ -217,7 +217,17 @@ func (c *Conn) _write(msg FlowKeyMessage) error {
 	return nil
 }
 
-// Used internally by Write, the caller must not reuse the argument bytes when no error occurs
+// WriteFrom should be called by a phony.IActor, and tells the Conn to send a message.
+// This is used internaly by WriteNoCopy and Write.
+// If the callback is called with a non-nil value, then it is safe to reuse the argument FlowKeyMessage.
+func (c *Conn) WriteFrom(from phony.IActor, msg FlowKeyMessage, callback func(error)) {
+	c.EnqueueFrom(from, func() {
+		callback(c._write(msg))
+	})
+}
+
+// WriteNoCopy is used internally by Write and makes use of WriteFrom under the hood.
+// The caller must not reuse the argument FlowKeyMessage when a nil error is returned.
 func (c *Conn) WriteNoCopy(msg FlowKeyMessage) error {
 	var cancel util.Cancellation
 	var doCancel bool
@@ -231,12 +241,15 @@ func (c *Conn) WriteNoCopy(msg FlowKeyMessage) error {
 			err = ConnError{errors.New("session closed"), false, false, true, 0}
 		}
 	default:
-		<-c.SyncExec(func() { err = c._write(msg) })
+		done := make(chan struct{})
+		callback := func(e error) { err = e; close(done) }
+		c.WriteFrom(nil, msg, callback)
+		<-done
 	}
 	return err
 }
 
-// Implements net.Conn.Write
+// Write implement the Write function of a net.Conn, and makes use of WriteNoCopy under the hood.
 func (c *Conn) Write(b []byte) (int, error) {
 	written := len(b)
 	msg := FlowKeyMessage{Message: append(util.GetBytes(), b...)}
