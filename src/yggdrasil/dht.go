@@ -65,7 +65,7 @@ type dhtReqKey struct {
 
 // The main DHT struct.
 type dht struct {
-	core        *Core
+	router      *router
 	reconfigure chan chan error
 	nodeID      crypto.NodeID
 	reqs        map[dhtReqKey]time.Time          // Keeps track of recent outstanding requests
@@ -76,8 +76,8 @@ type dht struct {
 }
 
 // Initializes the DHT.
-func (t *dht) init(c *Core) {
-	t.core = c
+func (t *dht) init(r *router) {
+	t.router = r
 	t.reconfigure = make(chan chan error, 1)
 	go func() {
 		for {
@@ -85,7 +85,7 @@ func (t *dht) init(c *Core) {
 			e <- nil
 		}
 	}()
-	t.nodeID = *t.core.NodeID()
+	t.nodeID = *t.router.core.NodeID()
 	t.callbacks = make(map[dhtReqKey][]dht_callbackInfo)
 	t.reset()
 }
@@ -190,10 +190,10 @@ func dht_ordered(first, second, third *crypto.NodeID) bool {
 // Update info about the node that sent the request.
 func (t *dht) handleReq(req *dhtReq) {
 	// Send them what they asked for
-	loc := t.core.switchTable.getLocator()
+	loc := t.router.core.switchTable.getLocator()
 	coords := loc.getCoords()
 	res := dhtRes{
-		Key:    t.core.boxPub,
+		Key:    t.router.core.boxPub,
 		Coords: coords,
 		Dest:   req.Dest,
 		Infos:  t.lookup(&req.Dest, false),
@@ -221,17 +221,17 @@ func (t *dht) handleReq(req *dhtReq) {
 func (t *dht) sendRes(res *dhtRes, req *dhtReq) {
 	// Send a reply for a dhtReq
 	bs := res.encode()
-	shared := t.core.router.sessions.getSharedKey(&t.core.boxPriv, &req.Key)
+	shared := t.router.sessions.getSharedKey(&t.router.core.boxPriv, &req.Key)
 	payload, nonce := crypto.BoxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
 		Coords:  req.Coords,
 		ToKey:   req.Key,
-		FromKey: t.core.boxPub,
+		FromKey: t.router.core.boxPub,
 		Nonce:   *nonce,
 		Payload: payload,
 	}
 	packet := p.encode()
-	t.core.router.out(packet)
+	t.router.out(packet)
 }
 
 type dht_callbackInfo struct {
@@ -285,17 +285,17 @@ func (t *dht) handleRes(res *dhtRes) {
 func (t *dht) sendReq(req *dhtReq, dest *dhtInfo) {
 	// Send a dhtReq to the node in dhtInfo
 	bs := req.encode()
-	shared := t.core.router.sessions.getSharedKey(&t.core.boxPriv, &dest.key)
+	shared := t.router.sessions.getSharedKey(&t.router.core.boxPriv, &dest.key)
 	payload, nonce := crypto.BoxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
 		Coords:  dest.coords,
 		ToKey:   dest.key,
-		FromKey: t.core.boxPub,
+		FromKey: t.router.core.boxPub,
 		Nonce:   *nonce,
 		Payload: payload,
 	}
 	packet := p.encode()
-	t.core.router.out(packet)
+	t.router.out(packet)
 	rq := dhtReqKey{dest.key, req.Dest}
 	t.reqs[rq] = time.Now()
 }
@@ -306,10 +306,10 @@ func (t *dht) ping(info *dhtInfo, target *crypto.NodeID) {
 	if target == nil {
 		target = &t.nodeID
 	}
-	loc := t.core.switchTable.getLocator()
+	loc := t.router.core.switchTable.getLocator()
 	coords := loc.getCoords()
 	req := dhtReq{
-		Key:    t.core.boxPub,
+		Key:    t.router.core.boxPub,
 		Coords: coords,
 		Dest:   *target,
 	}
@@ -384,7 +384,7 @@ func (t *dht) getImportant() []*dhtInfo {
 		})
 		// Keep the ones that are no further than the closest seen so far
 		minDist := ^uint64(0)
-		loc := t.core.switchTable.getLocator()
+		loc := t.router.core.switchTable.getLocator()
 		important := infos[:0]
 		for _, info := range infos {
 			dist := uint64(loc.dist(info.coords))
@@ -413,12 +413,12 @@ func (t *dht) getImportant() []*dhtInfo {
 
 // Returns true if this is a node we need to keep track of for the DHT to work.
 func (t *dht) isImportant(ninfo *dhtInfo) bool {
-	if ninfo.key == t.core.boxPub {
+	if ninfo.key == t.router.core.boxPub {
 		return false
 	}
 	important := t.getImportant()
 	// Check if ninfo is of equal or greater importance to what we already know
-	loc := t.core.switchTable.getLocator()
+	loc := t.router.core.switchTable.getLocator()
 	ndist := uint64(loc.dist(ninfo.coords))
 	minDist := ^uint64(0)
 	for _, info := range important {
