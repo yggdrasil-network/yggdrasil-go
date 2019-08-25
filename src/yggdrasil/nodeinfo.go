@@ -47,25 +47,25 @@ func (m *nodeinfo) init(core *Core) {
 	m.callbacks = make(map[crypto.BoxPubKey]nodeinfoCallback)
 	m.cache = make(map[crypto.BoxPubKey]nodeinfoCached)
 
-	go func() {
-		for {
-			m.callbacksMutex.Lock()
-			for boxPubKey, callback := range m.callbacks {
-				if time.Since(callback.created) > time.Minute {
-					delete(m.callbacks, boxPubKey)
-				}
+	var f func()
+	f = func() {
+		m.callbacksMutex.Lock()
+		for boxPubKey, callback := range m.callbacks {
+			if time.Since(callback.created) > time.Minute {
+				delete(m.callbacks, boxPubKey)
 			}
-			m.callbacksMutex.Unlock()
-			m.cacheMutex.Lock()
-			for boxPubKey, cache := range m.cache {
-				if time.Since(cache.created) > time.Hour {
-					delete(m.cache, boxPubKey)
-				}
-			}
-			m.cacheMutex.Unlock()
-			time.Sleep(time.Second * 30)
 		}
-	}()
+		m.callbacksMutex.Unlock()
+		m.cacheMutex.Lock()
+		for boxPubKey, cache := range m.cache {
+			if time.Since(cache.created) > time.Hour {
+				delete(m.cache, boxPubKey)
+			}
+		}
+		m.cacheMutex.Unlock()
+		time.AfterFunc(time.Second*30, f)
+	}
+	go f()
 }
 
 // Add a callback for a nodeinfo lookup

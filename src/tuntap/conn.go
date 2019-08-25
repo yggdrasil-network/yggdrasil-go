@@ -23,7 +23,7 @@ type tunConn struct {
 	addr  address.Address
 	snet  address.Subnet
 	stop  chan struct{}
-	alive chan struct{}
+	alive *time.Timer // From calling time.AfterFunc
 }
 
 func (s *tunConn) close() {
@@ -39,10 +39,6 @@ func (s *tunConn) _close_nomutex() {
 	func() {
 		defer func() { recover() }()
 		close(s.stop) // Closes reader/writer goroutines
-	}()
-	func() {
-		defer func() { recover() }()
-		close(s.alive) // Closes timeout goroutine
 	}()
 }
 
@@ -228,27 +224,8 @@ func (s *tunConn) _write(bs []byte) (err error) {
 }
 
 func (s *tunConn) stillAlive() {
-	defer func() { recover() }()
-	select {
-	case s.alive <- struct{}{}:
-	default:
+	if s.alive != nil {
+		s.alive.Stop()
 	}
-}
-
-func (s *tunConn) checkForTimeouts() error {
-	timer := time.NewTimer(tunConnTimeout)
-	defer util.TimerStop(timer)
-	defer s.close()
-	for {
-		select {
-		case _, ok := <-s.alive:
-			if !ok {
-				return errors.New("connection closed")
-			}
-			util.TimerStop(timer)
-			timer.Reset(tunConnTimeout)
-		case <-timer.C:
-			return errors.New("timed out")
-		}
-	}
+	s.alive = time.AfterFunc(tunConnTimeout, s.close)
 }

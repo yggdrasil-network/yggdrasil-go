@@ -200,10 +200,8 @@ func (t *switchTable) init(core *Core) {
 }
 
 func (t *switchTable) reconfigure(e chan error) {
-	go func() {
-		defer close(e)
-		// This is where reconfiguration would go, if we had anything useful to do.
-	}()
+	defer close(e)
+	// This is where reconfiguration would go, if we had anything useful to do.
 }
 
 // Safely gets a copy of this node's locator.

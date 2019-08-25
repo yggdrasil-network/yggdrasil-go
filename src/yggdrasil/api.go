@@ -344,10 +344,8 @@ func (c *Core) GetNodeInfo(key crypto.BoxPubKey, coords []uint64, nocache bool) 
 		c.router.nodeinfo.sendNodeInfo(key, wire_coordsUint64stoBytes(coords), false)
 	}
 	c.router.doAdmin(sendNodeInfoRequest)
-	go func() {
-		time.Sleep(6 * time.Second)
-		close(response)
-	}()
+	timer := time.AfterFunc(6*time.Second, func() { close(response) })
+	defer timer.Stop()
 	for res := range response {
 		return *res, nil
 	}

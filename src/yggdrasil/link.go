@@ -216,7 +216,7 @@ func (intf *linkInterface) handler() error {
 	intf.link.core.log.Infof("Connected %s: %s, source %s",
 		strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 	// Start the link loop
-	go intf.peer.linkLoop()
+	go intf.peer.start()
 	// Start the writer
 	signalReady := make(chan struct{}, 1)
 	signalSent := make(chan bool, 1)

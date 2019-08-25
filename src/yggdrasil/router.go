@@ -92,7 +92,7 @@ func (r *router) reconfigure(e chan error) {
 // Starts the tickerLoop goroutine.
 func (r *router) start() error {
 	r.core.log.Infoln("Starting router")
-	go r.tickerLoop()
+	go r.doMaintenance()
 	return nil
 }
 
@@ -122,18 +122,14 @@ func (r *router) reset(from phony.Actor) {
 
 // TODO remove reconfigure so this is just a ticker loop
 // and then find something better than a ticker loop to schedule things...
-func (r *router) tickerLoop() {
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	for {
-		<-ticker.C
-		<-r.SyncExec(func() {
-			// Any periodic maintenance stuff goes here
-			r.core.switchTable.doMaintenance()
-			r.dht.doMaintenance()
-			r.sessions.cleanup()
-		})
-	}
+func (r *router) doMaintenance() {
+	<-r.SyncExec(func() {
+		// Any periodic maintenance stuff goes here
+		r.core.switchTable.doMaintenance()
+		r.dht.doMaintenance()
+		r.sessions.cleanup()
+	})
+	time.AfterFunc(time.Second, r.doMaintenance)
 }
 
 // Checks incoming traffic type and passes it to the appropriate handler.

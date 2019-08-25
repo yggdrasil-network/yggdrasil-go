@@ -262,7 +262,6 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 			sinfo.sessions.removeSession(&sinfo)
 		})
 	}()
-	//go sinfo.startWorkers()
 	return &sinfo
 }
 

@@ -552,7 +552,7 @@ func (c *Core) DEBUG_addAllowedEncryptionPublicKey(boxStr string) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func DEBUG_simLinkPeers(p, q *peer) {
-	// Sets q.out() to point to p and starts p.linkLoop()
+	// Sets q.out() to point to p and starts p.start()
 	goWorkers := func(source, dest *peer) {
 		source.linkOut = make(chan []byte, 1)
 		send := make(chan []byte, 1)
@@ -561,7 +561,7 @@ func DEBUG_simLinkPeers(p, q *peer) {
 				send <- bs
 			}
 		}
-		go source.linkLoop()
+		go source.start()
 		go func() {
 			var packets [][]byte
 			for {

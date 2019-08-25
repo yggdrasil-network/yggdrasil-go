@@ -184,18 +184,21 @@ func (ps *peers) sendSwitchMsgs(from phony.Actor) {
 
 // This must be launched in a separate goroutine by whatever sets up the peer struct.
 // It handles link protocol traffic.
-func (p *peer) linkLoop() {
-	tick := time.NewTicker(time.Second)
-	defer tick.Stop()
-	<-p.SyncExec(p._sendSwitchMsg) // Startup message
-	for {
-		select {
-		case <-p.done:
-			return
-		case _ = <-tick.C:
-			<-p.SyncExec(p._updateDHT)
-		}
+func (p *peer) start() {
+	var updateDHT func()
+	updateDHT = func() {
+		<-p.SyncExec(func() {
+			select {
+			case <-p.done:
+			default:
+				p._updateDHT()
+				time.AfterFunc(time.Second, updateDHT)
+			}
+		})
 	}
+	updateDHT()
+	// Just for good measure, immediately send a switch message to this peer when we start
+	<-p.SyncExec(p._sendSwitchMsg)
 }
 
 func (p *peer) _updateDHT() {

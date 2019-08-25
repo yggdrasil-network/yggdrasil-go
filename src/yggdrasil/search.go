@@ -152,18 +152,16 @@ func (sinfo *searchInfo) continueSearch() {
 	// In case the search dies, try to spawn another thread later
 	// Note that this will spawn multiple parallel searches as time passes
 	// Any that die aren't restarted, but a new one will start later
-	retryLater := func() {
-		// FIXME this keeps the search alive forever if not for the searches map, fix that
-		newSearchInfo := sinfo.searches.searches[sinfo.dest]
-		if newSearchInfo != sinfo {
-			return
-		}
-		sinfo.continueSearch()
-	}
-	go func() {
-		time.Sleep(search_RETRY_TIME)
-		sinfo.searches.router.doAdmin(retryLater)
-	}()
+	time.AfterFunc(search_RETRY_TIME, func() {
+		sinfo.searches.router.RecvFrom(nil, func() {
+			// FIXME this keeps the search alive forever if not for the searches map, fix that
+			newSearchInfo := sinfo.searches.searches[sinfo.dest]
+			if newSearchInfo != sinfo {
+				return
+			}
+			sinfo.continueSearch()
+		})
+	})
 }
 
 // Calls create search, and initializes the iterative search parts of the struct before returning it.
