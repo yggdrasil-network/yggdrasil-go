@@ -40,7 +40,6 @@ func (h nonceHeap) peek() *crypto.BoxNonce { return &h[0] }
 type sessionInfo struct {
 	phony.Inbox                                  // Protects all of the below, use it any time you read/change the contents of a session
 	sessions       *sessions                     //
-	reconfigure    chan chan error               //
 	theirAddr      address.Address               //
 	theirSubnet    address.Subnet                //
 	theirPermPub   crypto.BoxPubKey              //
@@ -72,6 +71,11 @@ type sessionInfo struct {
 	cancel         util.Cancellation             // Used to terminate workers
 	conn           *Conn                         // The associated Conn object
 	callbacks      []chan func()                 // Finished work from crypto workers
+}
+
+func (sinfo *sessionInfo) reconfigure(e chan error) {
+	defer close(e)
+	// This is where reconfiguration would go, if we had anything to do
 }
 
 // TODO remove this, call SyncExec directly
@@ -140,7 +144,6 @@ type sessions struct {
 	router           *router
 	listener         *Listener
 	listenerMutex    sync.Mutex
-	reconfigure      chan chan error
 	lastCleanup      time.Time
 	isAllowedHandler func(pubkey *crypto.BoxPubKey, initiator bool) bool // Returns true or false if session setup is allowed
 	isAllowedMutex   sync.RWMutex                                        // Protects the above
@@ -152,28 +155,26 @@ type sessions struct {
 // Initializes the session struct.
 func (ss *sessions) init(r *router) {
 	ss.router = r
-	ss.reconfigure = make(chan chan error, 1)
-	go func() {
-		for {
-			e := <-ss.reconfigure
-			responses := make(map[crypto.Handle]chan error)
-			for index, session := range ss.sinfos {
-				responses[index] = make(chan error)
-				session.reconfigure <- responses[index]
-			}
-			for _, response := range responses {
-				if err := <-response; err != nil {
-					e <- err
-					continue
-				}
-			}
-			e <- nil
-		}
-	}()
 	ss.permShared = make(map[crypto.BoxPubKey]*crypto.BoxSharedKey)
 	ss.sinfos = make(map[crypto.Handle]*sessionInfo)
 	ss.byTheirPerm = make(map[crypto.BoxPubKey]*crypto.Handle)
 	ss.lastCleanup = time.Now()
+}
+
+func (ss *sessions) reconfigure(e chan error) {
+	defer close(e)
+	responses := make(map[crypto.Handle]chan error)
+	<-ss.router.SyncExec(func() {
+		for index, session := range ss.sinfos {
+			responses[index] = make(chan error)
+			go session.reconfigure(responses[index])
+		}
+	})
+	for _, response := range responses {
+		for err := range response {
+			e <- err
+		}
+	}
 }
 
 // Determines whether the session with a given publickey is allowed based on
@@ -215,7 +216,6 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	}
 	sinfo := sessionInfo{}
 	sinfo.sessions = ss
-	sinfo.reconfigure = make(chan chan error, 1)
 	sinfo.theirPermPub = *theirPermKey
 	sinfo.sharedPermKey = *ss.getSharedKey(&ss.router.core.boxPriv, &sinfo.theirPermPub)
 	pub, priv := crypto.NewBoxKeys()

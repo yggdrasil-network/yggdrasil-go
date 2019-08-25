@@ -117,20 +117,21 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 
 	errors := 0
 
-	components := []chan chan error{
-		c.router.searches.reconfigure,
-		c.router.dht.reconfigure,
-		c.router.sessions.reconfigure,
+	// Each reconfigure function should pass any errors to the channel, then close it
+	components := []func(chan error){
+		c.link.reconfigure,
 		c.peers.reconfigure,
 		c.router.reconfigure,
+		c.router.dht.reconfigure,
+		c.router.searches.reconfigure,
+		c.router.sessions.reconfigure,
 		c.switchTable.reconfigure,
-		c.link.reconfigure,
 	}
 
 	for _, component := range components {
 		response := make(chan error)
-		component <- response
-		if err := <-response; err != nil {
+		go component(response)
+		for err := range response {
 			c.log.Errorln(err)
 			errors++
 		}

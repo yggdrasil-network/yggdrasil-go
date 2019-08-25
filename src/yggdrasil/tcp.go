@@ -33,12 +33,11 @@ const tcp_ping_interval = (default_timeout * 2 / 3)
 
 // The TCP listener and information about active TCP connections, to avoid duplication.
 type tcp struct {
-	link        *link
-	reconfigure chan chan error
-	mutex       sync.Mutex // Protecting the below
-	listeners   map[string]*TcpListener
-	calls       map[string]struct{}
-	conns       map[linkInfo](chan struct{})
+	link      *link
+	mutex     sync.Mutex // Protecting the below
+	listeners map[string]*TcpListener
+	calls     map[string]struct{}
+	conns     map[linkInfo](chan struct{})
 }
 
 // TcpListener is a stoppable TCP listener interface. These are typically
@@ -76,48 +75,11 @@ func (t *tcp) getAddr() *net.TCPAddr {
 // Initializes the struct.
 func (t *tcp) init(l *link) error {
 	t.link = l
-	t.reconfigure = make(chan chan error, 1)
 	t.mutex.Lock()
 	t.calls = make(map[string]struct{})
 	t.conns = make(map[linkInfo](chan struct{}))
 	t.listeners = make(map[string]*TcpListener)
 	t.mutex.Unlock()
-
-	go func() {
-		for {
-			e := <-t.reconfigure
-			t.link.core.config.Mutex.RLock()
-			added := util.Difference(t.link.core.config.Current.Listen, t.link.core.config.Previous.Listen)
-			deleted := util.Difference(t.link.core.config.Previous.Listen, t.link.core.config.Current.Listen)
-			t.link.core.config.Mutex.RUnlock()
-			if len(added) > 0 || len(deleted) > 0 {
-				for _, a := range added {
-					if a[:6] != "tcp://" {
-						continue
-					}
-					if _, err := t.listen(a[6:]); err != nil {
-						e <- err
-						continue
-					}
-				}
-				for _, d := range deleted {
-					if d[:6] != "tcp://" {
-						continue
-					}
-					t.mutex.Lock()
-					if listener, ok := t.listeners[d[6:]]; ok {
-						t.mutex.Unlock()
-						listener.Stop <- true
-					} else {
-						t.mutex.Unlock()
-					}
-				}
-				e <- nil
-			} else {
-				e <- nil
-			}
-		}
-	}()
 
 	t.link.core.config.Mutex.RLock()
 	defer t.link.core.config.Mutex.RUnlock()
@@ -131,6 +93,36 @@ func (t *tcp) init(l *link) error {
 	}
 
 	return nil
+}
+
+func (t *tcp) reconfigure(e chan error) {
+	defer close(e)
+	t.link.core.config.Mutex.RLock()
+	added := util.Difference(t.link.core.config.Current.Listen, t.link.core.config.Previous.Listen)
+	deleted := util.Difference(t.link.core.config.Previous.Listen, t.link.core.config.Current.Listen)
+	t.link.core.config.Mutex.RUnlock()
+	if len(added) > 0 || len(deleted) > 0 {
+		for _, a := range added {
+			if a[:6] != "tcp://" {
+				continue
+			}
+			if _, err := t.listen(a[6:]); err != nil {
+				e <- err
+			}
+		}
+		for _, d := range deleted {
+			if d[:6] != "tcp://" {
+				continue
+			}
+			t.mutex.Lock()
+			if listener, ok := t.listeners[d[6:]]; ok {
+				t.mutex.Unlock()
+				listener.Stop <- true
+			} else {
+				t.mutex.Unlock()
+			}
+		}
+	}
 }
 
 func (t *tcp) listen(listenaddr string) (*TcpListener, error) {

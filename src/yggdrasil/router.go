@@ -35,24 +35,22 @@ import (
 )
 
 // The router struct has channels to/from the adapter device and a self peer (0), which is how messages are passed between this node and the peers/switch layer.
-// The router's mainLoop goroutine is responsible for managing all information related to the dht, searches, and crypto sessions.
+// The router's phony.Inbox goroutine is responsible for managing all information related to the dht, searches, and crypto sessions.
 type router struct {
 	phony.Inbox
-	core        *Core
-	reconfigure chan chan error
-	addr        address.Address
-	subnet      address.Subnet
-	out         func([]byte) // packets we're sending to the network, link to peer's "in"
-	dht         dht
-	nodeinfo    nodeinfo
-	searches    searches
-	sessions    sessions
+	core     *Core
+	addr     address.Address
+	subnet   address.Subnet
+	out      func([]byte) // packets we're sending to the network, link to peer's "in"
+	dht      dht
+	nodeinfo nodeinfo
+	searches searches
+	sessions sessions
 }
 
 // Initializes the router struct, which includes setting up channels to/from the adapter.
 func (r *router) init(core *Core) {
 	r.core = core
-	r.reconfigure = make(chan chan error, 1)
 	r.addr = *address.AddrForNodeID(&r.dht.nodeID)
 	r.subnet = *address.SubnetForNodeID(&r.dht.nodeID)
 	self := linkInterface{
@@ -75,10 +73,26 @@ func (r *router) init(core *Core) {
 	r.sessions.init(r)
 }
 
-// Starts the mainLoop goroutine.
+func (r *router) reconfigure(e chan error) {
+	defer close(e)
+	var errs []error
+	// Reconfigure the router
+	<-r.SyncExec(func() {
+		current := r.core.config.GetCurrent()
+		err := r.nodeinfo.setNodeInfo(current.NodeInfo, current.NodeInfoPrivacy)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	})
+	for _, err := range errs {
+		e <- err
+	}
+}
+
+// Starts the tickerLoop goroutine.
 func (r *router) start() error {
 	r.core.log.Infoln("Starting router")
-	go r._mainLoop()
+	go r.tickerLoop()
 	return nil
 }
 
@@ -108,24 +122,17 @@ func (r *router) reset(from phony.Actor) {
 
 // TODO remove reconfigure so this is just a ticker loop
 // and then find something better than a ticker loop to schedule things...
-func (r *router) _mainLoop() {
+func (r *router) tickerLoop() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
-		select {
-		case <-ticker.C:
-			<-r.SyncExec(func() {
-				// Any periodic maintenance stuff goes here
-				r.core.switchTable.doMaintenance()
-				r.dht.doMaintenance()
-				r.sessions.cleanup()
-			})
-		case e := <-r.reconfigure:
-			<-r.SyncExec(func() {
-				current := r.core.config.GetCurrent()
-				e <- r.nodeinfo.setNodeInfo(current.NodeInfo, current.NodeInfoPrivacy)
-			})
-		}
+		<-ticker.C
+		<-r.SyncExec(func() {
+			// Any periodic maintenance stuff goes here
+			r.core.switchTable.doMaintenance()
+			r.dht.doMaintenance()
+			r.sessions.cleanup()
+		})
 	}
 }
 

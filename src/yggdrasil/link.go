@@ -21,11 +21,10 @@ import (
 )
 
 type link struct {
-	core        *Core
-	reconfigure chan chan error
-	mutex       sync.RWMutex // protects interfaces below
-	interfaces  map[linkInfo]*linkInterface
-	tcp         tcp // TCP interface support
+	core       *Core
+	mutex      sync.RWMutex // protects interfaces below
+	interfaces map[linkInfo]*linkInterface
+	tcp        tcp // TCP interface support
 	// TODO timeout (to remove from switch), read from config.ReadTimeout
 }
 
@@ -61,7 +60,6 @@ func (l *link) init(c *Core) error {
 	l.core = c
 	l.mutex.Lock()
 	l.interfaces = make(map[linkInfo]*linkInterface)
-	l.reconfigure = make(chan chan error)
 	l.mutex.Unlock()
 
 	if err := l.tcp.init(l); err != nil {
@@ -69,20 +67,16 @@ func (l *link) init(c *Core) error {
 		return err
 	}
 
-	go func() {
-		for {
-			e := <-l.reconfigure
-			tcpresponse := make(chan error)
-			l.tcp.reconfigure <- tcpresponse
-			if err := <-tcpresponse; err != nil {
-				e <- err
-				continue
-			}
-			e <- nil
-		}
-	}()
-
 	return nil
+}
+
+func (l *link) reconfigure(e chan error) {
+	defer close(e)
+	tcpResponse := make(chan error)
+	go l.tcp.reconfigure(tcpResponse)
+	for err := range tcpResponse {
+		e <- err
+	}
 }
 
 func (l *link) call(uri string, sintf string) error {

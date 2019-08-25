@@ -65,11 +65,10 @@ type dhtReqKey struct {
 
 // The main DHT struct.
 type dht struct {
-	router      *router
-	reconfigure chan chan error
-	nodeID      crypto.NodeID
-	reqs        map[dhtReqKey]time.Time          // Keeps track of recent outstanding requests
-	callbacks   map[dhtReqKey][]dht_callbackInfo // Search and admin lookup callbacks
+	router    *router
+	nodeID    crypto.NodeID
+	reqs      map[dhtReqKey]time.Time          // Keeps track of recent outstanding requests
+	callbacks map[dhtReqKey][]dht_callbackInfo // Search and admin lookup callbacks
 	// These next two could be replaced by a single linked list or similar...
 	table map[crypto.NodeID]*dhtInfo
 	imp   []*dhtInfo
@@ -78,16 +77,14 @@ type dht struct {
 // Initializes the DHT.
 func (t *dht) init(r *router) {
 	t.router = r
-	t.reconfigure = make(chan chan error, 1)
-	go func() {
-		for {
-			e := <-t.reconfigure
-			e <- nil
-		}
-	}()
 	t.nodeID = *t.router.core.NodeID()
 	t.callbacks = make(map[dhtReqKey][]dht_callbackInfo)
 	t.reset()
+}
+
+func (t *dht) reconfigure(e chan error) {
+	defer close(e)
+	// This is where reconfiguration would go, if we had anything to do
 }
 
 // Resets the DHT in response to coord changes.

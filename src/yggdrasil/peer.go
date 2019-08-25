@@ -21,10 +21,9 @@ import (
 // In most cases, this involves passing the packet to the handler for outgoing traffic to another peer.
 // In other cases, it's link protocol traffic used to build the spanning tree, in which case this checks signatures and passes the message along to the switch.
 type peers struct {
-	core        *Core
-	reconfigure chan chan error
-	mutex       sync.Mutex   // Synchronize writes to atomic
-	ports       atomic.Value //map[switchPort]*peer, use CoW semantics
+	core  *Core
+	mutex sync.Mutex   // Synchronize writes to atomic
+	ports atomic.Value //map[switchPort]*peer, use CoW semantics
 }
 
 // Initializes the peers struct.
@@ -33,13 +32,11 @@ func (ps *peers) init(c *Core) {
 	defer ps.mutex.Unlock()
 	ps.putPorts(make(map[switchPort]*peer))
 	ps.core = c
-	ps.reconfigure = make(chan chan error, 1)
-	go func() {
-		for {
-			e := <-ps.reconfigure
-			e <- nil
-		}
-	}()
+}
+
+func (ps *peers) reconfigure(e chan error) {
+	defer close(e)
+	// This is where reconfiguration would go, if we had anything to do
 }
 
 // Returns true if an incoming peer connection to a key is allowed, either

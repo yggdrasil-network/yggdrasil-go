@@ -165,7 +165,6 @@ type switchData struct {
 // All the information stored by the switch.
 type switchTable struct {
 	core        *Core
-	reconfigure chan chan error
 	key         crypto.SigPubKey           // Our own key
 	time        time.Time                  // Time when locator.tstamp was last updated
 	drop        map[crypto.SigPubKey]int64 // Tstamp associated with a dropped root
@@ -186,7 +185,6 @@ const SwitchQueueTotalMinSize = 4 * 1024 * 1024
 func (t *switchTable) init(core *Core) {
 	now := time.Now()
 	t.core = core
-	t.reconfigure = make(chan chan error, 1)
 	t.key = t.core.sigPub
 	locator := switchLocator{root: t.key, tstamp: now.Unix()}
 	peers := make(map[switchPort]peerInfo)
@@ -199,6 +197,13 @@ func (t *switchTable) init(core *Core) {
 		t.queues.bufs = make(map[string]switch_buffer)
 		t.idle = make(map[switchPort]time.Time)
 	})
+}
+
+func (t *switchTable) reconfigure(e chan error) {
+	go func() {
+		defer close(e)
+		// This is where reconfiguration would go, if we had anything useful to do.
+	}()
 }
 
 // Safely gets a copy of this node's locator.
@@ -566,12 +571,7 @@ func (t *switchTable) getTable() lookupTable {
 // Starts the switch worker
 func (t *switchTable) start() error {
 	t.core.log.Infoln("Starting switch")
-	go func() {
-		// TODO find a better way to handle reconfiguration... and have the switch do something with the new configuration
-		for ch := range t.reconfigure {
-			ch <- nil
-		}
-	}()
+	// There's actually nothing to do to start it...
 	return nil
 }
 

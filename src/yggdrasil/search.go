@@ -45,22 +45,19 @@ type searchInfo struct {
 
 // This stores a map of active searches.
 type searches struct {
-	router      *router
-	reconfigure chan chan error
-	searches    map[crypto.NodeID]*searchInfo
+	router   *router
+	searches map[crypto.NodeID]*searchInfo
 }
 
 // Initializes the searches struct.
 func (s *searches) init(r *router) {
 	s.router = r
-	s.reconfigure = make(chan chan error, 1)
-	go func() {
-		for {
-			e := <-s.reconfigure
-			e <- nil
-		}
-	}()
 	s.searches = make(map[crypto.NodeID]*searchInfo)
+}
+
+func (s *searches) reconfigure(e chan error) {
+	defer close(e)
+	// This is where reconfiguration would go, if we had anything to do
 }
 
 // Creates a new search info, adds it to the searches struct, and returns a pointer to the info.
