@@ -27,12 +27,10 @@ type tunConn struct {
 }
 
 func (s *tunConn) close() {
-	s.tun.mutex.Lock()
-	defer s.tun.mutex.Unlock()
-	s._close_nomutex()
+	s.tun.RecvFrom(s, s._close_from_tun)
 }
 
-func (s *tunConn) _close_nomutex() {
+func (s *tunConn) _close_from_tun() {
 	s.conn.Close()
 	delete(s.tun.addrToConn, s.addr)
 	delete(s.tun.subnetToConn, s.snet)
@@ -116,6 +114,12 @@ func (s *tunConn) _read(bs []byte) (err error) {
 	s.tun.writer.writeFrom(s, bs)
 	s.stillAlive()
 	return
+}
+
+func (s *tunConn) writeFrom(from phony.Actor, bs []byte) {
+	s.RecvFrom(from, func() {
+		s._write(bs)
+	})
 }
 
 func (s *tunConn) _write(bs []byte) (err error) {

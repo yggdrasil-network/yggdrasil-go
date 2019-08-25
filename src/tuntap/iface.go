@@ -90,13 +90,11 @@ func (w *tunWriter) _write(b []byte) {
 		util.PutBytes(b)
 	}
 	if err != nil {
-		w.tun.mutex.Lock()
-		open := w.tun.isOpen
-		w.tun.mutex.Unlock()
-		if !open {
-			return
-		}
-		w.tun.log.Errorln("TUN/TAP iface write error:", err)
+		w.tun.RecvFrom(w, func() {
+			if !w.tun.isOpen {
+				w.tun.log.Errorln("TUN/TAP iface write error:", err)
+			}
+		})
 	}
 	if written != n {
 		w.tun.log.Errorln("TUN/TAP iface write mismatch:", written, "bytes written vs", n, "bytes given")
@@ -221,7 +219,6 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 	}
 	// Do we have an active connection for this node address?
 	var dstNodeID, dstNodeIDMask *crypto.NodeID
-	tun.mutex.RLock()
 	session, isIn := tun.addrToConn[dstAddr]
 	if !isIn || session == nil {
 		session, isIn = tun.subnetToConn[dstSnet]
@@ -235,7 +232,6 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 			}
 		}
 	}
-	tun.mutex.RUnlock()
 	// If we don't have a connection then we should open one
 	if !isIn || session == nil {
 		// Check we haven't been given empty node ID, really this shouldn't ever
@@ -243,45 +239,37 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 		if dstNodeID == nil || dstNodeIDMask == nil {
 			panic("Given empty dstNodeID and dstNodeIDMask - this shouldn't happen")
 		}
-		// Dial to the remote node
-		go func() {
-			// FIXME just spitting out a goroutine to do this is kind of ugly and means we drop packets until the dial finishes
-			tun.mutex.Lock()
-			_, known := tun.dials[*dstNodeID]
-			tun.dials[*dstNodeID] = append(tun.dials[*dstNodeID], bs)
-			for len(tun.dials[*dstNodeID]) > 32 {
-				util.PutBytes(tun.dials[*dstNodeID][0])
-				tun.dials[*dstNodeID] = tun.dials[*dstNodeID][1:]
-			}
-			tun.mutex.Unlock()
-			if known {
-				return
-			}
-			var tc *tunConn
-			if conn, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask); err == nil {
-				// We've been given a connection so prepare the session wrapper
-				if tc, err = tun.wrap(conn); err != nil {
-					// Something went wrong when storing the connection, typically that
-					// something already exists for this address or subnet
-					tun.log.Debugln("TUN/TAP iface wrap:", err)
+		_, known := tun.dials[*dstNodeID]
+		tun.dials[*dstNodeID] = append(tun.dials[*dstNodeID], bs)
+		for len(tun.dials[*dstNodeID]) > 32 {
+			util.PutBytes(tun.dials[*dstNodeID][0])
+			tun.dials[*dstNodeID] = tun.dials[*dstNodeID][1:]
+		}
+		if !known {
+			go func() {
+				if conn, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask); err == nil {
+					tun.RecvFrom(nil, func() {
+						// We've been given a connection so prepare the session wrapper
+						packets := tun.dials[*dstNodeID]
+						delete(tun.dials, *dstNodeID)
+						var tc *tunConn
+						var err error
+						if tc, err = tun._wrap(conn); err != nil {
+							// Something went wrong when storing the connection, typically that
+							// something already exists for this address or subnet
+							tun.log.Debugln("TUN/TAP iface wrap:", err)
+							return
+						}
+						for _, packet := range packets {
+							tc.writeFrom(nil, packet)
+						}
+					})
 				}
-			}
-			tun.mutex.Lock()
-			packets := tun.dials[*dstNodeID]
-			delete(tun.dials, *dstNodeID)
-			tun.mutex.Unlock()
-			if tc != nil {
-				for _, packet := range packets {
-					p := packet // Possibly required because of how range
-					<-tc.SyncExec(func() { tc._write(p) })
-				}
-			}
-		}()
-		// While the dial is going on we can't do much else
-		return
+			}()
+		}
 	}
 	// If we have a connection now, try writing to it
 	if isIn && session != nil {
-		session.RecvFrom(tun, func() { session._write(bs) })
+		session.writeFrom(tun, bs)
 	}
 }
