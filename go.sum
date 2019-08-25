@@ -1,5 +1,5 @@
-github.com/Arceliar/phony v0.0.0-20190824220211-2c0698579651 h1:FDO8ctwDOOs8mI7EVE/hR3lpGjWoY2y21tAlblIYvs8=
-github.com/Arceliar/phony v0.0.0-20190824220211-2c0698579651/go.mod h1:+/sVcxsqK1Sjm3Vd+yCfMAohJOfTRyNh24apkxhqU3Q=
+github.com/Arceliar/phony v0.0.0-20190825032731-f8ba56f9093e h1:qsNZzfxSvlSE4JZ3OpmDmAeqCRpOO3RI9eJ7U6z23Gk=
+github.com/Arceliar/phony v0.0.0-20190825032731-f8ba56f9093e/go.mod h1:+/sVcxsqK1Sjm3Vd+yCfMAohJOfTRyNh24apkxhqU3Q=
 github.com/gologme/log v0.0.0-20181207131047-4e5d8ccb38e8 h1:WD8iJ37bRNwvETMfVTusVSAi0WdXTpfNVGY2aHycNKY=
 github.com/gologme/log v0.0.0-20181207131047-4e5d8ccb38e8/go.mod h1:gq31gQ8wEHkR+WekdWsqDuf8pXTUZA9BnnzTuPz1Y9U=
 github.com/hashicorp/go-syslog v1.0.0 h1:KaodqZuhUoZereWVIYmpUgZysurB1kBLX2j0MwMrUAE=
