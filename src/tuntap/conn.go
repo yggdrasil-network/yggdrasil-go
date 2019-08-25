@@ -113,8 +113,7 @@ func (s *tunConn) _read(bs []byte) (err error) {
 		util.PutBytes(bs)
 		return
 	}
-	// FIXME this send can block if the tuntap isn't running, which isn't really safe...
-	s.tun.send <- bs
+	s.tun.writer.writeFrom(s, bs)
 	s.stillAlive()
 	return
 }
@@ -208,7 +207,7 @@ func (s *tunConn) _write(bs []byte) (err error) {
 					Data: bs[:900],
 				}
 				if packet, err := CreateICMPv6(bs[8:24], bs[24:40], ipv6.ICMPTypePacketTooBig, 0, ptb); err == nil {
-					s.tun.send <- packet
+					s.tun.writer.writeFrom(s, packet)
 				}
 			} else {
 				if e.Closed() {

@@ -15,6 +15,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
 	"github.com/yggdrasil-network/water"
 
@@ -33,6 +34,8 @@ const tun_ETHER_HEADER_LENGTH = 14
 // you should pass this object to the yggdrasil.SetRouterAdapter() function
 // before calling yggdrasil.Start().
 type TunAdapter struct {
+	writer       tunWriter
+	reader       tunReader
 	config       *config.NodeState
 	log          *log.Logger
 	reconfigure  chan chan error
@@ -44,7 +47,7 @@ type TunAdapter struct {
 	icmpv6       ICMPv6
 	mtu          int
 	iface        *water.Interface
-	send         chan []byte
+	phony.Inbox               // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
 	mutex        sync.RWMutex // Protects the below
 	addrToConn   map[address.Address]*tunConn
 	subnetToConn map[address.Subnet]*tunConn
@@ -114,6 +117,8 @@ func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener 
 	tun.addrToConn = make(map[address.Address]*tunConn)
 	tun.subnetToConn = make(map[address.Subnet]*tunConn)
 	tun.dials = make(map[crypto.NodeID][][]byte)
+	tun.writer.tun = tun
+	tun.reader.tun = tun
 }
 
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
@@ -147,7 +152,6 @@ func (tun *TunAdapter) Start() error {
 	}
 	tun.mutex.Lock()
 	tun.isOpen = true
-	tun.send = make(chan []byte, 32) // TODO: is this a sensible value?
 	tun.reconfigure = make(chan chan error)
 	tun.mutex.Unlock()
 	go func() {
@@ -157,8 +161,7 @@ func (tun *TunAdapter) Start() error {
 		}
 	}()
 	go tun.handler()
-	go tun.reader()
-	go tun.writer()
+	tun.reader.RecvFrom(nil, tun.reader._read) // Start the reader
 	tun.icmpv6.Init(tun)
 	if iftapmode {
 		go tun.icmpv6.Solicit(tun.addr)
