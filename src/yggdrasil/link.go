@@ -320,7 +320,7 @@ func (intf *linkInterface) handler() error {
 				isAlive = true
 				if !isReady {
 					// (Re-)enable in the switch
-					intf.link.core.switchTable.EnqueueFrom(nil, func() {
+					intf.link.core.switchTable.RecvFrom(nil, func() {
 						intf.link.core.switchTable._idleIn(intf.peer.port)
 					})
 					isReady = true
@@ -359,7 +359,7 @@ func (intf *linkInterface) handler() error {
 					isReady = false
 				} else {
 					// Keep enabled in the switch
-					intf.link.core.switchTable.EnqueueFrom(nil, func() {
+					intf.link.core.switchTable.RecvFrom(nil, func() {
 						intf.link.core.switchTable._idleIn(intf.peer.port)
 					})
 					isReady = true
@@ -390,7 +390,7 @@ func (intf *linkInterface) handler() error {
 		}
 	}()
 	// Run reader loop
-	var helper phony.Actor
+	var helper phony.Inbox
 	done := make(chan struct{})
 	var helperFunc func()
 	helperFunc = func() {
@@ -417,10 +417,10 @@ func (intf *linkInterface) handler() error {
 		default:
 		}
 		// Now try to read again
-		helper.EnqueueFrom(nil, helperFunc)
+		helper.RecvFrom(nil, helperFunc)
 	}
 	// Start the read loop
-	helper.EnqueueFrom(nil, helperFunc)
+	helper.RecvFrom(nil, helperFunc)
 	<-done // Wait for the helper to exit
 	////////////////////////////////////////////////////////////////////////////////
 	// Remember to set `err` to something useful before returning

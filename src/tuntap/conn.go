@@ -17,7 +17,7 @@ import (
 const tunConnTimeout = 2 * time.Minute
 
 type tunConn struct {
-	phony.Actor
+	phony.Inbox
 	tun   *TunAdapter
 	conn  *yggdrasil.Conn
 	addr  address.Address
@@ -198,7 +198,7 @@ func (s *tunConn) _write(bs []byte) (err error) {
 			// No point in wasting resources to send back an error if there was none
 			return
 		}
-		s.EnqueueFrom(s.conn, func() {
+		s.RecvFrom(s.conn, func() {
 			if e, eok := err.(yggdrasil.ConnError); !eok {
 				if e.Closed() {
 					s.tun.log.Debugln(s.conn.String(), "TUN/TAP generic write debug:", err)

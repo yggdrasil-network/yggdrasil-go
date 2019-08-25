@@ -38,7 +38,7 @@ func (h nonceHeap) peek() *crypto.BoxNonce { return &h[0] }
 // All the information we know about an active session.
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
 type sessionInfo struct {
-	phony.Actor                                  // Protects all of the below, use it any time you read/change the contents of a session
+	phony.Inbox                                  // Protects all of the below, use it any time you read/change the contents of a session
 	sessions       *sessions                     //
 	reconfigure    chan chan error               //
 	theirAddr      address.Address               //
@@ -342,8 +342,8 @@ func (ss *sessions) getSharedKey(myPriv *crypto.BoxPrivKey,
 }
 
 // Sends a session ping by calling sendPingPong in ping mode.
-func (sinfo *sessionInfo) ping(from phony.IActor) {
-	sinfo.EnqueueFrom(from, func() {
+func (sinfo *sessionInfo) ping(from phony.Actor) {
+	sinfo.RecvFrom(from, func() {
 		sinfo._sendPingPong(false)
 	})
 }
@@ -364,14 +364,14 @@ func (sinfo *sessionInfo) _sendPingPong(isPong bool) {
 	}
 	packet := p.encode()
 	// TODO rewrite the below if/when the peer struct becomes an actor, to not go through the router first
-	sinfo.sessions.router.EnqueueFrom(sinfo, func() { sinfo.sessions.router.out(packet) })
+	sinfo.sessions.router.RecvFrom(sinfo, func() { sinfo.sessions.router.out(packet) })
 	if sinfo.pingTime.Before(sinfo.time) {
 		sinfo.pingTime = time.Now()
 	}
 }
 
-func (sinfo *sessionInfo) setConn(from phony.IActor, conn *Conn) {
-	sinfo.EnqueueFrom(from, func() {
+func (sinfo *sessionInfo) setConn(from phony.Actor, conn *Conn) {
+	sinfo.RecvFrom(from, func() {
 		sinfo.conn = conn
 		sinfo.conn.setMTU(sinfo, sinfo._getMTU())
 	})
@@ -406,7 +406,7 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 		ss.listenerMutex.Unlock()
 	}
 	if sinfo != nil {
-		sinfo.EnqueueFrom(ss.router, func() {
+		sinfo.RecvFrom(ss.router, func() {
 			// Update the session
 			if !sinfo._update(ping) { /*panic("Should not happen in testing")*/
 				return
@@ -474,7 +474,7 @@ func (sinfo *sessionInfo) _updateNonce(theirNonce *crypto.BoxNonce) {
 // Called after coord changes, so attemtps to use a session will trigger a new ping and notify the remote end of the coord change.
 func (ss *sessions) reset() {
 	for _, sinfo := range ss.sinfos {
-		sinfo.EnqueueFrom(ss.router, func() {
+		sinfo.RecvFrom(ss.router, func() {
 			sinfo.reset = true
 		})
 	}
@@ -489,8 +489,8 @@ type FlowKeyMessage struct {
 	Message []byte
 }
 
-func (sinfo *sessionInfo) recv(from phony.IActor, packet *wire_trafficPacket) {
-	sinfo.EnqueueFrom(from, func() {
+func (sinfo *sessionInfo) recv(from phony.Actor, packet *wire_trafficPacket) {
+	sinfo.RecvFrom(from, func() {
 		sinfo._recvPacket(packet)
 	})
 }
@@ -564,7 +564,7 @@ func (sinfo *sessionInfo) _send(msg FlowKeyMessage) {
 			util.PutBytes(p.Payload)
 			// Send the packet
 			// TODO replace this with a send to the peer struct if that becomes an actor
-			sinfo.sessions.router.EnqueueFrom(sinfo, func() {
+			sinfo.sessions.router.RecvFrom(sinfo, func() {
 				sinfo.sessions.router.out(packet)
 			})
 		}
@@ -576,7 +576,7 @@ func (sinfo *sessionInfo) _send(msg FlowKeyMessage) {
 }
 
 func (sinfo *sessionInfo) checkCallbacks() {
-	sinfo.EnqueueFrom(nil, func() {
+	sinfo.RecvFrom(nil, func() {
 		if len(sinfo.callbacks) > 0 {
 			select {
 			case callback := <-sinfo.callbacks[0]:

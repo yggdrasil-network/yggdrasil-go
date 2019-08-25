@@ -257,7 +257,7 @@ func (tun *TunAdapter) wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 	tun.subnetToConn[s.snet] = &s
 	// Set the read callback and start the timeout goroutine
 	conn.SetReadCallback(func(bs []byte) {
-		s.EnqueueFrom(conn, func() {
+		s.RecvFrom(conn, func() {
 			s._read(bs)
 		})
 	})

@@ -96,7 +96,7 @@ func (ps *peers) putPorts(ports map[switchPort]*peer) {
 
 // Information known about a peer, including thier box/sig keys, precomputed shared keys (static and ephemeral) and a handler for their outgoing traffic
 type peer struct {
-	phony.Actor
+	phony.Inbox
 	core       *Core
 	intf       *linkInterface
 	port       switchPort
@@ -175,13 +175,13 @@ func (ps *peers) removePeer(port switchPort) {
 
 // If called, sends a notification to each peer that they should send a new switch message.
 // Mainly called by the switch after an update.
-func (ps *peers) sendSwitchMsgs(from phony.IActor) {
+func (ps *peers) sendSwitchMsgs(from phony.Actor) {
 	ports := ps.getPorts()
 	for _, p := range ports {
 		if p.port == 0 {
 			continue
 		}
-		p.EnqueueFrom(from, p._sendSwitchMsg)
+		p.RecvFrom(from, p._sendSwitchMsg)
 	}
 }
 
@@ -207,8 +207,8 @@ func (p *peer) _updateDHT() {
 	}
 }
 
-func (p *peer) handlePacketFrom(from phony.IActor, packet []byte) {
-	p.EnqueueFrom(from, func() {
+func (p *peer) handlePacketFrom(from phony.Actor, packet []byte) {
+	p.RecvFrom(from, func() {
 		p._handlePacket(packet)
 	})
 }
@@ -245,8 +245,8 @@ func (p *peer) _handleTraffic(packet []byte) {
 	p.core.switchTable.packetInFrom(p, packet)
 }
 
-func (p *peer) sendPacketsFrom(from phony.IActor, packets [][]byte) {
-	p.EnqueueFrom(from, func() {
+func (p *peer) sendPacketsFrom(from phony.Actor, packets [][]byte) {
+	p.RecvFrom(from, func() {
 		p._sendPackets(packets)
 	})
 }
@@ -263,7 +263,7 @@ func (p *peer) _sendPackets(packets [][]byte) {
 	p.out(packets)
 }
 
-var peerLinkOutHelper phony.Actor
+var peerLinkOutHelper phony.Inbox
 
 // This wraps the packet in the inner (ephemeral) and outer (permanent) crypto layers.
 // It sends it to p.linkOut, which bypasses the usual packet queues.
@@ -281,7 +281,7 @@ func (p *peer) _sendLinkPacket(packet []byte) {
 	}
 	packet = linkPacket.encode()
 	// TODO replace this with a message send if/when the link becomes an actor
-	peerLinkOutHelper.EnqueueFrom(nil, func() {
+	peerLinkOutHelper.RecvFrom(nil, func() {
 		select {
 		case p.linkOut <- packet:
 		case <-p.done:

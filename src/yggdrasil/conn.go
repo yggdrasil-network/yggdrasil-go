@@ -54,7 +54,7 @@ func (e *ConnError) Closed() bool {
 }
 
 type Conn struct {
-	phony.Actor
+	phony.Inbox
 	core          *Core
 	readDeadline  *time.Time
 	writeDeadline *time.Time
@@ -84,8 +84,8 @@ func (c *Conn) String() string {
 	return s
 }
 
-func (c *Conn) setMTU(from phony.IActor, mtu uint16) {
-	c.EnqueueFrom(from, func() { c.mtu = mtu })
+func (c *Conn) setMTU(from phony.Actor, mtu uint16) {
+	c.RecvFrom(from, func() { c.mtu = mtu })
 }
 
 // This should never be called from the router goroutine, used in the dial functions
@@ -143,7 +143,7 @@ func (c *Conn) doSearch() {
 			sinfo.continueSearch()
 		}
 	}
-	c.core.router.EnqueueFrom(c.session, routerWork)
+	c.core.router.RecvFrom(c.session, routerWork)
 }
 
 func (c *Conn) _getDeadlineCancellation(t *time.Time) (util.Cancellation, bool) {
@@ -159,7 +159,7 @@ func (c *Conn) _getDeadlineCancellation(t *time.Time) (util.Cancellation, bool) 
 
 // SetReadCallback sets a callback which will be called whenever a packet is received.
 func (c *Conn) SetReadCallback(callback func([]byte)) {
-	c.EnqueueFrom(nil, func() {
+	c.RecvFrom(nil, func() {
 		c.readCallback = callback
 		c._drainReadBuffer()
 	})
@@ -172,14 +172,14 @@ func (c *Conn) _drainReadBuffer() {
 	select {
 	case bs := <-c.readBuffer:
 		c.readCallback(bs)
-		c.EnqueueFrom(nil, c._drainReadBuffer) // In case there's more
+		c.RecvFrom(nil, c._drainReadBuffer) // In case there's more
 	default:
 	}
 }
 
 // Called by the session to pass a new message to the Conn
-func (c *Conn) recvMsg(from phony.IActor, msg []byte) {
-	c.EnqueueFrom(from, func() {
+func (c *Conn) recvMsg(from phony.Actor, msg []byte) {
+	c.RecvFrom(from, func() {
 		if c.readCallback != nil {
 			c.readCallback(msg)
 		} else {
@@ -234,7 +234,7 @@ func (c *Conn) _write(msg FlowKeyMessage) error {
 	if len(msg.Message) > int(c.mtu) {
 		return ConnError{errors.New("packet too big"), true, false, false, int(c.mtu)}
 	}
-	c.session.EnqueueFrom(c, func() {
+	c.session.RecvFrom(c, func() {
 		// Send the packet
 		c.session._send(msg)
 		// Session keep-alive, while we wait for the crypto workers from send
@@ -254,11 +254,11 @@ func (c *Conn) _write(msg FlowKeyMessage) error {
 	return nil
 }
 
-// WriteFrom should be called by a phony.IActor, and tells the Conn to send a message.
+// WriteFrom should be called by a phony.Actor, and tells the Conn to send a message.
 // This is used internaly by WriteNoCopy and Write.
 // If the callback is called with a non-nil value, then it is safe to reuse the argument FlowKeyMessage.
-func (c *Conn) WriteFrom(from phony.IActor, msg FlowKeyMessage, callback func(error)) {
-	c.EnqueueFrom(from, func() {
+func (c *Conn) WriteFrom(from phony.Actor, msg FlowKeyMessage, callback func(error)) {
+	c.RecvFrom(from, func() {
 		callback(c._write(msg))
 	})
 }

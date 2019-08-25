@@ -37,7 +37,7 @@ import (
 // The router struct has channels to/from the adapter device and a self peer (0), which is how messages are passed between this node and the peers/switch layer.
 // The router's mainLoop goroutine is responsible for managing all information related to the dht, searches, and crypto sessions.
 type router struct {
-	phony.Actor
+	phony.Inbox
 	core        *Core
 	reconfigure chan chan error
 	addr        address.Address
@@ -83,8 +83,8 @@ func (r *router) start() error {
 }
 
 // In practice, the switch will call this with 1 packet
-func (r *router) handlePackets(from phony.IActor, packets [][]byte) {
-	r.EnqueueFrom(from, func() {
+func (r *router) handlePackets(from phony.Actor, packets [][]byte) {
+	r.RecvFrom(from, func() {
 		for _, packet := range packets {
 			r._handlePacket(packet)
 		}
@@ -92,15 +92,15 @@ func (r *router) handlePackets(from phony.IActor, packets [][]byte) {
 }
 
 // Insert a peer info into the dht, TODO? make the dht a separate actor
-func (r *router) insertPeer(from phony.IActor, info *dhtInfo) {
-	r.EnqueueFrom(from, func() {
+func (r *router) insertPeer(from phony.Actor, info *dhtInfo) {
+	r.RecvFrom(from, func() {
 		r.dht.insertPeer(info)
 	})
 }
 
 // Reset sessions and DHT after the switch sees our coords change
-func (r *router) reset(from phony.IActor) {
-	r.EnqueueFrom(from, func() {
+func (r *router) reset(from phony.Actor) {
+	r.RecvFrom(from, func() {
 		r.sessions.reset()
 		r.dht.reset()
 	})

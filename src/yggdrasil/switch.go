@@ -174,7 +174,7 @@ type switchTable struct {
 	data        switchData                 //
 	updater     atomic.Value               // *sync.Once
 	table       atomic.Value               // lookupTable
-	phony.Actor                            // Owns the below
+	phony.Inbox                            // Owns the below
 	queues      switch_buffers             // Queues - not atomic so ONLY use through the actor
 	idle        map[switchPort]time.Time   // idle peers - not atomic so ONLY use through the actor
 }
@@ -828,8 +828,8 @@ func (t *switchTable) _handleIdle(port switchPort) bool {
 	return false
 }
 
-func (t *switchTable) packetInFrom(from phony.IActor, bytes []byte) {
-	t.EnqueueFrom(from, func() {
+func (t *switchTable) packetInFrom(from phony.Actor, bytes []byte) {
+	t.RecvFrom(from, func() {
 		t._packetIn(bytes)
 	})
 }
