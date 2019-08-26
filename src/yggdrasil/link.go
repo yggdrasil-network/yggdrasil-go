@@ -367,6 +367,10 @@ func (w *linkWriter) sendFrom(from phony.Actor, bss [][]byte, isLinkTraffic bool
 		w.intf.notifySending(size, isLinkTraffic)
 		w.intf.msgIO.writeMsgs(bss)
 		w.intf.notifySent(size, isLinkTraffic)
+		// Cleanup
+		for _, bs := range bss {
+			util.PutBytes(bs)
+		}
 	})
 }
 
