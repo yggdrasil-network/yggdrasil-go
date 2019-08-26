@@ -103,7 +103,7 @@ type peer struct {
 	linkShared crypto.BoxSharedKey
 	endpoint   string
 	firstSeen  time.Time       // To track uptime for getPeers
-	linkOut    (chan []byte)   // used for protocol traffic (to bypass queues)
+	linkOut    func([]byte)    // used for protocol traffic (bypasses the switch)
 	dinfo      *dhtInfo        // used to keep the DHT working
 	out        func([][]byte)  // Set up by whatever created the peers struct, used to send packets to other nodes
 	done       (chan struct{}) // closed to exit the linkLoop
@@ -263,8 +263,6 @@ func (p *peer) _sendPackets(packets [][]byte) {
 	p.out(packets)
 }
 
-var peerLinkOutHelper phony.Inbox
-
 // This wraps the packet in the inner (ephemeral) and outer (permanent) crypto layers.
 // It sends it to p.linkOut, which bypasses the usual packet queues.
 func (p *peer) _sendLinkPacket(packet []byte) {
@@ -280,13 +278,7 @@ func (p *peer) _sendLinkPacket(packet []byte) {
 		Payload: bs,
 	}
 	packet = linkPacket.encode()
-	// TODO replace this with a message send if/when the link becomes an actor
-	peerLinkOutHelper.RecvFrom(nil, func() {
-		select {
-		case p.linkOut <- packet:
-		case <-p.done:
-		}
-	})
+	p.linkOut(packet)
 }
 
 // Decrypts the outer (permanent) and inner (ephemeral) crypto layers on link traffic.

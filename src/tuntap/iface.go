@@ -247,24 +247,26 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 		}
 		if !known {
 			go func() {
-				if conn, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask); err == nil {
-					tun.RecvFrom(nil, func() {
-						// We've been given a connection so prepare the session wrapper
-						packets := tun.dials[*dstNodeID]
-						delete(tun.dials, *dstNodeID)
-						var tc *tunConn
-						var err error
-						if tc, err = tun._wrap(conn); err != nil {
-							// Something went wrong when storing the connection, typically that
-							// something already exists for this address or subnet
-							tun.log.Debugln("TUN/TAP iface wrap:", err)
-							return
-						}
-						for _, packet := range packets {
-							tc.writeFrom(nil, packet)
-						}
-					})
-				}
+				conn, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask)
+				tun.RecvFrom(nil, func() {
+					packets := tun.dials[*dstNodeID]
+					delete(tun.dials, *dstNodeID)
+					if err != nil {
+						return
+					}
+					// We've been given a connection so prepare the session wrapper
+					var tc *tunConn
+					if tc, err = tun._wrap(conn); err != nil {
+						// Something went wrong when storing the connection, typically that
+						// something already exists for this address or subnet
+						tun.log.Debugln("TUN/TAP iface wrap:", err)
+						return
+					}
+					for _, packet := range packets {
+						tc.writeFrom(nil, packet)
+					}
+				})
+				return
 			}()
 		}
 	}

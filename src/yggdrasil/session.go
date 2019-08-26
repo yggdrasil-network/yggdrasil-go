@@ -255,13 +255,6 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.theirSubnet = *address.SubnetForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
 	ss.sinfos[sinfo.myHandle] = &sinfo
 	ss.byTheirPerm[sinfo.theirPermPub] = &sinfo.myHandle
-	go func() {
-		// Run cleanup when the session is canceled
-		<-sinfo.cancel.Finished()
-		sinfo.sessions.router.doAdmin(func() {
-			sinfo.sessions.removeSession(&sinfo)
-		})
-	}()
 	return &sinfo
 }
 
@@ -291,6 +284,12 @@ func (ss *sessions) cleanup() {
 	}
 	ss.byTheirPerm = byTheirPerm
 	ss.lastCleanup = time.Now()
+}
+
+func (sinfo *sessionInfo) doRemove() {
+	sinfo.sessions.router.RecvFrom(nil, func() {
+		sinfo.sessions.removeSession(sinfo)
+	})
 }
 
 // Closes a session, removing it from sessions maps.
