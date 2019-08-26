@@ -252,7 +252,7 @@ const (
 // notify the intf that we're currently sending
 func (intf *linkInterface) notifySending(size int, isLinkTraffic bool) {
 	intf.RecvFrom(nil, func() {
-		if !isLinkTraffic && size > 0 {
+		if !isLinkTraffic {
 			intf.inSwitch = false
 		}
 		intf.sendTimer = time.AfterFunc(sendBlockedTime, intf.notifyBlockedSend)
