@@ -304,6 +304,8 @@ func (c *Conn) Close() (err error) {
 			// Close the session, if it hasn't been closed already
 			if e := c.session.cancel.Cancel(errors.New("connection closed")); e != nil {
 				err = ConnError{errors.New("close failed, session already closed"), false, false, true, 0}
+			} else {
+				c.session.doRemove()
 			}
 		}
 	})
