@@ -250,7 +250,7 @@ func (t *switchTable) cleanRoot() {
 			t.core.router.reset(nil)
 		}
 		t.data.locator = switchLocator{root: t.key, tstamp: now.Unix()}
-		t.core.peers.sendSwitchMsgs(nil) // TODO update if/when the switch becomes an actor
+		t.core.peers.sendSwitchMsgs(t)
 	}
 }
 
@@ -517,7 +517,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		}
 		t.data.locator = sender.locator
 		t.parent = sender.port
-		t.core.peers.sendSwitchMsgs(nil) // TODO update if/when the switch becomes an actor
+		t.core.peers.sendSwitchMsgs(t)
 	}
 	if doUpdate {
 		t.updater.Store(&sync.Once{})
