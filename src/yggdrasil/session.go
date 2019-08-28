@@ -482,6 +482,18 @@ func (ss *sessions) reset() {
 //////////////////////////// Worker Functions Below ////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
+type sessionCryptoManager struct {
+	phony.Inbox
+}
+
+func (m *sessionCryptoManager) workerGo(from phony.Actor, f func()) {
+	m.Act(from, func() {
+		util.WorkerGo(f)
+	})
+}
+
+var manager = sessionCryptoManager{}
+
 type FlowKeyMessage struct {
 	FlowKey uint64
 	Message []byte
@@ -527,7 +539,7 @@ func (sinfo *sessionInfo) _recvPacket(p *wire_trafficPacket) {
 		sinfo.checkCallbacks()
 	}
 	sinfo.callbacks = append(sinfo.callbacks, ch)
-	util.WorkerGo(poolFunc)
+	manager.workerGo(sinfo, poolFunc)
 }
 
 func (sinfo *sessionInfo) _send(msg FlowKeyMessage) {
@@ -570,7 +582,7 @@ func (sinfo *sessionInfo) _send(msg FlowKeyMessage) {
 		sinfo.checkCallbacks()
 	}
 	sinfo.callbacks = append(sinfo.callbacks, ch)
-	util.WorkerGo(poolFunc)
+	manager.workerGo(sinfo, poolFunc)
 }
 
 func (sinfo *sessionInfo) checkCallbacks() {
