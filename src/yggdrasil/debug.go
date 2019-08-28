@@ -259,7 +259,7 @@ func DEBUG_wire_encode_coords(coords []byte) []byte {
 
 func (c *Core) DEBUG_getDHTSize() int {
 	var total int
-	phony.Block(c.router, func() {
+	phony.Block(&c.router, func() {
 		total = len(c.router.dht.table)
 	})
 	return total
