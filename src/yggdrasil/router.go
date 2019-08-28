@@ -73,18 +73,20 @@ func (r *router) init(core *Core) {
 	r.sessions.init(r)
 }
 
-func (r *router) reconfigure(e chan error) {
-	defer close(e)
-	var errs []error
+// Reconfigures the router and any child modules. This should only ever be run
+// by the router actor.
+func (r *router) reconfigure() {
 	// Reconfigure the router
 	current := r.core.config.GetCurrent()
-	err := r.nodeinfo.setNodeInfo(current.NodeInfo, current.NodeInfoPrivacy)
-	if err != nil {
-		errs = append(errs, err)
+	if err := r.nodeinfo.setNodeInfo(current.NodeInfo, current.NodeInfoPrivacy); err != nil {
+		r.core.log.Errorln("Error reloading NodeInfo:", err)
+	} else {
+		r.core.log.Infoln("NodeInfo updated")
 	}
-	for _, err := range errs {
-		e <- err
-	}
+	// Reconfigure children
+	r.dht.reconfigure()
+	r.searches.reconfigure()
+	r.sessions.reconfigure()
 }
 
 // Starts the tickerLoop goroutine.

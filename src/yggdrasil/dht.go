@@ -82,8 +82,7 @@ func (t *dht) init(r *router) {
 	t.reset()
 }
 
-func (t *dht) reconfigure(e chan error) {
-	defer close(e)
+func (t *dht) reconfigure() {
 	// This is where reconfiguration would go, if we had anything to do
 }
 

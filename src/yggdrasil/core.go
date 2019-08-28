@@ -20,6 +20,7 @@ type Core struct {
 	// This is the main data structure that holds everything else for a node
 	// We're going to keep our own copy of the provided config - that way we can
 	// guarantee that it will be covered by the mutex
+	phony.Inbox
 	config      config.NodeState // Config
 	boxPub      crypto.BoxPubKey
 	boxPriv     crypto.BoxPrivKey
@@ -112,47 +113,14 @@ func (c *Core) addPeerLoop() {
 // config.NodeConfig and then signals the various module goroutines to
 // reconfigure themselves if needed.
 func (c *Core) UpdateConfig(config *config.NodeConfig) {
-	c.log.Infoln("Reloading node configuration...")
+	c.log.Debugln("Reloading node configuration...")
 
+	// Replace the active configuration with the supplied one
 	c.config.Replace(*config)
-	errors := 0
 
-	// Each reconfigure function should pass any errors to the channel, then close it
-	components := map[phony.Actor][]func(chan error){
-		&c.router: []func(chan error){
-			c.router.reconfigure,
-			c.router.dht.reconfigure,
-			c.router.searches.reconfigure,
-			c.router.sessions.reconfigure,
-		},
-		&c.switchTable: []func(chan error){
-			c.switchTable.reconfigure,
-			c.link.reconfigure,
-			c.peers.reconfigure,
-		},
-	}
-
-	// TODO: We count errors here but honestly that provides us with absolutely no
-	// benefit over components reporting errors themselves, so maybe we can use
-	// actor.Act() here instead and stop counting errors
-	for actor, functions := range components {
-		for _, function := range functions {
-			response := make(chan error)
-			phony.Block(actor, func() {
-				function(response)
-			})
-			for err := range response {
-				c.log.Errorln(err)
-				errors++
-			}
-		}
-	}
-
-	if errors > 0 {
-		c.log.Warnln(errors, "node module(s) reported errors during configuration reload")
-	} else {
-		c.log.Infoln("Node configuration reloaded successfully")
-	}
+	// Notify the router and switch about the new configuration
+	c.router.Act(c, c.router.reconfigure)
+	c.switchTable.Act(c, c.switchTable.reconfigure)
 }
 
 // Start starts up Yggdrasil using the provided config.NodeConfig, and outputs

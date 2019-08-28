@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+
 	//"sync"
 
 	"github.com/Arceliar/phony"
@@ -200,29 +201,11 @@ func (tun *TunAdapter) _stop() error {
 func (tun *TunAdapter) UpdateConfig(config *config.NodeConfig) {
 	tun.log.Debugln("Reloading TUN/TAP configuration...")
 
+	// Replace the active configuration with the supplied one
 	tun.config.Replace(*config)
 
-	errors := 0
-
-	components := []chan chan error{
-		tun.reconfigure,
-		tun.ckr.reconfigure,
-	}
-
-	for _, component := range components {
-		response := make(chan error)
-		component <- response
-		if err := <-response; err != nil {
-			tun.log.Errorln(err)
-			errors++
-		}
-	}
-
-	if errors > 0 {
-		tun.log.Warnln(errors, "TUN/TAP module(s) reported errors during configuration reload")
-	} else {
-		tun.log.Infoln("TUN/TAP configuration reloaded successfully")
-	}
+	// Notify children about the configuration change
+	tun.Act(nil, tun.ckr.configure)
 }
 
 func (tun *TunAdapter) handler() error {

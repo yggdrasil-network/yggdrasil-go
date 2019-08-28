@@ -73,8 +73,7 @@ type sessionInfo struct {
 	callbacks      []chan func()                 // Finished work from crypto workers
 }
 
-func (sinfo *sessionInfo) reconfigure(e chan error) {
-	defer close(e)
+func (sinfo *sessionInfo) reconfigure() {
 	// This is where reconfiguration would go, if we had anything to do
 }
 
@@ -161,17 +160,9 @@ func (ss *sessions) init(r *router) {
 	ss.lastCleanup = time.Now()
 }
 
-func (ss *sessions) reconfigure(e chan error) {
-	defer close(e)
-	responses := make(map[crypto.Handle]chan error)
-	for index, session := range ss.sinfos {
-		responses[index] = make(chan error)
-		session.reconfigure(responses[index])
-	}
-	for _, response := range responses {
-		for err := range response {
-			e <- err
-		}
+func (ss *sessions) reconfigure() {
+	for _, session := range ss.sinfos {
+		session.reconfigure()
 	}
 }
 

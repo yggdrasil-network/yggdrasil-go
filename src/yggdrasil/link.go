@@ -79,13 +79,8 @@ func (l *link) init(c *Core) error {
 	return nil
 }
 
-func (l *link) reconfigure(e chan error) {
-	defer close(e)
-	tcpResponse := make(chan error)
-	l.tcp.reconfigure(tcpResponse)
-	for err := range tcpResponse {
-		e <- err
-	}
+func (l *link) reconfigure() {
+	l.tcp.reconfigure()
 }
 
 func (l *link) call(uri string, sintf string) error {

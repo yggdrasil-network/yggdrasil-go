@@ -83,7 +83,6 @@ func (m *Multicast) Stop() error {
 func (m *Multicast) UpdateConfig(config *config.NodeConfig) {
 	m.log.Debugln("Reloading multicast configuration...")
 	m.config.Replace(*config)
-	m.log.Infoln("Multicast configuration reloaded successfully")
 }
 
 // GetInterfaces returns the currently known/enabled multicast interfaces. It is

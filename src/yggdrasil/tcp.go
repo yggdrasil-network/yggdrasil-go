@@ -95,8 +95,7 @@ func (t *tcp) init(l *link) error {
 	return nil
 }
 
-func (t *tcp) reconfigure(e chan error) {
-	defer close(e)
+func (t *tcp) reconfigure() {
 	t.link.core.config.Mutex.RLock()
 	added := util.Difference(t.link.core.config.Current.Listen, t.link.core.config.Previous.Listen)
 	deleted := util.Difference(t.link.core.config.Previous.Listen, t.link.core.config.Current.Listen)
@@ -107,7 +106,9 @@ func (t *tcp) reconfigure(e chan error) {
 				continue
 			}
 			if _, err := t.listen(a[6:]); err != nil {
-				e <- err
+				t.link.core.log.Errorln("Error adding TCP", a[6:], "listener:", err)
+			} else {
+				t.link.core.log.Infoln("Started TCP listener:", a[6:])
 			}
 		}
 		for _, d := range deleted {
@@ -118,6 +119,7 @@ func (t *tcp) reconfigure(e chan error) {
 			if listener, ok := t.listeners[d[6:]]; ok {
 				t.mutex.Unlock()
 				listener.Stop <- true
+				t.link.core.log.Infoln("Stopped TCP listener:", d[6:])
 			} else {
 				t.mutex.Unlock()
 			}

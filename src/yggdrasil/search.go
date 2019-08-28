@@ -55,8 +55,7 @@ func (s *searches) init(r *router) {
 	s.searches = make(map[crypto.NodeID]*searchInfo)
 }
 
-func (s *searches) reconfigure(e chan error) {
-	defer close(e)
+func (s *searches) reconfigure() {
 	// This is where reconfiguration would go, if we had anything to do
 }
 

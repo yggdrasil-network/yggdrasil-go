@@ -199,9 +199,10 @@ func (t *switchTable) init(core *Core) {
 	})
 }
 
-func (t *switchTable) reconfigure(e chan error) {
-	defer close(e)
+func (t *switchTable) reconfigure() {
 	// This is where reconfiguration would go, if we had anything useful to do.
+	t.core.link.reconfigure()
+	t.core.peers.reconfigure()
 }
 
 // Safely gets a copy of this node's locator.

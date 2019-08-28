@@ -34,8 +34,7 @@ func (ps *peers) init(c *Core) {
 	ps.core = c
 }
 
-func (ps *peers) reconfigure(e chan error) {
-	defer close(e)
+func (ps *peers) reconfigure() {
 	// This is where reconfiguration would go, if we had anything to do
 }
 
