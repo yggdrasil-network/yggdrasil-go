@@ -33,7 +33,7 @@ type Core struct {
 	log         *log.Logger
 }
 
-func (c *Core) init() error {
+func (c *Core) _init() error {
 	// TODO separate init and start functions
 	//  Init sets up structs
 	//  Start launches goroutines that depend on structs being set up
@@ -85,42 +85,44 @@ func (c *Core) init() error {
 // If any static peers were provided in the configuration above then we should
 // configure them. The loop ensures that disconnected peers will eventually
 // be reconnected with.
-func (c *Core) addPeerLoop() {
-	for {
-		//  the peers from the config - these could change!
-		current := c.config.GetCurrent()
+func (c *Core) _addPeerLoop() {
+	// Get the peers from the config - these could change!
+	current := c.config.GetCurrent()
 
-		// Add peers from the Peers section
-		for _, peer := range current.Peers {
-			go c.AddPeer(peer, "")
+	// Add peers from the Peers section
+	for _, peer := range current.Peers {
+		go c.AddPeer(peer, "") // TODO: this should be acted and not in a goroutine?
+		time.Sleep(time.Second)
+	}
+
+	// Add peers from the InterfacePeers section
+	for intf, intfpeers := range current.InterfacePeers {
+		for _, peer := range intfpeers {
+			go c.AddPeer(peer, intf) // TODO: this should be acted and not in a goroutine?
 			time.Sleep(time.Second)
 		}
-
-		// Add peers from the InterfacePeers section
-		for intf, intfpeers := range current.InterfacePeers {
-			for _, peer := range intfpeers {
-				go c.AddPeer(peer, intf)
-				time.Sleep(time.Second)
-			}
-		}
-
-		// Sit for a while
-		time.Sleep(time.Minute)
 	}
+
+	// Sit for a while
+	time.AfterFunc(time.Minute, func() {
+		c.Act(c, c._addPeerLoop)
+	})
 }
 
 // UpdateConfig updates the configuration in Core with the provided
 // config.NodeConfig and then signals the various module goroutines to
 // reconfigure themselves if needed.
 func (c *Core) UpdateConfig(config *config.NodeConfig) {
-	c.log.Debugln("Reloading node configuration...")
+	c.Act(nil, func() {
+		c.log.Debugln("Reloading node configuration...")
 
-	// Replace the active configuration with the supplied one
-	c.config.Replace(*config)
+		// Replace the active configuration with the supplied one
+		c.config.Replace(*config)
 
-	// Notify the router and switch about the new configuration
-	c.router.Act(c, c.router.reconfigure)
-	c.switchTable.Act(c, c.switchTable.reconfigure)
+		// Notify the router and switch about the new configuration
+		c.router.Act(c, c.router.reconfigure)
+		c.switchTable.Act(c, c.switchTable.reconfigure)
+	})
 }
 
 // Start starts up Yggdrasil using the provided config.NodeConfig, and outputs
@@ -128,7 +130,15 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 // TCP and UDP sockets, a multicast discovery socket, an admin socket, router,
 // switch and DHT node. A config.NodeState is returned which contains both the
 // current and previous configurations (from reconfigures).
-func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState, error) {
+func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (conf *config.NodeState, err error) {
+	phony.Block(c, func() {
+		conf, err = c._start(nc, log)
+	})
+	return
+}
+
+// This function is unsafe and should only be ran by the core actor.
+func (c *Core) _start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState, error) {
 	c.log = log
 
 	c.config = config.NodeState{
@@ -144,8 +154,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState,
 	}
 
 	c.log.Infoln("Starting up...")
-
-	c.init()
+	c._init()
 
 	if err := c.link.init(c); err != nil {
 		c.log.Errorln("Failed to start link interfaces")
@@ -162,7 +171,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState,
 		return nil, err
 	}
 
-	go c.addPeerLoop()
+	c.Act(c, c._addPeerLoop)
 
 	c.log.Infoln("Startup complete")
 	return &c.config, nil
@@ -170,5 +179,10 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState,
 
 // Stop shuts down the Yggdrasil node.
 func (c *Core) Stop() {
+	phony.Block(c, c._stop)
+}
+
+// This function is unsafe and should only be ran by the core actor.
+func (c *Core) _stop() {
 	c.log.Infoln("Stopping...")
 }
