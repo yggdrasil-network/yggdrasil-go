@@ -193,7 +193,13 @@ func (t *switchTable) init(core *Core) {
 	t.table.Store(lookupTable{})
 	t.drop = make(map[crypto.SigPubKey]int64)
 	phony.Block(t, func() {
-		t.queues.totalMaxSize = SwitchQueueTotalMinSize
+		core.config.Mutex.RLock()
+		if core.config.Current.SwitchOptions.MaxTotalQueueSize > SwitchQueueTotalMinSize {
+			t.queues.totalMaxSize = core.config.Current.SwitchOptions.MaxTotalQueueSize
+		} else {
+			t.queues.totalMaxSize = SwitchQueueTotalMinSize
+		}
+		core.config.Mutex.RUnlock()
 		t.queues.bufs = make(map[string]switch_buffer)
 		t.idle = make(map[switchPort]time.Time)
 	})

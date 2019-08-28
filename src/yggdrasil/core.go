@@ -152,14 +152,6 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState,
 		return nil, err
 	}
 
-	c.config.Mutex.RLock()
-	if c.config.Current.SwitchOptions.MaxTotalQueueSize >= SwitchQueueTotalMinSize {
-		phony.Block(&c.switchTable, func() {
-			c.switchTable.queues.totalMaxSize = c.config.Current.SwitchOptions.MaxTotalQueueSize
-		})
-	}
-	c.config.Mutex.RUnlock()
-
 	if err := c.switchTable.start(); err != nil {
 		c.log.Errorln("Failed to start switch")
 		return nil, err
