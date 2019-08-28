@@ -251,8 +251,3 @@ func (r *router) _handleNodeInfo(bs []byte, fromKey *crypto.BoxPubKey) {
 	req.SendPermPub = *fromKey
 	r.nodeinfo.handleNodeInfo(&req)
 }
-
-// TODO remove this, have things either be actors that send message or else call Block directly
-func (r *router) doAdmin(f func()) {
-	phony.Block(r, f)
-}

@@ -56,8 +56,7 @@ func (c *cryptokey) init(tun *TunAdapter) {
 	}
 }
 
-// Configure the CKR routes - this must only ever be called from the router
-// goroutine, e.g. through router.doAdmin
+// Configure the CKR routes.
 func (c *cryptokey) configure() error {
 	current := c.tun.config.GetCurrent()
 

@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"time"
 
+	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
@@ -175,7 +176,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState,
 
 	c.config.Mutex.RLock()
 	if c.config.Current.SwitchOptions.MaxTotalQueueSize >= SwitchQueueTotalMinSize {
-		c.switchTable.doAdmin(func() {
+		phony.Block(c.switchTable, func() {
 			c.switchTable.queues.totalMaxSize = c.config.Current.SwitchOptions.MaxTotalQueueSize
 		})
 	}

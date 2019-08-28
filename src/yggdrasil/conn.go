@@ -92,7 +92,9 @@ func (c *Conn) setMTU(from phony.Actor, mtu uint16) {
 func (c *Conn) search() error {
 	var sinfo *searchInfo
 	var isIn bool
-	c.core.router.doAdmin(func() { sinfo, isIn = c.core.router.searches.searches[*c.nodeID] })
+	phony.Block(c.core.router, func() {
+		sinfo, isIn = c.core.router.searches.searches[*c.nodeID]
+	})
 	if !isIn {
 		done := make(chan struct{}, 1)
 		var sess *sessionInfo
@@ -106,7 +108,7 @@ func (c *Conn) search() error {
 			default:
 			}
 		}
-		c.core.router.doAdmin(func() {
+		phony.Block(c.core.router, func() {
 			sinfo = c.core.router.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
 			sinfo.continueSearch()
 		})

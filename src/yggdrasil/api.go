@@ -178,7 +178,7 @@ func (c *Core) GetDHT() []DHTEntry {
 			dhtentries = append(dhtentries, info)
 		}
 	}
-	c.router.doAdmin(getDHT)
+	phony.Block(c.router, getDHT)
 	return dhtentries
 }
 
@@ -205,9 +205,8 @@ func (c *Core) GetSwitchQueues() SwitchQueues {
 			}
 			switchqueues.Queues = append(switchqueues.Queues, queue)
 		}
-
 	}
-	c.switchTable.doAdmin(getSwitchQueues)
+	phony.Block(c.switchTable, getSwitchQueues)
 	return switchqueues
 }
 
@@ -244,7 +243,7 @@ func (c *Core) GetSessions() []Session {
 			sessions = append(sessions, session)
 		}
 	}
-	c.router.doAdmin(getSessions)
+	phony.Block(c.router, getSessions)
 	return sessions
 }
 
@@ -345,7 +344,7 @@ func (c *Core) GetNodeInfo(key crypto.BoxPubKey, coords []uint64, nocache bool) 
 		})
 		c.router.nodeinfo.sendNodeInfo(key, wire_coordsUint64stoBytes(coords), false)
 	}
-	c.router.doAdmin(sendNodeInfoRequest)
+	phony.Block(c.router, sendNodeInfoRequest)
 	timer := time.AfterFunc(6*time.Second, func() { close(response) })
 	defer timer.Stop()
 	for res := range response {
@@ -455,7 +454,7 @@ func (c *Core) DHTPing(key crypto.BoxPubKey, coords []uint64, target *crypto.Nod
 		})
 		c.router.dht.ping(&info, &rq.dest)
 	}
-	c.router.doAdmin(sendPing)
+	phony.Block(c.router, sendPing)
 	// TODO: do something better than the below...
 	res := <-resCh
 	if res != nil {

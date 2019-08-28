@@ -278,7 +278,7 @@ func (t *switchTable) blockPeer(port switchPort) {
 }
 
 // Removes a peer.
-// Must be called by the router mainLoop goroutine, e.g. call router.doAdmin with a lambda that calls this.
+// Must be called by the router actor with a lambda that calls this.
 // If the removed peer was this node's parent, it immediately tries to find a new parent.
 func (t *switchTable) forgetPeer(port switchPort) {
 	t.mutex.Lock()
@@ -865,10 +865,4 @@ func (t *switchTable) _idleIn(port switchPort) {
 		// Didn't find anything ready to send yet, so stay idle
 		t.idle[port] = time.Now()
 	}
-}
-
-// Passed a function to call.
-// This will send the function to t.admin and block until it finishes.
-func (t *switchTable) doAdmin(f func()) {
-	phony.Block(t, f)
 }
