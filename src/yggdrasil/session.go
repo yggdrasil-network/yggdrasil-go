@@ -164,12 +164,10 @@ func (ss *sessions) init(r *router) {
 func (ss *sessions) reconfigure(e chan error) {
 	defer close(e)
 	responses := make(map[crypto.Handle]chan error)
-	phony.Block(ss.router, func() {
-		for index, session := range ss.sinfos {
-			responses[index] = make(chan error)
-			go session.reconfigure(responses[index])
-		}
-	})
+	for index, session := range ss.sinfos {
+		responses[index] = make(chan error)
+		session.reconfigure(responses[index])
+	}
 	for _, response := range responses {
 		for err := range response {
 			e <- err

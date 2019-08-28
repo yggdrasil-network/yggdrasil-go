@@ -112,29 +112,39 @@ func (c *Core) addPeerLoop() {
 // config.NodeConfig and then signals the various module goroutines to
 // reconfigure themselves if needed.
 func (c *Core) UpdateConfig(config *config.NodeConfig) {
-	c.log.Debugln("Reloading node configuration...")
+	c.log.Infoln("Reloading node configuration...")
 
 	c.config.Replace(*config)
-
 	errors := 0
 
 	// Each reconfigure function should pass any errors to the channel, then close it
-	components := []func(chan error){
-		c.link.reconfigure,
-		c.peers.reconfigure,
-		c.router.reconfigure,
-		c.router.dht.reconfigure,
-		c.router.searches.reconfigure,
-		c.router.sessions.reconfigure,
-		c.switchTable.reconfigure,
+	components := map[phony.Actor][]func(chan error){
+		&c.router: []func(chan error){
+			c.router.reconfigure,
+			c.router.dht.reconfigure,
+			c.router.searches.reconfigure,
+			c.router.sessions.reconfigure,
+		},
+		&c.switchTable: []func(chan error){
+			c.switchTable.reconfigure,
+			c.link.reconfigure,
+			c.peers.reconfigure,
+		},
 	}
 
-	for _, component := range components {
-		response := make(chan error)
-		go component(response)
-		for err := range response {
-			c.log.Errorln(err)
-			errors++
+	// TODO: We count errors here but honestly that provides us with absolutely no
+	// benefit over components reporting errors themselves, so maybe we can use
+	// actor.Act() here instead and stop counting errors
+	for actor, functions := range components {
+		for _, function := range functions {
+			response := make(chan error)
+			phony.Block(actor, func() {
+				function(response)
+			})
+			for err := range response {
+				c.log.Errorln(err)
+				errors++
+			}
 		}
 	}
 

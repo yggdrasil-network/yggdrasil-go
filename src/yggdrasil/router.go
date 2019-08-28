@@ -77,13 +77,11 @@ func (r *router) reconfigure(e chan error) {
 	defer close(e)
 	var errs []error
 	// Reconfigure the router
-	phony.Block(r, func() {
-		current := r.core.config.GetCurrent()
-		err := r.nodeinfo.setNodeInfo(current.NodeInfo, current.NodeInfoPrivacy)
-		if err != nil {
-			errs = append(errs, err)
-		}
-	})
+	current := r.core.config.GetCurrent()
+	err := r.nodeinfo.setNodeInfo(current.NodeInfo, current.NodeInfoPrivacy)
+	if err != nil {
+		errs = append(errs, err)
+	}
 	for _, err := range errs {
 		e <- err
 	}

@@ -82,7 +82,7 @@ func (l *link) init(c *Core) error {
 func (l *link) reconfigure(e chan error) {
 	defer close(e)
 	tcpResponse := make(chan error)
-	go l.tcp.reconfigure(tcpResponse)
+	l.tcp.reconfigure(tcpResponse)
 	for err := range tcpResponse {
 		e <- err
 	}
