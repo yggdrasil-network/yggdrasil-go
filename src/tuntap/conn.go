@@ -27,7 +27,7 @@ type tunConn struct {
 }
 
 func (s *tunConn) close() {
-	s.tun.RecvFrom(s, s._close_from_tun)
+	s.tun.Act(s, s._close_from_tun)
 }
 
 func (s *tunConn) _close_from_tun() {
@@ -117,7 +117,7 @@ func (s *tunConn) _read(bs []byte) (err error) {
 }
 
 func (s *tunConn) writeFrom(from phony.Actor, bs []byte) {
-	s.RecvFrom(from, func() {
+	s.Act(from, func() {
 		s._write(bs)
 	})
 }
@@ -197,7 +197,7 @@ func (s *tunConn) _write(bs []byte) (err error) {
 			// No point in wasting resources to send back an error if there was none
 			return
 		}
-		s.RecvFrom(s.conn, func() {
+		s.Act(s.conn, func() {
 			if e, eok := err.(yggdrasil.ConnError); !eok {
 				if e.Closed() {
 					s.tun.log.Debugln(s.conn.String(), "TUN/TAP generic write debug:", err)

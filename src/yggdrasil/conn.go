@@ -80,12 +80,12 @@ func newConn(core *Core, nodeID *crypto.NodeID, nodeMask *crypto.NodeID, session
 
 func (c *Conn) String() string {
 	var s string
-	<-c.SyncExec(func() { s = fmt.Sprintf("conn=%p", c) })
+	phony.Block(c, func() { s = fmt.Sprintf("conn=%p", c) })
 	return s
 }
 
 func (c *Conn) setMTU(from phony.Actor, mtu uint16) {
-	c.RecvFrom(from, func() { c.mtu = mtu })
+	c.Act(from, func() { c.mtu = mtu })
 }
 
 // This should never be called from the router goroutine, used in the dial functions
@@ -143,7 +143,7 @@ func (c *Conn) doSearch() {
 			sinfo.continueSearch()
 		}
 	}
-	c.core.router.RecvFrom(c.session, routerWork)
+	c.core.router.Act(c.session, routerWork)
 }
 
 func (c *Conn) _getDeadlineCancellation(t *time.Time) (util.Cancellation, bool) {
@@ -159,7 +159,7 @@ func (c *Conn) _getDeadlineCancellation(t *time.Time) (util.Cancellation, bool) 
 
 // SetReadCallback sets a callback which will be called whenever a packet is received.
 func (c *Conn) SetReadCallback(callback func([]byte)) {
-	c.RecvFrom(nil, func() {
+	c.Act(nil, func() {
 		c.readCallback = callback
 		c._drainReadBuffer()
 	})
@@ -172,14 +172,14 @@ func (c *Conn) _drainReadBuffer() {
 	select {
 	case bs := <-c.readBuffer:
 		c.readCallback(bs)
-		c.RecvFrom(nil, c._drainReadBuffer) // In case there's more
+		c.Act(nil, c._drainReadBuffer) // In case there's more
 	default:
 	}
 }
 
 // Called by the session to pass a new message to the Conn
 func (c *Conn) recvMsg(from phony.Actor, msg []byte) {
-	c.RecvFrom(from, func() {
+	c.Act(from, func() {
 		if c.readCallback != nil {
 			c.readCallback(msg)
 		} else {
@@ -195,7 +195,7 @@ func (c *Conn) recvMsg(from phony.Actor, msg []byte) {
 func (c *Conn) ReadNoCopy() ([]byte, error) {
 	var cancel util.Cancellation
 	var doCancel bool
-	<-c.SyncExec(func() { cancel, doCancel = c._getDeadlineCancellation(c.readDeadline) })
+	phony.Block(c, func() { cancel, doCancel = c._getDeadlineCancellation(c.readDeadline) })
 	if doCancel {
 		defer cancel.Cancel(nil)
 	}
@@ -234,7 +234,7 @@ func (c *Conn) _write(msg FlowKeyMessage) error {
 	if len(msg.Message) > int(c.mtu) {
 		return ConnError{errors.New("packet too big"), true, false, false, int(c.mtu)}
 	}
-	c.session.RecvFrom(c, func() {
+	c.session.Act(c, func() {
 		// Send the packet
 		c.session._send(msg)
 		// Session keep-alive, while we wait for the crypto workers from send
@@ -258,7 +258,7 @@ func (c *Conn) _write(msg FlowKeyMessage) error {
 // This is used internaly by WriteNoCopy and Write.
 // If the callback is called with a non-nil value, then it is safe to reuse the argument FlowKeyMessage.
 func (c *Conn) WriteFrom(from phony.Actor, msg FlowKeyMessage, callback func(error)) {
-	c.RecvFrom(from, func() {
+	c.Act(from, func() {
 		callback(c._write(msg))
 	})
 }
@@ -268,7 +268,7 @@ func (c *Conn) WriteFrom(from phony.Actor, msg FlowKeyMessage, callback func(err
 func (c *Conn) WriteNoCopy(msg FlowKeyMessage) error {
 	var cancel util.Cancellation
 	var doCancel bool
-	<-c.SyncExec(func() { cancel, doCancel = c._getDeadlineCancellation(c.writeDeadline) })
+	phony.Block(c, func() { cancel, doCancel = c._getDeadlineCancellation(c.writeDeadline) })
 	var err error
 	select {
 	case <-cancel.Finished():
@@ -299,7 +299,7 @@ func (c *Conn) Write(b []byte) (int, error) {
 }
 
 func (c *Conn) Close() (err error) {
-	<-c.SyncExec(func() {
+	phony.Block(c, func() {
 		if c.session != nil {
 			// Close the session, if it hasn't been closed already
 			if e := c.session.cancel.Cancel(errors.New("connection closed")); e != nil {
@@ -319,7 +319,7 @@ func (c *Conn) LocalAddr() crypto.NodeID {
 func (c *Conn) RemoteAddr() crypto.NodeID {
 	// TODO warn that this can block while waiting for the Conn actor to run, so don't call it from other actors...
 	var n crypto.NodeID
-	<-c.SyncExec(func() { n = *c.nodeID })
+	phony.Block(c, func() { n = *c.nodeID })
 	return n
 }
 
@@ -331,12 +331,12 @@ func (c *Conn) SetDeadline(t time.Time) error {
 
 func (c *Conn) SetReadDeadline(t time.Time) error {
 	// TODO warn that this can block while waiting for the Conn actor to run, so don't call it from other actors...
-	<-c.SyncExec(func() { c.readDeadline = &t })
+	phony.Block(c, func() { c.readDeadline = &t })
 	return nil
 }
 
 func (c *Conn) SetWriteDeadline(t time.Time) error {
 	// TODO warn that this can block while waiting for the Conn actor to run, so don't call it from other actors...
-	<-c.SyncExec(func() { c.writeDeadline = &t })
+	phony.Block(c, func() { c.writeDeadline = &t })
 	return nil
 }

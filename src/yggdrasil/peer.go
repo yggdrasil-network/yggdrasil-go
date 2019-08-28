@@ -178,7 +178,7 @@ func (ps *peers) sendSwitchMsgs(from phony.Actor) {
 		if p.port == 0 {
 			continue
 		}
-		p.RecvFrom(from, p._sendSwitchMsg)
+		p.Act(from, p._sendSwitchMsg)
 	}
 }
 
@@ -187,7 +187,7 @@ func (ps *peers) sendSwitchMsgs(from phony.Actor) {
 func (p *peer) start() {
 	var updateDHT func()
 	updateDHT = func() {
-		<-p.SyncExec(func() {
+		phony.Block(p, func() {
 			select {
 			case <-p.done:
 			default:
@@ -198,7 +198,7 @@ func (p *peer) start() {
 	}
 	updateDHT()
 	// Just for good measure, immediately send a switch message to this peer when we start
-	<-p.SyncExec(p._sendSwitchMsg)
+	p.Act(nil, p._sendSwitchMsg)
 }
 
 func (p *peer) _updateDHT() {
@@ -208,7 +208,7 @@ func (p *peer) _updateDHT() {
 }
 
 func (p *peer) handlePacketFrom(from phony.Actor, packet []byte) {
-	p.RecvFrom(from, func() {
+	p.Act(from, func() {
 		p._handlePacket(packet)
 	})
 }
@@ -246,7 +246,7 @@ func (p *peer) _handleTraffic(packet []byte) {
 }
 
 func (p *peer) sendPacketsFrom(from phony.Actor, packets [][]byte) {
-	p.RecvFrom(from, func() {
+	p.Act(from, func() {
 		p._sendPackets(packets)
 	})
 }

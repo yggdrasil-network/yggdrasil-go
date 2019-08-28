@@ -125,7 +125,7 @@ func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener 
 // reader actor to handle packets on that interface.
 func (tun *TunAdapter) Start() error {
 	var err error
-	<-tun.SyncExec(func() {
+	phony.Block(tun, func() {
 		err = tun._start()
 	})
 	return err
@@ -167,7 +167,7 @@ func (tun *TunAdapter) _start() error {
 		}
 	}()
 	go tun.handler()
-	tun.reader.RecvFrom(nil, tun.reader._read) // Start the reader
+	tun.reader.Act(nil, tun.reader._read) // Start the reader
 	tun.icmpv6.Init(tun)
 	if iftapmode {
 		go tun.icmpv6.Solicit(tun.addr)
@@ -180,7 +180,7 @@ func (tun *TunAdapter) _start() error {
 // read/write goroutines to handle packets on that interface.
 func (tun *TunAdapter) Stop() error {
 	var err error
-	<-tun.SyncExec(func() {
+	phony.Block(tun, func() {
 		err = tun._stop()
 	})
 	return err
@@ -233,7 +233,7 @@ func (tun *TunAdapter) handler() error {
 			tun.log.Errorln("TUN/TAP connection accept error:", err)
 			return err
 		}
-		<-tun.SyncExec(func() {
+		phony.Block(tun, func() {
 			if _, err := tun._wrap(conn); err != nil {
 				// Something went wrong when storing the connection, typically that
 				// something already exists for this address or subnet
@@ -273,11 +273,11 @@ func (tun *TunAdapter) _wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 	tun.subnetToConn[s.snet] = &s
 	// Set the read callback and start the timeout
 	conn.SetReadCallback(func(bs []byte) {
-		s.RecvFrom(conn, func() {
+		s.Act(conn, func() {
 			s._read(bs)
 		})
 	})
-	s.RecvFrom(nil, s.stillAlive)
+	s.Act(nil, s.stillAlive)
 	// Return
 	return c, err
 }

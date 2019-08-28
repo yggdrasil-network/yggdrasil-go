@@ -19,7 +19,7 @@ type tunWriter struct {
 }
 
 func (w *tunWriter) writeFrom(from phony.Actor, b []byte) {
-	w.RecvFrom(from, func() {
+	w.Act(from, func() {
 		w._write(b)
 	})
 }
@@ -90,7 +90,7 @@ func (w *tunWriter) _write(b []byte) {
 		util.PutBytes(b)
 	}
 	if err != nil {
-		w.tun.RecvFrom(w, func() {
+		w.tun.Act(w, func() {
 			if !w.tun.isOpen {
 				w.tun.log.Errorln("TUN/TAP iface write error:", err)
 			}
@@ -118,12 +118,12 @@ func (r *tunReader) _read() {
 	}
 	if err == nil {
 		// Now read again
-		r.RecvFrom(nil, r._read)
+		r.Act(nil, r._read)
 	}
 }
 
 func (tun *TunAdapter) handlePacketFrom(from phony.Actor, packet []byte, err error) {
-	tun.RecvFrom(from, func() {
+	tun.Act(from, func() {
 		tun._handlePacket(packet, err)
 	})
 }
@@ -248,7 +248,7 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 		if !known {
 			go func() {
 				conn, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask)
-				tun.RecvFrom(nil, func() {
+				tun.Act(nil, func() {
 					packets := tun.dials[*dstNodeID]
 					delete(tun.dials, *dstNodeID)
 					if err != nil {

@@ -11,6 +11,8 @@ import (
 	"github.com/gologme/log"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+
+	"github.com/Arceliar/phony"
 )
 
 // Peer represents a single peer object. This contains information from the
@@ -106,7 +108,7 @@ func (c *Core) GetPeers() []Peer {
 	for _, port := range ps {
 		p := ports[port]
 		var info Peer
-		<-p.SyncExec(func() {
+		phony.Block(p, func() {
 			info = Peer{
 				Endpoint:   p.intf.name,
 				BytesSent:  p.bytesSent,
@@ -138,7 +140,7 @@ func (c *Core) GetSwitchPeers() []SwitchPeer {
 		}
 		coords := elem.locator.getCoords()
 		var info SwitchPeer
-		<-peer.SyncExec(func() {
+		phony.Block(peer, func() {
 			info = SwitchPeer{
 				Coords:     append([]uint64{}, wire_coordsBytestoUint64s(coords)...),
 				BytesSent:  peer.bytesSent,

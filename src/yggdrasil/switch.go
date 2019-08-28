@@ -192,7 +192,7 @@ func (t *switchTable) init(core *Core) {
 	t.updater.Store(&sync.Once{})
 	t.table.Store(lookupTable{})
 	t.drop = make(map[crypto.SigPubKey]int64)
-	<-t.SyncExec(func() {
+	phony.Block(t, func() {
 		t.queues.totalMaxSize = SwitchQueueTotalMinSize
 		t.queues.bufs = make(map[string]switch_buffer)
 		t.idle = make(map[switchPort]time.Time)
@@ -827,7 +827,7 @@ func (t *switchTable) _handleIdle(port switchPort) bool {
 }
 
 func (t *switchTable) packetInFrom(from phony.Actor, bytes []byte) {
-	t.RecvFrom(from, func() {
+	t.Act(from, func() {
 		t._packetIn(bytes)
 	})
 }
@@ -870,5 +870,5 @@ func (t *switchTable) _idleIn(port switchPort) {
 // Passed a function to call.
 // This will send the function to t.admin and block until it finishes.
 func (t *switchTable) doAdmin(f func()) {
-	<-t.SyncExec(f)
+	phony.Block(t, f)
 }

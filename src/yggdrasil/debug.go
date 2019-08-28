@@ -29,6 +29,8 @@ import "github.com/yggdrasil-network/yggdrasil-go/src/config"
 import "github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 import "github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 
+import "github.com/Arceliar/phony"
+
 // Start the profiler in debug builds, if the required environment variable is set.
 func init() {
 	envVarName := "PPROFLISTEN"
@@ -572,14 +574,14 @@ func DEBUG_simLinkPeers(p, q *peer) {
 					continue
 				case packet := <-send:
 					packets = append(packets, packet)
-					<-source.core.switchTable.SyncExec(func() {
+					phony.Block(&source.core.switchTable, func() {
 						source.core.switchTable._idleIn(source.port)
 					})
 					continue
 				default:
 				}
 				if len(packets) > 0 {
-					<-dest.SyncExec(func() { dest._handlePacket(packets[0]) })
+					phony.Block(dest, func() { dest._handlePacket(packets[0]) })
 					packets = packets[1:]
 					continue
 				}
@@ -588,7 +590,7 @@ func DEBUG_simLinkPeers(p, q *peer) {
 					packets = append(packets, packet)
 				case packet := <-send:
 					packets = append(packets, packet)
-					<-source.core.switchTable.SyncExec(func() {
+					phony.Block(&source.core.switchTable, func() {
 						source.core.switchTable._idleIn(source.port)
 					})
 				}
@@ -597,10 +599,10 @@ func DEBUG_simLinkPeers(p, q *peer) {
 	}
 	goWorkers(p, q)
 	goWorkers(q, p)
-	<-p.core.switchTable.SyncExec(func() {
+	phony.Block(&p.core.switchTable, func() {
 		p.core.switchTable._idleIn(p.port)
 	})
-	<-q.core.switchTable.SyncExec(func() {
+	phony.Block(&q.core.switchTable, func() {
 		q.core.switchTable._idleIn(q.port)
 	})
 }

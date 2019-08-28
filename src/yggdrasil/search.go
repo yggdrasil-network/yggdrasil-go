@@ -153,7 +153,7 @@ func (sinfo *searchInfo) continueSearch() {
 	// Note that this will spawn multiple parallel searches as time passes
 	// Any that die aren't restarted, but a new one will start later
 	time.AfterFunc(search_RETRY_TIME, func() {
-		sinfo.searches.router.RecvFrom(nil, func() {
+		sinfo.searches.router.Act(nil, func() {
 			// FIXME this keeps the search alive forever if not for the searches map, fix that
 			newSearchInfo := sinfo.searches.searches[sinfo.dest]
 			if newSearchInfo != sinfo {

@@ -227,7 +227,7 @@ func (intf *linkInterface) handler() error {
 		strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 	// Start things
 	go intf.peer.start()
-	intf.reader.RecvFrom(nil, intf.reader._read)
+	intf.reader.Act(nil, intf.reader._read)
 	// Wait for the reader to finish
 	err = <-intf.reader.err
 	if err != nil {
@@ -251,7 +251,7 @@ const (
 
 // notify the intf that we're currently sending
 func (intf *linkInterface) notifySending(size int, isLinkTraffic bool) {
-	intf.RecvFrom(&intf.writer, func() {
+	intf.Act(&intf.writer, func() {
 		if !isLinkTraffic {
 			intf.inSwitch = false
 		}
@@ -270,7 +270,7 @@ func (intf *linkInterface) _cancelStallTimer() {
 
 // called by an AfterFunc if we appear to have timed out
 func (intf *linkInterface) notifyBlockedSend() {
-	intf.RecvFrom(nil, func() { // Sent from a time.AfterFunc
+	intf.Act(nil, func() { // Sent from a time.AfterFunc
 		if intf.sendTimer != nil {
 			//As far as we know, we're still trying to send, and the timer fired.
 			intf.link.core.switchTable.blockPeer(intf.peer.port)
@@ -280,7 +280,7 @@ func (intf *linkInterface) notifyBlockedSend() {
 
 // notify the intf that we've finished sending, returning the peer to the switch
 func (intf *linkInterface) notifySent(size int, isLinkTraffic bool) {
-	intf.RecvFrom(&intf.writer, func() {
+	intf.Act(&intf.writer, func() {
 		intf.sendTimer.Stop()
 		intf.sendTimer = nil
 		if !isLinkTraffic {
@@ -296,7 +296,7 @@ func (intf *linkInterface) notifySent(size int, isLinkTraffic bool) {
 func (intf *linkInterface) _notifySwitch() {
 	if !intf.inSwitch && !intf.stalled {
 		intf.inSwitch = true
-		intf.link.core.switchTable.RecvFrom(intf, func() {
+		intf.link.core.switchTable.Act(intf, func() {
 			intf.link.core.switchTable._idleIn(intf.peer.port)
 		})
 	}
@@ -304,7 +304,7 @@ func (intf *linkInterface) _notifySwitch() {
 
 // Set the peer as stalled, to prevent them from returning to the switch until a read succeeds
 func (intf *linkInterface) notifyStalled() {
-	intf.RecvFrom(nil, func() { // Sent from a time.AfterFunc
+	intf.Act(nil, func() { // Sent from a time.AfterFunc
 		if intf.stallTimer != nil {
 			intf.stallTimer.Stop()
 			intf.stallTimer = nil
@@ -316,7 +316,7 @@ func (intf *linkInterface) notifyStalled() {
 
 // reset the close timer
 func (intf *linkInterface) notifyReading() {
-	intf.RecvFrom(&intf.reader, func() {
+	intf.Act(&intf.reader, func() {
 		if intf.closeTimer != nil {
 			intf.closeTimer.Stop()
 		}
@@ -326,7 +326,7 @@ func (intf *linkInterface) notifyReading() {
 
 // wake up the link if it was stalled, and (if size > 0) prepare to send keep-alive traffic
 func (intf *linkInterface) notifyRead(size int) {
-	intf.RecvFrom(&intf.reader, func() {
+	intf.Act(&intf.reader, func() {
 		if intf.stallTimer != nil {
 			intf.stallTimer.Stop()
 			intf.stallTimer = nil
@@ -341,7 +341,7 @@ func (intf *linkInterface) notifyRead(size int) {
 
 // We need to send keep-alive traffic now
 func (intf *linkInterface) notifyDoKeepAlive() {
-	intf.RecvFrom(nil, func() { // Sent from a time.AfterFunc
+	intf.Act(nil, func() { // Sent from a time.AfterFunc
 		if intf.stallTimer != nil {
 			intf.stallTimer.Stop()
 			intf.stallTimer = nil
@@ -358,7 +358,7 @@ type linkWriter struct {
 }
 
 func (w *linkWriter) sendFrom(from phony.Actor, bss [][]byte, isLinkTraffic bool) {
-	w.RecvFrom(from, func() {
+	w.Act(from, func() {
 		var size int
 		for _, bs := range bss {
 			size += len(bs)
@@ -396,5 +396,5 @@ func (r *linkReader) _read() {
 		return
 	}
 	// Now try to read again
-	r.RecvFrom(nil, r._read)
+	r.Act(nil, r._read)
 }

@@ -77,7 +77,7 @@ func (r *router) reconfigure(e chan error) {
 	defer close(e)
 	var errs []error
 	// Reconfigure the router
-	<-r.SyncExec(func() {
+	phony.Block(r, func() {
 		current := r.core.config.GetCurrent()
 		err := r.nodeinfo.setNodeInfo(current.NodeInfo, current.NodeInfoPrivacy)
 		if err != nil {
@@ -98,7 +98,7 @@ func (r *router) start() error {
 
 // In practice, the switch will call this with 1 packet
 func (r *router) handlePackets(from phony.Actor, packets [][]byte) {
-	r.RecvFrom(from, func() {
+	r.Act(from, func() {
 		for _, packet := range packets {
 			r._handlePacket(packet)
 		}
@@ -107,14 +107,14 @@ func (r *router) handlePackets(from phony.Actor, packets [][]byte) {
 
 // Insert a peer info into the dht, TODO? make the dht a separate actor
 func (r *router) insertPeer(from phony.Actor, info *dhtInfo) {
-	r.RecvFrom(from, func() {
+	r.Act(from, func() {
 		r.dht.insertPeer(info)
 	})
 }
 
 // Reset sessions and DHT after the switch sees our coords change
 func (r *router) reset(from phony.Actor) {
-	r.RecvFrom(from, func() {
+	r.Act(from, func() {
 		r.sessions.reset()
 		r.dht.reset()
 	})
@@ -123,7 +123,7 @@ func (r *router) reset(from phony.Actor) {
 // TODO remove reconfigure so this is just a ticker loop
 // and then find something better than a ticker loop to schedule things...
 func (r *router) doMaintenance() {
-	<-r.SyncExec(func() {
+	phony.Block(r, func() {
 		// Any periodic maintenance stuff goes here
 		r.core.switchTable.doMaintenance()
 		r.dht.doMaintenance()
@@ -252,7 +252,7 @@ func (r *router) _handleNodeInfo(bs []byte, fromKey *crypto.BoxPubKey) {
 	r.nodeinfo.handleNodeInfo(&req)
 }
 
-// TODO remove this, have things either be actors that send message or else call SyncExec directly
+// TODO remove this, have things either be actors that send message or else call Block directly
 func (r *router) doAdmin(f func()) {
-	<-r.SyncExec(f)
+	phony.Block(r, f)
 }
