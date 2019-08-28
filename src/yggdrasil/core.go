@@ -176,7 +176,7 @@ func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState,
 
 	c.config.Mutex.RLock()
 	if c.config.Current.SwitchOptions.MaxTotalQueueSize >= SwitchQueueTotalMinSize {
-		phony.Block(c.switchTable, func() {
+		phony.Block(&c.switchTable, func() {
 			c.switchTable.queues.totalMaxSize = c.config.Current.SwitchOptions.MaxTotalQueueSize
 		})
 	}

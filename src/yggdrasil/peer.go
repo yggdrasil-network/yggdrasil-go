@@ -149,7 +149,7 @@ func (ps *peers) removePeer(port switchPort) {
 	if port == 0 {
 		return
 	} // Can't remove self peer
-	phony.Block(ps.core.router, func() {
+	phony.Block(&ps.core.router, func() {
 		ps.core.switchTable.forgetPeer(port)
 	})
 	ps.mutex.Lock()
