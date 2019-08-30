@@ -77,11 +77,6 @@ func (sinfo *sessionInfo) reconfigure() {
 	// This is where reconfiguration would go, if we had anything to do
 }
 
-// TODO remove this, call SyncExec directly
-func (sinfo *sessionInfo) doFunc(f func()) {
-	phony.Block(sinfo, f)
-}
-
 // Represents a session ping/pong packet, andincludes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
 type sessionPing struct {
 	SendPermPub crypto.BoxPubKey // Sender's permanent key

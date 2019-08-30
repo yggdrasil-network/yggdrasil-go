@@ -227,18 +227,7 @@ func (c *Core) GetSessions() []Session {
 				}
 				copy(session.PublicKey[:], sinfo.theirPermPub[:])
 			}
-			var skip bool
-			func() {
-				defer func() {
-					if recover() != nil {
-						skip = true
-					}
-				}()
-				sinfo.doFunc(workerFunc)
-			}()
-			if skip {
-				continue
-			}
+			phony.Block(sinfo, workerFunc)
 			// TODO? skipped known but timed out sessions?
 			sessions = append(sessions, session)
 		}
