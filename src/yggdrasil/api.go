@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"net"
 	"sort"
-	"sync/atomic"
 	"time"
 
 	"github.com/gologme/log"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+
+	"github.com/Arceliar/phony"
 )
 
 // Peer represents a single peer object. This contains information from the
@@ -106,15 +107,18 @@ func (c *Core) GetPeers() []Peer {
 	sort.Slice(ps, func(i, j int) bool { return ps[i] < ps[j] })
 	for _, port := range ps {
 		p := ports[port]
-		info := Peer{
-			Endpoint:   p.intf.name,
-			BytesSent:  atomic.LoadUint64(&p.bytesSent),
-			BytesRecvd: atomic.LoadUint64(&p.bytesRecvd),
-			Protocol:   p.intf.info.linkType,
-			Port:       uint64(port),
-			Uptime:     time.Since(p.firstSeen),
-		}
-		copy(info.PublicKey[:], p.box[:])
+		var info Peer
+		phony.Block(p, func() {
+			info = Peer{
+				Endpoint:   p.intf.name,
+				BytesSent:  p.bytesSent,
+				BytesRecvd: p.bytesRecvd,
+				Protocol:   p.intf.info.linkType,
+				Port:       uint64(port),
+				Uptime:     time.Since(p.firstSeen),
+			}
+			copy(info.PublicKey[:], p.box[:])
+		})
 		peers = append(peers, info)
 	}
 	return peers
@@ -135,15 +139,18 @@ func (c *Core) GetSwitchPeers() []SwitchPeer {
 			continue
 		}
 		coords := elem.locator.getCoords()
-		info := SwitchPeer{
-			Coords:     append([]uint64{}, wire_coordsBytestoUint64s(coords)...),
-			BytesSent:  atomic.LoadUint64(&peer.bytesSent),
-			BytesRecvd: atomic.LoadUint64(&peer.bytesRecvd),
-			Port:       uint64(elem.port),
-			Protocol:   peer.intf.info.linkType,
-			Endpoint:   peer.intf.info.remote,
-		}
-		copy(info.PublicKey[:], peer.box[:])
+		var info SwitchPeer
+		phony.Block(peer, func() {
+			info = SwitchPeer{
+				Coords:     append([]uint64{}, wire_coordsBytestoUint64s(coords)...),
+				BytesSent:  peer.bytesSent,
+				BytesRecvd: peer.bytesRecvd,
+				Port:       uint64(elem.port),
+				Protocol:   peer.intf.info.linkType,
+				Endpoint:   peer.intf.info.remote,
+			}
+			copy(info.PublicKey[:], peer.box[:])
+		})
 		switchpeers = append(switchpeers, info)
 	}
 	return switchpeers
@@ -156,11 +163,11 @@ func (c *Core) GetDHT() []DHTEntry {
 	getDHT := func() {
 		now := time.Now()
 		var dhtentry []*dhtInfo
-		for _, v := range c.dht.table {
+		for _, v := range c.router.dht.table {
 			dhtentry = append(dhtentry, v)
 		}
 		sort.SliceStable(dhtentry, func(i, j int) bool {
-			return dht_ordered(&c.dht.nodeID, dhtentry[i].getNodeID(), dhtentry[j].getNodeID())
+			return dht_ordered(&c.router.dht.nodeID, dhtentry[i].getNodeID(), dhtentry[j].getNodeID())
 		})
 		for _, v := range dhtentry {
 			info := DHTEntry{
@@ -171,7 +178,7 @@ func (c *Core) GetDHT() []DHTEntry {
 			dhtentries = append(dhtentries, info)
 		}
 	}
-	c.router.doAdmin(getDHT)
+	phony.Block(&c.router, getDHT)
 	return dhtentries
 }
 
@@ -186,7 +193,7 @@ func (c *Core) GetSwitchQueues() SwitchQueues {
 			Size:         switchTable.queues.size,
 			HighestCount: uint64(switchTable.queues.maxbufs),
 			HighestSize:  switchTable.queues.maxsize,
-			MaximumSize:  switchTable.queueTotalMaxSize,
+			MaximumSize:  switchTable.queues.totalMaxSize,
 		}
 		for k, v := range switchTable.queues.bufs {
 			nexthop := switchTable.bestPortForCoords([]byte(k))
@@ -198,9 +205,8 @@ func (c *Core) GetSwitchQueues() SwitchQueues {
 			}
 			switchqueues.Queues = append(switchqueues.Queues, queue)
 		}
-
 	}
-	c.switchTable.doAdmin(getSwitchQueues)
+	phony.Block(&c.switchTable, getSwitchQueues)
 	return switchqueues
 }
 
@@ -208,12 +214,12 @@ func (c *Core) GetSwitchQueues() SwitchQueues {
 func (c *Core) GetSessions() []Session {
 	var sessions []Session
 	getSessions := func() {
-		for _, sinfo := range c.sessions.sinfos {
+		for _, sinfo := range c.router.sessions.sinfos {
 			var session Session
 			workerFunc := func() {
 				session = Session{
 					Coords:      append([]uint64{}, wire_coordsBytestoUint64s(sinfo.coords)...),
-					MTU:         sinfo.getMTU(),
+					MTU:         sinfo._getMTU(),
 					BytesSent:   sinfo.bytesSent,
 					BytesRecvd:  sinfo.bytesRecvd,
 					Uptime:      time.Now().Sub(sinfo.timeOpened),
@@ -221,39 +227,28 @@ func (c *Core) GetSessions() []Session {
 				}
 				copy(session.PublicKey[:], sinfo.theirPermPub[:])
 			}
-			var skip bool
-			func() {
-				defer func() {
-					if recover() != nil {
-						skip = true
-					}
-				}()
-				sinfo.doFunc(workerFunc)
-			}()
-			if skip {
-				continue
-			}
+			phony.Block(sinfo, workerFunc)
 			// TODO? skipped known but timed out sessions?
 			sessions = append(sessions, session)
 		}
 	}
-	c.router.doAdmin(getSessions)
+	phony.Block(&c.router, getSessions)
 	return sessions
 }
 
 // ConnListen returns a listener for Yggdrasil session connections.
 func (c *Core) ConnListen() (*Listener, error) {
-	c.sessions.listenerMutex.Lock()
-	defer c.sessions.listenerMutex.Unlock()
-	if c.sessions.listener != nil {
+	c.router.sessions.listenerMutex.Lock()
+	defer c.router.sessions.listenerMutex.Unlock()
+	if c.router.sessions.listener != nil {
 		return nil, errors.New("a listener already exists")
 	}
-	c.sessions.listener = &Listener{
+	c.router.sessions.listener = &Listener{
 		core:  c,
 		conn:  make(chan *Conn),
 		close: make(chan interface{}),
 	}
-	return c.sessions.listener, nil
+	return c.router.sessions.listener, nil
 }
 
 // ConnDialer returns a dialer for Yggdrasil session connections.
@@ -338,11 +333,9 @@ func (c *Core) GetNodeInfo(key crypto.BoxPubKey, coords []uint64, nocache bool) 
 		})
 		c.router.nodeinfo.sendNodeInfo(key, wire_coordsUint64stoBytes(coords), false)
 	}
-	c.router.doAdmin(sendNodeInfoRequest)
-	go func() {
-		time.Sleep(6 * time.Second)
-		close(response)
-	}()
+	phony.Block(&c.router, sendNodeInfoRequest)
+	timer := time.AfterFunc(6*time.Second, func() { close(response) })
+	defer timer.Stop()
 	for res := range response {
 		return *res, nil
 	}
@@ -356,10 +349,10 @@ func (c *Core) GetNodeInfo(key crypto.BoxPubKey, coords []uint64, nocache bool) 
 // received an incoming session request. The function should return true to
 // allow the session or false to reject it.
 func (c *Core) SetSessionGatekeeper(f func(pubkey *crypto.BoxPubKey, initiator bool) bool) {
-	c.sessions.isAllowedMutex.Lock()
-	defer c.sessions.isAllowedMutex.Unlock()
+	c.router.sessions.isAllowedMutex.Lock()
+	defer c.router.sessions.isAllowedMutex.Unlock()
 
-	c.sessions.isAllowedHandler = f
+	c.router.sessions.isAllowedHandler = f
 }
 
 // SetLogger sets the output logger of the Yggdrasil node after startup. This
@@ -445,12 +438,12 @@ func (c *Core) DHTPing(key crypto.BoxPubKey, coords []uint64, target *crypto.Nod
 	}
 	rq := dhtReqKey{info.key, *target}
 	sendPing := func() {
-		c.dht.addCallback(&rq, func(res *dhtRes) {
+		c.router.dht.addCallback(&rq, func(res *dhtRes) {
 			resCh <- res
 		})
-		c.dht.ping(&info, &rq.dest)
+		c.router.dht.ping(&info, &rq.dest)
 	}
-	c.router.doAdmin(sendPing)
+	phony.Block(&c.router, sendPing)
 	// TODO: do something better than the below...
 	res := <-resCh
 	if res != nil {

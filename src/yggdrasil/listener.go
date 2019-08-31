@@ -31,8 +31,8 @@ func (l *Listener) Close() (err error) {
 		recover()
 		err = errors.New("already closed")
 	}()
-	if l.core.sessions.listener == l {
-		l.core.sessions.listener = nil
+	if l.core.router.sessions.listener == l {
+		l.core.router.sessions.listener = nil
 	}
 	close(l.close)
 	close(l.conn)

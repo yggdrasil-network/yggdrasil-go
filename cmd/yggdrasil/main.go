@@ -279,6 +279,7 @@ func main() {
 		case _ = <-r:
 			if *useconffile != "" {
 				cfg = readConfig(useconf, useconffile, normaliseconf)
+				logger.Infoln("Reloading configuration from", *useconffile)
 				n.core.UpdateConfig(cfg)
 				n.tuntap.UpdateConfig(cfg)
 				n.multicast.UpdateConfig(cfg)

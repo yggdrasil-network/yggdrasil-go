@@ -19,6 +19,8 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
+
+	"github.com/Arceliar/phony"
 )
 
 const (
@@ -162,22 +164,18 @@ type switchData struct {
 
 // All the information stored by the switch.
 type switchTable struct {
-	core              *Core
-	reconfigure       chan chan error
-	key               crypto.SigPubKey           // Our own key
-	time              time.Time                  // Time when locator.tstamp was last updated
-	drop              map[crypto.SigPubKey]int64 // Tstamp associated with a dropped root
-	mutex             sync.RWMutex               // Lock for reads/writes of switchData
-	parent            switchPort                 // Port of whatever peer is our parent, or self if we're root
-	data              switchData                 //
-	updater           atomic.Value               // *sync.Once
-	table             atomic.Value               // lookupTable
-	packetIn          chan []byte                // Incoming packets for the worker to handle
-	idleIn            chan switchPort            // Incoming idle notifications from peer links
-	admin             chan func()                // Pass a lambda for the admin socket to query stuff
-	queues            switch_buffers             // Queues - not atomic so ONLY use through admin chan
-	queueTotalMaxSize uint64                     // Maximum combined size of queues
-	toRouter          chan []byte                // Packets to be sent to the router
+	core        *Core
+	key         crypto.SigPubKey           // Our own key
+	time        time.Time                  // Time when locator.tstamp was last updated
+	drop        map[crypto.SigPubKey]int64 // Tstamp associated with a dropped root
+	mutex       sync.RWMutex               // Lock for reads/writes of switchData
+	parent      switchPort                 // Port of whatever peer is our parent, or self if we're root
+	data        switchData                 //
+	updater     atomic.Value               // *sync.Once
+	table       atomic.Value               // lookupTable
+	phony.Inbox                            // Owns the below
+	queues      switch_buffers             // Queues - not atomic so ONLY use through the actor
+	idle        map[switchPort]time.Time   // idle peers - not atomic so ONLY use through the actor
 }
 
 // Minimum allowed total size of switch queues.
@@ -187,7 +185,6 @@ const SwitchQueueTotalMinSize = 4 * 1024 * 1024
 func (t *switchTable) init(core *Core) {
 	now := time.Now()
 	t.core = core
-	t.reconfigure = make(chan chan error, 1)
 	t.key = t.core.sigPub
 	locator := switchLocator{root: t.key, tstamp: now.Unix()}
 	peers := make(map[switchPort]peerInfo)
@@ -195,11 +192,23 @@ func (t *switchTable) init(core *Core) {
 	t.updater.Store(&sync.Once{})
 	t.table.Store(lookupTable{})
 	t.drop = make(map[crypto.SigPubKey]int64)
-	t.packetIn = make(chan []byte, 1024)
-	t.idleIn = make(chan switchPort, 1024)
-	t.admin = make(chan func())
-	t.queueTotalMaxSize = SwitchQueueTotalMinSize
-	t.toRouter = make(chan []byte, 1)
+	phony.Block(t, func() {
+		core.config.Mutex.RLock()
+		if core.config.Current.SwitchOptions.MaxTotalQueueSize > SwitchQueueTotalMinSize {
+			t.queues.totalMaxSize = core.config.Current.SwitchOptions.MaxTotalQueueSize
+		} else {
+			t.queues.totalMaxSize = SwitchQueueTotalMinSize
+		}
+		core.config.Mutex.RUnlock()
+		t.queues.bufs = make(map[string]switch_buffer)
+		t.idle = make(map[switchPort]time.Time)
+	})
+}
+
+func (t *switchTable) reconfigure() {
+	// This is where reconfiguration would go, if we had anything useful to do.
+	t.core.link.reconfigure()
+	t.core.peers.reconfigure()
 }
 
 // Safely gets a copy of this node's locator.
@@ -245,13 +254,10 @@ func (t *switchTable) cleanRoot() {
 		if t.data.locator.root != t.key {
 			t.data.seq++
 			t.updater.Store(&sync.Once{})
-			select {
-			case t.core.router.reset <- struct{}{}:
-			default:
-			}
+			t.core.router.reset(nil)
 		}
 		t.data.locator = switchLocator{root: t.key, tstamp: now.Unix()}
-		t.core.peers.sendSwitchMsgs()
+		t.core.peers.sendSwitchMsgs(t)
 	}
 }
 
@@ -279,7 +285,7 @@ func (t *switchTable) blockPeer(port switchPort) {
 }
 
 // Removes a peer.
-// Must be called by the router mainLoop goroutine, e.g. call router.doAdmin with a lambda that calls this.
+// Must be called by the router actor with a lambda that calls this.
 // If the removed peer was this node's parent, it immediately tries to find a new parent.
 func (t *switchTable) forgetPeer(port switchPort) {
 	t.mutex.Lock()
@@ -511,17 +517,14 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		if !equiv(&sender.locator, &t.data.locator) {
 			doUpdate = true
 			t.data.seq++
-			select {
-			case t.core.router.reset <- struct{}{}:
-			default:
-			}
+			t.core.router.reset(nil)
 		}
 		if t.data.locator.tstamp != sender.locator.tstamp {
 			t.time = now
 		}
 		t.data.locator = sender.locator
 		t.parent = sender.port
-		t.core.peers.sendSwitchMsgs()
+		t.core.peers.sendSwitchMsgs(t)
 	}
 	if doUpdate {
 		t.updater.Store(&sync.Once{})
@@ -573,7 +576,7 @@ func (t *switchTable) getTable() lookupTable {
 // Starts the switch worker
 func (t *switchTable) start() error {
 	t.core.log.Infoln("Starting switch")
-	go t.doWorker()
+	// There's actually nothing to do to start it...
 	return nil
 }
 
@@ -659,12 +662,13 @@ func (t *switchTable) bestPortForCoords(coords []byte) switchPort {
 // Handle an incoming packet
 // Either send it to ourself, or to the first idle peer that's free
 // Returns true if the packet has been handled somehow, false if it should be queued
-func (t *switchTable) handleIn(packet []byte, idle map[switchPort]time.Time) bool {
+func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]time.Time) bool {
 	coords := switch_getPacketCoords(packet)
 	closer := t.getCloser(coords)
 	if len(closer) == 0 {
 		// TODO? call the router directly, and remove the whole concept of a self peer?
-		t.toRouter <- packet
+		self := t.core.peers.getPorts()[0]
+		self.sendPacketsFrom(t, [][]byte{packet})
 		return true
 	}
 	var best *peer
@@ -709,7 +713,7 @@ func (t *switchTable) handleIn(packet []byte, idle map[switchPort]time.Time) boo
 	if best != nil {
 		// Send to the best idle next hop
 		delete(idle, best.port)
-		best.sendPackets([][]byte{packet})
+		best.sendPacketsFrom(t, [][]byte{packet})
 		return true
 	}
 	// Didn't find anyone idle to send it to
@@ -729,15 +733,15 @@ type switch_buffer struct {
 }
 
 type switch_buffers struct {
-	switchTable *switchTable
-	bufs        map[string]switch_buffer // Buffers indexed by StreamID
-	size        uint64                   // Total size of all buffers, in bytes
-	maxbufs     int
-	maxsize     uint64
-	closer      []closerInfo // Scratch space
+	totalMaxSize uint64
+	bufs         map[string]switch_buffer // Buffers indexed by StreamID
+	size         uint64                   // Total size of all buffers, in bytes
+	maxbufs      int
+	maxsize      uint64
+	closer       []closerInfo // Scratch space
 }
 
-func (b *switch_buffers) cleanup(t *switchTable) {
+func (b *switch_buffers) _cleanup(t *switchTable) {
 	for streamID, buf := range b.bufs {
 		// Remove queues for which we have no next hop
 		packet := buf.packets[0]
@@ -751,7 +755,7 @@ func (b *switch_buffers) cleanup(t *switchTable) {
 		}
 	}
 
-	for b.size > b.switchTable.queueTotalMaxSize {
+	for b.size > b.totalMaxSize {
 		// Drop a random queue
 		target := rand.Uint64() % b.size
 		var size uint64 // running total
@@ -779,14 +783,14 @@ func (b *switch_buffers) cleanup(t *switchTable) {
 // Handles incoming idle notifications
 // Loops over packets and sends the newest one that's OK for this peer to send
 // Returns true if the peer is no longer idle, false if it should be added to the idle list
-func (t *switchTable) handleIdle(port switchPort) bool {
+func (t *switchTable) _handleIdle(port switchPort) bool {
 	to := t.core.peers.getPorts()[port]
 	if to == nil {
 		return true
 	}
 	var packets [][]byte
 	var psize int
-	t.queues.cleanup(t)
+	t.queues._cleanup(t)
 	now := time.Now()
 	for psize < 65535 {
 		var best string
@@ -823,102 +827,49 @@ func (t *switchTable) handleIdle(port switchPort) bool {
 		}
 	}
 	if len(packets) > 0 {
-		to.sendPackets(packets)
+		to.sendPacketsFrom(t, packets)
 		return true
 	}
 	return false
 }
 
-// The switch worker does routing lookups and sends packets to where they need to be
-func (t *switchTable) doWorker() {
-	sendingToRouter := make(chan []byte, 1)
-	go func() {
-		// Keep sending packets to the router
-		self := t.core.peers.getPorts()[0]
-		for bs := range sendingToRouter {
-			self.sendPackets([][]byte{bs})
+func (t *switchTable) packetInFrom(from phony.Actor, bytes []byte) {
+	t.Act(from, func() {
+		t._packetIn(bytes)
+	})
+}
+
+func (t *switchTable) _packetIn(bytes []byte) {
+	// Try to send it somewhere (or drop it if it's corrupt or at a dead end)
+	if !t._handleIn(bytes, t.idle) {
+		// There's nobody free to take it right now, so queue it for later
+		packet := switch_packetInfo{bytes, time.Now()}
+		streamID := switch_getPacketStreamID(packet.bytes)
+		buf, bufExists := t.queues.bufs[streamID]
+		buf.packets = append(buf.packets, packet)
+		buf.size += uint64(len(packet.bytes))
+		t.queues.size += uint64(len(packet.bytes))
+		// Keep a track of the max total queue size
+		if t.queues.size > t.queues.maxsize {
+			t.queues.maxsize = t.queues.size
 		}
-	}()
-	go func() {
-		// Keep taking packets from the idle worker and sending them to the above whenever it's idle, keeping anything extra in a (fifo, head-drop) buffer
-		var buf [][]byte
-		var size int
-		for {
-			bs := <-t.toRouter
-			size += len(bs)
-			buf = append(buf, bs)
-			for len(buf) > 0 {
-				select {
-				case bs := <-t.toRouter:
-					size += len(bs)
-					buf = append(buf, bs)
-					for size > int(t.queueTotalMaxSize) {
-						size -= len(buf[0])
-						util.PutBytes(buf[0])
-						buf = buf[1:]
-					}
-				case sendingToRouter <- buf[0]:
-					size -= len(buf[0])
-					buf = buf[1:]
-				}
+		t.queues.bufs[streamID] = buf
+		if !bufExists {
+			// Keep a track of the max total queue count. Only recalculate this
+			// when the queue is new because otherwise repeating len(dict) might
+			// cause unnecessary processing overhead
+			if len(t.queues.bufs) > t.queues.maxbufs {
+				t.queues.maxbufs = len(t.queues.bufs)
 			}
 		}
-	}()
-	t.queues.switchTable = t
-	t.queues.bufs = make(map[string]switch_buffer) // Packets per PacketStreamID (string)
-	idle := make(map[switchPort]time.Time)         // this is to deduplicate things
-	for {
-		//t.core.log.Debugf("Switch state: idle = %d, buffers = %d", len(idle), len(t.queues.bufs))
-		select {
-		case bytes := <-t.packetIn:
-			// Try to send it somewhere (or drop it if it's corrupt or at a dead end)
-			if !t.handleIn(bytes, idle) {
-				// There's nobody free to take it right now, so queue it for later
-				packet := switch_packetInfo{bytes, time.Now()}
-				streamID := switch_getPacketStreamID(packet.bytes)
-				buf, bufExists := t.queues.bufs[streamID]
-				buf.packets = append(buf.packets, packet)
-				buf.size += uint64(len(packet.bytes))
-				t.queues.size += uint64(len(packet.bytes))
-				// Keep a track of the max total queue size
-				if t.queues.size > t.queues.maxsize {
-					t.queues.maxsize = t.queues.size
-				}
-				t.queues.bufs[streamID] = buf
-				if !bufExists {
-					// Keep a track of the max total queue count. Only recalculate this
-					// when the queue is new because otherwise repeating len(dict) might
-					// cause unnecessary processing overhead
-					if len(t.queues.bufs) > t.queues.maxbufs {
-						t.queues.maxbufs = len(t.queues.bufs)
-					}
-				}
-				t.queues.cleanup(t)
-			}
-		case port := <-t.idleIn:
-			// Try to find something to send to this peer
-			if !t.handleIdle(port) {
-				// Didn't find anything ready to send yet, so stay idle
-				idle[port] = time.Now()
-			}
-		case f := <-t.admin:
-			f()
-		case e := <-t.reconfigure:
-			e <- nil
-		}
+		t.queues._cleanup(t)
 	}
 }
 
-// Passed a function to call.
-// This will send the function to t.admin and block until it finishes.
-func (t *switchTable) doAdmin(f func()) {
-	// Pass this a function that needs to be run by the router's main goroutine
-	// It will pass the function to the router and wait for the router to finish
-	done := make(chan struct{})
-	newF := func() {
-		f()
-		close(done)
+func (t *switchTable) _idleIn(port switchPort) {
+	// Try to find something to send to this peer
+	if !t._handleIdle(port) {
+		// Didn't find anything ready to send yet, so stay idle
+		t.idle[port] = time.Now()
 	}
-	t.admin <- newF
-	<-done
 }

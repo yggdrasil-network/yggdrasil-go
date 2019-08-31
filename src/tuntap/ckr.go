@@ -20,7 +20,6 @@ import (
 type cryptokey struct {
 	tun          *TunAdapter
 	enabled      atomic.Value // bool
-	reconfigure  chan chan error
 	ipv4remotes  []cryptokey_route
 	ipv6remotes  []cryptokey_route
 	ipv4cache    map[address.Address]cryptokey_route
@@ -40,25 +39,11 @@ type cryptokey_route struct {
 // Initialise crypto-key routing. This must be done before any other CKR calls.
 func (c *cryptokey) init(tun *TunAdapter) {
 	c.tun = tun
-	c.reconfigure = make(chan chan error, 1)
-	go func() {
-		for {
-			e := <-c.reconfigure
-			e <- nil
-		}
-	}()
-
-	c.tun.log.Debugln("Configuring CKR...")
-	if err := c.configure(); err != nil {
-		c.tun.log.Errorln("CKR configuration failed:", err)
-	} else {
-		c.tun.log.Debugln("CKR configured")
-	}
+	c.configure()
 }
 
-// Configure the CKR routes - this must only ever be called from the router
-// goroutine, e.g. through router.doAdmin
-func (c *cryptokey) configure() error {
+// Configure the CKR routes. This should only ever be ran by the TUN/TAP actor.
+func (c *cryptokey) configure() {
 	current := c.tun.config.GetCurrent()
 
 	// Set enabled/disabled state
@@ -73,14 +58,14 @@ func (c *cryptokey) configure() error {
 	// Add IPv6 routes
 	for ipv6, pubkey := range current.TunnelRouting.IPv6RemoteSubnets {
 		if err := c.addRemoteSubnet(ipv6, pubkey); err != nil {
-			return err
+			c.tun.log.Errorln("Error adding CKR IPv6 remote subnet:", err)
 		}
 	}
 
 	// Add IPv4 routes
 	for ipv4, pubkey := range current.TunnelRouting.IPv4RemoteSubnets {
 		if err := c.addRemoteSubnet(ipv4, pubkey); err != nil {
-			return err
+			c.tun.log.Errorln("Error adding CKR IPv4 remote subnet:", err)
 		}
 	}
 
@@ -94,7 +79,7 @@ func (c *cryptokey) configure() error {
 	c.ipv6locals = make([]net.IPNet, 0)
 	for _, source := range current.TunnelRouting.IPv6LocalSubnets {
 		if err := c.addLocalSubnet(source); err != nil {
-			return err
+			c.tun.log.Errorln("Error adding CKR IPv6 local subnet:", err)
 		}
 	}
 
@@ -102,7 +87,7 @@ func (c *cryptokey) configure() error {
 	c.ipv4locals = make([]net.IPNet, 0)
 	for _, source := range current.TunnelRouting.IPv4LocalSubnets {
 		if err := c.addLocalSubnet(source); err != nil {
-			return err
+			c.tun.log.Errorln("Error adding CKR IPv4 local subnet:", err)
 		}
 	}
 
@@ -111,8 +96,6 @@ func (c *cryptokey) configure() error {
 	c.ipv4cache = make(map[address.Address]cryptokey_route, 0)
 	c.ipv6cache = make(map[address.Address]cryptokey_route, 0)
 	c.mutexcaches.Unlock()
-
-	return nil
 }
 
 // Enable or disable crypto-key routing.
@@ -182,19 +165,19 @@ func (c *cryptokey) addLocalSubnet(cidr string) error {
 	} else if prefixsize == net.IPv4len*8 {
 		routingsources = &c.ipv4locals
 	} else {
-		return errors.New("Unexpected prefix size")
+		return errors.New("unexpected prefix size")
 	}
 
 	// Check if we already have this CIDR
 	for _, subnet := range *routingsources {
 		if subnet.String() == ipnet.String() {
-			return errors.New("Source subnet already configured")
+			return errors.New("local subnet already configured")
 		}
 	}
 
 	// Add the source subnet
 	*routingsources = append(*routingsources, *ipnet)
-	c.tun.log.Infoln("Added CKR source subnet", cidr)
+	c.tun.log.Infoln("Added CKR local subnet", cidr)
 	return nil
 }
 
@@ -227,7 +210,7 @@ func (c *cryptokey) addRemoteSubnet(cidr string, dest string) error {
 		routingtable = &c.ipv4remotes
 		routingcache = &c.ipv4cache
 	} else {
-		return errors.New("Unexpected prefix size")
+		return errors.New("unexpected prefix size")
 	}
 
 	// Is the route an Yggdrasil destination?
@@ -236,19 +219,19 @@ func (c *cryptokey) addRemoteSubnet(cidr string, dest string) error {
 	copy(addr[:], ipaddr)
 	copy(snet[:], ipnet.IP)
 	if addr.IsValid() || snet.IsValid() {
-		return errors.New("Can't specify Yggdrasil destination as crypto-key route")
+		return errors.New("can't specify Yggdrasil destination as crypto-key route")
 	}
 	// Do we already have a route for this subnet?
 	for _, route := range *routingtable {
 		if route.subnet.String() == ipnet.String() {
-			return errors.New(fmt.Sprintf("Route already exists for %s", cidr))
+			return fmt.Errorf("remote subnet already exists for %s", cidr)
 		}
 	}
 	// Decode the public key
 	if bpk, err := hex.DecodeString(dest); err != nil {
 		return err
 	} else if len(bpk) != crypto.BoxPubKeyLen {
-		return errors.New(fmt.Sprintf("Incorrect key length for %s", dest))
+		return fmt.Errorf("incorrect key length for %s", dest)
 	} else {
 		// Add the new crypto-key route
 		var key crypto.BoxPubKey
@@ -271,7 +254,7 @@ func (c *cryptokey) addRemoteSubnet(cidr string, dest string) error {
 			delete(*routingcache, k)
 		}
 
-		c.tun.log.Infoln("Added CKR destination subnet", cidr)
+		c.tun.log.Infoln("Added CKR remote subnet", cidr)
 		return nil
 	}
 }
@@ -285,7 +268,7 @@ func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (c
 	// Check if the address is a valid Yggdrasil address - if so it
 	// is exempt from all CKR checking
 	if addr.IsValid() {
-		return crypto.BoxPubKey{}, errors.New("Cannot look up CKR for Yggdrasil addresses")
+		return crypto.BoxPubKey{}, errors.New("cannot look up CKR for Yggdrasil addresses")
 	}
 
 	// Build our references to the routing table and cache
@@ -298,7 +281,7 @@ func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (c
 	} else if addrlen == net.IPv4len {
 		routingcache = &c.ipv4cache
 	} else {
-		return crypto.BoxPubKey{}, errors.New("Unexpected prefix size")
+		return crypto.BoxPubKey{}, errors.New("unexpected prefix size")
 	}
 
 	// Check if there's a cache entry for this addr
@@ -318,7 +301,7 @@ func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (c
 	} else if addrlen == net.IPv4len {
 		routingtable = &c.ipv4remotes
 	} else {
-		return crypto.BoxPubKey{}, errors.New("Unexpected prefix size")
+		return crypto.BoxPubKey{}, errors.New("unexpected prefix size")
 	}
 
 	// No cache was found - start by converting the address into a net.IP
@@ -379,18 +362,18 @@ func (c *cryptokey) removeLocalSubnet(cidr string) error {
 	} else if prefixsize == net.IPv4len*8 {
 		routingsources = &c.ipv4locals
 	} else {
-		return errors.New("Unexpected prefix size")
+		return errors.New("unexpected prefix size")
 	}
 
 	// Check if we already have this CIDR
 	for idx, subnet := range *routingsources {
 		if subnet.String() == ipnet.String() {
 			*routingsources = append((*routingsources)[:idx], (*routingsources)[idx+1:]...)
-			c.tun.log.Infoln("Removed CKR source subnet", cidr)
+			c.tun.log.Infoln("Removed CKR local subnet", cidr)
 			return nil
 		}
 	}
-	return errors.New("Source subnet not found")
+	return errors.New("local subnet not found")
 }
 
 // Removes a destination route for the given CIDR to be tunnelled to the node
@@ -422,7 +405,7 @@ func (c *cryptokey) removeRemoteSubnet(cidr string, dest string) error {
 		routingtable = &c.ipv4remotes
 		routingcache = &c.ipv4cache
 	} else {
-		return errors.New("Unexpected prefix size")
+		return errors.New("unexpected prefix size")
 	}
 
 	// Decode the public key
@@ -430,7 +413,7 @@ func (c *cryptokey) removeRemoteSubnet(cidr string, dest string) error {
 	if err != nil {
 		return err
 	} else if len(bpk) != crypto.BoxPubKeyLen {
-		return errors.New(fmt.Sprintf("Incorrect key length for %s", dest))
+		return fmt.Errorf("incorrect key length for %s", dest)
 	}
 	netStr := ipnet.String()
 
@@ -440,9 +423,9 @@ func (c *cryptokey) removeRemoteSubnet(cidr string, dest string) error {
 			for k := range *routingcache {
 				delete(*routingcache, k)
 			}
-			c.tun.log.Infof("Removed CKR destination subnet %s via %s\n", cidr, dest)
+			c.tun.log.Infof("Removed CKR remote subnet %s via %s\n", cidr, dest)
 			return nil
 		}
 	}
-	return errors.New(fmt.Sprintf("Route does not exists for %s", cidr))
+	return fmt.Errorf("route does not exists for %s", cidr)
 }

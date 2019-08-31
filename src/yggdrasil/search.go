@@ -33,7 +33,7 @@ const search_RETRY_TIME = time.Second
 // Information about an ongoing search.
 // Includes the target NodeID, the bitmask to match it to an IP, and the list of nodes to visit / already visited.
 type searchInfo struct {
-	core     *Core
+	searches *searches
 	dest     crypto.NodeID
 	mask     crypto.NodeID
 	time     time.Time
@@ -45,28 +45,24 @@ type searchInfo struct {
 
 // This stores a map of active searches.
 type searches struct {
-	core        *Core
-	reconfigure chan chan error
-	searches    map[crypto.NodeID]*searchInfo
+	router   *router
+	searches map[crypto.NodeID]*searchInfo
 }
 
 // Initializes the searches struct.
-func (s *searches) init(core *Core) {
-	s.core = core
-	s.reconfigure = make(chan chan error, 1)
-	go func() {
-		for {
-			e := <-s.reconfigure
-			e <- nil
-		}
-	}()
+func (s *searches) init(r *router) {
+	s.router = r
 	s.searches = make(map[crypto.NodeID]*searchInfo)
+}
+
+func (s *searches) reconfigure() {
+	// This is where reconfiguration would go, if we had anything to do
 }
 
 // Creates a new search info, adds it to the searches struct, and returns a pointer to the info.
 func (s *searches) createSearch(dest *crypto.NodeID, mask *crypto.NodeID, callback func(*sessionInfo, error)) *searchInfo {
 	info := searchInfo{
-		core:     s.core,
+		searches: s,
 		dest:     *dest,
 		mask:     *mask,
 		time:     time.Now(),
@@ -100,7 +96,7 @@ func (sinfo *searchInfo) addToSearch(res *dhtRes) {
 	from := dhtInfo{key: res.Key, coords: res.Coords}
 	sinfo.visited[*from.getNodeID()] = true
 	for _, info := range res.Infos {
-		if *info.getNodeID() == sinfo.core.dht.nodeID || sinfo.visited[*info.getNodeID()] {
+		if *info.getNodeID() == sinfo.searches.router.dht.nodeID || sinfo.visited[*info.getNodeID()] {
 			continue
 		}
 		if dht_ordered(&sinfo.dest, info.getNodeID(), from.getNodeID()) {
@@ -134,7 +130,7 @@ func (sinfo *searchInfo) doSearchStep() {
 	if len(sinfo.toVisit) == 0 {
 		if time.Since(sinfo.time) > search_RETRY_TIME {
 			// Dead end and no response in too long, do cleanup
-			delete(sinfo.core.searches.searches, sinfo.dest)
+			delete(sinfo.searches.searches, sinfo.dest)
 			sinfo.callback(nil, errors.New("search reached dead end"))
 		}
 		return
@@ -143,8 +139,8 @@ func (sinfo *searchInfo) doSearchStep() {
 	var next *dhtInfo
 	next, sinfo.toVisit = sinfo.toVisit[0], sinfo.toVisit[1:]
 	rq := dhtReqKey{next.key, sinfo.dest}
-	sinfo.core.dht.addCallback(&rq, sinfo.handleDHTRes)
-	sinfo.core.dht.ping(next, &sinfo.dest)
+	sinfo.searches.router.dht.addCallback(&rq, sinfo.handleDHTRes)
+	sinfo.searches.router.dht.ping(next, &sinfo.dest)
 	sinfo.time = time.Now()
 }
 
@@ -155,27 +151,25 @@ func (sinfo *searchInfo) continueSearch() {
 	// In case the search dies, try to spawn another thread later
 	// Note that this will spawn multiple parallel searches as time passes
 	// Any that die aren't restarted, but a new one will start later
-	retryLater := func() {
-		// FIXME this keeps the search alive forever if not for the searches map, fix that
-		newSearchInfo := sinfo.core.searches.searches[sinfo.dest]
-		if newSearchInfo != sinfo {
-			return
-		}
-		sinfo.continueSearch()
-	}
-	go func() {
-		time.Sleep(search_RETRY_TIME)
-		sinfo.core.router.admin <- retryLater
-	}()
+	time.AfterFunc(search_RETRY_TIME, func() {
+		sinfo.searches.router.Act(nil, func() {
+			// FIXME this keeps the search alive forever if not for the searches map, fix that
+			newSearchInfo := sinfo.searches.searches[sinfo.dest]
+			if newSearchInfo != sinfo {
+				return
+			}
+			sinfo.continueSearch()
+		})
+	})
 }
 
 // Calls create search, and initializes the iterative search parts of the struct before returning it.
 func (s *searches) newIterSearch(dest *crypto.NodeID, mask *crypto.NodeID, callback func(*sessionInfo, error)) *searchInfo {
 	sinfo := s.createSearch(dest, mask, callback)
 	sinfo.visited = make(map[crypto.NodeID]bool)
-	loc := s.core.switchTable.getLocator()
+	loc := s.router.core.switchTable.getLocator()
 	sinfo.toVisit = append(sinfo.toVisit, &dhtInfo{
-		key:    s.core.boxPub,
+		key:    s.router.core.boxPub,
 		coords: loc.getCoords(),
 	}) // Start the search by asking ourself, useful if we're the destination
 	return sinfo
@@ -196,26 +190,26 @@ func (sinfo *searchInfo) checkDHTRes(res *dhtRes) bool {
 		return false
 	}
 	// They match, so create a session and send a sessionRequest
-	sess, isIn := sinfo.core.sessions.getByTheirPerm(&res.Key)
+	sess, isIn := sinfo.searches.router.sessions.getByTheirPerm(&res.Key)
 	if !isIn {
-		sess = sinfo.core.sessions.createSession(&res.Key)
+		sess = sinfo.searches.router.sessions.createSession(&res.Key)
 		if sess == nil {
 			// nil if the DHT search finished but the session wasn't allowed
 			sinfo.callback(nil, errors.New("session not allowed"))
 			// Cleanup
-			delete(sinfo.core.searches.searches, res.Dest)
+			delete(sinfo.searches.searches, res.Dest)
 			return true
 		}
-		_, isIn := sinfo.core.sessions.getByTheirPerm(&res.Key)
+		_, isIn := sinfo.searches.router.sessions.getByTheirPerm(&res.Key)
 		if !isIn {
 			panic("This should never happen")
 		}
 	}
 	// FIXME (!) replay attacks could mess with coords? Give it a handle (tstamp)?
 	sess.coords = res.Coords
-	sinfo.core.sessions.ping(sess)
+	sess.ping(sinfo.searches.router)
 	sinfo.callback(sess, nil)
 	// Cleanup
-	delete(sinfo.core.searches.searches, res.Dest)
+	delete(sinfo.searches.searches, res.Dest)
 	return true
 }
