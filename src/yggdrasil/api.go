@@ -248,7 +248,10 @@ func (c *Core) GetSessions() []Session {
 	return sessions
 }
 
-// ConnListen returns a listener for Yggdrasil session connections.
+// ConnListen returns a listener for Yggdrasil session connections. You can only
+// call this function once as each Yggdrasil node can only have a single
+// ConnListener. Make sure to keep the reference to this for as long as it is
+// needed.
 func (c *Core) ConnListen() (*Listener, error) {
 	c.router.sessions.listenerMutex.Lock()
 	defer c.router.sessions.listenerMutex.Unlock()
@@ -263,7 +266,10 @@ func (c *Core) ConnListen() (*Listener, error) {
 	return c.router.sessions.listener, nil
 }
 
-// ConnDialer returns a dialer for Yggdrasil session connections.
+// ConnDialer returns a dialer for Yggdrasil session connections. Since
+// ConnDialers are stateless, you can request as many dialers as you like,
+// although ideally you should request only one and keep the reference to it for
+// as long as it is needed.
 func (c *Core) ConnDialer() (*Dialer, error) {
 	return &Dialer{
 		core: c,
@@ -277,48 +283,69 @@ func (c *Core) ListenTCP(uri string) (*TcpListener, error) {
 	return c.link.tcp.listen(uri)
 }
 
-// NodeID gets the node ID.
+// NodeID gets the node ID. This is derived from your router encryption keys.
+// Remote nodes wanting to open connections to your node will need to know your
+// node ID.
 func (c *Core) NodeID() *crypto.NodeID {
 	return crypto.GetNodeID(&c.boxPub)
 }
 
-// TreeID gets the tree ID.
+// TreeID gets the tree ID. This is derived from your switch signing keys. There
+// is typically no need to share this key.
 func (c *Core) TreeID() *crypto.TreeID {
 	return crypto.GetTreeID(&c.sigPub)
 }
 
-// SigningPublicKey gets the node's signing public key.
+// SigningPublicKey gets the node's signing public key, as used by the switch.
 func (c *Core) SigningPublicKey() string {
 	return hex.EncodeToString(c.sigPub[:])
 }
 
-// EncryptionPublicKey gets the node's encryption public key.
+// EncryptionPublicKey gets the node's encryption public key, as used by the
+// router.
 func (c *Core) EncryptionPublicKey() string {
 	return hex.EncodeToString(c.boxPub[:])
 }
 
-// Coords returns the current coordinates of the node.
+// Coords returns the current coordinates of the node. Note that these can
+// change at any time for a number of reasons, not limited to but including
+// changes to peerings (either yours or a parent nodes) or changes to the network
+// root.
+//
+// This function may return an empty array - this is normal behaviour if either
+// you are the root of the network that you are connected to, or you are not
+// connected to any other nodes (effectively making you the root of a
+// single-node network).
 func (c *Core) Coords() []uint64 {
 	table := c.switchTable.table.Load().(lookupTable)
 	return wire_coordsBytestoUint64s(table.self.getCoords())
 }
 
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128
-// address.
+// address. The IPv6 address is only relevant when the node is operating as an
+// IP router and often is meaningless when embedded into an application, unless
+// that application also implements either VPN functionality or deals with IP
+// packets specifically.
 func (c *Core) Address() net.IP {
 	address := net.IP(address.AddrForNodeID(c.NodeID())[:])
 	return address
 }
 
 // Subnet gets the routed IPv6 subnet of the Yggdrasil node. This is always a
-// /64 subnet.
+// /64 subnet. The IPv6 subnet is only relevant when the node is operating as an
+// IP router and often is meaningless when embedded into an application, unless
+// that application also implements either VPN functionality or deals with IP
+// packets specifically.
 func (c *Core) Subnet() net.IPNet {
 	subnet := address.SubnetForNodeID(c.NodeID())[:]
 	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
 	return net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
 }
 
-// MyNodeInfo gets the currently configured nodeinfo.
+// MyNodeInfo gets the currently configured nodeinfo. NodeInfo is typically
+// specified through the "NodeInfo" option in the node configuration or using
+// the SetNodeInfo function, although it may also contain other built-in values
+// such as "buildname", "buildversion" etc.
 func (c *Core) MyNodeInfo() NodeInfoPayload {
 	return c.router.nodeinfo.getNodeInfo()
 }
@@ -368,7 +395,9 @@ func (c *Core) SetSessionGatekeeper(f func(pubkey *crypto.BoxPubKey, initiator b
 }
 
 // SetLogger sets the output logger of the Yggdrasil node after startup. This
-// may be useful if you want to redirect the output later.
+// may be useful if you want to redirect the output later. Note that this
+// expects a Logger from the github.com/gologme/log package and not from Go's
+// built-in log package.
 func (c *Core) SetLogger(log *log.Logger) {
 	c.log = log
 }
@@ -418,12 +447,17 @@ func (c *Core) DisconnectPeer(port uint64) error {
 }
 
 // GetAllowedEncryptionPublicKeys returns the public keys permitted for incoming
-// peer connections.
+// peer connections. If this list is empty then all incoming peer connections
+// are accepted by default.
 func (c *Core) GetAllowedEncryptionPublicKeys() []string {
 	return c.peers.getAllowedEncryptionPublicKeys()
 }
 
 // AddAllowedEncryptionPublicKey whitelists a key for incoming peer connections.
+// By default all incoming peer connections are accepted, but adding public keys
+// to the whitelist using this function enables strict checking from that point
+// forward. Once the whitelist is enabled, only peer connections from
+// whitelisted public keys will be accepted.
 func (c *Core) AddAllowedEncryptionPublicKey(bstr string) (err error) {
 	c.peers.addAllowedEncryptionPublicKey(bstr)
 	return nil
