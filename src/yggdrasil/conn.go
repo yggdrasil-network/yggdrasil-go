@@ -53,6 +53,9 @@ func (e *ConnError) Closed() bool {
 	return e.closed
 }
 
+// The Conn struct is a reference to an active connection session between the
+// local node and a remote node. Conn implements the io.ReadWriteCloser
+// interface and is used to send and receive traffic with a remote node.
 type Conn struct {
 	phony.Inbox
 	core          *Core
@@ -78,6 +81,11 @@ func newConn(core *Core, nodeID *crypto.NodeID, nodeMask *crypto.NodeID, session
 	return &conn
 }
 
+// String returns a string that uniquely identifies a connection. Currently this
+// takes a form similar to "conn=0x0000000", which contains a memory reference
+// to the Conn object. While this value should always be unique for each Conn
+// object, the format of this is not strictly defined and may change in the
+// future.
 func (c *Conn) String() string {
 	var s string
 	phony.Block(c, func() { s = fmt.Sprintf("conn=%p", c) })
@@ -159,7 +167,12 @@ func (c *Conn) _getDeadlineCancellation(t *time.Time) (util.Cancellation, bool) 
 	}
 }
 
-// SetReadCallback sets a callback which will be called whenever a packet is received.
+// SetReadCallback allows you to specify a function that will be called whenever
+// a packet is received. This should be used if you wish to implement
+// asynchronous patterns for receiving data from the remote node.
+//
+// Note that if a read callback has been supplied, you should no longer attempt
+// to use the synchronous Read function.
 func (c *Conn) SetReadCallback(callback func([]byte)) {
 	c.Act(nil, func() {
 		c.readCallback = callback
@@ -214,7 +227,14 @@ func (c *Conn) readNoCopy() ([]byte, error) {
 	}
 }
 
-// Implements net.Conn.Read
+// Read allows you to read from the connection in a synchronous fashion. The
+// function will block up until the point that either new data is available, the
+// connection has been closed or the read deadline has been reached. If the
+// function succeeds, the number of bytes read from the connection will be
+// returned. Otherwise, an error condition will be returned.
+//
+// Note that you can also implement asynchronous reads by using SetReadCallback.
+// If you do that, you should no longer attempt to use the Read function.
 func (c *Conn) Read(b []byte) (int, error) {
 	bs, err := c.readNoCopy()
 	if err != nil {
@@ -256,9 +276,9 @@ func (c *Conn) _write(msg FlowKeyMessage) error {
 	return nil
 }
 
-// WriteFrom should be called by a phony.Actor, and tells the Conn to send a message.
-// This is used internaly by Write.
-// If the callback is called with a non-nil value, then it is safe to reuse the argument FlowKeyMessage.
+// WriteFrom should be called by a phony.Actor, and tells the Conn to send a
+// message. This is used internaly by Write. If the callback is called with a
+// non-nil value, then it is safe to reuse the argument FlowKeyMessage.
 func (c *Conn) WriteFrom(from phony.Actor, msg FlowKeyMessage, callback func(error)) {
 	c.Act(from, func() {
 		callback(c._write(msg))
@@ -288,7 +308,11 @@ func (c *Conn) writeNoCopy(msg FlowKeyMessage) error {
 	return err
 }
 
-// Write implement the Write function of a net.Conn, and makes use of WriteNoCopy under the hood.
+// Write allows you to write to the connection in a synchronous fashion. This
+// function may block until either the write has completed, the connection has
+// been closed or the write deadline has been reached. If the function succeeds,
+// the number of written bytes is returned. Otherwise, an error condition is
+// returned.
 func (c *Conn) Write(b []byte) (int, error) {
 	written := len(b)
 	msg := FlowKeyMessage{Message: append(util.GetBytes(), b...)}
@@ -300,6 +324,10 @@ func (c *Conn) Write(b []byte) (int, error) {
 	return written, err
 }
 
+// Close will close an open connection and any blocking operations on the
+// connection will unblock and return. From this point forward, the connection
+// can no longer be used and you should no longer attempt to Read or Write to
+// the connection.
 func (c *Conn) Close() (err error) {
 	phony.Block(c, func() {
 		if c.session != nil {
@@ -314,10 +342,13 @@ func (c *Conn) Close() (err error) {
 	return
 }
 
+// LocalAddr returns the complete node ID of the local side of the connection.
+// This is always going to return your own node's node ID.
 func (c *Conn) LocalAddr() crypto.NodeID {
 	return *crypto.GetNodeID(&c.core.boxPub)
 }
 
+// RemoteAddr returns the complete node ID of the remote side of the connection.
 func (c *Conn) RemoteAddr() crypto.NodeID {
 	// TODO warn that this can block while waiting for the Conn actor to run, so don't call it from other actors...
 	var n crypto.NodeID
@@ -325,18 +356,32 @@ func (c *Conn) RemoteAddr() crypto.NodeID {
 	return n
 }
 
+// SetDeadline is equivalent to calling both SetReadDeadline and
+// SetWriteDeadline with the same value, configuring the maximum amount of time
+// that synchronous Read and Write operations can block for. If no deadline is
+// configured, Read and Write operations can potentially block indefinitely.
 func (c *Conn) SetDeadline(t time.Time) error {
 	c.SetReadDeadline(t)
 	c.SetWriteDeadline(t)
 	return nil
 }
 
+// SetReadDeadline configures the maximum amount of time that a synchronous Read
+// operation can block for. A Read operation will unblock at the point that the
+// read deadline is reached if no other condition (such as data arrival or
+// connection closure) happens first. If no deadline is configured, Read
+// operations can potentially block indefinitely.
 func (c *Conn) SetReadDeadline(t time.Time) error {
 	// TODO warn that this can block while waiting for the Conn actor to run, so don't call it from other actors...
 	phony.Block(c, func() { c.readDeadline = &t })
 	return nil
 }
 
+// SetWriteDeadline configures the maximum amount of time that a synchronous
+// Write operation can block for. A Write operation will unblock at the point
+// that the read deadline is reached if no other condition (such as data sending
+// or connection closure) happens first. If no deadline is configured, Write
+// operations can potentially block indefinitely.
 func (c *Conn) SetWriteDeadline(t time.Time) error {
 	// TODO warn that this can block while waiting for the Conn actor to run, so don't call it from other actors...
 	phony.Block(c, func() { c.writeDeadline = &t })
