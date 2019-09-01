@@ -2,21 +2,21 @@ package address
 
 import "github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 
-// address represents an IPv6 address in the yggdrasil address range.
+// Address represents an IPv6 address in the yggdrasil address range.
 type Address [16]byte
 
-// subnet represents an IPv6 /64 subnet in the yggdrasil subnet range.
+// Subnet represents an IPv6 /64 subnet in the yggdrasil subnet range.
 type Subnet [8]byte
 
-// address_prefix is the prefix used for all addresses and subnets in the network.
+// GetPrefix returns the address prefix used by yggdrasil.
 // The current implementation requires this to be a muliple of 8 bits + 7 bits.
 // The 8th bit of the last byte is used to signal nodes (0) or /64 prefixes (1).
-// Nodes that configure this differently will be unable to communicate with eachother, though routing and the DHT machinery *should* still work.
+// Nodes that configure this differently will be unable to communicate with eachother using IP packets, though routing and the DHT machinery *should* still work.
 func GetPrefix() [1]byte {
 	return [...]byte{0x02}
 }
 
-// isValid returns true if an address falls within the range used by nodes in the network.
+// IsValid returns true if an address falls within the range used by nodes in the network.
 func (a *Address) IsValid() bool {
 	prefix := GetPrefix()
 	for idx := range prefix {
@@ -27,7 +27,7 @@ func (a *Address) IsValid() bool {
 	return true
 }
 
-// isValid returns true if a prefix falls within the range usable by the network.
+// IsValid returns true if a prefix falls within the range usable by the network.
 func (s *Subnet) IsValid() bool {
 	prefix := GetPrefix()
 	l := len(prefix)
@@ -39,8 +39,8 @@ func (s *Subnet) IsValid() bool {
 	return (*s)[l-1] == prefix[l-1]|0x01
 }
 
-// address_addrForNodeID takes a *NodeID as an argument and returns an *address.
-// This subnet begins with the address prefix, with the last bit set to 0 to indicate an address.
+// AddrForNodeID takes a *NodeID as an argument and returns an *Address.
+// This address begins with the contents of GetPrefix(), with the last bit set to 0 to indicate an address.
 // The following 8 bits are set to the number of leading 1 bits in the NodeID.
 // The NodeID, excluding the leading 1 bits and the first leading 0 bit, is truncated to the appropriate length and makes up the remainder of the address.
 func AddrForNodeID(nid *crypto.NodeID) *Address {
@@ -80,7 +80,7 @@ func AddrForNodeID(nid *crypto.NodeID) *Address {
 	return &addr
 }
 
-// address_subnetForNodeID takes a *NodeID as an argument and returns a *subnet.
+// SubnetForNodeID takes a *NodeID as an argument and returns an *Address.
 // This subnet begins with the address prefix, with the last bit set to 1 to indicate a prefix.
 // The following 8 bits are set to the number of leading 1 bits in the NodeID.
 // The NodeID, excluding the leading 1 bits and the first leading 0 bit, is truncated to the appropriate length and makes up the remainder of the subnet.
@@ -96,10 +96,10 @@ func SubnetForNodeID(nid *crypto.NodeID) *Subnet {
 	return &snet
 }
 
-// getNodeIDandMask returns two *NodeID.
-// The first is a NodeID with all the bits known from the address set to their correct values.
-// The second is a bitmask with 1 bit set for each bit that was known from the address.
-// This is used to look up NodeIDs in the DHT and tell if they match an address.
+// GetNodeIDandMask returns two *NodeID.
+// The first is a NodeID with all the bits known from the Address set to their correct values.
+// The second is a bitmask with 1 bit set for each bit that was known from the Address.
+// This is used to look up NodeIDs in the DHT and tell if they match an Address.
 func (a *Address) GetNodeIDandMask() (*crypto.NodeID, *crypto.NodeID) {
 	// Mask is a bitmask to mark the bits visible from the address
 	// This means truncated leading 1s, first leading 0, and visible part of addr
@@ -126,10 +126,10 @@ func (a *Address) GetNodeIDandMask() (*crypto.NodeID, *crypto.NodeID) {
 	return &nid, &mask
 }
 
-// getNodeIDandMask returns two *NodeID.
-// The first is a NodeID with all the bits known from the address set to their correct values.
-// The second is a bitmask with 1 bit set for each bit that was known from the subnet.
-// This is used to look up NodeIDs in the DHT and tell if they match a subnet.
+// GetNodeIDandMask returns two *NodeID.
+// The first is a NodeID with all the bits known from the Subnet set to their correct values.
+// The second is a bitmask with 1 bit set for each bit that was known from the Subnet.
+// This is used to look up NodeIDs in the DHT and tell if they match a Subnet.
 func (s *Subnet) GetNodeIDandMask() (*crypto.NodeID, *crypto.NodeID) {
 	// As with the address version, but visible parts of the subnet prefix instead
 	var nid crypto.NodeID

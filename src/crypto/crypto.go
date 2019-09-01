@@ -26,12 +26,21 @@ import (
 
 // NodeID and TreeID
 
+// NodeIDLen is the length (in bytes) of a NodeID.
 const NodeIDLen = sha512.Size
+
+// TreeIDLen is the length (in bytes) of a TreeID.
 const TreeIDLen = sha512.Size
+
+// handleLen is the length (in bytes) of a Handle.
 const handleLen = 8
 
+// NodeID is how a yggdrasil node is identified in the DHT, and is used to derive IPv6 addresses and subnets in the main executable. It is a sha512sum hash of the node's BoxPubKey
 type NodeID [NodeIDLen]byte
+
+// TreeID is how a yggdrasil node is identified in the root selection algorithm used to construct the spanning tree.
 type TreeID [TreeIDLen]byte
+
 type Handle [handleLen]byte
 
 func (n *NodeID) String() string {
@@ -69,16 +78,19 @@ func (n *NodeID) PrefixLength() int {
 	return len
 }
 
+// GetNodeID returns the NodeID associated with a BoxPubKey.
 func GetNodeID(pub *BoxPubKey) *NodeID {
 	h := sha512.Sum512(pub[:])
 	return (*NodeID)(&h)
 }
 
+// GetTreeID returns the TreeID associated with a BoxPubKey
 func GetTreeID(pub *SigPubKey) *TreeID {
 	h := sha512.Sum512(pub[:])
 	return (*TreeID)(&h)
 }
 
+// NewHandle returns a new (cryptographically random) Handle, used by the session code to identify which session an incoming packet is associated with.
 func NewHandle() *Handle {
 	var h Handle
 	_, err := rand.Read(h[:])
@@ -92,14 +104,25 @@ func NewHandle() *Handle {
 
 // Signatures
 
+// SigPubKeyLen is the length of a SigPubKey in bytes.
 const SigPubKeyLen = ed25519.PublicKeySize
+
+// SigPrivKeyLen is the length of a SigPrivKey in bytes.
 const SigPrivKeyLen = ed25519.PrivateKeySize
+
+// SigLen is the length of SigBytes.
 const SigLen = ed25519.SignatureSize
 
+// SigPubKey is a public ed25519 signing key.
 type SigPubKey [SigPubKeyLen]byte
+
+// SigPrivKey is a private ed25519 signing key.
 type SigPrivKey [SigPrivKeyLen]byte
+
+// SigBytes is an ed25519 signature.
 type SigBytes [SigLen]byte
 
+// NewSigKeys generates a public/private ed25519 key pair.
 func NewSigKeys() (*SigPubKey, *SigPrivKey) {
 	var pub SigPubKey
 	var priv SigPrivKey
@@ -112,6 +135,7 @@ func NewSigKeys() (*SigPubKey, *SigPrivKey) {
 	return &pub, &priv
 }
 
+// Sign returns the SigBytes signing a message.
 func Sign(priv *SigPrivKey, msg []byte) *SigBytes {
 	var sig SigBytes
 	sigSlice := ed25519.Sign(priv[:], msg)
@@ -119,12 +143,14 @@ func Sign(priv *SigPrivKey, msg []byte) *SigBytes {
 	return &sig
 }
 
+// Verify returns true if the provided signature matches the key and message.
 func Verify(pub *SigPubKey, msg []byte, sig *SigBytes) bool {
 	// Should sig be an array instead of a slice?...
 	// It's fixed size, but
 	return ed25519.Verify(pub[:], msg, sig[:])
 }
 
+// Public returns the SigPubKey associated with this SigPrivKey.
 func (p SigPrivKey) Public() SigPubKey {
 	priv := make(ed25519.PrivateKey, ed25519.PrivateKeySize)
 	copy(priv[:], p[:])
@@ -138,17 +164,34 @@ func (p SigPrivKey) Public() SigPubKey {
 
 // NaCl-like crypto "box" (curve25519+xsalsa20+poly1305)
 
+// BoxPubKeyLen is the length of a BoxPubKey in bytes.
 const BoxPubKeyLen = 32
+
+// BoxPrivKeyLen is the length of a BoxPrivKey in bytes.
 const BoxPrivKeyLen = 32
+
+// BoxSharedKeyLen is the length of a BoxSharedKey in bytes.
 const BoxSharedKeyLen = 32
+
+// BoxNonceLen is the length of a BoxNonce in bytes.
 const BoxNonceLen = 24
+
+// BoxOverhead is the length of the overhead from boxing something.
 const BoxOverhead = box.Overhead
 
+// BoxPubKey is a NaCl-like "box" public key (curve25519+xsalsa20+poly1305).
 type BoxPubKey [BoxPubKeyLen]byte
+
+// BoxPrivKey is a NaCl-like "box" private key (curve25519+xsalsa20+poly1305).
 type BoxPrivKey [BoxPrivKeyLen]byte
+
+// BoxSharedKey is a NaCl-like "box" shared key (curve25519+xsalsa20+poly1305).
 type BoxSharedKey [BoxSharedKeyLen]byte
+
+// BoxNonce is the nonce used in NaCl-like crypto "box" operations (curve25519+xsalsa20+poly1305), and must not be reused for different messages encrypted using the same BoxSharedKey.
 type BoxNonce [BoxNonceLen]byte
 
+// NewBoxKeys generates a new pair of public/private crypto box keys.
 func NewBoxKeys() (*BoxPubKey, *BoxPrivKey) {
 	pubBytes, privBytes, err := box.GenerateKey(rand.Reader)
 	if err != nil {
@@ -159,6 +202,7 @@ func NewBoxKeys() (*BoxPubKey, *BoxPrivKey) {
 	return pub, priv
 }
 
+// GetSharedKey returns the shared key derived from your private key and the destination's public key.
 func GetSharedKey(myPrivKey *BoxPrivKey,
 	othersPubKey *BoxPubKey) *BoxSharedKey {
 	var shared [BoxSharedKeyLen]byte
@@ -168,6 +212,7 @@ func GetSharedKey(myPrivKey *BoxPrivKey,
 	return (*BoxSharedKey)(&shared)
 }
 
+// BoxOpen returns a message and true if it successfull opens a crypto box using the provided shared key and nonce.
 func BoxOpen(shared *BoxSharedKey,
 	boxed []byte,
 	nonce *BoxNonce) ([]byte, bool) {
@@ -178,6 +223,9 @@ func BoxOpen(shared *BoxSharedKey,
 	return unboxed, success
 }
 
+// BoxSeal seals a crypto box using the provided shared key, returning the box and the nonce needed to decrypt it.
+// If nonce is nil, a random BoxNonce will be used and returned.
+// If nonce is non-nil, then nonce.Increment() will be called before using it, and the incremented BoxNonce is what is returned.
 func BoxSeal(shared *BoxSharedKey, unboxed []byte, nonce *BoxNonce) ([]byte, *BoxNonce) {
 	if nonce == nil {
 		nonce = NewBoxNonce()
@@ -190,6 +238,7 @@ func BoxSeal(shared *BoxSharedKey, unboxed []byte, nonce *BoxNonce) ([]byte, *Bo
 	return boxed, nonce
 }
 
+// NewBoxNonce generates a (cryptographically) random BoxNonce.
 func NewBoxNonce() *BoxNonce {
 	var nonce BoxNonce
 	_, err := rand.Read(nonce[:])
@@ -204,6 +253,7 @@ func NewBoxNonce() *BoxNonce {
 	return &nonce
 }
 
+// Increment adds 2 to a BoxNonce, which is useful if one node intends to send only with odd BoxNonce values, and the other only with even BoxNonce values.
 func (n *BoxNonce) Increment() {
 	oldNonce := *n
 	n[len(n)-1] += 2
@@ -214,6 +264,7 @@ func (n *BoxNonce) Increment() {
 	}
 }
 
+// Public returns the BoxPubKey associated with this BoxPrivKey.
 func (p BoxPrivKey) Public() BoxPubKey {
 	var boxPub [BoxPubKeyLen]byte
 	var boxPriv [BoxPrivKeyLen]byte
@@ -222,9 +273,9 @@ func (p BoxPrivKey) Public() BoxPubKey {
 	return boxPub
 }
 
-// Used to subtract one nonce from another, staying in the range +- 64.
-// This is used by the nonce progression machinery to advance the bitmask of recently received packets (indexed by nonce), or to check the appropriate bit of the bitmask.
-// It's basically part of the machinery that prevents replays and duplicate packets.
+// Minus is the result of subtracting the provided BoNonce from this BoxNonce, bounded at +- 64.
+// It's primarily used to determine if a new BoxNonce is higher than the last known BoxNonce from a crypto session, and by how much.
+// This is used in the machinery that makes sure replayed packets can't keep a session open indefinitely or stuck using old/bad information about a node.
 func (n *BoxNonce) Minus(m *BoxNonce) int64 {
 	diff := int64(0)
 	for idx := range n {

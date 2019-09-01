@@ -9,22 +9,22 @@ import (
 	"time"
 )
 
-// A wrapper around runtime.Gosched() so it doesn't need to be imported elsewhere.
+// Yield just executes runtime.Gosched(), and is included so we don't need to explicitly import runtime elsewhere.
 func Yield() {
 	runtime.Gosched()
 }
 
-// A wrapper around runtime.LockOSThread() so it doesn't need to be imported elsewhere.
+// LockThread executes runtime.LockOSThread(), and is included so we don't need to explicitly import runtime elsewhere.
 func LockThread() {
 	runtime.LockOSThread()
 }
 
-// A wrapper around runtime.UnlockOSThread() so it doesn't need to be imported elsewhere.
+// UnlockThread executes runtime.UnlockOSThread(), and is included so we don't need to explicitly import runtime elsewhere.
 func UnlockThread() {
 	runtime.UnlockOSThread()
 }
 
-// Gets a slice of the appropriate length, reusing existing slice capacity when possible
+// ResizeBytes returns a slice of the specified length. If the provided slice has sufficient capacity, it will be resized and returned rather than allocating a new slice.
 func ResizeBytes(bs []byte, length int) []byte {
 	if cap(bs) >= length {
 		return bs[:length]
@@ -33,7 +33,7 @@ func ResizeBytes(bs []byte, length int) []byte {
 	}
 }
 
-// This is a workaround to go's broken timer implementation
+// TimerStop stops a timer and makes sure the channel is drained, returns true if the timer was stopped before firing.
 func TimerStop(t *time.Timer) bool {
 	stopped := t.Stop()
 	select {
@@ -43,10 +43,8 @@ func TimerStop(t *time.Timer) bool {
 	return stopped
 }
 
-// Run a blocking function with a timeout.
-// Returns true if the function returns.
-// Returns false if the timer fires.
-// The blocked function remains blocked--the caller is responsible for somehow killing it.
+// FuncTimeout runs the provided function in a separate goroutine, and returns true if the function finishes executing before the timeout passes, or false if the timeout passes.
+// It includes no mechanism to stop the function if the timeout fires, so the user is expected to do so on their own (such as with a Cancellation or a context).
 func FuncTimeout(f func(), timeout time.Duration) bool {
 	success := make(chan struct{})
 	go func() {
@@ -63,9 +61,8 @@ func FuncTimeout(f func(), timeout time.Duration) bool {
 	}
 }
 
-// This calculates the difference between two arrays and returns items
-// that appear in A but not in B - useful somewhat when reconfiguring
-// and working out what configuration items changed
+// Difference loops over two strings and returns the elements of A which do not appear in B.
+// This is somewhat useful when needing to determine which elements of a configuration file have changed.
 func Difference(a, b []string) []string {
 	ab := []string{}
 	mb := map[string]bool{}
@@ -93,7 +90,7 @@ func DecodeCoordString(in string) (out []uint64) {
 	return out
 }
 
-// GetFlowLabel takes an IP packet as an argument and returns some information about the traffic flow.
+// GetFlowKey takes an IP packet as an argument and returns some information about the traffic flow.
 // For IPv4 packets, this is derived from the source and destination protocol and port numbers.
 // For IPv6 packets, this is derived from the FlowLabel field of the packet if this was set, otherwise it's handled like IPv4.
 // The FlowKey is then used internally by Yggdrasil for congestion control.
