@@ -2,6 +2,12 @@
 
 package util
 
+import "runtime/debug"
+
+func init() {
+	debug.SetGCPercent(25)
+}
+
 // On mobile, just return a nil slice.
 func GetBytes() []byte {
 	return nil
