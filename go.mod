@@ -1,7 +1,7 @@
 module github.com/yggdrasil-network/yggdrasil-go
 
 require (
-	github.com/Arceliar/phony v0.0.0-20190831050304-94a6d3da9ba4
+	github.com/Arceliar/phony v0.0.0-20190831214819-9b642ea019ad
 	github.com/gologme/log v0.0.0-20181207131047-4e5d8ccb38e8
 	github.com/hashicorp/go-syslog v1.0.0
 	github.com/hjson/hjson-go v0.0.0-20181010104306-a25ecf6bd222

@@ -6,7 +6,6 @@ package yggdrasil
 
 import (
 	"bytes"
-	"container/heap"
 	"sync"
 	"time"
 
@@ -20,57 +19,40 @@ import (
 // Duration that we keep track of old nonces per session, to allow some out-of-order packet delivery
 const nonceWindow = time.Second
 
-// A heap of nonces, used with a map[nonce]time to allow out-of-order packets a little time to arrive without rejecting them
-type nonceHeap []crypto.BoxNonce
-
-func (h nonceHeap) Len() int            { return len(h) }
-func (h nonceHeap) Less(i, j int) bool  { return h[i].Minus(&h[j]) < 0 }
-func (h nonceHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }
-func (h *nonceHeap) Push(x interface{}) { *h = append(*h, x.(crypto.BoxNonce)) }
-func (h *nonceHeap) Pop() interface{} {
-	l := len(*h)
-	var n crypto.BoxNonce
-	n, *h = (*h)[l-1], (*h)[:l-1]
-	return n
-}
-func (h nonceHeap) peek() *crypto.BoxNonce { return &h[0] }
-
 // All the information we know about an active session.
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
 type sessionInfo struct {
-	phony.Inbox                                  // Protects all of the below, use it any time you read/change the contents of a session
-	sessions       *sessions                     //
-	theirAddr      address.Address               //
-	theirSubnet    address.Subnet                //
-	theirPermPub   crypto.BoxPubKey              //
-	theirSesPub    crypto.BoxPubKey              //
-	mySesPub       crypto.BoxPubKey              //
-	mySesPriv      crypto.BoxPrivKey             //
-	sharedPermKey  crypto.BoxSharedKey           // used for session pings
-	sharedSesKey   crypto.BoxSharedKey           // derived from session keys
-	theirHandle    crypto.Handle                 //
-	myHandle       crypto.Handle                 //
-	theirNonce     crypto.BoxNonce               //
-	theirNonceHeap nonceHeap                     // priority queue to keep track of the lowest nonce we recently accepted
-	theirNonceMap  map[crypto.BoxNonce]time.Time // time we added each nonce to the heap
-	myNonce        crypto.BoxNonce               //
-	theirMTU       uint16                        //
-	myMTU          uint16                        //
-	wasMTUFixed    bool                          // Was the MTU fixed by a receive error?
-	timeOpened     time.Time                     // Time the sessino was opened
-	time           time.Time                     // Time we last received a packet
-	mtuTime        time.Time                     // time myMTU was last changed
-	pingTime       time.Time                     // time the first ping was sent since the last received packet
-	pingSend       time.Time                     // time the last ping was sent
-	coords         []byte                        // coords of destination
-	reset          bool                          // reset if coords change
-	tstamp         int64                         // ATOMIC - tstamp from their last session ping, replay attack mitigation
-	bytesSent      uint64                        // Bytes of real traffic sent in this session
-	bytesRecvd     uint64                        // Bytes of real traffic received in this session
-	init           chan struct{}                 // Closed when the first session pong arrives, used to signal that the session is ready for initial use
-	cancel         util.Cancellation             // Used to terminate workers
-	conn           *Conn                         // The associated Conn object
-	callbacks      []chan func()                 // Finished work from crypto workers
+	phony.Inbox                       // Protects all of the below, use it any time you read/change the contents of a session
+	sessions      *sessions           //
+	theirAddr     address.Address     //
+	theirSubnet   address.Subnet      //
+	theirPermPub  crypto.BoxPubKey    //
+	theirSesPub   crypto.BoxPubKey    //
+	mySesPub      crypto.BoxPubKey    //
+	mySesPriv     crypto.BoxPrivKey   //
+	sharedPermKey crypto.BoxSharedKey // used for session pings
+	sharedSesKey  crypto.BoxSharedKey // derived from session keys
+	theirHandle   crypto.Handle       //
+	myHandle      crypto.Handle       //
+	theirNonce    crypto.BoxNonce     //
+	myNonce       crypto.BoxNonce     //
+	theirMTU      uint16              //
+	myMTU         uint16              //
+	wasMTUFixed   bool                // Was the MTU fixed by a receive error?
+	timeOpened    time.Time           // Time the sessino was opened
+	time          time.Time           // Time we last received a packet
+	mtuTime       time.Time           // time myMTU was last changed
+	pingTime      time.Time           // time the first ping was sent since the last received packet
+	pingSend      time.Time           // time the last ping was sent
+	coords        []byte              // coords of destination
+	reset         bool                // reset if coords change
+	tstamp        int64               // ATOMIC - tstamp from their last session ping, replay attack mitigation
+	bytesSent     uint64              // Bytes of real traffic sent in this session
+	bytesRecvd    uint64              // Bytes of real traffic received in this session
+	init          chan struct{}       // Closed when the first session pong arrives, used to signal that the session is ready for initial use
+	cancel        util.Cancellation   // Used to terminate workers
+	conn          *Conn               // The associated Conn object
+	callbacks     []chan func()       // Finished work from crypto workers
 }
 
 func (sinfo *sessionInfo) reconfigure() {
@@ -105,8 +87,6 @@ func (s *sessionInfo) _update(p *sessionPing) bool {
 		s.theirHandle = p.Handle
 		s.sharedSesKey = *crypto.GetSharedKey(&s.mySesPriv, &s.theirSesPub)
 		s.theirNonce = crypto.BoxNonce{}
-		s.theirNonceHeap = nil
-		s.theirNonceMap = make(map[crypto.BoxNonce]time.Time)
 	}
 	if p.MTU >= 1280 || p.MTU == 0 {
 		s.theirMTU = p.MTU
@@ -420,36 +400,16 @@ func (sinfo *sessionInfo) _nonceIsOK(theirNonce *crypto.BoxNonce) bool {
 		// This is newer than the newest nonce we've seen
 		return true
 	}
-	if len(sinfo.theirNonceHeap) > 0 {
-		if theirNonce.Minus(sinfo.theirNonceHeap.peek()) > 0 {
-			if _, isIn := sinfo.theirNonceMap[*theirNonce]; !isIn {
-				// This nonce is recent enough that we keep track of older nonces, but it's not one we've seen yet
-				return true
-			}
-		}
-	}
-	return false
+	return time.Since(sinfo.time) < nonceWindow
 }
 
 // Updates the nonce mask by (possibly) shifting the bitmask and setting the bit corresponding to this nonce to 1, and then updating the most recent nonce
 func (sinfo *sessionInfo) _updateNonce(theirNonce *crypto.BoxNonce) {
-	// Start with some cleanup
-	for len(sinfo.theirNonceHeap) > 64 {
-		if time.Since(sinfo.theirNonceMap[*sinfo.theirNonceHeap.peek()]) < nonceWindow {
-			// This nonce is still fairly new, so keep it around
-			break
-		}
-		// TODO? reallocate the map in some cases, to free unused map space?
-		delete(sinfo.theirNonceMap, *sinfo.theirNonceHeap.peek())
-		heap.Pop(&sinfo.theirNonceHeap)
-	}
 	if theirNonce.Minus(&sinfo.theirNonce) > 0 {
 		// This nonce is the newest we've seen, so make a note of that
 		sinfo.theirNonce = *theirNonce
+		sinfo.time = time.Now()
 	}
-	// Add it to the heap/map so we know not to allow it again
-	heap.Push(&sinfo.theirNonceHeap, *theirNonce)
-	sinfo.theirNonceMap[*theirNonce] = time.Now()
 }
 
 // Resets all sessions to an uninitialized state.
@@ -515,7 +475,6 @@ func (sinfo *sessionInfo) _recvPacket(p *wire_trafficPacket) {
 				return
 			}
 			sinfo._updateNonce(&p.Nonce)
-			sinfo.time = time.Now()
 			sinfo.bytesRecvd += uint64(len(bs))
 			sinfo.conn.recvMsg(sinfo, bs)
 		}
