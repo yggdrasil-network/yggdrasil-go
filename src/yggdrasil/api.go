@@ -16,29 +16,37 @@ import (
 )
 
 // Peer represents a single peer object. This contains information from the
-// preferred switch port for this peer, although there may be more than one in
-// reality.
+// preferred switch port for this peer, although there may be more than one
+// active switch port connection to the peer in reality.
+//
+// This struct is informational only - you cannot manipulate peer connections
+// using instances of this struct. You should use the AddPeer or RemovePeer
+// functions instead.
 type Peer struct {
-	PublicKey  crypto.BoxPubKey
-	Endpoint   string
-	BytesSent  uint64
-	BytesRecvd uint64
-	Protocol   string
-	Port       uint64
-	Uptime     time.Duration
+	PublicKey  crypto.BoxPubKey // The public key of the remote node
+	Endpoint   string           // The connection string used to connect to the peer
+	BytesSent  uint64           // Number of bytes sent to this peer
+	BytesRecvd uint64           // Number of bytes received from this peer
+	Protocol   string           // The transport protocol that this peer is connected with, typically "tcp"
+	Port       uint64           // Switch port number for this peer connection
+	Uptime     time.Duration    // How long this peering has been active for
 }
 
 // SwitchPeer represents a switch connection to a peer. Note that there may be
 // multiple switch peers per actual peer, e.g. if there are multiple connections
 // to a given node.
+//
+// This struct is informational only - you cannot manipulate switch peer
+// connections using instances of this struct. You should use the AddPeer or
+// RemovePeer functions instead.
 type SwitchPeer struct {
-	PublicKey  crypto.BoxPubKey
-	Coords     []uint64
-	BytesSent  uint64
-	BytesRecvd uint64
-	Port       uint64
-	Protocol   string
-	Endpoint   string
+	PublicKey  crypto.BoxPubKey // The public key of the remote node
+	Coords     []uint64         // The coordinates of the remote node
+	BytesSent  uint64           // Number of bytes sent via this switch port
+	BytesRecvd uint64           // Number of bytes received via this switch port
+	Port       uint64           // Switch port number for this switch peer
+	Protocol   string           // The transport protocol that this switch port is connected with, typically "tcp"
+	Endpoint   string           // The connection string used to connect to the switch peer
 }
 
 // DHTEntry represents a single DHT entry that has been learned or cached from
@@ -64,32 +72,36 @@ type NodeInfoPayload []byte
 // congestion and a list of switch queues created in response to congestion on a
 // given link.
 type SwitchQueues struct {
-	Queues       []SwitchQueue
-	Count        uint64
-	Size         uint64
-	HighestCount uint64
-	HighestSize  uint64
-	MaximumSize  uint64
+	Queues       []SwitchQueue // An array of SwitchQueue objects containing information about individual queues
+	Count        uint64        // The current number of active switch queues
+	Size         uint64        // The current total size of active switch queues
+	HighestCount uint64        // The highest recorded number of switch queues so far
+	HighestSize  uint64        // The highest recorded total size of switch queues so far
+	MaximumSize  uint64        // The maximum allowed total size of switch queues, as specified by config
 }
 
-// SwitchQueue represents a single switch queue, which is created in response
-// to congestion on a given link.
+// SwitchQueue represents a single switch queue. Switch queues are only created
+// in response to congestion on a given link and represent how much data has
+// been temporarily cached for sending once the congestion has cleared.
 type SwitchQueue struct {
-	ID      string
-	Size    uint64
-	Packets uint64
-	Port    uint64
+	ID      string // The ID of the switch queue
+	Size    uint64 // The total size, in bytes, of the queue
+	Packets uint64 // The number of packets in the queue
+	Port    uint64 // The switch port to which the queue applies
 }
 
-// Session represents an open session with another node.
+// Session represents an open session with another node. Sessions are opened in
+// response to traffic being exchanged between two nodes using Conn objects.
+// Note that sessions will automatically be closed by Yggdrasil if no traffic is
+// exchanged for around two minutes.
 type Session struct {
-	PublicKey   crypto.BoxPubKey
-	Coords      []uint64
-	BytesSent   uint64
-	BytesRecvd  uint64
-	MTU         uint16
-	Uptime      time.Duration
-	WasMTUFixed bool
+	PublicKey   crypto.BoxPubKey // The public key of the remote node
+	Coords      []uint64         // The coordinates of the remote node
+	BytesSent   uint64           // Bytes sent to the session
+	BytesRecvd  uint64           // Bytes received from the session
+	MTU         uint16           // The maximum supported message size of the session
+	Uptime      time.Duration    // How long this session has been active for
+	WasMTUFixed bool             // This field is no longer used
 }
 
 // GetPeers returns one or more Peer objects containing information about active

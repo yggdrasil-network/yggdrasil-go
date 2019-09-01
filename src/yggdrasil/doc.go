@@ -125,6 +125,9 @@ Using Connections
 Conn objects are implementations of io.ReadWriteCloser, and as such, you can
 Read, Write and Close them as necessary.
 
+Each Read or Write operation can deal with a buffer with a maximum size of 65535
+bytes - any bigger than this and the operation will return an error.
+
 For example, to write to the Conn from the supplied buffer:
 
   buf := []byte{1, 2, 3, 4, 5}
@@ -151,6 +154,23 @@ When you are happy that a connection is no longer required, you can discard it:
   if err != nil {
     // ...
   }
+
+Limitations
+
+You should be aware of the following limitations when working with the Yggdrasil
+library:
+
+Individual messages written through Yggdrasil connections can not exceed 65535
+bytes in size. Yggdrasil has no concept of fragmentation, so if you try to send
+a message that exceeds 65535 bytes in size, it will be dropped altogether and
+an error will be returned.
+
+Yggdrasil connections are unreliable by nature. Messages are delivered on a
+best-effort basis, and employs congestion control where appropriate to ensure
+that congestion does not affect message transport, but Yggdrasil will not
+retransmit any messages that have been lost. If reliable delivery is important
+then you should manually implement acknowledgement and retransmission of
+messages.
 
 */
 package yggdrasil
