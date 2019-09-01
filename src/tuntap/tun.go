@@ -189,9 +189,11 @@ func (tun *TunAdapter) Stop() error {
 
 func (tun *TunAdapter) _stop() error {
 	tun.isOpen = false
-	// TODO: we have nothing that cleanly stops all the various goroutines opened
 	// by TUN/TAP, e.g. readers/writers, sessions
-	tun.iface.Close()
+	if tun.iface != nil {
+		// Just in case we failed to start up the iface for some reason, this can apparently happen on Windows
+		tun.iface.Close()
+	}
 	return nil
 }
 
