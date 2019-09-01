@@ -194,7 +194,7 @@ func (c *Conn) recvMsg(from phony.Actor, msg []byte) {
 }
 
 // Used internally by Read, the caller is responsible for util.PutBytes when they're done.
-func (c *Conn) ReadNoCopy() ([]byte, error) {
+func (c *Conn) readNoCopy() ([]byte, error) {
 	var cancel util.Cancellation
 	var doCancel bool
 	phony.Block(c, func() { cancel, doCancel = c._getDeadlineCancellation(c.readDeadline) })
@@ -216,7 +216,7 @@ func (c *Conn) ReadNoCopy() ([]byte, error) {
 
 // Implements net.Conn.Read
 func (c *Conn) Read(b []byte) (int, error) {
-	bs, err := c.ReadNoCopy()
+	bs, err := c.readNoCopy()
 	if err != nil {
 		return 0, err
 	}
@@ -257,7 +257,7 @@ func (c *Conn) _write(msg FlowKeyMessage) error {
 }
 
 // WriteFrom should be called by a phony.Actor, and tells the Conn to send a message.
-// This is used internaly by WriteNoCopy and Write.
+// This is used internaly by Write.
 // If the callback is called with a non-nil value, then it is safe to reuse the argument FlowKeyMessage.
 func (c *Conn) WriteFrom(from phony.Actor, msg FlowKeyMessage, callback func(error)) {
 	c.Act(from, func() {
@@ -265,9 +265,9 @@ func (c *Conn) WriteFrom(from phony.Actor, msg FlowKeyMessage, callback func(err
 	})
 }
 
-// WriteNoCopy is used internally by Write and makes use of WriteFrom under the hood.
+// writeNoCopy is used internally by Write and makes use of WriteFrom under the hood.
 // The caller must not reuse the argument FlowKeyMessage when a nil error is returned.
-func (c *Conn) WriteNoCopy(msg FlowKeyMessage) error {
+func (c *Conn) writeNoCopy(msg FlowKeyMessage) error {
 	var cancel util.Cancellation
 	var doCancel bool
 	phony.Block(c, func() { cancel, doCancel = c._getDeadlineCancellation(c.writeDeadline) })
@@ -292,7 +292,7 @@ func (c *Conn) WriteNoCopy(msg FlowKeyMessage) error {
 func (c *Conn) Write(b []byte) (int, error) {
 	written := len(b)
 	msg := FlowKeyMessage{Message: append(util.GetBytes(), b...)}
-	err := c.WriteNoCopy(msg)
+	err := c.writeNoCopy(msg)
 	if err != nil {
 		util.PutBytes(msg.Message)
 		written = 0
