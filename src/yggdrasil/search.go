@@ -204,6 +204,11 @@ func (sinfo *searchInfo) checkDHTRes(res *dhtRes) bool {
 		if !isIn {
 			panic("This should never happen")
 		}
+	} else {
+		sinfo.callback(nil, errors.New("session already exists"))
+		// Cleanup
+		delete(sinfo.searches.searches, res.Dest)
+		return true
 	}
 	// FIXME (!) replay attacks could mess with coords? Give it a handle (tstamp)?
 	sess.coords = res.Coords
