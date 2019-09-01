@@ -6,6 +6,8 @@ github.com/hashicorp/go-syslog v1.0.0 h1:KaodqZuhUoZereWVIYmpUgZysurB1kBLX2j0MwM
 github.com/hashicorp/go-syslog v1.0.0/go.mod h1:qPfqrKkXGihmCqbJM2mZgkZGvKG1dFdvsLplgctolz4=
 github.com/hjson/hjson-go v0.0.0-20181010104306-a25ecf6bd222 h1:xmvkbxXDeN1ffWq8kvrhyqVYAO2aXuRBsbpxVTR+JyU=
 github.com/hjson/hjson-go v0.0.0-20181010104306-a25ecf6bd222/go.mod h1:qsetwF8NlsTsOTwZTApNlTCerV+b2GjYRRcIk4JMFio=
+github.com/hjson/hjson-go v3.0.1-0.20190209023717-9147687966d9+incompatible h1:bLQ2Ve+eW65id3b8xEMQiAwJT4qGZeywAEMLvXjznvw=
+github.com/hjson/hjson-go v3.0.1-0.20190209023717-9147687966d9+incompatible/go.mod h1:qsetwF8NlsTsOTwZTApNlTCerV+b2GjYRRcIk4JMFio=
 github.com/kardianos/minwinsvc v0.0.0-20151122163309-cad6b2b879b0 h1:YnZmFjg0Nvk8851WTVWlqMC1ecJH07Ctz+Ezxx4u54g=
 github.com/kardianos/minwinsvc v0.0.0-20151122163309-cad6b2b879b0/go.mod h1:rUi0/YffDo1oXBOGn1KRq7Fr07LX48XEBecQnmwjsAo=
 github.com/mitchellh/mapstructure v1.1.2 h1:fmNYVwqnSfB9mZU6OS2O6GsXM+wcskZDuKQzvN1EDeE=
