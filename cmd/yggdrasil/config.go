@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"os"
 
+	"golang.org/x/text/encoding/unicode"
+
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 )
 

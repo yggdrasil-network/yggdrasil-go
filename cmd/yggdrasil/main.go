@@ -180,6 +180,15 @@ func main() {
 	} else {
 		logger.Errorln("Unable to get Listener:", err)
 	}
+	// Add our peers
+	for _, addr := range n.config.Peers {
+		n.core.AddPeer(addr, "")
+	}
+	for sintf, addrs := range n.config.InterfacePeers {
+		for _, addr := range addrs {
+			n.core.AddPeer(addr, sintf)
+		}
+	}
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
 	address := n.core.Address()

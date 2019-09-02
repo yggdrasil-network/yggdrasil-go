@@ -23,10 +23,12 @@ import (
 // In other cases, it's link protocol traffic used to build the spanning tree, in which case this checks signatures and passes the message along to the switch.
 type peers struct {
 	phony.Inbox
-	core              *Core
-	mutex             sync.Mutex         // Synchronize writes to atomic
-	ports             atomic.Value       // map[switchPort]*peer, use CoW semantics
-	allowedBoxPubKeys []crypto.BoxPubKey // protected by actor
+	core                     *Core
+	mutex                    sync.Mutex          // Synchronize writes to atomic
+	ports                    atomic.Value        // map[switchPort]*peer, use CoW semantics
+	persistentPeers          []string            // Connection strings for persistent peers
+	persistentInterfacePeers map[string][]string // Connection strings for persistent interface peers
+	allowedBoxPubKeys        []crypto.BoxPubKey  // protected by actor
 }
 
 // Initializes the peers struct.
@@ -35,6 +37,28 @@ func (ps *peers) init(c *Core) {
 	defer ps.mutex.Unlock()
 	ps.putPorts(make(map[switchPort]*peer))
 	ps.core = c
+}
+
+// Add persistent peers if they are not already added.
+func (ps *peers) _addPeerLoop() {
+	// Add peers from the Peers section
+	for _, peer := range ps.persistentPeers {
+		go ps.core.AddPeer(peer, "") // TODO: this should be acted and not in a goroutine?
+		time.Sleep(time.Second)
+	}
+
+	// Add peers from the InterfacePeers section
+	for intf, intfpeers := range ps.persistentInterfacePeers {
+		for _, peer := range intfpeers {
+			go ps.core.AddPeer(peer, intf) // TODO: this should be acted and not in a goroutine?
+			time.Sleep(time.Second)
+		}
+	}
+
+	// Sit for a while
+	time.AfterFunc(time.Minute, func() {
+		ps.Act(ps, ps._addPeerLoop)
+	})
 }
 
 // AddAllowedEncryptionPublicKey whitelists a key for incoming peer connections.

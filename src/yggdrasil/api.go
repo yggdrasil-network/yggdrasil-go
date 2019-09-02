@@ -383,13 +383,13 @@ func (c *Core) AddPeer(addr string, sintf string) error {
 	if err := c.CallPeer(addr, sintf); err != nil {
 		return err
 	}
-	// TODO: PERSISTENCE!
-	/*config := c.GetConfig()
-	if sintf == "" {
-		config.Peers = append(config.Peers, addr)
-	} else {
-		config.InterfacePeers[sintf] = append(config.InterfacePeers[sintf], addr)
-	}*/
+	c.peers.Act(c, func() {
+		if sintf == "" {
+			c.peers.persistentPeers = append(c.peers.persistentPeers, addr)
+		} else {
+			c.peers.persistentInterfacePeers[sintf] = append(c.peers.persistentInterfacePeers[sintf], addr)
+		}
+	})
 	return nil
 }
 

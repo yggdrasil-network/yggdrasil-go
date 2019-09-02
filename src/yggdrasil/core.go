@@ -33,81 +33,11 @@ func (c *Core) _init(boxPrivKey *crypto.BoxPrivKey, sigPrivKey *crypto.SigPrivKe
 		c.log = log.New(ioutil.Discard, "", 0)
 	}
 
-	/*
-			current := c.config.Load().(*config.NodeConfig)
-
-			boxPrivHex, err := hex.DecodeString(current.EncryptionPrivateKey)
-			if err != nil {
-				return err
-			}
-			if len(boxPrivHex) < crypto.BoxPrivKeyLen {
-				return errors.New("EncryptionPrivateKey is incorrect length")
-			}
-
-			sigPrivHex, err := hex.DecodeString(current.SigningPrivateKey)
-			if err != nil {
-				return err
-			}
-			if len(sigPrivHex) < crypto.SigPrivKeyLen {
-				return errors.New("SigningPrivateKey is incorrect length")
-			}
-
-		copy(c.boxPriv[:], boxPrivHex)
-		copy(c.sigPriv[:], sigPrivHex)
-	*/
-	/*
-		copy(c.boxPriv[:], boxPrivKey[:])
-		copy(c.sigPriv[:], sigPrivKey[:])
-
-		boxPub, sigPub := c.boxPriv.Public(), c.sigPriv.Public()
-
-		copy(c.boxPub[:], boxPub[:])
-		copy(c.sigPub[:], sigPub[:])
-	*/
-	/*
-		if bp := hex.EncodeToString(c.boxPub[:]); current.EncryptionPublicKey != bp {
-			c.log.Warnln("EncryptionPublicKey in config is incorrect, should be", bp)
-		}
-		if sp := hex.EncodeToString(c.sigPub[:]); current.SigningPublicKey != sp {
-			c.log.Warnln("SigningPublicKey in config is incorrect, should be", sp)
-		}
-	*/
-
 	c.peers.init(c)
 	c.router.init(c, *boxPrivKey)
 	c.switchTable.init(c, *sigPrivKey) // TODO move before peers? before router?
 
 	return nil
-}
-
-// If any static peers were provided in the configuration above then we should
-// configure them. The loop ensures that disconnected peers will eventually
-// be reconnected with.
-func (c *Core) _addPeerLoop() {
-	// TODO: PERSISTENCE
-	/*
-		// Get the peers from the config - these could change!
-		current := c.GetConfig()
-
-		// Add peers from the Peers section
-		for _, peer := range current.Peers {
-			go c.AddPeer(peer, "") // TODO: this should be acted and not in a goroutine?
-			time.Sleep(time.Second)
-		}
-
-		// Add peers from the InterfacePeers section
-		for intf, intfpeers := range current.InterfacePeers {
-			for _, peer := range intfpeers {
-				go c.AddPeer(peer, intf) // TODO: this should be acted and not in a goroutine?
-				time.Sleep(time.Second)
-			}
-		}
-
-		// Sit for a while
-		time.AfterFunc(time.Minute, func() {
-			c.Act(c, c._addPeerLoop)
-		})
-	*/
 }
 
 // Start starts up Yggdrasil using the provided config.NodeConfig, and outputs
@@ -152,7 +82,7 @@ func (c *Core) _start(boxPrivKey *crypto.BoxPrivKey, sigPrivKey *crypto.SigPrivK
 		return err
 	}
 
-	c.Act(c, c._addPeerLoop)
+	c.peers.Act(c, c.peers._addPeerLoop)
 
 	c.log.Infoln("Startup complete")
 	return nil
