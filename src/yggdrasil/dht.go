@@ -82,10 +82,6 @@ func (t *dht) init(r *router) {
 	t.reset()
 }
 
-func (t *dht) reconfigure() {
-	// This is where reconfiguration would go, if we had anything to do
-}
-
 // Resets the DHT in response to coord changes.
 // This empties all info from the DHT and drops outstanding requests.
 func (t *dht) reset() {
@@ -189,7 +185,7 @@ func (t *dht) handleReq(req *dhtReq) {
 	loc := t.router.core.switchTable.getLocator()
 	coords := loc.getCoords()
 	res := dhtRes{
-		Key:    t.router.core.boxPub,
+		Key:    t.router.boxPub,
 		Coords: coords,
 		Dest:   req.Dest,
 		Infos:  t.lookup(&req.Dest, false),
@@ -217,12 +213,12 @@ func (t *dht) handleReq(req *dhtReq) {
 func (t *dht) sendRes(res *dhtRes, req *dhtReq) {
 	// Send a reply for a dhtReq
 	bs := res.encode()
-	shared := t.router.sessions.getSharedKey(&t.router.core.boxPriv, &req.Key)
+	shared := t.router.sessions.getSharedKey(&t.router.boxPriv, &req.Key)
 	payload, nonce := crypto.BoxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
 		Coords:  req.Coords,
 		ToKey:   req.Key,
-		FromKey: t.router.core.boxPub,
+		FromKey: t.router.boxPub,
 		Nonce:   *nonce,
 		Payload: payload,
 	}
@@ -281,12 +277,12 @@ func (t *dht) handleRes(res *dhtRes) {
 func (t *dht) sendReq(req *dhtReq, dest *dhtInfo) {
 	// Send a dhtReq to the node in dhtInfo
 	bs := req.encode()
-	shared := t.router.sessions.getSharedKey(&t.router.core.boxPriv, &dest.key)
+	shared := t.router.sessions.getSharedKey(&t.router.boxPriv, &dest.key)
 	payload, nonce := crypto.BoxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
 		Coords:  dest.coords,
 		ToKey:   dest.key,
-		FromKey: t.router.core.boxPub,
+		FromKey: t.router.boxPub,
 		Nonce:   *nonce,
 		Payload: payload,
 	}
@@ -305,7 +301,7 @@ func (t *dht) ping(info *dhtInfo, target *crypto.NodeID) {
 	loc := t.router.core.switchTable.getLocator()
 	coords := loc.getCoords()
 	req := dhtReq{
-		Key:    t.router.core.boxPub,
+		Key:    t.router.boxPub,
 		Coords: coords,
 		Dest:   *target,
 	}
@@ -409,7 +405,7 @@ func (t *dht) getImportant() []*dhtInfo {
 
 // Returns true if this is a node we need to keep track of for the DHT to work.
 func (t *dht) isImportant(ninfo *dhtInfo) bool {
-	if ninfo.key == t.router.core.boxPub {
+	if ninfo.key == t.router.boxPub {
 		return false
 	}
 	important := t.getImportant()

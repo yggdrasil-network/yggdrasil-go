@@ -55,10 +55,6 @@ func (s *searches) init(r *router) {
 	s.searches = make(map[crypto.NodeID]*searchInfo)
 }
 
-func (s *searches) reconfigure() {
-	// This is where reconfiguration would go, if we had anything to do
-}
-
 // Creates a new search info, adds it to the searches struct, and returns a pointer to the info.
 func (s *searches) createSearch(dest *crypto.NodeID, mask *crypto.NodeID, callback func(*sessionInfo, error)) *searchInfo {
 	info := searchInfo{
@@ -169,7 +165,7 @@ func (s *searches) newIterSearch(dest *crypto.NodeID, mask *crypto.NodeID, callb
 	sinfo.visited = make(map[crypto.NodeID]bool)
 	loc := s.router.core.switchTable.getLocator()
 	sinfo.toVisit = append(sinfo.toVisit, &dhtInfo{
-		key:    s.router.core.boxPub,
+		key:    s.router.boxPub,
 		coords: loc.getCoords(),
 	}) // Start the search by asking ourself, useful if we're the destination
 	return sinfo

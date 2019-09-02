@@ -9,7 +9,6 @@ package tuntap
 // TODO: Don't block in reader on writes that are pending searches
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -38,7 +37,6 @@ type TunAdapter struct {
 	writer      tunWriter
 	reader      tunReader
 	log         *log.Logger
-	reconfigure chan chan error
 	listener    *yggdrasil.Listener
 	dialer      *yggdrasil.Dialer
 	addr        address.Address
@@ -123,31 +121,25 @@ func (tun *TunAdapter) Init(c *yggdrasil.Core, log *log.Logger, listener *yggdra
 
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
 // reader actor to handle packets on that interface.
-func (tun *TunAdapter) Start() error {
+func (tun *TunAdapter) Start(ifname string, ifmtu int, iftapmode bool) error {
 	var err error
 	phony.Block(tun, func() {
-		err = tun._start()
+		err = tun._start(ifname, ifmtu, iftapmode)
 	})
 	return err
 }
 
-func (tun *TunAdapter) _start() error {
-	current := tun.core.GetConfig()
+func (tun *TunAdapter) _start(ifname string, ifmtu int, iftapmode bool) error {
 	if tun.core == nil || tun.listener == nil || tun.dialer == nil {
 		return errors.New("TUN/TAP has not been initialised, call Init first")
 	}
-	var boxPub crypto.BoxPubKey
-	boxPubHex, err := hex.DecodeString(current.EncryptionPublicKey)
-	if err != nil {
-		return err
+	if tun.isOpen {
+		return errors.New("TUN/TAP has already been started")
 	}
-	copy(boxPub[:], boxPubHex)
-	nodeID := crypto.GetNodeID(&boxPub)
+	nodeID := tun.core.NodeID()
 	tun.addr = *address.AddrForNodeID(nodeID)
 	tun.subnet = *address.SubnetForNodeID(nodeID)
-	tun.mtu = current.IfMTU
-	ifname := current.IfName
-	iftapmode := current.IfTAPMode
+	tun.mtu = ifmtu
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
 	if ifname != "none" {
 		if err := tun.setup(ifname, iftapmode, addr, tun.mtu); err != nil {
@@ -159,13 +151,6 @@ func (tun *TunAdapter) _start() error {
 		return nil
 	}
 	tun.isOpen = true
-	tun.reconfigure = make(chan chan error)
-	go func() {
-		for {
-			e := <-tun.reconfigure
-			e <- nil
-		}
-	}()
 	go tun.handler()
 	tun.reader.Act(nil, tun.reader._read) // Start the reader
 	tun.icmpv6.Init(tun)

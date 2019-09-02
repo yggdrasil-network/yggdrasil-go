@@ -24,9 +24,6 @@ import (
 	"time"
 
 	"golang.org/x/net/proxy"
-
-	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 const default_timeout = 6 * time.Second
@@ -81,19 +78,21 @@ func (t *tcp) init(l *link) error {
 	t.conns = make(map[linkInfo](chan struct{}))
 	t.listeners = make(map[string]*TcpListener)
 	t.mutex.Unlock()
-
-	for _, listenaddr := range t.link.core.GetConfig().Listen {
-		if listenaddr[:6] != "tcp://" {
-			continue
+	/*
+		for _, listenaddr := range t.link.core.GetConfig().Listen {
+			if listenaddr[:6] != "tcp://" {
+				continue
+			}
+			if _, err := t.listen(listenaddr[6:]); err != nil {
+				return err
+			}
 		}
-		if _, err := t.listen(listenaddr[6:]); err != nil {
-			return err
-		}
-	}
-
+	*/
 	return nil
 }
 
+/*
+TODO: move this logic to cmd/yggdrasil
 func (t *tcp) reconfigure(current, previous *config.NodeConfig) {
 	added := util.Difference(current.Listen, previous.Listen)
 	deleted := util.Difference(previous.Listen, current.Listen)
@@ -123,6 +122,7 @@ func (t *tcp) reconfigure(current, previous *config.NodeConfig) {
 		}
 	}
 }
+*/
 
 func (t *tcp) listen(listenaddr string) (*TcpListener, error) {
 	var err error

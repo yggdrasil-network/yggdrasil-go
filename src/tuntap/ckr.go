@@ -44,52 +44,64 @@ func (c *cryptokey) init(tun *TunAdapter) {
 
 // Configure the CKR routes. This should only ever be ran by the TUN/TAP actor.
 func (c *cryptokey) configure() {
-	current := c.tun.core.GetConfig()
+	/*
+		current := c.tun.core.GetConfig()
 
-	// Set enabled/disabled state
-	c.setEnabled(current.TunnelRouting.Enable)
+		// Set enabled/disabled state
+		c.setEnabled(current.TunnelRouting.Enable)
 
-	// Clear out existing routes
+		// Clear out existing routes
+		c.mutexremotes.Lock()
+		c.ipv6remotes = make([]cryptokey_route, 0)
+		c.ipv4remotes = make([]cryptokey_route, 0)
+		c.mutexremotes.Unlock()
+
+		// Add IPv6 routes
+		for ipv6, pubkey := range current.TunnelRouting.IPv6RemoteSubnets {
+			if err := c.addRemoteSubnet(ipv6, pubkey); err != nil {
+				c.tun.log.Errorln("Error adding CKR IPv6 remote subnet:", err)
+			}
+		}
+
+		// Add IPv4 routes
+		for ipv4, pubkey := range current.TunnelRouting.IPv4RemoteSubnets {
+			if err := c.addRemoteSubnet(ipv4, pubkey); err != nil {
+				c.tun.log.Errorln("Error adding CKR IPv4 remote subnet:", err)
+			}
+		}
+
+		// Clear out existing sources
+		c.mutexlocals.Lock()
+		c.ipv6locals = make([]net.IPNet, 0)
+		c.ipv4locals = make([]net.IPNet, 0)
+		c.mutexlocals.Unlock()
+
+		// Add IPv6 sources
+		c.ipv6locals = make([]net.IPNet, 0)
+		for _, source := range current.TunnelRouting.IPv6LocalSubnets {
+			if err := c.addLocalSubnet(source); err != nil {
+				c.tun.log.Errorln("Error adding CKR IPv6 local subnet:", err)
+			}
+		}
+
+		// Add IPv4 sources
+		c.ipv4locals = make([]net.IPNet, 0)
+		for _, source := range current.TunnelRouting.IPv4LocalSubnets {
+			if err := c.addLocalSubnet(source); err != nil {
+				c.tun.log.Errorln("Error adding CKR IPv4 local subnet:", err)
+			}
+		}
+	*/
+
 	c.mutexremotes.Lock()
 	c.ipv6remotes = make([]cryptokey_route, 0)
 	c.ipv4remotes = make([]cryptokey_route, 0)
 	c.mutexremotes.Unlock()
 
-	// Add IPv6 routes
-	for ipv6, pubkey := range current.TunnelRouting.IPv6RemoteSubnets {
-		if err := c.addRemoteSubnet(ipv6, pubkey); err != nil {
-			c.tun.log.Errorln("Error adding CKR IPv6 remote subnet:", err)
-		}
-	}
-
-	// Add IPv4 routes
-	for ipv4, pubkey := range current.TunnelRouting.IPv4RemoteSubnets {
-		if err := c.addRemoteSubnet(ipv4, pubkey); err != nil {
-			c.tun.log.Errorln("Error adding CKR IPv4 remote subnet:", err)
-		}
-	}
-
-	// Clear out existing sources
 	c.mutexlocals.Lock()
 	c.ipv6locals = make([]net.IPNet, 0)
 	c.ipv4locals = make([]net.IPNet, 0)
 	c.mutexlocals.Unlock()
-
-	// Add IPv6 sources
-	c.ipv6locals = make([]net.IPNet, 0)
-	for _, source := range current.TunnelRouting.IPv6LocalSubnets {
-		if err := c.addLocalSubnet(source); err != nil {
-			c.tun.log.Errorln("Error adding CKR IPv6 local subnet:", err)
-		}
-	}
-
-	// Add IPv4 sources
-	c.ipv4locals = make([]net.IPNet, 0)
-	for _, source := range current.TunnelRouting.IPv4LocalSubnets {
-		if err := c.addLocalSubnet(source); err != nil {
-			c.tun.log.Errorln("Error adding CKR IPv4 local subnet:", err)
-		}
-	}
 
 	// Wipe the caches
 	c.mutexcaches.Lock()

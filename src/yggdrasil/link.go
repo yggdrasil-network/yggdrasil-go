@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 
@@ -80,10 +79,6 @@ func (l *link) init(c *Core) error {
 	return nil
 }
 
-func (l *link) reconfigure(current, previous *config.NodeConfig) {
-	l.tcp.reconfigure(current, previous)
-}
-
 func (l *link) call(uri string, sintf string) error {
 	u, err := url.Parse(uri)
 	if err != nil {
@@ -139,8 +134,8 @@ func (intf *linkInterface) handler() error {
 	// TODO split some of this into shorter functions, so it's easier to read, and for the FIXME duplicate peer issue mentioned later
 	myLinkPub, myLinkPriv := crypto.NewBoxKeys()
 	meta := version_getBaseMetadata()
-	meta.box = intf.link.core.boxPub
-	meta.sig = intf.link.core.sigPub
+	meta.box = intf.link.core.router.boxPub
+	meta.sig = intf.link.core.switchTable.sigPub
 	meta.link = *myLinkPub
 	metaBytes := meta.encode()
 	// TODO timeouts on send/recv (goroutine for send/recv, channel select w/ timer)

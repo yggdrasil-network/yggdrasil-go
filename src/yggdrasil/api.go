@@ -267,22 +267,22 @@ func (c *Core) ListenTCP(uri string) (*TcpListener, error) {
 
 // NodeID gets the node ID.
 func (c *Core) NodeID() *crypto.NodeID {
-	return crypto.GetNodeID(&c.boxPub)
+	return crypto.GetNodeID(&c.router.boxPub)
 }
 
 // TreeID gets the tree ID.
 func (c *Core) TreeID() *crypto.TreeID {
-	return crypto.GetTreeID(&c.sigPub)
+	return crypto.GetTreeID(&c.switchTable.sigPub)
 }
 
 // SigningPublicKey gets the node's signing public key.
 func (c *Core) SigningPublicKey() string {
-	return hex.EncodeToString(c.sigPub[:])
+	return hex.EncodeToString(c.switchTable.sigPub[:])
 }
 
 // EncryptionPublicKey gets the node's encryption public key.
 func (c *Core) EncryptionPublicKey() string {
-	return hex.EncodeToString(c.boxPub[:])
+	return hex.EncodeToString(c.router.boxPub[:])
 }
 
 // Coords returns the current coordinates of the node.
@@ -361,6 +361,19 @@ func (c *Core) SetLogger(log *log.Logger) {
 	c.log = log
 }
 
+// SetSwitchMaxTotalQueueSize sets the maximum allowed size that switch queues
+// can occupy in memory.
+func (c *Core) SetSwitchMaxTotalQueueSize(value uint64) (err error) {
+	phony.Block(&c.switchTable, func() {
+		if value > SwitchQueueTotalMinSize {
+			c.switchTable.queues.totalMaxSize = value
+		} else {
+			err = fmt.Errorf("queue total size minimum is", SwitchQueueTotalMinSize)
+		}
+	})
+	return
+}
+
 // AddPeer adds a peer. This should be specified in the peer URI format, e.g.:
 // 		tcp://a.b.c.d:e
 //		socks://a.b.c.d:e/f.g.h.i:j
@@ -370,12 +383,13 @@ func (c *Core) AddPeer(addr string, sintf string) error {
 	if err := c.CallPeer(addr, sintf); err != nil {
 		return err
 	}
-	config := c.GetConfig()
+	// TODO: PERSISTENCE!
+	/*config := c.GetConfig()
 	if sintf == "" {
 		config.Peers = append(config.Peers, addr)
 	} else {
 		config.InterfacePeers[sintf] = append(config.InterfacePeers[sintf], addr)
-	}
+	}*/
 	return nil
 }
 
@@ -407,21 +421,44 @@ func (c *Core) DisconnectPeer(port uint64) error {
 // GetAllowedEncryptionPublicKeys returns the public keys permitted for incoming
 // peer connections.
 func (c *Core) GetAllowedEncryptionPublicKeys() []string {
-	return c.peers.getAllowedEncryptionPublicKeys()
+	var strs []string
+	phony.Block(&c.peers, func() {
+		keys := c.peers._getAllowedEncryptionPublicKeys()
+		for _, v := range keys {
+			strs = append(strs, hex.EncodeToString(v[:]))
+		}
+	})
+	return strs
 }
 
 // AddAllowedEncryptionPublicKey whitelists a key for incoming peer connections.
 func (c *Core) AddAllowedEncryptionPublicKey(bstr string) (err error) {
-	c.peers.addAllowedEncryptionPublicKey(bstr)
-	return nil
+	key, err := hex.DecodeString(bstr)
+	if err != nil {
+		return
+	}
+	phony.Block(&c.peers, func() {
+		var k crypto.BoxPubKey
+		copy(k[:], key[:])
+		err = c.peers._addAllowedEncryptionPublicKey(&k)
+	})
+	return
 }
 
 // RemoveAllowedEncryptionPublicKey removes a key from the whitelist for
 // incoming peer connections. If none are set, an empty list permits all
 // incoming connections.
 func (c *Core) RemoveAllowedEncryptionPublicKey(bstr string) (err error) {
-	c.peers.removeAllowedEncryptionPublicKey(bstr)
-	return nil
+	key, err := hex.DecodeString(bstr)
+	if err != nil {
+		return
+	}
+	phony.Block(&c.peers, func() {
+		var k crypto.BoxPubKey
+		copy(k[:], key[:])
+		err = c.peers._removeAllowedEncryptionPublicKey(&k)
+	})
+	return
 }
 
 // DHTPing sends a DHT ping to the node with the provided key and coords,

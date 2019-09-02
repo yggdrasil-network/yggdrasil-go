@@ -55,10 +55,6 @@ type sessionInfo struct {
 	callbacks     []chan func()       // Finished work from crypto workers
 }
 
-func (sinfo *sessionInfo) reconfigure() {
-	// This is where reconfiguration would go, if we had anything to do
-}
-
 // Represents a session ping/pong packet, andincludes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
 type sessionPing struct {
 	SendPermPub crypto.BoxPubKey // Sender's permanent key
@@ -135,12 +131,6 @@ func (ss *sessions) init(r *router) {
 	ss.lastCleanup = time.Now()
 }
 
-func (ss *sessions) reconfigure() {
-	for _, session := range ss.sinfos {
-		session.reconfigure()
-	}
-}
-
 // Determines whether the session with a given publickey is allowed based on
 // session firewall rules.
 func (ss *sessions) isSessionAllowed(pubkey *crypto.BoxPubKey, initiator bool) bool {
@@ -181,13 +171,13 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo := sessionInfo{}
 	sinfo.sessions = ss
 	sinfo.theirPermPub = *theirPermKey
-	sinfo.sharedPermKey = *ss.getSharedKey(&ss.router.core.boxPriv, &sinfo.theirPermPub)
+	sinfo.sharedPermKey = *ss.getSharedKey(&ss.router.boxPriv, &sinfo.theirPermPub)
 	pub, priv := crypto.NewBoxKeys()
 	sinfo.mySesPub = *pub
 	sinfo.mySesPriv = *priv
 	sinfo.myNonce = *crypto.NewBoxNonce()
 	sinfo.theirMTU = 1280
-	sinfo.myMTU = uint16(ss.router.core.GetConfig().IfMTU)
+	//sinfo.myMTU = uint16(ss.router.core.GetConfig().IfMTU)
 	now := time.Now()
 	sinfo.timeOpened = now
 	sinfo.time = now
@@ -197,11 +187,11 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.init = make(chan struct{})
 	sinfo.cancel = util.NewCancellation()
 	higher := false
-	for idx := range ss.router.core.boxPub {
-		if ss.router.core.boxPub[idx] > sinfo.theirPermPub[idx] {
+	for idx := range ss.router.boxPub {
+		if ss.router.boxPub[idx] > sinfo.theirPermPub[idx] {
 			higher = true
 			break
-		} else if ss.router.core.boxPub[idx] < sinfo.theirPermPub[idx] {
+		} else if ss.router.boxPub[idx] < sinfo.theirPermPub[idx] {
 			break
 		}
 	}
@@ -267,7 +257,7 @@ func (sinfo *sessionInfo) _getPing() sessionPing {
 	loc := sinfo.sessions.router.core.switchTable.getLocator()
 	coords := loc.getCoords()
 	ping := sessionPing{
-		SendPermPub: sinfo.sessions.router.core.boxPub,
+		SendPermPub: sinfo.sessions.router.boxPub,
 		Handle:      sinfo.myHandle,
 		SendSesPub:  sinfo.mySesPub,
 		Tstamp:      time.Now().Unix(),
@@ -318,7 +308,7 @@ func (sinfo *sessionInfo) _sendPingPong(isPong bool) {
 	p := wire_protoTrafficPacket{
 		Coords:  sinfo.coords,
 		ToKey:   sinfo.theirPermPub,
-		FromKey: sinfo.sessions.router.core.boxPub,
+		FromKey: sinfo.sessions.router.boxPub,
 		Nonce:   *nonce,
 		Payload: payload,
 	}

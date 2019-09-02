@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
@@ -24,12 +25,12 @@ import (
 // TODO: Add authentication
 
 type AdminSocket struct {
-	core        *yggdrasil.Core
-	log         *log.Logger
-	reconfigure chan chan error
-	listenaddr  string
-	listener    net.Listener
-	handlers    map[string]handler
+	phony.Inbox
+	core       *yggdrasil.Core
+	log        *log.Logger
+	listenaddr string
+	listener   net.Listener
+	handlers   map[string]handler
 }
 
 // Info refers to information that is returned to the admin socket handler.
@@ -56,20 +57,7 @@ func (a *AdminSocket) AddHandler(name string, args []string, handlerfunc func(In
 func (a *AdminSocket) Init(c *yggdrasil.Core, log *log.Logger, options interface{}) {
 	a.core = c
 	a.log = log
-	a.reconfigure = make(chan chan error, 1)
 	a.handlers = make(map[string]handler)
-	go func() {
-		for {
-			e := <-a.reconfigure
-			if newlistenaddr := c.GetConfig().AdminListen; newlistenaddr != a.listenaddr {
-				a.listenaddr = newlistenaddr
-				a.Stop()
-				a.Start()
-			}
-			e <- nil
-		}
-	}()
-	a.listenaddr = c.GetConfig().AdminListen
 	a.AddHandler("list", []string{}, func(in Info) (Info, error) {
 		handlers := make(map[string]interface{})
 		for handlername, handler := range a.handlers {
@@ -309,13 +297,22 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, log *log.Logger, options interface
 	})
 }
 
-// start runs the admin API socket to listen for / respond to admin API calls.
-func (a *AdminSocket) Start() error {
+// Start runs the admin API socket to listen for / respond to admin API calls.
+// You should provide a listen address in tcp://a.b.c.d:e, tcp://[a::b:c:d]:e or
+// unix:///path/to/yggdrasil.sock format.
+func (a *AdminSocket) Start(listenaddr string) error {
 	if a.core == nil {
 		return errors.New("admin socket has not been initialised, call Init first")
 	}
-	if a.listenaddr != "none" && a.listenaddr != "" {
+	if listenaddr == "none" || listenaddr == "" {
+		return errors.New("admin socket listen address not provided")
+	}
+	if a.listenaddr != listenaddr {
+		if a.listener != nil {
+			a.listener.Close()
+		}
 		go a.listen()
+		a.listenaddr = listenaddr
 	}
 	return nil
 }

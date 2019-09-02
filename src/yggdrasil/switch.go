@@ -17,7 +17,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 
@@ -166,7 +165,8 @@ type switchData struct {
 // All the information stored by the switch.
 type switchTable struct {
 	core        *Core
-	key         crypto.SigPubKey           // Our own key
+	sigPub      crypto.SigPubKey           // Our own public key
+	sigPriv     crypto.SigPrivKey          // Our own private key
 	time        time.Time                  // Time when locator.tstamp was last updated
 	drop        map[crypto.SigPubKey]int64 // Tstamp associated with a dropped root
 	mutex       sync.RWMutex               // Lock for reads/writes of switchData
@@ -183,32 +183,22 @@ type switchTable struct {
 const SwitchQueueTotalMinSize = 4 * 1024 * 1024
 
 // Initializes the switchTable struct.
-func (t *switchTable) init(core *Core) {
+func (t *switchTable) init(core *Core, sigPriv crypto.SigPrivKey) {
 	now := time.Now()
 	t.core = core
-	t.key = t.core.sigPub
-	locator := switchLocator{root: t.key, tstamp: now.Unix()}
+	t.sigPriv = sigPriv
+	t.sigPub = t.sigPriv.Public()
+	locator := switchLocator{root: t.sigPub, tstamp: now.Unix()}
 	peers := make(map[switchPort]peerInfo)
 	t.data = switchData{locator: locator, peers: peers}
 	t.updater.Store(&sync.Once{})
 	t.table.Store(lookupTable{})
 	t.drop = make(map[crypto.SigPubKey]int64)
 	phony.Block(t, func() {
-		current := t.core.GetConfig()
-		if current.SwitchOptions.MaxTotalQueueSize > SwitchQueueTotalMinSize {
-			t.queues.totalMaxSize = current.SwitchOptions.MaxTotalQueueSize
-		} else {
-			t.queues.totalMaxSize = SwitchQueueTotalMinSize
-		}
+		t.queues.totalMaxSize = SwitchQueueTotalMinSize
 		t.queues.bufs = make(map[string]switch_buffer)
 		t.idle = make(map[switchPort]time.Time)
 	})
-}
-
-func (t *switchTable) reconfigure(current, previous *config.NodeConfig) {
-	// This is where reconfiguration would go, if we had anything useful to do.
-	t.core.link.reconfigure(current, previous)
-	t.core.peers.reconfigure(current, previous)
 }
 
 // Safely gets a copy of this node's locator.
@@ -240,23 +230,23 @@ func (t *switchTable) cleanRoot() {
 		doUpdate = true
 	}
 	// Or, if we're better than our root, root ourself
-	if firstIsBetter(&t.key, &t.data.locator.root) {
+	if firstIsBetter(&t.sigPub, &t.data.locator.root) {
 		doUpdate = true
 	}
 	// Or, if we are the root, possibly update our timestamp
-	if t.data.locator.root == t.key &&
+	if t.data.locator.root == t.sigPub &&
 		now.Sub(t.time) > switch_updateInterval {
 		doUpdate = true
 	}
 	if doUpdate {
 		t.parent = switchPort(0)
 		t.time = now
-		if t.data.locator.root != t.key {
+		if t.data.locator.root != t.sigPub {
 			t.data.seq++
 			t.updater.Store(&sync.Once{})
 			t.core.router.reset(nil)
 		}
-		t.data.locator = switchLocator{root: t.key, tstamp: now.Unix()}
+		t.data.locator = switchLocator{root: t.sigPub, tstamp: now.Unix()}
 		t.core.peers.sendSwitchMsgs(t)
 	}
 }
@@ -334,7 +324,7 @@ func (t *switchTable) getMsg() *switchMsg {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
 	if t.parent == 0 {
-		return &switchMsg{Root: t.key, TStamp: t.data.locator.tstamp}
+		return &switchMsg{Root: t.sigPub, TStamp: t.data.locator.tstamp}
 	} else if parent, isIn := t.data.peers[t.parent]; isIn {
 		msg := parent.msg
 		msg.Hops = append([]switchMsgHop(nil), msg.Hops...)
@@ -454,11 +444,11 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 	noParent := !isIn
 	noLoop := func() bool {
 		for idx := 0; idx < len(msg.Hops)-1; idx++ {
-			if msg.Hops[idx].Next == t.core.sigPub {
+			if msg.Hops[idx].Next == t.sigPub {
 				return false
 			}
 		}
-		if sender.locator.root == t.core.sigPub {
+		if sender.locator.root == t.sigPub {
 			return false
 		}
 		return true

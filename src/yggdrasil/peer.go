@@ -5,12 +5,12 @@ package yggdrasil
 //  Live code should be better commented
 
 import (
-	"encoding/hex"
+	"bytes"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 
@@ -22,9 +22,11 @@ import (
 // In most cases, this involves passing the packet to the handler for outgoing traffic to another peer.
 // In other cases, it's link protocol traffic used to build the spanning tree, in which case this checks signatures and passes the message along to the switch.
 type peers struct {
-	core  *Core
-	mutex sync.Mutex   // Synchronize writes to atomic
-	ports atomic.Value //map[switchPort]*peer, use CoW semantics
+	phony.Inbox
+	core              *Core
+	mutex             sync.Mutex         // Synchronize writes to atomic
+	ports             atomic.Value       // map[switchPort]*peer, use CoW semantics
+	allowedBoxPubKeys []crypto.BoxPubKey // protected by actor
 }
 
 // Initializes the peers struct.
@@ -35,42 +37,50 @@ func (ps *peers) init(c *Core) {
 	ps.core = c
 }
 
-func (ps *peers) reconfigure(current, previous *config.NodeConfig) {
-	// This is where reconfiguration would go, if we had anything to do
+// AddAllowedEncryptionPublicKey whitelists a key for incoming peer connections.
+func (ps *peers) isAllowedEncryptionPublicKey(key *crypto.BoxPubKey) (allowed bool) {
+	phony.Block(ps, func() {
+		allowed = ps._isAllowedEncryptionPublicKey(key)
+	})
+	return
 }
 
 // Returns true if an incoming peer connection to a key is allowed, either
 // because the key is in the whitelist or because the whitelist is empty.
-func (ps *peers) isAllowedEncryptionPublicKey(box *crypto.BoxPubKey) bool {
-	boxstr := hex.EncodeToString(box[:])
-	current := ps.core.GetConfig()
-	for _, v := range current.AllowedEncryptionPublicKeys {
-		if v == boxstr {
+func (ps *peers) _isAllowedEncryptionPublicKey(key *crypto.BoxPubKey) bool {
+	for _, v := range ps.allowedBoxPubKeys {
+		if bytes.Equal(v[:], key[:]) {
 			return true
 		}
 	}
-	return len(current.AllowedEncryptionPublicKeys) == 0
+	return len(ps.allowedBoxPubKeys) == 0
 }
 
 // Adds a key to the whitelist.
-func (ps *peers) addAllowedEncryptionPublicKey(box string) {
-	current := ps.core.GetConfig()
-	current.AllowedEncryptionPublicKeys = append(current.AllowedEncryptionPublicKeys, box)
+func (ps *peers) _addAllowedEncryptionPublicKey(key *crypto.BoxPubKey) error {
+	for _, v := range ps.allowedBoxPubKeys {
+		if bytes.Equal(v[:], key[:]) {
+			return errors.New("public key already allowed")
+		}
+	}
+	ps.allowedBoxPubKeys = append(ps.allowedBoxPubKeys, *key)
+	return nil
 }
 
 // Removes a key from the whitelist.
-func (ps *peers) removeAllowedEncryptionPublicKey(box string) {
-	current := ps.core.GetConfig()
-	for k, v := range current.AllowedEncryptionPublicKeys {
-		if v == box {
-			current.AllowedEncryptionPublicKeys = append(current.AllowedEncryptionPublicKeys[:k], current.AllowedEncryptionPublicKeys[k+1:]...)
+func (ps *peers) _removeAllowedEncryptionPublicKey(key *crypto.BoxPubKey) error {
+	for k, v := range ps.allowedBoxPubKeys {
+		if bytes.Equal(v[:], key[:]) {
+			ps.allowedBoxPubKeys = append(ps.allowedBoxPubKeys[:k], ps.allowedBoxPubKeys[k+1:]...)
+			return nil
 		}
 	}
+	return errors.New("public key already not allowed")
 }
 
 // Gets the whitelist of allowed keys for incoming connections.
-func (ps *peers) getAllowedEncryptionPublicKeys() []string {
-	return ps.core.GetConfig().AllowedEncryptionPublicKeys
+func (ps *peers) _getAllowedEncryptionPublicKeys() []crypto.BoxPubKey {
+	return ps.allowedBoxPubKeys
 }
 
 // Atomically gets a map[switchPort]*peer of known peers.
@@ -110,7 +120,7 @@ func (ps *peers) newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShare
 	now := time.Now()
 	p := peer{box: *box,
 		sig:        *sig,
-		shared:     *crypto.GetSharedKey(&ps.core.boxPriv, box),
+		shared:     *crypto.GetSharedKey(&ps.core.router.boxPriv, box),
 		linkShared: *linkShared,
 		firstSeen:  now,
 		done:       make(chan struct{}),
@@ -314,7 +324,7 @@ func (p *peer) _sendSwitchMsg() {
 	msg.Hops = append(msg.Hops, switchMsgHop{
 		Port: p.port,
 		Next: p.sig,
-		Sig:  *crypto.Sign(&p.core.sigPriv, bs),
+		Sig:  *crypto.Sign(&p.core.switchTable.sigPriv, bs),
 	})
 	packet := msg.encode()
 	p._sendLinkPacket(packet)

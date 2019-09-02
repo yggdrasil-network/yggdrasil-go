@@ -172,12 +172,12 @@ func (m *nodeinfo) sendNodeInfo(key crypto.BoxPubKey, coords []byte, isResponse 
 		NodeInfo:   m.getNodeInfo(),
 	}
 	bs := nodeinfo.encode()
-	shared := m.core.router.sessions.getSharedKey(&m.core.boxPriv, &key)
+	shared := m.core.router.sessions.getSharedKey(&m.core.router.boxPriv, &key)
 	payload, nonce := crypto.BoxSeal(shared, bs, nil)
 	p := wire_protoTrafficPacket{
 		Coords:  coords,
 		ToKey:   key,
-		FromKey: m.core.boxPub,
+		FromKey: m.core.router.boxPub,
 		Nonce:   *nonce,
 		Payload: payload,
 	}

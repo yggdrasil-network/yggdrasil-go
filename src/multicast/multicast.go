@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
@@ -19,10 +20,12 @@ import (
 // configured multicast interface, Yggdrasil will attempt to peer with that node
 // automatically.
 type Multicast struct {
+	phony.Inbox
 	core       *yggdrasil.Core
 	log        *log.Logger
 	sock       *ipv6.PacketConn
 	groupAddr  string
+	interfaces []string
 	listeners  map[string]*yggdrasil.TcpListener
 	listenPort uint16
 	isOpen     bool
@@ -33,9 +36,16 @@ func (m *Multicast) Init(core *yggdrasil.Core, log *log.Logger, options interfac
 	m.core = core
 	m.log = log
 	m.listeners = make(map[string]*yggdrasil.TcpListener)
-	m.listenPort = m.core.GetConfig().LinkLocalTCPPort
 	m.groupAddr = "[ff02::114]:9001"
 	return nil
+}
+
+// SetLinkLocalTCPPort lets you decide which port will be used when listening on
+// multicast interfaces. If not set, a random port number will be selected.
+func (m *Multicast) SetLinkLocalTCPPort(port uint16) {
+	m.Inbox.Act(m, func() {
+		m.listenPort = port
+	})
 }
 
 // Start starts the multicast interface. This launches goroutines which will
@@ -77,21 +87,16 @@ func (m *Multicast) Stop() error {
 	return nil
 }
 
-// UpdateConfig updates the multicast module with the provided config.NodeConfig
-// and then signals the various module goroutines to reconfigure themselves if
-// needed.
-func (m *Multicast) UpdateConfig() {
-
-}
-
-// GetInterfaces returns the currently known/enabled multicast interfaces. It is
+// Interfaces returns the currently known/enabled multicast interfaces. It is
 // expected that UpdateInterfaces has been called at least once before calling
 // this method.
 func (m *Multicast) Interfaces() map[string]net.Interface {
 	interfaces := make(map[string]net.Interface)
 	// Get interface expressions from config
-	current := m.core.GetConfig()
-	exprs := current.MulticastInterfaces
+	var exprs []string
+	phony.Block(m, func() {
+		exprs = m.interfaces
+	})
 	// Ask the system for network interfaces
 	allifaces, err := net.Interfaces()
 	if err != nil {

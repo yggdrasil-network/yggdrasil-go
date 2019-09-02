@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 
@@ -40,6 +39,8 @@ import (
 type router struct {
 	phony.Inbox
 	core     *Core
+	boxPub   crypto.BoxPubKey
+	boxPriv  crypto.BoxPrivKey
 	addr     address.Address
 	subnet   address.Subnet
 	out      func([]byte) // packets we're sending to the network, link to peer's "in"
@@ -50,7 +51,7 @@ type router struct {
 }
 
 // Initializes the router struct, which includes setting up channels to/from the adapter.
-func (r *router) init(core *Core) {
+func (r *router) init(core *Core, boxPrivKey crypto.BoxPrivKey) {
 	r.core = core
 	r.addr = *address.AddrForNodeID(&r.dht.nodeID)
 	r.subnet = *address.SubnetForNodeID(&r.dht.nodeID)
@@ -62,30 +63,15 @@ func (r *router) init(core *Core) {
 			linkType: "self",
 		},
 	}
-	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, &self, nil)
+	p := r.core.peers.newPeer(&r.boxPub, &r.core.switchTable.sigPub, &crypto.BoxSharedKey{}, &self, nil)
 	p.out = func(packets [][]byte) { r.handlePackets(p, packets) }
 	r.out = func(bs []byte) { p.handlePacketFrom(r, bs) }
 	r.nodeinfo.init(r.core)
-	current := r.core.GetConfig()
-	r.nodeinfo.setNodeInfo(current.NodeInfo, current.NodeInfoPrivacy)
+	//current := r.core.GetConfig()
+	//r.nodeinfo.setNodeInfo(current.NodeInfo, current.NodeInfoPrivacy)
 	r.dht.init(r)
 	r.searches.init(r)
 	r.sessions.init(r)
-}
-
-// Reconfigures the router and any child modules. This should only ever be run
-// by the router actor.
-func (r *router) reconfigure(current, previous *config.NodeConfig) {
-	// Reconfigure the router
-	if err := r.nodeinfo.setNodeInfo(current.NodeInfo, current.NodeInfoPrivacy); err != nil {
-		r.core.log.Errorln("Error reloading NodeInfo:", err)
-	} else {
-		r.core.log.Infoln("NodeInfo updated")
-	}
-	// Reconfigure children
-	r.dht.reconfigure()
-	r.searches.reconfigure()
-	r.sessions.reconfigure()
 }
 
 // Starts the tickerLoop goroutine.
@@ -119,8 +105,6 @@ func (r *router) reset(from phony.Actor) {
 	})
 }
 
-// TODO remove reconfigure so this is just a ticker loop
-// and then find something better than a ticker loop to schedule things...
 func (r *router) doMaintenance() {
 	phony.Block(r, func() {
 		// Any periodic maintenance stuff goes here
@@ -171,9 +155,9 @@ func (r *router) _handleProto(packet []byte) {
 	}
 	// Now try to open the payload
 	var sharedKey *crypto.BoxSharedKey
-	if p.ToKey == r.core.boxPub {
+	if p.ToKey == r.boxPub {
 		// Try to open using our permanent key
-		sharedKey = r.sessions.getSharedKey(&r.core.boxPriv, &p.FromKey)
+		sharedKey = r.sessions.getSharedKey(&r.boxPriv, &p.FromKey)
 	} else {
 		return
 	}
