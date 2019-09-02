@@ -1,3 +1,6 @@
+// Package crypto is a wrapper around packages under golang.org/x/crypto/, particulaly curve25519, ed25519, and nacl/box.
+// This is used to avoid explicitly importing and using these packages throughout yggdrasil.
+// It also includes the all-important NodeID and TreeID types, which are used to identify nodes in the DHT and in the spanning tree's root selection algorithm, respectively.
 package crypto
 
 /*
