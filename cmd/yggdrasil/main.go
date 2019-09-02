@@ -73,23 +73,6 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *config
 	return cfg
 }
 
-// Generates a new configuration and returns it in HJSON format. This is used
-// with -genconf.
-func doGenconf(isjson bool) string {
-	cfg := config.GenerateConfig()
-	var bs []byte
-	var err error
-	if isjson {
-		bs, err = cfg.MarshalJSON()
-	} else {
-		bs, err = cfg.MarshalHJSON()
-	}
-	if err != nil {
-		panic(err)
-	}
-	return string(bs)
-}
-
 // The main function is responsible for configuring and starting Yggdrasil.
 func main() {
 	// Configure the command line parameters.
@@ -137,7 +120,19 @@ func main() {
 		}
 	case *genconf:
 		// Generate a new configuration and print it to stdout.
-		fmt.Println(doGenconf(*confjson))
+		cfg := config.GenerateConfig()
+		var bs []byte
+		var err error
+		if *confjson {
+			bs, err = cfg.MarshalJSON()
+		} else {
+			bs, err = cfg.MarshalHJSON()
+		}
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(string(bs))
+		return
 	default:
 		// No flags were provided, therefore print the list of flags to stdout.
 		flag.PrintDefaults()
