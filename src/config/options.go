@@ -1,6 +1,9 @@
 package config
 
-// NodeConfig defines all configuration values needed to run a signle yggdrasil node
+// NodeConfig defines all of the options which are used to configure an
+// Yggdrasil node. Create a NodeConfig struct by using the
+// config.GenerateConfig() function and then unmarshal JSON or HJSON on top by
+// using the config.UnmarshalJSON() or config.UnmarshalHJSON() functions.
 type NodeConfig struct {
 	Peers                       []string               `comment:"List of connection strings for outbound peer connections in URI format,\ne.g. tcp://a.b.c.d:e or socks://a.b.c.d:e/f.g.h.i:j. These connections\nwill obey the operating system routing table, therefore you should\nuse this section when you may connect via different interfaces."`
 	InterfacePeers              map[string][]string    `comment:"List of connection strings for outbound peer connections in URI format,\narranged by source interface, e.g. { \"eth0\": [ tcp://a.b.c.d:e ] }.\nNote that SOCKS peerings will NOT be affected by this option and should\ngo in the \"Peers\" section instead."`
@@ -23,7 +26,7 @@ type NodeConfig struct {
 	NodeInfo                    map[string]interface{} `comment:"Optional node info. This must be a { \"key\": \"value\", ... } map\nor set as null. This is entirely optional but, if set, is visible\nto the whole network on request."`
 }
 
-// TunnelRouting contains the crypto-key routing tables for tunneling
+// TunnelRouting contains the crypto-key routing tables for tunneling.
 type TunnelRouting struct {
 	Enable            bool              `comment:"Enable or disable tunnel routing."`
 	IPv6RemoteSubnets map[string]string `comment:"IPv6 subnets belonging to remote nodes, mapped to the node's public\nkey, e.g. { \"aaaa:bbbb:cccc::/e\": \"boxpubkey\", ... }"`
@@ -32,7 +35,7 @@ type TunnelRouting struct {
 	IPv4LocalSubnets  []string          `comment:"IPv4 subnets belonging to this node's end of the tunnels. Only traffic\nfrom these ranges will be tunnelled."`
 }
 
-// SessionFirewall controls the session firewall configuration
+// SessionFirewall controls the session firewall configuration.
 type SessionFirewall struct {
 	Enable                        bool     `comment:"Enable or disable the session firewall. If disabled, network traffic\nfrom any node will be allowed. If enabled, the below rules apply."`
 	AllowFromDirect               bool     `comment:"Allow network traffic from directly connected peers."`
@@ -42,7 +45,7 @@ type SessionFirewall struct {
 	BlacklistEncryptionPublicKeys []string `comment:"List of public keys from which network traffic is always rejected,\nregardless of the whitelist, AllowFromDirect or AllowFromRemote."`
 }
 
-// SwitchOptions contains tuning options for the switch
+// SwitchOptions contains tuning options for the switch.
 type SwitchOptions struct {
 	MaxTotalQueueSize uint64 `comment:"Maximum size of all switch queues combined (in bytes)."`
 }

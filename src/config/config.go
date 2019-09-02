@@ -11,12 +11,7 @@ import (
 )
 
 // Generates default configuration. This is used when outputting the -genconf
-// parameter and also when using -autoconf. The isAutoconf flag is used to
-// determine whether the operating system should select a free port by itself
-// (which guarantees that there will not be a conflict with any other services)
-// or whether to generate a random port number. The only side effect of setting
-// isAutoconf is that the TCP and UDP ports will likely end up with different
-// port numbers.
+// parameter and also when using -autoconf.
 func GenerateConfig() *NodeConfig {
 	// Generate encryption keys.
 	bpub, bpriv := crypto.NewBoxKeys()
@@ -128,14 +123,7 @@ func (cfg *NodeConfig) decodeConfig(dat map[string]interface{}) error {
 			tunnelrouting["IPv6RemoteSubnets"] = c
 		}
 	}
-	// Sanitise the config
-	/*confJson, err := json.Marshal(dat)
-	if err != nil {
-		return err
-	}
-	json.Unmarshal(confJson, &cfg)*/
-	// Overlay our newly mapped configuration onto the autoconf node config that
-	// we generated above.
+	// Overlay our newly mapped configuration onto the NodeConfig
 	if err := mapstructure.Decode(dat, &cfg); err != nil {
 		return err
 	}
