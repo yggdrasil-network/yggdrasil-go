@@ -30,6 +30,7 @@ import (
 
 type node struct {
 	core      yggdrasil.Core
+	config    *config.NodeConfig
 	tuntap    tuntap.TunAdapter
 	multicast multicast.Multicast
 	admin     admin.AdminSocket
@@ -87,7 +88,9 @@ func main() {
 	logto := flag.String("logto", "stdout", "file path to log to, \"syslog\" or \"stdout\"")
 	flag.Parse()
 
-	var cfg *config.NodeConfig
+	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
+	// don't need to create this manually.
+	n := node{}
 	var err error
 	switch {
 	case *ver:
@@ -97,10 +100,10 @@ func main() {
 	case *autoconf:
 		// Use an autoconf-generated config, this will give us random keys and
 		// port numbers, and will use an automatically selected TUN/TAP interface.
-		cfg = config.GenerateConfig()
+		n.config = config.GenerateConfig()
 	case *useconffile != "" || *useconf:
 		// Read the configuration from either stdin or from the filesystem
-		cfg = readConfig(useconf, useconffile, normaliseconf)
+		n.config = readConfig(useconf, useconffile, normaliseconf)
 		// If the -normaliseconf option was specified then remarshal the above
 		// configuration and print it back to stdout. This lets the user update
 		// their configuration file with newly mapped names (like above) or to
@@ -108,9 +111,9 @@ func main() {
 		if *normaliseconf {
 			var bs []byte
 			if *confjson {
-				bs, err = json.MarshalIndent(cfg, "", "  ")
+				bs, err = json.MarshalIndent(n.config, "", "  ")
 			} else {
-				bs, err = hjson.Marshal(cfg)
+				bs, err = hjson.Marshal(n.config)
 			}
 			if err != nil {
 				panic(err)
@@ -120,13 +123,13 @@ func main() {
 		}
 	case *genconf:
 		// Generate a new configuration and print it to stdout.
-		cfg := config.GenerateConfig()
+		n.config = config.GenerateConfig()
 		var bs []byte
 		var err error
 		if *confjson {
-			bs, err = cfg.MarshalJSON()
+			bs, err = n.config.MarshalJSON()
 		} else {
-			bs, err = cfg.MarshalHJSON()
+			bs, err = n.config.MarshalHJSON()
 		}
 		if err != nil {
 			panic(err)
@@ -140,7 +143,7 @@ func main() {
 	// Have we got a working configuration? If we don't then it probably means
 	// that neither -autoconf, -useconf or -useconffile were set above. Stop
 	// if we don't.
-	if cfg == nil {
+	if n.config == nil {
 		return
 	}
 	// Create a new logger that logs output to stdout.
@@ -175,12 +178,20 @@ func main() {
 			}
 		}
 	}
-	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
-	// don't need to create this manually.
-	n := node{}
 	// Now start Yggdrasil - this starts the DHT, router, switch and other core
 	// components needed for Yggdrasil to operate
-	err = n.core.Start(cfg, logger)
+	var boxPrivBytes, sigPrivBytes []byte
+	var boxPrivKey crypto.BoxPrivKey
+	var sigPrivKey crypto.SigPrivKey
+	if boxPrivBytes, err = hex.DecodeString(n.config.EncryptionPrivateKey); err != nil {
+		panic(err)
+	}
+	copy(boxPrivKey[:], boxPrivBytes[:])
+	if sigPrivBytes, err = hex.DecodeString(n.config.SigningPrivateKey); err != nil {
+		panic(err)
+	}
+	copy(sigPrivKey[:], sigPrivBytes[:])
+	err = n.core.Start(&boxPrivKey, &sigPrivKey, logger)
 	if err != nil {
 		logger.Errorln("An error occurred during startup")
 		panic(err)
@@ -189,7 +200,7 @@ func main() {
 	n.core.SetSessionGatekeeper(n.sessionFirewall)
 	// Start the admin socket
 	n.admin.Init(&n.core, logger, nil)
-	if err := n.admin.Start(); err != nil {
+	if err := n.admin.Start(n.config.AdminListen); err != nil {
 		logger.Errorln("An error occurred starting admin socket:", err)
 	}
 	// Start the multicast interface
@@ -202,7 +213,7 @@ func main() {
 	if listener, err := n.core.ConnListen(); err == nil {
 		if dialer, err := n.core.ConnDialer(); err == nil {
 			n.tuntap.Init(&n.core, logger, listener, dialer)
-			if err := n.tuntap.Start(); err != nil {
+			if err := n.tuntap.Start(n.config.IfName, n.config.IfMTU, n.config.IfTAPMode); err != nil {
 				logger.Errorln("An error occurred starting TUN/TAP:", err)
 			}
 			n.tuntap.SetupAdminHandlers(&n.admin)
@@ -234,11 +245,8 @@ func main() {
 			goto exit
 		case _ = <-r:
 			if *useconffile != "" {
-				cfg = readConfig(useconf, useconffile, normaliseconf)
+				n.config = readConfig(useconf, useconffile, normaliseconf)
 				logger.Infoln("Reloading configuration from", *useconffile)
-				n.core.UpdateConfig(cfg)
-				n.tuntap.UpdateConfig()
-				n.multicast.UpdateConfig()
 			} else {
 				logger.Errorln("Reloading config at runtime is only possible with -useconffile")
 			}
@@ -256,7 +264,7 @@ func (n *node) shutdown() {
 }
 
 func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
-	current := n.core.GetConfig()
+	current := n.config
 
 	// Allow by default if the session firewall is disabled
 	if !current.SessionFirewall.Enable {
