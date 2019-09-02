@@ -65,7 +65,7 @@ func (cfg *NodeConfig) NewSigningKeys() {
 // MarshalJSON exports the configuration into JSON format. No comments are
 // included in the JSON export as comments are not valid in pure JSON.
 func (cfg *NodeConfig) MarshalJSON() ([]byte, error) {
-	bs, err := json.MarshalIndent(cfg, "", "  ")
+	bs, err := json.MarshalIndent(*cfg, "", "  ")
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (cfg *NodeConfig) MarshalJSON() ([]byte, error) {
 // MarshalHJSON exports the configuration into HJSON format, complete with
 // comments describing what each configuration item does.
 func (cfg *NodeConfig) MarshalHJSON() ([]byte, error) {
-	bs, err := hjson.Marshal(cfg)
+	bs, err := hjson.Marshal(*cfg)
 	if err != nil {
 		return nil, err
 	}
