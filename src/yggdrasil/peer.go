@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 
@@ -34,7 +35,7 @@ func (ps *peers) init(c *Core) {
 	ps.core = c
 }
 
-func (ps *peers) reconfigure() {
+func (ps *peers) reconfigure(current, previous *config.NodeConfig) {
 	// This is where reconfiguration would go, if we had anything to do
 }
 
@@ -42,42 +43,34 @@ func (ps *peers) reconfigure() {
 // because the key is in the whitelist or because the whitelist is empty.
 func (ps *peers) isAllowedEncryptionPublicKey(box *crypto.BoxPubKey) bool {
 	boxstr := hex.EncodeToString(box[:])
-	ps.core.config.Mutex.RLock()
-	defer ps.core.config.Mutex.RUnlock()
-	for _, v := range ps.core.config.Current.AllowedEncryptionPublicKeys {
+	current := ps.core.GetConfig()
+	for _, v := range current.AllowedEncryptionPublicKeys {
 		if v == boxstr {
 			return true
 		}
 	}
-	return len(ps.core.config.Current.AllowedEncryptionPublicKeys) == 0
+	return len(current.AllowedEncryptionPublicKeys) == 0
 }
 
 // Adds a key to the whitelist.
 func (ps *peers) addAllowedEncryptionPublicKey(box string) {
-	ps.core.config.Mutex.RLock()
-	defer ps.core.config.Mutex.RUnlock()
-	ps.core.config.Current.AllowedEncryptionPublicKeys =
-		append(ps.core.config.Current.AllowedEncryptionPublicKeys, box)
+	current := ps.core.GetConfig()
+	current.AllowedEncryptionPublicKeys = append(current.AllowedEncryptionPublicKeys, box)
 }
 
 // Removes a key from the whitelist.
 func (ps *peers) removeAllowedEncryptionPublicKey(box string) {
-	ps.core.config.Mutex.RLock()
-	defer ps.core.config.Mutex.RUnlock()
-	for k, v := range ps.core.config.Current.AllowedEncryptionPublicKeys {
+	current := ps.core.GetConfig()
+	for k, v := range current.AllowedEncryptionPublicKeys {
 		if v == box {
-			ps.core.config.Current.AllowedEncryptionPublicKeys =
-				append(ps.core.config.Current.AllowedEncryptionPublicKeys[:k],
-					ps.core.config.Current.AllowedEncryptionPublicKeys[k+1:]...)
+			current.AllowedEncryptionPublicKeys = append(current.AllowedEncryptionPublicKeys[:k], current.AllowedEncryptionPublicKeys[k+1:]...)
 		}
 	}
 }
 
 // Gets the whitelist of allowed keys for incoming connections.
 func (ps *peers) getAllowedEncryptionPublicKeys() []string {
-	ps.core.config.Mutex.RLock()
-	defer ps.core.config.Mutex.RUnlock()
-	return ps.core.config.Current.AllowedEncryptionPublicKeys
+	return ps.core.GetConfig().AllowedEncryptionPublicKeys
 }
 
 // Atomically gets a map[switchPort]*peer of known peers.

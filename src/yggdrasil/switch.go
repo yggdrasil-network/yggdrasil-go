@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 
@@ -193,22 +194,21 @@ func (t *switchTable) init(core *Core) {
 	t.table.Store(lookupTable{})
 	t.drop = make(map[crypto.SigPubKey]int64)
 	phony.Block(t, func() {
-		core.config.Mutex.RLock()
-		if core.config.Current.SwitchOptions.MaxTotalQueueSize > SwitchQueueTotalMinSize {
-			t.queues.totalMaxSize = core.config.Current.SwitchOptions.MaxTotalQueueSize
+		current := t.core.GetConfig()
+		if current.SwitchOptions.MaxTotalQueueSize > SwitchQueueTotalMinSize {
+			t.queues.totalMaxSize = current.SwitchOptions.MaxTotalQueueSize
 		} else {
 			t.queues.totalMaxSize = SwitchQueueTotalMinSize
 		}
-		core.config.Mutex.RUnlock()
 		t.queues.bufs = make(map[string]switch_buffer)
 		t.idle = make(map[switchPort]time.Time)
 	})
 }
 
-func (t *switchTable) reconfigure() {
+func (t *switchTable) reconfigure(current, previous *config.NodeConfig) {
 	// This is where reconfiguration would go, if we had anything useful to do.
-	t.core.link.reconfigure()
-	t.core.peers.reconfigure()
+	t.core.link.reconfigure(current, previous)
+	t.core.peers.reconfigure(current, previous)
 }
 
 // Safely gets a copy of this node's locator.

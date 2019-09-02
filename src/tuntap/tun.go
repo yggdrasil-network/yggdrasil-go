@@ -21,7 +21,6 @@ import (
 	"github.com/yggdrasil-network/water"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
@@ -35,9 +34,9 @@ const tun_ETHER_HEADER_LENGTH = 14
 // you should pass this object to the yggdrasil.SetRouterAdapter() function
 // before calling yggdrasil.Start().
 type TunAdapter struct {
+	core        *yggdrasil.Core
 	writer      tunWriter
 	reader      tunReader
-	config      *config.NodeState
 	log         *log.Logger
 	reconfigure chan chan error
 	listener    *yggdrasil.Listener
@@ -110,8 +109,8 @@ func MaximumMTU() int {
 
 // Init initialises the TUN/TAP module. You must have acquired a Listener from
 // the Yggdrasil core before this point and it must not be in use elsewhere.
-func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener *yggdrasil.Listener, dialer *yggdrasil.Dialer) {
-	tun.config = config
+func (tun *TunAdapter) Init(c *yggdrasil.Core, log *log.Logger, listener *yggdrasil.Listener, dialer *yggdrasil.Dialer) {
+	tun.core = c
 	tun.log = log
 	tun.listener = listener
 	tun.dialer = dialer
@@ -133,9 +132,9 @@ func (tun *TunAdapter) Start() error {
 }
 
 func (tun *TunAdapter) _start() error {
-	current := tun.config.GetCurrent()
-	if tun.config == nil || tun.listener == nil || tun.dialer == nil {
-		return errors.New("No configuration available to TUN/TAP")
+	current := tun.core.GetConfig()
+	if tun.core == nil || tun.listener == nil || tun.dialer == nil {
+		return errors.New("TUN/TAP has not been initialised, call Init first")
 	}
 	var boxPub crypto.BoxPubKey
 	boxPubHex, err := hex.DecodeString(current.EncryptionPublicKey)
@@ -200,11 +199,8 @@ func (tun *TunAdapter) _stop() error {
 // UpdateConfig updates the TUN/TAP module with the provided config.NodeConfig
 // and then signals the various module goroutines to reconfigure themselves if
 // needed.
-func (tun *TunAdapter) UpdateConfig(config *config.NodeConfig) {
+func (tun *TunAdapter) UpdateConfig() {
 	tun.log.Debugln("Reloading TUN/TAP configuration...")
-
-	// Replace the active configuration with the supplied one
-	tun.config.Replace(*config)
 
 	// Notify children about the configuration change
 	tun.Act(nil, tun.ckr.configure)

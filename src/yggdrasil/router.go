@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 
@@ -65,9 +66,8 @@ func (r *router) init(core *Core) {
 	p.out = func(packets [][]byte) { r.handlePackets(p, packets) }
 	r.out = func(bs []byte) { p.handlePacketFrom(r, bs) }
 	r.nodeinfo.init(r.core)
-	r.core.config.Mutex.RLock()
-	r.nodeinfo.setNodeInfo(r.core.config.Current.NodeInfo, r.core.config.Current.NodeInfoPrivacy)
-	r.core.config.Mutex.RUnlock()
+	current := r.core.GetConfig()
+	r.nodeinfo.setNodeInfo(current.NodeInfo, current.NodeInfoPrivacy)
 	r.dht.init(r)
 	r.searches.init(r)
 	r.sessions.init(r)
@@ -75,9 +75,8 @@ func (r *router) init(core *Core) {
 
 // Reconfigures the router and any child modules. This should only ever be run
 // by the router actor.
-func (r *router) reconfigure() {
+func (r *router) reconfigure(current, previous *config.NodeConfig) {
 	// Reconfigure the router
-	current := r.core.config.GetCurrent()
 	if err := r.nodeinfo.setNodeInfo(current.NodeInfo, current.NodeInfoPrivacy); err != nil {
 		r.core.log.Errorln("Error reloading NodeInfo:", err)
 	} else {

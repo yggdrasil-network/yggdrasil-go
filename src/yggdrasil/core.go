@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io/ioutil"
+	"sync/atomic"
 	"time"
 
 	"github.com/Arceliar/phony"
@@ -21,7 +22,7 @@ type Core struct {
 	// We're going to keep our own copy of the provided config - that way we can
 	// guarantee that it will be covered by the mutex
 	phony.Inbox
-	config      config.NodeState // Config
+	config      atomic.Value // *config.NodeConfig
 	boxPub      crypto.BoxPubKey
 	boxPriv     crypto.BoxPrivKey
 	sigPub      crypto.SigPubKey
@@ -42,7 +43,7 @@ func (c *Core) _init() error {
 		c.log = log.New(ioutil.Discard, "", 0)
 	}
 
-	current := c.config.GetCurrent()
+	current := c.config.Load().(*config.NodeConfig)
 
 	boxPrivHex, err := hex.DecodeString(current.EncryptionPrivateKey)
 	if err != nil {
@@ -87,7 +88,7 @@ func (c *Core) _init() error {
 // be reconnected with.
 func (c *Core) _addPeerLoop() {
 	// Get the peers from the config - these could change!
-	current := c.config.GetCurrent()
+	current := c.GetConfig()
 
 	// Add peers from the Peers section
 	for _, peer := range current.Peers {
@@ -109,6 +110,11 @@ func (c *Core) _addPeerLoop() {
 	})
 }
 
+// GetConfig atomically returns the current active node configuration.
+func (c *Core) GetConfig() *config.NodeConfig {
+	return c.config.Load().(*config.NodeConfig)
+}
+
 // UpdateConfig updates the configuration in Core with the provided
 // config.NodeConfig and then signals the various module goroutines to
 // reconfigure themselves if needed.
@@ -116,12 +122,16 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 	c.Act(nil, func() {
 		c.log.Debugln("Reloading node configuration...")
 
-		// Replace the active configuration with the supplied one
-		c.config.Replace(*config)
+		new, old := config, c.GetConfig()
+		c.config.Store(new)
 
 		// Notify the router and switch about the new configuration
-		c.router.Act(c, c.router.reconfigure)
-		c.switchTable.Act(c, c.switchTable.reconfigure)
+		c.router.Act(c, func() {
+			c.router.reconfigure(new, old)
+		})
+		c.switchTable.Act(c, func() {
+			c.switchTable.reconfigure(new, old)
+		})
 	})
 }
 
@@ -130,21 +140,17 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 // TCP and UDP sockets, a multicast discovery socket, an admin socket, router,
 // switch and DHT node. A config.NodeState is returned which contains both the
 // current and previous configurations (from reconfigures).
-func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (conf *config.NodeState, err error) {
+func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (err error) {
 	phony.Block(c, func() {
-		conf, err = c._start(nc, log)
+		err = c._start(nc, log)
 	})
 	return
 }
 
 // This function is unsafe and should only be ran by the core actor.
-func (c *Core) _start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState, error) {
+func (c *Core) _start(nc *config.NodeConfig, log *log.Logger) error {
 	c.log = log
-
-	c.config = config.NodeState{
-		Current:  *nc,
-		Previous: *nc,
-	}
+	c.config.Store(nc)
 
 	if name := version.BuildName(); name != "unknown" {
 		c.log.Infoln("Build name:", name)
@@ -158,23 +164,23 @@ func (c *Core) _start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState
 
 	if err := c.link.init(c); err != nil {
 		c.log.Errorln("Failed to start link interfaces")
-		return nil, err
+		return err
 	}
 
 	if err := c.switchTable.start(); err != nil {
 		c.log.Errorln("Failed to start switch")
-		return nil, err
+		return err
 	}
 
 	if err := c.router.start(); err != nil {
 		c.log.Errorln("Failed to start router")
-		return nil, err
+		return err
 	}
 
 	c.Act(c, c._addPeerLoop)
 
 	c.log.Infoln("Startup complete")
-	return &c.config, nil
+	return nil
 }
 
 // Stop shuts down the Yggdrasil node.

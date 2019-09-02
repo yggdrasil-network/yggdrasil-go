@@ -2,6 +2,7 @@ package multicast
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"regexp"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/gologme/log"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 	"golang.org/x/net/ipv6"
 )
@@ -20,7 +20,6 @@ import (
 // automatically.
 type Multicast struct {
 	core       *yggdrasil.Core
-	config     *config.NodeState
 	log        *log.Logger
 	sock       *ipv6.PacketConn
 	groupAddr  string
@@ -30,13 +29,11 @@ type Multicast struct {
 }
 
 // Init prepares the multicast interface for use.
-func (m *Multicast) Init(core *yggdrasil.Core, state *config.NodeState, log *log.Logger, options interface{}) error {
+func (m *Multicast) Init(core *yggdrasil.Core, log *log.Logger, options interface{}) error {
 	m.core = core
-	m.config = state
 	m.log = log
 	m.listeners = make(map[string]*yggdrasil.TcpListener)
-	current := m.config.GetCurrent()
-	m.listenPort = current.LinkLocalTCPPort
+	m.listenPort = m.core.GetConfig().LinkLocalTCPPort
 	m.groupAddr = "[ff02::114]:9001"
 	return nil
 }
@@ -45,6 +42,9 @@ func (m *Multicast) Init(core *yggdrasil.Core, state *config.NodeState, log *log
 // listen for multicast beacons from other hosts and will advertise multicast
 // beacons out to the network.
 func (m *Multicast) Start() error {
+	if m.core == nil {
+		return errors.New("multicast has not been initialised, call Init first")
+	}
 	addr, err := net.ResolveUDPAddr("udp", m.groupAddr)
 	if err != nil {
 		return err
@@ -80,9 +80,8 @@ func (m *Multicast) Stop() error {
 // UpdateConfig updates the multicast module with the provided config.NodeConfig
 // and then signals the various module goroutines to reconfigure themselves if
 // needed.
-func (m *Multicast) UpdateConfig(config *config.NodeConfig) {
-	m.log.Debugln("Reloading multicast configuration...")
-	m.config.Replace(*config)
+func (m *Multicast) UpdateConfig() {
+
 }
 
 // GetInterfaces returns the currently known/enabled multicast interfaces. It is
@@ -91,7 +90,7 @@ func (m *Multicast) UpdateConfig(config *config.NodeConfig) {
 func (m *Multicast) Interfaces() map[string]net.Interface {
 	interfaces := make(map[string]net.Interface)
 	// Get interface expressions from config
-	current := m.config.GetCurrent()
+	current := m.core.GetConfig()
 	exprs := current.MulticastInterfaces
 	// Ask the system for network interfaces
 	allifaces, err := net.Interfaces()

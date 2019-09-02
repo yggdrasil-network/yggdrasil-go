@@ -370,13 +370,12 @@ func (c *Core) AddPeer(addr string, sintf string) error {
 	if err := c.CallPeer(addr, sintf); err != nil {
 		return err
 	}
-	c.config.Mutex.Lock()
+	config := c.GetConfig()
 	if sintf == "" {
-		c.config.Current.Peers = append(c.config.Current.Peers, addr)
+		config.Peers = append(config.Peers, addr)
 	} else {
-		c.config.Current.InterfacePeers[sintf] = append(c.config.Current.InterfacePeers[sintf], addr)
+		config.InterfacePeers[sintf] = append(config.InterfacePeers[sintf], addr)
 	}
-	c.config.Mutex.Unlock()
 	return nil
 }
 

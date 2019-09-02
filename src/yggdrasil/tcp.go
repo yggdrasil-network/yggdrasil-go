@@ -25,6 +25,7 @@ import (
 
 	"golang.org/x/net/proxy"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
@@ -81,9 +82,7 @@ func (t *tcp) init(l *link) error {
 	t.listeners = make(map[string]*TcpListener)
 	t.mutex.Unlock()
 
-	t.link.core.config.Mutex.RLock()
-	defer t.link.core.config.Mutex.RUnlock()
-	for _, listenaddr := range t.link.core.config.Current.Listen {
+	for _, listenaddr := range t.link.core.GetConfig().Listen {
 		if listenaddr[:6] != "tcp://" {
 			continue
 		}
@@ -95,11 +94,9 @@ func (t *tcp) init(l *link) error {
 	return nil
 }
 
-func (t *tcp) reconfigure() {
-	t.link.core.config.Mutex.RLock()
-	added := util.Difference(t.link.core.config.Current.Listen, t.link.core.config.Previous.Listen)
-	deleted := util.Difference(t.link.core.config.Previous.Listen, t.link.core.config.Current.Listen)
-	t.link.core.config.Mutex.RUnlock()
+func (t *tcp) reconfigure(current, previous *config.NodeConfig) {
+	added := util.Difference(current.Listen, previous.Listen)
+	deleted := util.Difference(previous.Listen, current.Listen)
 	if len(added) > 0 || len(deleted) > 0 {
 		for _, a := range added {
 			if a[:6] != "tcp://" {

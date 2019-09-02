@@ -44,7 +44,7 @@ func (c *cryptokey) init(tun *TunAdapter) {
 
 // Configure the CKR routes. This should only ever be ran by the TUN/TAP actor.
 func (c *cryptokey) configure() {
-	current := c.tun.config.GetCurrent()
+	current := c.tun.core.GetConfig()
 
 	// Set enabled/disabled state
 	c.setEnabled(current.TunnelRouting.Enable)

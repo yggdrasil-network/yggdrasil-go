@@ -187,9 +187,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.mySesPriv = *priv
 	sinfo.myNonce = *crypto.NewBoxNonce()
 	sinfo.theirMTU = 1280
-	ss.router.core.config.Mutex.RLock()
-	sinfo.myMTU = uint16(ss.router.core.config.Current.IfMTU)
-	ss.router.core.config.Mutex.RUnlock()
+	sinfo.myMTU = uint16(ss.router.core.GetConfig().IfMTU)
 	now := time.Now()
 	sinfo.timeOpened = now
 	sinfo.time = now

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 
@@ -79,8 +80,8 @@ func (l *link) init(c *Core) error {
 	return nil
 }
 
-func (l *link) reconfigure() {
-	l.tcp.reconfigure()
+func (l *link) reconfigure(current, previous *config.NodeConfig) {
+	l.tcp.reconfigure(current, previous)
 }
 
 func (l *link) call(uri string, sintf string) error {

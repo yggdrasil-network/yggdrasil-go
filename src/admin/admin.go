@@ -15,7 +15,6 @@ import (
 	"github.com/gologme/log"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
@@ -54,7 +53,7 @@ func (a *AdminSocket) AddHandler(name string, args []string, handlerfunc func(In
 }
 
 // init runs the initial admin setup.
-func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.Logger, options interface{}) {
+func (a *AdminSocket) Init(c *yggdrasil.Core, log *log.Logger, options interface{}) {
 	a.core = c
 	a.log = log
 	a.reconfigure = make(chan chan error, 1)
@@ -62,17 +61,15 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 	go func() {
 		for {
 			e := <-a.reconfigure
-			current, previous := state.GetCurrent(), state.GetPrevious()
-			if current.AdminListen != previous.AdminListen {
-				a.listenaddr = current.AdminListen
+			if newlistenaddr := c.GetConfig().AdminListen; newlistenaddr != a.listenaddr {
+				a.listenaddr = newlistenaddr
 				a.Stop()
 				a.Start()
 			}
 			e <- nil
 		}
 	}()
-	current := state.GetCurrent()
-	a.listenaddr = current.AdminListen
+	a.listenaddr = c.GetConfig().AdminListen
 	a.AddHandler("list", []string{}, func(in Info) (Info, error) {
 		handlers := make(map[string]interface{})
 		for handlername, handler := range a.handlers {
@@ -314,6 +311,9 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 
 // start runs the admin API socket to listen for / respond to admin API calls.
 func (a *AdminSocket) Start() error {
+	if a.core == nil {
+		return errors.New("admin socket has not been initialised, call Init first")
+	}
 	if a.listenaddr != "none" && a.listenaddr != "" {
 		go a.listen()
 	}

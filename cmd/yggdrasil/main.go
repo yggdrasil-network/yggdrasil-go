@@ -18,7 +18,6 @@ import (
 	gsyslog "github.com/hashicorp/go-syslog"
 	"github.com/hjson/hjson-go"
 	"github.com/kardianos/minwinsvc"
-	"github.com/mitchellh/mapstructure"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
@@ -31,7 +30,6 @@ import (
 
 type node struct {
 	core      yggdrasil.Core
-	state     *config.NodeState
 	tuntap    tuntap.TunAdapter
 	multicast multicast.Multicast
 	admin     admin.AdminSocket
@@ -66,47 +64,10 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *config
 			panic(err)
 		}
 	}
-	// Generate a new configuration - this gives us a set of sane defaults -
-	// then parse the configuration we loaded above on top of it. The effect
-	// of this is that any configuration item that is missing from the provided
-	// configuration will use a sane default.
+	// Generate blank configuration
 	cfg := config.GenerateConfig()
-	var dat map[string]interface{}
-	if err := hjson.Unmarshal(conf, &dat); err != nil {
-		panic(err)
-	}
-	// Check for fields that have changed type recently, e.g. the Listen config
-	// option is now a []string rather than a string
-	if listen, ok := dat["Listen"].(string); ok {
-		dat["Listen"] = []string{listen}
-	}
-	if tunnelrouting, ok := dat["TunnelRouting"].(map[string]interface{}); ok {
-		if c, ok := tunnelrouting["IPv4Sources"]; ok {
-			delete(tunnelrouting, "IPv4Sources")
-			tunnelrouting["IPv4LocalSubnets"] = c
-		}
-		if c, ok := tunnelrouting["IPv6Sources"]; ok {
-			delete(tunnelrouting, "IPv6Sources")
-			tunnelrouting["IPv6LocalSubnets"] = c
-		}
-		if c, ok := tunnelrouting["IPv4Destinations"]; ok {
-			delete(tunnelrouting, "IPv4Destinations")
-			tunnelrouting["IPv4RemoteSubnets"] = c
-		}
-		if c, ok := tunnelrouting["IPv6Destinations"]; ok {
-			delete(tunnelrouting, "IPv6Destinations")
-			tunnelrouting["IPv6RemoteSubnets"] = c
-		}
-	}
-	// Sanitise the config
-	confJson, err := json.Marshal(dat)
-	if err != nil {
-		panic(err)
-	}
-	json.Unmarshal(confJson, &cfg)
-	// Overlay our newly mapped configuration onto the autoconf node config that
-	// we generated above.
-	if err = mapstructure.Decode(dat, &cfg); err != nil {
+	// ... and then update it with the supplied HJSON input
+	if err := cfg.UnmarshalHJSON(conf); err != nil {
 		panic(err)
 	}
 	return cfg
@@ -119,9 +80,9 @@ func doGenconf(isjson bool) string {
 	var bs []byte
 	var err error
 	if isjson {
-		bs, err = json.MarshalIndent(cfg, "", "  ")
+		bs, err = cfg.MarshalJSON()
 	} else {
-		bs, err = hjson.Marshal(cfg)
+		bs, err = cfg.MarshalHJSON()
 	}
 	if err != nil {
 		panic(err)
@@ -224,7 +185,7 @@ func main() {
 	n := node{}
 	// Now start Yggdrasil - this starts the DHT, router, switch and other core
 	// components needed for Yggdrasil to operate
-	n.state, err = n.core.Start(cfg, logger)
+	err = n.core.Start(cfg, logger)
 	if err != nil {
 		logger.Errorln("An error occurred during startup")
 		panic(err)
@@ -232,12 +193,12 @@ func main() {
 	// Register the session firewall gatekeeper function
 	n.core.SetSessionGatekeeper(n.sessionFirewall)
 	// Start the admin socket
-	n.admin.Init(&n.core, n.state, logger, nil)
+	n.admin.Init(&n.core, logger, nil)
 	if err := n.admin.Start(); err != nil {
 		logger.Errorln("An error occurred starting admin socket:", err)
 	}
 	// Start the multicast interface
-	n.multicast.Init(&n.core, n.state, logger, nil)
+	n.multicast.Init(&n.core, logger, nil)
 	if err := n.multicast.Start(); err != nil {
 		logger.Errorln("An error occurred starting multicast:", err)
 	}
@@ -245,7 +206,7 @@ func main() {
 	// Start the TUN/TAP interface
 	if listener, err := n.core.ConnListen(); err == nil {
 		if dialer, err := n.core.ConnDialer(); err == nil {
-			n.tuntap.Init(n.state, logger, listener, dialer)
+			n.tuntap.Init(&n.core, logger, listener, dialer)
 			if err := n.tuntap.Start(); err != nil {
 				logger.Errorln("An error occurred starting TUN/TAP:", err)
 			}
@@ -281,8 +242,8 @@ func main() {
 				cfg = readConfig(useconf, useconffile, normaliseconf)
 				logger.Infoln("Reloading configuration from", *useconffile)
 				n.core.UpdateConfig(cfg)
-				n.tuntap.UpdateConfig(cfg)
-				n.multicast.UpdateConfig(cfg)
+				n.tuntap.UpdateConfig()
+				n.multicast.UpdateConfig()
 			} else {
 				logger.Errorln("Reloading config at runtime is only possible with -useconffile")
 			}
@@ -300,18 +261,17 @@ func (n *node) shutdown() {
 }
 
 func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
-	n.state.Mutex.RLock()
-	defer n.state.Mutex.RUnlock()
+	current := n.core.GetConfig()
 
 	// Allow by default if the session firewall is disabled
-	if !n.state.Current.SessionFirewall.Enable {
+	if !current.SessionFirewall.Enable {
 		return true
 	}
 
 	// Prepare for checking whitelist/blacklist
 	var box crypto.BoxPubKey
 	// Reject blacklisted nodes
-	for _, b := range n.state.Current.SessionFirewall.BlacklistEncryptionPublicKeys {
+	for _, b := range current.SessionFirewall.BlacklistEncryptionPublicKeys {
 		key, err := hex.DecodeString(b)
 		if err == nil {
 			copy(box[:crypto.BoxPubKeyLen], key)
@@ -322,7 +282,7 @@ func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
 	}
 
 	// Allow whitelisted nodes
-	for _, b := range n.state.Current.SessionFirewall.WhitelistEncryptionPublicKeys {
+	for _, b := range current.SessionFirewall.WhitelistEncryptionPublicKeys {
 		key, err := hex.DecodeString(b)
 		if err == nil {
 			copy(box[:crypto.BoxPubKeyLen], key)
@@ -333,7 +293,7 @@ func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
 	}
 
 	// Allow outbound sessions if appropriate
-	if n.state.Current.SessionFirewall.AlwaysAllowOutbound {
+	if current.SessionFirewall.AlwaysAllowOutbound {
 		if initiator {
 			return true
 		}
@@ -349,12 +309,12 @@ func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
 	}
 
 	// Allow direct peers if appropriate
-	if n.state.Current.SessionFirewall.AllowFromDirect && isDirectPeer {
+	if current.SessionFirewall.AllowFromDirect && isDirectPeer {
 		return true
 	}
 
 	// Allow remote nodes if appropriate
-	if n.state.Current.SessionFirewall.AllowFromRemote && !isDirectPeer {
+	if current.SessionFirewall.AllowFromRemote && !isDirectPeer {
 		return true
 	}
 
