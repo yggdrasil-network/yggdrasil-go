@@ -1,18 +1,14 @@
 package main
 
 import (
-	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
-
-	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gologme/log"
 	gsyslog "github.com/hashicorp/go-syslog"
@@ -36,44 +32,6 @@ type node struct {
 	admin     admin.AdminSocket
 }
 
-func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *config.NodeConfig {
-	// Use a configuration file. If -useconf, the configuration will be read
-	// from stdin. If -useconffile, the configuration will be read from the
-	// filesystem.
-	var conf []byte
-	var err error
-	if *useconffile != "" {
-		// Read the file from the filesystem
-		conf, err = ioutil.ReadFile(*useconffile)
-	} else {
-		// Read the file from stdin.
-		conf, err = ioutil.ReadAll(os.Stdin)
-	}
-	if err != nil {
-		panic(err)
-	}
-	// If there's a byte order mark - which Windows 10 is now incredibly fond of
-	// throwing everywhere when it's converting things into UTF-16 for the hell
-	// of it - remove it and decode back down into UTF-8. This is necessary
-	// because hjson doesn't know what to do with UTF-16 and will panic
-	if bytes.Compare(conf[0:2], []byte{0xFF, 0xFE}) == 0 ||
-		bytes.Compare(conf[0:2], []byte{0xFE, 0xFF}) == 0 {
-		utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
-		decoder := utf.NewDecoder()
-		conf, err = decoder.Bytes(conf)
-		if err != nil {
-			panic(err)
-		}
-	}
-	// Generate blank configuration
-	cfg := config.GenerateConfig()
-	// ... and then update it with the supplied HJSON input
-	if err := cfg.UnmarshalHJSON(conf); err != nil {
-		panic(err)
-	}
-	return cfg
-}
-
 // The main function is responsible for configuring and starting Yggdrasil.
 func main() {
 	// Configure the command line parameters.
@@ -87,10 +45,10 @@ func main() {
 	logging := flag.String("logging", "info,warn,error", "comma-separated list of logging levels to enable")
 	logto := flag.String("logto", "stdout", "file path to log to, \"syslog\" or \"stdout\"")
 	flag.Parse()
-
 	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
 	// don't need to create this manually.
 	n := node{}
+	// Parse command line parameters, this will tell us what to do.
 	var err error
 	switch {
 	case *ver:
@@ -164,9 +122,6 @@ func main() {
 		logger = log.New(os.Stdout, "", log.Flags())
 		logger.Warnln("Logging defaulting to stdout")
 	}
-	//logger.EnableLevel("error")
-	//logger.EnableLevel("warn")
-	//logger.EnableLevel("info")
 	if levels := strings.Split(*logging, ","); len(levels) > 0 {
 		for _, level := range levels {
 			l := strings.TrimSpace(level)
@@ -178,19 +133,20 @@ func main() {
 			}
 		}
 	}
-	// Now start Yggdrasil - this starts the DHT, router, switch and other core
-	// components needed for Yggdrasil to operate
+	// Parse the encryption keys from the config
 	var boxPrivBytes, sigPrivBytes []byte
 	var boxPrivKey crypto.BoxPrivKey
 	var sigPrivKey crypto.SigPrivKey
 	if boxPrivBytes, err = hex.DecodeString(n.config.EncryptionPrivateKey); err != nil {
-		panic(err)
+		logger.Fatalln("Unable to parse EncryptionPrivateKey:", err)
 	}
 	copy(boxPrivKey[:], boxPrivBytes[:])
 	if sigPrivBytes, err = hex.DecodeString(n.config.SigningPrivateKey); err != nil {
-		panic(err)
+		logger.Fatalln("Unable to parse SigningPrivateKey:", err)
 	}
 	copy(sigPrivKey[:], sigPrivBytes[:])
+	// Now start Yggdrasil - this starts the DHT, router, switch and other core
+	// components needed for Yggdrasil to operate
 	err = n.core.Start(&boxPrivKey, &sigPrivKey, logger)
 	if err != nil {
 		logger.Errorln("An error occurred during startup")
@@ -205,6 +161,7 @@ func main() {
 	}
 	// Start the multicast interface
 	n.multicast.Init(&n.core, logger, nil)
+	n.multicast.SetLinkLocalTCPPort(n.config.LinkLocalTCPPort)
 	if err := n.multicast.Start(); err != nil {
 		logger.Errorln("An error occurred starting multicast:", err)
 	}
@@ -261,66 +218,4 @@ func (n *node) shutdown() {
 	n.multicast.Stop()
 	n.tuntap.Stop()
 	os.Exit(0)
-}
-
-func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
-	current := n.config
-
-	// Allow by default if the session firewall is disabled
-	if !current.SessionFirewall.Enable {
-		return true
-	}
-
-	// Prepare for checking whitelist/blacklist
-	var box crypto.BoxPubKey
-	// Reject blacklisted nodes
-	for _, b := range current.SessionFirewall.BlacklistEncryptionPublicKeys {
-		key, err := hex.DecodeString(b)
-		if err == nil {
-			copy(box[:crypto.BoxPubKeyLen], key)
-			if box == *pubkey {
-				return false
-			}
-		}
-	}
-
-	// Allow whitelisted nodes
-	for _, b := range current.SessionFirewall.WhitelistEncryptionPublicKeys {
-		key, err := hex.DecodeString(b)
-		if err == nil {
-			copy(box[:crypto.BoxPubKeyLen], key)
-			if box == *pubkey {
-				return true
-			}
-		}
-	}
-
-	// Allow outbound sessions if appropriate
-	if current.SessionFirewall.AlwaysAllowOutbound {
-		if initiator {
-			return true
-		}
-	}
-
-	// Look and see if the pubkey is that of a direct peer
-	var isDirectPeer bool
-	for _, peer := range n.core.GetPeers() {
-		if peer.PublicKey == *pubkey {
-			isDirectPeer = true
-			break
-		}
-	}
-
-	// Allow direct peers if appropriate
-	if current.SessionFirewall.AllowFromDirect && isDirectPeer {
-		return true
-	}
-
-	// Allow remote nodes if appropriate
-	if current.SessionFirewall.AllowFromRemote && !isDirectPeer {
-		return true
-	}
-
-	// Finally, default-deny if not matching any of the above rules
-	return false
 }
