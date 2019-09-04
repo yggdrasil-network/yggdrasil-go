@@ -90,45 +90,47 @@ func (c *Conn) setMTU(from phony.Actor, mtu uint16) {
 
 // This should never be called from the router goroutine, used in the dial functions
 func (c *Conn) search() error {
-	var sinfo *searchInfo
-	var isIn bool
+	var err error
+	done := make(chan struct{})
 	phony.Block(&c.core.router, func() {
-		sinfo, isIn = c.core.router.searches.searches[*c.nodeID]
-	})
-	if !isIn {
-		done := make(chan struct{}, 1)
-		var sess *sessionInfo
-		var err error
-		searchCompleted := func(sinfo *sessionInfo, e error) {
-			sess = sinfo
-			err = e
-			// FIXME close can be called multiple times, do a non-blocking send instead
-			select {
-			case done <- struct{}{}:
-			default:
+		_, isIn := c.core.router.searches.searches[*c.nodeID]
+		if !isIn {
+			searchCompleted := func(sinfo *sessionInfo, e error) {
+				select {
+				case <-done:
+					// Somehow this was called multiple times, TODO don't let that happen
+					if sinfo != nil {
+						// Need to clean up to avoid a session leak
+						sinfo.cancel.Cancel(nil)
+					}
+				default:
+					if sinfo != nil {
+						// Finish initializing the session
+						sinfo.conn = c
+					}
+					c.session = sinfo
+					err = e
+					close(done)
+				}
 			}
-		}
-		phony.Block(&c.core.router, func() {
-			sinfo = c.core.router.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
+			sinfo := c.core.router.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
 			sinfo.continueSearch()
-		})
-		<-done
-		c.session = sess
-		if c.session == nil && err == nil {
-			panic("search failed but returned no error")
+		} else {
+			err = errors.New("search already exists")
+			close(done)
 		}
-		if c.session != nil {
-			c.nodeID = crypto.GetNodeID(&c.session.theirPermPub)
-			for i := range c.nodeMask {
-				c.nodeMask[i] = 0xFF
-			}
-			c.session.conn = c
-		}
-		return err
-	} else {
-		return errors.New("search already exists")
+	})
+	<-done
+	if c.session == nil && err == nil {
+		panic("search failed but returned no error")
 	}
-	return nil
+	if c.session != nil {
+		c.nodeID = crypto.GetNodeID(&c.session.theirPermPub)
+		for i := range c.nodeMask {
+			c.nodeMask[i] = 0xFF
+		}
+	}
+	return err
 }
 
 // Used in session keep-alive traffic
