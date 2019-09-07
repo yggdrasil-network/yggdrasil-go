@@ -1,11 +1,9 @@
-github.com/Arceliar/phony v0.0.0-20190831214819-9b642ea019ad h1:670inqspOp+tAnSvkOBgrKGOIT4605Jt+6KGi2j2/S8=
-github.com/Arceliar/phony v0.0.0-20190831214819-9b642ea019ad/go.mod h1:6Lkn+/zJilRMsKmbmG1RPoamiArC6HS73xbwRyp3UyI=
+github.com/Arceliar/phony v0.0.0-20190907031509-af5bdbeecab6 h1:zMj5Q1V0yF4WNfV/FpXG6iXfPJ965Xc5asR2vHXanXc=
+github.com/Arceliar/phony v0.0.0-20190907031509-af5bdbeecab6/go.mod h1:6Lkn+/zJilRMsKmbmG1RPoamiArC6HS73xbwRyp3UyI=
 github.com/gologme/log v0.0.0-20181207131047-4e5d8ccb38e8 h1:WD8iJ37bRNwvETMfVTusVSAi0WdXTpfNVGY2aHycNKY=
 github.com/gologme/log v0.0.0-20181207131047-4e5d8ccb38e8/go.mod h1:gq31gQ8wEHkR+WekdWsqDuf8pXTUZA9BnnzTuPz1Y9U=
 github.com/hashicorp/go-syslog v1.0.0 h1:KaodqZuhUoZereWVIYmpUgZysurB1kBLX2j0MwMrUAE=
 github.com/hashicorp/go-syslog v1.0.0/go.mod h1:qPfqrKkXGihmCqbJM2mZgkZGvKG1dFdvsLplgctolz4=
-github.com/hjson/hjson-go v0.0.0-20181010104306-a25ecf6bd222 h1:xmvkbxXDeN1ffWq8kvrhyqVYAO2aXuRBsbpxVTR+JyU=
-github.com/hjson/hjson-go v0.0.0-20181010104306-a25ecf6bd222/go.mod h1:qsetwF8NlsTsOTwZTApNlTCerV+b2GjYRRcIk4JMFio=
 github.com/hjson/hjson-go v3.0.1-0.20190209023717-9147687966d9+incompatible h1:bLQ2Ve+eW65id3b8xEMQiAwJT4qGZeywAEMLvXjznvw=
 github.com/hjson/hjson-go v3.0.1-0.20190209023717-9147687966d9+incompatible/go.mod h1:qsetwF8NlsTsOTwZTApNlTCerV+b2GjYRRcIk4JMFio=
 github.com/kardianos/minwinsvc v0.0.0-20151122163309-cad6b2b879b0 h1:YnZmFjg0Nvk8851WTVWlqMC1ecJH07Ctz+Ezxx4u54g=
