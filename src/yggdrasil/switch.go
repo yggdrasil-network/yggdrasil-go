@@ -143,6 +143,7 @@ type switchPort uint64
 type tableElem struct {
 	port    switchPort
 	locator switchLocator
+	time    time.Time
 }
 
 // This is the subset of the information about all peers needed to make routing decisions, and it stored separately in an atomically accessed table, which gets hammered in the "hot loop" of the routing logic (see: peer.handleTraffic in peers.go).
@@ -562,6 +563,7 @@ func (t *switchTable) updateTable() {
 		newTable.elems[pinfo.port] = tableElem{
 			locator: loc,
 			port:    pinfo.port,
+			time:    pinfo.time,
 		}
 	}
 	t.table.Store(newTable)
@@ -581,7 +583,7 @@ func (t *switchTable) start() error {
 }
 
 type closerInfo struct {
-	port switchPort
+	elem tableElem
 	dist int
 }
 
@@ -598,7 +600,7 @@ func (t *switchTable) getCloser(dest []byte) []closerInfo {
 	for _, info := range table.elems {
 		dist := info.locator.dist(dest)
 		if dist < myDist {
-			t.queues.closer = append(t.queues.closer, closerInfo{info.port, dist})
+			t.queues.closer = append(t.queues.closer, closerInfo{info, dist})
 		}
 	}
 	return t.queues.closer
@@ -671,13 +673,12 @@ func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]time.Time) bo
 		self.sendPacketsFrom(t, [][]byte{packet})
 		return true
 	}
-	var best *peer
-	var bestDist int
+	var best *closerInfo
 	var bestTime time.Time
 	ports := t.core.peers.getPorts()
 	for _, cinfo := range closer {
-		to := ports[cinfo.port]
-		thisTime, isIdle := idle[cinfo.port]
+		to := ports[cinfo.elem.port]
+		thisTime, isIdle := idle[cinfo.elem.port]
 		var update bool
 		switch {
 		case to == nil:
@@ -688,13 +689,24 @@ func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]time.Time) bo
 			// this is the first idle port we've found, so select it until we find a
 			// better candidate port to use instead
 			update = true
-		case cinfo.dist < bestDist:
+		case cinfo.dist < best.dist:
 			// the port takes a shorter path/is more direct than our current
 			// candidate, so select that instead
 			update = true
-		case cinfo.dist > bestDist:
+		case cinfo.dist > best.dist:
 			// the port takes a longer path/is less direct than our current candidate,
 			// ignore it
+		case cinfo.elem.locator.tstamp > best.elem.locator.tstamp:
+			// has a newer tstamp from the root, so presumably a better path
+			update = true
+		case cinfo.elem.locator.tstamp < best.elem.locator.tstamp:
+			// has a n older tstamp, so presumably a worse path
+		case cinfo.elem.time.Before(best.elem.time):
+			// same tstamp, but got it earlier, so presumably a better path
+			update = true
+		case cinfo.elem.time.After(best.elem.time):
+			// same tstamp, but got it later, so presumably a worse path
+			// I do not expect the remaining cases to ever be reached... TODO cleanup
 		case thisTime.After(bestTime):
 			// all else equal, this port was used more recently than our current
 			// candidate, so choose that instead. this should mean that, in low
@@ -705,15 +717,15 @@ func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]time.Time) bo
 			// the search for a port has finished
 		}
 		if update {
-			best = to
-			bestDist = cinfo.dist
+			b := cinfo // because cinfo gets mutated by the iteration
+			best = &b
 			bestTime = thisTime
 		}
 	}
 	if best != nil {
 		// Send to the best idle next hop
-		delete(idle, best.port)
-		best.sendPacketsFrom(t, [][]byte{packet})
+		delete(idle, best.elem.port)
+		ports[best.elem.port].sendPacketsFrom(t, [][]byte{packet})
 		return true
 	}
 	// Didn't find anyone idle to send it to
