@@ -176,7 +176,7 @@ type switchTable struct {
 	table       atomic.Value               // lookupTable
 	phony.Inbox                            // Owns the below
 	queues      switch_buffers             // Queues - not atomic so ONLY use through the actor
-	idle        map[switchPort]time.Time   // idle peers - not atomic so ONLY use through the actor
+	idle        map[switchPort]struct{}    // idle peers - not atomic so ONLY use through the actor
 }
 
 // Minimum allowed total size of switch queues.
@@ -202,7 +202,7 @@ func (t *switchTable) init(core *Core) {
 		}
 		core.config.Mutex.RUnlock()
 		t.queues.bufs = make(map[string]switch_buffer)
-		t.idle = make(map[switchPort]time.Time)
+		t.idle = make(map[switchPort]struct{})
 	})
 }
 
@@ -664,7 +664,7 @@ func (t *switchTable) bestPortForCoords(coords []byte) switchPort {
 // Handle an incoming packet
 // Either send it to ourself, or to the first idle peer that's free
 // Returns true if the packet has been handled somehow, false if it should be queued
-func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]time.Time) bool {
+func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]struct{}) bool {
 	coords := switch_getPacketCoords(packet)
 	closer := t.getCloser(coords)
 	if len(closer) == 0 {
@@ -674,11 +674,10 @@ func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]time.Time) bo
 		return true
 	}
 	var best *closerInfo
-	var bestTime time.Time
 	ports := t.core.peers.getPorts()
 	for _, cinfo := range closer {
 		to := ports[cinfo.elem.port]
-		thisTime, isIdle := idle[cinfo.elem.port]
+		_, isIdle := idle[cinfo.elem.port]
 		var update bool
 		switch {
 		case to == nil:
@@ -704,22 +703,12 @@ func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]time.Time) bo
 		case cinfo.elem.time.Before(best.elem.time):
 			// same tstamp, but got it earlier, so presumably a better path
 			update = true
-		case cinfo.elem.time.After(best.elem.time):
-			// same tstamp, but got it later, so presumably a worse path
-			// I do not expect the remaining cases to ever be reached... TODO cleanup
-		case thisTime.After(bestTime):
-			// all else equal, this port was used more recently than our current
-			// candidate, so choose that instead. this should mean that, in low
-			// traffic scenarios, we consistently pick the same link which helps with
-			// packet ordering
-			update = true
 		default:
 			// the search for a port has finished
 		}
 		if update {
 			b := cinfo // because cinfo gets mutated by the iteration
 			best = &b
-			bestTime = thisTime
 		}
 	}
 	if best != nil {
@@ -882,6 +871,6 @@ func (t *switchTable) _idleIn(port switchPort) {
 	// Try to find something to send to this peer
 	if !t._handleIdle(port) {
 		// Didn't find anything ready to send yet, so stay idle
-		t.idle[port] = time.Now()
+		t.idle[port] = struct{}{}
 	}
 }
