@@ -37,7 +37,7 @@ some of the below:
 - NetBSD
 - OpenWrt
 
-Please see our [Platforms](https://yggdrasil-network.github.io/) pages for more
+Please see our [Platforms](https://yggdrasil-network.github.io/platforms.html) pages for more
 specific information about each of our supported platforms, including
 installation steps and caveats.
 
