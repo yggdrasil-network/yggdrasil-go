@@ -91,15 +91,21 @@ func (c *Core) _addPeerLoop() {
 
 	// Add peers from the Peers section
 	for _, peer := range current.Peers {
-		go c.AddPeer(peer, "") // TODO: this should be acted and not in a goroutine?
-		time.Sleep(time.Second)
+		go func() {
+			if err := c.AddPeer(peer, ""); err != nil {
+				c.log.Errorln("Failed to add peer:", err)
+			}
+		}() // TODO: this should be acted and not in a goroutine?
 	}
 
 	// Add peers from the InterfacePeers section
 	for intf, intfpeers := range current.InterfacePeers {
 		for _, peer := range intfpeers {
-			go c.AddPeer(peer, intf) // TODO: this should be acted and not in a goroutine?
-			time.Sleep(time.Second)
+			go func() {
+				if err := c.AddPeer(peer, intf); err != nil {
+					c.log.Errorln("Failed to add peer:", err)
+				}
+			}() // TODO: this should be acted and not in a goroutine?
 		}
 	}
 

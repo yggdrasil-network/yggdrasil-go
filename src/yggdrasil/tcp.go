@@ -85,6 +85,7 @@ func (t *tcp) init(l *link) error {
 	defer t.link.core.config.Mutex.RUnlock()
 	for _, listenaddr := range t.link.core.config.Current.Listen {
 		if listenaddr[:6] != "tcp://" {
+			t.link.core.log.Errorln("Failed to add listener: listener", listenaddr, "is not correctly formatted, ignoring")
 			continue
 		}
 		if _, err := t.listen(listenaddr[6:]); err != nil {
@@ -103,6 +104,7 @@ func (t *tcp) reconfigure() {
 	if len(added) > 0 || len(deleted) > 0 {
 		for _, a := range added {
 			if a[:6] != "tcp://" {
+				t.link.core.log.Errorln("Failed to add listener: listener", a, "is not correctly formatted, ignoring")
 				continue
 			}
 			if _, err := t.listen(a[6:]); err != nil {
@@ -113,6 +115,7 @@ func (t *tcp) reconfigure() {
 		}
 		for _, d := range deleted {
 			if d[:6] != "tcp://" {
+				t.link.core.log.Errorln("Failed to delete listener: listener", d, "is not correctly formatted, ignoring")
 				continue
 			}
 			t.mutex.Lock()
