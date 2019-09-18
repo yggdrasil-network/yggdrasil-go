@@ -19,14 +19,16 @@ import (
 // configured multicast interface, Yggdrasil will attempt to peer with that node
 // automatically.
 type Multicast struct {
-	core       *yggdrasil.Core
-	config     *config.NodeState
-	log        *log.Logger
-	sock       *ipv6.PacketConn
-	groupAddr  string
-	listeners  map[string]*yggdrasil.TcpListener
-	listenPort uint16
-	isOpen     bool
+	core            *yggdrasil.Core
+	config          *config.NodeState
+	log             *log.Logger
+	sock            *ipv6.PacketConn
+	groupAddr       string
+	listeners       map[string]*yggdrasil.TcpListener
+	listenPort      uint16
+	isOpen          bool
+	announcer       *time.Timer
+	platformhandler *time.Timer
 }
 
 // Init prepares the multicast interface for use.
@@ -63,9 +65,9 @@ func (m *Multicast) Start() error {
 	}
 
 	m.isOpen = true
-	go m.multicastStarted()
 	go m.listen()
-	go m.announce()
+	m.multicastStarted()
+	m.announce()
 
 	return nil
 }
@@ -73,6 +75,8 @@ func (m *Multicast) Start() error {
 // Stop is not implemented for multicast yet.
 func (m *Multicast) Stop() error {
 	m.isOpen = false
+	m.announcer.Stop()
+	m.platformhandler.Stop()
 	m.sock.Close()
 	return nil
 }
@@ -136,108 +140,106 @@ func (m *Multicast) announce() {
 	if err != nil {
 		panic(err)
 	}
-	for {
-		interfaces := m.Interfaces()
-		// There might be interfaces that we configured listeners for but are no
-		// longer up - if that's the case then we should stop the listeners
-		for name, listener := range m.listeners {
-			// Prepare our stop function!
-			stop := func() {
-				listener.Stop <- true
-				delete(m.listeners, name)
-				m.log.Debugln("No longer multicasting on", name)
-			}
-			// If the interface is no longer visible on the system then stop the
-			// listener, as another one will be started further down
-			if _, ok := interfaces[name]; !ok {
-				stop()
-				continue
-			}
-			// It's possible that the link-local listener address has changed so if
-			// that is the case then we should clean up the interface listener
-			found := false
-			listenaddr, err := net.ResolveTCPAddr("tcp6", listener.Listener.Addr().String())
-			if err != nil {
-				stop()
-				continue
-			}
-			// Find the interface that matches the listener
-			if intf, err := net.InterfaceByName(name); err == nil {
-				if addrs, err := intf.Addrs(); err == nil {
-					// Loop through the addresses attached to that listener and see if any
-					// of them match the current address of the listener
-					for _, addr := range addrs {
-						if ip, _, err := net.ParseCIDR(addr.String()); err == nil {
-							// Does the interface address match our listener address?
-							if ip.Equal(listenaddr.IP) {
-								found = true
-								break
-							}
+	interfaces := m.Interfaces()
+	// There might be interfaces that we configured listeners for but are no
+	// longer up - if that's the case then we should stop the listeners
+	for name, listener := range m.listeners {
+		// Prepare our stop function!
+		stop := func() {
+			listener.Stop <- true
+			delete(m.listeners, name)
+			m.log.Debugln("No longer multicasting on", name)
+		}
+		// If the interface is no longer visible on the system then stop the
+		// listener, as another one will be started further down
+		if _, ok := interfaces[name]; !ok {
+			stop()
+			continue
+		}
+		// It's possible that the link-local listener address has changed so if
+		// that is the case then we should clean up the interface listener
+		found := false
+		listenaddr, err := net.ResolveTCPAddr("tcp6", listener.Listener.Addr().String())
+		if err != nil {
+			stop()
+			continue
+		}
+		// Find the interface that matches the listener
+		if intf, err := net.InterfaceByName(name); err == nil {
+			if addrs, err := intf.Addrs(); err == nil {
+				// Loop through the addresses attached to that listener and see if any
+				// of them match the current address of the listener
+				for _, addr := range addrs {
+					if ip, _, err := net.ParseCIDR(addr.String()); err == nil {
+						// Does the interface address match our listener address?
+						if ip.Equal(listenaddr.IP) {
+							found = true
+							break
 						}
 					}
 				}
 			}
-			// If the address has not been found on the adapter then we should stop
-			// and clean up the TCP listener. A new one will be created below if a
-			// suitable link-local address is found
-			if !found {
-				stop()
-			}
 		}
-		// Now that we have a list of valid interfaces from the operating system,
-		// we can start checking if we can send multicasts on them
-		for _, iface := range interfaces {
-			// Find interface addresses
-			addrs, err := iface.Addrs()
-			if err != nil {
-				panic(err)
-			}
-			for _, addr := range addrs {
-				addrIP, _, _ := net.ParseCIDR(addr.String())
-				// Ignore IPv4 addresses
-				if addrIP.To4() != nil {
-					continue
-				}
-				// Ignore non-link-local addresses
-				if !addrIP.IsLinkLocalUnicast() {
-					continue
-				}
-				// Join the multicast group
-				m.sock.JoinGroup(&iface, groupAddr)
-				// Try and see if we already have a TCP listener for this interface
-				var listener *yggdrasil.TcpListener
-				if l, ok := m.listeners[iface.Name]; !ok || l.Listener == nil {
-					// No listener was found - let's create one
-					listenaddr := fmt.Sprintf("[%s%%%s]:%d", addrIP, iface.Name, m.listenPort)
-					if li, err := m.core.ListenTCP(listenaddr); err == nil {
-						m.log.Debugln("Started multicasting on", iface.Name)
-						// Store the listener so that we can stop it later if needed
-						m.listeners[iface.Name] = li
-						listener = li
-					} else {
-						m.log.Warnln("Not multicasting on", iface.Name, "due to error:", err)
-					}
-				} else {
-					// An existing listener was found
-					listener = m.listeners[iface.Name]
-				}
-				// Make sure nothing above failed for some reason
-				if listener == nil {
-					continue
-				}
-				// Get the listener details and construct the multicast beacon
-				lladdr := listener.Listener.Addr().String()
-				if a, err := net.ResolveTCPAddr("tcp6", lladdr); err == nil {
-					a.Zone = ""
-					destAddr.Zone = iface.Name
-					msg := []byte(a.String())
-					m.sock.WriteTo(msg, nil, destAddr)
-				}
-				break
-			}
+		// If the address has not been found on the adapter then we should stop
+		// and clean up the TCP listener. A new one will be created below if a
+		// suitable link-local address is found
+		if !found {
+			stop()
 		}
-		time.Sleep(time.Second * 15)
 	}
+	// Now that we have a list of valid interfaces from the operating system,
+	// we can start checking if we can send multicasts on them
+	for _, iface := range interfaces {
+		// Find interface addresses
+		addrs, err := iface.Addrs()
+		if err != nil {
+			panic(err)
+		}
+		for _, addr := range addrs {
+			addrIP, _, _ := net.ParseCIDR(addr.String())
+			// Ignore IPv4 addresses
+			if addrIP.To4() != nil {
+				continue
+			}
+			// Ignore non-link-local addresses
+			if !addrIP.IsLinkLocalUnicast() {
+				continue
+			}
+			// Join the multicast group
+			m.sock.JoinGroup(&iface, groupAddr)
+			// Try and see if we already have a TCP listener for this interface
+			var listener *yggdrasil.TcpListener
+			if l, ok := m.listeners[iface.Name]; !ok || l.Listener == nil {
+				// No listener was found - let's create one
+				listenaddr := fmt.Sprintf("[%s%%%s]:%d", addrIP, iface.Name, m.listenPort)
+				if li, err := m.core.ListenTCP(listenaddr); err == nil {
+					m.log.Debugln("Started multicasting on", iface.Name)
+					// Store the listener so that we can stop it later if needed
+					m.listeners[iface.Name] = li
+					listener = li
+				} else {
+					m.log.Warnln("Not multicasting on", iface.Name, "due to error:", err)
+				}
+			} else {
+				// An existing listener was found
+				listener = m.listeners[iface.Name]
+			}
+			// Make sure nothing above failed for some reason
+			if listener == nil {
+				continue
+			}
+			// Get the listener details and construct the multicast beacon
+			lladdr := listener.Listener.Addr().String()
+			if a, err := net.ResolveTCPAddr("tcp6", lladdr); err == nil {
+				a.Zone = ""
+				destAddr.Zone = iface.Name
+				msg := []byte(a.String())
+				m.sock.WriteTo(msg, nil, destAddr)
+			}
+			break
+		}
+	}
+	m.announcer = time.AfterFunc(time.Second*15, m.announce)
 }
 
 func (m *Multicast) listen() {
