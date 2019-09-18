@@ -86,7 +86,7 @@ func (l *link) reconfigure() {
 func (l *link) call(uri string, sintf string) error {
 	u, err := url.Parse(uri)
 	if err != nil {
-		return fmt.Errorf("peer %s is not correctly formatted (%s)", uri, err)
+		return fmt.Errorf("peer %s is not correctly formatted", uri)
 	}
 	pathtokens := strings.Split(strings.Trim(u.Path, "/"), "/")
 	switch u.Scheme {
