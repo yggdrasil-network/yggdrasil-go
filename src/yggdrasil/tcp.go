@@ -271,6 +271,7 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 			}
 			dialer := net.Dialer{
 				Control: t.tcpContext,
+				Timeout: time.Second * 5,
 			}
 			if sintf != "" {
 				ief, err := net.InterfaceByName(sintf)
