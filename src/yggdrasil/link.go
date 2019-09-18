@@ -134,6 +134,13 @@ func (l *link) create(msgIO linkInterfaceMsgIO, name, linkType, local, remote st
 	return &intf, nil
 }
 
+func (l *link) stop() error {
+	if err := l.tcp.stop(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (intf *linkInterface) handler() error {
 	// TODO split some of this into shorter functions, so it's easier to read, and for the FIXME duplicate peer issue mentioned later
 	myLinkPub, myLinkPriv := crypto.NewBoxKeys()

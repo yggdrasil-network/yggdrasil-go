@@ -194,7 +194,9 @@ func (c *Core) _stop() {
 	if c.addPeerTimer != nil {
 		c.addPeerTimer.Stop()
 	}
+	c.link.stop()
 	for _, peer := range c.GetPeers() {
 		c.DisconnectPeer(peer.Port)
 	}
+	c.log.Infoln("Stopped")
 }

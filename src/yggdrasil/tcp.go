@@ -96,6 +96,13 @@ func (t *tcp) init(l *link) error {
 	return nil
 }
 
+func (t *tcp) stop() error {
+	for _, listener := range t.listeners {
+		close(listener.Stop)
+	}
+	return nil
+}
+
 func (t *tcp) reconfigure() {
 	t.link.core.config.Mutex.RLock()
 	added := util.Difference(t.link.core.config.Current.Listen, t.link.core.config.Previous.Listen)
