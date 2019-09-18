@@ -249,7 +249,7 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 			if err != nil {
 				return
 			}
-			t.handler(conn, false, dialerdst.String())
+			t.handler(conn, false, saddr)
 		} else {
 			dst, err := net.ResolveTCPAddr("tcp", saddr)
 			if err != nil {
@@ -322,18 +322,19 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options interface{}) {
 	t.setExtraOptions(sock)
 	stream := stream{}
 	stream.init(sock)
-	local, _, _ := net.SplitHostPort(sock.LocalAddr().String())
-	remote, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
-	force := net.ParseIP(strings.Split(remote, "%")[0]).IsLinkLocalUnicast()
-	var name string
-	var proto string
+	var name, proto, local, remote string
 	if socksaddr, issocks := options.(string); issocks {
-		name = "socks://" + socksaddr + "/" + sock.RemoteAddr().String()
+		name = "socks://" + sock.RemoteAddr().String() + "/" + socksaddr
 		proto = "socks"
+		local, _, _ = net.SplitHostPort(sock.LocalAddr().String())
+		remote, _, _ = net.SplitHostPort(socksaddr)
 	} else {
 		name = "tcp://" + sock.RemoteAddr().String()
 		proto = "tcp"
+		local, _, _ = net.SplitHostPort(sock.LocalAddr().String())
+		remote, _, _ = net.SplitHostPort(sock.RemoteAddr().String())
 	}
+	force := net.ParseIP(strings.Split(remote, "%")[0]).IsLinkLocalUnicast()
 	link, err := t.link.core.link.create(&stream, name, proto, local, remote, incoming, force)
 	if err != nil {
 		t.link.core.log.Println(err)
