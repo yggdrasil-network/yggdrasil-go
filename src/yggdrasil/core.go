@@ -110,7 +110,6 @@ func (c *Core) _addPeerLoop() {
 		}
 	}
 
-	// Sit for a while
 	c.addPeerTimer = time.AfterFunc(time.Minute, func() {
 		c.Act(c, c._addPeerLoop)
 	})
@@ -178,9 +177,7 @@ func (c *Core) _start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState
 		return nil, err
 	}
 
-	c.addPeerTimer = time.AfterFunc(time.Second, func() {
-		c.Act(c, c._addPeerLoop)
-	})
+	c.Act(c, c._addPeerLoop)
 
 	c.log.Infoln("Startup complete")
 	return &c.config, nil
@@ -194,7 +191,9 @@ func (c *Core) Stop() {
 // This function is unsafe and should only be ran by the core actor.
 func (c *Core) _stop() {
 	c.log.Infoln("Stopping...")
-	c.addPeerTimer.Stop()
+	if c.addPeerTimer != nil {
+		c.addPeerTimer.Stop()
+	}
 	for _, peer := range c.GetPeers() {
 		c.DisconnectPeer(peer.Port)
 	}

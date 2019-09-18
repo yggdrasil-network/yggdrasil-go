@@ -75,8 +75,12 @@ func (m *Multicast) Start() error {
 // Stop is not implemented for multicast yet.
 func (m *Multicast) Stop() error {
 	m.isOpen = false
-	m.announcer.Stop()
-	m.platformhandler.Stop()
+	if m.announcer != nil {
+		m.announcer.Stop()
+	}
+	if m.platformhandler != nil {
+		m.platformhandler.Stop()
+	}
 	m.sock.Close()
 	return nil
 }
