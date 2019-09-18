@@ -111,7 +111,7 @@ func (r *tunReader) _read() {
 	recvd := util.ResizeBytes(util.GetBytes(), 65535+tun_ETHER_HEADER_LENGTH)
 	// Wait for a packet to be delivered to us through the TUN/TAP adapter
 	n, err := r.tun.iface.Read(recvd)
-	if n == 0 {
+	if n <= 0 {
 		util.PutBytes(recvd)
 	} else {
 		r.tun.handlePacketFrom(r, recvd[:n], err)
