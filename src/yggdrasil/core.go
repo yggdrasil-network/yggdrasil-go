@@ -93,7 +93,7 @@ func (c *Core) _addPeerLoop() {
 	// Add peers from the Peers section
 	for _, peer := range current.Peers {
 		go func(peer, intf string) {
-			if err := c.AddPeer(peer, intf); err != nil {
+			if err := c.CallPeer(peer, intf); err != nil {
 				c.log.Errorln("Failed to add peer:", err)
 			}
 		}(peer, "") // TODO: this should be acted and not in a goroutine?
@@ -103,7 +103,7 @@ func (c *Core) _addPeerLoop() {
 	for intf, intfpeers := range current.InterfacePeers {
 		for _, peer := range intfpeers {
 			go func(peer, intf string) {
-				if err := c.AddPeer(peer, intf); err != nil {
+				if err := c.CallPeer(peer, intf); err != nil {
 					c.log.Errorln("Failed to add peer:", err)
 				}
 			}(peer, intf) // TODO: this should be acted and not in a goroutine?
@@ -111,7 +111,7 @@ func (c *Core) _addPeerLoop() {
 	}
 
 	c.addPeerTimer = time.AfterFunc(time.Minute, func() {
-		c.Act(c, c._addPeerLoop)
+		c.Act(nil, c._addPeerLoop)
 	})
 }
 
