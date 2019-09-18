@@ -6,7 +6,7 @@ TAG=$(git describe --abbrev=0 --tags --match="v[0-9]*\.[0-9]*\.[0-9]*" 2>/dev/nu
 # Did getting the tag succeed?
 if [ $? != 0 ] || [ -z "$TAG" ]; then
   printf -- "unknown"
-  exit 1
+  exit 0
 fi
 
 # Get the current branch
@@ -36,7 +36,7 @@ if [ "$BRANCH" != "master" ]; then
   # Did getting the count of commits since the tag succeed?
   if [ $? != 0 ] || [ -z "$BUILD" ]; then
     printf -- "-unknown"
-    exit 1
+    exit 0
   fi
 
   # Is the build greater than zero?
