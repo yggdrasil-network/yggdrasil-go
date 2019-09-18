@@ -416,8 +416,11 @@ func (sinfo *sessionInfo) _updateNonce(theirNonce *crypto.BoxNonce) {
 // Called after coord changes, so attemtps to use a session will trigger a new ping and notify the remote end of the coord change.
 // Only call this from the router actor.
 func (ss *sessions) reset() {
-	for _, sinfo := range ss.sinfos {
-		sinfo.reset = true
+	for _, _sinfo := range ss.sinfos {
+		sinfo := _sinfo // So we can safely put it in a closure
+		sinfo.Act(ss.router, func() {
+			sinfo.reset = true
+		})
 	}
 }
 
@@ -471,12 +474,6 @@ func (sinfo *sessionInfo) _recvPacket(p *wire_trafficPacket) {
 			if !isOK || k != sinfo.sharedSesKey || !sinfo._nonceIsOK(&p.Nonce) {
 				// Either we failed to decrypt, or the session was updated, or we
 				// received this packet in the mean time
-				util.PutBytes(bs)
-				return
-			}
-			if sinfo.conn == nil {
-				// There's no connection associated with this session for some reason
-				// TODO: Figure out why this happens sometimes, it shouldn't
 				util.PutBytes(bs)
 				return
 			}

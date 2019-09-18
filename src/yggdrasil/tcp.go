@@ -207,11 +207,12 @@ func (t *tcp) listener(l *TcpListener, listenaddr string) {
 }
 
 // Checks if we already are calling this address
-func (t *tcp) isAlreadyCalling(saddr string) bool {
+func (t *tcp) startCalling(saddr string) bool {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	_, isIn := t.calls[saddr]
-	return isIn
+	t.calls[saddr] = struct{}{}
+	return !isIn
 }
 
 // Checks if a connection already exists.
@@ -225,12 +226,9 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 		if sintf != "" {
 			callname = fmt.Sprintf("%s/%s", saddr, sintf)
 		}
-		if t.isAlreadyCalling(callname) {
+		if !t.startCalling(callname) {
 			return
 		}
-		t.mutex.Lock()
-		t.calls[callname] = struct{}{}
-		t.mutex.Unlock()
 		defer func() {
 			// Block new calls for a little while, to mitigate livelock scenarios
 			time.Sleep(default_timeout)

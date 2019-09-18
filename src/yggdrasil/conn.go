@@ -102,11 +102,12 @@ func (c *Conn) search() error {
 					if sinfo != nil {
 						// Need to clean up to avoid a session leak
 						sinfo.cancel.Cancel(nil)
+						sinfo.sessions.removeSession(sinfo)
 					}
 				default:
 					if sinfo != nil {
 						// Finish initializing the session
-						sinfo.conn = c
+						sinfo.setConn(nil, c)
 					}
 					c.session = sinfo
 					err = e
