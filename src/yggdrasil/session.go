@@ -470,7 +470,14 @@ func (sinfo *sessionInfo) _recvPacket(p *wire_trafficPacket) {
 		callback := func() {
 			util.PutBytes(p.Payload)
 			if !isOK || k != sinfo.sharedSesKey || !sinfo._nonceIsOK(&p.Nonce) {
-				// Either we failed to decrypt, or the session was updated, or we received this packet in the mean time
+				// Either we failed to decrypt, or the session was updated, or we
+				// received this packet in the mean time
+				util.PutBytes(bs)
+				return
+			}
+			if sinfo.conn == nil {
+				// There's no connection associated with this session for some reason
+				// TODO: Figure out why this happens sometimes, it shouldn't
 				util.PutBytes(bs)
 				return
 			}
