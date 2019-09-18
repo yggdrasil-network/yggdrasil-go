@@ -29,6 +29,7 @@ jobs:
       - run:
           name: Install RPM utilities
           command: |
+              sudo apt-get update
               sudo apt-get install -y rpm file
               mkdir -p ~/rpmbuild/BUILD ~/rpmbuild/RPMS ~/rpmbuild/SOURCES ~/rpmbuild/SPECS ~/rpmbuild/SRPMS
 
