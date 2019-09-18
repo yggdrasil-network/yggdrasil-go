@@ -414,11 +414,10 @@ func (sinfo *sessionInfo) _updateNonce(theirNonce *crypto.BoxNonce) {
 
 // Resets all sessions to an uninitialized state.
 // Called after coord changes, so attemtps to use a session will trigger a new ping and notify the remote end of the coord change.
+// Only call this from the router actor.
 func (ss *sessions) reset() {
 	for _, sinfo := range ss.sinfos {
-		sinfo.Act(ss.router, func() {
-			sinfo.reset = true
-		})
+		sinfo.reset = true
 	}
 }
 
