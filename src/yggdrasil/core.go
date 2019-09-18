@@ -21,16 +21,17 @@ type Core struct {
 	// We're going to keep our own copy of the provided config - that way we can
 	// guarantee that it will be covered by the mutex
 	phony.Inbox
-	config      config.NodeState // Config
-	boxPub      crypto.BoxPubKey
-	boxPriv     crypto.BoxPrivKey
-	sigPub      crypto.SigPubKey
-	sigPriv     crypto.SigPrivKey
-	switchTable switchTable
-	peers       peers
-	router      router
-	link        link
-	log         *log.Logger
+	config       config.NodeState // Config
+	boxPub       crypto.BoxPubKey
+	boxPriv      crypto.BoxPrivKey
+	sigPub       crypto.SigPubKey
+	sigPriv      crypto.SigPrivKey
+	switchTable  switchTable
+	peers        peers
+	router       router
+	link         link
+	log          *log.Logger
+	addPeerTimer *time.Timer
 }
 
 func (c *Core) _init() error {
@@ -110,7 +111,7 @@ func (c *Core) _addPeerLoop() {
 	}
 
 	// Sit for a while
-	time.AfterFunc(time.Minute, func() {
+	c.addPeerTimer = time.AfterFunc(time.Minute, func() {
 		c.Act(c, c._addPeerLoop)
 	})
 }
@@ -177,7 +178,9 @@ func (c *Core) _start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState
 		return nil, err
 	}
 
-	c.Act(c, c._addPeerLoop)
+	c.addPeerTimer = time.AfterFunc(time.Second, func() {
+		c.Act(c, c._addPeerLoop)
+	})
 
 	c.log.Infoln("Startup complete")
 	return &c.config, nil
@@ -191,4 +194,8 @@ func (c *Core) Stop() {
 // This function is unsafe and should only be ran by the core actor.
 func (c *Core) _stop() {
 	c.log.Infoln("Stopping...")
+	c.addPeerTimer.Stop()
+	for _, peer := range c.GetPeers() {
+		c.DisconnectPeer(peer.Port)
+	}
 }

@@ -292,10 +292,10 @@ exit:
 }
 
 func (n *node) shutdown() {
-	n.core.Stop()
 	n.admin.Stop()
 	n.multicast.Stop()
 	n.tuntap.Stop()
+	n.core.Stop()
 	os.Exit(0)
 }
 
