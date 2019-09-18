@@ -39,7 +39,9 @@ func (m *Multicast) multicastStarted() {
 			break
 		}
 	}
-	m.platformhandler = time.AfterFunc(time.Minute, m.multicastStarted)
+	m.platformhandler = time.AfterFunc(time.Minute, func() {
+		m.Act(m, m.multicastStarted)
+	})
 }
 
 func (m *Multicast) multicastReuse(network string, address string, c syscall.RawConn) error {

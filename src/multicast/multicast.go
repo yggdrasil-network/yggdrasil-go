@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
@@ -19,6 +20,7 @@ import (
 // configured multicast interface, Yggdrasil will attempt to peer with that node
 // automatically.
 type Multicast struct {
+	phony.Inbox
 	core            *yggdrasil.Core
 	config          *config.NodeState
 	log             *log.Logger
@@ -66,8 +68,8 @@ func (m *Multicast) Start() error {
 
 	m.isOpen = true
 	go m.listen()
-	m.multicastStarted()
-	m.announce()
+	m.Act(m, m.multicastStarted)
+	m.Act(m, m.announce)
 
 	return nil
 }
@@ -243,7 +245,9 @@ func (m *Multicast) announce() {
 			break
 		}
 	}
-	m.announcer = time.AfterFunc(time.Second*15, m.announce)
+	m.announcer = time.AfterFunc(time.Second*15, func() {
+		m.Act(m, m.announce)
+	})
 }
 
 func (m *Multicast) listen() {
