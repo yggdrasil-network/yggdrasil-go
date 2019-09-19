@@ -21,16 +21,17 @@ type Core struct {
 	// We're going to keep our own copy of the provided config - that way we can
 	// guarantee that it will be covered by the mutex
 	phony.Inbox
-	config      config.NodeState // Config
-	boxPub      crypto.BoxPubKey
-	boxPriv     crypto.BoxPrivKey
-	sigPub      crypto.SigPubKey
-	sigPriv     crypto.SigPrivKey
-	switchTable switchTable
-	peers       peers
-	router      router
-	link        link
-	log         *log.Logger
+	config       config.NodeState // Config
+	boxPub       crypto.BoxPubKey
+	boxPriv      crypto.BoxPrivKey
+	sigPub       crypto.SigPubKey
+	sigPriv      crypto.SigPrivKey
+	switchTable  switchTable
+	peers        peers
+	router       router
+	link         link
+	log          *log.Logger
+	addPeerTimer *time.Timer
 }
 
 func (c *Core) _init() error {
@@ -91,7 +92,7 @@ func (c *Core) _addPeerLoop() {
 
 	// Add peers from the Peers section
 	for _, peer := range current.Peers {
-		if err := c.AddPeer(peer, ""); err != nil {
+		if err := c.CallPeer(peer, ""); err != nil {
 			c.log.Errorln("Failed to add peer:", err)
 		}
 	}
@@ -99,14 +100,14 @@ func (c *Core) _addPeerLoop() {
 	// Add peers from the InterfacePeers section
 	for intf, intfpeers := range current.InterfacePeers {
 		for _, peer := range intfpeers {
-			if err := c.AddPeer(peer, intf); err != nil {
+			if err := c.CallPeer(peer, intf); err != nil {
 				c.log.Errorln("Failed to add peer:", err)
 			}
 		}
 	}
 
 	// Sit for a while
-	time.AfterFunc(time.Minute, func() {
+	c.addPeerTimer = time.AfterFunc(time.Minute, func() {
 		c.Act(c, c._addPeerLoop)
 	})
 }
@@ -187,4 +188,5 @@ func (c *Core) Stop() {
 // This function is unsafe and should only be ran by the core actor.
 func (c *Core) _stop() {
 	c.log.Infoln("Stopping...")
+	c.addPeerTimer.Stop()
 }
