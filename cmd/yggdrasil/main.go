@@ -296,7 +296,6 @@ func (n *node) shutdown() {
 	n.multicast.Stop()
 	n.tuntap.Stop()
 	n.core.Stop()
-	os.Exit(0)
 }
 
 func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
