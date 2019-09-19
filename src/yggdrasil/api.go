@@ -368,13 +368,34 @@ func (c *Core) SetLogger(log *log.Logger) {
 // connection drops.
 func (c *Core) AddPeer(addr string, sintf string) error {
 	if err := c.CallPeer(addr, sintf); err != nil {
+		// TODO: We maybe want this to write the peer to the persistent
+		// configuration even if a connection attempt fails, but first we'll need to
+		// move the code to check the peer URI so that we don't deliberately save a
+		// peer with a known bad URI. Loading peers from config should really do the
+		// same thing too but I don't think that happens today
 		return err
 	}
 	c.config.Mutex.Lock()
 	if sintf == "" {
+		for _, peer := range c.config.Current.Peers {
+			if peer == addr {
+				return errors.New("peer already added")
+			}
+		}
 		c.config.Current.Peers = append(c.config.Current.Peers, addr)
 	} else {
-		c.config.Current.InterfacePeers[sintf] = append(c.config.Current.InterfacePeers[sintf], addr)
+		if _, ok := c.config.Current.InterfacePeers[sintf]; ok {
+			for _, peer := range c.config.Current.InterfacePeers[sintf] {
+				if peer == addr {
+					return errors.New("peer already added")
+				}
+			}
+		}
+		if _, ok := c.config.Current.InterfacePeers[sintf]; !ok {
+			c.config.Current.InterfacePeers[sintf] = []string{addr}
+		} else {
+			c.config.Current.InterfacePeers[sintf] = append(c.config.Current.InterfacePeers[sintf], addr)
+		}
 	}
 	c.config.Mutex.Unlock()
 	return nil
