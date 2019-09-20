@@ -25,6 +25,7 @@ type link struct {
 	mutex      sync.RWMutex // protects interfaces below
 	interfaces map[linkInfo]*linkInterface
 	tcp        tcp // TCP interface support
+	stopped    chan struct{}
 	// TODO timeout (to remove from switch), read from config.ReadTimeout
 }
 
@@ -70,6 +71,7 @@ func (l *link) init(c *Core) error {
 	l.mutex.Lock()
 	l.interfaces = make(map[linkInfo]*linkInterface)
 	l.mutex.Unlock()
+	l.stopped = make(chan struct{})
 
 	if err := l.tcp.init(l); err != nil {
 		c.log.Errorln("Failed to start TCP interface")
@@ -135,6 +137,7 @@ func (l *link) create(msgIO linkInterfaceMsgIO, name, linkType, local, remote st
 }
 
 func (l *link) stop() error {
+	close(l.stopped)
 	if err := l.tcp.stop(); err != nil {
 		return err
 	}
@@ -231,7 +234,18 @@ func (intf *linkInterface) handler() error {
 	go intf.peer.start()
 	intf.reader.Act(nil, intf.reader._read)
 	// Wait for the reader to finish
+	// TODO find a way to do this without keeping live goroutines around
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-intf.link.stopped:
+			intf.msgIO.close()
+		case <-done:
+		}
+	}()
 	err = <-intf.reader.err
+	// TODO don't report an error if it's just a 'use of closed network connection'
 	if err != nil {
 		intf.link.core.log.Infof("Disconnected %s: %s, source %s; error: %s",
 			strings.ToUpper(intf.info.linkType), themString, intf.info.local, err)

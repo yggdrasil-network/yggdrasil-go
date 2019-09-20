@@ -34,6 +34,7 @@ const tcp_ping_interval = (default_timeout * 2 / 3)
 // The TCP listener and information about active TCP connections, to avoid duplication.
 type tcp struct {
 	link      *link
+	waitgroup sync.WaitGroup
 	mutex     sync.Mutex // Protecting the below
 	listeners map[string]*TcpListener
 	calls     map[string]struct{}
@@ -97,9 +98,12 @@ func (t *tcp) init(l *link) error {
 }
 
 func (t *tcp) stop() error {
+	t.mutex.Lock()
 	for _, listener := range t.listeners {
 		close(listener.Stop)
 	}
+	t.mutex.Unlock()
+	t.waitgroup.Wait()
 	return nil
 }
 
@@ -150,6 +154,7 @@ func (t *tcp) listen(listenaddr string) (*TcpListener, error) {
 			Listener: listener,
 			Stop:     make(chan bool),
 		}
+		t.waitgroup.Add(1)
 		go t.listener(&l, listenaddr)
 		return &l, nil
 	}
@@ -159,6 +164,7 @@ func (t *tcp) listen(listenaddr string) (*TcpListener, error) {
 
 // Runs the listener, which spawns off goroutines for incoming connections.
 func (t *tcp) listener(l *TcpListener, listenaddr string) {
+	defer t.waitgroup.Done()
 	if l == nil {
 		return
 	}
@@ -199,8 +205,10 @@ func (t *tcp) listener(l *TcpListener, listenaddr string) {
 				t.link.core.log.Errorln("Failed to accept connection:", err)
 				return
 			}
+			t.waitgroup.Add(1)
 			go t.handler(sock, true, nil)
 		case <-l.Stop:
+			// FIXME this races with the goroutine that Accepts a TCP connection, may leak connections when a listener is removed
 			return
 		}
 	}
@@ -257,6 +265,7 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 			if err != nil {
 				return
 			}
+			t.waitgroup.Add(1)
 			t.handler(conn, false, saddr)
 		} else {
 			dst, err := net.ResolveTCPAddr("tcp", saddr)
@@ -321,12 +330,14 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 				t.link.core.log.Debugln("Failed to dial TCP:", err)
 				return
 			}
+			t.waitgroup.Add(1)
 			t.handler(conn, false, nil)
 		}
 	}()
 }
 
 func (t *tcp) handler(sock net.Conn, incoming bool, options interface{}) {
+	defer t.waitgroup.Done() // Happens after sock.close
 	defer sock.Close()
 	t.setExtraOptions(sock)
 	stream := stream{}
