@@ -47,7 +47,12 @@ type tcp struct {
 // multicast interfaces.
 type TcpListener struct {
 	Listener net.Listener
-	Stop     chan bool
+	stop     chan struct{}
+}
+
+func (l *TcpListener) Stop() {
+	defer func() { recover() }()
+	close(l.stop)
 }
 
 // Wrapper function to set additional options for specific connection types.
@@ -100,7 +105,7 @@ func (t *tcp) init(l *link) error {
 func (t *tcp) stop() error {
 	t.mutex.Lock()
 	for _, listener := range t.listeners {
-		close(listener.Stop)
+		listener.Stop()
 	}
 	t.mutex.Unlock()
 	t.waitgroup.Wait()
@@ -132,7 +137,7 @@ func (t *tcp) reconfigure() {
 			t.mutex.Lock()
 			if listener, ok := t.listeners[d[6:]]; ok {
 				t.mutex.Unlock()
-				listener.Stop <- true
+				listener.Stop()
 				t.link.core.log.Infoln("Stopped TCP listener:", d[6:])
 			} else {
 				t.mutex.Unlock()
@@ -152,7 +157,7 @@ func (t *tcp) listen(listenaddr string) (*TcpListener, error) {
 	if err == nil {
 		l := TcpListener{
 			Listener: listener,
-			Stop:     make(chan bool),
+			stop:     make(chan struct{}),
 		}
 		t.waitgroup.Add(1)
 		go t.listener(&l, listenaddr)
@@ -207,7 +212,7 @@ func (t *tcp) listener(l *TcpListener, listenaddr string) {
 			}
 			t.waitgroup.Add(1)
 			go t.handler(sock, true, nil)
-		case <-l.Stop:
+		case <-l.stop:
 			// FIXME this races with the goroutine that Accepts a TCP connection, may leak connections when a listener is removed
 			return
 		}

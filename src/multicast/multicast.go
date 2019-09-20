@@ -152,7 +152,7 @@ func (m *Multicast) announce() {
 	for name, listener := range m.listeners {
 		// Prepare our stop function!
 		stop := func() {
-			listener.Stop <- true
+			listener.Stop()
 			delete(m.listeners, name)
 			m.log.Debugln("No longer multicasting on", name)
 		}
