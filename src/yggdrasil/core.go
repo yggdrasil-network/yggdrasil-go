@@ -96,7 +96,7 @@ func (c *Core) _addPeerLoop() {
 			if err := c.CallPeer(peer, intf); err != nil {
 				c.log.Errorln("Failed to add peer:", err)
 			}
-		}(peer, "")
+		}(peer, "") // TODO: this should be acted and not in a goroutine?
 	}
 
 	// Add peers from the InterfacePeers section
@@ -106,13 +106,12 @@ func (c *Core) _addPeerLoop() {
 				if err := c.CallPeer(peer, intf); err != nil {
 					c.log.Errorln("Failed to add peer:", err)
 				}
-			}(peer, intf)
+			}(peer, intf) // TODO: this should be acted and not in a goroutine?
 		}
 	}
 
-	// Sit for a while
 	c.addPeerTimer = time.AfterFunc(time.Minute, func() {
-		c.Act(c, c._addPeerLoop)
+		c.Act(nil, c._addPeerLoop)
 	})
 }
 
@@ -192,5 +191,12 @@ func (c *Core) Stop() {
 // This function is unsafe and should only be ran by the core actor.
 func (c *Core) _stop() {
 	c.log.Infoln("Stopping...")
-	c.addPeerTimer.Stop()
+	if c.addPeerTimer != nil {
+		c.addPeerTimer.Stop()
+	}
+	c.link.stop()
+	for _, peer := range c.GetPeers() {
+		c.DisconnectPeer(peer.Port)
+	}
+	c.log.Infoln("Stopped")
 }

@@ -32,21 +32,16 @@ import (
 var awdlGoroutineStarted bool
 
 func (m *Multicast) multicastStarted() {
-	if awdlGoroutineStarted {
-		return
-	}
-	awdlGoroutineStarted = true
-	for {
-		C.StopAWDLBrowsing()
-		for intf := range m.Interfaces() {
-			if intf == "awdl0" {
-				m.log.Infoln("Multicast discovery is using AWDL discovery")
-				C.StartAWDLBrowsing()
-				break
-			}
+	C.StopAWDLBrowsing()
+	for intf := range m.Interfaces() {
+		if intf == "awdl0" {
+			C.StartAWDLBrowsing()
+			break
 		}
-		time.Sleep(time.Minute)
 	}
+	m.platformhandler = time.AfterFunc(time.Minute, func() {
+		m.Act(m, m.multicastStarted)
+	})
 }
 
 func (m *Multicast) multicastReuse(network string, address string, c syscall.RawConn) error {

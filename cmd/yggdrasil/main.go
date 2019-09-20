@@ -292,11 +292,10 @@ exit:
 }
 
 func (n *node) shutdown() {
-	n.core.Stop()
 	n.admin.Stop()
 	n.multicast.Stop()
 	n.tuntap.Stop()
-	os.Exit(0)
+	n.core.Stop()
 }
 
 func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {

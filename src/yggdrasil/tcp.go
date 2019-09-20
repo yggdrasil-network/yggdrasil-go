@@ -34,6 +34,7 @@ const tcp_ping_interval = (default_timeout * 2 / 3)
 // The TCP listener and information about active TCP connections, to avoid duplication.
 type tcp struct {
 	link      *link
+	waitgroup sync.WaitGroup
 	mutex     sync.Mutex // Protecting the below
 	listeners map[string]*TcpListener
 	calls     map[string]struct{}
@@ -46,7 +47,12 @@ type tcp struct {
 // multicast interfaces.
 type TcpListener struct {
 	Listener net.Listener
-	Stop     chan bool
+	stop     chan struct{}
+}
+
+func (l *TcpListener) Stop() {
+	defer func() { recover() }()
+	close(l.stop)
 }
 
 // Wrapper function to set additional options for specific connection types.
@@ -96,6 +102,16 @@ func (t *tcp) init(l *link) error {
 	return nil
 }
 
+func (t *tcp) stop() error {
+	t.mutex.Lock()
+	for _, listener := range t.listeners {
+		listener.Stop()
+	}
+	t.mutex.Unlock()
+	t.waitgroup.Wait()
+	return nil
+}
+
 func (t *tcp) reconfigure() {
 	t.link.core.config.Mutex.RLock()
 	added := util.Difference(t.link.core.config.Current.Listen, t.link.core.config.Previous.Listen)
@@ -121,7 +137,7 @@ func (t *tcp) reconfigure() {
 			t.mutex.Lock()
 			if listener, ok := t.listeners[d[6:]]; ok {
 				t.mutex.Unlock()
-				listener.Stop <- true
+				listener.Stop()
 				t.link.core.log.Infoln("Stopped TCP listener:", d[6:])
 			} else {
 				t.mutex.Unlock()
@@ -141,8 +157,9 @@ func (t *tcp) listen(listenaddr string) (*TcpListener, error) {
 	if err == nil {
 		l := TcpListener{
 			Listener: listener,
-			Stop:     make(chan bool),
+			stop:     make(chan struct{}),
 		}
+		t.waitgroup.Add(1)
 		go t.listener(&l, listenaddr)
 		return &l, nil
 	}
@@ -152,6 +169,7 @@ func (t *tcp) listen(listenaddr string) (*TcpListener, error) {
 
 // Runs the listener, which spawns off goroutines for incoming connections.
 func (t *tcp) listener(l *TcpListener, listenaddr string) {
+	defer t.waitgroup.Done()
 	if l == nil {
 		return
 	}
@@ -166,7 +184,6 @@ func (t *tcp) listener(l *TcpListener, listenaddr string) {
 		t.mutex.Unlock()
 	}
 	// And here we go!
-	accepted := make(chan bool)
 	defer func() {
 		t.link.core.log.Infoln("Stopping TCP listener on:", l.Listener.Addr().String())
 		l.Listener.Close()
@@ -175,36 +192,29 @@ func (t *tcp) listener(l *TcpListener, listenaddr string) {
 		t.mutex.Unlock()
 	}()
 	t.link.core.log.Infoln("Listening for TCP on:", l.Listener.Addr().String())
+	go func() {
+		<-l.stop
+		l.Listener.Close()
+	}()
+	defer l.Stop()
 	for {
-		var sock net.Conn
-		var err error
-		// Listen in a separate goroutine, as that way it does not block us from
-		// receiving "stop" events
-		go func() {
-			sock, err = l.Listener.Accept()
-			accepted <- true
-		}()
-		// Wait for either an accepted connection, or a message telling us to stop
-		// the TCP listener
-		select {
-		case <-accepted:
-			if err != nil {
-				t.link.core.log.Errorln("Failed to accept connection:", err)
-				return
-			}
-			go t.handler(sock, true, nil)
-		case <-l.Stop:
+		sock, err := l.Listener.Accept()
+		if err != nil {
+			t.link.core.log.Errorln("Failed to accept connection:", err)
 			return
 		}
+		t.waitgroup.Add(1)
+		go t.handler(sock, true, nil)
 	}
 }
 
 // Checks if we already are calling this address
-func (t *tcp) isAlreadyCalling(saddr string) bool {
+func (t *tcp) startCalling(saddr string) bool {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	_, isIn := t.calls[saddr]
-	return isIn
+	t.calls[saddr] = struct{}{}
+	return !isIn
 }
 
 // Checks if a connection already exists.
@@ -218,12 +228,9 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 		if sintf != "" {
 			callname = fmt.Sprintf("%s/%s", saddr, sintf)
 		}
-		if t.isAlreadyCalling(callname) {
+		if !t.startCalling(callname) {
 			return
 		}
-		t.mutex.Lock()
-		t.calls[callname] = struct{}{}
-		t.mutex.Unlock()
 		defer func() {
 			// Block new calls for a little while, to mitigate livelock scenarios
 			time.Sleep(default_timeout)
@@ -252,6 +259,7 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 			if err != nil {
 				return
 			}
+			t.waitgroup.Add(1)
 			t.handler(conn, false, saddr)
 		} else {
 			dst, err := net.ResolveTCPAddr("tcp", saddr)
@@ -316,12 +324,14 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 				t.link.core.log.Debugln("Failed to dial TCP:", err)
 				return
 			}
+			t.waitgroup.Add(1)
 			t.handler(conn, false, nil)
 		}
 	}()
 }
 
 func (t *tcp) handler(sock net.Conn, incoming bool, options interface{}) {
+	defer t.waitgroup.Done() // Happens after sock.close
 	defer sock.Close()
 	t.setExtraOptions(sock)
 	stream := stream{}
