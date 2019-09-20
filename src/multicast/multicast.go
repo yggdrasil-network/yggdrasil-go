@@ -29,6 +29,7 @@ type Multicast struct {
 	listeners       map[string]*yggdrasil.TcpListener
 	listenPort      uint16
 	isOpen          bool
+	interval        time.Duration
 	announcer       *time.Timer
 	platformhandler *time.Timer
 }
@@ -42,6 +43,7 @@ func (m *Multicast) Init(core *yggdrasil.Core, state *config.NodeState, log *log
 	current := m.config.GetCurrent()
 	m.listenPort = current.LinkLocalTCPPort
 	m.groupAddr = "[ff02::114]:9001"
+	m.interval = time.Second
 	return nil
 }
 
@@ -245,9 +247,12 @@ func (m *Multicast) announce() {
 			break
 		}
 	}
-	m.announcer = time.AfterFunc(time.Second*15, func() {
+	m.announcer = time.AfterFunc(m.interval, func() {
 		m.Act(m, m.announce)
 	})
+	if m.interval.Seconds() < 15 {
+		m.interval += time.Second
+	}
 }
 
 func (m *Multicast) listen() {
