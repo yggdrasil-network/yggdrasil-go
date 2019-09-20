@@ -26,12 +26,17 @@ type Multicast struct {
 	log             *log.Logger
 	sock            *ipv6.PacketConn
 	groupAddr       string
-	listeners       map[string]*yggdrasil.TcpListener
+	listeners       map[string]*listenerInfo
 	listenPort      uint16
 	isOpen          bool
-	interval        time.Duration
 	announcer       *time.Timer
 	platformhandler *time.Timer
+}
+
+type listenerInfo struct {
+	listener *yggdrasil.TcpListener
+	time     time.Time
+	interval time.Duration
 }
 
 // Init prepares the multicast interface for use.
@@ -39,11 +44,10 @@ func (m *Multicast) Init(core *yggdrasil.Core, state *config.NodeState, log *log
 	m.core = core
 	m.config = state
 	m.log = log
-	m.listeners = make(map[string]*yggdrasil.TcpListener)
+	m.listeners = make(map[string]*listenerInfo)
 	current := m.config.GetCurrent()
 	m.listenPort = current.LinkLocalTCPPort
 	m.groupAddr = "[ff02::114]:9001"
-	m.interval = time.Second
 	return nil
 }
 
@@ -151,10 +155,10 @@ func (m *Multicast) announce() {
 	interfaces := m.Interfaces()
 	// There might be interfaces that we configured listeners for but are no
 	// longer up - if that's the case then we should stop the listeners
-	for name, listener := range m.listeners {
+	for name, info := range m.listeners {
 		// Prepare our stop function!
 		stop := func() {
-			listener.Stop()
+			info.listener.Stop()
 			delete(m.listeners, name)
 			m.log.Debugln("No longer multicasting on", name)
 		}
@@ -167,7 +171,7 @@ func (m *Multicast) announce() {
 		// It's possible that the link-local listener address has changed so if
 		// that is the case then we should clean up the interface listener
 		found := false
-		listenaddr, err := net.ResolveTCPAddr("tcp6", listener.Listener.Addr().String())
+		listenaddr, err := net.ResolveTCPAddr("tcp6", info.listener.Listener.Addr().String())
 		if err != nil {
 			stop()
 			continue
@@ -216,43 +220,46 @@ func (m *Multicast) announce() {
 			// Join the multicast group
 			m.sock.JoinGroup(&iface, groupAddr)
 			// Try and see if we already have a TCP listener for this interface
-			var listener *yggdrasil.TcpListener
-			if l, ok := m.listeners[iface.Name]; !ok || l.Listener == nil {
+			var info *listenerInfo
+			if nfo, ok := m.listeners[iface.Name]; !ok || nfo.listener.Listener == nil {
 				// No listener was found - let's create one
 				listenaddr := fmt.Sprintf("[%s%%%s]:%d", addrIP, iface.Name, m.listenPort)
 				if li, err := m.core.ListenTCP(listenaddr); err == nil {
 					m.log.Debugln("Started multicasting on", iface.Name)
 					// Store the listener so that we can stop it later if needed
-					m.listeners[iface.Name] = li
-					listener = li
+					info = &listenerInfo{listener: li, time: time.Now()}
+					m.listeners[iface.Name] = info
 				} else {
 					m.log.Warnln("Not multicasting on", iface.Name, "due to error:", err)
 				}
 			} else {
 				// An existing listener was found
-				listener = m.listeners[iface.Name]
+				info = m.listeners[iface.Name]
 			}
 			// Make sure nothing above failed for some reason
-			if listener == nil {
+			if info == nil {
+				continue
+			}
+			if time.Since(info.time) < info.interval {
 				continue
 			}
 			// Get the listener details and construct the multicast beacon
-			lladdr := listener.Listener.Addr().String()
+			lladdr := info.listener.Listener.Addr().String()
 			if a, err := net.ResolveTCPAddr("tcp6", lladdr); err == nil {
 				a.Zone = ""
 				destAddr.Zone = iface.Name
 				msg := []byte(a.String())
 				m.sock.WriteTo(msg, nil, destAddr)
 			}
+			if info.interval.Seconds() < 15 {
+				info.interval += time.Second
+			}
 			break
 		}
 	}
-	m.announcer = time.AfterFunc(m.interval, func() {
+	m.announcer = time.AfterFunc(time.Second, func() {
 		m.Act(m, m.announce)
 	})
-	if m.interval.Seconds() < 15 {
-		m.interval += time.Second
-	}
 }
 
 func (m *Multicast) listen() {
