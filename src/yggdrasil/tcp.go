@@ -184,7 +184,6 @@ func (t *tcp) listener(l *TcpListener, listenaddr string) {
 		t.mutex.Unlock()
 	}
 	// And here we go!
-	accepted := make(chan bool)
 	defer func() {
 		t.link.core.log.Infoln("Stopping TCP listener on:", l.Listener.Addr().String())
 		l.Listener.Close()
@@ -193,29 +192,19 @@ func (t *tcp) listener(l *TcpListener, listenaddr string) {
 		t.mutex.Unlock()
 	}()
 	t.link.core.log.Infoln("Listening for TCP on:", l.Listener.Addr().String())
+	go func() {
+		<-l.stop
+		l.Listener.Close()
+	}()
+	defer l.Stop()
 	for {
-		var sock net.Conn
-		var err error
-		// Listen in a separate goroutine, as that way it does not block us from
-		// receiving "stop" events
-		go func() {
-			sock, err = l.Listener.Accept()
-			accepted <- true
-		}()
-		// Wait for either an accepted connection, or a message telling us to stop
-		// the TCP listener
-		select {
-		case <-accepted:
-			if err != nil {
-				t.link.core.log.Errorln("Failed to accept connection:", err)
-				return
-			}
-			t.waitgroup.Add(1)
-			go t.handler(sock, true, nil)
-		case <-l.stop:
-			// FIXME this races with the goroutine that Accepts a TCP connection, may leak connections when a listener is removed
+		sock, err := l.Listener.Accept()
+		if err != nil {
+			t.link.core.log.Errorln("Failed to accept connection:", err)
 			return
 		}
+		t.waitgroup.Add(1)
+		go t.handler(sock, true, nil)
 	}
 }
 
