@@ -712,10 +712,15 @@ func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]struct{}) boo
 		}
 	}
 	if best != nil {
-		// Send to the best idle next hop
 		delete(idle, best.elem.port)
-		ports[best.elem.port].sendPacketsFrom(t, [][]byte{packet})
-		return true
+		// Tell ourselves to send to this node later
+		// If another (e.g. even better) hop becomes idle in the mean time, it'll take the packet instead
+		// FIXME this is just a hack, but seems to help with stability...
+		go t.Act(nil, func() {
+			t._idleIn(best.elem.port)
+		})
+		//ports[best.elem.port].sendPacketsFrom(t, [][]byte{packet})
+		//return true
 	}
 	// Didn't find anyone idle to send it to
 	return false

@@ -233,8 +233,9 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 		}
 		defer func() {
 			// Block new calls for a little while, to mitigate livelock scenarios
-			time.Sleep(default_timeout)
-			time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
+			rand.Seed(time.Now().UnixNano())
+			delay := default_timeout + time.Duration(rand.Intn(10000))*time.Millisecond
+			time.Sleep(delay)
 			t.mutex.Lock()
 			delete(t.calls, callname)
 			t.mutex.Unlock()
