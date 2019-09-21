@@ -677,10 +677,13 @@ func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]struct{}) boo
 	ports := t.core.peers.getPorts()
 	for _, cinfo := range closer {
 		to := ports[cinfo.elem.port]
+		_, isIdle := idle[cinfo.elem.port]
 		var update bool
 		switch {
 		case to == nil:
 			// no port was found, ignore it
+		case !isIdle:
+			// the port is busy, ignore it
 		case best == nil:
 			// this is the first idle port we've found, so select it until we find a
 			// better candidate port to use instead
@@ -710,9 +713,6 @@ func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]struct{}) boo
 	}
 	if best != nil {
 		// Send to the best idle next hop
-		if _, isIdle := idle[best.elem.port]; !isIdle {
-			return false
-		}
 		delete(idle, best.elem.port)
 		ports[best.elem.port].sendPacketsFrom(t, [][]byte{packet})
 		return true
