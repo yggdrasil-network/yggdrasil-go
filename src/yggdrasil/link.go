@@ -64,8 +64,6 @@ type linkInterface struct {
 	closeTimer     *time.Timer // Fires when the link has been idle so long we need to close it
 	inSwitch       bool        // True if the switch is tracking this link
 	stalled        bool        // True if we haven't been receiving any response traffic
-	sendSeqSent    uint        // Incremented each time we start sending
-	sendSeqRecv    uint        // Incremented each time we finish sending
 }
 
 func (l *link) init(c *Core) error {
@@ -275,21 +273,14 @@ func (intf *linkInterface) notifySending(size int, isLinkTraffic bool) {
 		}
 		intf.sendTimer = time.AfterFunc(sendTime, intf.notifyBlockedSend)
 		intf._cancelStallTimer()
-		intf.sendSeqSent++
-		seq := intf.sendSeqSent
-		intf.Act(nil, func() {
-			intf._checkSending(seq)
-		})
 	})
 }
 
-// If check if we're still sending
-func (intf *linkInterface) _checkSending(seq uint) {
-	if intf.sendSeqRecv != seq {
-		intf.link.core.switchTable.Act(intf, func() {
-			intf.link.core.switchTable._sendingIn(intf.peer.port)
-		})
-	}
+// called by an AfterFunc if we seem to be blocked in a send syscall for a long time
+func (intf *linkInterface) _notifySyscall() {
+	intf.link.core.switchTable.Act(intf, func() {
+		intf.link.core.switchTable._sendingIn(intf.peer.port)
+	})
 }
 
 // we just sent something, so cancel any pending timer to send keep-alive traffic
@@ -321,7 +312,6 @@ func (intf *linkInterface) notifySent(size int, isLinkTraffic bool) {
 		if size > 0 && intf.stallTimer == nil {
 			intf.stallTimer = time.AfterFunc(stallTime, intf.notifyStalled)
 		}
-		intf.sendSeqRecv++
 	})
 }
 
@@ -397,7 +387,15 @@ func (w *linkWriter) sendFrom(from phony.Actor, bss [][]byte, isLinkTraffic bool
 			size += len(bs)
 		}
 		w.intf.notifySending(size, isLinkTraffic)
+		var once sync.Once
+		timer := time.AfterFunc(time.Millisecond, func() {
+			once.Do(func() {
+				w.intf.Act(nil, w.intf._notifySyscall)
+			})
+		})
 		w.intf.msgIO.writeMsgs(bss)
+		// Make sure we either stop the timer from doing anything or wait until it's done
+		once.Do(func() { timer.Stop() })
 		w.intf.notifySent(size, isLinkTraffic)
 		// Cleanup
 		for _, bs := range bss {
