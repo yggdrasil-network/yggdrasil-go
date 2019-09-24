@@ -64,6 +64,8 @@ type linkInterface struct {
 	closeTimer     *time.Timer // Fires when the link has been idle so long we need to close it
 	inSwitch       bool        // True if the switch is tracking this link
 	stalled        bool        // True if we haven't been receiving any response traffic
+	sendSeqSent    uint        // Incremented each time we start sending
+	sendSeqRecv    uint        // Incremented each time we finish sending
 }
 
 func (l *link) init(c *Core) error {
@@ -273,7 +275,21 @@ func (intf *linkInterface) notifySending(size int, isLinkTraffic bool) {
 		}
 		intf.sendTimer = time.AfterFunc(sendTime, intf.notifyBlockedSend)
 		intf._cancelStallTimer()
+		intf.sendSeqSent++
+		seq := intf.sendSeqSent
+		intf.Act(nil, func() {
+			intf._checkSending(seq)
+		})
 	})
+}
+
+// If check if we're still sending
+func (intf *linkInterface) _checkSending(seq uint) {
+	if intf.sendSeqRecv != seq {
+		intf.link.core.switchTable.Act(intf, func() {
+			intf.link.core.switchTable._sendingIn(intf.peer.port)
+		})
+	}
 }
 
 // we just sent something, so cancel any pending timer to send keep-alive traffic
@@ -305,6 +321,7 @@ func (intf *linkInterface) notifySent(size int, isLinkTraffic bool) {
 		if size > 0 && intf.stallTimer == nil {
 			intf.stallTimer = time.AfterFunc(stallTime, intf.notifyStalled)
 		}
+		intf.sendSeqRecv++
 	})
 }
 
