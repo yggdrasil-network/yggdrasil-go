@@ -291,9 +291,11 @@ func (intf *linkInterface) _cancelStallTimer() {
 	}
 }
 
-// called by an AfterFunc if we appear to have timed out
+// This gets called from a time.AfterFunc, and notifies the switch that we appear
+// to have gotten blocked on a write, so the switch should start routing traffic
+// through other links, if alternatives exist
 func (intf *linkInterface) notifyBlockedSend() {
-	intf.Act(nil, func() { // Sent from a time.AfterFunc
+	intf.Act(nil, func() {
 		if intf.sendTimer != nil {
 			//As far as we know, we're still trying to send, and the timer fired.
 			intf.link.core.switchTable.blockPeer(intf.peer.port)
@@ -387,8 +389,12 @@ func (w *linkWriter) sendFrom(from phony.Actor, bss [][]byte, isLinkTraffic bool
 			size += len(bs)
 		}
 		w.intf.notifySending(size, isLinkTraffic)
+		// start a timer that will fire if we get stuck in writeMsgs for an oddly long time
 		var once sync.Once
 		timer := time.AfterFunc(time.Millisecond, func() {
+			// 1 ms is kind of arbitrary
+			// the rationale is that this should be very long compared to a syscall
+			// but it's still short compared to end-to-end latency or human perception
 			once.Do(func() {
 				w.intf.Act(nil, w.intf._notifySyscall)
 			})
