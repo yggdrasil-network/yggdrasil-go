@@ -16,29 +16,37 @@ import (
 )
 
 // Peer represents a single peer object. This contains information from the
-// preferred switch port for this peer, although there may be more than one in
-// reality.
+// preferred switch port for this peer, although there may be more than one
+// active switch port connection to the peer in reality.
+//
+// This struct is informational only - you cannot manipulate peer connections
+// using instances of this struct. You should use the AddPeer or RemovePeer
+// functions instead.
 type Peer struct {
-	PublicKey  crypto.BoxPubKey
-	Endpoint   string
-	BytesSent  uint64
-	BytesRecvd uint64
-	Protocol   string
-	Port       uint64
-	Uptime     time.Duration
+	PublicKey  crypto.BoxPubKey // The public key of the remote node
+	Endpoint   string           // The connection string used to connect to the peer
+	BytesSent  uint64           // Number of bytes sent to this peer
+	BytesRecvd uint64           // Number of bytes received from this peer
+	Protocol   string           // The transport protocol that this peer is connected with, typically "tcp"
+	Port       uint64           // Switch port number for this peer connection
+	Uptime     time.Duration    // How long this peering has been active for
 }
 
 // SwitchPeer represents a switch connection to a peer. Note that there may be
 // multiple switch peers per actual peer, e.g. if there are multiple connections
 // to a given node.
+//
+// This struct is informational only - you cannot manipulate switch peer
+// connections using instances of this struct. You should use the AddPeer or
+// RemovePeer functions instead.
 type SwitchPeer struct {
-	PublicKey  crypto.BoxPubKey
-	Coords     []uint64
-	BytesSent  uint64
-	BytesRecvd uint64
-	Port       uint64
-	Protocol   string
-	Endpoint   string
+	PublicKey  crypto.BoxPubKey // The public key of the remote node
+	Coords     []uint64         // The coordinates of the remote node
+	BytesSent  uint64           // Number of bytes sent via this switch port
+	BytesRecvd uint64           // Number of bytes received via this switch port
+	Port       uint64           // Switch port number for this switch peer
+	Protocol   string           // The transport protocol that this switch port is connected with, typically "tcp"
+	Endpoint   string           // The connection string used to connect to the switch peer
 }
 
 // DHTEntry represents a single DHT entry that has been learned or cached from
@@ -64,32 +72,36 @@ type NodeInfoPayload []byte
 // congestion and a list of switch queues created in response to congestion on a
 // given link.
 type SwitchQueues struct {
-	Queues       []SwitchQueue
-	Count        uint64
-	Size         uint64
-	HighestCount uint64
-	HighestSize  uint64
-	MaximumSize  uint64
+	Queues       []SwitchQueue // An array of SwitchQueue objects containing information about individual queues
+	Count        uint64        // The current number of active switch queues
+	Size         uint64        // The current total size of active switch queues
+	HighestCount uint64        // The highest recorded number of switch queues so far
+	HighestSize  uint64        // The highest recorded total size of switch queues so far
+	MaximumSize  uint64        // The maximum allowed total size of switch queues, as specified by config
 }
 
-// SwitchQueue represents a single switch queue, which is created in response
-// to congestion on a given link.
+// SwitchQueue represents a single switch queue. Switch queues are only created
+// in response to congestion on a given link and represent how much data has
+// been temporarily cached for sending once the congestion has cleared.
 type SwitchQueue struct {
-	ID      string
-	Size    uint64
-	Packets uint64
-	Port    uint64
+	ID      string // The ID of the switch queue
+	Size    uint64 // The total size, in bytes, of the queue
+	Packets uint64 // The number of packets in the queue
+	Port    uint64 // The switch port to which the queue applies
 }
 
-// Session represents an open session with another node.
+// Session represents an open session with another node. Sessions are opened in
+// response to traffic being exchanged between two nodes using Conn objects.
+// Note that sessions will automatically be closed by Yggdrasil if no traffic is
+// exchanged for around two minutes.
 type Session struct {
-	PublicKey   crypto.BoxPubKey
-	Coords      []uint64
-	BytesSent   uint64
-	BytesRecvd  uint64
-	MTU         uint16
-	Uptime      time.Duration
-	WasMTUFixed bool
+	PublicKey   crypto.BoxPubKey // The public key of the remote node
+	Coords      []uint64         // The coordinates of the remote node
+	BytesSent   uint64           // Bytes sent to the session
+	BytesRecvd  uint64           // Bytes received from the session
+	MTU         uint16           // The maximum supported message size of the session
+	Uptime      time.Duration    // How long this session has been active for
+	WasMTUFixed bool             // This field is no longer used
 }
 
 // GetPeers returns one or more Peer objects containing information about active
@@ -236,7 +248,10 @@ func (c *Core) GetSessions() []Session {
 	return sessions
 }
 
-// ConnListen returns a listener for Yggdrasil session connections.
+// ConnListen returns a listener for Yggdrasil session connections. You can only
+// call this function once as each Yggdrasil node can only have a single
+// ConnListener. Make sure to keep the reference to this for as long as it is
+// needed.
 func (c *Core) ConnListen() (*Listener, error) {
 	c.router.sessions.listenerMutex.Lock()
 	defer c.router.sessions.listenerMutex.Unlock()
@@ -251,7 +266,10 @@ func (c *Core) ConnListen() (*Listener, error) {
 	return c.router.sessions.listener, nil
 }
 
-// ConnDialer returns a dialer for Yggdrasil session connections.
+// ConnDialer returns a dialer for Yggdrasil session connections. Since
+// ConnDialers are stateless, you can request as many dialers as you like,
+// although ideally you should request only one and keep the reference to it for
+// as long as it is needed.
 func (c *Core) ConnDialer() (*Dialer, error) {
 	return &Dialer{
 		core: c,
@@ -265,48 +283,69 @@ func (c *Core) ListenTCP(uri string) (*TcpListener, error) {
 	return c.link.tcp.listen(uri)
 }
 
-// NodeID gets the node ID.
+// NodeID gets the node ID. This is derived from your router encryption keys.
+// Remote nodes wanting to open connections to your node will need to know your
+// node ID.
 func (c *Core) NodeID() *crypto.NodeID {
 	return crypto.GetNodeID(&c.boxPub)
 }
 
-// TreeID gets the tree ID.
+// TreeID gets the tree ID. This is derived from your switch signing keys. There
+// is typically no need to share this key.
 func (c *Core) TreeID() *crypto.TreeID {
 	return crypto.GetTreeID(&c.sigPub)
 }
 
-// SigningPublicKey gets the node's signing public key.
+// SigningPublicKey gets the node's signing public key, as used by the switch.
 func (c *Core) SigningPublicKey() string {
 	return hex.EncodeToString(c.sigPub[:])
 }
 
-// EncryptionPublicKey gets the node's encryption public key.
+// EncryptionPublicKey gets the node's encryption public key, as used by the
+// router.
 func (c *Core) EncryptionPublicKey() string {
 	return hex.EncodeToString(c.boxPub[:])
 }
 
-// Coords returns the current coordinates of the node.
+// Coords returns the current coordinates of the node. Note that these can
+// change at any time for a number of reasons, not limited to but including
+// changes to peerings (either yours or a parent nodes) or changes to the network
+// root.
+//
+// This function may return an empty array - this is normal behaviour if either
+// you are the root of the network that you are connected to, or you are not
+// connected to any other nodes (effectively making you the root of a
+// single-node network).
 func (c *Core) Coords() []uint64 {
 	table := c.switchTable.table.Load().(lookupTable)
 	return wire_coordsBytestoUint64s(table.self.getCoords())
 }
 
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128
-// address.
+// address. The IPv6 address is only relevant when the node is operating as an
+// IP router and often is meaningless when embedded into an application, unless
+// that application also implements either VPN functionality or deals with IP
+// packets specifically.
 func (c *Core) Address() net.IP {
 	address := net.IP(address.AddrForNodeID(c.NodeID())[:])
 	return address
 }
 
 // Subnet gets the routed IPv6 subnet of the Yggdrasil node. This is always a
-// /64 subnet.
+// /64 subnet. The IPv6 subnet is only relevant when the node is operating as an
+// IP router and often is meaningless when embedded into an application, unless
+// that application also implements either VPN functionality or deals with IP
+// packets specifically.
 func (c *Core) Subnet() net.IPNet {
 	subnet := address.SubnetForNodeID(c.NodeID())[:]
 	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
 	return net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
 }
 
-// MyNodeInfo gets the currently configured nodeinfo.
+// MyNodeInfo gets the currently configured nodeinfo. NodeInfo is typically
+// specified through the "NodeInfo" option in the node configuration or using
+// the SetNodeInfo function, although it may also contain other built-in values
+// such as "buildname", "buildversion" etc.
 func (c *Core) MyNodeInfo() NodeInfoPayload {
 	return c.router.nodeinfo.getNodeInfo()
 }
@@ -356,7 +395,9 @@ func (c *Core) SetSessionGatekeeper(f func(pubkey *crypto.BoxPubKey, initiator b
 }
 
 // SetLogger sets the output logger of the Yggdrasil node after startup. This
-// may be useful if you want to redirect the output later.
+// may be useful if you want to redirect the output later. Note that this
+// expects a Logger from the github.com/gologme/log package and not from Go's
+// built-in log package.
 func (c *Core) SetLogger(log *log.Logger) {
 	c.log = log
 }
@@ -427,12 +468,17 @@ func (c *Core) DisconnectPeer(port uint64) error {
 }
 
 // GetAllowedEncryptionPublicKeys returns the public keys permitted for incoming
-// peer connections.
+// peer connections. If this list is empty then all incoming peer connections
+// are accepted by default.
 func (c *Core) GetAllowedEncryptionPublicKeys() []string {
 	return c.peers.getAllowedEncryptionPublicKeys()
 }
 
 // AddAllowedEncryptionPublicKey whitelists a key for incoming peer connections.
+// By default all incoming peer connections are accepted, but adding public keys
+// to the whitelist using this function enables strict checking from that point
+// forward. Once the whitelist is enabled, only peer connections from
+// whitelisted public keys will be accepted.
 func (c *Core) AddAllowedEncryptionPublicKey(bstr string) (err error) {
 	c.peers.addAllowedEncryptionPublicKey(bstr)
 	return nil

@@ -7,12 +7,12 @@ import "sync"
 // This is used to buffer recently used slices of bytes, to prevent allocations in the hot loops.
 var byteStore = sync.Pool{New: func() interface{} { return []byte(nil) }}
 
-// Gets an empty slice from the byte store.
+// GetBytes returns a 0-length (possibly nil) slice of bytes from a free list, so it may have a larger capacity.
 func GetBytes() []byte {
 	return byteStore.Get().([]byte)[:0]
 }
 
-// Puts a slice in the store.
+// PutBytes stores a slice in a free list, where it can potentially be reused to prevent future allocations.
 func PutBytes(bs []byte) {
 	byteStore.Put(bs)
 }
