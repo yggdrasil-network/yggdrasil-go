@@ -68,13 +68,15 @@ jobs:
               find ~/rpmbuild/SRPMS/ -name '*.rpm' -exec mv {} /tmp/upload \;
 
       - run:
-          name: Build for EdgeRouter
+          name: Build for EdgeRouter and VyOS
           command: |
               rm -f {yggdrasil,yggdrasilctl}
               git clone https://github.com/neilalexander/vyatta-yggdrasil /tmp/vyatta-yggdrasil;
               cd /tmp/vyatta-yggdrasil;
               BUILDDIR_YGG=$CIRCLE_WORKING_DIRECTORY ./build-edgerouter-x $CIRCLE_BRANCH;
               BUILDDIR_YGG=$CIRCLE_WORKING_DIRECTORY ./build-edgerouter-lite $CIRCLE_BRANCH;
+              BUILDDIR_YGG=$CIRCLE_WORKING_DIRECTORY ./build-vyos-i386 $CIRCLE_BRANCH
+              BUILDDIR_YGG=$CIRCLE_WORKING_DIRECTORY ./build-vyos-amd64 $CIRCLE_BRANCH
               mv *.deb /tmp/upload;
 
       - persist_to_workspace:
