@@ -11,8 +11,8 @@ import (
 // This is and is similar to a context, but with an error to specify the reason for the cancellation.
 type Cancellation interface {
 	Finished() <-chan struct{} // Finished returns a channel which will be closed when Cancellation.Cancel is first called.
-	Cancel(error) error // Cancel closes the channel returned by Finished and sets the error returned by error, or else returns the existing error if the Cancellation has already run.
-	Error() error // Error returns the error provided to Cancel, or nil if no error has been provided.
+	Cancel(error) error        // Cancel closes the channel returned by Finished and sets the error returned by error, or else returns the existing error if the Cancellation has already run.
+	Error() error              // Error returns the error provided to Cancel, or nil if no error has been provided.
 }
 
 // CancellationFinalized is an error returned if a cancellation object was garbage collected and the finalizer was run.
