@@ -25,6 +25,33 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.3.9] - 2019-09-27
+### Added
+- Yggdrasil will now complain more verbosely when a peer URI is incorrectly formatted
+- Soft-shutdown methods have been added, allowing a node to shut down gracefully when terminated
+- New multicast interval logic which sends multicast beacons more often when Yggdrasil is first started to increase the chance of finding nearby nodes quickly after startup
+
+### Changed
+- The switch now buffers packets more eagerly in an attempt to give the best link a chance to send, which appears to reduce packet reordering when crossing aggregate sets of peerings
+- Substantial amounts of the codebase have been refactored to use the actor model, which should substantially reduce the chance of deadlocks
+- Nonce tracking in sessions has been modified so that memory usage is reduced whilst still only allowing duplicate packets within a small window
+- Soft-reconfiguration support has been simplified using new actor functions
+- The garbage collector threshold has been adjusted for mobile builds
+- The maximum queue size is now managed exclusively by the switch rather than by the core
+
+### Fixed
+- The broken `hjson-go` dependency which affected builds of the previous version has now been resolved in the module manifest
+- Some minor memory leaks in the switch have been fixed, which improves memory usage on mobile builds
+- A memory leak in the add-peer loop has been fixed
+- The admin socket now reports the correct URI strings for SOCKS peers in `getPeers`
+- A race condition when dialling a remote node by both the node address and routed prefix simultaneously has been fixed
+- A race condition between the router and the dial code resulting in a panic has been fixed
+- A panic which could occur when the TUN/TAP interface disappears (e.g. during soft-shutdown) has been fixed
+- A bug in the semantic versioning script which accompanies Yggdrasil for builds has been fixed
+
+### Removed
+- A number of legacy debug functions have now been removed and a number of exported API functions are now better documented
+
 ## [0.3.8] - 2019-08-21
 ### Changed
 - Yggdrasil can now send multiple packets from the switch at once, which results in improved throughput with smaller packets or lower MTUs
@@ -39,10 +66,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - New nonce tracking should help to reduce the number of packets dropped as a result of multiple/aggregate paths or congestion control in the switch
 
 ### Fixed
-- **Security vulnerability**: Address verification was not strict enough, which could result in a malicious session sending traffic with unexpected or spoofed source or destination addresses which Yggdrasil could fail to reject
+- A deadlock was fixed in the session code which could result in Yggdrasil failing to pass traffic after some time
+
+### Security
+- Address verification was not strict enough, which could result in a malicious session sending traffic with unexpected or spoofed source or destination addresses which Yggdrasil could fail to reject
   - Versions `0.3.6` and `0.3.7` are vulnerable - users of these versions should upgrade as soon as possible
   - Versions `0.3.5` and earlier are not affected
-- A deadlock was fixed in the session code which could result in Yggdrasil failing to pass traffic after some time
 
 ## [0.3.7] - 2019-08-14
 ### Changed
