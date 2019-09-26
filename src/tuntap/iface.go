@@ -194,7 +194,7 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 	} else if bs[0]&0xf0 == 0x40 {
 		// Check if we have a fully-sized IPv4 header
 		if len(bs) < 20 {
-			tun.log.Traceln("TUN/TAP iface read undersized ipv6 packet, length:", len(bs))
+			tun.log.Traceln("TUN/TAP iface read undersized ipv4 packet, length:", len(bs))
 			return
 		}
 		// Check the packet size
