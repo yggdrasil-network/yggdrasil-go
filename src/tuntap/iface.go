@@ -148,6 +148,11 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 	// Offset the buffer from now on so that we can ignore ethernet frames if
 	// they are present
 	bs := recvd[offset:]
+	// Check if the packet is long enough to detect if it's an ICMP packet or not
+	if len(bs) < 7 {
+		tun.log.Traceln("TUN/TAP iface read undersized unknown packet, length:", len(bs))
+		return
+	}
 	// If we detect an ICMP packet then hand it to the ICMPv6 module
 	if bs[6] == 58 {
 		// Found an ICMPv6 packet - we need to make sure to give ICMPv6 the full
@@ -175,6 +180,7 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 	if bs[0]&0xf0 == 0x60 {
 		// Check if we have a fully-sized IPv6 header
 		if len(bs) < 40 {
+			tun.log.Traceln("TUN/TAP iface read undersized ipv6 packet, length:", len(bs))
 			return
 		}
 		// Check the packet size
@@ -188,6 +194,7 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 	} else if bs[0]&0xf0 == 0x40 {
 		// Check if we have a fully-sized IPv4 header
 		if len(bs) < 20 {
+			tun.log.Traceln("TUN/TAP iface read undersized ipv6 packet, length:", len(bs))
 			return
 		}
 		// Check the packet size
