@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - A race condition between the router and the dial code resulting in a panic has been fixed
 - A panic which could occur when the TUN/TAP interface disappears (e.g. during soft-shutdown) has been fixed
 - A bug in the semantic versioning script which accompanies Yggdrasil for builds has been fixed
+- A panic which could occur when the TUN/TAP interface reads an undersized/corrupted packet has been fixed
 
 ### Removed
 - A number of legacy debug functions have now been removed and a number of exported API functions are now better documented
