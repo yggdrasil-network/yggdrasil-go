@@ -16,6 +16,7 @@ ExecStartPre=/bin/sh -ec "if ! test -s /etc/yggdrasil.conf; \
 ExecStart=/usr/bin/yggdrasil -useconffile /etc/yggdrasil.conf
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
+TimeoutStopSec=5
 
 [Install]
 WantedBy=multi-user.target
