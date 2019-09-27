@@ -3,12 +3,12 @@ package yggdrasil
 import (
 	"errors"
 	"fmt"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
+
+	"github.com/Arceliar/phony"
 )
 
 // ConnError implements the net.Error interface
@@ -53,94 +53,116 @@ func (e *ConnError) Closed() bool {
 	return e.closed
 }
 
+// The Conn struct is a reference to an active connection session between the
+// local node and a remote node. Conn implements the io.ReadWriteCloser
+// interface and is used to send and receive traffic with a remote node.
 type Conn struct {
+	phony.Inbox
 	core          *Core
-	readDeadline  atomic.Value // time.Time // TODO timer
-	writeDeadline atomic.Value // time.Time // TODO timer
-	mutex         sync.RWMutex // protects the below
+	readDeadline  *time.Time
+	writeDeadline *time.Time
 	nodeID        *crypto.NodeID
 	nodeMask      *crypto.NodeID
 	session       *sessionInfo
+	mtu           uint16
+	readCallback  func([]byte)
+	readBuffer    chan []byte
 }
 
 // TODO func NewConn() that initializes additional fields as needed
 func newConn(core *Core, nodeID *crypto.NodeID, nodeMask *crypto.NodeID, session *sessionInfo) *Conn {
 	conn := Conn{
-		core:     core,
-		nodeID:   nodeID,
-		nodeMask: nodeMask,
-		session:  session,
+		core:       core,
+		nodeID:     nodeID,
+		nodeMask:   nodeMask,
+		session:    session,
+		readBuffer: make(chan []byte, 1024),
 	}
 	return &conn
 }
 
+// String returns a string that uniquely identifies a connection. Currently this
+// takes a form similar to "conn=0x0000000", which contains a memory reference
+// to the Conn object. While this value should always be unique for each Conn
+// object, the format of this is not strictly defined and may change in the
+// future.
 func (c *Conn) String() string {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
-	return fmt.Sprintf("conn=%p", c)
+	var s string
+	phony.Block(c, func() { s = fmt.Sprintf("conn=%p", c) })
+	return s
+}
+
+func (c *Conn) setMTU(from phony.Actor, mtu uint16) {
+	c.Act(from, func() { c.mtu = mtu })
 }
 
 // This should never be called from the router goroutine, used in the dial functions
 func (c *Conn) search() error {
-	var sinfo *searchInfo
-	var isIn bool
-	c.core.router.doAdmin(func() { sinfo, isIn = c.core.searches.searches[*c.nodeID] })
-	if !isIn {
-		done := make(chan struct{}, 1)
-		var sess *sessionInfo
-		var err error
-		searchCompleted := func(sinfo *sessionInfo, e error) {
-			sess = sinfo
-			err = e
-			// FIXME close can be called multiple times, do a non-blocking send instead
-			select {
-			case done <- struct{}{}:
-			default:
+	var err error
+	done := make(chan struct{})
+	phony.Block(&c.core.router, func() {
+		_, isIn := c.core.router.searches.searches[*c.nodeID]
+		if !isIn {
+			searchCompleted := func(sinfo *sessionInfo, e error) {
+				select {
+				case <-done:
+					// Somehow this was called multiple times, TODO don't let that happen
+					if sinfo != nil {
+						// Need to clean up to avoid a session leak
+						sinfo.cancel.Cancel(nil)
+						sinfo.sessions.removeSession(sinfo)
+					}
+				default:
+					if sinfo != nil {
+						// Finish initializing the session
+						sinfo.setConn(nil, c)
+					}
+					c.session = sinfo
+					err = e
+					close(done)
+				}
 			}
-		}
-		c.core.router.doAdmin(func() {
-			sinfo = c.core.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
+			sinfo := c.core.router.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
 			sinfo.continueSearch()
-		})
-		<-done
-		c.session = sess
-		if c.session == nil && err == nil {
-			panic("search failed but returned no error")
+		} else {
+			err = errors.New("search already exists")
+			close(done)
 		}
-		if c.session != nil {
-			c.nodeID = crypto.GetNodeID(&c.session.theirPermPub)
-			for i := range c.nodeMask {
-				c.nodeMask[i] = 0xFF
-			}
-		}
-		return err
-	} else {
-		return errors.New("search already exists")
+	})
+	<-done
+	if c.session == nil && err == nil {
+		panic("search failed but returned no error")
 	}
-	return nil
+	if c.session != nil {
+		c.nodeID = crypto.GetNodeID(&c.session.theirPermPub)
+		for i := range c.nodeMask {
+			c.nodeMask[i] = 0xFF
+		}
+	}
+	return err
 }
 
-// Used in session keep-alive traffic in Conn.Write
+// Used in session keep-alive traffic
 func (c *Conn) doSearch() {
 	routerWork := func() {
 		// Check to see if there is a search already matching the destination
-		sinfo, isIn := c.core.searches.searches[*c.nodeID]
+		sinfo, isIn := c.core.router.searches.searches[*c.nodeID]
 		if !isIn {
 			// Nothing was found, so create a new search
 			searchCompleted := func(sinfo *sessionInfo, e error) {}
-			sinfo = c.core.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
+			sinfo = c.core.router.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
 			c.core.log.Debugf("%s DHT search started: %p", c.String(), sinfo)
 			// Start the search
 			sinfo.continueSearch()
 		}
 	}
-	go func() { c.core.router.admin <- routerWork }()
+	c.core.router.Act(c.session, routerWork)
 }
 
-func (c *Conn) getDeadlineCancellation(value *atomic.Value) (util.Cancellation, bool) {
-	if deadline, ok := value.Load().(time.Time); ok {
+func (c *Conn) _getDeadlineCancellation(t *time.Time) (util.Cancellation, bool) {
+	if t != nil {
 		// A deadline is set, so return a Cancellation that uses it
-		c := util.CancellationWithDeadline(c.session.cancel, deadline)
+		c := util.CancellationWithDeadline(c.session.cancel, *t)
 		return c, true
 	} else {
 		// No deadline was set, so just return the existinc cancellation and a dummy value
@@ -148,9 +170,50 @@ func (c *Conn) getDeadlineCancellation(value *atomic.Value) (util.Cancellation, 
 	}
 }
 
+// SetReadCallback allows you to specify a function that will be called whenever
+// a packet is received. This should be used if you wish to implement
+// asynchronous patterns for receiving data from the remote node.
+//
+// Note that if a read callback has been supplied, you should no longer attempt
+// to use the synchronous Read function.
+func (c *Conn) SetReadCallback(callback func([]byte)) {
+	c.Act(nil, func() {
+		c.readCallback = callback
+		c._drainReadBuffer()
+	})
+}
+
+func (c *Conn) _drainReadBuffer() {
+	if c.readCallback == nil {
+		return
+	}
+	select {
+	case bs := <-c.readBuffer:
+		c.readCallback(bs)
+		c.Act(nil, c._drainReadBuffer) // In case there's more
+	default:
+	}
+}
+
+// Called by the session to pass a new message to the Conn
+func (c *Conn) recvMsg(from phony.Actor, msg []byte) {
+	c.Act(from, func() {
+		if c.readCallback != nil {
+			c.readCallback(msg)
+		} else {
+			select {
+			case c.readBuffer <- msg:
+			default:
+			}
+		}
+	})
+}
+
 // Used internally by Read, the caller is responsible for util.PutBytes when they're done.
-func (c *Conn) ReadNoCopy() ([]byte, error) {
-	cancel, doCancel := c.getDeadlineCancellation(&c.readDeadline)
+func (c *Conn) readNoCopy() ([]byte, error) {
+	var cancel util.Cancellation
+	var doCancel bool
+	phony.Block(c, func() { cancel, doCancel = c._getDeadlineCancellation(c.readDeadline) })
 	if doCancel {
 		defer cancel.Cancel(nil)
 	}
@@ -162,14 +225,21 @@ func (c *Conn) ReadNoCopy() ([]byte, error) {
 		} else {
 			return nil, ConnError{errors.New("session closed"), false, false, true, 0}
 		}
-	case bs := <-c.session.recv:
+	case bs := <-c.readBuffer:
 		return bs, nil
 	}
 }
 
-// Implements net.Conn.Read
+// Read allows you to read from the connection in a synchronous fashion. The
+// function will block up until the point that either new data is available, the
+// connection has been closed or the read deadline has been reached. If the
+// function succeeds, the number of bytes read from the connection will be
+// returned. Otherwise, an error condition will be returned.
+//
+// Note that you can also implement asynchronous reads by using SetReadCallback.
+// If you do that, you should no longer attempt to use the Read function.
 func (c *Conn) Read(b []byte) (int, error) {
-	bs, err := c.ReadNoCopy()
+	bs, err := c.readNoCopy()
 	if err != nil {
 		return 0, err
 	}
@@ -185,53 +255,71 @@ func (c *Conn) Read(b []byte) (int, error) {
 	return n, err
 }
 
-// Used internally by Write, the caller must not reuse the argument bytes when no error occurs
-func (c *Conn) WriteNoCopy(msg FlowKeyMessage) error {
-	var err error
-	sessionFunc := func() {
-		// Does the packet exceed the permitted size for the session?
-		if uint16(len(msg.Message)) > c.session.getMTU() {
-			err = ConnError{errors.New("packet too big"), true, false, false, int(c.session.getMTU())}
-			return
-		}
-		// The rest of this work is session keep-alive traffic
+func (c *Conn) _write(msg FlowKeyMessage) error {
+	if len(msg.Message) > int(c.mtu) {
+		return ConnError{errors.New("packet too big"), true, false, false, int(c.mtu)}
+	}
+	c.session.Act(c, func() {
+		// Send the packet
+		c.session._send(msg)
+		// Session keep-alive, while we wait for the crypto workers from send
 		switch {
 		case time.Since(c.session.time) > 6*time.Second:
 			if c.session.time.Before(c.session.pingTime) && time.Since(c.session.pingTime) > 6*time.Second {
 				// TODO double check that the above condition is correct
 				c.doSearch()
 			} else {
-				c.core.sessions.ping(c.session)
+				c.session.ping(c.session) // TODO send from self if this becomes an actor
 			}
 		case c.session.reset && c.session.pingTime.Before(c.session.time):
-			c.core.sessions.ping(c.session)
+			c.session.ping(c.session) // TODO send from self if this becomes an actor
 		default: // Don't do anything, to keep traffic throttled
 		}
-	}
-	c.session.doFunc(sessionFunc)
-	if err == nil {
-		cancel, doCancel := c.getDeadlineCancellation(&c.writeDeadline)
-		if doCancel {
-			defer cancel.Cancel(nil)
+	})
+	return nil
+}
+
+// WriteFrom should be called by a phony.Actor, and tells the Conn to send a
+// message. This is used internaly by Write. If the callback is called with a
+// non-nil value, then it is safe to reuse the argument FlowKeyMessage.
+func (c *Conn) WriteFrom(from phony.Actor, msg FlowKeyMessage, callback func(error)) {
+	c.Act(from, func() {
+		callback(c._write(msg))
+	})
+}
+
+// writeNoCopy is used internally by Write and makes use of WriteFrom under the hood.
+// The caller must not reuse the argument FlowKeyMessage when a nil error is returned.
+func (c *Conn) writeNoCopy(msg FlowKeyMessage) error {
+	var cancel util.Cancellation
+	var doCancel bool
+	phony.Block(c, func() { cancel, doCancel = c._getDeadlineCancellation(c.writeDeadline) })
+	var err error
+	select {
+	case <-cancel.Finished():
+		if cancel.Error() == util.CancellationTimeoutError {
+			err = ConnError{errors.New("write timeout"), true, false, false, 0}
+		} else {
+			err = ConnError{errors.New("session closed"), false, false, true, 0}
 		}
-		select {
-		case <-cancel.Finished():
-			if cancel.Error() == util.CancellationTimeoutError {
-				err = ConnError{errors.New("write timeout"), true, false, false, 0}
-			} else {
-				err = ConnError{errors.New("session closed"), false, false, true, 0}
-			}
-		case c.session.send <- msg:
-		}
+	default:
+		done := make(chan struct{})
+		callback := func(e error) { err = e; close(done) }
+		c.WriteFrom(nil, msg, callback)
+		<-done
 	}
 	return err
 }
 
-// Implements net.Conn.Write
+// Write allows you to write to the connection in a synchronous fashion. This
+// function may block until either the write has completed, the connection has
+// been closed or the write deadline has been reached. If the function succeeds,
+// the number of written bytes is returned. Otherwise, an error condition is
+// returned.
 func (c *Conn) Write(b []byte) (int, error) {
 	written := len(b)
 	msg := FlowKeyMessage{Message: append(util.GetBytes(), b...)}
-	err := c.WriteNoCopy(msg)
+	err := c.writeNoCopy(msg)
 	if err != nil {
 		util.PutBytes(msg.Message)
 		written = 0
@@ -239,40 +327,66 @@ func (c *Conn) Write(b []byte) (int, error) {
 	return written, err
 }
 
+// Close will close an open connection and any blocking operations on the
+// connection will unblock and return. From this point forward, the connection
+// can no longer be used and you should no longer attempt to Read or Write to
+// the connection.
 func (c *Conn) Close() (err error) {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	if c.session != nil {
-		// Close the session, if it hasn't been closed already
-		if e := c.session.cancel.Cancel(errors.New("connection closed")); e != nil {
-			err = ConnError{errors.New("close failed, session already closed"), false, false, true, 0}
+	phony.Block(c, func() {
+		if c.session != nil {
+			// Close the session, if it hasn't been closed already
+			if e := c.session.cancel.Cancel(errors.New("connection closed")); e != nil {
+				err = ConnError{errors.New("close failed, session already closed"), false, false, true, 0}
+			} else {
+				c.session.doRemove()
+			}
 		}
-	}
+	})
 	return
 }
 
+// LocalAddr returns the complete node ID of the local side of the connection.
+// This is always going to return your own node's node ID.
 func (c *Conn) LocalAddr() crypto.NodeID {
-	return *crypto.GetNodeID(&c.session.core.boxPub)
+	return *crypto.GetNodeID(&c.core.boxPub)
 }
 
+// RemoteAddr returns the complete node ID of the remote side of the connection.
 func (c *Conn) RemoteAddr() crypto.NodeID {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
-	return *c.nodeID
+	// TODO warn that this can block while waiting for the Conn actor to run, so don't call it from other actors...
+	var n crypto.NodeID
+	phony.Block(c, func() { n = *c.nodeID })
+	return n
 }
 
+// SetDeadline is equivalent to calling both SetReadDeadline and
+// SetWriteDeadline with the same value, configuring the maximum amount of time
+// that synchronous Read and Write operations can block for. If no deadline is
+// configured, Read and Write operations can potentially block indefinitely.
 func (c *Conn) SetDeadline(t time.Time) error {
 	c.SetReadDeadline(t)
 	c.SetWriteDeadline(t)
 	return nil
 }
 
+// SetReadDeadline configures the maximum amount of time that a synchronous Read
+// operation can block for. A Read operation will unblock at the point that the
+// read deadline is reached if no other condition (such as data arrival or
+// connection closure) happens first. If no deadline is configured, Read
+// operations can potentially block indefinitely.
 func (c *Conn) SetReadDeadline(t time.Time) error {
-	c.readDeadline.Store(t)
+	// TODO warn that this can block while waiting for the Conn actor to run, so don't call it from other actors...
+	phony.Block(c, func() { c.readDeadline = &t })
 	return nil
 }
 
+// SetWriteDeadline configures the maximum amount of time that a synchronous
+// Write operation can block for. A Write operation will unblock at the point
+// that the read deadline is reached if no other condition (such as data sending
+// or connection closure) happens first. If no deadline is configured, Write
+// operations can potentially block indefinitely.
 func (c *Conn) SetWriteDeadline(t time.Time) error {
-	c.writeDeadline.Store(t)
+	// TODO warn that this can block while waiting for the Conn actor to run, so don't call it from other actors...
+	phony.Block(c, func() { c.writeDeadline = &t })
 	return nil
 }

@@ -6,7 +6,7 @@ BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
 # Complain if the git history is not available
 if [ $? != 0 ] || [ -z "$BRANCH" ]; then
   printf "yggdrasil"
-  exit 1
+  exit 0
 fi
 
 # Remove "/" characters from the branch name if present

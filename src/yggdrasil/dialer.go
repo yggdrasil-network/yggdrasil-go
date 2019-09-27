@@ -65,6 +65,7 @@ func (d *Dialer) DialByNodeIDandMask(nodeID, nodeMask *crypto.NodeID) (*Conn, er
 		conn.Close()
 		return nil, err
 	}
+	conn.session.setConn(nil, conn)
 	t := time.NewTimer(6 * time.Second) // TODO use a context instead
 	defer t.Stop()
 	select {

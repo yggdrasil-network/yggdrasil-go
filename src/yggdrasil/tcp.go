@@ -33,12 +33,12 @@ const tcp_ping_interval = (default_timeout * 2 / 3)
 
 // The TCP listener and information about active TCP connections, to avoid duplication.
 type tcp struct {
-	link        *link
-	reconfigure chan chan error
-	mutex       sync.Mutex // Protecting the below
-	listeners   map[string]*TcpListener
-	calls       map[string]struct{}
-	conns       map[linkInfo](chan struct{})
+	link      *link
+	waitgroup sync.WaitGroup
+	mutex     sync.Mutex // Protecting the below
+	listeners map[string]*TcpListener
+	calls     map[string]struct{}
+	conns     map[linkInfo](chan struct{})
 }
 
 // TcpListener is a stoppable TCP listener interface. These are typically
@@ -47,7 +47,12 @@ type tcp struct {
 // multicast interfaces.
 type TcpListener struct {
 	Listener net.Listener
-	Stop     chan bool
+	stop     chan struct{}
+}
+
+func (l *TcpListener) Stop() {
+	defer func() { recover() }()
+	close(l.stop)
 }
 
 // Wrapper function to set additional options for specific connection types.
@@ -76,53 +81,17 @@ func (t *tcp) getAddr() *net.TCPAddr {
 // Initializes the struct.
 func (t *tcp) init(l *link) error {
 	t.link = l
-	t.reconfigure = make(chan chan error, 1)
 	t.mutex.Lock()
 	t.calls = make(map[string]struct{})
 	t.conns = make(map[linkInfo](chan struct{}))
 	t.listeners = make(map[string]*TcpListener)
 	t.mutex.Unlock()
 
-	go func() {
-		for {
-			e := <-t.reconfigure
-			t.link.core.config.Mutex.RLock()
-			added := util.Difference(t.link.core.config.Current.Listen, t.link.core.config.Previous.Listen)
-			deleted := util.Difference(t.link.core.config.Previous.Listen, t.link.core.config.Current.Listen)
-			t.link.core.config.Mutex.RUnlock()
-			if len(added) > 0 || len(deleted) > 0 {
-				for _, a := range added {
-					if a[:6] != "tcp://" {
-						continue
-					}
-					if _, err := t.listen(a[6:]); err != nil {
-						e <- err
-						continue
-					}
-				}
-				for _, d := range deleted {
-					if d[:6] != "tcp://" {
-						continue
-					}
-					t.mutex.Lock()
-					if listener, ok := t.listeners[d[6:]]; ok {
-						t.mutex.Unlock()
-						listener.Stop <- true
-					} else {
-						t.mutex.Unlock()
-					}
-				}
-				e <- nil
-			} else {
-				e <- nil
-			}
-		}
-	}()
-
 	t.link.core.config.Mutex.RLock()
 	defer t.link.core.config.Mutex.RUnlock()
 	for _, listenaddr := range t.link.core.config.Current.Listen {
 		if listenaddr[:6] != "tcp://" {
+			t.link.core.log.Errorln("Failed to add listener: listener", listenaddr, "is not correctly formatted, ignoring")
 			continue
 		}
 		if _, err := t.listen(listenaddr[6:]); err != nil {
@@ -131,6 +100,50 @@ func (t *tcp) init(l *link) error {
 	}
 
 	return nil
+}
+
+func (t *tcp) stop() error {
+	t.mutex.Lock()
+	for _, listener := range t.listeners {
+		listener.Stop()
+	}
+	t.mutex.Unlock()
+	t.waitgroup.Wait()
+	return nil
+}
+
+func (t *tcp) reconfigure() {
+	t.link.core.config.Mutex.RLock()
+	added := util.Difference(t.link.core.config.Current.Listen, t.link.core.config.Previous.Listen)
+	deleted := util.Difference(t.link.core.config.Previous.Listen, t.link.core.config.Current.Listen)
+	t.link.core.config.Mutex.RUnlock()
+	if len(added) > 0 || len(deleted) > 0 {
+		for _, a := range added {
+			if a[:6] != "tcp://" {
+				t.link.core.log.Errorln("Failed to add listener: listener", a, "is not correctly formatted, ignoring")
+				continue
+			}
+			if _, err := t.listen(a[6:]); err != nil {
+				t.link.core.log.Errorln("Error adding TCP", a[6:], "listener:", err)
+			} else {
+				t.link.core.log.Infoln("Started TCP listener:", a[6:])
+			}
+		}
+		for _, d := range deleted {
+			if d[:6] != "tcp://" {
+				t.link.core.log.Errorln("Failed to delete listener: listener", d, "is not correctly formatted, ignoring")
+				continue
+			}
+			t.mutex.Lock()
+			if listener, ok := t.listeners[d[6:]]; ok {
+				t.mutex.Unlock()
+				listener.Stop()
+				t.link.core.log.Infoln("Stopped TCP listener:", d[6:])
+			} else {
+				t.mutex.Unlock()
+			}
+		}
+	}
 }
 
 func (t *tcp) listen(listenaddr string) (*TcpListener, error) {
@@ -144,8 +157,9 @@ func (t *tcp) listen(listenaddr string) (*TcpListener, error) {
 	if err == nil {
 		l := TcpListener{
 			Listener: listener,
-			Stop:     make(chan bool),
+			stop:     make(chan struct{}),
 		}
+		t.waitgroup.Add(1)
 		go t.listener(&l, listenaddr)
 		return &l, nil
 	}
@@ -155,6 +169,7 @@ func (t *tcp) listen(listenaddr string) (*TcpListener, error) {
 
 // Runs the listener, which spawns off goroutines for incoming connections.
 func (t *tcp) listener(l *TcpListener, listenaddr string) {
+	defer t.waitgroup.Done()
 	if l == nil {
 		return
 	}
@@ -169,7 +184,6 @@ func (t *tcp) listener(l *TcpListener, listenaddr string) {
 		t.mutex.Unlock()
 	}
 	// And here we go!
-	accepted := make(chan bool)
 	defer func() {
 		t.link.core.log.Infoln("Stopping TCP listener on:", l.Listener.Addr().String())
 		l.Listener.Close()
@@ -178,36 +192,29 @@ func (t *tcp) listener(l *TcpListener, listenaddr string) {
 		t.mutex.Unlock()
 	}()
 	t.link.core.log.Infoln("Listening for TCP on:", l.Listener.Addr().String())
+	go func() {
+		<-l.stop
+		l.Listener.Close()
+	}()
+	defer l.Stop()
 	for {
-		var sock net.Conn
-		var err error
-		// Listen in a separate goroutine, as that way it does not block us from
-		// receiving "stop" events
-		go func() {
-			sock, err = l.Listener.Accept()
-			accepted <- true
-		}()
-		// Wait for either an accepted connection, or a message telling us to stop
-		// the TCP listener
-		select {
-		case <-accepted:
-			if err != nil {
-				t.link.core.log.Errorln("Failed to accept connection:", err)
-				return
-			}
-			go t.handler(sock, true, nil)
-		case <-l.Stop:
+		sock, err := l.Listener.Accept()
+		if err != nil {
+			t.link.core.log.Errorln("Failed to accept connection:", err)
 			return
 		}
+		t.waitgroup.Add(1)
+		go t.handler(sock, true, nil)
 	}
 }
 
 // Checks if we already are calling this address
-func (t *tcp) isAlreadyCalling(saddr string) bool {
+func (t *tcp) startCalling(saddr string) bool {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	_, isIn := t.calls[saddr]
-	return isIn
+	t.calls[saddr] = struct{}{}
+	return !isIn
 }
 
 // Checks if a connection already exists.
@@ -221,16 +228,14 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 		if sintf != "" {
 			callname = fmt.Sprintf("%s/%s", saddr, sintf)
 		}
-		if t.isAlreadyCalling(callname) {
+		if !t.startCalling(callname) {
 			return
 		}
-		t.mutex.Lock()
-		t.calls[callname] = struct{}{}
-		t.mutex.Unlock()
 		defer func() {
 			// Block new calls for a little while, to mitigate livelock scenarios
-			time.Sleep(default_timeout)
-			time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
+			rand.Seed(time.Now().UnixNano())
+			delay := default_timeout + time.Duration(rand.Intn(10000))*time.Millisecond
+			time.Sleep(delay)
 			t.mutex.Lock()
 			delete(t.calls, callname)
 			t.mutex.Unlock()
@@ -255,7 +260,8 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 			if err != nil {
 				return
 			}
-			t.handler(conn, false, dialerdst.String())
+			t.waitgroup.Add(1)
+			t.handler(conn, false, saddr)
 		} else {
 			dst, err := net.ResolveTCPAddr("tcp", saddr)
 			if err != nil {
@@ -269,6 +275,7 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 			}
 			dialer := net.Dialer{
 				Control: t.tcpContext,
+				Timeout: time.Second * 5,
 			}
 			if sintf != "" {
 				ief, err := net.InterfaceByName(sintf)
@@ -318,28 +325,31 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 				t.link.core.log.Debugln("Failed to dial TCP:", err)
 				return
 			}
+			t.waitgroup.Add(1)
 			t.handler(conn, false, nil)
 		}
 	}()
 }
 
 func (t *tcp) handler(sock net.Conn, incoming bool, options interface{}) {
+	defer t.waitgroup.Done() // Happens after sock.close
 	defer sock.Close()
 	t.setExtraOptions(sock)
 	stream := stream{}
 	stream.init(sock)
-	local, _, _ := net.SplitHostPort(sock.LocalAddr().String())
-	remote, _, _ := net.SplitHostPort(sock.RemoteAddr().String())
-	force := net.ParseIP(strings.Split(remote, "%")[0]).IsLinkLocalUnicast()
-	var name string
-	var proto string
+	var name, proto, local, remote string
 	if socksaddr, issocks := options.(string); issocks {
-		name = "socks://" + socksaddr + "/" + sock.RemoteAddr().String()
+		name = "socks://" + sock.RemoteAddr().String() + "/" + socksaddr
 		proto = "socks"
+		local, _, _ = net.SplitHostPort(sock.LocalAddr().String())
+		remote, _, _ = net.SplitHostPort(socksaddr)
 	} else {
 		name = "tcp://" + sock.RemoteAddr().String()
 		proto = "tcp"
+		local, _, _ = net.SplitHostPort(sock.LocalAddr().String())
+		remote, _, _ = net.SplitHostPort(sock.RemoteAddr().String())
 	}
+	force := net.ParseIP(strings.Split(remote, "%")[0]).IsLinkLocalUnicast()
 	link, err := t.link.core.link.create(&stream, name, proto, local, remote, incoming, force)
 	if err != nil {
 		t.link.core.log.Println(err)

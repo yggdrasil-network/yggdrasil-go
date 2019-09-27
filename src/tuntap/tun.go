@@ -13,8 +13,10 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"sync"
 
+	//"sync"
+
+	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
 	"github.com/yggdrasil-network/water"
 
@@ -33,19 +35,21 @@ const tun_ETHER_HEADER_LENGTH = 14
 // you should pass this object to the yggdrasil.SetRouterAdapter() function
 // before calling yggdrasil.Start().
 type TunAdapter struct {
-	config       *config.NodeState
-	log          *log.Logger
-	reconfigure  chan chan error
-	listener     *yggdrasil.Listener
-	dialer       *yggdrasil.Dialer
-	addr         address.Address
-	subnet       address.Subnet
-	ckr          cryptokey
-	icmpv6       ICMPv6
-	mtu          int
-	iface        *water.Interface
-	send         chan []byte
-	mutex        sync.RWMutex // Protects the below
+	writer      tunWriter
+	reader      tunReader
+	config      *config.NodeState
+	log         *log.Logger
+	reconfigure chan chan error
+	listener    *yggdrasil.Listener
+	dialer      *yggdrasil.Dialer
+	addr        address.Address
+	subnet      address.Subnet
+	ckr         cryptokey
+	icmpv6      ICMPv6
+	mtu         int
+	iface       *water.Interface
+	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
+	//mutex        sync.RWMutex // Protects the below
 	addrToConn   map[address.Address]*tunConn
 	subnetToConn map[address.Subnet]*tunConn
 	dials        map[crypto.NodeID][][]byte // Buffer of packets to send after dialing finishes
@@ -114,11 +118,21 @@ func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener 
 	tun.addrToConn = make(map[address.Address]*tunConn)
 	tun.subnetToConn = make(map[address.Subnet]*tunConn)
 	tun.dials = make(map[crypto.NodeID][][]byte)
+	tun.writer.tun = tun
+	tun.reader.tun = tun
 }
 
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
-// read/write goroutines to handle packets on that interface.
+// reader actor to handle packets on that interface.
 func (tun *TunAdapter) Start() error {
+	var err error
+	phony.Block(tun, func() {
+		err = tun._start()
+	})
+	return err
+}
+
+func (tun *TunAdapter) _start() error {
 	current := tun.config.GetCurrent()
 	if tun.config == nil || tun.listener == nil || tun.dialer == nil {
 		return errors.New("No configuration available to TUN/TAP")
@@ -145,11 +159,8 @@ func (tun *TunAdapter) Start() error {
 		tun.log.Debugln("Not starting TUN/TAP as ifname is none or dummy")
 		return nil
 	}
-	tun.mutex.Lock()
 	tun.isOpen = true
-	tun.send = make(chan []byte, 32) // TODO: is this a sensible value?
 	tun.reconfigure = make(chan chan error)
-	tun.mutex.Unlock()
 	go func() {
 		for {
 			e := <-tun.reconfigure
@@ -157,8 +168,7 @@ func (tun *TunAdapter) Start() error {
 		}
 	}()
 	go tun.handler()
-	go tun.reader()
-	go tun.writer()
+	tun.reader.Act(nil, tun.reader._read) // Start the reader
 	tun.icmpv6.Init(tun)
 	if iftapmode {
 		go tun.icmpv6.Solicit(tun.addr)
@@ -170,10 +180,20 @@ func (tun *TunAdapter) Start() error {
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
 // read/write goroutines to handle packets on that interface.
 func (tun *TunAdapter) Stop() error {
+	var err error
+	phony.Block(tun, func() {
+		err = tun._stop()
+	})
+	return err
+}
+
+func (tun *TunAdapter) _stop() error {
 	tun.isOpen = false
-	// TODO: we have nothing that cleanly stops all the various goroutines opened
 	// by TUN/TAP, e.g. readers/writers, sessions
-	tun.iface.Close()
+	if tun.iface != nil {
+		// Just in case we failed to start up the iface for some reason, this can apparently happen on Windows
+		tun.iface.Close()
+	}
 	return nil
 }
 
@@ -183,29 +203,11 @@ func (tun *TunAdapter) Stop() error {
 func (tun *TunAdapter) UpdateConfig(config *config.NodeConfig) {
 	tun.log.Debugln("Reloading TUN/TAP configuration...")
 
+	// Replace the active configuration with the supplied one
 	tun.config.Replace(*config)
 
-	errors := 0
-
-	components := []chan chan error{
-		tun.reconfigure,
-		tun.ckr.reconfigure,
-	}
-
-	for _, component := range components {
-		response := make(chan error)
-		component <- response
-		if err := <-response; err != nil {
-			tun.log.Errorln(err)
-			errors++
-		}
-	}
-
-	if errors > 0 {
-		tun.log.Warnln(errors, "TUN/TAP module(s) reported errors during configuration reload")
-	} else {
-		tun.log.Infoln("TUN/TAP configuration reloaded successfully")
-	}
+	// Notify children about the configuration change
+	tun.Act(nil, tun.ckr.configure)
 }
 
 func (tun *TunAdapter) handler() error {
@@ -216,22 +218,22 @@ func (tun *TunAdapter) handler() error {
 			tun.log.Errorln("TUN/TAP connection accept error:", err)
 			return err
 		}
-		if _, err := tun.wrap(conn); err != nil {
-			// Something went wrong when storing the connection, typically that
-			// something already exists for this address or subnet
-			tun.log.Debugln("TUN/TAP handler wrap:", err)
-		}
+		phony.Block(tun, func() {
+			if _, err := tun._wrap(conn); err != nil {
+				// Something went wrong when storing the connection, typically that
+				// something already exists for this address or subnet
+				tun.log.Debugln("TUN/TAP handler wrap:", err)
+			}
+		})
 	}
 }
 
-func (tun *TunAdapter) wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
+func (tun *TunAdapter) _wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 	// Prepare a session wrapper for the given connection
 	s := tunConn{
-		tun:   tun,
-		conn:  conn,
-		send:  make(chan []byte, 32), // TODO: is this a sensible value?
-		stop:  make(chan struct{}),
-		alive: make(chan struct{}, 1),
+		tun:  tun,
+		conn: conn,
+		stop: make(chan struct{}),
 	}
 	c = &s
 	// Get the remote address and subnet of the other side
@@ -239,27 +241,28 @@ func (tun *TunAdapter) wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 	s.addr = *address.AddrForNodeID(&remoteNodeID)
 	s.snet = *address.SubnetForNodeID(&remoteNodeID)
 	// Work out if this is already a destination we already know about
-	tun.mutex.Lock()
-	defer tun.mutex.Unlock()
 	atc, aok := tun.addrToConn[s.addr]
 	stc, sok := tun.subnetToConn[s.snet]
 	// If we know about a connection for this destination already then assume it
 	// is no longer valid and close it
 	if aok {
-		atc._close_nomutex()
+		atc._close_from_tun()
 		err = errors.New("replaced connection for address")
 	} else if sok {
-		stc._close_nomutex()
+		stc._close_from_tun()
 		err = errors.New("replaced connection for subnet")
 	}
 	// Save the session wrapper so that we can look it up quickly next time
 	// we receive a packet through the interface for this address
 	tun.addrToConn[s.addr] = &s
 	tun.subnetToConn[s.snet] = &s
-	// Start the connection goroutines
-	go s.reader()
-	go s.writer()
-	go s.checkForTimeouts()
+	// Set the read callback and start the timeout
+	conn.SetReadCallback(func(bs []byte) {
+		s.Act(conn, func() {
+			s._read(bs)
+		})
+	})
+	s.Act(nil, s.stillAlive)
 	// Return
 	return c, err
 }
