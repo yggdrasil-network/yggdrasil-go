@@ -22,23 +22,26 @@ func GenerateConfig() *config.NodeConfig {
 	return cfg
 }
 
-func GetLoggerWithPrefix(prefix string) *log.Logger {
+func GetLoggerWithPrefix(prefix string, verbose bool) *log.Logger {
 	l := log.New(os.Stderr, prefix, log.Flags())
+	if !verbose {
+		return l
+	}
 	l.EnableLevel("info")
 	l.EnableLevel("warn")
 	l.EnableLevel("error")
 	return l
 }
 
-func CreateAndConnectTwo(t testing.TB) (*Core, *Core) {
+func CreateAndConnectTwo(t testing.TB, verbose bool) (*Core, *Core) {
 	nodeA := Core{}
-	_, err := nodeA.Start(GenerateConfig(), GetLoggerWithPrefix("A: "))
+	_, err := nodeA.Start(GenerateConfig(), GetLoggerWithPrefix("A: ", verbose))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	nodeB := Core{}
-	_, err = nodeB.Start(GenerateConfig(), GetLoggerWithPrefix("B: "))
+	_, err = nodeB.Start(GenerateConfig(), GetLoggerWithPrefix("B: ", verbose))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +74,7 @@ func WaitConnected(nodeA, nodeB *Core) bool {
 }
 
 func TestCore_Start_Connect(t *testing.T) {
-	CreateAndConnectTwo(t)
+	CreateAndConnectTwo(t, true)
 }
 
 func CreateEchoListener(t testing.TB, nodeA *Core, bufLen int, repeats int) chan struct{} {
@@ -114,7 +117,7 @@ func CreateEchoListener(t testing.TB, nodeA *Core, bufLen int, repeats int) chan
 }
 
 func TestCore_Start_Transfer(t *testing.T) {
-	nodeA, nodeB := CreateAndConnectTwo(t)
+	nodeA, nodeB := CreateAndConnectTwo(t, true)
 
 	msgLen := 1500
 	done := CreateEchoListener(t, nodeA, msgLen, 1)
@@ -151,7 +154,7 @@ func TestCore_Start_Transfer(t *testing.T) {
 }
 
 func BenchmarkCore_Start_Transfer(b *testing.B) {
-	nodeA, nodeB := CreateAndConnectTwo(b)
+	nodeA, nodeB := CreateAndConnectTwo(b, false)
 
 	msgLen := 1500 // typical MTU
 	done := CreateEchoListener(b, nodeA, msgLen, b.N)
