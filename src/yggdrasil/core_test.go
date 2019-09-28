@@ -30,7 +30,7 @@ func GetLoggerWithPrefix(prefix string) *log.Logger {
 	return l
 }
 
-func CreateAndConnectTwo(t *testing.T) (*Core, *Core) {
+func CreateAndConnectTwo(t testing.TB) (*Core, *Core) {
 	nodeA := Core{}
 	_, err := nodeA.Start(GenerateConfig(), GetLoggerWithPrefix("A: "))
 	if err != nil {
@@ -74,7 +74,7 @@ func TestCore_Start_Connect(t *testing.T) {
 	CreateAndConnectTwo(t)
 }
 
-func CreateEchoListener(t *testing.T, nodeA *Core, bufLen int) chan struct{} {
+func CreateEchoListener(t testing.TB, nodeA *Core, bufLen int, repeats int) chan struct{} {
 	// Listen
 	listener, err := nodeA.ConnListen()
 	if err != nil {
@@ -91,18 +91,21 @@ func CreateEchoListener(t *testing.T, nodeA *Core, bufLen int) chan struct{} {
 		}
 		defer conn.Close()
 		buf := make([]byte, bufLen)
-		n, err := conn.Read(buf)
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		if n != bufLen {
-			t.Error("missing data")
-			return
-		}
-		_, err = conn.Write(buf)
-		if err != nil {
-			t.Error(err)
+
+		for i := 0; i < repeats; i++ {
+			n, err := conn.Read(buf)
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if n != bufLen {
+				t.Error("missing data")
+				return
+			}
+			_, err = conn.Write(buf)
+			if err != nil {
+				t.Error(err)
+			}
 		}
 		done <- struct{}{}
 	}()
@@ -114,7 +117,7 @@ func TestCore_Start_Transfer(t *testing.T) {
 	nodeA, nodeB := CreateAndConnectTwo(t)
 
 	msgLen := 1500
-	done := CreateEchoListener(t, nodeA, msgLen)
+	done := CreateEchoListener(t, nodeA, msgLen, 1)
 
 	if !WaitConnected(nodeA, nodeB) {
 		t.Fatal("nodes did not connect")
@@ -143,6 +146,46 @@ func TestCore_Start_Transfer(t *testing.T) {
 	}
 	if bytes.Compare(msg, buf) != 0 {
 		t.Fatal("expected echo")
+	}
+	<-done
+}
+
+func BenchmarkCore_Start_Transfer(b *testing.B) {
+	nodeA, nodeB := CreateAndConnectTwo(b)
+
+	msgLen := 1500 // typical MTU
+	done := CreateEchoListener(b, nodeA, msgLen, b.N)
+
+	if !WaitConnected(nodeA, nodeB) {
+		b.Fatal("nodes did not connect")
+	}
+
+	// Dial
+	dialer, err := nodeB.ConnDialer()
+	if err != nil {
+		b.Fatal(err)
+	}
+	conn, err := dialer.Dial("nodeid", nodeA.NodeID().String())
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer conn.Close()
+	msg := make([]byte, msgLen)
+	rand.Read(msg)
+	buf := make([]byte, msgLen)
+
+	b.SetBytes(int64(b.N * msgLen))
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		conn.Write(msg)
+		if err != nil {
+			b.Fatal(err)
+		}
+		_, err = conn.Read(buf)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 	<-done
 }
