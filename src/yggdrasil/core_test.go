@@ -58,35 +58,45 @@ func CreateAndConnectTwo(t *testing.T) (*Core, *Core) {
 	return &nodeA, &nodeB
 }
 
+// WaitConnected blocks until either nodes negotiated DHT or 5 seconds passed.
+func WaitConnected(nodeA, nodeB *Core) bool {
+	// It may take up to 3 seconds, but let's wait 5.
+	for i := 0; i < 50; i++ {
+		time.Sleep(100 * time.Millisecond)
+		if len(nodeA.GetSwitchPeers()) > 0 && len(nodeB.GetSwitchPeers()) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func TestCore_Start_Connect(t *testing.T) {
 	CreateAndConnectTwo(t)
 }
 
-func TestCore_Start_Transfer(t *testing.T) {
-	nodeA, nodeB := CreateAndConnectTwo(t)
-
+func CreateEchoListener(t *testing.T, nodeA *Core, bufLen int) chan struct{} {
 	// Listen
 	listener, err := nodeA.ConnListen()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
 
 	done := make(chan struct{})
 	go func() {
+		defer listener.Close()
 		conn, err := listener.Accept()
 		if err != nil {
 			t.Error(err)
 			return
 		}
 		defer conn.Close()
-		buf := make([]byte, 64)
+		buf := make([]byte, bufLen)
 		n, err := conn.Read(buf)
 		if err != nil {
 			t.Error(err)
 			return
 		}
-		if n != 64 {
+		if n != bufLen {
 			t.Error("missing data")
 			return
 		}
@@ -97,28 +107,36 @@ func TestCore_Start_Transfer(t *testing.T) {
 		done <- struct{}{}
 	}()
 
-	time.Sleep(3 * time.Second) // FIXME
+	return done
+}
+
+func TestCore_Start_Transfer(t *testing.T) {
+	nodeA, nodeB := CreateAndConnectTwo(t)
+
+	msgLen := 1500
+	done := CreateEchoListener(t, nodeA, msgLen)
+
+	if !WaitConnected(nodeA, nodeB) {
+		t.Fatal("nodes did not connect")
+	}
+
 	// Dial
 	dialer, err := nodeB.ConnDialer()
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(nodeA.GetSwitchPeers())
-	t.Log(nodeB.GetSwitchPeers())
-	t.Log(nodeA.GetSessions())
-	t.Log(nodeB.GetSessions())
 	conn, err := dialer.Dial("nodeid", nodeA.NodeID().String())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	msg := make([]byte, 64)
+	msg := make([]byte, msgLen)
 	rand.Read(msg)
 	conn.Write(msg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	buf := make([]byte, 64)
+	buf := make([]byte, msgLen)
 	_, err = conn.Read(buf)
 	if err != nil {
 		t.Fatal(err)
