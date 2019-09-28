@@ -12,7 +12,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 )
 
-// GenerateConfig is modification
+// GenerateConfig produces default configuration with suitable modifications for tests.
 func GenerateConfig() *config.NodeConfig {
 	cfg := config.GenerateConfig()
 	cfg.AdminListen = "none"
@@ -22,6 +22,8 @@ func GenerateConfig() *config.NodeConfig {
 	return cfg
 }
 
+// GetLoggerWithPrefix creates a new logger instance wih prefix.
+// If verbose is set to true, three log levels are enabled: "info", "warn", "error".
 func GetLoggerWithPrefix(prefix string, verbose bool) *log.Logger {
 	l := log.New(os.Stderr, prefix, log.Flags())
 	if !verbose {
@@ -33,14 +35,16 @@ func GetLoggerWithPrefix(prefix string, verbose bool) *log.Logger {
 	return l
 }
 
-func CreateAndConnectTwo(t testing.TB, verbose bool) (*Core, *Core) {
-	nodeA := Core{}
+// CreateAndConnectTwo creates two nodes. nodeB connects to nodeA.
+// Verbosity flag is passed to logger.
+func CreateAndConnectTwo(t testing.TB, verbose bool) (nodeA *Core, nodeB *Core) {
+	nodeA = new(Core)
 	_, err := nodeA.Start(GenerateConfig(), GetLoggerWithPrefix("A: ", verbose))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	nodeB := Core{}
+	nodeB = new(Core)
 	_, err = nodeB.Start(GenerateConfig(), GetLoggerWithPrefix("B: ", verbose))
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +62,7 @@ func CreateAndConnectTwo(t testing.TB, verbose bool) (*Core, *Core) {
 		t.Fatal("unexpected number of peers", l)
 	}
 
-	return &nodeA, &nodeB
+	return nodeA, nodeB
 }
 
 // WaitConnected blocks until either nodes negotiated DHT or 5 seconds passed.
@@ -73,17 +77,16 @@ func WaitConnected(nodeA, nodeB *Core) bool {
 	return false
 }
 
-func TestCore_Start_Connect(t *testing.T) {
-	CreateAndConnectTwo(t, true)
-}
-
+// CreateEchoListener creates a routine listening on nodeA. It expects repeats messages of length bufLen.
+// It returns a channel used to synchronize the routine with caller.
 func CreateEchoListener(t testing.TB, nodeA *Core, bufLen int, repeats int) chan struct{} {
-	// Listen
+	// Listen. Doing it here guarantees that there will be something to try to connect when it returns.
 	listener, err := nodeA.ConnListen()
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	// Start routine
 	done := make(chan struct{})
 	go func() {
 		defer listener.Close()
@@ -116,6 +119,12 @@ func CreateEchoListener(t testing.TB, nodeA *Core, bufLen int, repeats int) chan
 	return done
 }
 
+// TestCore_Start_Connect checks if two nodes can connect together.
+func TestCore_Start_Connect(t *testing.T) {
+	CreateAndConnectTwo(t, true)
+}
+
+// TestCore_Start_Transfer checks that messages can be passed between nodes (in both directions).
 func TestCore_Start_Transfer(t *testing.T) {
 	nodeA, nodeB := CreateAndConnectTwo(t, true)
 
@@ -153,6 +162,7 @@ func TestCore_Start_Transfer(t *testing.T) {
 	<-done
 }
 
+// BenchmarkCore_Start_Transfer estimates the possible transfer between nodes (in MB/s).
 func BenchmarkCore_Start_Transfer(b *testing.B) {
 	nodeA, nodeB := CreateAndConnectTwo(b, false)
 
