@@ -96,7 +96,7 @@ func (c *Conn) setMTU(from phony.Actor, mtu uint16) {
 	c.Act(from, func() { c.mtu = mtu })
 }
 
-// This should never be called from the router goroutine, used in the dial functions
+// This should never be called from an actor, used in the dial functions
 func (c *Conn) search() error {
 	var err error
 	done := make(chan struct{})
@@ -118,6 +118,10 @@ func (c *Conn) search() error {
 						sinfo.setConn(nil, c)
 					}
 					c.session = sinfo
+					c.nodeID = crypto.GetNodeID(&c.session.theirPermPub)
+					for i := range c.nodeMask {
+						c.nodeMask[i] = 0xFF
+					}
 					err = e
 					close(done)
 				}
@@ -132,12 +136,6 @@ func (c *Conn) search() error {
 	<-done
 	if c.session == nil && err == nil {
 		panic("search failed but returned no error")
-	}
-	if c.session != nil {
-		c.nodeID = crypto.GetNodeID(&c.session.theirPermPub)
-		for i := range c.nodeMask {
-			c.nodeMask[i] = 0xFF
-		}
 	}
 	return err
 }
@@ -262,7 +260,7 @@ func (c *Conn) _write(msg FlowKeyMessage) error {
 	c.session.Act(c, func() {
 		// Send the packet
 		c.session._send(msg)
-		// Session keep-alive, while we wait for the crypto workers from send
+		// Session keep-alive, while we wait for the crypto workers from sefnd
 		switch {
 		case time.Since(c.session.time) > 6*time.Second:
 			if c.session.time.Before(c.session.pingTime) && time.Since(c.session.pingTime) > 6*time.Second {
@@ -353,10 +351,8 @@ func (c *Conn) LocalAddr() crypto.NodeID {
 
 // RemoteAddr returns the complete node ID of the remote side of the connection.
 func (c *Conn) RemoteAddr() crypto.NodeID {
-	// TODO warn that this can block while waiting for the Conn actor to run, so don't call it from other actors...
-	var n crypto.NodeID
-	phony.Block(c, func() { n = *c.nodeID })
-	return n
+	// RemoteAddr is set during the dial or accept, and isn't changed, so it's safe to access directly
+	return *c.nodeID
 }
 
 // SetDeadline is equivalent to calling both SetReadDeadline and

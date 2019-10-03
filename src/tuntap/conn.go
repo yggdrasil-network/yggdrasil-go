@@ -31,7 +31,7 @@ func (s *tunConn) close() {
 }
 
 func (s *tunConn) _close_from_tun() {
-	s.conn.Close()
+	go s.conn.Close() // Just in case it blocks on actor operations
 	delete(s.tun.addrToConn, s.addr)
 	delete(s.tun.subnetToConn, s.snet)
 	func() {
