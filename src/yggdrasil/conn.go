@@ -260,7 +260,7 @@ func (c *Conn) _write(msg FlowKeyMessage) error {
 	c.session.Act(c, func() {
 		// Send the packet
 		c.session._send(msg)
-		// Session keep-alive, while we wait for the crypto workers from sefnd
+		// Session keep-alive, while we wait for the crypto workers from send
 		switch {
 		case time.Since(c.session.time) > 6*time.Second:
 			if c.session.time.Before(c.session.pingTime) && time.Since(c.session.pingTime) > 6*time.Second {
