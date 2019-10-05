@@ -104,7 +104,7 @@ type peer struct {
 	firstSeen  time.Time       // To track uptime for getPeers
 	linkOut    func([]byte)    // used for protocol traffic (bypasses the switch)
 	dinfo      *dhtInfo        // used to keep the DHT working
-	out        func([][]byte)  // Set up by whatever created the peers struct, used to send packets to other nodes
+	out        func([]byte)    // Set up by whatever created the peers struct, used to send packets to other nodes
 	done       (chan struct{}) // closed to exit the linkLoop
 	close      func()          // Called when a peer is removed, to close the underlying connection, or via admin api
 	// The below aren't actually useful internally, they're just gathered for getPeers statistics
@@ -244,22 +244,16 @@ func (p *peer) _handleTraffic(packet []byte) {
 	p.core.switchTable.packetInFrom(p, packet)
 }
 
-func (p *peer) sendPacketsFrom(from phony.Actor, packets [][]byte) {
+func (p *peer) sendPacketFrom(from phony.Actor, packet []byte) {
 	p.Act(from, func() {
-		p._sendPackets(packets)
+		p._sendPackets(packet)
 	})
 }
 
 // This just calls p.out(packet) for now.
-func (p *peer) _sendPackets(packets [][]byte) {
-	// Is there ever a case where something more complicated is needed?
-	// What if p.out blocks?
-	var size int
-	for _, packet := range packets {
-		size += len(packet)
-	}
-	p.bytesSent += uint64(size)
-	p.out(packets)
+func (p *peer) _sendPackets(packet []byte) {
+	p.bytesSent += uint64(len(packet))
+	p.out(packet)
 }
 
 // This wraps the packet in the inner (ephemeral) and outer (permanent) crypto layers.

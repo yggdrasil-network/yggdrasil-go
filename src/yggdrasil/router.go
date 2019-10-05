@@ -62,7 +62,7 @@ func (r *router) init(core *Core) {
 		},
 	}
 	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, &self, nil)
-	p.out = func(packets [][]byte) { r.handlePackets(p, packets) }
+	p.out = func(packet []byte) { r.handlePacket(p, packet) }
 	r.out = func(bs []byte) { p.handlePacketFrom(r, bs) }
 	r.nodeinfo.init(r.core)
 	r.core.config.Mutex.RLock()
@@ -97,11 +97,9 @@ func (r *router) start() error {
 }
 
 // In practice, the switch will call this with 1 packet
-func (r *router) handlePackets(from phony.Actor, packets [][]byte) {
+func (r *router) handlePacket(from phony.Actor, packet []byte) {
 	r.Act(from, func() {
-		for _, packet := range packets {
-			r._handlePacket(packet)
-		}
+		r._handlePacket(packet)
 	})
 }
 

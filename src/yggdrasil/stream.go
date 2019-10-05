@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
@@ -16,7 +15,7 @@ var _ = linkInterfaceMsgIO(&stream{})
 type stream struct {
 	rwc          io.ReadWriteCloser
 	inputBuffer  *bufio.Reader
-	outputBuffer net.Buffers
+	outputBuffer *bufio.Writer
 }
 
 func (s *stream) close() error {
@@ -32,22 +31,19 @@ func (s *stream) init(rwc io.ReadWriteCloser) {
 	s.rwc = rwc
 	// TODO call something to do the metadata exchange
 	s.inputBuffer = bufio.NewReaderSize(s.rwc, 2*streamMsgSize)
+	s.outputBuffer = bufio.NewWriterSize(s.rwc, streamMsgSize)
 }
 
 // writeMsg writes a message with stream padding, and is *not* thread safe.
-func (s *stream) writeMsgs(bss [][]byte) (int, error) {
-	buf := s.outputBuffer[:0]
-	var written int
-	for _, bs := range bss {
-		buf = append(buf, streamMsg[:])
-		buf = append(buf, wire_encode_uint64(uint64(len(bs))))
-		buf = append(buf, bs)
-		written += len(bs)
+func (s *stream) writeMsg(bs []byte) (int, error) {
+	s.outputBuffer.Write(streamMsg[:])
+	s.outputBuffer.Write(wire_encode_uint64(uint64(len(bs))))
+	n, err := s.outputBuffer.Write(bs)
+	err2 := s.outputBuffer.Flush()
+	if err == nil {
+		err = err2
 	}
-	s.outputBuffer = buf[:0] // So we can reuse the same underlying array later
-	_, err := buf.WriteTo(s.rwc)
-	// TODO only include number of bytes from bs *successfully* written?
-	return written, err
+	return n, err
 }
 
 // readMsg reads a message from the stream, accounting for stream padding, and is *not* thread safe.

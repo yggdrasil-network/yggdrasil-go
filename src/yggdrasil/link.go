@@ -39,7 +39,7 @@ type linkInfo struct {
 
 type linkInterfaceMsgIO interface {
 	readMsg() ([]byte, error)
-	writeMsgs([][]byte) (int, error)
+	writeMsg([]byte) (int, error)
 	close() error
 	// These are temporary workarounds to stream semantics
 	_sendMetaBytes([]byte) error
@@ -219,11 +219,11 @@ func (intf *linkInterface) handler() error {
 		// More cleanup can go here
 		intf.link.core.peers.removePeer(intf.peer.port)
 	}()
-	intf.peer.out = func(msgs [][]byte) {
-		intf.writer.sendFrom(intf.peer, msgs, false)
+	intf.peer.out = func(msg []byte) {
+		intf.writer.sendFrom(intf.peer, msg, false)
 	}
 	intf.peer.linkOut = func(bs []byte) {
-		intf.writer.sendFrom(intf.peer, [][]byte{bs}, true)
+		intf.writer.sendFrom(intf.peer, bs, true)
 	}
 	themAddr := address.AddrForNodeID(crypto.GetNodeID(&intf.info.box))
 	themAddrString := net.IP(themAddr[:]).String()
@@ -370,7 +370,7 @@ func (intf *linkInterface) notifyDoKeepAlive() {
 		if intf.stallTimer != nil {
 			intf.stallTimer.Stop()
 			intf.stallTimer = nil
-			intf.writer.sendFrom(nil, [][]byte{nil}, true) // Empty keep-alive traffic
+			intf.writer.sendFrom(nil, nil, true) // Empty keep-alive traffic
 		}
 	})
 }
@@ -382,13 +382,9 @@ type linkWriter struct {
 	intf *linkInterface
 }
 
-func (w *linkWriter) sendFrom(from phony.Actor, bss [][]byte, isLinkTraffic bool) {
+func (w *linkWriter) sendFrom(from phony.Actor, bs []byte, isLinkTraffic bool) {
 	w.Act(from, func() {
-		var size int
-		for _, bs := range bss {
-			size += len(bs)
-		}
-		w.intf.notifySending(size, isLinkTraffic)
+		w.intf.notifySending(len(bs), isLinkTraffic)
 		// start a timer that will fire if we get stuck in writeMsgs for an oddly long time
 		var once sync.Once
 		timer := time.AfterFunc(time.Millisecond, func() {
@@ -399,14 +395,12 @@ func (w *linkWriter) sendFrom(from phony.Actor, bss [][]byte, isLinkTraffic bool
 				w.intf.Act(nil, w.intf._notifySyscall)
 			})
 		})
-		w.intf.msgIO.writeMsgs(bss)
+		w.intf.msgIO.writeMsg(bs)
 		// Make sure we either stop the timer from doing anything or wait until it's done
 		once.Do(func() { timer.Stop() })
-		w.intf.notifySent(size, isLinkTraffic)
+		w.intf.notifySent(len(bs), isLinkTraffic)
 		// Cleanup
-		for _, bs := range bss {
-			util.PutBytes(bs)
-		}
+		util.PutBytes(bs)
 	})
 }
 

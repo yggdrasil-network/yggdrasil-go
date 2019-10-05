@@ -672,7 +672,7 @@ func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]struct{}, sen
 	if len(closer) == 0 {
 		// TODO? call the router directly, and remove the whole concept of a self peer?
 		self := t.core.peers.getPorts()[0]
-		self.sendPacketsFrom(t, [][]byte{packet})
+		self.sendPacketFrom(t, packet)
 		return true
 	}
 	var best *closerInfo
@@ -718,7 +718,7 @@ func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]struct{}, sen
 	if best != nil {
 		if _, isIdle := idle[best.elem.port]; isIdle {
 			delete(idle, best.elem.port)
-			ports[best.elem.port].sendPacketsFrom(t, [][]byte{packet})
+			ports[best.elem.port].sendPacketFrom(t, packet)
 			return true
 		}
 	}
@@ -795,49 +795,39 @@ func (t *switchTable) _handleIdle(port switchPort) bool {
 	if to == nil {
 		return true
 	}
-	var packets [][]byte
-	var psize int
 	t.queues._cleanup(t)
 	now := time.Now()
-	for psize < 65535 {
-		var best string
-		var bestPriority float64
-		for streamID, buf := range t.queues.bufs {
-			// Filter over the streams that this node is closer to
-			// Keep the one with the smallest queue
-			packet := buf.packets[0]
-			coords := switch_getPacketCoords(packet.bytes)
-			priority := float64(now.Sub(packet.time)) / float64(buf.size)
-			if priority > bestPriority && t.portIsCloser(coords, port) {
-				best = streamID
-				bestPriority = priority
-			}
+	var best string
+	var bestPriority float64
+	for streamID, buf := range t.queues.bufs {
+		// Filter over the streams that this node is closer to
+		// Keep the one with the smallest queue
+		packet := buf.packets[0]
+		coords := switch_getPacketCoords(packet.bytes)
+		priority := float64(now.Sub(packet.time)) / float64(buf.size)
+		if priority > bestPriority && t.portIsCloser(coords, port) {
+			best = streamID
+			bestPriority = priority
 		}
-		if bestPriority != 0 {
-			buf := t.queues.bufs[best]
-			var packet switch_packetInfo
-			// TODO decide if this should be LIFO or FIFO
-			packet, buf.packets = buf.packets[0], buf.packets[1:]
-			buf.size -= uint64(len(packet.bytes))
-			t.queues.size -= uint64(len(packet.bytes))
-			if len(buf.packets) == 0 {
-				delete(t.queues.bufs, best)
-			} else {
-				// Need to update the map, since buf was retrieved by value
-				t.queues.bufs[best] = buf
-			}
-			packets = append(packets, packet.bytes)
-			psize += len(packet.bytes)
+	}
+	if bestPriority != 0 {
+		buf := t.queues.bufs[best]
+		var packet switch_packetInfo
+		// TODO decide if this should be LIFO or FIFO
+		packet, buf.packets = buf.packets[0], buf.packets[1:]
+		buf.size -= uint64(len(packet.bytes))
+		t.queues.size -= uint64(len(packet.bytes))
+		if len(buf.packets) == 0 {
+			delete(t.queues.bufs, best)
 		} else {
-			// Finished finding packets
-			break
+			// Need to update the map, since buf was retrieved by value
+			t.queues.bufs[best] = buf
 		}
-	}
-	if len(packets) > 0 {
-		to.sendPacketsFrom(t, packets)
+		to.sendPacketFrom(t, packet.bytes)
 		return true
+	} else {
+		return false
 	}
-	return false
 }
 
 func (t *switchTable) packetInFrom(from phony.Actor, bytes []byte) {
