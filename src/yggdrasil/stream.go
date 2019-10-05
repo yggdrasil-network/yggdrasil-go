@@ -38,12 +38,9 @@ func (s *stream) init(rwc io.ReadWriteCloser) {
 func (s *stream) writeMsg(bs []byte) (int, error) {
 	s.outputBuffer.Write(streamMsg[:])
 	s.outputBuffer.Write(wire_encode_uint64(uint64(len(bs))))
-	n, err := s.outputBuffer.Write(bs)
-	err2 := s.outputBuffer.Flush()
-	if err == nil {
-		err = err2
-	}
-	return n, err
+	s.outputBuffer.Write(bs)
+	s.outputBuffer.Flush() // TODO? delay flushing until we're idle
+	return len(bs), nil    // TODO? return an error? its not like we check for it...
 }
 
 // readMsg reads a message from the stream, accounting for stream padding, and is *not* thread safe.
