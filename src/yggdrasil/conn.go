@@ -292,6 +292,9 @@ func (c *Conn) writeNoCopy(msg FlowKeyMessage) error {
 	var cancel util.Cancellation
 	var doCancel bool
 	phony.Block(c, func() { cancel, doCancel = c._getDeadlineCancellation(c.writeDeadline) })
+	if doCancel {
+		defer cancel.Cancel(nil)
+	}
 	var err error
 	select {
 	case <-cancel.Finished():
