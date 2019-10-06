@@ -115,12 +115,12 @@ func (c *Conn) search() error {
 				default:
 					if sinfo != nil {
 						// Finish initializing the session
-						sinfo.setConn(nil, c)
-					}
-					c.session = sinfo
-					c.nodeID = crypto.GetNodeID(&c.session.theirPermPub)
-					for i := range c.nodeMask {
-						c.nodeMask[i] = 0xFF
+						c.session = sinfo
+						c.session.setConn(nil, c)
+						c.nodeID = crypto.GetNodeID(&c.session.theirPermPub)
+						for i := range c.nodeMask {
+							c.nodeMask[i] = 0xFF
+						}
 					}
 					err = e
 					close(done)
