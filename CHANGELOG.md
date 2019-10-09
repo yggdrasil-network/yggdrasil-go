@@ -25,6 +25,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.3.10] - 2019-10-10
+### Added
+- The core library now includes several unit tests for peering and `yggdrasil.Conn` connections
+
+### Changed
+- On recent linux kernels, Yggdrasil will now set the `tcp_congestion_control` algorithm used for its own TCP sockets to [BBR](https://github.com/google/bbr), which reduces latency under load
+- The systemd init configuration now attemps to load the `tun` module, in case tun/tap support is available but not enabled, and it limit Yggdrasil to `CAP_NET_ADMIN` to access the tun/tap, rather than letting it do whatever the (typically `root`) user can do
+
+### Fixed
+- The `yggdrasil.Conn.RemoteAddr()` function no longer blocks, fixing a deadlock when CKR is used while under heavy load
+
 ## [0.3.9] - 2019-09-27
 ### Added
 - Yggdrasil will now complain more verbosely when a peer URI is incorrectly formatted
