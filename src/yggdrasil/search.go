@@ -205,6 +205,8 @@ func (sinfo *searchInfo) checkDHTRes(res *dhtRes) bool {
 			panic("This should never happen")
 		}
 	} else {
+		sess.coords = res.Coords         // In case coords have updated
+		sess.ping(sinfo.searches.router) // In case the remote side needs updating
 		sinfo.callback(nil, errors.New("session already exists"))
 		// Cleanup
 		delete(sinfo.searches.searches, res.Dest)
