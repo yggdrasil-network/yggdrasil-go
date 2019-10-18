@@ -43,12 +43,13 @@ jobs:
           name: Build for Linux (including Debian packages)
           command: |
               rm -f {yggdrasil,yggdrasilctl}
-              PKGARCH=amd64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-amd64;
-              PKGARCH=i386 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-i386;
-              PKGARCH=mipsel sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-mipsel && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-mipsel;
-              PKGARCH=mips sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-mips && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-mips;
-              PKGARCH=armhf sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-armhf && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-armhf;
-              PKGARCH=arm64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-arm64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-arm64;
+              CGO_ENABLED=0 PKGARCH=amd64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-amd64 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-amd64;
+              CGO_ENABLED=0 PKGARCH=i386 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-i386 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-i386;
+              CGO_ENABLED=0 PKGARCH=mipsel sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-mipsel && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-mipsel;
+              CGO_ENABLED=0 PKGARCH=mips sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-mips && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-mips;
+              CGO_ENABLED=0 PKGARCH=armel sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-armel && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-armel;
+              CGO_ENABLED=0 PKGARCH=armhf sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-armhf && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-armhf;
+              CGO_ENABLED=0 PKGARCH=arm64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-linux-arm64 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-arm64;
               mv *.deb /tmp/upload/
 
       - run:
@@ -121,8 +122,8 @@ jobs:
           name: Build for macOS
           command: |
               GO111MODULE=on GOOS=darwin GOARCH=amd64 ./build
-              cp yggdrasil /tmp/upload/$CINAME-$CIVERSION-darwin-amd64
-              cp yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-darwin-amd64;
+              cp yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-darwin-amd64
+              cp yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-darwin-amd64;
 
       - run:
           name: Build for macOS (.pkg format)
@@ -163,34 +164,96 @@ jobs:
           name: Build for OpenBSD
           command: |
               rm -f {yggdrasil,yggdrasilctl}
-              GOOS=openbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-openbsd-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-openbsd-amd64;
-              GOOS=openbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-openbsd-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-openbsd-i386;
+              GOOS=openbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-openbsd-amd64 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-openbsd-amd64;
+              GOOS=openbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-openbsd-i386 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-openbsd-i386;
 
       - run:
           name: Build for FreeBSD
           command: |
               rm -f {yggdrasil,yggdrasilctl}
-              GOOS=freebsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-freebsd-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-freebsd-amd64;
-              GOOS=freebsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-freebsd-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-freebsd-i386;
+              GOOS=freebsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-freebsd-amd64 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-freebsd-amd64;
+              GOOS=freebsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-freebsd-i386 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-freebsd-i386;
 
       - run:
           name: Build for NetBSD
           command: |
               rm -f {yggdrasil,yggdrasilctl}
-              GOOS=netbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-netbsd-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-netbsd-amd64;
-              GOOS=netbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-netbsd-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-netbsd-i386;
+              GOOS=netbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-netbsd-amd64 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-netbsd-amd64;
+              GOOS=netbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/${CINAME}-${CIVERSION}-netbsd-i386 && mv yggdrasilctl /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-netbsd-i386;
 
       - run:
           name: Build for Windows
           command: |
               rm -f {yggdrasil,yggdrasilctl}
-              GOOS=windows GOARCH=amd64 ./build && mv yggdrasil.exe /tmp/upload/$CINAME-$CIVERSION-windows-amd64.exe && mv yggdrasilctl.exe /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-windows-amd64.exe;
-              GOOS=windows GOARCH=386 ./build && mv yggdrasil.exe /tmp/upload/$CINAME-$CIVERSION-windows-i386.exe && mv yggdrasilctl.exe /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-windows-i386.exe;
+              GOOS=windows GOARCH=amd64 ./build && mv yggdrasil.exe /tmp/upload/${CINAME}-${CIVERSION}-windows-amd64.exe && mv yggdrasilctl.exe /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-windows-amd64.exe;
+              GOOS=windows GOARCH=386 ./build && mv yggdrasil.exe /tmp/upload/${CINAME}-${CIVERSION}-windows-i386.exe && mv yggdrasilctl.exe /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-windows-i386.exe;
 
       - persist_to_workspace:
           root: /tmp
           paths:
             - upload
+
+  build-docker:
+    machine:
+      image: ubuntu-1604:201903-01
+
+    steps:
+      - attach_workspace:
+          at: /tmp
+
+      - checkout
+
+      - run:
+          name: Set variables
+          # We need to enable experimental features in order to use docker buildx
+          command: |
+              echo 'export DOCKER_TAG_MAIN=$(sh contrib/semver/docker.sh main)' >> $BASH_ENV
+              echo 'export DOCKER_TAG_MAJOR=$(sh contrib/semver/docker.sh major)' >> $BASH_ENV
+              echo 'export DOCKER_TAG_MAJORMINOR=$(sh contrib/semver/docker.sh majorminor)' >> $BASH_ENV
+              echo 'export DOCKER_TAG_FULL=$(sh contrib/semver/docker.sh full)' >> $BASH_ENV
+              echo 'export CINAME=$(sh contrib/semver/name.sh)' >> $BASH_ENV
+              echo 'export CIVERSION=$(sh contrib/semver/version.sh --bare)' >> $BASH_ENV
+              git config --global user.email "$(git log --format='%ae' HEAD -1)";
+              git config --global user.name "$(git log --format='%an' HEAD -1)";
+              echo 'export DOCKER_BUILDKIT=1' >> $BASH_ENV
+              sudo mkdir -p /etc/docker && echo $'{\n    "experimental": true\n}' | sudo dd of=/etc/docker/daemon.json
+              sudo systemctl restart docker
+              mkdir -p ~/.docker && echo $'{\n    "experimental": "enabled"\n}' >| ~/.docker/config.json
+              sudo curl -L -o /usr/bin/buildx https://github.com/docker/buildx/releases/download/v0.2.2/buildx-v0.2.2.linux-amd64
+              sudo chmod +x /usr/bin/buildx
+
+      - run:
+          name: Build and push docker images
+          # TODO: build armv7 binaries
+          command: |
+              mkdir -p linux/amd64 && \
+                cp /tmp/upload/${CINAME}-${CIVERSION}-linux-amd64 linux/amd64/yggdrasil
+                cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-amd64 linux/amd64/yggdrasilctl
+              mkdir -p linux/386 && \
+                cp /tmp/upload/${CINAME}-${CIVERSION}-linux-i386 linux/386/yggdrasil
+                cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-i386 linux/386/yggdrasilctl
+              mkdir -p linux/arm/v5 && \
+                cp /tmp/upload/${CINAME}-${CIVERSION}-linux-armel linux/arm/v5/yggdrasil
+                cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-armel linux/arm/v5/yggdrasilctl
+              mkdir -p linux/arm/v6 && \
+                cp /tmp/upload/${CINAME}-${CIVERSION}-linux-armhf linux/arm/v6/yggdrasil
+                cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-armhf linux/arm/v6/yggdrasilctl
+              mkdir -p linux/arm/v7 && \
+                cp /tmp/upload/${CINAME}-${CIVERSION}-linux-armhf linux/arm/v7/yggdrasil
+                cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-armhf linux/arm/v7/yggdrasilctl
+              mkdir -p linux/arm64/v8 && \
+                cp /tmp/upload/${CINAME}-${CIVERSION}-linux-arm64 linux/arm64/v8/yggdrasil
+                cp /tmp/upload/${CINAME}-${CIVERSION}-yggdrasilctl-linux-arm64 linux/arm64/v8/yggdrasilctl
+              docker login -u $DOCKER_USER -p $DOCKER_PASS
+              buildx build \
+                --push \
+                --platform=linux/amd64,linux/386,linux/arm/v5,linux/arm/v6,linux/arm/v7,linux/arm64/v8 \
+                --tag=${DOCKER_NAMESPACE}:${DOCKER_TAG_MAIN} \
+                --tag=${DOCKER_NAMESPACE}:${DOCKER_TAG_MAJOR} \
+                --tag=${DOCKER_NAMESPACE}:${DOCKER_TAG_MAJORMINOR} \
+                --tag=${DOCKER_NAMESPACE}:${DOCKER_TAG_FULL} \
+                --file=contrib/docker/ci/scratch/Dockerfile \
+                .
 
   upload:
     machine: true
@@ -210,6 +273,9 @@ workflows:
       - build-linux
       - build-macos
       - build-other
+      - build-docker:
+          requires:
+            - build-linux
       - upload:
           requires:
             - build-linux
