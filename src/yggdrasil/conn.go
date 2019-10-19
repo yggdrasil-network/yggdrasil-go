@@ -3,6 +3,7 @@ package yggdrasil
 import (
 	"errors"
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
@@ -348,14 +349,14 @@ func (c *Conn) Close() (err error) {
 
 // LocalAddr returns the complete node ID of the local side of the connection.
 // This is always going to return your own node's node ID.
-func (c *Conn) LocalAddr() crypto.NodeID {
-	return *crypto.GetNodeID(&c.core.boxPub)
+func (c *Conn) LocalAddr() net.Addr {
+	return crypto.GetNodeID(&c.core.boxPub)
 }
 
 // RemoteAddr returns the complete node ID of the remote side of the connection.
-func (c *Conn) RemoteAddr() crypto.NodeID {
+func (c *Conn) RemoteAddr() net.Addr {
 	// RemoteAddr is set during the dial or accept, and isn't changed, so it's safe to access directly
-	return *c.nodeID
+	return c.nodeID
 }
 
 // SetDeadline is equivalent to calling both SetReadDeadline and
