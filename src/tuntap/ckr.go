@@ -263,7 +263,6 @@ func (c *cryptokey) addRemoteSubnet(cidr string, dest string) error {
 // length specified in bytes) from the crypto-key routing table. An error is
 // returned if the address is not suitable or no route was found.
 func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (crypto.BoxPubKey, error) {
-	c.mutexcaches.RLock()
 
 	// Check if the address is a valid Yggdrasil address - if so it
 	// is exempt from all CKR checking
@@ -285,11 +284,11 @@ func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (c
 	}
 
 	// Check if there's a cache entry for this addr
+	c.mutexcaches.RLock()
 	if route, ok := (*routingcache)[addr]; ok {
 		c.mutexcaches.RUnlock()
 		return route.destination, nil
 	}
-
 	c.mutexcaches.RUnlock()
 
 	c.mutexremotes.RLock()
