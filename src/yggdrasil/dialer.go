@@ -1,8 +1,10 @@
 package yggdrasil
 
 import (
+	"context"
 	"encoding/hex"
 	"errors"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -15,12 +17,18 @@ type Dialer struct {
 	core *Core
 }
 
-// TODO DialContext that allows timeouts/cancellation, Dial should just call this with no timeout set in the context
-
 // Dial opens a session to the given node. The first paramter should be "nodeid"
 // and the second parameter should contain a hexadecimal representation of the
-// target node ID.
-func (d *Dialer) Dial(network, address string) (*Conn, error) {
+// target node ID. Internally, it uses DialContext with a 6-second timeout.
+func (d *Dialer) Dial(network, address string) (net.Conn, error) {
+	const timeout = 6 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return d.DialContext(ctx, network, address)
+}
+
+// DialContext is used internally by Dial, and should only be used with a context that includes a timeout.
+func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	var nodeID crypto.NodeID
 	var nodeMask crypto.NodeID
 	// Process
@@ -28,7 +36,7 @@ func (d *Dialer) Dial(network, address string) (*Conn, error) {
 	case "nodeid":
 		// A node ID was provided - we don't need to do anything special with it
 		if tokens := strings.Split(address, "/"); len(tokens) == 2 {
-			len, err := strconv.Atoi(tokens[1])
+			l, err := strconv.Atoi(tokens[1])
 			if err != nil {
 				return nil, err
 			}
@@ -37,7 +45,7 @@ func (d *Dialer) Dial(network, address string) (*Conn, error) {
 				return nil, err
 			}
 			copy(nodeID[:], dest)
-			for idx := 0; idx < len; idx++ {
+			for idx := 0; idx < l; idx++ {
 				nodeMask[idx/8] |= 0x80 >> byte(idx%8)
 			}
 		} else {
@@ -50,7 +58,7 @@ func (d *Dialer) Dial(network, address string) (*Conn, error) {
 				nodeMask[i] = 0xFF
 			}
 		}
-		return d.DialByNodeIDandMask(&nodeID, &nodeMask)
+		return d.DialByNodeIDandMask(ctx, &nodeID, &nodeMask)
 	default:
 		// An unexpected address type was given, so give up
 		return nil, errors.New("unexpected address type")
@@ -59,19 +67,18 @@ func (d *Dialer) Dial(network, address string) (*Conn, error) {
 
 // DialByNodeIDandMask opens a session to the given node based on raw
 // NodeID parameters.
-func (d *Dialer) DialByNodeIDandMask(nodeID, nodeMask *crypto.NodeID) (*Conn, error) {
+func (d *Dialer) DialByNodeIDandMask(ctx context.Context, nodeID, nodeMask *crypto.NodeID) (net.Conn, error) {
 	conn := newConn(d.core, nodeID, nodeMask, nil)
 	if err := conn.search(); err != nil {
+		// TODO: make searches take a context, so they can be cancelled early
 		conn.Close()
 		return nil, err
 	}
 	conn.session.setConn(nil, conn)
-	t := time.NewTimer(6 * time.Second) // TODO use a context instead
-	defer t.Stop()
 	select {
 	case <-conn.session.init:
 		return conn, nil
-	case <-t.C:
+	case <-ctx.Done():
 		conn.Close()
 		return nil, errors.New("session handshake timeout")
 	}

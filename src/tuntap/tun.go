@@ -52,7 +52,7 @@ type TunAdapter struct {
 	//mutex        sync.RWMutex // Protects the below
 	addrToConn   map[address.Address]*tunConn
 	subnetToConn map[address.Subnet]*tunConn
-	dials        map[crypto.NodeID][][]byte // Buffer of packets to send after dialing finishes
+	dials        map[string][][]byte // Buffer of packets to send after dialing finishes
 	isOpen       bool
 }
 
@@ -117,7 +117,7 @@ func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener 
 	tun.dialer = dialer
 	tun.addrToConn = make(map[address.Address]*tunConn)
 	tun.subnetToConn = make(map[address.Subnet]*tunConn)
-	tun.dials = make(map[crypto.NodeID][][]byte)
+	tun.dials = make(map[string][][]byte)
 	tun.writer.tun = tun
 	tun.reader.tun = tun
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
+	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 
 	"github.com/Arceliar/phony"
 )
@@ -225,7 +226,7 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 		return
 	}
 	// Do we have an active connection for this node address?
-	var dstNodeID, dstNodeIDMask *crypto.NodeID
+	var dstString string
 	session, isIn := tun.addrToConn[dstAddr]
 	if !isIn || session == nil {
 		session, isIn = tun.subnetToConn[dstSnet]
@@ -233,9 +234,9 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 			// Neither an address nor a subnet mapping matched, therefore populate
 			// the node ID and mask to commence a search
 			if dstAddr.IsValid() {
-				dstNodeID, dstNodeIDMask = dstAddr.GetNodeIDandMask()
+				dstString = dstAddr.GetNodeIDLengthString()
 			} else {
-				dstNodeID, dstNodeIDMask = dstSnet.GetNodeIDandMask()
+				dstString = dstSnet.GetNodeIDLengthString()
 			}
 		}
 	}
@@ -243,27 +244,27 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 	if !isIn || session == nil {
 		// Check we haven't been given empty node ID, really this shouldn't ever
 		// happen but just to be sure...
-		if dstNodeID == nil || dstNodeIDMask == nil {
-			panic("Given empty dstNodeID and dstNodeIDMask - this shouldn't happen")
+		if dstString == "" {
+			panic("Given empty dstString - this shouldn't happen")
 		}
-		_, known := tun.dials[*dstNodeID]
-		tun.dials[*dstNodeID] = append(tun.dials[*dstNodeID], bs)
-		for len(tun.dials[*dstNodeID]) > 32 {
-			util.PutBytes(tun.dials[*dstNodeID][0])
-			tun.dials[*dstNodeID] = tun.dials[*dstNodeID][1:]
+		_, known := tun.dials[dstString]
+		tun.dials[dstString] = append(tun.dials[dstString], bs)
+		for len(tun.dials[dstString]) > 32 {
+			util.PutBytes(tun.dials[dstString][0])
+			tun.dials[dstString] = tun.dials[dstString][1:]
 		}
 		if !known {
 			go func() {
-				conn, err := tun.dialer.DialByNodeIDandMask(dstNodeID, dstNodeIDMask)
+				conn, err := tun.dialer.Dial("nodeid", dstString)
 				tun.Act(nil, func() {
-					packets := tun.dials[*dstNodeID]
-					delete(tun.dials, *dstNodeID)
+					packets := tun.dials[dstString]
+					delete(tun.dials, dstString)
 					if err != nil {
 						return
 					}
 					// We've been given a connection so prepare the session wrapper
 					var tc *tunConn
-					if tc, err = tun._wrap(conn); err != nil {
+					if tc, err = tun._wrap(conn.(*yggdrasil.Conn)); err != nil {
 						// Something went wrong when storing the connection, typically that
 						// something already exists for this address or subnet
 						tun.log.Debugln("TUN/TAP iface wrap:", err)
