@@ -52,7 +52,7 @@ type TunAdapter struct {
 	//mutex        sync.RWMutex // Protects the below
 	addrToConn   map[address.Address]*tunConn
 	subnetToConn map[address.Subnet]*tunConn
-	dials        map[crypto.NodeID][][]byte // Buffer of packets to send after dialing finishes
+	dials        map[string][][]byte // Buffer of packets to send after dialing finishes
 	isOpen       bool
 }
 
@@ -117,7 +117,7 @@ func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener 
 	tun.dialer = dialer
 	tun.addrToConn = make(map[address.Address]*tunConn)
 	tun.subnetToConn = make(map[address.Subnet]*tunConn)
-	tun.dials = make(map[crypto.NodeID][][]byte)
+	tun.dials = make(map[string][][]byte)
 	tun.writer.tun = tun
 	tun.reader.tun = tun
 }
@@ -219,7 +219,7 @@ func (tun *TunAdapter) handler() error {
 			return err
 		}
 		phony.Block(tun, func() {
-			if _, err := tun._wrap(conn); err != nil {
+			if _, err := tun._wrap(conn.(*yggdrasil.Conn)); err != nil {
 				// Something went wrong when storing the connection, typically that
 				// something already exists for this address or subnet
 				tun.log.Debugln("TUN/TAP handler wrap:", err)
@@ -237,9 +237,9 @@ func (tun *TunAdapter) _wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 	}
 	c = &s
 	// Get the remote address and subnet of the other side
-	remoteNodeID := conn.RemoteAddr()
-	s.addr = *address.AddrForNodeID(&remoteNodeID)
-	s.snet = *address.SubnetForNodeID(&remoteNodeID)
+	remoteNodeID := conn.RemoteAddr().(*crypto.NodeID)
+	s.addr = *address.AddrForNodeID(remoteNodeID)
+	s.snet = *address.SubnetForNodeID(remoteNodeID)
 	// Work out if this is already a destination we already know about
 	atc, aok := tun.addrToConn[s.addr]
 	stc, sok := tun.subnetToConn[s.snet]
