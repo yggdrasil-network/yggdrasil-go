@@ -72,19 +72,16 @@ func (d *Dialer) DialByNodeIDandMask(ctx context.Context, nodeID, nodeMask *cryp
 		return nil, err
 	}
 	conn.session.setConn(nil, conn)
-	var c context.Context
 	var cancel context.CancelFunc
-	const timeout = 6 * time.Second
-	if ctx != nil {
-		c, cancel = context.WithTimeout(ctx, timeout)
-	} else {
-		c, cancel = context.WithTimeout(context.Background(), timeout)
+	if ctx == nil {
+		ctx = context.Background()
 	}
+	ctx, cancel = context.WithTimeout(ctx, 6*time.Second)
 	defer cancel()
 	select {
 	case <-conn.session.init:
 		return conn, nil
-	case <-c.Done():
+	case <-ctx.Done():
 		conn.Close()
 		return nil, errors.New("session handshake timeout")
 	}
