@@ -39,6 +39,7 @@ type tcp struct {
 	listeners map[string]*TcpListener
 	calls     map[string]struct{}
 	conns     map[linkInfo](chan struct{})
+	tls       tcptls
 }
 
 // TcpListener is a stoppable TCP listener interface. These are typically
@@ -47,7 +48,13 @@ type tcp struct {
 // multicast interfaces.
 type TcpListener struct {
 	Listener net.Listener
+	upgrade  *TcpUpgrade
 	stop     chan struct{}
+}
+
+type TcpUpgrade struct {
+	upgrade func(c net.Conn) (net.Conn, error)
+	name    string
 }
 
 func (l *TcpListener) Stop() {
@@ -81,6 +88,7 @@ func (t *tcp) getAddr() *net.TCPAddr {
 // Initializes the struct.
 func (t *tcp) init(l *link) error {
 	t.link = l
+	t.tls.init(t)
 	t.mutex.Lock()
 	t.calls = make(map[string]struct{})
 	t.conns = make(map[linkInfo](chan struct{}))
@@ -90,12 +98,17 @@ func (t *tcp) init(l *link) error {
 	t.link.core.config.Mutex.RLock()
 	defer t.link.core.config.Mutex.RUnlock()
 	for _, listenaddr := range t.link.core.config.Current.Listen {
-		if listenaddr[:6] != "tcp://" {
+		switch listenaddr[:6] {
+		case "tcp://":
+			if _, err := t.listen(listenaddr[6:], nil); err != nil {
+				return err
+			}
+		case "tls://":
+			if _, err := t.listen(listenaddr[6:], t.tls.forListener); err != nil {
+				return err
+			}
+		default:
 			t.link.core.log.Errorln("Failed to add listener: listener", listenaddr, "is not correctly formatted, ignoring")
-			continue
-		}
-		if _, err := t.listen(listenaddr[6:]); err != nil {
-			return err
 		}
 	}
 
@@ -119,18 +132,21 @@ func (t *tcp) reconfigure() {
 	t.link.core.config.Mutex.RUnlock()
 	if len(added) > 0 || len(deleted) > 0 {
 		for _, a := range added {
-			if a[:6] != "tcp://" {
+			switch a[:6] {
+			case "tcp://":
+				if _, err := t.listen(a[6:], nil); err != nil {
+					t.link.core.log.Errorln("Error adding TCP", a[6:], "listener:", err)
+				}
+			case "tls://":
+				if _, err := t.listen(a[6:], t.tls.forListener); err != nil {
+					t.link.core.log.Errorln("Error adding TLS", a[6:], "listener:", err)
+				}
+			default:
 				t.link.core.log.Errorln("Failed to add listener: listener", a, "is not correctly formatted, ignoring")
-				continue
-			}
-			if _, err := t.listen(a[6:]); err != nil {
-				t.link.core.log.Errorln("Error adding TCP", a[6:], "listener:", err)
-			} else {
-				t.link.core.log.Infoln("Started TCP listener:", a[6:])
 			}
 		}
 		for _, d := range deleted {
-			if d[:6] != "tcp://" {
+			if d[:6] != "tcp://" && d[:6] != "tls://" {
 				t.link.core.log.Errorln("Failed to delete listener: listener", d, "is not correctly formatted, ignoring")
 				continue
 			}
@@ -146,7 +162,7 @@ func (t *tcp) reconfigure() {
 	}
 }
 
-func (t *tcp) listen(listenaddr string) (*TcpListener, error) {
+func (t *tcp) listen(listenaddr string, upgrade *TcpUpgrade) (*TcpListener, error) {
 	var err error
 
 	ctx := context.Background()
@@ -157,6 +173,7 @@ func (t *tcp) listen(listenaddr string) (*TcpListener, error) {
 	if err == nil {
 		l := TcpListener{
 			Listener: listener,
+			upgrade:  upgrade,
 			stop:     make(chan struct{}),
 		}
 		t.waitgroup.Add(1)
@@ -204,7 +221,7 @@ func (t *tcp) listener(l *TcpListener, listenaddr string) {
 			return
 		}
 		t.waitgroup.Add(1)
-		go t.handler(sock, true, nil)
+		go t.handler(sock, true, nil, l.upgrade)
 	}
 }
 
@@ -222,11 +239,15 @@ func (t *tcp) startCalling(saddr string) bool {
 // If the dial is successful, it launches the handler.
 // When finished, it removes the outgoing call, so reconnection attempts can be made later.
 // This all happens in a separate goroutine that it spawns.
-func (t *tcp) call(saddr string, options interface{}, sintf string) {
+func (t *tcp) call(saddr string, options interface{}, sintf string, upgrade *TcpUpgrade) {
 	go func() {
 		callname := saddr
+		callproto := "TCP"
+		if upgrade != nil {
+			callproto = strings.ToUpper(upgrade.name)
+		}
 		if sintf != "" {
-			callname = fmt.Sprintf("%s/%s", saddr, sintf)
+			callname = fmt.Sprintf("%s/%s/%s", callproto, saddr, sintf)
 		}
 		if !t.startCalling(callname) {
 			return
@@ -261,7 +282,7 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 				return
 			}
 			t.waitgroup.Add(1)
-			t.handler(conn, false, saddr)
+			t.handler(conn, false, saddr, nil)
 		} else {
 			dst, err := net.ResolveTCPAddr("tcp", saddr)
 			if err != nil {
@@ -322,18 +343,28 @@ func (t *tcp) call(saddr string, options interface{}, sintf string) {
 			}
 			conn, err = dialer.Dial("tcp", dst.String())
 			if err != nil {
-				t.link.core.log.Debugln("Failed to dial TCP:", err)
+				t.link.core.log.Debugf("Failed to dial %s: %s", callproto, err)
 				return
 			}
 			t.waitgroup.Add(1)
-			t.handler(conn, false, nil)
+			t.handler(conn, false, nil, upgrade)
 		}
 	}()
 }
 
-func (t *tcp) handler(sock net.Conn, incoming bool, options interface{}) {
+func (t *tcp) handler(sock net.Conn, incoming bool, options interface{}, upgrade *TcpUpgrade) {
 	defer t.waitgroup.Done() // Happens after sock.close
 	defer sock.Close()
+	var upgraded bool
+	if upgrade != nil {
+		var err error
+		if sock, err = upgrade.upgrade(sock); err != nil {
+			t.link.core.log.Errorln("TCP handler upgrade failed:", err)
+			return
+		} else {
+			upgraded = true
+		}
+	}
 	t.setExtraOptions(sock)
 	stream := stream{}
 	stream.init(sock)
@@ -344,8 +375,13 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options interface{}) {
 		local, _, _ = net.SplitHostPort(sock.LocalAddr().String())
 		remote, _, _ = net.SplitHostPort(socksaddr)
 	} else {
-		name = "tcp://" + sock.RemoteAddr().String()
-		proto = "tcp"
+		if upgraded {
+			proto = upgrade.name
+			name = proto + "://" + sock.RemoteAddr().String()
+		} else {
+			proto = "tcp"
+			name = proto + "://" + sock.RemoteAddr().String()
+		}
 		local, _, _ = net.SplitHostPort(sock.LocalAddr().String())
 		remote, _, _ = net.SplitHostPort(sock.RemoteAddr().String())
 	}
