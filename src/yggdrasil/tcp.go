@@ -355,6 +355,7 @@ func (t *tcp) call(saddr string, options interface{}, sintf string, upgrade *Tcp
 func (t *tcp) handler(sock net.Conn, incoming bool, options interface{}, upgrade *TcpUpgrade) {
 	defer t.waitgroup.Done() // Happens after sock.close
 	defer sock.Close()
+	t.setExtraOptions(sock)
 	var upgraded bool
 	if upgrade != nil {
 		var err error
@@ -365,7 +366,6 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options interface{}, upgrade
 			upgraded = true
 		}
 	}
-	t.setExtraOptions(sock)
 	stream := stream{}
 	stream.init(sock)
 	var name, proto, local, remote string
