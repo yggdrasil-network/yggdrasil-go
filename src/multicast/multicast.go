@@ -109,6 +109,10 @@ func (m *Multicast) Stop() error {
 // and then signals the various module goroutines to reconfigure themselves if
 // needed.
 func (m *Multicast) UpdateConfig(config *config.NodeConfig) {
+	m.Act(m, func() { m._updateConfig(config) })
+}
+
+func (m *Multicast) _updateConfig(config *config.NodeConfig) {
 	m.log.Debugln("Reloading multicast configuration...")
 	if m.IsStarted() {
 		if len(config.MulticastInterfaces) == 0 || config.LinkLocalTCPPort != m.listenPort {

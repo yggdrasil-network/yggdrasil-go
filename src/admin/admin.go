@@ -60,6 +60,13 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 	a.handlers = make(map[string]handler)
 	current := state.GetCurrent()
 	a.listenaddr = current.AdminListen
+	a.AddHandler("list", []string{}, func(in Info) (Info, error) {
+		handlers := make(map[string]interface{})
+		for handlername, handler := range a.handlers {
+			handlers[handlername] = Info{"fields": handler.args}
+		}
+		return Info{"list": handlers}, nil
+	})
 	return nil
 }
 
@@ -75,13 +82,6 @@ func (a *AdminSocket) UpdateConfig(config *config.NodeConfig) {
 }
 
 func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
-	a.AddHandler("list", []string{}, func(in Info) (Info, error) {
-		handlers := make(map[string]interface{})
-		for handlername, handler := range a.handlers {
-			handlers[handlername] = Info{"fields": handler.args}
-		}
-		return Info{"list": handlers}, nil
-	})
 	a.AddHandler("getSelf", []string{}, func(in Info) (Info, error) {
 		ip := a.core.Address().String()
 		subnet := a.core.Subnet()
