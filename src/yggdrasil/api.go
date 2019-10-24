@@ -280,7 +280,14 @@ func (c *Core) ConnDialer() (*Dialer, error) {
 // "Listen" configuration item, e.g.
 // 		tcp://a.b.c.d:e
 func (c *Core) ListenTCP(uri string) (*TcpListener, error) {
-	return c.link.tcp.listen(uri)
+	return c.link.tcp.listen(uri, nil)
+}
+
+// ListenTLS starts a new TLS listener. The input URI should match that of the
+// "Listen" configuration item, e.g.
+// 		tls://a.b.c.d:e
+func (c *Core) ListenTLS(uri string) (*TcpListener, error) {
+	return c.link.tcp.listen(uri, c.link.tcp.tls.forListener)
 }
 
 // NodeID gets the node ID. This is derived from your router encryption keys.
