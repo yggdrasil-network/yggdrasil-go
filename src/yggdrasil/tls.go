@@ -2,6 +2,7 @@ package yggdrasil
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
@@ -12,8 +13,6 @@ import (
 	"math/big"
 	"net"
 	"time"
-
-	"golang.org/x/crypto/ed25519"
 )
 
 type tcptls struct {
