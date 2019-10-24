@@ -55,6 +55,21 @@ func (m *Multicast) Init(core *yggdrasil.Core, state *config.NodeState, log *log
 // listen for multicast beacons from other hosts and will advertise multicast
 // beacons out to the network.
 func (m *Multicast) Start() error {
+	var err error
+	phony.Block(m, func() {
+		err = m._start()
+	})
+	return err
+}
+
+func (m *Multicast) _start() error {
+	if m.isOpen {
+		return fmt.Errorf("multicast module is already started")
+	}
+	if len(m.config.GetCurrent().MulticastInterfaces) == 0 {
+		return fmt.Errorf("no MulticastInterfaces configured")
+	}
+	m.log.Infoln("Starting multicast module")
 	addr, err := net.ResolveUDPAddr("udp", m.groupAddr)
 	if err != nil {
 		return err
@@ -80,8 +95,22 @@ func (m *Multicast) Start() error {
 	return nil
 }
 
-// Stop is not implemented for multicast yet.
-func (m *Multicast) Stop() error {
+// IsStarted returns true if the module has been started.
+func (m *Multicast) IsStarted() bool {
+	var isOpen bool
+	phony.Block(m, func() {
+		isOpen = m.isOpen
+	})
+	return isOpen
+}
+
+// Stop stops the multicast module.
+func (m *Multicast) Stop() {
+	m.Act(m, m._stop)
+}
+
+func (m *Multicast) _stop() {
+	m.log.Infoln("Stopping multicast module")
 	m.isOpen = false
 	if m.announcer != nil {
 		m.announcer.Stop()
@@ -90,15 +119,27 @@ func (m *Multicast) Stop() error {
 		m.platformhandler.Stop()
 	}
 	m.sock.Close()
-	return nil
 }
 
 // UpdateConfig updates the multicast module with the provided config.NodeConfig
 // and then signals the various module goroutines to reconfigure themselves if
 // needed.
 func (m *Multicast) UpdateConfig(config *config.NodeConfig) {
+	m.Act(m, func() { m._updateConfig(config) })
+}
+
+func (m *Multicast) _updateConfig(config *config.NodeConfig) {
 	m.log.Debugln("Reloading multicast configuration...")
+	if m.IsStarted() {
+		if len(config.MulticastInterfaces) == 0 || config.LinkLocalTCPPort != m.listenPort {
+			m.Stop()
+		}
+	}
 	m.config.Replace(*config)
+	m.listenPort = config.LinkLocalTCPPort
+	if !m.IsStarted() && len(config.MulticastInterfaces) > 0 {
+		m.Start()
+	}
 }
 
 // GetInterfaces returns the currently known/enabled multicast interfaces. It is
