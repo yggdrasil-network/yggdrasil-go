@@ -38,6 +38,7 @@ func (t *tcptls) init(tcp *tcp) {
 
 	certBuf := &bytes.Buffer{}
 
+	// TODO: because NotAfter is finite, we should add some mechanism to regenerate the certificate and restart the listeners periodically for nodes with very high uptimes. Perhaps regenerate certs and restart listeners every few months or so.
 	pubtemp := x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
@@ -65,7 +66,7 @@ func (t *tcptls) init(tcp *tcp) {
 	t.config = &tls.Config{
 		RootCAs: cpool,
 		Certificates: []tls.Certificate{
-			tls.Certificate{
+			{
 				Certificate: [][]byte{derbytes},
 				PrivateKey:  edpriv,
 			},
