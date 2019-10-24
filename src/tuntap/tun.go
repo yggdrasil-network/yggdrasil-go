@@ -143,9 +143,12 @@ func (tun *TunAdapter) Start() error {
 }
 
 func (tun *TunAdapter) _start() error {
+	if tun.isOpen {
+		return errors.New("TUN/TAP module is already started")
+	}
 	current := tun.config.GetCurrent()
 	if tun.config == nil || tun.listener == nil || tun.dialer == nil {
-		return errors.New("No configuration available to TUN/TAP")
+		return errors.New("no configuration available to TUN/TAP")
 	}
 	var boxPub crypto.BoxPubKey
 	boxPubHex, err := hex.DecodeString(current.EncryptionPublicKey)
@@ -182,7 +185,11 @@ func (tun *TunAdapter) _start() error {
 
 // IsStarted returns true if the module has been started.
 func (tun *TunAdapter) IsStarted() bool {
-	return tun.isOpen
+	var isOpen bool
+	phony.Block(tun, func() {
+		isOpen = tun.isOpen
+	})
+	return isOpen
 }
 
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
