@@ -34,7 +34,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Go 1.13 or later is now required for building Yggdrasil
 - Some exported API functions have been updated to work with standard Go interfaces:
   - `net.Conn` instead of `yggdrasil.Conn`
-  - `net.Dialer` (or the interface that type would satisfy, if one was defined) instead of `yggdrasil.Dialer`
+  - `net.Dialer` (the interface it would satisfy if it wasn't a concrete type) instead of `yggdrasil.Dialer`
   - `net.Listener` instead of `yggdrasil.Listener`
 - Session metadata is now updated correctly when a search completes for a node to which we already have an open session
 - Multicast module reloading behaviour has been improved
