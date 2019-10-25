@@ -124,7 +124,9 @@ func (m *Multicast) _stop() error {
 	if m.platformhandler != nil {
 		m.platformhandler.Stop()
 	}
-	m.sock.Close()
+	if m.sock != nil {
+		m.sock.Close()
+	}
 	return nil
 }
 
