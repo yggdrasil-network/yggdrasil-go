@@ -25,6 +25,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+
+## [0.3.11] - 2019-10-25
+### Added
+- Support for TLS listeners and peers has been added, allowing the use of `tls://host:port` in `Peers`, `InterfacePeers` and `Listen` configuration settings - this allows hiding Yggdrasil peerings inside regular TLS connections
+
+### Changed
+- Go 1.13 or later is now required for building Yggdrasil
+- Some exported API functions have been updated to work with standard Go interfaces:
+  - `net.Conn` instead of `yggdrasil.Conn`
+  - `net.Dialer` (the interface it would satisfy if it wasn't a concrete type) instead of `yggdrasil.Dialer`
+  - `net.Listener` instead of `yggdrasil.Listener`
+- Session metadata is now updated correctly when a search completes for a node to which we already have an open session
+- Multicast module reloading behaviour has been improved
+
+### Fixed
+- An incorrectly held mutex in the crypto-key routing code has been fixed
+- Multicast module no longer opens a listener socket if no multicast interfaces are configured
+
 ## [0.3.10] - 2019-10-10
 ### Added
 - The core library now includes several unit tests for peering and `yggdrasil.Conn` connections
