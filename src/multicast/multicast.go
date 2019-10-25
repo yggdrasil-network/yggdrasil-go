@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"regexp"
-	"sync/atomic"
 	"time"
 
 	"github.com/Arceliar/phony"
@@ -29,7 +28,7 @@ type Multicast struct {
 	groupAddr       string
 	listeners       map[string]*listenerInfo
 	listenPort      uint16
-	isOpen          atomic.Value // bool
+	isOpen          bool
 	announcer       *time.Timer
 	platformhandler *time.Timer
 }
@@ -49,7 +48,6 @@ func (m *Multicast) Init(core *yggdrasil.Core, state *config.NodeState, log *log
 	current := m.config.GetCurrent()
 	m.listenPort = current.LinkLocalTCPPort
 	m.groupAddr = "[ff02::114]:9001"
-	m.isOpen.Store(false)
 	return nil
 }
 
@@ -66,7 +64,7 @@ func (m *Multicast) Start() error {
 }
 
 func (m *Multicast) _start() error {
-	if m.IsStarted() {
+	if m.isOpen {
 		return fmt.Errorf("multicast module is already started")
 	}
 	if len(m.config.GetCurrent().MulticastInterfaces) == 0 {
@@ -90,7 +88,7 @@ func (m *Multicast) _start() error {
 		// Windows can't set this flag, so we need to handle it in other ways
 	}
 
-	m.isOpen.Store(true)
+	m.isOpen = true
 	go m.listen()
 	m.Act(m, m.multicastStarted)
 	m.Act(m, m.announce)
@@ -100,10 +98,11 @@ func (m *Multicast) _start() error {
 
 // IsStarted returns true if the module has been started.
 func (m *Multicast) IsStarted() bool {
-	if m.isOpen.Load() == nil {
-		return false
-	}
-	return m.isOpen.Load().(bool)
+	var isOpen bool
+	phony.Block(m, func() {
+		isOpen = m.isOpen
+	})
+	return isOpen
 }
 
 // Stop stops the multicast module.
@@ -118,7 +117,7 @@ func (m *Multicast) Stop() error {
 
 func (m *Multicast) _stop() error {
 	m.log.Infoln("Stopping multicast module")
-	m.isOpen.Store(false)
+	m.isOpen = false
 	if m.announcer != nil {
 		m.announcer.Stop()
 	}
@@ -138,7 +137,7 @@ func (m *Multicast) UpdateConfig(config *config.NodeConfig) {
 
 func (m *Multicast) _updateConfig(config *config.NodeConfig) {
 	m.log.Infoln("Reloading multicast configuration...")
-	if m.IsStarted() {
+	if m.isOpen {
 		if len(config.MulticastInterfaces) == 0 || config.LinkLocalTCPPort != m.listenPort {
 			if err := m._stop(); err != nil {
 				m.log.Errorln("Error stopping multicast module:", err)
@@ -147,7 +146,7 @@ func (m *Multicast) _updateConfig(config *config.NodeConfig) {
 	}
 	m.config.Replace(*config)
 	m.listenPort = config.LinkLocalTCPPort
-	if !m.IsStarted() && len(config.MulticastInterfaces) > 0 {
+	if !m.isOpen && len(config.MulticastInterfaces) > 0 {
 		if err := m._start(); err != nil {
 			m.log.Errorln("Error starting multicast module:", err)
 		}
