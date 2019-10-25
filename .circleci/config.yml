@@ -5,7 +5,7 @@ version: 2.1
 jobs:
   build-linux:
     docker:
-      - image: circleci/golang:1.12.7
+      - image: circleci/golang:1.13.3
 
     steps:
       - checkout
@@ -48,6 +48,7 @@ jobs:
               PKGARCH=mipsel sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-mipsel && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-mipsel;
               PKGARCH=mips sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-mips && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-mips;
               PKGARCH=armhf sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-armhf && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-armhf;
+              PKGARCH=armel sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-armel && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-armel;
               PKGARCH=arm64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-arm64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-arm64;
               mv *.deb /tmp/upload/
 
@@ -105,11 +106,11 @@ jobs:
               echo -e "Host *\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
 
       - run:
-          name: Install Go 1.12.7
+          name: Install Go 1.13.3
           command: |
               cd /tmp
-              curl -LO https://dl.google.com/go/go1.12.7.darwin-amd64.pkg
-              sudo installer -pkg /tmp/go1.12.7.darwin-amd64.pkg -target /
+              curl -LO https://dl.google.com/go/go1.13.3.darwin-amd64.pkg
+              sudo installer -pkg /tmp/go1.13.3.darwin-amd64.pkg -target /
 
       #- run:
       #    name: Install Gomobile
@@ -145,7 +146,7 @@ jobs:
 
   build-other:
     docker:
-      - image: circleci/golang:1.12.7
+      - image: circleci/golang:1.13.3
 
     steps:
       - checkout

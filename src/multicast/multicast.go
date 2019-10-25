@@ -55,6 +55,22 @@ func (m *Multicast) Init(core *yggdrasil.Core, state *config.NodeState, log *log
 // listen for multicast beacons from other hosts and will advertise multicast
 // beacons out to the network.
 func (m *Multicast) Start() error {
+	var err error
+	phony.Block(m, func() {
+		err = m._start()
+	})
+	m.log.Debugln("Started multicast module")
+	return err
+}
+
+func (m *Multicast) _start() error {
+	if m.isOpen {
+		return fmt.Errorf("multicast module is already started")
+	}
+	if len(m.config.GetCurrent().MulticastInterfaces) == 0 {
+		return nil
+	}
+	m.log.Infoln("Starting multicast module")
 	addr, err := net.ResolveUDPAddr("udp", m.groupAddr)
 	if err != nil {
 		return err
@@ -80,8 +96,27 @@ func (m *Multicast) Start() error {
 	return nil
 }
 
-// Stop is not implemented for multicast yet.
+// IsStarted returns true if the module has been started.
+func (m *Multicast) IsStarted() bool {
+	var isOpen bool
+	phony.Block(m, func() {
+		isOpen = m.isOpen
+	})
+	return isOpen
+}
+
+// Stop stops the multicast module.
 func (m *Multicast) Stop() error {
+	var err error
+	phony.Block(m, func() {
+		err = m._stop()
+	})
+	m.log.Debugln("Stopped multicast module")
+	return nil
+}
+
+func (m *Multicast) _stop() error {
+	m.log.Infoln("Stopping multicast module")
 	m.isOpen = false
 	if m.announcer != nil {
 		m.announcer.Stop()
@@ -97,8 +132,26 @@ func (m *Multicast) Stop() error {
 // and then signals the various module goroutines to reconfigure themselves if
 // needed.
 func (m *Multicast) UpdateConfig(config *config.NodeConfig) {
-	m.log.Debugln("Reloading multicast configuration...")
+	m.Act(m, func() { m._updateConfig(config) })
+}
+
+func (m *Multicast) _updateConfig(config *config.NodeConfig) {
+	m.log.Infoln("Reloading multicast configuration...")
+	if m.isOpen {
+		if len(config.MulticastInterfaces) == 0 || config.LinkLocalTCPPort != m.listenPort {
+			if err := m._stop(); err != nil {
+				m.log.Errorln("Error stopping multicast module:", err)
+			}
+		}
+	}
 	m.config.Replace(*config)
+	m.listenPort = config.LinkLocalTCPPort
+	if !m.isOpen && len(config.MulticastInterfaces) > 0 {
+		if err := m._start(); err != nil {
+			m.log.Errorln("Error starting multicast module:", err)
+		}
+	}
+	m.log.Debugln("Reloaded multicast configuration successfully")
 }
 
 // GetInterfaces returns the currently known/enabled multicast interfaces. It is
@@ -271,7 +324,7 @@ func (m *Multicast) listen() {
 	for {
 		nBytes, rcm, fromAddr, err := m.sock.ReadFrom(bs)
 		if err != nil {
-			if !m.isOpen {
+			if !m.IsStarted() {
 				return
 			}
 			panic(err)

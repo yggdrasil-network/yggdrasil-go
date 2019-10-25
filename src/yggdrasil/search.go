@@ -189,32 +189,34 @@ func (sinfo *searchInfo) checkDHTRes(res *dhtRes) bool {
 	if themMasked != destMasked {
 		return false
 	}
+	finishSearch := func(sess *sessionInfo, err error) {
+		if sess != nil {
+			// FIXME (!) replay attacks could mess with coords? Give it a handle (tstamp)?
+			sess.coords = res.Coords
+			sess.ping(sinfo.searches.router)
+		}
+		if err != nil {
+			sinfo.callback(nil, err)
+		} else {
+			sinfo.callback(sess, nil)
+		}
+		// Cleanup
+		delete(sinfo.searches.searches, res.Dest)
+	}
 	// They match, so create a session and send a sessionRequest
+	var err error
 	sess, isIn := sinfo.searches.router.sessions.getByTheirPerm(&res.Key)
 	if !isIn {
+		// Don't already have a session
 		sess = sinfo.searches.router.sessions.createSession(&res.Key)
 		if sess == nil {
-			// nil if the DHT search finished but the session wasn't allowed
-			sinfo.callback(nil, errors.New("session not allowed"))
-			// Cleanup
-			delete(sinfo.searches.searches, res.Dest)
-			return true
-		}
-		_, isIn := sinfo.searches.router.sessions.getByTheirPerm(&res.Key)
-		if !isIn {
+			err = errors.New("session not allowed")
+		} else if _, isIn := sinfo.searches.router.sessions.getByTheirPerm(&res.Key); !isIn {
 			panic("This should never happen")
 		}
 	} else {
-		sinfo.callback(nil, errors.New("session already exists"))
-		// Cleanup
-		delete(sinfo.searches.searches, res.Dest)
-		return true
+		err = errors.New("session already exists")
 	}
-	// FIXME (!) replay attacks could mess with coords? Give it a handle (tstamp)?
-	sess.coords = res.Coords
-	sess.ping(sinfo.searches.router)
-	sinfo.callback(sess, nil)
-	// Cleanup
-	delete(sinfo.searches.searches, res.Dest)
+	finishSearch(sess, err)
 	return true
 }

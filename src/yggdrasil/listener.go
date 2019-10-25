@@ -13,7 +13,7 @@ type Listener struct {
 }
 
 // Accept blocks until a new incoming session is received
-func (l *Listener) Accept() (*Conn, error) {
+func (l *Listener) Accept() (net.Conn, error) {
 	select {
 	case c, ok := <-l.conn:
 		if !ok {

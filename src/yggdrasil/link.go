@@ -93,9 +93,11 @@ func (l *link) call(uri string, sintf string) error {
 	pathtokens := strings.Split(strings.Trim(u.Path, "/"), "/")
 	switch u.Scheme {
 	case "tcp":
-		l.tcp.call(u.Host, nil, sintf)
+		l.tcp.call(u.Host, nil, sintf, nil)
 	case "socks":
-		l.tcp.call(pathtokens[0], u.Host, sintf)
+		l.tcp.call(pathtokens[0], u.Host, sintf, nil)
+	case "tls":
+		l.tcp.call(u.Host, nil, sintf, l.tcp.tls.forDialer)
 	default:
 		return errors.New("unknown call scheme: " + u.Scheme)
 	}
@@ -109,7 +111,10 @@ func (l *link) listen(uri string) error {
 	}
 	switch u.Scheme {
 	case "tcp":
-		_, err := l.tcp.listen(u.Host)
+		_, err := l.tcp.listen(u.Host, nil)
+		return err
+	case "tls":
+		_, err := l.tcp.listen(u.Host, l.tcp.tls.forListener)
 		return err
 	default:
 		return errors.New("unknown listen scheme: " + u.Scheme)

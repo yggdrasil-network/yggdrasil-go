@@ -52,8 +52,13 @@ type TunAdapter struct {
 	//mutex        sync.RWMutex // Protects the below
 	addrToConn   map[address.Address]*tunConn
 	subnetToConn map[address.Subnet]*tunConn
-	dials        map[crypto.NodeID][][]byte // Buffer of packets to send after dialing finishes
+	dials        map[string][][]byte // Buffer of packets to send after dialing finishes
 	isOpen       bool
+}
+
+type TunOptions struct {
+	Listener *yggdrasil.Listener
+	Dialer   *yggdrasil.Dialer
 }
 
 // Gets the maximum supported MTU for the platform based on the defaults in
@@ -110,16 +115,21 @@ func MaximumMTU() int {
 
 // Init initialises the TUN/TAP module. You must have acquired a Listener from
 // the Yggdrasil core before this point and it must not be in use elsewhere.
-func (tun *TunAdapter) Init(config *config.NodeState, log *log.Logger, listener *yggdrasil.Listener, dialer *yggdrasil.Dialer) {
+func (tun *TunAdapter) Init(core *yggdrasil.Core, config *config.NodeState, log *log.Logger, options interface{}) error {
+	tunoptions, ok := options.(TunOptions)
+	if !ok {
+		return fmt.Errorf("invalid options supplied to TunAdapter module")
+	}
 	tun.config = config
 	tun.log = log
-	tun.listener = listener
-	tun.dialer = dialer
+	tun.listener = tunoptions.Listener
+	tun.dialer = tunoptions.Dialer
 	tun.addrToConn = make(map[address.Address]*tunConn)
 	tun.subnetToConn = make(map[address.Subnet]*tunConn)
-	tun.dials = make(map[crypto.NodeID][][]byte)
+	tun.dials = make(map[string][][]byte)
 	tun.writer.tun = tun
 	tun.reader.tun = tun
+	return nil
 }
 
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
@@ -133,9 +143,12 @@ func (tun *TunAdapter) Start() error {
 }
 
 func (tun *TunAdapter) _start() error {
+	if tun.isOpen {
+		return errors.New("TUN/TAP module is already started")
+	}
 	current := tun.config.GetCurrent()
 	if tun.config == nil || tun.listener == nil || tun.dialer == nil {
-		return errors.New("No configuration available to TUN/TAP")
+		return errors.New("no configuration available to TUN/TAP")
 	}
 	var boxPub crypto.BoxPubKey
 	boxPubHex, err := hex.DecodeString(current.EncryptionPublicKey)
@@ -160,13 +173,6 @@ func (tun *TunAdapter) _start() error {
 		return nil
 	}
 	tun.isOpen = true
-	tun.reconfigure = make(chan chan error)
-	go func() {
-		for {
-			e := <-tun.reconfigure
-			e <- nil
-		}
-	}()
 	go tun.handler()
 	tun.reader.Act(nil, tun.reader._read) // Start the reader
 	tun.icmpv6.Init(tun)
@@ -175,6 +181,15 @@ func (tun *TunAdapter) _start() error {
 	}
 	tun.ckr.init(tun)
 	return nil
+}
+
+// IsStarted returns true if the module has been started.
+func (tun *TunAdapter) IsStarted() bool {
+	var isOpen bool
+	phony.Block(tun, func() {
+		isOpen = tun.isOpen
+	})
+	return isOpen
 }
 
 // Start the setup process for the TUN/TAP adapter. If successful, starts the
@@ -219,7 +234,7 @@ func (tun *TunAdapter) handler() error {
 			return err
 		}
 		phony.Block(tun, func() {
-			if _, err := tun._wrap(conn); err != nil {
+			if _, err := tun._wrap(conn.(*yggdrasil.Conn)); err != nil {
 				// Something went wrong when storing the connection, typically that
 				// something already exists for this address or subnet
 				tun.log.Debugln("TUN/TAP handler wrap:", err)
@@ -237,9 +252,9 @@ func (tun *TunAdapter) _wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 	}
 	c = &s
 	// Get the remote address and subnet of the other side
-	remoteNodeID := conn.RemoteAddr()
-	s.addr = *address.AddrForNodeID(&remoteNodeID)
-	s.snet = *address.SubnetForNodeID(&remoteNodeID)
+	remoteNodeID := conn.RemoteAddr().(*crypto.NodeID)
+	s.addr = *address.AddrForNodeID(remoteNodeID)
+	s.snet = *address.SubnetForNodeID(remoteNodeID)
 	// Work out if this is already a destination we already know about
 	atc, aok := tun.addrToConn[s.addr]
 	stc, sok := tun.subnetToConn[s.snet]

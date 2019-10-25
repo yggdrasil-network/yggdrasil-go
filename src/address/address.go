@@ -2,7 +2,11 @@
 // Of particular importance are the functions used to derive addresses or subnets from a NodeID, or to get the NodeID and bitmask of the bits visible from an address, which is needed for DHT searches.
 package address
 
-import "github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+import (
+	"fmt"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+)
 
 // Address represents an IPv6 address in the yggdrasil address range.
 type Address [16]byte
@@ -128,6 +132,13 @@ func (a *Address) GetNodeIDandMask() (*crypto.NodeID, *crypto.NodeID) {
 	return &nid, &mask
 }
 
+// GetNodeIDLengthString returns a string representation of the known bits of the NodeID, along with the number of known bits, for use with yggdrasil.Dialer's Dial and DialContext functions.
+func (a *Address) GetNodeIDLengthString() string {
+	nid, mask := a.GetNodeIDandMask()
+	l := mask.PrefixLength()
+	return fmt.Sprintf("%s/%d", nid.String(), l)
+}
+
 // GetNodeIDandMask returns two *NodeID.
 // The first is a NodeID with all the bits known from the Subnet set to their correct values.
 // The second is a bitmask with 1 bit set for each bit that was known from the Subnet.
@@ -155,4 +166,11 @@ func (s *Subnet) GetNodeIDandMask() (*crypto.NodeID, *crypto.NodeID) {
 		mask[idx/8] |= 0x80 >> byte(idx%8)
 	}
 	return &nid, &mask
+}
+
+// GetNodeIDLengthString returns a string representation of the known bits of the NodeID, along with the number of known bits, for use with yggdrasil.Dialer's Dial and DialContext functions.
+func (s *Subnet) GetNodeIDLengthString() string {
+	nid, mask := s.GetNodeIDandMask()
+	l := mask.PrefixLength()
+	return fmt.Sprintf("%s/%d", nid.String(), l)
 }
