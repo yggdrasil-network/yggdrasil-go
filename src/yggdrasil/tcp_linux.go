@@ -29,3 +29,17 @@ func (t *tcp) tcpContext(network, address string, c syscall.RawConn) error {
 	// Return nil because errors here are not considered fatal for the connection, it just means congestion control is suboptimal
 	return nil
 }
+
+func (t *tcp) getContextWithBindToDevice(sintf string) func(string, string, syscall.RawConn) error {
+	return func(network, address string, c syscall.RawConn) error {
+		var err error
+		btd := func(fd uintptr) {
+			err = unix.BindToDevice(int(fd), sintf)
+		}
+		c.Control(btd)
+		if err != nil {
+			t.link.core.log.Debugln("Failed to set SO_BINDTODEVICE:", sintf)
+		}
+		return t.tcpContext(network, address, c)
+	}
+}
