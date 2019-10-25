@@ -23,6 +23,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/module"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
@@ -32,9 +33,9 @@ import (
 type node struct {
 	core      yggdrasil.Core
 	state     *config.NodeState
-	tuntap    tuntap.TunAdapter
-	multicast multicast.Multicast
-	admin     admin.AdminSocket
+	tuntap    module.Module // tuntap.TunAdapter
+	multicast module.Module // multicast.Multicast
+	admin     module.Module // admin.AdminSocket
 }
 
 func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *config.NodeConfig {
@@ -231,25 +232,30 @@ func main() {
 	}
 	// Register the session firewall gatekeeper function
 	n.core.SetSessionGatekeeper(n.sessionFirewall)
+	// Allocate our modules
+	n.admin = &admin.AdminSocket{}
+	n.multicast = &multicast.Multicast{}
+	n.tuntap = &tuntap.TunAdapter{}
 	// Start the admin socket
 	n.admin.Init(&n.core, n.state, logger, nil)
 	if err := n.admin.Start(); err != nil {
 		logger.Errorln("An error occurred starting admin socket:", err)
 	}
+	n.admin.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 	// Start the multicast interface
 	n.multicast.Init(&n.core, n.state, logger, nil)
 	if err := n.multicast.Start(); err != nil {
 		logger.Errorln("An error occurred starting multicast:", err)
 	}
-	n.multicast.SetupAdminHandlers(&n.admin)
+	n.multicast.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 	// Start the TUN/TAP interface
 	if listener, err := n.core.ConnListen(); err == nil {
 		if dialer, err := n.core.ConnDialer(); err == nil {
-			n.tuntap.Init(n.state, logger, listener, dialer)
+			n.tuntap.Init(&n.core, n.state, logger, tuntap.TunOptions{Listener: listener, Dialer: dialer})
 			if err := n.tuntap.Start(); err != nil {
 				logger.Errorln("An error occurred starting TUN/TAP:", err)
 			}
-			n.tuntap.SetupAdminHandlers(&n.admin)
+			n.tuntap.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 		} else {
 			logger.Errorln("Unable to get Dialer:", err)
 		}

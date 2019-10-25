@@ -25,12 +25,12 @@ import (
 // TODO: Add authentication
 
 type AdminSocket struct {
-	core        *yggdrasil.Core
-	log         *log.Logger
-	reconfigure chan chan error
-	listenaddr  string
-	listener    net.Listener
-	handlers    map[string]handler
+	core       *yggdrasil.Core
+	log        *log.Logger
+	listenaddr string
+	listener   net.Listener
+	handlers   map[string]handler
+	started    bool
 }
 
 // Info refers to information that is returned to the admin socket handler.
@@ -54,23 +54,10 @@ func (a *AdminSocket) AddHandler(name string, args []string, handlerfunc func(In
 }
 
 // init runs the initial admin setup.
-func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.Logger, options interface{}) {
+func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.Logger, options interface{}) error {
 	a.core = c
 	a.log = log
-	a.reconfigure = make(chan chan error, 1)
 	a.handlers = make(map[string]handler)
-	go func() {
-		for {
-			e := <-a.reconfigure
-			current, previous := state.GetCurrent(), state.GetPrevious()
-			if current.AdminListen != previous.AdminListen {
-				a.listenaddr = current.AdminListen
-				a.Stop()
-				a.Start()
-			}
-			e <- nil
-		}
-	}()
 	current := state.GetCurrent()
 	a.listenaddr = current.AdminListen
 	a.AddHandler("list", []string{}, func(in Info) (Info, error) {
@@ -80,16 +67,31 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 		}
 		return Info{"list": handlers}, nil
 	})
+	return nil
+}
+
+func (a *AdminSocket) UpdateConfig(config *config.NodeConfig) {
+	a.log.Debugln("Reloading admin configuration...")
+	if a.listenaddr != config.AdminListen {
+		a.listenaddr = config.AdminListen
+		if a.IsStarted() {
+			a.Stop()
+		}
+		a.Start()
+	}
+}
+
+func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 	a.AddHandler("getSelf", []string{}, func(in Info) (Info, error) {
-		ip := c.Address().String()
-		subnet := c.Subnet()
+		ip := a.core.Address().String()
+		subnet := a.core.Subnet()
 		return Info{
 			"self": Info{
 				ip: Info{
-					"box_pub_key":   c.EncryptionPublicKey(),
+					"box_pub_key":   a.core.EncryptionPublicKey(),
 					"build_name":    version.BuildName(),
 					"build_version": version.BuildVersion(),
-					"coords":        fmt.Sprintf("%v", c.Coords()),
+					"coords":        fmt.Sprintf("%v", a.core.Coords()),
 					"subnet":        subnet.String(),
 				},
 			},
@@ -312,17 +314,24 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 	})
 }
 
-// start runs the admin API socket to listen for / respond to admin API calls.
+// Start runs the admin API socket to listen for / respond to admin API calls.
 func (a *AdminSocket) Start() error {
 	if a.listenaddr != "none" && a.listenaddr != "" {
 		go a.listen()
+		a.started = true
 	}
 	return nil
 }
 
-// cleans up when stopping
+// IsStarted returns true if the module has been started.
+func (a *AdminSocket) IsStarted() bool {
+	return a.started
+}
+
+// Stop will stop the admin API and close the socket.
 func (a *AdminSocket) Stop() error {
 	if a.listener != nil {
+		a.started = false
 		return a.listener.Close()
 	} else {
 		return nil
