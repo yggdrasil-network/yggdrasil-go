@@ -299,6 +299,7 @@ func (t *tcp) call(saddr string, options interface{}, sintf string, upgrade *Tcp
 				Timeout: time.Second * 5,
 			}
 			if sintf != "" {
+				dialer.Control = t.getControl(sintf)
 				ief, err := net.InterfaceByName(sintf)
 				if err != nil {
 					return

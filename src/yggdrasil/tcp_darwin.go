@@ -26,3 +26,7 @@ func (t *tcp) tcpContext(network, address string, c syscall.RawConn) error {
 		return control
 	}
 }
+
+func (t *tcp) getControl(sintf string) func(string, string, syscall.RawConn) error {
+	return t.tcpContext
+}
