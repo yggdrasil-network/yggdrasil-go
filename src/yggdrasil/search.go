@@ -192,7 +192,7 @@ func (sinfo *searchInfo) checkDHTRes(res *dhtRes) bool {
 	finishSearch := func(sess *sessionInfo, err error) {
 		if sess != nil {
 			// FIXME (!) replay attacks could mess with coords? Give it a handle (tstamp)?
-			sess.coords = res.Coords
+			sess.Act(sinfo.searches.router, func() { sess.coords = res.Coords })
 			sess.ping(sinfo.searches.router)
 		}
 		if err != nil {
