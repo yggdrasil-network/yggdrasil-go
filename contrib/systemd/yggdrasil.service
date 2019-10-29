@@ -8,7 +8,7 @@ Group=yggdrasil
 ProtectHome=true
 ProtectSystem=true
 SyslogIdentifier=yggdrasil
-CapabilityBoundSet=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
 ExecStartPre=+-/sbin/modprobe tun
 ExecStartPre=/bin/sh -ec "if ! test -s /etc/yggdrasil.conf; \
                 then umask 077; \
