@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/signal"
 	"strings"
@@ -20,6 +22,7 @@ import (
 	"github.com/kardianos/minwinsvc"
 	"github.com/mitchellh/mapstructure"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
@@ -142,6 +145,8 @@ func main() {
 	ver := flag.Bool("version", false, "prints the version of this build")
 	logging := flag.String("logging", "info,warn,error", "comma-separated list of logging levels to enable")
 	logto := flag.String("logto", "stdout", "file path to log to, \"syslog\" or \"stdout\"")
+	getaddr := flag.Bool("address", false, "returns the IPv6 address as derived from the supplied configuration")
+	getsnet := flag.Bool("subnet", false, "returns the IPv6 subnet as derived from the supplied configuration")
 	flag.Parse()
 
 	var cfg *config.NodeConfig
@@ -187,6 +192,26 @@ func main() {
 	// if we don't.
 	if cfg == nil {
 		return
+	}
+	// Have we been asked for the node address yet? If so, print it and then stop.
+	switch {
+	case *getaddr:
+		if pubkey, err := hex.DecodeString(cfg.EncryptionPublicKey); err == nil {
+			nodeid := sha512.Sum512(pubkey)
+			fromnodeid := address.AddrForNodeID((*crypto.NodeID)(&nodeid))
+			fmt.Println(net.IP(fromnodeid[:]).String())
+		}
+		return
+	case *getsnet:
+		if pubkey, err := hex.DecodeString(cfg.EncryptionPublicKey); err == nil {
+			nodeid := sha512.Sum512(pubkey)
+			fromnodeid := address.SubnetForNodeID((*crypto.NodeID)(&nodeid))
+			subnet := append(fromnodeid[:], 0, 0, 0, 0, 0, 0, 0, 0)
+			ipnet := net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
+			fmt.Println(ipnet.String())
+		}
+		return
+	default:
 	}
 	// Create a new logger that logs output to stdout.
 	var logger *log.Logger
