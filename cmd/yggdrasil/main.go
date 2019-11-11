@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -194,20 +193,29 @@ func main() {
 		return
 	}
 	// Have we been asked for the node address yet? If so, print it and then stop.
+	getNodeID := func() *crypto.NodeID {
+		if pubkey, err := hex.DecodeString(cfg.EncryptionPublicKey); err == nil {
+			var box crypto.BoxPubKey
+			copy(box[:], pubkey[:])
+			return crypto.GetNodeID(&box)
+		}
+		return nil
+	}
 	switch {
 	case *getaddr:
-		if pubkey, err := hex.DecodeString(cfg.EncryptionPublicKey); err == nil {
-			nodeid := sha512.Sum512(pubkey)
-			fromnodeid := address.AddrForNodeID((*crypto.NodeID)(&nodeid))
-			fmt.Println(net.IP(fromnodeid[:]).String())
+		if nodeid := getNodeID(); nodeid != nil {
+			addr := *address.AddrForNodeID(nodeid)
+			ip := net.IP(addr[:])
+			fmt.Println(ip.String())
 		}
 		return
 	case *getsnet:
-		if pubkey, err := hex.DecodeString(cfg.EncryptionPublicKey); err == nil {
-			nodeid := sha512.Sum512(pubkey)
-			fromnodeid := address.SubnetForNodeID((*crypto.NodeID)(&nodeid))
-			subnet := append(fromnodeid[:], 0, 0, 0, 0, 0, 0, 0, 0)
-			ipnet := net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
+		if nodeid := getNodeID(); nodeid != nil {
+			snet := *address.SubnetForNodeID(nodeid)
+			ipnet := net.IPNet{
+				IP:   append(snet[:], 0, 0, 0, 0, 0, 0, 0, 0),
+				Mask: net.CIDRMask(len(snet)*8, 128),
+			}
 			fmt.Println(ipnet.String())
 		}
 		return
