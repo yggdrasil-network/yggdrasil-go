@@ -7,7 +7,7 @@ var buildVersion string
 // from git, or returns "unknown" otherwise.
 func BuildName() string {
 	if buildName == "" {
-		return "yggdrasilctl"
+		return "unknown"
 	}
 	return buildName
 }
