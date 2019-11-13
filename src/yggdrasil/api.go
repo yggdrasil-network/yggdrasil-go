@@ -424,6 +424,7 @@ func (c *Core) AddPeer(addr string, sintf string) error {
 		return err
 	}
 	c.config.Mutex.Lock()
+	defer c.config.Mutex.Unlock()
 	if sintf == "" {
 		for _, peer := range c.config.Current.Peers {
 			if peer == addr {
@@ -445,7 +446,6 @@ func (c *Core) AddPeer(addr string, sintf string) error {
 			c.config.Current.InterfacePeers[sintf] = append(c.config.Current.InterfacePeers[sintf], addr)
 		}
 	}
-	c.config.Mutex.Unlock()
 	return nil
 }
 
