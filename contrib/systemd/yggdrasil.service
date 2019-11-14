@@ -1,7 +1,9 @@
 [Unit]
 Description=yggdrasil
 Wants=network.target
+Wants=yggdrasil-default-config.service
 After=network.target
+After=yggdrasil-default-config.service
 
 [Service]
 Group=yggdrasil
@@ -10,11 +12,6 @@ ProtectSystem=true
 SyslogIdentifier=yggdrasil
 CapabilityBoundSet=CAP_NET_ADMIN
 ExecStartPre=+-/sbin/modprobe tun
-ExecStartPre=/bin/sh -ec "if ! test -s /etc/yggdrasil.conf; \
-                then umask 077; \
-                yggdrasil -genconf > /etc/yggdrasil.conf; \
-                echo 'WARNING: A new /etc/yggdrasil.conf file has been generated.'; \
-            fi"
 ExecStart=/usr/bin/yggdrasil -useconffile /etc/yggdrasil.conf
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
