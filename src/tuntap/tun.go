@@ -63,9 +63,12 @@ type TunOptions struct {
 
 // Gets the maximum supported MTU for the platform based on the defaults in
 // defaults.GetDefaults().
-func getSupportedMTU(mtu int) int {
-	if mtu > defaults.GetDefaults().MaximumIfMTU {
-		return defaults.GetDefaults().MaximumIfMTU
+func getSupportedMTU(mtu int, istapmode bool) int {
+	if mtu < 1280 {
+		return 1280
+	}
+	if mtu > MaximumMTU(istapmode) {
+		return MaximumMTU(istapmode)
 	}
 	return mtu
 }
@@ -80,7 +83,7 @@ func (tun *TunAdapter) Name() string {
 // the maximum value is determined by your platform. The returned value will
 // never exceed that of MaximumMTU().
 func (tun *TunAdapter) MTU() int {
-	return getSupportedMTU(tun.mtu)
+	return getSupportedMTU(tun.mtu, tun.IsTAP())
 }
 
 // IsTAP returns true if the adapter is a TAP adapter (Layer 2) or false if it
@@ -97,7 +100,11 @@ func DefaultName() string {
 // DefaultMTU gets the default TUN/TAP interface MTU for your platform. This can
 // be as high as MaximumMTU(), depending on platform, but is never lower than 1280.
 func DefaultMTU() int {
-	return defaults.GetDefaults().DefaultIfMTU
+	ehbytes := 0
+	if DefaultIsTAP() {
+		ehbytes = 14
+	}
+	return defaults.GetDefaults().DefaultIfMTU - ehbytes
 }
 
 // DefaultIsTAP returns true if the default adapter mode for the current
@@ -109,8 +116,12 @@ func DefaultIsTAP() bool {
 // MaximumMTU returns the maximum supported TUN/TAP interface MTU for your
 // platform. This can be as high as 65535, depending on platform, but is never
 // lower than 1280.
-func MaximumMTU() int {
-	return defaults.GetDefaults().MaximumIfMTU
+func MaximumMTU(iftapmode bool) int {
+	ehbytes := 0
+	if iftapmode {
+		ehbytes = 14
+	}
+	return defaults.GetDefaults().MaximumIfMTU - ehbytes
 }
 
 // Init initialises the TUN/TAP module. You must have acquired a Listener from
@@ -167,6 +178,9 @@ func (tun *TunAdapter) _start() error {
 		if err := tun.setup(ifname, iftapmode, addr, tun.mtu); err != nil {
 			return err
 		}
+		if tun.MTU() != current.IfMTU {
+			tun.log.Warnf("Warning: Interface MTU %d automatically adjusted to %d (supported range is 1280-%d)", current.IfMTU, tun.MTU(), MaximumMTU(tun.IsTAP()))
+		}
 	}
 	if ifname == "none" || ifname == "dummy" {
 		tun.log.Debugln("Not starting TUN/TAP as ifname is none or dummy")
@@ -176,7 +190,7 @@ func (tun *TunAdapter) _start() error {
 	go tun.handler()
 	tun.reader.Act(nil, tun.reader._read) // Start the reader
 	tun.icmpv6.Init(tun)
-	if iftapmode {
+	if tun.IsTAP() {
 		go tun.icmpv6.Solicit(tun.addr)
 	}
 	tun.ckr.init(tun)

@@ -17,7 +17,8 @@ import (
 // delegate the hard work to "netsh".
 func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	if !iftapmode {
-		tun.log.Warnln("TUN mode is not supported on this platform, defaulting to TAP")
+		tun.log.Warnln("Warning: TUN mode is not supported on this platform, defaulting to TAP")
+		iftapmode = true
 	}
 	config := water.Config{DeviceType: water.TAP}
 	config.PlatformSpecificParams.ComponentID = "tap0901"
@@ -60,7 +61,7 @@ func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = getSupportedMTU(mtu)
+	tun.mtu = getSupportedMTU(mtu, iftapmode)
 	err = tun.setupMTU(tun.mtu)
 	if err != nil {
 		panic(err)

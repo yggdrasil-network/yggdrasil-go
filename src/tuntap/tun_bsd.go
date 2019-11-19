@@ -99,7 +99,7 @@ func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = getSupportedMTU(mtu)
+	tun.mtu = getSupportedMTU(mtu, iftapmode)
 	return tun.setupAddress(addr)
 }
 
