@@ -102,7 +102,7 @@ func DefaultName() string {
 func DefaultMTU() int {
 	ehbytes := 0
 	if DefaultIsTAP() {
-		ehbytes = 14
+		ehbytes = tun_ETHER_HEADER_LENGTH
 	}
 	return defaults.GetDefaults().DefaultIfMTU - ehbytes
 }
@@ -119,7 +119,7 @@ func DefaultIsTAP() bool {
 func MaximumMTU(iftapmode bool) int {
 	ehbytes := 0
 	if iftapmode {
-		ehbytes = 14
+		ehbytes = tun_ETHER_HEADER_LENGTH
 	}
 	return defaults.GetDefaults().MaximumIfMTU - ehbytes
 }
