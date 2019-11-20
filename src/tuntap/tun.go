@@ -102,7 +102,7 @@ func DefaultName() string {
 func DefaultMTU() int {
 	ehbytes := 0
 	if DefaultIsTAP() {
-		ehbytes = 14
+		ehbytes = tun_ETHER_HEADER_LENGTH
 	}
 	return defaults.GetDefaults().DefaultIfMTU - ehbytes
 }
@@ -119,7 +119,7 @@ func DefaultIsTAP() bool {
 func MaximumMTU(iftapmode bool) int {
 	ehbytes := 0
 	if iftapmode {
-		ehbytes = 14
+		ehbytes = tun_ETHER_HEADER_LENGTH
 	}
 	return defaults.GetDefaults().MaximumIfMTU - ehbytes
 }
@@ -170,21 +170,16 @@ func (tun *TunAdapter) _start() error {
 	nodeID := crypto.GetNodeID(&boxPub)
 	tun.addr = *address.AddrForNodeID(nodeID)
 	tun.subnet = *address.SubnetForNodeID(nodeID)
-	tun.mtu = current.IfMTU
-	ifname := current.IfName
-	iftapmode := current.IfTAPMode
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
-	if ifname != "none" {
-		if err := tun.setup(ifname, iftapmode, addr, tun.mtu); err != nil {
-			return err
-		}
-		if tun.MTU() != current.IfMTU {
-			tun.log.Warnf("Warning: Interface MTU %d automatically adjusted to %d (supported range is 1280-%d)", current.IfMTU, tun.MTU(), MaximumMTU(tun.IsTAP()))
-		}
-	}
-	if ifname == "none" || ifname == "dummy" {
+	if current.IfName == "none" || current.IfName == "dummy" {
 		tun.log.Debugln("Not starting TUN/TAP as ifname is none or dummy")
 		return nil
+	}
+	if err := tun.setup(current.IfName, current.IfTAPMode, addr, current.IfMTU); err != nil {
+		return err
+	}
+	if tun.MTU() != current.IfMTU {
+		tun.log.Warnf("Warning: Interface MTU %d automatically adjusted to %d (supported range is 1280-%d)", current.IfMTU, tun.MTU(), MaximumMTU(tun.IsTAP()))
 	}
 	tun.isOpen = true
 	go tun.handler()
