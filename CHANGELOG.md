@@ -25,6 +25,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.3.12] - 2019-11-22
+### Added
+- New command line parameters `-address` and `-subnet` for getting the address/subnet from the config file
+- A warning is now produced in the Yggdrasil output when the MTU has been adjusted for some reason
+
+### Changed
+- Outgoing `InterfacePeers` connections now use `SO_BINDTODEVICE` to prefer an outgoing interface
+- The `genkeys` utility is now in `cmd` rather than `contrib`
+
+### Fixed
+- A data race has been fixed when updating session coordinates
+- A crash when shutting down when no multicast interfaces are configured has been fixed
+- A deadlock when calling `AddPeer` multiple times has been fixed
+- A typo in the systemd unit file (for some Linux packages) has been fixed
+- The nodeinfo now reports `unknown` correctly when no build name/version is available in the environment
+- The MTU calculation now correctly accounts for ethernet headers when running in TAP mode
 
 ## [0.3.11] - 2019-10-25
 ### Added
