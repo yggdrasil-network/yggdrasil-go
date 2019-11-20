@@ -21,13 +21,13 @@ func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = getSupportedMTU(mtu)
+	tun.mtu = getSupportedMTU(mtu, iftapmode)
 	return tun.setupAddress(addr)
 }
 
 // We don't know how to set the IPv6 address on an unknown platform, therefore
 // write about it to stdout and don't try to do anything further.
 func (tun *TunAdapter) setupAddress(addr string) error {
-	tun.log.Warnln("Platform not supported, you must set the address of", tun.iface.Name(), "to", addr)
+	tun.log.Warnln("Warning: Platform not supported, you must set the address of", tun.iface.Name(), "to", addr)
 	return nil
 }
