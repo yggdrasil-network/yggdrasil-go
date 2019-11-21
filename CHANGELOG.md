@@ -27,7 +27,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ## [0.3.12] - 2019-11-22
 ### Added
-- New command line parameters `-address` and `-subnet` for getting the address/subnet from the config file, for use with `-useconffile` or `-useconf` 
+- New API functions `SetMaximumSessionMTU` and `GetMaximumSessionMTU`
+- New command line parameters `-address` and `-subnet` for getting the address/subnet from the config file, for use with `-useconffile` or `-useconf`
 - A warning is now produced in the Yggdrasil output at startup when the MTU in the config is invalid or has been adjusted for some reason
 
 ### Changed
