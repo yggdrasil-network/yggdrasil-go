@@ -121,6 +121,7 @@ type sessions struct {
 	lastCleanup      time.Time
 	isAllowedHandler func(pubkey *crypto.BoxPubKey, initiator bool) bool // Returns true or false if session setup is allowed
 	isAllowedMutex   sync.RWMutex                                        // Protects the above
+	myMaximumMTU     uint16                                              // Maximum allowed session MTU
 	permShared       map[crypto.BoxPubKey]*crypto.BoxSharedKey           // Maps known permanent keys to their shared key, used by DHT a lot
 	sinfos           map[crypto.Handle]*sessionInfo                      // Maps handle onto session info
 	byTheirPerm      map[crypto.BoxPubKey]*crypto.Handle                 // Maps theirPermPub onto handle
@@ -133,6 +134,7 @@ func (ss *sessions) init(r *router) {
 	ss.sinfos = make(map[crypto.Handle]*sessionInfo)
 	ss.byTheirPerm = make(map[crypto.BoxPubKey]*crypto.Handle)
 	ss.lastCleanup = time.Now()
+	ss.myMaximumMTU = 65535
 }
 
 func (ss *sessions) reconfigure() {
@@ -187,9 +189,9 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.mySesPriv = *priv
 	sinfo.myNonce = *crypto.NewBoxNonce()
 	sinfo.theirMTU = 1280
-	ss.router.core.config.Mutex.RLock()
-	sinfo.myMTU = uint16(ss.router.core.config.Current.IfMTU)
-	ss.router.core.config.Mutex.RUnlock()
+	// TODO: sinfo.myMTU becomes unnecessary if we always have a reference to the
+	// sessions struct so let's check if that is the case
+	sinfo.myMTU = ss.myMaximumMTU
 	now := time.Now()
 	sinfo.timeOpened = now
 	sinfo.time = now

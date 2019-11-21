@@ -363,6 +363,22 @@ func (c *Core) SetNodeInfo(nodeinfo interface{}, nodeinfoprivacy bool) {
 	c.router.nodeinfo.setNodeInfo(nodeinfo, nodeinfoprivacy)
 }
 
+// GetMaximumSessionMTU returns the maximum allowed session MTU size.
+func (c *Core) GetMaximumSessionMTU(mtu uint16) uint16 {
+	return c.router.sessions.myMaximumMTU
+}
+
+// SetMaximumSessionMTU sets the maximum allowed session MTU size. The return
+// value contains the actual set value, since Yggdrasil will not accept MTUs
+// below 1280 bytes. The default value is 65535 bytes.
+func (c *Core) SetMaximumSessionMTU(mtu uint16) uint16 {
+	if mtu < 1280 {
+		mtu = 1280
+	}
+	c.router.sessions.myMaximumMTU = mtu
+	return mtu
+}
+
 // GetNodeInfo requests nodeinfo from a remote node, as specified by the public
 // key and coordinates specified. The third parameter specifies whether a cached
 // result is acceptable - this results in less traffic being generated than is

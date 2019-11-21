@@ -35,6 +35,7 @@ const tun_ETHER_HEADER_LENGTH = 14
 // you should pass this object to the yggdrasil.SetRouterAdapter() function
 // before calling yggdrasil.Start().
 type TunAdapter struct {
+	core        *yggdrasil.Core
 	writer      tunWriter
 	reader      tunReader
 	config      *config.NodeState
@@ -131,6 +132,7 @@ func (tun *TunAdapter) Init(core *yggdrasil.Core, config *config.NodeState, log 
 	if !ok {
 		return fmt.Errorf("invalid options supplied to TunAdapter module")
 	}
+	tun.core = core
 	tun.config = config
 	tun.log = log
 	tun.listener = tunoptions.Listener
@@ -181,6 +183,7 @@ func (tun *TunAdapter) _start() error {
 	if tun.MTU() != current.IfMTU {
 		tun.log.Warnf("Warning: Interface MTU %d automatically adjusted to %d (supported range is 1280-%d)", current.IfMTU, tun.MTU(), MaximumMTU(tun.IsTAP()))
 	}
+	tun.core.SetMaximumSessionMTU(uint16(tun.MTU()))
 	tun.isOpen = true
 	go tun.handler()
 	tun.reader.Act(nil, tun.reader._read) // Start the reader
