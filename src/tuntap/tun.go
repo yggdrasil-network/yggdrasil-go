@@ -233,6 +233,12 @@ func (tun *TunAdapter) UpdateConfig(config *config.NodeConfig) {
 	// Replace the active configuration with the supplied one
 	tun.config.Replace(*config)
 
+	// If the MTU has changed in the TUN/TAP module then this is where we would
+	// tell the router so that updated session pings can be sent. However, we
+	// don't currently update the MTU of the adapter once it has been created so
+	// this doesn't actually happen in the real world yet.
+	//   tun.core.SetMaximumSessionMTU(...)
+
 	// Notify children about the configuration change
 	tun.Act(nil, tun.ckr.configure)
 }

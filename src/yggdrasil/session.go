@@ -55,10 +55,6 @@ type sessionInfo struct {
 	callbacks     []chan func()       // Finished work from crypto workers
 }
 
-func (sinfo *sessionInfo) reconfigure() {
-	// This is where reconfiguration would go, if we had anything to do
-}
-
 // Represents a session ping/pong packet, andincludes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
 type sessionPing struct {
 	SendPermPub crypto.BoxPubKey // Sender's permanent key
@@ -138,9 +134,12 @@ func (ss *sessions) init(r *router) {
 }
 
 func (ss *sessions) reconfigure() {
-	for _, session := range ss.sinfos {
-		session.reconfigure()
-	}
+	ss.router.Act(nil, func() {
+		for _, session := range ss.sinfos {
+			session.myMTU = ss.myMaximumMTU
+			session.ping(ss.router)
+		}
+	})
 }
 
 // Determines whether the session with a given publickey is allowed based on
