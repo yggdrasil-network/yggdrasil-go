@@ -189,8 +189,6 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.mySesPriv = *priv
 	sinfo.myNonce = *crypto.NewBoxNonce()
 	sinfo.theirMTU = 1280
-	// TODO: sinfo.myMTU becomes unnecessary if we always have a reference to the
-	// sessions struct so let's check if that is the case
 	sinfo.myMTU = ss.myMaximumMTU
 	now := time.Now()
 	sinfo.timeOpened = now
