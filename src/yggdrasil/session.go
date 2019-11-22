@@ -55,10 +55,6 @@ type sessionInfo struct {
 	callbacks     []chan func()       // Finished work from crypto workers
 }
 
-func (sinfo *sessionInfo) reconfigure() {
-	// This is where reconfiguration would go, if we had anything to do
-}
-
 // Represents a session ping/pong packet, andincludes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
 type sessionPing struct {
 	SendPermPub crypto.BoxPubKey // Sender's permanent key
@@ -121,6 +117,7 @@ type sessions struct {
 	lastCleanup      time.Time
 	isAllowedHandler func(pubkey *crypto.BoxPubKey, initiator bool) bool // Returns true or false if session setup is allowed
 	isAllowedMutex   sync.RWMutex                                        // Protects the above
+	myMaximumMTU     uint16                                              // Maximum allowed session MTU
 	permShared       map[crypto.BoxPubKey]*crypto.BoxSharedKey           // Maps known permanent keys to their shared key, used by DHT a lot
 	sinfos           map[crypto.Handle]*sessionInfo                      // Maps handle onto session info
 	byTheirPerm      map[crypto.BoxPubKey]*crypto.Handle                 // Maps theirPermPub onto handle
@@ -133,12 +130,19 @@ func (ss *sessions) init(r *router) {
 	ss.sinfos = make(map[crypto.Handle]*sessionInfo)
 	ss.byTheirPerm = make(map[crypto.BoxPubKey]*crypto.Handle)
 	ss.lastCleanup = time.Now()
+	ss.myMaximumMTU = 65535
 }
 
 func (ss *sessions) reconfigure() {
-	for _, session := range ss.sinfos {
-		session.reconfigure()
-	}
+	ss.router.Act(nil, func() {
+		for _, session := range ss.sinfos {
+			sinfo, mtu := session, ss.myMaximumMTU
+			sinfo.Act(ss.router, func() {
+				sinfo.myMTU = mtu
+			})
+			session.ping(ss.router)
+		}
+	})
 }
 
 // Determines whether the session with a given publickey is allowed based on
@@ -187,9 +191,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.mySesPriv = *priv
 	sinfo.myNonce = *crypto.NewBoxNonce()
 	sinfo.theirMTU = 1280
-	ss.router.core.config.Mutex.RLock()
-	sinfo.myMTU = uint16(ss.router.core.config.Current.IfMTU)
-	ss.router.core.config.Mutex.RUnlock()
+	sinfo.myMTU = ss.myMaximumMTU
 	now := time.Now()
 	sinfo.timeOpened = now
 	sinfo.time = now

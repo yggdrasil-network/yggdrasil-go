@@ -363,6 +363,27 @@ func (c *Core) SetNodeInfo(nodeinfo interface{}, nodeinfoprivacy bool) {
 	c.router.nodeinfo.setNodeInfo(nodeinfo, nodeinfoprivacy)
 }
 
+// GetMaximumSessionMTU returns the maximum allowed session MTU size.
+func (c *Core) GetMaximumSessionMTU() uint16 {
+	var mtu uint16
+	phony.Block(&c.router, func() {
+		mtu = c.router.sessions.myMaximumMTU
+	})
+	return mtu
+}
+
+// SetMaximumSessionMTU sets the maximum allowed session MTU size. The default
+// value is 65535 bytes. Session pings will be sent to update all open sessions
+// if the MTU has changed.
+func (c *Core) SetMaximumSessionMTU(mtu uint16) {
+	phony.Block(&c.router, func() {
+		if c.router.sessions.myMaximumMTU != mtu {
+			c.router.sessions.myMaximumMTU = mtu
+			c.router.sessions.reconfigure()
+		}
+	})
+}
+
 // GetNodeInfo requests nodeinfo from a remote node, as specified by the public
 // key and coordinates specified. The third parameter specifies whether a cached
 // result is acceptable - this results in less traffic being generated than is
