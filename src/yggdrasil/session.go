@@ -136,7 +136,10 @@ func (ss *sessions) init(r *router) {
 func (ss *sessions) reconfigure() {
 	ss.router.Act(nil, func() {
 		for _, session := range ss.sinfos {
-			session.myMTU = ss.myMaximumMTU
+			sinfo, mtu := session, ss.myMaximumMTU
+			sinfo.Act(ss.router, func() {
+				sinfo.myMTU = mtu
+			})
 			session.ping(ss.router)
 		}
 	})
