@@ -40,8 +40,8 @@ func (w *tunWriter) _write(b []byte) {
 			}
 		})
 	}
-	if written-TUN_OFFSET_BYTES != n {
-		w.tun.log.Errorln("TUN iface write mismatch:", written-TUN_OFFSET_BYTES, "bytes written vs", n, "bytes given")
+	if written != n {
+		w.tun.log.Errorln("TUN iface write mismatch:", written, "bytes written vs", n, "bytes given")
 	}
 }
 
