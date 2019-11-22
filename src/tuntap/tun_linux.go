@@ -11,6 +11,9 @@ import (
 
 // Configures the TUN adapter with the correct IPv6 address and MTU.
 func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {
+	if ifname == "auto" {
+		ifname = "\000"
+	}
 	iface, err := wgtun.CreateTUN(ifname, mtu)
 	if err != nil {
 		panic(err)

@@ -20,6 +20,6 @@ func GetDefaults() platformDefaultParameters {
 		// TUN/TAP
 		MaximumIfMTU:  65535,
 		DefaultIfMTU:  65535,
-		DefaultIfName: "auto",
+		DefaultIfName: "Yggdrasil",
 	}
 }

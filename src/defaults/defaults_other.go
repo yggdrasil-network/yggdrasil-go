@@ -1,4 +1,4 @@
-// +build !linux,!darwin,!windows,!openbsd,!freebsd,!netbsd
+// +build !linux,!darwin,!windows,!openbsd,!freebsd
 
 package defaults
 
