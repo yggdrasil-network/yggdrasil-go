@@ -33,7 +33,7 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	if err != nil {
 		return err
 	}
-	nlintf, err := netlink.LinkByName(tun.iface.Name())
+	nlintf, err := netlink.LinkByName(tun.Name())
 	if err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 		return err
 	}
 	// Friendly output
-	tun.log.Infof("Interface name: %s", tun.iface.Name())
+	tun.log.Infof("Interface name: %s", tun.Name())
 	tun.log.Infof("Interface IPv6: %s", addr)
 	tun.log.Infof("Interface MTU: %d", tun.mtu)
 	return nil
