@@ -9,6 +9,7 @@ import (
 	"strings"
 	"unsafe"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 	"golang.org/x/sys/windows"
 
 	wgtun "golang.zx2c4.com/wireguard/tun"
@@ -19,6 +20,9 @@ import (
 
 // Configures the TUN adapter with the correct IPv6 address and MTU.
 func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {
+	if ifname == "auto" {
+		ifname = defaults.GetDefaults().IfName
+	}
 	var err error
 	err = doAsSystem(func() {
 		iface, err := wgtun.CreateTUN(ifname, mtu)
