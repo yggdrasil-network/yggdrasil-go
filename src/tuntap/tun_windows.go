@@ -21,7 +21,7 @@ import (
 // Configures the TUN adapter with the correct IPv6 address and MTU.
 func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {
 	if ifname == "auto" {
-		ifname = defaults.GetDefaults().IfName
+		ifname = defaults.GetDefaults().DefaultIfName
 	}
 	var err error
 	err = doAsSystem(func() {
