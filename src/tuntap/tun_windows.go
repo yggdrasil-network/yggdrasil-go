@@ -7,69 +7,23 @@ import (
 	"strings"
 	"time"
 
-	water "github.com/yggdrasil-network/water"
+	wgtun "golang.zx2c4.com/wireguard/tun"
 )
 
 // This is to catch Windows platforms
 
-// Configures the TAP adapter with the correct IPv6 address and MTU. On Windows
-// we don't make use of a direct operating system API to do this - we instead
-// delegate the hard work to "netsh".
-func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
-	if !iftapmode {
-		tun.log.Warnln("Warning: TUN mode is not supported on this platform, defaulting to TAP")
-		iftapmode = true
-	}
-	config := water.Config{DeviceType: water.TAP}
-	config.PlatformSpecificParams.ComponentID = "tap0901"
-	config.PlatformSpecificParams.Network = "169.254.0.1/32"
-	if ifname == "auto" {
-		config.PlatformSpecificParams.InterfaceName = ""
-	} else {
-		config.PlatformSpecificParams.InterfaceName = ifname
-	}
-	iface, err := water.New(config)
-	if err != nil {
-		return err
-	}
-	if iface.Name() == "" {
-		return errors.New("unable to find TAP adapter with component ID " + config.PlatformSpecificParams.ComponentID)
-	}
-	// Reset the adapter - this invalidates iface so we'll need to get a new one
-	cmd := exec.Command("netsh", "interface", "set", "interface", iface.Name(), "admin=DISABLED")
-	tun.log.Debugln("netsh command:", strings.Join(cmd.Args, " "))
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		tun.log.Errorln("Windows netsh failed:", err)
-		tun.log.Traceln(string(output))
-		return err
-	}
-	time.Sleep(time.Second) // FIXME artifical delay to give netsh time to take effect
-	// Bring the interface back up
-	cmd = exec.Command("netsh", "interface", "set", "interface", iface.Name(), "admin=ENABLED")
-	tun.log.Debugln("netsh command:", strings.Join(cmd.Args, " "))
-	output, err = cmd.CombinedOutput()
-	if err != nil {
-		tun.log.Errorln("Windows netsh failed:", err)
-		tun.log.Traceln(string(output))
-		return err
-	}
-	time.Sleep(time.Second) // FIXME artifical delay to give netsh time to take effect
-	// Get a new iface
-	iface, err = water.New(config)
+// Configures the TUN adapter with the correct IPv6 address and MTU.
+func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {
+	iface, err := wgtun.CreateTUN(ifname, mtu)
 	if err != nil {
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = getSupportedMTU(mtu, iftapmode)
-	err = tun.setupMTU(tun.mtu)
-	if err != nil {
-		panic(err)
+	if mtu, err := iface.MTU(); err == nil {
+		tun.mtu = getSupportedMTU(mtu)
+	} else {
+		tun.mtu = 0
 	}
-	// Friendly output
-	tun.log.Infof("Interface name: %s", tun.iface.Name())
-	tun.log.Infof("Interface IPv6: %s", addr)
-	tun.log.Infof("Interface MTU: %d", tun.mtu)
 	return tun.setupAddress(addr)
 }
 

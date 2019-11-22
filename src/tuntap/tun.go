@@ -18,7 +18,7 @@ import (
 
 	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
-	"github.com/yggdrasil-network/water"
+	"golang.zx2c4.com/wireguard/tun"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
@@ -28,12 +28,11 @@ import (
 )
 
 const tun_IPv6_HEADER_LENGTH = 40
-const tun_ETHER_HEADER_LENGTH = 14
 
-// TunAdapter represents a running TUN/TAP interface and extends the
-// yggdrasil.Adapter type. In order to use the TUN/TAP adapter with Yggdrasil,
-// you should pass this object to the yggdrasil.SetRouterAdapter() function
-// before calling yggdrasil.Start().
+// TunAdapter represents a running TUN interface and extends the
+// yggdrasil.Adapter type. In order to use the TUN adapter with Yggdrasil, you
+// should pass this object to the yggdrasil.SetRouterAdapter() function before
+// calling yggdrasil.Start().
 type TunAdapter struct {
 	core        *yggdrasil.Core
 	writer      tunWriter
@@ -48,7 +47,7 @@ type TunAdapter struct {
 	ckr         cryptokey
 	icmpv6      ICMPv6
 	mtu         int
-	iface       *water.Interface
+	iface       tun.Device
 	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
 	//mutex        sync.RWMutex // Protects the below
 	addrToConn   map[address.Address]*tunConn
@@ -64,12 +63,12 @@ type TunOptions struct {
 
 // Gets the maximum supported MTU for the platform based on the defaults in
 // defaults.GetDefaults().
-func getSupportedMTU(mtu int, istapmode bool) int {
+func getSupportedMTU(mtu int) int {
 	if mtu < 1280 {
 		return 1280
 	}
-	if mtu > MaximumMTU(istapmode) {
-		return MaximumMTU(istapmode)
+	if mtu > MaximumMTU() {
+		return MaximumMTU()
 	}
 	return mtu
 }
@@ -77,55 +76,38 @@ func getSupportedMTU(mtu int, istapmode bool) int {
 // Name returns the name of the adapter, e.g. "tun0". On Windows, this may
 // return a canonical adapter name instead.
 func (tun *TunAdapter) Name() string {
-	return tun.iface.Name()
+	if name, err := tun.iface.Name(); err == nil {
+		return name
+	}
+	return ""
 }
 
 // MTU gets the adapter's MTU. This can range between 1280 and 65535, although
 // the maximum value is determined by your platform. The returned value will
 // never exceed that of MaximumMTU().
 func (tun *TunAdapter) MTU() int {
-	return getSupportedMTU(tun.mtu, tun.IsTAP())
+	return getSupportedMTU(tun.mtu)
 }
 
-// IsTAP returns true if the adapter is a TAP adapter (Layer 2) or false if it
-// is a TUN adapter (Layer 3).
-func (tun *TunAdapter) IsTAP() bool {
-	return tun.iface.IsTAP()
-}
-
-// DefaultName gets the default TUN/TAP interface name for your platform.
+// DefaultName gets the default TUN interface name for your platform.
 func DefaultName() string {
 	return defaults.GetDefaults().DefaultIfName
 }
 
-// DefaultMTU gets the default TUN/TAP interface MTU for your platform. This can
+// DefaultMTU gets the default TUN interface MTU for your platform. This can
 // be as high as MaximumMTU(), depending on platform, but is never lower than 1280.
 func DefaultMTU() int {
-	ehbytes := 0
-	if DefaultIsTAP() {
-		ehbytes = tun_ETHER_HEADER_LENGTH
-	}
-	return defaults.GetDefaults().DefaultIfMTU - ehbytes
+	return defaults.GetDefaults().DefaultIfMTU
 }
 
-// DefaultIsTAP returns true if the default adapter mode for the current
-// platform is TAP (Layer 2) and returns false for TUN (Layer 3).
-func DefaultIsTAP() bool {
-	return defaults.GetDefaults().DefaultIfTAPMode
-}
-
-// MaximumMTU returns the maximum supported TUN/TAP interface MTU for your
+// MaximumMTU returns the maximum supported TUN interface MTU for your
 // platform. This can be as high as 65535, depending on platform, but is never
 // lower than 1280.
-func MaximumMTU(iftapmode bool) int {
-	ehbytes := 0
-	if iftapmode {
-		ehbytes = tun_ETHER_HEADER_LENGTH
-	}
-	return defaults.GetDefaults().MaximumIfMTU - ehbytes
+func MaximumMTU() int {
+	return defaults.GetDefaults().MaximumIfMTU
 }
 
-// Init initialises the TUN/TAP module. You must have acquired a Listener from
+// Init initialises the TUN module. You must have acquired a Listener from
 // the Yggdrasil core before this point and it must not be in use elsewhere.
 func (tun *TunAdapter) Init(core *yggdrasil.Core, config *config.NodeState, log *log.Logger, options interface{}) error {
 	tunoptions, ok := options.(TunOptions)
@@ -145,7 +127,7 @@ func (tun *TunAdapter) Init(core *yggdrasil.Core, config *config.NodeState, log 
 	return nil
 }
 
-// Start the setup process for the TUN/TAP adapter. If successful, starts the
+// Start the setup process for the TUN adapter. If successful, starts the
 // reader actor to handle packets on that interface.
 func (tun *TunAdapter) Start() error {
 	var err error
@@ -157,11 +139,11 @@ func (tun *TunAdapter) Start() error {
 
 func (tun *TunAdapter) _start() error {
 	if tun.isOpen {
-		return errors.New("TUN/TAP module is already started")
+		return errors.New("TUN module is already started")
 	}
 	current := tun.config.GetCurrent()
 	if tun.config == nil || tun.listener == nil || tun.dialer == nil {
-		return errors.New("no configuration available to TUN/TAP")
+		return errors.New("no configuration available to TUN")
 	}
 	var boxPub crypto.BoxPubKey
 	boxPubHex, err := hex.DecodeString(current.EncryptionPublicKey)
@@ -174,23 +156,19 @@ func (tun *TunAdapter) _start() error {
 	tun.subnet = *address.SubnetForNodeID(nodeID)
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
 	if current.IfName == "none" || current.IfName == "dummy" {
-		tun.log.Debugln("Not starting TUN/TAP as ifname is none or dummy")
+		tun.log.Debugln("Not starting TUN as ifname is none or dummy")
 		return nil
 	}
-	if err := tun.setup(current.IfName, current.IfTAPMode, addr, current.IfMTU); err != nil {
+	if err := tun.setup(current.IfName, addr, current.IfMTU); err != nil {
 		return err
 	}
 	if tun.MTU() != current.IfMTU {
-		tun.log.Warnf("Warning: Interface MTU %d automatically adjusted to %d (supported range is 1280-%d)", current.IfMTU, tun.MTU(), MaximumMTU(tun.IsTAP()))
+		tun.log.Warnf("Warning: Interface MTU %d automatically adjusted to %d (supported range is 1280-%d)", current.IfMTU, tun.MTU(), MaximumMTU())
 	}
 	tun.core.SetMaximumSessionMTU(uint16(tun.MTU()))
 	tun.isOpen = true
 	go tun.handler()
 	tun.reader.Act(nil, tun.reader._read) // Start the reader
-	tun.icmpv6.Init(tun)
-	if tun.IsTAP() {
-		go tun.icmpv6.Solicit(tun.addr)
-	}
 	tun.ckr.init(tun)
 	return nil
 }
@@ -204,7 +182,7 @@ func (tun *TunAdapter) IsStarted() bool {
 	return isOpen
 }
 
-// Start the setup process for the TUN/TAP adapter. If successful, starts the
+// Start the setup process for the TUN adapter. If successful, starts the
 // read/write goroutines to handle packets on that interface.
 func (tun *TunAdapter) Stop() error {
 	var err error
@@ -216,7 +194,7 @@ func (tun *TunAdapter) Stop() error {
 
 func (tun *TunAdapter) _stop() error {
 	tun.isOpen = false
-	// by TUN/TAP, e.g. readers/writers, sessions
+	// by TUN, e.g. readers/writers, sessions
 	if tun.iface != nil {
 		// Just in case we failed to start up the iface for some reason, this can apparently happen on Windows
 		tun.iface.Close()
@@ -224,16 +202,16 @@ func (tun *TunAdapter) _stop() error {
 	return nil
 }
 
-// UpdateConfig updates the TUN/TAP module with the provided config.NodeConfig
+// UpdateConfig updates the TUN module with the provided config.NodeConfig
 // and then signals the various module goroutines to reconfigure themselves if
 // needed.
 func (tun *TunAdapter) UpdateConfig(config *config.NodeConfig) {
-	tun.log.Debugln("Reloading TUN/TAP configuration...")
+	tun.log.Debugln("Reloading TUN configuration...")
 
 	// Replace the active configuration with the supplied one
 	tun.config.Replace(*config)
 
-	// If the MTU has changed in the TUN/TAP module then this is where we would
+	// If the MTU has changed in the TUN module then this is where we would
 	// tell the router so that updated session pings can be sent. However, we
 	// don't currently update the MTU of the adapter once it has been created so
 	// this doesn't actually happen in the real world yet.
@@ -248,14 +226,14 @@ func (tun *TunAdapter) handler() error {
 		// Accept the incoming connection
 		conn, err := tun.listener.Accept()
 		if err != nil {
-			tun.log.Errorln("TUN/TAP connection accept error:", err)
+			tun.log.Errorln("TUN connection accept error:", err)
 			return err
 		}
 		phony.Block(tun, func() {
 			if _, err := tun._wrap(conn.(*yggdrasil.Conn)); err != nil {
 				// Something went wrong when storing the connection, typically that
 				// something already exists for this address or subnet
-				tun.log.Debugln("TUN/TAP handler wrap:", err)
+				tun.log.Debugln("TUN handler wrap:", err)
 			}
 		})
 	}

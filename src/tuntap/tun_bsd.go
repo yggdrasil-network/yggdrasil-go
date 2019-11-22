@@ -1,4 +1,4 @@
-// +build openbsd freebsd netbsd
+// +build openbsd freebsd
 
 package tuntap
 
@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/yggdrasil-network/water"
+	wgtun "golang.zx2c4.com/wireguard/tun"
 )
 
 const SIOCSIFADDR_IN6 = (0x80000000) | ((288 & 0x1fff) << 16) | uint32(byte('i'))<<8 | 12
@@ -72,34 +72,18 @@ type in6_ifreq_lifetime struct {
 	ifru_addrlifetime in6_addrlifetime
 }
 
-// Sets the IPv6 address of the utun adapter. On all BSD platforms (FreeBSD,
-// OpenBSD, NetBSD) an attempt is made to set the adapter properties by using
-// a system socket and making syscalls to the kernel. This is not refined though
-// and often doesn't work (if at all), therefore if a call fails, it resorts
-// to calling "ifconfig" instead.
-func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
-	var config water.Config
-	if ifname[:4] == "auto" {
-		ifname = "/dev/tap0"
-	}
-	if len(ifname) < 9 {
-		panic("TUN/TAP name must be in format /dev/tunX or /dev/tapX")
-	}
-	switch {
-	case iftapmode || ifname[:8] == "/dev/tap":
-		config = water.Config{DeviceType: water.TAP}
-	case !iftapmode || ifname[:8] == "/dev/tun":
-		panic("TUN mode is not currently supported on this platform, please use TAP instead")
-	default:
-		panic("TUN/TAP name must be in format /dev/tunX or /dev/tapX")
-	}
-	config.Name = ifname
-	iface, err := water.New(config)
+// Configures the TUN adapter with the correct IPv6 address and MTU.
+func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {
+	iface, err := wgtun.CreateTUN(ifname, mtu)
 	if err != nil {
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = getSupportedMTU(mtu, iftapmode)
+	if mtu, err := iface.MTU(); err == nil {
+		tun.mtu = getSupportedMTU(mtu)
+	} else {
+		tun.mtu = 0
+	}
 	return tun.setupAddress(addr)
 }
 
