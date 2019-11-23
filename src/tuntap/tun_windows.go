@@ -23,31 +23,30 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {
 	if ifname == "auto" {
 		ifname = defaults.GetDefaults().DefaultIfName
 	}
-	var err error
-	var iface wgtun.Device
-	err = elevate.DoAsSystem(func() {
-		if guid, gerr := windows.GUIDFromString("{8f59971a-7872-4aa6-b2eb-061fc4e9d0a7}"); gerr == nil {
-			iface, err = wgtun.CreateTUNWithRequestedGUID(ifname, &guid, mtu)
-		} else {
-			panic(gerr)
+	return elevate.DoAsSystem(func() error {
+		var err error
+		var iface wgtun.Device
+		var guid windows.GUID
+		if guid, err = windows.GUIDFromString("{8f59971a-7872-4aa6-b2eb-061fc4e9d0a7}"); err != nil {
+			return err
 		}
-		if err != nil {
-			panic(err)
+		if iface, err = wgtun.CreateTUNWithRequestedGUID(ifname, &guid, mtu); err != nil {
+			return err
 		}
 		tun.iface = iface
-
-		if err := tun.setupAddress(addr); err != nil {
+		if err = tun.setupAddress(addr); err != nil {
 			tun.log.Errorln("Failed to set up TUN address:", err)
+			return err
 		}
-		if err := tun.setupMTU(getSupportedMTU(mtu)); err != nil {
+		if err = tun.setupMTU(getSupportedMTU(mtu)); err != nil {
 			tun.log.Errorln("Failed to set up TUN MTU:", err)
+			return err
 		}
-
 		if mtu, err = iface.MTU(); err == nil {
 			tun.mtu = mtu
 		}
+		return nil
 	})
-	return err
 }
 
 // Sets the MTU of the TAP adapter.
