@@ -1,3 +1,5 @@
+// +build windows
+
 package tuntap
 
 import (
@@ -5,14 +7,12 @@ import (
 	"errors"
 	"log"
 	"net"
-	"runtime"
-	"strings"
-	"unsafe"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 	"golang.org/x/sys/windows"
 
 	wgtun "golang.zx2c4.com/wireguard/tun"
+	"golang.zx2c4.com/wireguard/windows/elevate"
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 )
 
@@ -25,7 +25,7 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {
 	}
 	var err error
 	var iface wgtun.Device
-	err = doAsSystem(func() {
+	err = elevate.DoAsSystem(func() {
 		if guid, gerr := windows.GUIDFromString("{8f59971a-7872-4aa6-b2eb-061fc4e9d0a7}"); gerr == nil {
 			iface, err = wgtun.CreateTUNWithRequestedGUID(ifname, &guid, mtu)
 		} else {
@@ -104,87 +104,6 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	} else {
 		return errors.New("unable to get NativeTUN")
 	}
-	return nil
-}
-
-/*
- * doAsSystem
- * SPDX-License-Identifier: LGPL-3.0
- * Copyright (C) 2017-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
- */
-func doAsSystem(f func()) error {
-	runtime.LockOSThread()
-	defer func() {
-		windows.RevertToSelf()
-		runtime.UnlockOSThread()
-	}()
-	privileges := windows.Tokenprivileges{
-		PrivilegeCount: 1,
-		Privileges: [1]windows.LUIDAndAttributes{
-			{
-				Attributes: windows.SE_PRIVILEGE_ENABLED,
-			},
-		},
-	}
-	err := windows.LookupPrivilegeValue(nil, windows.StringToUTF16Ptr("SeDebugPrivilege"), &privileges.Privileges[0].Luid)
-	if err != nil {
-		return err
-	}
-	err = windows.ImpersonateSelf(windows.SecurityImpersonation)
-	if err != nil {
-		return err
-	}
-	var threadToken windows.Token
-	err = windows.OpenThreadToken(windows.CurrentThread(), windows.TOKEN_ADJUST_PRIVILEGES, false, &threadToken)
-	if err != nil {
-		return err
-	}
-	defer threadToken.Close()
-	err = windows.AdjustTokenPrivileges(threadToken, false, &privileges, uint32(unsafe.Sizeof(privileges)), nil, nil)
-	if err != nil {
-		return err
-	}
-
-	processes, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
-	if err != nil {
-		return err
-	}
-	defer windows.CloseHandle(processes)
-
-	processEntry := windows.ProcessEntry32{Size: uint32(unsafe.Sizeof(windows.ProcessEntry32{}))}
-	pid := uint32(0)
-	for err = windows.Process32First(processes, &processEntry); err == nil; err = windows.Process32Next(processes, &processEntry) {
-		if strings.ToLower(windows.UTF16ToString(processEntry.ExeFile[:])) == "winlogon.exe" {
-			pid = processEntry.ProcessID
-			break
-		}
-	}
-	if pid == 0 {
-		return errors.New("unable to find winlogon.exe process")
-	}
-
-	winlogonProcess, err := windows.OpenProcess(windows.PROCESS_QUERY_INFORMATION, false, pid)
-	if err != nil {
-		return err
-	}
-	defer windows.CloseHandle(winlogonProcess)
-	var winlogonToken windows.Token
-	err = windows.OpenProcessToken(winlogonProcess, windows.TOKEN_IMPERSONATE|windows.TOKEN_DUPLICATE, &winlogonToken)
-	if err != nil {
-		return err
-	}
-	defer winlogonToken.Close()
-	var duplicatedToken windows.Token
-	err = windows.DuplicateTokenEx(winlogonToken, 0, nil, windows.SecurityImpersonation, windows.TokenImpersonation, &duplicatedToken)
-	if err != nil {
-		return err
-	}
-	defer duplicatedToken.Close()
-	err = windows.SetThreadToken(nil, duplicatedToken)
-	if err != nil {
-		return err
-	}
-	f()
 	return nil
 }
 
