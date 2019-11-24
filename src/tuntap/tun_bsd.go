@@ -15,8 +15,6 @@ import (
 	wgtun "golang.zx2c4.com/wireguard/tun"
 )
 
-const TUN_OFFSET_BYTES = 0
-
 const SIOCSIFADDR_IN6 = (0x80000000) | ((288 & 0x1fff) << 16) | uint32(byte('i'))<<8 | 12
 
 type in6_addrlifetime struct {
