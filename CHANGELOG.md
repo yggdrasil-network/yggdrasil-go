@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
-## [0.3.12] - 2019-11-22
+## [0.3.12] - 2019-11-24
 ### Added
 - New API functions `SetMaximumSessionMTU` and `GetMaximumSessionMTU`
 - New command line parameters `-address` and `-subnet` for getting the address/subnet from the config file, for use with `-useconffile` or `-useconf`
@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 - On Linux, outgoing `InterfacePeers` connections now use `SO_BINDTODEVICE` to prefer an outgoing interface
-- The `genkeys` utility is now in `cmd` rather than `contrib`
+- The `genkeys` utility is now in `cmd` rather than `misc`
 
 ### Fixed
 - A data race condition has been fixed when updating session coordinates
