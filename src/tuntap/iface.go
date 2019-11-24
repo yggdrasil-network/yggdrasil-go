@@ -31,7 +31,7 @@ func (w *tunWriter) _write(b []byte) {
 	if n == 0 {
 		return
 	}
-	written, err = w.tun.iface.Write(append([]byte{0, 0, 0, 0}, b[:n]...), TUN_OFFSET_BYTES)
+	written, err = w.tun.iface.Write(append(make([]byte, TUN_OFFSET_BYTES), b[:n]...), TUN_OFFSET_BYTES)
 	util.PutBytes(b)
 	if err != nil {
 		w.tun.Act(w, func() {
