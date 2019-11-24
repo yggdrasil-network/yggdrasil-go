@@ -35,6 +35,7 @@ const tun_ETHER_HEADER_LENGTH = 14
 // you should pass this object to the yggdrasil.SetRouterAdapter() function
 // before calling yggdrasil.Start().
 type TunAdapter struct {
+	core        *yggdrasil.Core
 	writer      tunWriter
 	reader      tunReader
 	config      *config.NodeState
@@ -63,9 +64,12 @@ type TunOptions struct {
 
 // Gets the maximum supported MTU for the platform based on the defaults in
 // defaults.GetDefaults().
-func getSupportedMTU(mtu int) int {
-	if mtu > defaults.GetDefaults().MaximumIfMTU {
-		return defaults.GetDefaults().MaximumIfMTU
+func getSupportedMTU(mtu int, istapmode bool) int {
+	if mtu < 1280 {
+		return 1280
+	}
+	if mtu > MaximumMTU(istapmode) {
+		return MaximumMTU(istapmode)
 	}
 	return mtu
 }
@@ -80,7 +84,7 @@ func (tun *TunAdapter) Name() string {
 // the maximum value is determined by your platform. The returned value will
 // never exceed that of MaximumMTU().
 func (tun *TunAdapter) MTU() int {
-	return getSupportedMTU(tun.mtu)
+	return getSupportedMTU(tun.mtu, tun.IsTAP())
 }
 
 // IsTAP returns true if the adapter is a TAP adapter (Layer 2) or false if it
@@ -97,7 +101,11 @@ func DefaultName() string {
 // DefaultMTU gets the default TUN/TAP interface MTU for your platform. This can
 // be as high as MaximumMTU(), depending on platform, but is never lower than 1280.
 func DefaultMTU() int {
-	return defaults.GetDefaults().DefaultIfMTU
+	ehbytes := 0
+	if DefaultIsTAP() {
+		ehbytes = tun_ETHER_HEADER_LENGTH
+	}
+	return defaults.GetDefaults().DefaultIfMTU - ehbytes
 }
 
 // DefaultIsTAP returns true if the default adapter mode for the current
@@ -109,8 +117,12 @@ func DefaultIsTAP() bool {
 // MaximumMTU returns the maximum supported TUN/TAP interface MTU for your
 // platform. This can be as high as 65535, depending on platform, but is never
 // lower than 1280.
-func MaximumMTU() int {
-	return defaults.GetDefaults().MaximumIfMTU
+func MaximumMTU(iftapmode bool) int {
+	ehbytes := 0
+	if iftapmode {
+		ehbytes = tun_ETHER_HEADER_LENGTH
+	}
+	return defaults.GetDefaults().MaximumIfMTU - ehbytes
 }
 
 // Init initialises the TUN/TAP module. You must have acquired a Listener from
@@ -120,6 +132,7 @@ func (tun *TunAdapter) Init(core *yggdrasil.Core, config *config.NodeState, log 
 	if !ok {
 		return fmt.Errorf("invalid options supplied to TunAdapter module")
 	}
+	tun.core = core
 	tun.config = config
 	tun.log = log
 	tun.listener = tunoptions.Listener
@@ -159,24 +172,23 @@ func (tun *TunAdapter) _start() error {
 	nodeID := crypto.GetNodeID(&boxPub)
 	tun.addr = *address.AddrForNodeID(nodeID)
 	tun.subnet = *address.SubnetForNodeID(nodeID)
-	tun.mtu = current.IfMTU
-	ifname := current.IfName
-	iftapmode := current.IfTAPMode
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
-	if ifname != "none" {
-		if err := tun.setup(ifname, iftapmode, addr, tun.mtu); err != nil {
-			return err
-		}
-	}
-	if ifname == "none" || ifname == "dummy" {
+	if current.IfName == "none" || current.IfName == "dummy" {
 		tun.log.Debugln("Not starting TUN/TAP as ifname is none or dummy")
 		return nil
 	}
+	if err := tun.setup(current.IfName, current.IfTAPMode, addr, current.IfMTU); err != nil {
+		return err
+	}
+	if tun.MTU() != current.IfMTU {
+		tun.log.Warnf("Warning: Interface MTU %d automatically adjusted to %d (supported range is 1280-%d)", current.IfMTU, tun.MTU(), MaximumMTU(tun.IsTAP()))
+	}
+	tun.core.SetMaximumSessionMTU(uint16(tun.MTU()))
 	tun.isOpen = true
 	go tun.handler()
 	tun.reader.Act(nil, tun.reader._read) // Start the reader
 	tun.icmpv6.Init(tun)
-	if iftapmode {
+	if tun.IsTAP() {
 		go tun.icmpv6.Solicit(tun.addr)
 	}
 	tun.ckr.init(tun)
@@ -220,6 +232,12 @@ func (tun *TunAdapter) UpdateConfig(config *config.NodeConfig) {
 
 	// Replace the active configuration with the supplied one
 	tun.config.Replace(*config)
+
+	// If the MTU has changed in the TUN/TAP module then this is where we would
+	// tell the router so that updated session pings can be sent. However, we
+	// don't currently update the MTU of the adapter once it has been created so
+	// this doesn't actually happen in the real world yet.
+	//   tun.core.SetMaximumSessionMTU(...)
 
 	// Notify children about the configuration change
 	tun.Act(nil, tun.ckr.configure)

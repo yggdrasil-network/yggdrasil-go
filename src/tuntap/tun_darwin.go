@@ -18,7 +18,8 @@ import (
 // Configures the "utun" adapter with the correct IPv6 address and MTU.
 func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
 	if iftapmode {
-		tun.log.Warnln("TAP mode is not supported on this platform, defaulting to TUN")
+		tun.log.Warnln("Warning: TAP mode is not supported on this platform, defaulting to TUN")
+		iftapmode = false
 	}
 	config := water.Config{DeviceType: water.TUN}
 	iface, err := water.New(config)
@@ -26,7 +27,7 @@ func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = getSupportedMTU(mtu)
+	tun.mtu = getSupportedMTU(mtu, iftapmode)
 	return tun.setupAddress(addr)
 }
 

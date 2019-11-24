@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/signal"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"github.com/kardianos/minwinsvc"
 	"github.com/mitchellh/mapstructure"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
@@ -142,6 +144,8 @@ func main() {
 	ver := flag.Bool("version", false, "prints the version of this build")
 	logging := flag.String("logging", "info,warn,error", "comma-separated list of logging levels to enable")
 	logto := flag.String("logto", "stdout", "file path to log to, \"syslog\" or \"stdout\"")
+	getaddr := flag.Bool("address", false, "returns the IPv6 address as derived from the supplied configuration")
+	getsnet := flag.Bool("subnet", false, "returns the IPv6 subnet as derived from the supplied configuration")
 	flag.Parse()
 
 	var cfg *config.NodeConfig
@@ -187,6 +191,35 @@ func main() {
 	// if we don't.
 	if cfg == nil {
 		return
+	}
+	// Have we been asked for the node address yet? If so, print it and then stop.
+	getNodeID := func() *crypto.NodeID {
+		if pubkey, err := hex.DecodeString(cfg.EncryptionPublicKey); err == nil {
+			var box crypto.BoxPubKey
+			copy(box[:], pubkey[:])
+			return crypto.GetNodeID(&box)
+		}
+		return nil
+	}
+	switch {
+	case *getaddr:
+		if nodeid := getNodeID(); nodeid != nil {
+			addr := *address.AddrForNodeID(nodeid)
+			ip := net.IP(addr[:])
+			fmt.Println(ip.String())
+		}
+		return
+	case *getsnet:
+		if nodeid := getNodeID(); nodeid != nil {
+			snet := *address.SubnetForNodeID(nodeid)
+			ipnet := net.IPNet{
+				IP:   append(snet[:], 0, 0, 0, 0, 0, 0, 0, 0),
+				Mask: net.CIDRMask(len(snet)*8, 128),
+			}
+			fmt.Println(ipnet.String())
+		}
+		return
+	default:
 	}
 	// Create a new logger that logs output to stdout.
 	var logger *log.Logger

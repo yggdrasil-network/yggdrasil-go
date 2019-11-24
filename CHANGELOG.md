@@ -25,6 +25,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.3.12] - 2019-11-24
+### Added
+- New API functions `SetMaximumSessionMTU` and `GetMaximumSessionMTU`
+- New command line parameters `-address` and `-subnet` for getting the address/subnet from the config file, for use with `-useconffile` or `-useconf`
+- A warning is now produced in the Yggdrasil output at startup when the MTU in the config is invalid or has been adjusted for some reason
+
+### Changed
+- On Linux, outgoing `InterfacePeers` connections now use `SO_BINDTODEVICE` to prefer an outgoing interface
+- The `genkeys` utility is now in `cmd` rather than `misc`
+
+### Fixed
+- A data race condition has been fixed when updating session coordinates
+- A crash when shutting down when no multicast interfaces are configured has been fixed
+- A deadlock when calling `AddPeer` multiple times has been fixed
+- A typo in the systemd unit file (for some Linux packages) has been fixed
+- The NodeInfo and admin socket now report `unknown` correctly when no build name/version is available in the environment at build time
+- The MTU calculation now correctly accounts for ethernet headers when running in TAP mode
 
 ## [0.3.11] - 2019-10-25
 ### Added
