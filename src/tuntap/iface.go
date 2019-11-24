@@ -31,7 +31,7 @@ func (w *tunWriter) _write(b []byte) {
 	if n == 0 {
 		return
 	}
-	written, err = w.tun.iface.Write(append(make([]byte, TUN_OFFSET_BYTES), b[:n]...), TUN_OFFSET_BYTES)
+	written, err = w.tun.iface.Write(append(make([]byte, TUN_OFFSET_BYTES), b...), TUN_OFFSET_BYTES)
 	util.PutBytes(b)
 	if err != nil {
 		w.tun.Act(w, func() {
@@ -41,7 +41,8 @@ func (w *tunWriter) _write(b []byte) {
 		})
 	}
 	if written != n+TUN_OFFSET_BYTES {
-		w.tun.log.Errorln("TUN iface write mismatch:", written, "bytes written vs", n, "bytes given")
+		// FIXME some platforms return the wrong number of bytes written, causing error spam
+		//w.tun.log.Errorln("TUN iface write mismatch:", written, "bytes written vs", n+TUN_OFFSET_BYTES, "bytes given")
 	}
 }
 
