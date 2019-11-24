@@ -2,6 +2,8 @@
 
 package tuntap
 
+// This is to catch Windows platforms
+
 import (
 	"bytes"
 	"errors"
@@ -16,7 +18,7 @@ import (
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 )
 
-// This is to catch Windows platforms
+const TUN_OFFSET_BYTES = 4
 
 // Configures the TUN adapter with the correct IPv6 address and MTU.
 func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {

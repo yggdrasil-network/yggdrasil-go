@@ -9,8 +9,6 @@ import (
 	"github.com/Arceliar/phony"
 )
 
-const TUN_OFFSET_BYTES = 4
-
 type tunWriter struct {
 	phony.Inbox
 	tun *TunAdapter

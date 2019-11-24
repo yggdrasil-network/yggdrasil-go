@@ -9,6 +9,8 @@ import (
 	wgtun "golang.zx2c4.com/wireguard/tun"
 )
 
+const TUN_OFFSET_BYTES = 0
+
 // Configures the TUN adapter with the correct IPv6 address and MTU.
 func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {
 	iface, err := wgtun.CreateTUN(ifname, mtu)
