@@ -57,9 +57,9 @@ func (r *tunReader) _read() {
 	n, err := r.tun.iface.Read(recvd, TUN_OFFSET_BYTES)
 	if n <= TUN_OFFSET_BYTES || err != nil {
 		r.tun.log.Errorln("Error reading TUN:", err)
-		err = r.tun.iface.Flush()
-		if err != nil {
-			r.tun.log.Errorln("Unable to flush packets:", err)
+		ferr := r.tun.iface.Flush()
+		if ferr != nil {
+			r.tun.log.Errorln("Unable to flush packets:", ferr)
 		}
 		util.PutBytes(recvd)
 	} else {
