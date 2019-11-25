@@ -64,6 +64,7 @@ type linkInterface struct {
 	closeTimer     *time.Timer // Fires when the link has been idle so long we need to close it
 	inSwitch       bool        // True if the switch is tracking this link
 	stalled        bool        // True if we haven't been receiving any response traffic
+	unstalled      bool        // False if an idle notification to the switch hasn't been sent because we stalled (or are first starting up)
 }
 
 func (l *link) init(c *Core) error {
@@ -324,11 +325,15 @@ func (intf *linkInterface) notifySent(size int, isLinkTraffic bool) {
 
 // Notify the switch that we're ready for more traffic, assuming we're not in a stalled state
 func (intf *linkInterface) _notifySwitch() {
-	if !intf.inSwitch && !intf.stalled {
-		intf.inSwitch = true
-		intf.link.core.switchTable.Act(intf, func() {
-			intf.link.core.switchTable._idleIn(intf.peer.port)
-		})
+	if !intf.inSwitch {
+		if intf.stalled {
+			intf.unstalled = false
+		} else {
+			intf.inSwitch = true
+			intf.link.core.switchTable.Act(intf, func() {
+				intf.link.core.switchTable._idleIn(intf.peer.port)
+			})
+		}
 	}
 }
 
@@ -362,7 +367,9 @@ func (intf *linkInterface) notifyRead(size int) {
 			intf.stallTimer = nil
 		}
 		intf.stalled = false
-		intf._notifySwitch()
+		if !intf.unstalled {
+			intf._notifySwitch()
+		}
 		if size > 0 && intf.stallTimer == nil {
 			intf.stallTimer = time.AfterFunc(keepAliveTime, intf.notifyDoKeepAlive)
 		}
