@@ -369,6 +369,7 @@ func (intf *linkInterface) notifyRead(size int) {
 		intf.stalled = false
 		if !intf.unstalled {
 			intf._notifySwitch()
+			intf.unstalled = true
 		}
 		if size > 0 && intf.stallTimer == nil {
 			intf.stallTimer = time.AfterFunc(keepAliveTime, intf.notifyDoKeepAlive)
