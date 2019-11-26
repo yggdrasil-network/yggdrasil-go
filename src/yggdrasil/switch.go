@@ -808,12 +808,12 @@ func (t *switchTable) _handleIdle(port switchPort) bool {
 			packet := buf.packets[0]
 			coords := switch_getPacketCoords(packet.bytes)
 			priority := float64(now.Sub(packet.time)) / float64(buf.size)
-			if priority > bestPriority && t.portIsCloser(coords, port) {
+			if priority >= bestPriority && t.portIsCloser(coords, port) {
 				best = streamID
 				bestPriority = priority
 			}
 		}
-		if bestPriority != 0 {
+		if best != "" {
 			buf := t.queues.bufs[best]
 			var packet switch_packetInfo
 			// TODO decide if this should be LIFO or FIFO
