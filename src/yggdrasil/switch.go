@@ -718,14 +718,8 @@ func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]struct{}, sen
 	if best != nil {
 		if _, isIdle := idle[best.elem.port]; isIdle {
 			delete(idle, best.elem.port)
-
-			// FIXME: This was causing the out-of-order packets on Windows but forcing
-			// all packets to buffer might have a mild performance penalty
-			//ports[best.elem.port].sendPacketsFrom(t, [][]byte{packet})
-			//return true
-			t.Act(nil, func() {
-				t._idleIn(best.elem.port)
-			})
+			ports[best.elem.port].sendPacketsFrom(t, [][]byte{packet})
+			return true
 		}
 	}
 	// Didn't find anyone idle to send it to
