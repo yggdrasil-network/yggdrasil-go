@@ -29,13 +29,11 @@ then
 fi
 
 # Check the prerequisite files are in place
-(test -f yggdrasil.exe && test -f yggdrasilctl.exe) || (
-  [ "${PKGARCH}" == "x64" ] && GOARCH=amd64 CGO_ENABLED=0 ./build || \
-  [ "${PKGARCH}" == "x86" ] && GOARCH=386 CGO_ENABLED=0 ./build || \
-  (
-    echo "failed to build Yggdrasil"
-    exit 1
-  )
+[ "${PKGARCH}" == "x64" ] && GOARCH=amd64 CGO_ENABLED=0 ./build || \
+[ "${PKGARCH}" == "x86" ] && GOARCH=386 CGO_ENABLED=0 ./build || \
+(
+  echo "failed to build Yggdrasil"
+  exit 1
 )
 
 # Create the postinstall script
