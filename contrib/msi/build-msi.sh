@@ -8,6 +8,13 @@ then
   exit 1
 fi
 
+# Get the rest of the repository history
+if [ "${APPVEYOR_REPO_BRANCH}" != "" ];
+then
+  git fetch --all
+  git checkout ${APPVEYOR_REPO_BRANCH}
+fi
+
 # Install prerequisites
 pacman -S --needed --noconfirm unzip git curl
 # export PATH=$PATH:/c/go/bin/
@@ -50,7 +57,6 @@ EOF
 PKGNAME=$(sh contrib/semver/name.sh)
 PKGVERSION=$(sh contrib/semver/version.sh --bare)
 PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
-PKGARCH=${PKGARCH-x64}
 [ "${PKGARCH}" == "x64" ] && \
   PKGGUID="77757838-1a23-40a5-a720-c3b43e0260cc" PKGINSTFOLDER="ProgramFiles64Folder" || \
   PKGGUID="54a3294e-a441-4322-aefb-3bb40dd022bb" PKGINSTFOLDER="ProgramFilesFolder"
