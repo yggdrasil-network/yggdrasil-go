@@ -39,8 +39,7 @@ fi
 (
   [ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 ./build
   [ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=0 ./build
-) || \
-(
+) || (
   echo "failed to build Yggdrasil"
   exit 1
 )
