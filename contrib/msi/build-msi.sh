@@ -129,7 +129,7 @@ cat > wix.xml << EOF
               Name="yggdrasil"
               Start="auto"
               Type="ownProcess"
-              Arguments='-useconffile "[YggdrasilInstallFolder]yggdrasil.conf"'
+              Arguments='-useconffile "[YggdrasilInstallFolder]yggdrasil.conf" -logto "[YggdrasilInstallFolder]yggdrasil.log"'
               Vital="yes" />
 
             <ServiceControl
@@ -160,14 +160,18 @@ cat > wix.xml << EOF
         </Directory>
       </Directory>
 
-      <Merge Id="Wintun" Language="0" DiskId="1" SourceFile="${PKGMSMNAME}" />
+      <Merge
+        Id="Wintun"
+        Language="0"
+        DiskId="1"
+        SourceFile="${PKGMSMNAME}" />
     </Directory>
 
     <Feature Id="Complete" Level="1">
+      <MergeRef Id="Wintun" />
       <ComponentRef Id="MainExecutable" />
       <ComponentRef Id="CtrlExecutable" />
       <ComponentRef Id="ConfigScript" />
-      <MergeRef Id="Wintun" />
     </Feature>
 
     <CustomAction
