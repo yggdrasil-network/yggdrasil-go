@@ -128,7 +128,7 @@ cat > wix.xml << EOF
               Name="yggdrasil"
               Start="auto"
               Type="ownProcess"
-              Arguments="-autoconf"
+              Arguments='-useconffile "[YggdrasilInstallFolder]yggdrasil.conf"'
               Vital="yes" />
 
             <ServiceControl
