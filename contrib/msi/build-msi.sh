@@ -147,7 +147,7 @@ cat > wix.xml << EOF
           <Component Id="ConfigScript" Guid="64a3733b-c98a-4732-85f3-20cd7da1a785">
             <File
               Id="Configbat"
-              Name="config.bat"
+              Name="updateconfig.bat"
               DiskId="1"
               Source="config.bat"
               KeyPath="yes"/>
@@ -168,14 +168,16 @@ cat > wix.xml << EOF
     <CustomAction
       Id="UpdateGenerateConfig"
       Directory="YggdrasilInstallFolder"
-      ExeCommand="config.bat"
-      Execute="commit"
-      Return="asyncWait"/>
+      ExeCommand="cmd.exe /c updateconfig.bat"
+      Execute="immediate"
+      Return="asyncWait" />
 
     <InstallExecuteSequence>
       <Custom
         Action="UpdateGenerateConfig"
-        Before="MsiConfigureServices" />
+        After="InstallFiles">
+          NOT Installed AND NOT REMOVE
+      </Custom>
     </InstallExecuteSequence>
 
   </Product>
