@@ -175,7 +175,9 @@ cat > wix.xml << EOF
     <InstallExecuteSequence>
       <Custom
         Action="UpdateGenerateConfig"
-        After="InstallFiles" />
+        After="InstallFiles">
+          NOT Installed AND NOT REMOVE
+      </Custom>
     </InstallExecuteSequence>
 
   </Product>
