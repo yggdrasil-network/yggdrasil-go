@@ -173,7 +173,7 @@ cat > wix.xml << EOF
       Id="UpdateGenerateConfig"
       Directory="YggdrasilInstallFolder"
       ExeCommand="cmd.exe /c updateconfig.bat"
-      Execute="immediate"
+      Execute="commit"
       Return="asyncWait" />
 
     <InstallExecuteSequence>
