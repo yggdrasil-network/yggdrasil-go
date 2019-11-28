@@ -75,7 +75,7 @@ cat > wix.xml << EOF
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Product
     Name="Yggdrasil (${PKGNAME} branch)"
-    Id="${PKGGUID}"
+    Id="*"
     UpgradeCode="${PKGGUID}"
     Language="1033"
     Codepage="1252"
@@ -95,8 +95,7 @@ cat > wix.xml << EOF
       SummaryCodepage="1252" />
 
     <MajorUpgrade
-      AllowSameVersionUpgrades="yes"
-      DowngradeErrorMessage="A newer version of Yggdrasil is already installed. Please uninstall it first." />
+      AllowDowngrades="yes" />
 
     <Media
       Id="1"
