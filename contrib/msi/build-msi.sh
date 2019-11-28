@@ -9,7 +9,11 @@ then
 fi
 
 # Get the rest of the repository history
-if [ "${APPVEYOR_REPO_BRANCH}" != "" ];
+if [ "${APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH}" != "" ];
+then
+  git fetch --all
+  git checkout ${APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH}
+elif [ "${APPVEYOR_REPO_BRANCH}" != "" ];
 then
   git fetch --all
   git checkout ${APPVEYOR_REPO_BRANCH}
