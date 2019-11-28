@@ -179,12 +179,13 @@ cat > wix.xml << EOF
       Directory="YggdrasilInstallFolder"
       ExeCommand="cmd.exe /c updateconfig.bat"
       Execute="deferred"
+      Impersonate="no"
       Return="check" />
 
     <InstallExecuteSequence>
       <Custom
         Action="UpdateGenerateConfig"
-        After="InstallFiles">
+        Before="InstallServices">
           NOT Installed AND NOT REMOVE
       </Custom>
     </InstallExecuteSequence>
