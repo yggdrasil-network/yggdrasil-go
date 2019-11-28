@@ -1,4 +1,4 @@
-// +build !linux,!darwin,!windows,!openbsd,!freebsd,!netbsd
+// +build !linux,!darwin,!windows,!openbsd,!freebsd
 
 package defaults
 
@@ -18,9 +18,8 @@ func GetDefaults() platformDefaultParameters {
 		},
 
 		// TUN/TAP
-		MaximumIfMTU:     65535,
-		DefaultIfMTU:     65535,
-		DefaultIfName:    "none",
-		DefaultIfTAPMode: false,
+		MaximumIfMTU:  65535,
+		DefaultIfMTU:  65535,
+		DefaultIfName: "none",
 	}
 }

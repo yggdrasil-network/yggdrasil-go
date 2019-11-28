@@ -1,33 +1,32 @@
-// +build !linux,!darwin,!windows,!openbsd,!freebsd,!netbsd,!mobile
+// +build !linux,!darwin,!windows,!openbsd,!freebsd,!mobile
 
 package tuntap
-
-import water "github.com/yggdrasil-network/water"
 
 // This is to catch unsupported platforms
 // If your platform supports tun devices, you could try configuring it manually
 
-// Creates the TUN/TAP adapter, if supported by the Water library. Note that
-// no guarantees are made at this point on an unsupported platform.
-func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
-	var config water.Config
-	if iftapmode {
-		config = water.Config{DeviceType: water.TAP}
-	} else {
-		config = water.Config{DeviceType: water.TUN}
-	}
-	iface, err := water.New(config)
+import (
+	wgtun "golang.zx2c4.com/wireguard/tun"
+)
+
+// Configures the TUN adapter with the correct IPv6 address and MTU.
+func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {
+	iface, err := wgtun.CreateTUN(ifname, mtu)
 	if err != nil {
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = getSupportedMTU(mtu, iftapmode)
+	if mtu, err := iface.MTU(); err == nil {
+		tun.mtu = getSupportedMTU(mtu)
+	} else {
+		tun.mtu = 0
+	}
 	return tun.setupAddress(addr)
 }
 
 // We don't know how to set the IPv6 address on an unknown platform, therefore
 // write about it to stdout and don't try to do anything further.
 func (tun *TunAdapter) setupAddress(addr string) error {
-	tun.log.Warnln("Warning: Platform not supported, you must set the address of", tun.iface.Name(), "to", addr)
+	tun.log.Warnln("Warning: Platform not supported, you must set the address of", tun.Name(), "to", addr)
 	return nil
 }
