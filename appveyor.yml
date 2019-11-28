@@ -13,7 +13,7 @@ install:
 
 build_script:
 - cmd: >-
-    cd \projects\yggdrasil-go
+    cd %APPVEYOR_BUILD_FOLDER%
 - c:\msys64\usr\bin\bash -lc "./contrib/msi/build-msi.sh x64"
 - c:\msys64\usr\bin\bash -lc "./contrib/msi/build-msi.sh x86"
 
