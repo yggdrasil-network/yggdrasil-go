@@ -36,13 +36,8 @@ then
 fi
 
 # Check the prerequisite files are in place
-(
-  [ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 ./build
-  [ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=0 ./build
-) || (
-  echo "failed to build Yggdrasil"
-  exit 1
-)
+[ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 ./build
+[ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=0 ./build
 
 # Create the postinstall script
 cat > config.bat << EOF
