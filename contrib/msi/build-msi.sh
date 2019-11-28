@@ -45,6 +45,7 @@ fi
 
 # Create the postinstall script
 cat > config.bat << EOF
+
 if exist yggdrasil.conf (
   move yggdrasil.conf yggdrasil.conf.backup
   yggdrasil.exe -useconffile yggdrasil.conf.backup -normaliseconf > yggdrasil.conf
@@ -173,8 +174,8 @@ cat > wix.xml << EOF
       Id="UpdateGenerateConfig"
       Directory="YggdrasilInstallFolder"
       ExeCommand="cmd.exe /c updateconfig.bat"
-      Execute="commit"
-      Return="asyncWait" />
+      Execute="deferred"
+      Return="check" />
 
     <InstallExecuteSequence>
       <Custom
