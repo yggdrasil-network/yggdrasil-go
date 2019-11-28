@@ -53,10 +53,7 @@ fi
 
 # Create the postinstall script
 cat > config.bat << EOF
-if exist yggdrasil.conf (
-  move yggdrasil.conf yggdrasil.conf.backup
-  yggdrasil.exe -useconffile yggdrasil.conf.backup -normaliseconf > yggdrasil.conf
-) else (
+if not exist yggdrasil.conf (
   yggdrasil.exe -genconf > yggdrasil.conf
 )
 EOF
