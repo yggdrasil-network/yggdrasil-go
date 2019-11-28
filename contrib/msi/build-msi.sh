@@ -95,7 +95,8 @@ cat > wix.xml << EOF
       SummaryCodepage="1252" />
 
     <MajorUpgrade
-      AllowSameVersionUpgrades="yes" />
+      AllowSameVersionUpgrades="yes"
+      DowngradeErrorMessage="A newer version of Yggdrasil is already installed. Please uninstall it first." />
 
     <Media
       Id="1"
