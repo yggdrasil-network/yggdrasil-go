@@ -8,9 +8,6 @@ environment:
   MSYS2_PATH_TYPE: inherit
   CHERE_INVOKING: enabled_from_arguments
 
-install:
-- c:\msys64\usr\bin\bash -lc "pacman --noconfirm -S curl unzip"
-
 build_script:
 - cmd: >-
     cd %APPVEYOR_BUILD_FOLDER%
