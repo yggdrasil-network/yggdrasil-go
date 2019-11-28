@@ -98,14 +98,9 @@ cat > wix.xml << EOF
       Platform="${PKGARCH}"
       SummaryCodepage="1252" />
 
-    <Upgrade Id="${PKGGUID}">
-      <UpgradeVersion
-        Minimum="0.0.0.0"
-        Maximum="99.0.0.0"
-        Property="PREVIOUSVERSIONSINSTALLED"
-        IncludeMinimum="yes"
-        IncludeMaximum="no" />
-    </Upgrade>
+    <MajorUpgrade
+      AllowDowngrades="yes"
+      AllowSameVersionUpgrades="yes" />
 
     <Media
       Id="1"
