@@ -99,8 +99,7 @@ cat > wix.xml << EOF
       SummaryCodepage="1252" />
 
     <MajorUpgrade
-      AllowDowngrades="yes"
-      AllowSameVersionUpgrades="yes" />
+      AllowDowngrades="yes" />
 
     <Media
       Id="1"
