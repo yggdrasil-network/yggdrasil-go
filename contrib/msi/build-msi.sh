@@ -1,5 +1,12 @@
 #!/bin/sh
 
+# This script generates an MSI file for Yggdrasil for a given architecture. It
+# needs to run on Windows within MSYS2 and Go 1.13 or later must be installed on
+# the system and within the PATH. This is ran currently by Appveyor (see
+# appveyor.yml in the repository root) for both x86 and x64.
+#
+# Author: Neil Alexander <neilalexander@users.noreply.github.com>
+
 # Get arch from command line if given
 PKGARCH=$1
 if [ "${PKGARCH}" == "" ];
@@ -8,7 +15,9 @@ then
   exit 1
 fi
 
-# Get the rest of the repository history
+# Get the rest of the repository history. This is needed within Appveyor because
+# otherwise we don't get all of the branch histories and therefore the semver
+# scripts don't work properly.
 if [ "${APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH}" != "" ];
 then
   git fetch --all
@@ -19,9 +28,8 @@ then
   git checkout ${APPVEYOR_REPO_BRANCH}
 fi
 
-# Install prerequisites
+# Install prerequisites within MSYS2
 pacman -S --needed --noconfirm unzip git curl
-# export PATH=$PATH:/c/go/bin/
 
 # Download the wix tools!
 if [ ! -d wixbin ];
@@ -39,13 +47,12 @@ then
   )
 fi
 
-# Check the prerequisite files are in place
+# Build Yggdrasil!
 [ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 ./build
 [ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=0 ./build
 
 # Create the postinstall script
 cat > config.bat << EOF
-
 if exist yggdrasil.conf (
   move yggdrasil.conf yggdrasil.conf.backup
   yggdrasil.exe -useconffile yggdrasil.conf.backup -normaliseconf > yggdrasil.conf
