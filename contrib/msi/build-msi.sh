@@ -102,10 +102,6 @@ cat > wix.xml << EOF
       Cabinet="Media.cab"
       EmbedCab="yes" />
 
-    <Binary
-      Id='config.bat'
-      SourceFile='config.bat' />
-
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="YggdrasilInstallFolder" Name="Yggdrasil">
@@ -147,6 +143,15 @@ cat > wix.xml << EOF
               Source="yggdrasilctl.exe"
               KeyPath="yes"/>
           </Component>
+
+          <Component Id="ConfigScript" Guid="64a3733b-c98a-4732-85f3-20cd7da1a785">
+            <File
+              Id="Configbat"
+              Name="updateconfig.bat"
+              DiskId="1"
+              Source="config.bat"
+              KeyPath="yes"/>
+          </Component>
         </Directory>
       </Directory>
 
@@ -156,20 +161,21 @@ cat > wix.xml << EOF
     <Feature Id="Complete" Level="1">
       <ComponentRef Id="MainExecutable" />
       <ComponentRef Id="CtrlExecutable" />
+      <ComponentRef Id="ConfigScript" />
       <MergeRef Id="Wintun" />
     </Feature>
 
     <CustomAction
       Id="UpdateGenerateConfig"
       Directory="YggdrasilInstallFolder"
-      BinaryKey="config.bat"
+      ExeCommand="cmd.exe /c updateconfig.bat"
       Execute="immediate"
-      Return="asyncWait"/>
+      Return="asyncWait" />
 
     <InstallExecuteSequence>
       <Custom
         Action="UpdateGenerateConfig"
-        Before="InstallFiles" />
+        After="InstallFiles" />
     </InstallExecuteSequence>
 
   </Product>
