@@ -52,9 +52,14 @@ fi
 [ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=0 ./build
 
 # Create the postinstall script
-cat > config.bat << EOF
-if not exist yggdrasil.conf (
-  yggdrasil.exe -genconf > yggdrasil.conf
+cat > updateconfig.bat << EOF
+if not exist %ALLUSERSPROFILE%\\Yggdrasil (
+  mkdir %ALLUSERSPROFILE%\\Yggdrasil
+)
+if not exist %ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf (
+  if exist yggdrasil.exe (
+    yggdrasil.exe -genconf > %ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf
+  )
 )
 EOF
 
@@ -95,9 +100,10 @@ cat > wix.xml << EOF
       Id="*"
       Keywords="Installer"
       Description="Yggdrasil Network Installer"
-      Comments="This is the Yggdrasil Network binary."
+      Comments="This is the Yggdrasil Network router for Windows."
       Manufacturer="github.com/yggdrasil-network"
       InstallerVersion="200"
+      InstallScope="perMachine"
       Languages="1033"
       Compressed="yes"
       Platform="${PKGARCH}"
@@ -133,7 +139,7 @@ cat > wix.xml << EOF
               Name="yggdrasil"
               Start="auto"
               Type="ownProcess"
-              Arguments='-useconffile "[YggdrasilInstallFolder]yggdrasil.conf" -logto "[YggdrasilInstallFolder]yggdrasil.log"'
+              Arguments='-useconffile "%ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf" -logto "%ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.log"'
               Vital="yes" />
 
             <ServiceControl
@@ -158,7 +164,7 @@ cat > wix.xml << EOF
               Id="Configbat"
               Name="updateconfig.bat"
               DiskId="1"
-              Source="config.bat"
+              Source="updateconfig.bat"
               KeyPath="yes"/>
           </Component>
         </Directory>
@@ -183,13 +189,13 @@ cat > wix.xml << EOF
       Directory="YggdrasilInstallFolder"
       ExeCommand="cmd.exe /c updateconfig.bat"
       Execute="deferred"
-      Impersonate="no"
-      Return="check" />
+      Return="check"
+      Impersonate="yes" />
 
     <InstallExecuteSequence>
       <Custom
         Action="UpdateGenerateConfig"
-        Before="InstallServices">
+        Before="StartServices">
           NOT Installed AND NOT REMOVE
       </Custom>
     </InstallExecuteSequence>
@@ -202,4 +208,4 @@ EOF
 CANDLEFLAGS="-nologo"
 LIGHTFLAGS="-nologo -spdb -sice:ICE71 -sice:ICE61"
 wixbin/candle $CANDLEFLAGS -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj -arch ${PKGARCH} wix.xml && \
-wixbin/light $LIGHTFLAGS -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.msi ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj
+wixbin/light $LIGHTFLAGS -ext WixUtilExtension.dll -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.msi ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj
