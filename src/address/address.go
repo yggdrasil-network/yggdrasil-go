@@ -15,9 +15,9 @@ type Address [16]byte
 type Subnet [8]byte
 
 // GetPrefix returns the address prefix used by yggdrasil.
-// The current implementation requires this to be a muliple of 8 bits + 7 bits.
+// The current implementation requires this to be a multiple of 8 bits + 7 bits.
 // The 8th bit of the last byte is used to signal nodes (0) or /64 prefixes (1).
-// Nodes that configure this differently will be unable to communicate with eachother using IP packets, though routing and the DHT machinery *should* still work.
+// Nodes that configure this differently will be unable to communicate with each other using IP packets, though routing and the DHT machinery *should* still work.
 func GetPrefix() [1]byte {
 	return [...]byte{0x02}
 }

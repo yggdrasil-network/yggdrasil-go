@@ -17,7 +17,7 @@ type Dialer struct {
 	core *Core
 }
 
-// Dial opens a session to the given node. The first paramter should be "nodeid"
+// Dial opens a session to the given node. The first parameter should be "nodeid"
 // and the second parameter should contain a hexadecimal representation of the
 // target node ID. It uses DialContext internally.
 func (d *Dialer) Dial(network, address string) (net.Conn, error) {
