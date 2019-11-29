@@ -215,7 +215,7 @@ func GetSharedKey(myPrivKey *BoxPrivKey,
 	return (*BoxSharedKey)(&shared)
 }
 
-// BoxOpen returns a message and true if it successful opens a crypto box using the provided shared key and nonce.
+// BoxOpen returns a message and true if it successfully opens a crypto box using the provided shared key and nonce.
 func BoxOpen(shared *BoxSharedKey,
 	boxed []byte,
 	nonce *BoxNonce) ([]byte, bool) {
