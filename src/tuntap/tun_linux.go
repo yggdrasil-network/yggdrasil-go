@@ -6,31 +6,24 @@ package tuntap
 
 import (
 	"github.com/vishvananda/netlink"
-
-	water "github.com/yggdrasil-network/water"
+	wgtun "golang.zx2c4.com/wireguard/tun"
 )
 
-// Configures the TAP adapter with the correct IPv6 address and MTU.
-func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
-	var config water.Config
-	if iftapmode {
-		config = water.Config{DeviceType: water.TAP}
-	} else {
-		config = water.Config{DeviceType: water.TUN}
+// Configures the TUN adapter with the correct IPv6 address and MTU.
+func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {
+	if ifname == "auto" {
+		ifname = "\000"
 	}
-	if ifname != "" && ifname != "auto" {
-		config.Name = ifname
-	}
-	iface, err := water.New(config)
+	iface, err := wgtun.CreateTUN(ifname, mtu)
 	if err != nil {
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = getSupportedMTU(mtu, iftapmode)
-	// Friendly output
-	tun.log.Infof("Interface name: %s", tun.iface.Name())
-	tun.log.Infof("Interface IPv6: %s", addr)
-	tun.log.Infof("Interface MTU: %d", tun.mtu)
+	if mtu, err := iface.MTU(); err == nil {
+		tun.mtu = getSupportedMTU(mtu)
+	} else {
+		tun.mtu = 0
+	}
 	return tun.setupAddress(addr)
 }
 
@@ -43,7 +36,7 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	if err != nil {
 		return err
 	}
-	nlintf, err := netlink.LinkByName(tun.iface.Name())
+	nlintf, err := netlink.LinkByName(tun.Name())
 	if err != nil {
 		return err
 	}
@@ -56,5 +49,9 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	if err := netlink.LinkSetUp(nlintf); err != nil {
 		return err
 	}
+	// Friendly output
+	tun.log.Infof("Interface name: %s", tun.Name())
+	tun.log.Infof("Interface IPv6: %s", addr)
+	tun.log.Infof("Interface MTU: %d", tun.mtu)
 	return nil
 }

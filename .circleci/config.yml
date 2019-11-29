@@ -175,13 +175,6 @@ jobs:
               GOOS=freebsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-freebsd-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-freebsd-i386;
 
       - run:
-          name: Build for NetBSD
-          command: |
-              rm -f {yggdrasil,yggdrasilctl}
-              GOOS=netbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-netbsd-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-netbsd-amd64;
-              GOOS=netbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-netbsd-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-netbsd-i386;
-
-      - run:
           name: Build for Windows
           command: |
               rm -f {yggdrasil,yggdrasilctl}

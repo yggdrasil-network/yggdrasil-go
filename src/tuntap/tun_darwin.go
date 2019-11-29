@@ -12,22 +12,24 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	water "github.com/yggdrasil-network/water"
+	wgtun "golang.zx2c4.com/wireguard/tun"
 )
 
 // Configures the "utun" adapter with the correct IPv6 address and MTU.
-func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
-	if iftapmode {
-		tun.log.Warnln("Warning: TAP mode is not supported on this platform, defaulting to TUN")
-		iftapmode = false
+func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {
+	if ifname == "auto" {
+		ifname = "utun"
 	}
-	config := water.Config{DeviceType: water.TUN}
-	iface, err := water.New(config)
+	iface, err := wgtun.CreateTUN(ifname, mtu)
 	if err != nil {
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = getSupportedMTU(mtu, iftapmode)
+	if mtu, err := iface.MTU(); err == nil {
+		tun.mtu = getSupportedMTU(mtu)
+	} else {
+		tun.mtu = 0
+	}
 	return tun.setupAddress(addr)
 }
 
@@ -80,7 +82,7 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	}
 
 	var ar in6_aliasreq
-	copy(ar.ifra_name[:], tun.iface.Name())
+	copy(ar.ifra_name[:], tun.Name())
 
 	ar.ifra_prefixmask.sin6_len = uint8(unsafe.Sizeof(ar.ifra_prefixmask))
 	b := make([]byte, 16)
@@ -104,7 +106,7 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	ar.ifra_lifetime.ia6t_pltime = darwin_ND6_INFINITE_LIFETIME
 
 	var ir ifreq
-	copy(ir.ifr_name[:], tun.iface.Name())
+	copy(ir.ifr_name[:], tun.Name())
 	ir.ifru_mtu = uint32(tun.mtu)
 
 	tun.log.Infof("Interface name: %s", ar.ifra_name)
