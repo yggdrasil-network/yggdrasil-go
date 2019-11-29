@@ -63,7 +63,7 @@ func (s *tunConn) _read(bs []byte) (err error) {
 	default:
 		isCGA = false
 	}
-	// Check destiantion addresses
+	// Check destination addresses
 	switch {
 	case ipv6 && bs[24] == 0x02 && bytes.Equal(s.tun.addr[:16], bs[24:40]): // destination
 	case ipv6 && bs[24] == 0x03 && bytes.Equal(s.tun.subnet[:8], bs[24:32]): // destination

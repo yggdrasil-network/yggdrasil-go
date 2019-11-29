@@ -793,7 +793,7 @@ def timelineDimesTest():
     store = makeStoreDimesEdges(path, bestRoot)
     rootID = "R" + bestRoot[1:]
     assert rootID in store
-    # Don't forget to set random seed before setitng times
+    # Don't forget to set random seed before setting times
     # To make results reproducible
     nodeIDs = sorted(store.keys())
     random.seed(12345)

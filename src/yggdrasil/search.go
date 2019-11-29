@@ -144,7 +144,7 @@ func (sinfo *searchInfo) doSearchStep() {
 	sinfo.time = time.Now()
 }
 
-// If we've recenty sent a ping for this search, do nothing.
+// If we've recently sent a ping for this search, do nothing.
 // Otherwise, doSearchStep and schedule another continueSearch to happen after search_RETRY_TIME.
 func (sinfo *searchInfo) continueSearch() {
 	sinfo.doSearchStep()

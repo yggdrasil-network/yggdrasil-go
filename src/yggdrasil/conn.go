@@ -164,7 +164,7 @@ func (c *Conn) _getDeadlineCancellation(t *time.Time) (util.Cancellation, bool) 
 		c := util.CancellationWithDeadline(c.session.cancel, *t)
 		return c, true
 	} else {
-		// No deadline was set, so just return the existinc cancellation and a dummy value
+		// No deadline was set, so just return the existing cancellation and a dummy value
 		return c.session.cancel, false
 	}
 }
@@ -279,7 +279,7 @@ func (c *Conn) _write(msg FlowKeyMessage) error {
 }
 
 // WriteFrom should be called by a phony.Actor, and tells the Conn to send a
-// message. This is used internaly by Write. If the callback is called with a
+// message. This is used internally by Write. If the callback is called with a
 // non-nil value, then it is safe to reuse the argument FlowKeyMessage.
 func (c *Conn) WriteFrom(from phony.Actor, msg FlowKeyMessage, callback func(error)) {
 	c.Act(from, func() {
