@@ -44,7 +44,7 @@ func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 		tun.log.Traceln(string(output))
 		return err
 	}
-	time.Sleep(time.Second) // FIXME artifical delay to give netsh time to take effect
+	time.Sleep(time.Second) // FIXME artificial delay to give netsh time to take effect
 	// Bring the interface back up
 	cmd = exec.Command("netsh", "interface", "set", "interface", iface.Name(), "admin=ENABLED")
 	tun.log.Debugln("netsh command:", strings.Join(cmd.Args, " "))
@@ -54,7 +54,7 @@ func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int
 		tun.log.Traceln(string(output))
 		return err
 	}
-	time.Sleep(time.Second) // FIXME artifical delay to give netsh time to take effect
+	time.Sleep(time.Second) // FIXME artificial delay to give netsh time to take effect
 	// Get a new iface
 	iface, err = water.New(config)
 	if err != nil {
@@ -90,7 +90,7 @@ func (tun *TunAdapter) setupMTU(mtu int) error {
 		tun.log.Traceln(string(output))
 		return err
 	}
-	time.Sleep(time.Second) // FIXME artifical delay to give netsh time to take effect
+	time.Sleep(time.Second) // FIXME artificial delay to give netsh time to take effect
 	return nil
 }
 
@@ -111,6 +111,6 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 		tun.log.Traceln(string(output))
 		return err
 	}
-	time.Sleep(time.Second) // FIXME artifical delay to give netsh time to take effect
+	time.Sleep(time.Second) // FIXME artificial delay to give netsh time to take effect
 	return nil
 }

@@ -122,7 +122,7 @@ func (l *link) listen(uri string) error {
 }
 
 func (l *link) create(msgIO linkInterfaceMsgIO, name, linkType, local, remote string, incoming, force bool) (*linkInterface, error) {
-	// Technically anything unique would work for names, but lets pick something human readable, just for debugging
+	// Technically anything unique would work for names, but let's pick something human readable, just for debugging
 	intf := linkInterface{
 		name:  name,
 		link:  l,

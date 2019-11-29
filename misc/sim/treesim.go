@@ -424,7 +424,7 @@ func main() {
 	//*/
 	startNetwork(kstore)
 	//time.Sleep(10*time.Second)
-	// Note that testPaths only works if pressure is turend off
+	// Note that testPaths only works if pressure is turned off
 	//  Otherwise congestion can lead to routing loops?
 	for finished := false; !finished; {
 		finished = testPaths(kstore)

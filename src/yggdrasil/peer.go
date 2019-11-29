@@ -19,7 +19,7 @@ import (
 // The peers struct represents peers with an active connection.
 // Incoming packets are passed to the corresponding peer, which handles them somehow.
 // In most cases, this involves passing the packet to the handler for outgoing traffic to another peer.
-// In other cases, it's link protocol traffic used to build the spanning tree, in which case this checks signatures and passes the message along to the switch.
+// In other cases, its link protocol traffic is used to build the spanning tree, in which case this checks signatures and passes the message along to the switch.
 type peers struct {
 	core  *Core
 	mutex sync.Mutex   // Synchronize writes to atomic
@@ -90,7 +90,7 @@ func (ps *peers) putPorts(ports map[switchPort]*peer) {
 	ps.ports.Store(ports)
 }
 
-// Information known about a peer, including thier box/sig keys, precomputed shared keys (static and ephemeral) and a handler for their outgoing traffic
+// Information known about a peer, including their box/sig keys, precomputed shared keys (static and ephemeral) and a handler for their outgoing traffic
 type peer struct {
 	phony.Inbox
 	core       *Core
@@ -356,7 +356,7 @@ func (p *peer) _handleSwitchMsg(packet []byte) {
 		p.dinfo = nil
 		return
 	}
-	// Pass a mesage to the dht informing it that this peer (still) exists
+	// Pass a message to the dht informing it that this peer (still) exists
 	loc.coords = loc.coords[:len(loc.coords)-1]
 	p.dinfo = &dhtInfo{
 		key:    p.box,
