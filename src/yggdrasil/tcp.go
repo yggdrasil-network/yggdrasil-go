@@ -344,7 +344,7 @@ func (t *tcp) call(saddr string, options interface{}, sintf string, upgrade *Tcp
 			}
 			conn, err = dialer.Dial("tcp", dst.String())
 			if err != nil {
-				t.link.core.log.Debugf("Failed to dial %s: %s", callproto, err)
+				t.link.core.log.Infof("Failed to dial %s: %s", callproto, err)
 				return
 			}
 			t.waitgroup.Add(1)
