@@ -112,7 +112,7 @@ func (m *Multicast) Stop() error {
 		err = m._stop()
 	})
 	m.log.Debugln("Stopped multicast module")
-	return nil
+	return err
 }
 
 func (m *Multicast) _stop() error {
