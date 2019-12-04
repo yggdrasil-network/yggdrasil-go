@@ -136,7 +136,7 @@ cat > wix.xml << EOF
               DisplayName="Yggdrasil Service"
               ErrorControl="normal"
               LoadOrderGroup="NetworkProvider"
-              Name="yggdrasil"
+              Name="Yggdrasil"
               Start="auto"
               Type="ownProcess"
               Arguments='-useconffile "%ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf" -logto "%ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.log"'
