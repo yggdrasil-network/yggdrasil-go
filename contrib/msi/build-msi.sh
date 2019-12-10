@@ -85,7 +85,7 @@ fi
 
 if [ $PKGNAME != "master" ]; then
   PKGDISPLAYNAME="Yggdrasil Network (${PKGNAME} branch)"
-elif
+else
   PKGDISPLAYNAME="Yggdrasil Network"
 fi
 
