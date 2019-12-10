@@ -100,7 +100,7 @@ cat > wix.xml << EOF
       Id="*"
       Keywords="Installer"
       Description="Yggdrasil Network Installer"
-      Comments="This is the Yggdrasil Network router for Windows."
+      Comments="Yggdrasil Network standalone router for Windows."
       Manufacturer="github.com/yggdrasil-network"
       InstallerVersion="200"
       InstallScope="perMachine"
@@ -115,7 +115,8 @@ cat > wix.xml << EOF
     <Media
       Id="1"
       Cabinet="Media.cab"
-      EmbedCab="yes" />
+      EmbedCab="yes"
+      CompressionLevel="high" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
