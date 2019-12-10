@@ -83,12 +83,18 @@ else
   exit 1
 fi
 
+if [ $PKGNAME != "master" ]; then
+  PKGDISPLAYNAME="Yggdrasil Network (${PKGNAME} branch)"
+elif
+  PKGDISPLAYNAME="Yggdrasil Network"
+fi
+
 # Generate the wix.xml file
 cat > wix.xml << EOF
 <?xml version="1.0" encoding="windows-1252"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Product
-    Name="Yggdrasil (${PKGNAME} branch)"
+    Name="${PKGDISPLAYNAME}"
     Id="*"
     UpgradeCode="${PKGGUID}"
     Language="1033"
