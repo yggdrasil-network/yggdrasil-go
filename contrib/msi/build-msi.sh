@@ -177,11 +177,14 @@ cat > wix.xml << EOF
         SourceFile="${PKGMSMNAME}" />
     </Directory>
 
-    <Feature Id="Complete" Level="1">
-      <MergeRef Id="Wintun" />
+    <Feature Id="YggdrasilFeature" Title="Yggdrasil" Level="1">
       <ComponentRef Id="MainExecutable" />
       <ComponentRef Id="CtrlExecutable" />
       <ComponentRef Id="ConfigScript" />
+    </Feature>
+
+    <Feature Id="WintunFeature" Title="Wintun" Level="1">
+      <MergeRef Id="Wintun" />
     </Feature>
 
     <CustomAction
