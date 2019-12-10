@@ -83,12 +83,18 @@ else
   exit 1
 fi
 
+if [ $PKGNAME != "master" ]; then
+  PKGDISPLAYNAME="Yggdrasil Network (${PKGNAME} branch)"
+else
+  PKGDISPLAYNAME="Yggdrasil Network"
+fi
+
 # Generate the wix.xml file
 cat > wix.xml << EOF
 <?xml version="1.0" encoding="windows-1252"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Product
-    Name="Yggdrasil (${PKGNAME} branch)"
+    Name="${PKGDISPLAYNAME}"
     Id="*"
     UpgradeCode="${PKGGUID}"
     Language="1033"
@@ -100,7 +106,7 @@ cat > wix.xml << EOF
       Id="*"
       Keywords="Installer"
       Description="Yggdrasil Network Installer"
-      Comments="This is the Yggdrasil Network router for Windows."
+      Comments="Yggdrasil Network standalone router for Windows."
       Manufacturer="github.com/yggdrasil-network"
       InstallerVersion="200"
       InstallScope="perMachine"
@@ -115,7 +121,8 @@ cat > wix.xml << EOF
     <Media
       Id="1"
       Cabinet="Media.cab"
-      EmbedCab="yes" />
+      EmbedCab="yes"
+      CompressionLevel="high" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
@@ -177,11 +184,17 @@ cat > wix.xml << EOF
         SourceFile="${PKGMSMNAME}" />
     </Directory>
 
-    <Feature Id="Complete" Level="1">
-      <MergeRef Id="Wintun" />
+    <Feature Id="YggdrasilFeature" Title="Yggdrasil" Level="1">
       <ComponentRef Id="MainExecutable" />
       <ComponentRef Id="CtrlExecutable" />
       <ComponentRef Id="ConfigScript" />
+    </Feature>
+
+    <Feature Id="WintunFeature" Title="Wintun" Level="1">
+      <Condition Level="0">
+        UPGRADINGPRODUCTCODE
+      </Condition>
+      <MergeRef Id="Wintun" />
     </Feature>
 
     <CustomAction
