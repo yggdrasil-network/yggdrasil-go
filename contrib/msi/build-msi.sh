@@ -185,6 +185,9 @@ cat > wix.xml << EOF
     </Feature>
 
     <Feature Id="WintunFeature" Title="Wintun" Level="1">
+      <Condition Level="0">
+        NOT UPGRADINGPRODUCTCODE
+      </Condition>
       <MergeRef Id="Wintun" />
     </Feature>
 
