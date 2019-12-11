@@ -15,7 +15,7 @@ require (
 	github.com/vishvananda/netns v0.0.0-20190625233234-7109fa855b0f // indirect
 	github.com/yggdrasil-network/water v0.0.0-20190812103929-c83fe40250f8
 	golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550
-	golang.org/x/net v0.0.0-20191021144547-ec77196f6094
-	golang.org/x/sys v0.0.0-20191024172528-b4ff53e7a1cb
+	golang.org/x/net v0.0.0-20191027093000-83d349e8ac1a
+	golang.org/x/sys v0.0.0-20191026070338-33540a1f6037
 	golang.org/x/text v0.3.2
 )
