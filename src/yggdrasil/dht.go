@@ -20,7 +20,7 @@ const (
 )
 
 // dhtInfo represents everything we know about a node in the DHT.
-// This includes its key, a cache of it's NodeID, coords, and timing/ping related info for deciding who/when to ping nodes for maintenance.
+// This includes its key, a cache of its NodeID, coords, and timing/ping related info for deciding who/when to ping nodes for maintenance.
 type dhtInfo struct {
 	nodeID_hidden *crypto.NodeID
 	key           crypto.BoxPubKey

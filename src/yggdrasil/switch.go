@@ -107,7 +107,7 @@ func (l *switchLocator) getCoords() []byte {
 	return bs
 }
 
-// Returns true if the this locator represents an ancestor of the locator given as an argument.
+// Returns true if this locator represents an ancestor of the locator given as an argument.
 // Ancestor means that it's the parent node, or the parent of parent, and so on...
 func (x *switchLocator) isAncestorOf(y *switchLocator) bool {
 	if x.root != y.root {
@@ -381,7 +381,7 @@ func (t *switchTable) handleMsg(msg *switchMsg, fromPort switchPort) {
 // Then the tricky part, it decides if it should update our own locator as a result.
 // That happens if this node is already our parent, or is advertising a better root, or is advertising a better path to the same root, etc...
 // There are a lot of very delicate order sensitive checks here, so its' best to just read the code if you need to understand what it's doing.
-// It's very important to not change the order of the statements in the case function unless you're absolutely sure that it's safe, including safe if used along side nodes that used the previous order.
+// It's very important to not change the order of the statements in the case function unless you're absolutely sure that it's safe, including safe if used alongside nodes that used the previous order.
 // Set the third arg to true if you're reprocessing an old message, e.g. to find a new parent after one disconnects, to avoid updating some timing related things.
 func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, reprocessing bool) {
 	// TODO directly use a switchMsg instead of switchMessage + sigs
@@ -808,12 +808,12 @@ func (t *switchTable) _handleIdle(port switchPort) bool {
 			packet := buf.packets[0]
 			coords := switch_getPacketCoords(packet.bytes)
 			priority := float64(now.Sub(packet.time)) / float64(buf.size)
-			if priority > bestPriority && t.portIsCloser(coords, port) {
+			if priority >= bestPriority && t.portIsCloser(coords, port) {
 				best = streamID
 				bestPriority = priority
 			}
 		}
-		if bestPriority != 0 {
+		if best != "" {
 			buf := t.queues.bufs[best]
 			var packet switch_packetInfo
 			// TODO decide if this should be LIFO or FIFO

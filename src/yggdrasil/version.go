@@ -1,14 +1,14 @@
 package yggdrasil
 
 // This file contains the version metadata struct
-// Used in the inital connection setup and key exchange
+// Used in the initial connection setup and key exchange
 // Some of this could arguably go in wire.go instead
 
 import "github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 
 // This is the version-specific metadata exchanged at the start of a connection.
-// It must always beign with the 4 bytes "meta" and a wire formatted uint64 major version number.
-// The current version also includes a minor version number, and the box/sig/link keys that need to be exchanged to open an connection.
+// It must always begin with the 4 bytes "meta" and a wire formatted uint64 major version number.
+// The current version also includes a minor version number, and the box/sig/link keys that need to be exchanged to open a connection.
 type version_metadata struct {
 	meta [4]byte
 	ver  uint64 // 1 byte in this version

@@ -132,6 +132,32 @@ func doGenconf(isjson bool) string {
 	return string(bs)
 }
 
+func setLogLevel(loglevel string, logger *log.Logger) {
+	levels := [...]string{"error", "warn", "info", "debug", "trace"}
+	loglevel = strings.ToLower(loglevel)
+
+	contains := func() bool {
+		for _, l := range levels {
+			if l == loglevel {
+				return true
+			}
+		}
+		return false
+	}
+
+	if !contains() { // set default log level
+		logger.Infoln("Loglevel parse failed. Set default level(info)")
+		loglevel = "info"
+	}
+
+	for _, l := range levels {
+		logger.EnableLevel(l)
+		if l == loglevel {
+			break
+		}
+	}
+}
+
 // The main function is responsible for configuring and starting Yggdrasil.
 func main() {
 	// Configure the command line parameters.
@@ -142,10 +168,10 @@ func main() {
 	confjson := flag.Bool("json", false, "print configuration from -genconf or -normaliseconf as JSON instead of HJSON")
 	autoconf := flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
 	ver := flag.Bool("version", false, "prints the version of this build")
-	logging := flag.String("logging", "info,warn,error", "comma-separated list of logging levels to enable")
 	logto := flag.String("logto", "stdout", "file path to log to, \"syslog\" or \"stdout\"")
 	getaddr := flag.Bool("address", false, "returns the IPv6 address as derived from the supplied configuration")
 	getsnet := flag.Bool("subnet", false, "returns the IPv6 subnet as derived from the supplied configuration")
+	loglevel := flag.String("loglevel", "info", "loglevel to enable")
 	flag.Parse()
 
 	var cfg *config.NodeConfig
@@ -239,20 +265,9 @@ func main() {
 		logger = log.New(os.Stdout, "", log.Flags())
 		logger.Warnln("Logging defaulting to stdout")
 	}
-	//logger.EnableLevel("error")
-	//logger.EnableLevel("warn")
-	//logger.EnableLevel("info")
-	if levels := strings.Split(*logging, ","); len(levels) > 0 {
-		for _, level := range levels {
-			l := strings.TrimSpace(level)
-			switch l {
-			case "error", "warn", "info", "trace", "debug":
-				logger.EnableLevel(l)
-			default:
-				continue
-			}
-		}
-	}
+
+	setLogLevel(*loglevel, logger)
+
 	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
 	// don't need to create this manually.
 	n := node{}
