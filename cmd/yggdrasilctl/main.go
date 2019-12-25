@@ -25,14 +25,20 @@ import (
 type admin_info map[string]interface{}
 
 func main() {
+	// makes sure we can use defer and still return an error code to the OS
+	os.Exit(run())
+}
+
+func run() int {
 	logbuffer := &bytes.Buffer{}
 	logger := log.New(logbuffer, "", log.Flags())
-	defer func() {
+	defer func() int {
 		if r := recover(); r != nil {
 			logger.Println("Fatal error:", r)
 			fmt.Print(logbuffer)
-			os.Exit(1)
+			return 1
 		}
+		return 0
 	}()
 
 	endpoint := defaults.GetDefaults().DefaultAdminListen
@@ -62,12 +68,12 @@ func main() {
 		fmt.Println("Build name:", version.BuildName())
 		fmt.Println("Build version:", version.BuildVersion())
 		fmt.Println("To get the version number of the running Yggdrasil node, run", os.Args[0], "getSelf")
-		return
+		return 0
 	}
 
 	if len(args) == 0 {
 		flag.Usage()
-		return
+		return 0
 	}
 
 	if *server == endpoint {
@@ -176,15 +182,15 @@ func main() {
 			} else {
 				fmt.Println("Admin socket returned an error but didn't specify any error text")
 			}
-			os.Exit(1)
+			return 1
 		}
 		if _, ok := recv["request"]; !ok {
 			fmt.Println("Missing request in response (malformed response?)")
-			os.Exit(1)
+			return 1
 		}
 		if _, ok := recv["response"]; !ok {
 			fmt.Println("Missing response body (malformed response?)")
-			os.Exit(1)
+			return 1
 		}
 		req := recv["request"].(map[string]interface{})
 		res := recv["response"].(map[string]interface{})
@@ -193,7 +199,7 @@ func main() {
 			if json, err := json.MarshalIndent(res, "", "  "); err == nil {
 				fmt.Println(string(json))
 			}
-			os.Exit(0)
+			return 0
 		}
 
 		switch strings.ToLower(req["request"].(string)) {
@@ -434,7 +440,7 @@ func main() {
 	}
 
 	if v, ok := recv["status"]; ok && v != "success" {
-		os.Exit(1)
+		return 1
 	}
-	os.Exit(0)
+	return 0
 }
