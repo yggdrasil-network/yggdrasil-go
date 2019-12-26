@@ -16,7 +16,6 @@ package yggdrasil
 
 import (
 	"errors"
-	"sort"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
@@ -104,24 +103,6 @@ func (sinfo *searchInfo) addToSearch(res *dhtRes) {
 			sinfo.toVisit = append(sinfo.toVisit, info)
 		}
 	}
-	// Deduplicate
-	vMap := make(map[crypto.NodeID]*dhtInfo)
-	for _, info := range sinfo.toVisit {
-		vMap[*info.getNodeID()] = info
-	}
-	sinfo.toVisit = sinfo.toVisit[:0]
-	for _, info := range vMap {
-		sinfo.toVisit = append(sinfo.toVisit, info)
-	}
-	// Sort
-	sort.SliceStable(sinfo.toVisit, func(i, j int) bool {
-		// Should return true if i is closer to the destination than j
-		return dht_ordered(&res.Dest, sinfo.toVisit[i].getNodeID(), sinfo.toVisit[j].getNodeID())
-	})
-	// Truncate to some maximum size
-	if len(sinfo.toVisit) > search_MAX_SEARCH_SIZE {
-		sinfo.toVisit = sinfo.toVisit[:search_MAX_SEARCH_SIZE]
-	}
 }
 
 // If there are no nodes left toVisit, then this cleans up the search.
@@ -136,12 +117,13 @@ func (sinfo *searchInfo) doSearchStep() {
 		return
 	}
 	// Send to the next search target
-	var next *dhtInfo
-	next, sinfo.toVisit = sinfo.toVisit[0], sinfo.toVisit[1:]
-	rq := dhtReqKey{next.key, sinfo.dest}
-	sinfo.searches.router.dht.addCallback(&rq, sinfo.handleDHTRes)
-	sinfo.searches.router.dht.ping(next, &sinfo.dest)
-	sinfo.time = time.Now()
+	for _, next := range sinfo.toVisit {
+		rq := dhtReqKey{next.key, sinfo.dest}
+		sinfo.searches.router.dht.addCallback(&rq, sinfo.handleDHTRes)
+		sinfo.searches.router.dht.ping(next, &sinfo.dest)
+		sinfo.time = time.Now()
+	}
+	sinfo.toVisit = sinfo.toVisit[:0]
 }
 
 // If we've recently sent a ping for this search, do nothing.
