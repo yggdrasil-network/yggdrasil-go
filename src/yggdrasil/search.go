@@ -37,7 +37,7 @@ type searchInfo struct {
 	mask     crypto.NodeID
 	time     time.Time
 	toVisit  []*dhtInfo
-	visited  map[crypto.NodeID]bool
+	visited  crypto.NodeID // Closest address visited so far
 	callback func(*sessionInfo, error)
 	// TODO context.Context for timeout and cancellation
 }
@@ -93,12 +93,16 @@ func (sinfo *searchInfo) handleDHTRes(res *dhtRes) {
 func (sinfo *searchInfo) addToSearch(res *dhtRes) {
 	// Add responses to toVisit if closer to dest than the res node
 	from := dhtInfo{key: res.Key, coords: res.Coords}
-	sinfo.visited[*from.getNodeID()] = true
+	if dht_ordered(&sinfo.dest, from.getNodeID(), &sinfo.visited) {
+		// Closer to the destination, so update visited
+		sinfo.visited = *from.getNodeID()
+	}
 	for _, info := range res.Infos {
-		if *info.getNodeID() == sinfo.searches.router.dht.nodeID || sinfo.visited[*info.getNodeID()] {
+		if *info.getNodeID() == sinfo.visited {
+			// dht_ordered could return true here, but we want to skip it in this case
 			continue
 		}
-		if dht_ordered(&sinfo.dest, info.getNodeID(), from.getNodeID()) {
+		if dht_ordered(&sinfo.dest, info.getNodeID(), &sinfo.visited) {
 			// Response is closer to the destination
 			sinfo.toVisit = append(sinfo.toVisit, info)
 		}
@@ -148,7 +152,7 @@ func (sinfo *searchInfo) continueSearch() {
 // Calls create search, and initializes the iterative search parts of the struct before returning it.
 func (s *searches) newIterSearch(dest *crypto.NodeID, mask *crypto.NodeID, callback func(*sessionInfo, error)) *searchInfo {
 	sinfo := s.createSearch(dest, mask, callback)
-	sinfo.visited = make(map[crypto.NodeID]bool)
+	sinfo.visited = s.router.dht.nodeID
 	loc := s.router.core.switchTable.getLocator()
 	sinfo.toVisit = append(sinfo.toVisit, &dhtInfo{
 		key:    s.router.core.boxPub,
