@@ -78,6 +78,7 @@ func (r *router) init(core *Core) {
 func (r *router) reconfigure() {
 	// Reconfigure the router
 	current := r.core.config.GetCurrent()
+	r.core.log.Println("Reloading NodeInfo...")
 	if err := r.nodeinfo.setNodeInfo(current.NodeInfo, current.NodeInfoPrivacy); err != nil {
 		r.core.log.Errorln("Error reloading NodeInfo:", err)
 	} else {
