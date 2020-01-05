@@ -25,7 +25,10 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
+	"github.com/yggdrasil-network/yggdrasil-go/src/types"
 )
+
+type MTU = types.MTU
 
 const tun_IPv6_HEADER_LENGTH = 40
 
@@ -46,7 +49,7 @@ type TunAdapter struct {
 	subnet      address.Subnet
 	ckr         cryptokey
 	icmpv6      ICMPv6
-	mtu         int
+	mtu         MTU
 	iface       tun.Device
 	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
 	//mutex        sync.RWMutex // Protects the below
@@ -63,7 +66,7 @@ type TunOptions struct {
 
 // Gets the maximum supported MTU for the platform based on the defaults in
 // defaults.GetDefaults().
-func getSupportedMTU(mtu int) int {
+func getSupportedMTU(mtu MTU) MTU {
 	if mtu < 1280 {
 		return 1280
 	}
@@ -85,7 +88,7 @@ func (tun *TunAdapter) Name() string {
 // MTU gets the adapter's MTU. This can range between 1280 and 65535, although
 // the maximum value is determined by your platform. The returned value will
 // never exceed that of MaximumMTU().
-func (tun *TunAdapter) MTU() int {
+func (tun *TunAdapter) MTU() MTU {
 	return getSupportedMTU(tun.mtu)
 }
 
@@ -96,14 +99,14 @@ func DefaultName() string {
 
 // DefaultMTU gets the default TUN interface MTU for your platform. This can
 // be as high as MaximumMTU(), depending on platform, but is never lower than 1280.
-func DefaultMTU() int {
+func DefaultMTU() MTU {
 	return defaults.GetDefaults().DefaultIfMTU
 }
 
 // MaximumMTU returns the maximum supported TUN interface MTU for your
 // platform. This can be as high as 65535, depending on platform, but is never
 // lower than 1280.
-func MaximumMTU() int {
+func MaximumMTU() MTU {
 	return defaults.GetDefaults().MaximumIfMTU
 }
 
@@ -165,7 +168,7 @@ func (tun *TunAdapter) _start() error {
 	if tun.MTU() != current.IfMTU {
 		tun.log.Warnf("Warning: Interface MTU %d automatically adjusted to %d (supported range is 1280-%d)", current.IfMTU, tun.MTU(), MaximumMTU())
 	}
-	tun.core.SetMaximumSessionMTU(uint16(tun.MTU()))
+	tun.core.SetMaximumSessionMTU(tun.MTU())
 	tun.isOpen = true
 	go tun.handler()
 	tun.reader.Act(nil, tun.reader._read) // Start the reader

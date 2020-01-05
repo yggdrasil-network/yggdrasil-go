@@ -55,7 +55,7 @@ type tunReader struct {
 
 func (r *tunReader) _read() {
 	// Get a slice to store the packet in
-	recvd := util.ResizeBytes(util.GetBytes(), r.tun.mtu+TUN_OFFSET_BYTES)
+	recvd := util.ResizeBytes(util.GetBytes(), int(r.tun.mtu)+TUN_OFFSET_BYTES)
 	// Wait for a packet to be delivered to us through the TUN adapter
 	n, err := r.tun.iface.Read(recvd, TUN_OFFSET_BYTES)
 	if n <= TUN_OFFSET_BYTES || err != nil {

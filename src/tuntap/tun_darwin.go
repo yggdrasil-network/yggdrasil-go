@@ -16,17 +16,17 @@ import (
 )
 
 // Configures the "utun" adapter with the correct IPv6 address and MTU.
-func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {
+func (tun *TunAdapter) setup(ifname string, addr string, mtu MTU) error {
 	if ifname == "auto" {
 		ifname = "utun"
 	}
-	iface, err := wgtun.CreateTUN(ifname, mtu)
+	iface, err := wgtun.CreateTUN(ifname, int(mtu))
 	if err != nil {
 		panic(err)
 	}
 	tun.iface = iface
 	if mtu, err := iface.MTU(); err == nil {
-		tun.mtu = getSupportedMTU(mtu)
+		tun.mtu = getSupportedMTU(MTU(mtu))
 	} else {
 		tun.mtu = 0
 	}
