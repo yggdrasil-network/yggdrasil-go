@@ -390,17 +390,14 @@ func (c *Core) SetMaximumSessionMTU(mtu uint16) {
 // necessary when, e.g. crawling the network.
 func (c *Core) GetNodeInfo(key crypto.BoxPubKey, coords []uint64, nocache bool) (NodeInfoPayload, error) {
 	response := make(chan *NodeInfoPayload, 1)
-	sendNodeInfoRequest := func() {
-		c.router.nodeinfo.addCallback(key, func(nodeinfo *NodeInfoPayload) {
-			defer func() { recover() }()
-			select {
-			case response <- nodeinfo:
-			default:
-			}
-		})
-		c.router.nodeinfo.sendNodeInfo(key, wire_coordsUint64stoBytes(coords), false)
-	}
-	phony.Block(&c.router, sendNodeInfoRequest)
+	c.router.nodeinfo.addCallback(key, func(nodeinfo *NodeInfoPayload) {
+		defer func() { recover() }()
+		select {
+		case response <- nodeinfo:
+		default:
+		}
+	})
+	c.router.nodeinfo.sendNodeInfo(key, wire_coordsUint64stoBytes(coords), false)
 	timer := time.AfterFunc(6*time.Second, func() { close(response) })
 	defer timer.Stop()
 	for res := range response {
