@@ -8,9 +8,12 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
+	"github.com/yggdrasil-network/yggdrasil-go/src/types"
 
 	"github.com/Arceliar/phony"
 )
+
+type MTU = types.MTU
 
 // ConnError implements the net.Error interface
 type ConnError struct {
@@ -65,7 +68,7 @@ type Conn struct {
 	nodeID        *crypto.NodeID
 	nodeMask      *crypto.NodeID
 	session       *sessionInfo
-	mtu           uint16
+	mtu           MTU
 	readCallback  func([]byte)
 	readBuffer    chan []byte
 }
@@ -93,7 +96,7 @@ func (c *Conn) String() string {
 	return s
 }
 
-func (c *Conn) setMTU(from phony.Actor, mtu uint16) {
+func (c *Conn) setMTU(from phony.Actor, mtu MTU) {
 	c.Act(from, func() { c.mtu = mtu })
 }
 

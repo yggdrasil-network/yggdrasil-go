@@ -73,14 +73,14 @@ type in6_ifreq_lifetime struct {
 }
 
 // Configures the TUN adapter with the correct IPv6 address and MTU.
-func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {
-	iface, err := wgtun.CreateTUN(ifname, mtu)
+func (tun *TunAdapter) setup(ifname string, addr string, mtu MTU) error {
+	iface, err := wgtun.CreateTUN(ifname, int(mtu))
 	if err != nil {
 		panic(err)
 	}
 	tun.iface = iface
 	if mtu, err := iface.MTU(); err == nil {
-		tun.mtu = getSupportedMTU(mtu)
+		tun.mtu = getSupportedMTU(MTU(mtu))
 	} else {
 		tun.mtu = 0
 	}

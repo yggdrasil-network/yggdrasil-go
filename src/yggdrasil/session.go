@@ -36,8 +36,8 @@ type sessionInfo struct {
 	myHandle      crypto.Handle       //
 	theirNonce    crypto.BoxNonce     //
 	myNonce       crypto.BoxNonce     //
-	theirMTU      uint16              //
-	myMTU         uint16              //
+	theirMTU      MTU                 //
+	myMTU         MTU                 //
 	wasMTUFixed   bool                // Was the MTU fixed by a receive error?
 	timeOpened    time.Time           // Time the session was opened
 	time          time.Time           // Time we last received a packet
@@ -63,7 +63,7 @@ type sessionPing struct {
 	Coords      []byte           //
 	Tstamp      int64            // unix time, but the only real requirement is that it increases
 	IsPong      bool             //
-	MTU         uint16           //
+	MTU         MTU              //
 }
 
 // Updates session info in response to a ping, after checking that the ping is OK.
@@ -117,7 +117,7 @@ type sessions struct {
 	lastCleanup      time.Time
 	isAllowedHandler func(pubkey *crypto.BoxPubKey, initiator bool) bool // Returns true or false if session setup is allowed
 	isAllowedMutex   sync.RWMutex                                        // Protects the above
-	myMaximumMTU     uint16                                              // Maximum allowed session MTU
+	myMaximumMTU     MTU                                                 // Maximum allowed session MTU
 	permShared       map[crypto.BoxPubKey]*crypto.BoxSharedKey           // Maps known permanent keys to their shared key, used by DHT a lot
 	sinfos           map[crypto.Handle]*sessionInfo                      // Maps handle onto session info
 	byTheirPerm      map[crypto.BoxPubKey]*crypto.Handle                 // Maps theirPermPub onto handle
@@ -385,7 +385,7 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 // Get the MTU of the session.
 // Will be equal to the smaller of this node's MTU or the remote node's MTU.
 // If sending over links with a maximum message size (this was a thing with the old UDP code), it could be further lowered, to a minimum of 1280.
-func (sinfo *sessionInfo) _getMTU() uint16 {
+func (sinfo *sessionInfo) _getMTU() MTU {
 	if sinfo.theirMTU == 0 || sinfo.myMTU == 0 {
 		return 0
 	}

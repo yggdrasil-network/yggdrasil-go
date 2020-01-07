@@ -19,7 +19,7 @@ import (
 // This is to catch Windows platforms
 
 // Configures the TUN adapter with the correct IPv6 address and MTU.
-func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {
+func (tun *TunAdapter) setup(ifname string, addr string, mtu MTU) error {
 	if ifname == "auto" {
 		ifname = defaults.GetDefaults().DefaultIfName
 	}
@@ -30,7 +30,7 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {
 		if guid, err = windows.GUIDFromString("{8f59971a-7872-4aa6-b2eb-061fc4e9d0a7}"); err != nil {
 			return err
 		}
-		if iface, err = wgtun.CreateTUNWithRequestedGUID(ifname, &guid, mtu); err != nil {
+		if iface, err = wgtun.CreateTUNWithRequestedGUID(ifname, &guid, int(mtu)); err != nil {
 			return err
 		}
 		tun.iface = iface
@@ -42,15 +42,15 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {
 			tun.log.Errorln("Failed to set up TUN MTU:", err)
 			return err
 		}
-		if mtu, err = iface.MTU(); err == nil {
-			tun.mtu = mtu
+		if mtu, err := iface.MTU(); err == nil {
+			tun.mtu = MTU(mtu)
 		}
 		return nil
 	})
 }
 
 // Sets the MTU of the TAP adapter.
-func (tun *TunAdapter) setupMTU(mtu int) error {
+func (tun *TunAdapter) setupMTU(mtu MTU) error {
 	if tun.iface == nil || tun.Name() == "" {
 		return errors.New("Can't configure MTU as TUN adapter is not present")
 	}
