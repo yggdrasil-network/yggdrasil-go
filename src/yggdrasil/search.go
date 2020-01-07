@@ -24,10 +24,8 @@ import (
 // This defines the maximum number of dhtInfo that we keep track of for nodes to query in an ongoing search.
 const search_MAX_SEARCH_SIZE = 16
 
-// This defines the time after which we send a new search packet.
-// Search packets are sent automatically immediately after a response is received.
-// So this allows for timeouts and for long searches to become increasingly parallel.
-const search_RETRY_TIME = time.Second
+// This defines the time after which we time out a search (so it can restart).
+const search_RETRY_TIME = 3 * time.Second
 
 // Information about an ongoing search.
 // Includes the target NodeID, the bitmask to match it to an IP, and the list of nodes to visit / already visited.

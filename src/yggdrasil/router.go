@@ -250,5 +250,5 @@ func (r *router) _handleNodeInfo(bs []byte, fromKey *crypto.BoxPubKey) {
 		return
 	}
 	req.SendPermPub = *fromKey
-	r.nodeinfo.handleNodeInfo(&req)
+	r.nodeinfo.handleNodeInfo(r, &req)
 }

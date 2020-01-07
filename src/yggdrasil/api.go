@@ -398,6 +398,7 @@ func (c *Core) GetNodeInfo(key crypto.BoxPubKey, coords []uint64, nocache bool) 
 		}
 	})
 	c.router.nodeinfo.sendNodeInfo(key, wire_coordsUint64stoBytes(coords), false)
+	phony.Block(&c.router.nodeinfo, func() {}) // Wait for sendNodeInfo before starting timer
 	timer := time.AfterFunc(6*time.Second, func() { close(response) })
 	defer timer.Stop()
 	for res := range response {
