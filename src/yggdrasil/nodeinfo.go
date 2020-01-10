@@ -41,7 +41,7 @@ type nodeinfoReqRes struct {
 // Initialises the nodeinfo cache/callback maps, and starts a goroutine to keep
 // the cache/callback maps clean of stale entries
 func (m *nodeinfo) init(core *Core) {
-	m.Act(m, func() {
+	m.Act(nil, func() {
 		m._init(core)
 	})
 }
@@ -66,13 +66,13 @@ func (m *nodeinfo) _cleanup() {
 		}
 	}
 	time.AfterFunc(time.Second*30, func() {
-		m.Act(m, m._cleanup)
+		m.Act(nil, m._cleanup)
 	})
 }
 
 // Add a callback for a nodeinfo lookup
 func (m *nodeinfo) addCallback(sender crypto.BoxPubKey, call func(nodeinfo *NodeInfoPayload)) {
-	m.Act(m, func() {
+	m.Act(nil, func() {
 		m._addCallback(sender, call)
 	})
 }
@@ -164,8 +164,8 @@ func (m *nodeinfo) _getCachedNodeInfo(key crypto.BoxPubKey) (NodeInfoPayload, er
 }
 
 // Handles a nodeinfo request/response - called from the router
-func (m *nodeinfo) handleNodeInfo(nodeinfo *nodeinfoReqRes) {
-	m.Act(m, func() {
+func (m *nodeinfo) handleNodeInfo(from phony.Actor, nodeinfo *nodeinfoReqRes) {
+	m.Act(from, func() {
 		m._handleNodeInfo(nodeinfo)
 	})
 }
@@ -181,7 +181,7 @@ func (m *nodeinfo) _handleNodeInfo(nodeinfo *nodeinfoReqRes) {
 
 // Send nodeinfo request or response - called from the router
 func (m *nodeinfo) sendNodeInfo(key crypto.BoxPubKey, coords []byte, isResponse bool) {
-	m.Act(m, func() {
+	m.Act(nil, func() {
 		m._sendNodeInfo(key, coords, isResponse)
 	})
 }

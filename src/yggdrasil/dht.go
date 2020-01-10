@@ -387,6 +387,8 @@ func (t *dht) getImportant() []*dhtInfo {
 			if dist < minDist {
 				minDist = dist
 				important = append(important, info)
+			} else if len(important) < 2 {
+				important = append(important, info)
 			}
 		}
 		var temp []*dhtInfo
@@ -396,6 +398,8 @@ func (t *dht) getImportant() []*dhtInfo {
 			dist := uint64(loc.dist(info.coords))
 			if dist < minDist {
 				minDist = dist
+				temp = append(temp, info)
+			} else if len(temp) < 2 {
 				temp = append(temp, info)
 			}
 		}

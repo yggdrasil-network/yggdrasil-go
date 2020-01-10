@@ -16,7 +16,6 @@ package yggdrasil
 
 import (
 	"errors"
-	"sort"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
@@ -25,10 +24,8 @@ import (
 // This defines the maximum number of dhtInfo that we keep track of for nodes to query in an ongoing search.
 const search_MAX_SEARCH_SIZE = 16
 
-// This defines the time after which we send a new search packet.
-// Search packets are sent automatically immediately after a response is received.
-// So this allows for timeouts and for long searches to become increasingly parallel.
-const search_RETRY_TIME = time.Second
+// This defines the time after which we time out a search (so it can restart).
+const search_RETRY_TIME = 3 * time.Second
 
 // Information about an ongoing search.
 // Includes the target NodeID, the bitmask to match it to an IP, and the list of nodes to visit / already visited.
@@ -38,7 +35,7 @@ type searchInfo struct {
 	mask     crypto.NodeID
 	time     time.Time
 	toVisit  []*dhtInfo
-	visited  map[crypto.NodeID]bool
+	visited  crypto.NodeID // Closest address visited so far
 	callback func(*sessionInfo, error)
 	// TODO context.Context for timeout and cancellation
 }
@@ -94,33 +91,19 @@ func (sinfo *searchInfo) handleDHTRes(res *dhtRes) {
 func (sinfo *searchInfo) addToSearch(res *dhtRes) {
 	// Add responses to toVisit if closer to dest than the res node
 	from := dhtInfo{key: res.Key, coords: res.Coords}
-	sinfo.visited[*from.getNodeID()] = true
+	if dht_ordered(&sinfo.dest, from.getNodeID(), &sinfo.visited) {
+		// Closer to the destination, so update visited
+		sinfo.visited = *from.getNodeID()
+	}
 	for _, info := range res.Infos {
-		if *info.getNodeID() == sinfo.searches.router.dht.nodeID || sinfo.visited[*info.getNodeID()] {
+		if *info.getNodeID() == sinfo.visited {
+			// dht_ordered could return true here, but we want to skip it in this case
 			continue
 		}
-		if dht_ordered(&sinfo.dest, info.getNodeID(), from.getNodeID()) {
+		if dht_ordered(&sinfo.dest, info.getNodeID(), &sinfo.visited) {
 			// Response is closer to the destination
 			sinfo.toVisit = append(sinfo.toVisit, info)
 		}
-	}
-	// Deduplicate
-	vMap := make(map[crypto.NodeID]*dhtInfo)
-	for _, info := range sinfo.toVisit {
-		vMap[*info.getNodeID()] = info
-	}
-	sinfo.toVisit = sinfo.toVisit[:0]
-	for _, info := range vMap {
-		sinfo.toVisit = append(sinfo.toVisit, info)
-	}
-	// Sort
-	sort.SliceStable(sinfo.toVisit, func(i, j int) bool {
-		// Should return true if i is closer to the destination than j
-		return dht_ordered(&res.Dest, sinfo.toVisit[i].getNodeID(), sinfo.toVisit[j].getNodeID())
-	})
-	// Truncate to some maximum size
-	if len(sinfo.toVisit) > search_MAX_SEARCH_SIZE {
-		sinfo.toVisit = sinfo.toVisit[:search_MAX_SEARCH_SIZE]
 	}
 }
 
@@ -136,12 +119,13 @@ func (sinfo *searchInfo) doSearchStep() {
 		return
 	}
 	// Send to the next search target
-	var next *dhtInfo
-	next, sinfo.toVisit = sinfo.toVisit[0], sinfo.toVisit[1:]
-	rq := dhtReqKey{next.key, sinfo.dest}
-	sinfo.searches.router.dht.addCallback(&rq, sinfo.handleDHTRes)
-	sinfo.searches.router.dht.ping(next, &sinfo.dest)
-	sinfo.time = time.Now()
+	for _, next := range sinfo.toVisit {
+		rq := dhtReqKey{next.key, sinfo.dest}
+		sinfo.searches.router.dht.addCallback(&rq, sinfo.handleDHTRes)
+		sinfo.searches.router.dht.ping(next, &sinfo.dest)
+		sinfo.time = time.Now()
+	}
+	sinfo.toVisit = sinfo.toVisit[:0]
 }
 
 // If we've recently sent a ping for this search, do nothing.
@@ -166,7 +150,7 @@ func (sinfo *searchInfo) continueSearch() {
 // Calls create search, and initializes the iterative search parts of the struct before returning it.
 func (s *searches) newIterSearch(dest *crypto.NodeID, mask *crypto.NodeID, callback func(*sessionInfo, error)) *searchInfo {
 	sinfo := s.createSearch(dest, mask, callback)
-	sinfo.visited = make(map[crypto.NodeID]bool)
+	sinfo.visited = s.router.dht.nodeID
 	loc := s.router.core.switchTable.getLocator()
 	sinfo.toVisit = append(sinfo.toVisit, &dhtInfo{
 		key:    s.router.core.boxPub,
