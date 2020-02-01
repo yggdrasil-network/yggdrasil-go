@@ -36,7 +36,7 @@ yggdrasil_start()
 		/usr/local/bin/yggdrasil -genconf > /usr/local/etc/yggdrasil.conf
 	)
 
-	tap_path="$(cat /usr/local/etc/yggdrasil.conf | egrep -o '/dev/tap[0-9]{1,2}$')"
+	tap_path="$(cat /usr/local/etc/yggdrasil.conf | egrep -o '/dev/tap[0-9]{1,2}')"
 	tap_name="$(echo -n ${tap_path} | tr -d '/dev/')"
 
 	/sbin/ifconfig ${tap_name} >/dev/null 2>&1
