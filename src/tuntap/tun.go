@@ -24,8 +24,8 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
-	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 	"github.com/yggdrasil-network/yggdrasil-go/src/types"
+	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
 type MTU = types.MTU
