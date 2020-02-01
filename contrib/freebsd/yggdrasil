@@ -47,6 +47,7 @@ yggdrasil_start()
 	else 
 		logger -s -t yggdrasil "Destroying ${tap_name} adapter"
 		/sbin/ifconfig ${tap_name} destroy || logger -s -t yggdrasil "Failed to destroy ${tap_name} adapter"
+	fi
 
 	test ! -d /var/run/yggdrasil && mkdir -p /var/run/yggdrasil
 
