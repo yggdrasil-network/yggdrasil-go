@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"github.com/yggdrasil-network/yggdrasil-go/src/types"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 
 	"github.com/Arceliar/phony"
 )
