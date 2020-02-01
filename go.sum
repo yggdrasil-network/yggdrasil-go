@@ -40,5 +40,7 @@ golang.org/x/text v0.3.2/go.mod h1:bEr9sfX3Q8Zfm5fL9x+3itogRgK3+ptLWKqgva+5dAk=
 golang.org/x/tools v0.0.0-20180917221912-90fa682c2a6e/go.mod h1:n7NCudcB/nEzxVGmLbDWY5pfWTLqBcC2KZ6jyYvM4mQ=
 golang.zx2c4.com/wireguard v0.0.20191013-0.20191030132932-4cdf805b29b1 h1:KxtBKNgJUQG8vwZzJKkwBGOcqp95xLu6A6KIMde1kl0=
 golang.zx2c4.com/wireguard v0.0.20191013-0.20191030132932-4cdf805b29b1/go.mod h1:P2HsVp8SKwZEufsnezXZA4GRX/T49/HlU7DGuelXsU4=
+golang.zx2c4.com/wireguard v0.0.20200121 h1:vcswa5Q6f+sylDfjqyrVNNrjsFUUbPsgAQTBCAg/Qf8=
+golang.zx2c4.com/wireguard v0.0.20200121/go.mod h1:P2HsVp8SKwZEufsnezXZA4GRX/T49/HlU7DGuelXsU4=
 golang.zx2c4.com/wireguard/windows v0.0.35-0.20191123133119-cb4a03094c25 h1:TreP+furSwdqoSToFrwb1S5cwxb7jhOsnwj2MsDeT+4=
 golang.zx2c4.com/wireguard/windows v0.0.35-0.20191123133119-cb4a03094c25/go.mod h1:EO8KCpT944a9CnwHJLZ1sl84FfIrY42fP/fcXUuYhKM=
