@@ -16,6 +16,7 @@ package yggdrasil
 
 import (
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
@@ -100,6 +101,11 @@ func (sinfo *searchInfo) addToSearch(res *dhtRes) {
 			// Response is closer to the destination
 			sinfo.toVisit = append(sinfo.toVisit, info)
 		}
+		// Sort
+		sort.SliceStable(sinfo.toVisit, func(i, j int) bool {
+			// Should return true if i is closer to the destination than j
+			return dht_ordered(&res.Dest, sinfo.toVisit[i].getNodeID(), sinfo.toVisit[j].getNodeID())
+		})
 	}
 }
 
