@@ -83,7 +83,6 @@ func (sinfo *searchInfo) handleDHTRes(res *dhtRes) {
 	if res != nil {
 		sinfo.recv++
 		if sinfo.checkDHTRes(res) {
-			sinfo.searches.router.core.log.Debugln("Finished search:", sinfo.dest, sinfo.send, sinfo.recv)
 			return // Search finished successfully
 		}
 		// Add results to the search
@@ -97,22 +96,22 @@ func (sinfo *searchInfo) handleDHTRes(res *dhtRes) {
 
 // Adds the information from a dhtRes to an ongoing search.
 // Info about a node that has already been visited is not re-added to the search.
-// Duplicate information about nodes toVisit is deduplicated (the newest information is kept).
 func (sinfo *searchInfo) addToSearch(res *dhtRes) {
+	// Add to search
 	for _, info := range res.Infos {
-		if *info.getNodeID() == sinfo.visited {
-			// dht_ordered could return true here, but we want to skip it in this case
-			continue
+		sinfo.toVisit = append(sinfo.toVisit, info)
+	}
+	// Sort
+	sort.SliceStable(sinfo.toVisit, func(i, j int) bool {
+		// Should return true if i is closer to the destination than j
+		return dht_ordered(&sinfo.dest, sinfo.toVisit[i].getNodeID(), sinfo.toVisit[j].getNodeID())
+	})
+	// Remove anything too far away
+	for idx, info := range sinfo.toVisit {
+		if *info.getNodeID() == sinfo.visited || !dht_ordered(&sinfo.dest, info.getNodeID(), &sinfo.visited) {
+			sinfo.toVisit = sinfo.toVisit[:idx]
+			break
 		}
-		if dht_ordered(&sinfo.dest, info.getNodeID(), &sinfo.visited) && *info.getNodeID() != sinfo.visited {
-			// Response is closer to the destination
-			sinfo.toVisit = append(sinfo.toVisit, info)
-		}
-		// Sort
-		sort.SliceStable(sinfo.toVisit, func(i, j int) bool {
-			// Should return true if i is closer to the destination than j
-			return dht_ordered(&sinfo.dest, sinfo.toVisit[i].getNodeID(), sinfo.toVisit[j].getNodeID())
-		})
 	}
 }
 
@@ -174,7 +173,7 @@ func (s *searches) newIterSearch(dest *crypto.NodeID, mask *crypto.NodeID, callb
 // Otherwise return false.
 func (sinfo *searchInfo) checkDHTRes(res *dhtRes) bool {
 	from := dhtInfo{key: res.Key, coords: res.Coords}
-	if dht_ordered(&sinfo.dest, from.getNodeID(), &sinfo.visited) {
+	if *from.getNodeID() != sinfo.visited && dht_ordered(&sinfo.dest, from.getNodeID(), &sinfo.visited) {
 		// Closer to the destination, so update visited
 		sinfo.searches.router.core.log.Debugln("Updating search:", sinfo.dest, *from.getNodeID(), sinfo.send, sinfo.recv)
 		sinfo.visited = *from.getNodeID()
@@ -202,7 +201,10 @@ func (sinfo *searchInfo) checkDHTRes(res *dhtRes) bool {
 			sinfo.callback(sess, nil)
 		}
 		// Cleanup
-		delete(sinfo.searches.searches, res.Dest)
+		if _, isIn := sinfo.searches.searches[sinfo.dest]; isIn {
+			sinfo.searches.router.core.log.Debugln("Finished search:", sinfo.dest, sinfo.send, sinfo.recv)
+			delete(sinfo.searches.searches, res.Dest)
+		}
 	}
 	// They match, so create a session and send a sessionRequest
 	var err error
