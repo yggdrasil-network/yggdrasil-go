@@ -97,8 +97,19 @@ func (sinfo *searchInfo) handleDHTRes(res *dhtRes) {
 // Adds the information from a dhtRes to an ongoing search.
 // Info about a node that has already been visited is not re-added to the search.
 func (sinfo *searchInfo) addToSearch(res *dhtRes) {
-	// Add to search
+	// Get a (deduplicated) list of known nodes to check
+	temp := make(map[crypto.NodeID]*dhtInfo, len(sinfo.toVisit)+len(res.Infos))
+	for _, info := range sinfo.toVisit {
+		temp[*info.getNodeID()] = info
+	}
+	// Add new results to the list
 	for _, info := range res.Infos {
+		temp[*info.getNodeID()] = info
+	}
+	// Move list to toVisit
+	delete(temp, sinfo.visited)
+	sinfo.toVisit = sinfo.toVisit[:0]
+	for _, info := range temp {
 		sinfo.toVisit = append(sinfo.toVisit, info)
 	}
 	// Sort
@@ -106,9 +117,9 @@ func (sinfo *searchInfo) addToSearch(res *dhtRes) {
 		// Should return true if i is closer to the destination than j
 		return dht_ordered(&sinfo.dest, sinfo.toVisit[i].getNodeID(), sinfo.toVisit[j].getNodeID())
 	})
-	// Remove anything too far away
+	// Remove anything too far away to be useful
 	for idx, info := range sinfo.toVisit {
-		if *info.getNodeID() == sinfo.visited || !dht_ordered(&sinfo.dest, info.getNodeID(), &sinfo.visited) {
+		if !dht_ordered(&sinfo.dest, info.getNodeID(), &sinfo.visited) {
 			sinfo.toVisit = sinfo.toVisit[:idx]
 			break
 		}
