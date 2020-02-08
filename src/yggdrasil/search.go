@@ -25,6 +25,7 @@ import (
 // This defines the time after which we time out a search (so it can restart).
 const search_RETRY_TIME = 3 * time.Second
 const search_STEP_TIME = 100 * time.Millisecond
+const search_MAX_RES_SIZE = 16
 
 // Information about an ongoing search.
 // Includes the target NodeID, the bitmask to match it to an IP, and the list of nodes to visit / already visited.
@@ -99,26 +100,22 @@ func (sinfo *searchInfo) handleDHTRes(res *dhtRes) {
 // Adds the information from a dhtRes to an ongoing search.
 // Info about a node that has already been visited is not re-added to the search.
 func (sinfo *searchInfo) addToSearch(res *dhtRes) {
-	// Get a (deduplicated) list of known nodes to check
-	temp := make(map[crypto.NodeID]*dhtInfo, len(sinfo.toVisit)+len(res.Infos))
-	for _, info := range sinfo.toVisit {
-		temp[*info.getNodeID()] = info
+	// Used in sortng below
+	sortFunc := func(i, j int) bool {
+		// Should return true if i is closer to the destination than j
+		return dht_ordered(&sinfo.dest, sinfo.toVisit[i].getNodeID(), sinfo.toVisit[j].getNodeID())
 	}
-	// Add new results to the list
+	// Limit maximum number of results (mitigates DoS where nodes return a large number of bad results)
+	if len(res.Infos) > search_MAX_RES_SIZE {
+		sort.SliceStable(res.Infos, sortFunc)
+		res.Infos = res.Infos[:search_MAX_RES_SIZE]
+	}
+	// Append (without deduplication) to list of nodes to try
 	for _, info := range res.Infos {
-		temp[*info.getNodeID()] = info
-	}
-	// Move list to toVisit
-	delete(temp, sinfo.visited)
-	sinfo.toVisit = sinfo.toVisit[:0]
-	for _, info := range temp {
 		sinfo.toVisit = append(sinfo.toVisit, info)
 	}
 	// Sort
-	sort.SliceStable(sinfo.toVisit, func(i, j int) bool {
-		// Should return true if i is closer to the destination than j
-		return dht_ordered(&sinfo.dest, sinfo.toVisit[i].getNodeID(), sinfo.toVisit[j].getNodeID())
-	})
+	sort.SliceStable(sinfo.toVisit, sortFunc)
 	// Remove anything too far away to be useful
 	for idx, info := range sinfo.toVisit {
 		if !dht_ordered(&sinfo.dest, info.getNodeID(), &sinfo.visited) {
@@ -147,6 +144,7 @@ func (sinfo *searchInfo) doSearchStep() {
 		sinfo.searches.router.dht.addCallback(&rq, sinfo.handleDHTRes)
 		sinfo.searches.router.dht.ping(next, &sinfo.dest)
 		sinfo.send++
+		sinfo.time = time.Now()
 	}
 }
 
@@ -190,7 +188,6 @@ func (sinfo *searchInfo) checkDHTRes(res *dhtRes) bool {
 		// Closer to the destination, so update visited
 		sinfo.searches.router.core.log.Debugln("Updating search:", &sinfo.dest, from.getNodeID(), sinfo.send, sinfo.recv)
 		sinfo.visited = *from.getNodeID()
-		sinfo.time = time.Now()
 	}
 	them := from.getNodeID()
 	var destMasked crypto.NodeID
