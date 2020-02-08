@@ -22,9 +22,6 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 )
 
-// This defines the maximum number of dhtInfo that we keep track of for nodes to query in an ongoing search.
-const search_MAX_SEARCH_SIZE = 16
-
 // This defines the time after which we time out a search (so it can restart).
 const search_RETRY_TIME = 3 * time.Second
 const search_STEP_TIME = 100 * time.Millisecond
@@ -79,7 +76,7 @@ func (s *searches) createSearch(dest *crypto.NodeID, mask *crypto.NodeID, callba
 // If there is, it adds the response info to the search and triggers a new search step.
 // If there's no ongoing search, or we if the dhtRes finished the search (it was from the target node), then don't do anything more.
 func (sinfo *searchInfo) handleDHTRes(res *dhtRes) {
-	old := sinfo.visited
+	var doStep bool
 	if res != nil {
 		sinfo.recv++
 		if sinfo.checkDHTRes(res) {
@@ -87,8 +84,13 @@ func (sinfo *searchInfo) handleDHTRes(res *dhtRes) {
 		}
 		// Add results to the search
 		sinfo.addToSearch(res)
+		// FIXME check this elsewhere so we don't need to create a from struct
+		from := dhtInfo{key: res.Key, coords: res.Coords}
+		doStep = sinfo.visited == *from.getNodeID()
+	} else {
+		doStep = true
 	}
-	if res == nil || sinfo.visited != old {
+	if doStep {
 		// Continue the search
 		sinfo.doSearchStep()
 	}
@@ -186,7 +188,7 @@ func (sinfo *searchInfo) checkDHTRes(res *dhtRes) bool {
 	from := dhtInfo{key: res.Key, coords: res.Coords}
 	if *from.getNodeID() != sinfo.visited && dht_ordered(&sinfo.dest, from.getNodeID(), &sinfo.visited) {
 		// Closer to the destination, so update visited
-		sinfo.searches.router.core.log.Debugln("Updating search:", sinfo.dest, *from.getNodeID(), sinfo.send, sinfo.recv)
+		sinfo.searches.router.core.log.Debugln("Updating search:", &sinfo.dest, from.getNodeID(), sinfo.send, sinfo.recv)
 		sinfo.visited = *from.getNodeID()
 		sinfo.time = time.Now()
 	}
@@ -213,7 +215,7 @@ func (sinfo *searchInfo) checkDHTRes(res *dhtRes) bool {
 		}
 		// Cleanup
 		if _, isIn := sinfo.searches.searches[sinfo.dest]; isIn {
-			sinfo.searches.router.core.log.Debugln("Finished search:", sinfo.dest, sinfo.send, sinfo.recv)
+			sinfo.searches.router.core.log.Debugln("Finished search:", &sinfo.dest, sinfo.send, sinfo.recv)
 			delete(sinfo.searches.searches, res.Dest)
 		}
 	}
