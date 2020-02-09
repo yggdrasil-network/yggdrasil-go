@@ -170,6 +170,7 @@ func (sinfo *searchInfo) startSearch() {
 			time.AfterFunc(search_RETRY_TIME-elapsed, cleanupFunc)
 		})
 	}
+	time.AfterFunc(search_RETRY_TIME, cleanupFunc)
 }
 
 // Calls create search, and initializes the iterative search parts of the struct before returning it.
