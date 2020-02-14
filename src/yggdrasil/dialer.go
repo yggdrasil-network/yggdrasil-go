@@ -65,12 +65,15 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 // DialByNodeIDandMask opens a session to the given node based on raw
 // NodeID parameters. If ctx is nil or has no timeout, then a default timeout of 6 seconds will apply, beginning *after* the search finishes.
 func (d *Dialer) DialByNodeIDandMask(ctx context.Context, nodeID, nodeMask *crypto.NodeID) (net.Conn, error) {
+	startDial := time.Now()
 	conn := newConn(d.core, nodeID, nodeMask, nil)
 	if err := conn.search(); err != nil {
 		// TODO: make searches take a context, so they can be cancelled early
 		conn.Close()
 		return nil, err
 	}
+	endSearch := time.Now()
+	d.core.log.Debugln("Dial searched for:", nodeID, "in time:", endSearch.Sub(startDial))
 	conn.session.setConn(nil, conn)
 	var cancel context.CancelFunc
 	if ctx == nil {
@@ -80,6 +83,9 @@ func (d *Dialer) DialByNodeIDandMask(ctx context.Context, nodeID, nodeMask *cryp
 	defer cancel()
 	select {
 	case <-conn.session.init:
+		endInit := time.Now()
+		d.core.log.Debugln("Dial initialized session for:", nodeID, "in time:", endInit.Sub(endSearch))
+		d.core.log.Debugln("Finished dial for:", nodeID, "in time:", endInit.Sub(startDial))
 		return conn, nil
 	case <-ctx.Done():
 		conn.Close()

@@ -43,7 +43,6 @@ type sessionInfo struct {
 	time          time.Time           // Time we last received a packet
 	mtuTime       time.Time           // time myMTU was last changed
 	pingTime      time.Time           // time the first ping was sent since the last received packet
-	pingSend      time.Time           // time the last ping was sent
 	coords        []byte              // coords of destination
 	reset         bool                // reset if coords change
 	tstamp        int64               // ATOMIC - tstamp from their last session ping, replay attack mitigation
@@ -197,7 +196,6 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.time = now
 	sinfo.mtuTime = now
 	sinfo.pingTime = now
-	sinfo.pingSend = now
 	sinfo.init = make(chan struct{})
 	sinfo.cancel = util.NewCancellation()
 	higher := false

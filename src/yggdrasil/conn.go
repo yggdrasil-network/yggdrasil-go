@@ -131,7 +131,7 @@ func (c *Conn) search() error {
 				}
 			}
 			sinfo := c.core.router.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
-			sinfo.continueSearch()
+			sinfo.startSearch()
 		} else {
 			err = errors.New("search already exists")
 			close(done)
@@ -155,7 +155,7 @@ func (c *Conn) doSearch() {
 			sinfo = c.core.router.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
 			c.core.log.Debugf("%s DHT search started: %p", c.String(), sinfo)
 			// Start the search
-			sinfo.continueSearch()
+			sinfo.startSearch()
 		}
 	}
 	c.core.router.Act(c.session, routerWork)
