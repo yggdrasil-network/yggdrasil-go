@@ -113,9 +113,9 @@ a Dialer:
     // ...
   }
 
-You can then dial using the 16-byte node ID in hexadecimal format, for example:
+You can then dial using the node's public key in hexadecimal format, for example:
 
-  conn, err := dialer.Dial("nodeid", "24a58cfce691ec016b0f698f7be1bee983cea263781017e99ad3ef62b4ef710a45d6c1a072c5ce46131bd574b78818c9957042cafeeed13966f349e94eb771bf")
+  conn, err := dialer.Dial("curve25519", "55071be281f50d0abbda63aadc59755624280c44b2f1f47684317aa4e0325604")
   if err != nil {
     // ...
   }
