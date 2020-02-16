@@ -41,5 +41,5 @@ func (l *Listener) Close() (err error) {
 
 // Addr returns the address of the listener
 func (l *Listener) Addr() net.Addr {
-	return l.core.boxPub
+	return &l.core.boxPub
 }

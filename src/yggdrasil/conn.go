@@ -353,13 +353,13 @@ func (c *Conn) Close() (err error) {
 // LocalAddr returns the complete node ID of the local side of the connection.
 // This is always going to return your own node's node ID.
 func (c *Conn) LocalAddr() net.Addr {
-	return c.core.boxPub
+	return &c.core.boxPub
 }
 
 // RemoteAddr returns the complete node ID of the remote side of the connection.
 func (c *Conn) RemoteAddr() net.Addr {
 	if c.session != nil {
-		return c.session.theirPermPub
+		return &c.session.theirPermPub
 	}
 	return nil
 }

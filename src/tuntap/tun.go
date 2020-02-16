@@ -251,7 +251,8 @@ func (tun *TunAdapter) _wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 	}
 	c = &s
 	// Get the remote address and subnet of the other side
-	remoteNodeID := conn.RemoteAddr().(*crypto.NodeID)
+	remotePubKey := conn.RemoteAddr().(*crypto.BoxPubKey)
+	remoteNodeID := crypto.GetNodeID(remotePubKey)
 	s.addr = *address.AddrForNodeID(remoteNodeID)
 	s.snet = *address.SubnetForNodeID(remoteNodeID)
 	// Work out if this is already a destination we already know about
