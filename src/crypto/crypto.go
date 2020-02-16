@@ -199,9 +199,9 @@ func (k BoxPubKey) String() string {
 	return hex.EncodeToString(k[:])
 }
 
-// Network returns "pubkey" for "box" keys.
+// Network returns "curve25519" for "box" keys.
 func (n BoxPubKey) Network() string {
-	return "pubkey"
+	return "curve25519"
 }
 
 // NewBoxKeys generates a new pair of public/private crypto box keys.

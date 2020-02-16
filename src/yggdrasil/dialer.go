@@ -18,21 +18,21 @@ type Dialer struct {
 }
 
 // Dial opens a session to the given node. The first parameter should be
-// "pubkey" or "nodeid" and the second parameter should contain a hexadecimal
-// representation of the target. It uses DialContext internally.
+// "curve25519" or "nodeid" and the second parameter should contain a
+// hexadecimal representation of the target. It uses DialContext internally.
 func (d *Dialer) Dial(network, address string) (net.Conn, error) {
 	return d.DialContext(nil, network, address)
 }
 
 // DialContext is used internally by Dial, and should only be used with a
 // context that includes a timeout. It uses DialByNodeIDandMask internally when
-// the network is "nodeid", or DialByPublicKey when the network is "pubkey".
+// the network is "nodeid", or DialByPublicKey when the network is "curve25519".
 func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	var nodeID crypto.NodeID
 	var nodeMask crypto.NodeID
 	// Process
 	switch network {
-	case "pubkey":
+	case "curve25519":
 		dest, err := hex.DecodeString(address)
 		if err != nil {
 			return nil, err
