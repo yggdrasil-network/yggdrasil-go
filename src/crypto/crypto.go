@@ -194,6 +194,16 @@ type BoxSharedKey [BoxSharedKeyLen]byte
 // BoxNonce is the nonce used in NaCl-like crypto "box" operations (curve25519+xsalsa20+poly1305), and must not be reused for different messages encrypted using the same BoxSharedKey.
 type BoxNonce [BoxNonceLen]byte
 
+// String returns a string representation of the "box" key.
+func (k BoxPubKey) String() string {
+	return hex.EncodeToString(k[:])
+}
+
+// Network returns "pubkey" for "box" keys.
+func (n BoxPubKey) Network() string {
+	return "pubkey"
+}
+
 // NewBoxKeys generates a new pair of public/private crypto box keys.
 func NewBoxKeys() (*BoxPubKey, *BoxPrivKey) {
 	pubBytes, privBytes, err := box.GenerateKey(rand.Reader)

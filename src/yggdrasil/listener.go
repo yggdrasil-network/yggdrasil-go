@@ -39,7 +39,7 @@ func (l *Listener) Close() (err error) {
 	return nil
 }
 
-// Addr is not implemented for this type yet
+// Addr returns the address of the listener
 func (l *Listener) Addr() net.Addr {
-	return nil
+	return l.core.boxPub
 }
