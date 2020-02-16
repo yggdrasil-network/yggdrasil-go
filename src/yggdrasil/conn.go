@@ -351,7 +351,7 @@ func (c *Conn) Close() (err error) {
 }
 
 // LocalAddr returns the complete public key of the local side of the
-// connection. This is always going to return your own node's node ID.
+// connection. This is always going to return your own node's public key.
 func (c *Conn) LocalAddr() net.Addr {
 	return &c.core.boxPub
 }
