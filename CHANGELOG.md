@@ -25,6 +25,31 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.3.13] - 2020-02-21
+### Added
+- Support for the Wireguard TUN driver, which now replaces Water and provides far better support and performance on Windows
+- Windows `.msi` installer files are now supported (bundling the Wireguard TUN driver)
+- NodeInfo code is now actorised, should be more reliable
+- The DHT now tries to store the two closest nodes in either direction instead of one, such that if a node goes offline, the replacement is already known
+- The Yggdrasil API now supports dialing a remote node using the public key instead of the Node ID
+
+### Changed
+- The `-loglevel` command line parameter is now cumulative and automatically includes all levels below the one specified
+- DHT search code has been significantly simplified and processes rumoured nodes in parallel, speeding up search time
+- DHT search results are now sorted
+- The systemd service now handles configuration generation in a different unit
+- The Yggdrasil API now returns public keys instead of node IDs when querying for local and remote addresses
+
+### Fixed
+- The multicast code no longer panics when shutting down the node
+- A potential OOB error when calculating IPv4 flow labels (when tunnel routing is enabled) has been fixed
+- A bug resulting in incorrect idle notifications in the switch should now be fixed
+- MTUs are now using a common datatype throughout the codebase
+
+### Removed
+- TAP mode has been removed entirely, since it is no longer supported with the Wireguard TUN package. Please note that if you are using TAP mode, you may need to revise your config!
+- NetBSD support has been removed until the Wireguard TUN package supports NetBSD
+
 ## [0.3.12] - 2019-11-24
 ### Added
 - New API functions `SetMaximumSessionMTU` and `GetMaximumSessionMTU`
