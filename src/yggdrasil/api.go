@@ -207,15 +207,16 @@ func (c *Core) GetSwitchQueues() SwitchQueues {
 			HighestSize:  switchTable.queues.maxsize,
 			MaximumSize:  switchTable.queues.totalMaxSize,
 		}
-		for k, v := range switchTable.queues.bufs {
-			nexthop := switchTable.bestPortForCoords([]byte(k))
-			queue := SwitchQueue{
-				ID:      k,
-				Size:    v.size,
-				Packets: uint64(len(v.packets)),
-				Port:    uint64(nexthop),
+		for port, pbuf := range switchTable.queues.bufs {
+			for k, v := range pbuf {
+				queue := SwitchQueue{
+					ID:      k,
+					Size:    v.size,
+					Packets: uint64(len(v.packets)),
+					Port:    uint64(port),
+				}
+				switchqueues.Queues = append(switchqueues.Queues, queue)
 			}
-			switchqueues.Queues = append(switchqueues.Queues, queue)
 		}
 	}
 	phony.Block(&c.switchTable, getSwitchQueues)

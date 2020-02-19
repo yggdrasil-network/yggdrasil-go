@@ -282,13 +282,6 @@ func (intf *linkInterface) notifySending(size int, isLinkTraffic bool) {
 	})
 }
 
-// called by an AfterFunc if we seem to be blocked in a send syscall for a long time
-func (intf *linkInterface) _notifySyscall() {
-	intf.link.core.switchTable.Act(intf, func() {
-		intf.link.core.switchTable._sendingIn(intf.peer.port)
-	})
-}
-
 // we just sent something, so cancel any pending timer to send keep-alive traffic
 func (intf *linkInterface) _cancelStallTimer() {
 	if intf.stallTimer != nil {
@@ -402,19 +395,7 @@ func (w *linkWriter) sendFrom(from phony.Actor, bss [][]byte, isLinkTraffic bool
 			size += len(bs)
 		}
 		w.intf.notifySending(size, isLinkTraffic)
-		// start a timer that will fire if we get stuck in writeMsgs for an oddly long time
-		var once sync.Once
-		timer := time.AfterFunc(time.Millisecond, func() {
-			// 1 ms is kind of arbitrary
-			// the rationale is that this should be very long compared to a syscall
-			// but it's still short compared to end-to-end latency or human perception
-			once.Do(func() {
-				w.intf.Act(nil, w.intf._notifySyscall)
-			})
-		})
 		w.intf.msgIO.writeMsgs(bss)
-		// Make sure we either stop the timer from doing anything or wait until it's done
-		once.Do(func() { timer.Stop() })
 		w.intf.notifySent(size, isLinkTraffic)
 		// Cleanup
 		for _, bs := range bss {
