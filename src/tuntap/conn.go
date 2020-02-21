@@ -63,7 +63,7 @@ func (s *tunConn) _read(bs []byte) (err error) {
 	default:
 		isCGA = false
 	}
-	// Check destiantion addresses
+	// Check destination addresses
 	switch {
 	case ipv6 && bs[24] == 0x02 && bytes.Equal(s.tun.addr[:16], bs[24:40]): // destination
 	case ipv6 && bs[24] == 0x03 && bytes.Equal(s.tun.subnet[:8], bs[24:32]): // destination
@@ -92,8 +92,7 @@ func (s *tunConn) _read(bs []byte) (err error) {
 			// The destination address isn't in our CKR allowed range
 			skip = true
 		} else if key, err := s.tun.ckr.getPublicKeyForAddress(srcAddr, addrlen); err == nil {
-			srcNodeID := crypto.GetNodeID(&key)
-			if *s.conn.RemoteAddr().(*crypto.NodeID) == *srcNodeID {
+			if *s.conn.RemoteAddr().(*crypto.BoxPubKey) == key {
 				// This is the one allowed CKR case, where source and destination addresses are both good
 			} else {
 				// The CKR key associated with this address doesn't match the sender's NodeID
@@ -169,8 +168,7 @@ func (s *tunConn) _write(bs []byte) (err error) {
 			// The source address isn't in our CKR allowed range
 			skip = true
 		} else if key, err := s.tun.ckr.getPublicKeyForAddress(dstAddr, addrlen); err == nil {
-			dstNodeID := crypto.GetNodeID(&key)
-			if *s.conn.RemoteAddr().(*crypto.NodeID) == *dstNodeID {
+			if *s.conn.RemoteAddr().(*crypto.BoxPubKey) == key {
 				// This is the one allowed CKR case, where source and destination addresses are both good
 			} else {
 				// The CKR key associated with this address doesn't match the sender's NodeID

@@ -1,116 +1,150 @@
+// +build windows
+
 package tuntap
 
 import (
+	"bytes"
 	"errors"
-	"fmt"
-	"os/exec"
-	"strings"
-	"time"
+	"log"
+	"net"
 
-	water "github.com/yggdrasil-network/water"
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"golang.org/x/sys/windows"
+
+	wgtun "golang.zx2c4.com/wireguard/tun"
+	"golang.zx2c4.com/wireguard/windows/elevate"
+	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
 )
 
 // This is to catch Windows platforms
 
-// Configures the TAP adapter with the correct IPv6 address and MTU. On Windows
-// we don't make use of a direct operating system API to do this - we instead
-// delegate the hard work to "netsh".
-func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
-	if !iftapmode {
-		tun.log.Warnln("Warning: TUN mode is not supported on this platform, defaulting to TAP")
-		iftapmode = true
-	}
-	config := water.Config{DeviceType: water.TAP}
-	config.PlatformSpecificParams.ComponentID = "tap0901"
-	config.PlatformSpecificParams.Network = "169.254.0.1/32"
+// Configures the TUN adapter with the correct IPv6 address and MTU.
+func (tun *TunAdapter) setup(ifname string, addr string, mtu MTU) error {
 	if ifname == "auto" {
-		config.PlatformSpecificParams.InterfaceName = ""
-	} else {
-		config.PlatformSpecificParams.InterfaceName = ifname
+		ifname = defaults.GetDefaults().DefaultIfName
 	}
-	iface, err := water.New(config)
-	if err != nil {
-		return err
-	}
-	if iface.Name() == "" {
-		return errors.New("unable to find TAP adapter with component ID " + config.PlatformSpecificParams.ComponentID)
-	}
-	// Reset the adapter - this invalidates iface so we'll need to get a new one
-	cmd := exec.Command("netsh", "interface", "set", "interface", iface.Name(), "admin=DISABLED")
-	tun.log.Debugln("netsh command:", strings.Join(cmd.Args, " "))
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		tun.log.Errorln("Windows netsh failed:", err)
-		tun.log.Traceln(string(output))
-		return err
-	}
-	time.Sleep(time.Second) // FIXME artifical delay to give netsh time to take effect
-	// Bring the interface back up
-	cmd = exec.Command("netsh", "interface", "set", "interface", iface.Name(), "admin=ENABLED")
-	tun.log.Debugln("netsh command:", strings.Join(cmd.Args, " "))
-	output, err = cmd.CombinedOutput()
-	if err != nil {
-		tun.log.Errorln("Windows netsh failed:", err)
-		tun.log.Traceln(string(output))
-		return err
-	}
-	time.Sleep(time.Second) // FIXME artifical delay to give netsh time to take effect
-	// Get a new iface
-	iface, err = water.New(config)
-	if err != nil {
-		panic(err)
-	}
-	tun.iface = iface
-	tun.mtu = getSupportedMTU(mtu, iftapmode)
-	err = tun.setupMTU(tun.mtu)
-	if err != nil {
-		panic(err)
-	}
-	// Friendly output
-	tun.log.Infof("Interface name: %s", tun.iface.Name())
-	tun.log.Infof("Interface IPv6: %s", addr)
-	tun.log.Infof("Interface MTU: %d", tun.mtu)
-	return tun.setupAddress(addr)
+	return elevate.DoAsSystem(func() error {
+		var err error
+		var iface wgtun.Device
+		var guid windows.GUID
+		if guid, err = windows.GUIDFromString("{8f59971a-7872-4aa6-b2eb-061fc4e9d0a7}"); err != nil {
+			return err
+		}
+		if iface, err = wgtun.CreateTUNWithRequestedGUID(ifname, &guid, int(mtu)); err != nil {
+			return err
+		}
+		tun.iface = iface
+		if err = tun.setupAddress(addr); err != nil {
+			tun.log.Errorln("Failed to set up TUN address:", err)
+			return err
+		}
+		if err = tun.setupMTU(getSupportedMTU(mtu)); err != nil {
+			tun.log.Errorln("Failed to set up TUN MTU:", err)
+			return err
+		}
+		if mtu, err := iface.MTU(); err == nil {
+			tun.mtu = MTU(mtu)
+		}
+		return nil
+	})
 }
 
 // Sets the MTU of the TAP adapter.
-func (tun *TunAdapter) setupMTU(mtu int) error {
-	if tun.iface == nil || tun.iface.Name() == "" {
-		return errors.New("Can't configure MTU as TAP adapter is not present")
+func (tun *TunAdapter) setupMTU(mtu MTU) error {
+	if tun.iface == nil || tun.Name() == "" {
+		return errors.New("Can't configure MTU as TUN adapter is not present")
 	}
-	// Set MTU
-	cmd := exec.Command("netsh", "interface", "ipv6", "set", "subinterface",
-		fmt.Sprintf("interface=%s", tun.iface.Name()),
-		fmt.Sprintf("mtu=%d", mtu),
-		"store=active")
-	tun.log.Debugln("netsh command:", strings.Join(cmd.Args, " "))
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		tun.log.Errorln("Windows netsh failed:", err)
-		tun.log.Traceln(string(output))
-		return err
+	if intf, ok := tun.iface.(*wgtun.NativeTun); ok {
+		luid := winipcfg.LUID(intf.LUID())
+		ipfamily, err := luid.IPInterface(windows.AF_INET6)
+		if err != nil {
+			return err
+		}
+
+		ipfamily.NLMTU = uint32(mtu)
+		intf.ForceMTU(int(ipfamily.NLMTU))
+		ipfamily.UseAutomaticMetric = false
+		ipfamily.Metric = 0
+		ipfamily.DadTransmits = 0
+		ipfamily.RouterDiscoveryBehavior = winipcfg.RouterDiscoveryDisabled
+
+		if err := ipfamily.Set(); err != nil {
+			return err
+		}
 	}
-	time.Sleep(time.Second) // FIXME artifical delay to give netsh time to take effect
+
 	return nil
 }
 
 // Sets the IPv6 address of the TAP adapter.
 func (tun *TunAdapter) setupAddress(addr string) error {
-	if tun.iface == nil || tun.iface.Name() == "" {
-		return errors.New("Can't configure IPv6 address as TAP adapter is not present")
+	if tun.iface == nil || tun.Name() == "" {
+		return errors.New("Can't configure IPv6 address as TUN adapter is not present")
 	}
-	// Set address
-	cmd := exec.Command("netsh", "interface", "ipv6", "add", "address",
-		fmt.Sprintf("interface=%s", tun.iface.Name()),
-		fmt.Sprintf("addr=%s", addr),
-		"store=active")
-	tun.log.Debugln("netsh command:", strings.Join(cmd.Args, " "))
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		tun.log.Errorln("Windows netsh failed:", err)
-		tun.log.Traceln(string(output))
-		return err
+	if intf, ok := tun.iface.(*wgtun.NativeTun); ok {
+		if ipaddr, ipnet, err := net.ParseCIDR(addr); err == nil {
+			luid := winipcfg.LUID(intf.LUID())
+			addresses := append([]net.IPNet{}, net.IPNet{
+				IP:   ipaddr,
+				Mask: ipnet.Mask,
+			})
+
+			err := luid.SetIPAddressesForFamily(windows.AF_INET6, addresses)
+			if err == windows.ERROR_OBJECT_ALREADY_EXISTS {
+				cleanupAddressesOnDisconnectedInterfaces(windows.AF_INET6, addresses)
+				err = luid.SetIPAddressesForFamily(windows.AF_INET6, addresses)
+			}
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	} else {
+		return errors.New("unable to get NativeTUN")
 	}
-	time.Sleep(time.Second) // FIXME artifical delay to give netsh time to take effect
 	return nil
+}
+
+/*
+ * cleanupAddressesOnDisconnectedInterfaces
+ * SPDX-License-Identifier: MIT
+ * Copyright (C) 2019 WireGuard LLC. All Rights Reserved.
+ */
+func cleanupAddressesOnDisconnectedInterfaces(family winipcfg.AddressFamily, addresses []net.IPNet) {
+	if len(addresses) == 0 {
+		return
+	}
+	includedInAddresses := func(a net.IPNet) bool {
+		// TODO: this makes the whole algorithm O(n^2). But we can't stick net.IPNet in a Go hashmap. Bummer!
+		for _, addr := range addresses {
+			ip := addr.IP
+			if ip4 := ip.To4(); ip4 != nil {
+				ip = ip4
+			}
+			mA, _ := addr.Mask.Size()
+			mB, _ := a.Mask.Size()
+			if bytes.Equal(ip, a.IP) && mA == mB {
+				return true
+			}
+		}
+		return false
+	}
+	interfaces, err := winipcfg.GetAdaptersAddresses(family, winipcfg.GAAFlagDefault)
+	if err != nil {
+		return
+	}
+	for _, iface := range interfaces {
+		if iface.OperStatus == winipcfg.IfOperStatusUp {
+			continue
+		}
+		for address := iface.FirstUnicastAddress; address != nil; address = address.Next {
+			ip := address.Address.IP()
+			ipnet := net.IPNet{IP: ip, Mask: net.CIDRMask(int(address.OnLinkPrefixLength), 8*len(ip))}
+			if includedInAddresses(ipnet) {
+				log.Printf("Cleaning up stale address %s from interface ‘%s’", ipnet.String(), iface.FriendlyName())
+				iface.LUID.DeleteIPAddress(ipnet)
+			}
+		}
+	}
 }

@@ -20,7 +20,7 @@ const (
 )
 
 // dhtInfo represents everything we know about a node in the DHT.
-// This includes its key, a cache of it's NodeID, coords, and timing/ping related info for deciding who/when to ping nodes for maintenance.
+// This includes its key, a cache of its NodeID, coords, and timing/ping related info for deciding who/when to ping nodes for maintenance.
 type dhtInfo struct {
 	nodeID_hidden *crypto.NodeID
 	key           crypto.BoxPubKey
@@ -387,6 +387,8 @@ func (t *dht) getImportant() []*dhtInfo {
 			if dist < minDist {
 				minDist = dist
 				important = append(important, info)
+			} else if len(important) < 2 {
+				important = append(important, info)
 			}
 		}
 		var temp []*dhtInfo
@@ -396,6 +398,8 @@ func (t *dht) getImportant() []*dhtInfo {
 			dist := uint64(loc.dist(info.coords))
 			if dist < minDist {
 				minDist = dist
+				temp = append(temp, info)
+			} else if len(temp) < 2 {
 				temp = append(temp, info)
 			}
 		}

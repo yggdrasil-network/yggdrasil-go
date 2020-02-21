@@ -7,10 +7,13 @@ import (
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/types"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 
 	"github.com/Arceliar/phony"
 )
+
+type MTU = types.MTU
 
 // ConnError implements the net.Error interface
 type ConnError struct {
@@ -65,7 +68,7 @@ type Conn struct {
 	nodeID        *crypto.NodeID
 	nodeMask      *crypto.NodeID
 	session       *sessionInfo
-	mtu           uint16
+	mtu           MTU
 	readCallback  func([]byte)
 	readBuffer    chan []byte
 }
@@ -93,7 +96,7 @@ func (c *Conn) String() string {
 	return s
 }
 
-func (c *Conn) setMTU(from phony.Actor, mtu uint16) {
+func (c *Conn) setMTU(from phony.Actor, mtu MTU) {
 	c.Act(from, func() { c.mtu = mtu })
 }
 
@@ -128,7 +131,7 @@ func (c *Conn) search() error {
 				}
 			}
 			sinfo := c.core.router.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
-			sinfo.continueSearch()
+			sinfo.startSearch()
 		} else {
 			err = errors.New("search already exists")
 			close(done)
@@ -152,7 +155,7 @@ func (c *Conn) doSearch() {
 			sinfo = c.core.router.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
 			c.core.log.Debugf("%s DHT search started: %p", c.String(), sinfo)
 			// Start the search
-			sinfo.continueSearch()
+			sinfo.startSearch()
 		}
 	}
 	c.core.router.Act(c.session, routerWork)
@@ -164,7 +167,7 @@ func (c *Conn) _getDeadlineCancellation(t *time.Time) (util.Cancellation, bool) 
 		c := util.CancellationWithDeadline(c.session.cancel, *t)
 		return c, true
 	} else {
-		// No deadline was set, so just return the existinc cancellation and a dummy value
+		// No deadline was set, so just return the existing cancellation and a dummy value
 		return c.session.cancel, false
 	}
 }
@@ -279,7 +282,7 @@ func (c *Conn) _write(msg FlowKeyMessage) error {
 }
 
 // WriteFrom should be called by a phony.Actor, and tells the Conn to send a
-// message. This is used internaly by Write. If the callback is called with a
+// message. This is used internally by Write. If the callback is called with a
 // non-nil value, then it is safe to reuse the argument FlowKeyMessage.
 func (c *Conn) WriteFrom(from phony.Actor, msg FlowKeyMessage, callback func(error)) {
 	c.Act(from, func() {
@@ -347,16 +350,19 @@ func (c *Conn) Close() (err error) {
 	return
 }
 
-// LocalAddr returns the complete node ID of the local side of the connection.
-// This is always going to return your own node's node ID.
+// LocalAddr returns the complete public key of the local side of the
+// connection. This is always going to return your own node's public key.
 func (c *Conn) LocalAddr() net.Addr {
-	return crypto.GetNodeID(&c.core.boxPub)
+	return &c.core.boxPub
 }
 
-// RemoteAddr returns the complete node ID of the remote side of the connection.
+// RemoteAddr returns the complete public key of the remote side of the
+// connection.
 func (c *Conn) RemoteAddr() net.Addr {
-	// RemoteAddr is set during the dial or accept, and isn't changed, so it's safe to access directly
-	return c.nodeID
+	if c.session != nil {
+		return &c.session.theirPermPub
+	}
+	return nil
 }
 
 // SetDeadline is equivalent to calling both SetReadDeadline and

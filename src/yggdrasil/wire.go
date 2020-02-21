@@ -380,7 +380,7 @@ func (p *sessionPing) decode(bs []byte) bool {
 	if pType == wire_SessionPong {
 		p.IsPong = true
 	}
-	p.MTU = uint16(mtu)
+	p.MTU = MTU(mtu)
 	return true
 }
 

@@ -25,6 +25,31 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.3.13] - 2020-02-21
+### Added
+- Support for the Wireguard TUN driver, which now replaces Water and provides far better support and performance on Windows
+- Windows `.msi` installer files are now supported (bundling the Wireguard TUN driver)
+- NodeInfo code is now actorised, should be more reliable
+- The DHT now tries to store the two closest nodes in either direction instead of one, such that if a node goes offline, the replacement is already known
+- The Yggdrasil API now supports dialing a remote node using the public key instead of the Node ID
+
+### Changed
+- The `-loglevel` command line parameter is now cumulative and automatically includes all levels below the one specified
+- DHT search code has been significantly simplified and processes rumoured nodes in parallel, speeding up search time
+- DHT search results are now sorted
+- The systemd service now handles configuration generation in a different unit
+- The Yggdrasil API now returns public keys instead of node IDs when querying for local and remote addresses
+
+### Fixed
+- The multicast code no longer panics when shutting down the node
+- A potential OOB error when calculating IPv4 flow labels (when tunnel routing is enabled) has been fixed
+- A bug resulting in incorrect idle notifications in the switch should now be fixed
+- MTUs are now using a common datatype throughout the codebase
+
+### Removed
+- TAP mode has been removed entirely, since it is no longer supported with the Wireguard TUN package. Please note that if you are using TAP mode, you may need to revise your config!
+- NetBSD support has been removed until the Wireguard TUN package supports NetBSD
+
 ## [0.3.12] - 2019-11-24
 ### Added
 - New API functions `SetMaximumSessionMTU` and `GetMaximumSessionMTU`
@@ -66,7 +91,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 - On recent Linux kernels, Yggdrasil will now set the `tcp_congestion_control` algorithm used for its own TCP sockets to [BBR](https://github.com/google/bbr), which reduces latency under load
-- The systemd service configuration in `contrib` (and, by extension, some of our packages) now attemps to load the `tun` module, in case TUN/TAP support is available but not loaded, and it restricts Yggdrasil to the `CAP_NET_ADMIN` capability for managing the TUN/TAP adapter, rather than letting it do whatever the (typically `root`) user can do
+- The systemd service configuration in `contrib` (and, by extension, some of our packages) now attempts to load the `tun` module, in case TUN/TAP support is available but not loaded, and it restricts Yggdrasil to the `CAP_NET_ADMIN` capability for managing the TUN/TAP adapter, rather than letting it do whatever the (typically `root`) user can do
 
 ### Fixed
 - The `yggdrasil.Conn.RemoteAddr()` function no longer blocks, fixing a deadlock when CKR is used while under heavy load
@@ -90,7 +115,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Some minor memory leaks in the switch have been fixed, which improves memory usage on mobile builds
 - A memory leak in the add-peer loop has been fixed
 - The admin socket now reports the correct URI strings for SOCKS peers in `getPeers`
-- A race condition when dialling a remote node by both the node address and routed prefix simultaneously has been fixed
+- A race condition when dialing a remote node by both the node address and routed prefix simultaneously has been fixed
 - A race condition between the router and the dial code resulting in a panic has been fixed
 - A panic which could occur when the TUN/TAP interface disappears (e.g. during soft-shutdown) has been fixed
 - A bug in the semantic versioning script which accompanies Yggdrasil for builds has been fixed
@@ -180,7 +205,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ## [0.3.4] - 2019-03-12
 ### Added
 - Support for multiple listeners (although currently only TCP listeners are supported)
-- New multicast behaviour where each multicast interface is given it's own link-local listener and does not depend on the `Listen` configuration
+- New multicast behaviour where each multicast interface is given its own link-local listener and does not depend on the `Listen` configuration
 - Blocking detection in the switch to avoid parenting a blocked peer
 - Support for adding and removing listeners and multicast interfaces when reloading configuration during runtime
 - Yggdrasil will now attempt to clean up UNIX admin sockets on startup if left behind by a previous crash
@@ -374,7 +399,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Wire format changes (backwards incompatible).
 - Less maintenance traffic per peer.
 - Exponential back-off for DHT maintenance traffic (less maintenance traffic for known good peers).
-- Iterative DHT (added some time between v0.1.0 and here).
+- Iterative DHT (added sometime between v0.1.0 and here).
 - Use local queue sizes for a sort of local-only backpressure routing, instead of the removed bandwidth estimates, when deciding where to send a packet.
 
 ### Removed

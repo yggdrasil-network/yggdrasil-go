@@ -36,14 +36,13 @@ type sessionInfo struct {
 	myHandle      crypto.Handle       //
 	theirNonce    crypto.BoxNonce     //
 	myNonce       crypto.BoxNonce     //
-	theirMTU      uint16              //
-	myMTU         uint16              //
+	theirMTU      MTU                 //
+	myMTU         MTU                 //
 	wasMTUFixed   bool                // Was the MTU fixed by a receive error?
-	timeOpened    time.Time           // Time the sessino was opened
+	timeOpened    time.Time           // Time the session was opened
 	time          time.Time           // Time we last received a packet
 	mtuTime       time.Time           // time myMTU was last changed
 	pingTime      time.Time           // time the first ping was sent since the last received packet
-	pingSend      time.Time           // time the last ping was sent
 	coords        []byte              // coords of destination
 	reset         bool                // reset if coords change
 	tstamp        int64               // ATOMIC - tstamp from their last session ping, replay attack mitigation
@@ -55,7 +54,7 @@ type sessionInfo struct {
 	callbacks     []chan func()       // Finished work from crypto workers
 }
 
-// Represents a session ping/pong packet, andincludes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
+// Represents a session ping/pong packet, and includes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
 type sessionPing struct {
 	SendPermPub crypto.BoxPubKey // Sender's permanent key
 	Handle      crypto.Handle    // Random number to ID session
@@ -63,7 +62,7 @@ type sessionPing struct {
 	Coords      []byte           //
 	Tstamp      int64            // unix time, but the only real requirement is that it increases
 	IsPong      bool             //
-	MTU         uint16           //
+	MTU         MTU              //
 }
 
 // Updates session info in response to a ping, after checking that the ping is OK.
@@ -117,7 +116,7 @@ type sessions struct {
 	lastCleanup      time.Time
 	isAllowedHandler func(pubkey *crypto.BoxPubKey, initiator bool) bool // Returns true or false if session setup is allowed
 	isAllowedMutex   sync.RWMutex                                        // Protects the above
-	myMaximumMTU     uint16                                              // Maximum allowed session MTU
+	myMaximumMTU     MTU                                                 // Maximum allowed session MTU
 	permShared       map[crypto.BoxPubKey]*crypto.BoxSharedKey           // Maps known permanent keys to their shared key, used by DHT a lot
 	sinfos           map[crypto.Handle]*sessionInfo                      // Maps handle onto session info
 	byTheirPerm      map[crypto.BoxPubKey]*crypto.Handle                 // Maps theirPermPub onto handle
@@ -175,7 +174,7 @@ func (ss *sessions) getByTheirPerm(key *crypto.BoxPubKey) (*sessionInfo, bool) {
 }
 
 // Creates a new session and lazily cleans up old existing sessions. This
-// includse initializing session info to sane defaults (e.g. lowest supported
+// includes initializing session info to sane defaults (e.g. lowest supported
 // MTU).
 func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	// TODO: this check definitely needs to be moved
@@ -197,7 +196,6 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.time = now
 	sinfo.mtuTime = now
 	sinfo.pingTime = now
-	sinfo.pingSend = now
 	sinfo.init = make(chan struct{})
 	sinfo.cancel = util.NewCancellation()
 	higher := false
@@ -385,7 +383,7 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 // Get the MTU of the session.
 // Will be equal to the smaller of this node's MTU or the remote node's MTU.
 // If sending over links with a maximum message size (this was a thing with the old UDP code), it could be further lowered, to a minimum of 1280.
-func (sinfo *sessionInfo) _getMTU() uint16 {
+func (sinfo *sessionInfo) _getMTU() MTU {
 	if sinfo.theirMTU == 0 || sinfo.myMTU == 0 {
 		return 0
 	}
@@ -415,7 +413,7 @@ func (sinfo *sessionInfo) _updateNonce(theirNonce *crypto.BoxNonce) {
 }
 
 // Resets all sessions to an uninitialized state.
-// Called after coord changes, so attemtps to use a session will trigger a new ping and notify the remote end of the coord change.
+// Called after coord changes, so attempts to use a session will trigger a new ping and notify the remote end of the coord change.
 // Only call this from the router actor.
 func (ss *sessions) reset() {
 	for _, _sinfo := range ss.sinfos {

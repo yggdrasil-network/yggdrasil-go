@@ -1,11 +1,6 @@
 package tuntap
 
 import (
-	"bytes"
-	"net"
-	"time"
-
-	"github.com/songgao/packets/ethernet"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
@@ -13,6 +8,8 @@ import (
 
 	"github.com/Arceliar/phony"
 )
+
+const TUN_OFFSET_BYTES = 4
 
 type tunWriter struct {
 	phony.Inbox
@@ -25,80 +22,29 @@ func (w *tunWriter) writeFrom(from phony.Actor, b []byte) {
 	})
 }
 
-// write is pretty loose with the memory safety rules, e.g. it assumes it can read w.tun.iface.IsTap() safely
+// write is pretty loose with the memory safety rules, e.g. it assumes it can
+// read w.tun.iface.IsTap() safely
 func (w *tunWriter) _write(b []byte) {
+	defer util.PutBytes(b)
 	var written int
 	var err error
 	n := len(b)
 	if n == 0 {
 		return
 	}
-	if w.tun.iface.IsTAP() {
-		sendndp := func(dstAddr address.Address) {
-			neigh, known := w.tun.icmpv6.getNeighbor(dstAddr)
-			known = known && (time.Since(neigh.lastsolicitation).Seconds() < 30)
-			if !known {
-				w.tun.icmpv6.Solicit(dstAddr)
-			}
-		}
-		peermac := net.HardwareAddr{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
-		var dstAddr address.Address
-		var peerknown bool
-		if b[0]&0xf0 == 0x40 {
-			dstAddr = w.tun.addr
-		} else if b[0]&0xf0 == 0x60 {
-			if !bytes.Equal(w.tun.addr[:16], dstAddr[:16]) && !bytes.Equal(w.tun.subnet[:8], dstAddr[:8]) {
-				dstAddr = w.tun.addr
-			}
-		}
-		if neighbor, ok := w.tun.icmpv6.getNeighbor(dstAddr); ok && neighbor.learned {
-			// If we've learned the MAC of a 300::/7 address, for example, or a CKR
-			// address, use the MAC address of that
-			peermac = neighbor.mac
-			peerknown = true
-		} else if neighbor, ok := w.tun.icmpv6.getNeighbor(w.tun.addr); ok && neighbor.learned {
-			// Otherwise send directly to the MAC address of the host if that's
-			// known instead
-			peermac = neighbor.mac
-			peerknown = true
-		} else {
-			// Nothing has been discovered, try to discover the destination
-			sendndp(w.tun.addr)
-		}
-		if peerknown {
-			var proto ethernet.Ethertype
-			switch {
-			case b[0]&0xf0 == 0x60:
-				proto = ethernet.IPv6
-			case b[0]&0xf0 == 0x40:
-				proto = ethernet.IPv4
-			}
-			var frame ethernet.Frame
-			frame.Prepare(
-				peermac[:6],            // Destination MAC address
-				w.tun.icmpv6.mymac[:6], // Source MAC address
-				ethernet.NotTagged,     // VLAN tagging
-				proto,                  // Ethertype
-				len(b))                 // Payload length
-			copy(frame[tun_ETHER_HEADER_LENGTH:], b[:n])
-			n += tun_ETHER_HEADER_LENGTH
-			written, err = w.tun.iface.Write(frame[:n])
-		} else {
-			w.tun.log.Errorln("TUN/TAP iface write error: no peer MAC known for", net.IP(dstAddr[:]).String(), "- dropping packet")
-		}
-	} else {
-		written, err = w.tun.iface.Write(b[:n])
-		util.PutBytes(b)
-	}
+	temp := append(util.ResizeBytes(util.GetBytes(), TUN_OFFSET_BYTES), b...)
+	defer util.PutBytes(temp)
+	written, err = w.tun.iface.Write(temp, TUN_OFFSET_BYTES)
 	if err != nil {
 		w.tun.Act(w, func() {
 			if !w.tun.isOpen {
-				w.tun.log.Errorln("TUN/TAP iface write error:", err)
+				w.tun.log.Errorln("TUN iface write error:", err)
 			}
 		})
 	}
-	if written != n {
-		w.tun.log.Errorln("TUN/TAP iface write mismatch:", written, "bytes written vs", n, "bytes given")
+	if written != n+TUN_OFFSET_BYTES {
+		// FIXME some platforms return the wrong number of bytes written, causing error spam
+		//w.tun.log.Errorln("TUN iface write mismatch:", written, "bytes written vs", n+TUN_OFFSET_BYTES, "bytes given")
 	}
 }
 
@@ -109,13 +55,18 @@ type tunReader struct {
 
 func (r *tunReader) _read() {
 	// Get a slice to store the packet in
-	recvd := util.ResizeBytes(util.GetBytes(), 65535+tun_ETHER_HEADER_LENGTH)
-	// Wait for a packet to be delivered to us through the TUN/TAP adapter
-	n, err := r.tun.iface.Read(recvd)
-	if n <= 0 {
+	recvd := util.ResizeBytes(util.GetBytes(), int(r.tun.mtu)+TUN_OFFSET_BYTES)
+	// Wait for a packet to be delivered to us through the TUN adapter
+	n, err := r.tun.iface.Read(recvd, TUN_OFFSET_BYTES)
+	if n <= TUN_OFFSET_BYTES || err != nil {
+		r.tun.log.Errorln("Error reading TUN:", err)
+		ferr := r.tun.iface.Flush()
+		if ferr != nil {
+			r.tun.log.Errorln("Unable to flush packets:", ferr)
+		}
 		util.PutBytes(recvd)
 	} else {
-		r.tun.handlePacketFrom(r, recvd[:n], err)
+		r.tun.handlePacketFrom(r, recvd[TUN_OFFSET_BYTES:n+TUN_OFFSET_BYTES], err)
 	}
 	if err == nil {
 		// Now read again
@@ -132,42 +83,16 @@ func (tun *TunAdapter) handlePacketFrom(from phony.Actor, packet []byte, err err
 // does the work of reading a packet and sending it to the correct tunConn
 func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 	if err != nil {
-		tun.log.Errorln("TUN/TAP iface read error:", err)
+		tun.log.Errorln("TUN iface read error:", err)
 		return
-	}
-	// If it's a TAP adapter, update the buffer slice so that we no longer
-	// include the ethernet headers
-	offset := 0
-	if tun.iface.IsTAP() {
-		// Set our offset to beyond the ethernet headers
-		offset = tun_ETHER_HEADER_LENGTH
-		// Check first of all that we can go beyond the ethernet headers
-		if len(recvd) <= offset {
-			return
-		}
 	}
 	// Offset the buffer from now on so that we can ignore ethernet frames if
 	// they are present
-	bs := recvd[offset:]
+	bs := recvd[:]
 	// Check if the packet is long enough to detect if it's an ICMP packet or not
 	if len(bs) < 7 {
-		tun.log.Traceln("TUN/TAP iface read undersized unknown packet, length:", len(bs))
+		tun.log.Traceln("TUN iface read undersized unknown packet, length:", len(bs))
 		return
-	}
-	// If we detect an ICMP packet then hand it to the ICMPv6 module
-	if bs[6] == 58 {
-		// Found an ICMPv6 packet - we need to make sure to give ICMPv6 the full
-		// Ethernet frame rather than just the IPv6 packet as this is needed for
-		// NDP to work correctly
-		if err := tun.icmpv6.ParsePacket(recvd); err == nil {
-			// We acted on the packet in the ICMPv6 module so don't forward or do
-			// anything else with it
-			return
-		}
-	}
-	if offset != 0 {
-		// Shift forward to avoid leaking bytes off the front of the slice when we eventually store it
-		bs = append(recvd[:0], bs...)
 	}
 	// From the IP header, work out what our source and destination addresses
 	// and node IDs are. We will need these in order to work out where to send
@@ -181,7 +106,7 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 	if bs[0]&0xf0 == 0x60 {
 		// Check if we have a fully-sized IPv6 header
 		if len(bs) < 40 {
-			tun.log.Traceln("TUN/TAP iface read undersized ipv6 packet, length:", len(bs))
+			tun.log.Traceln("TUN iface read undersized ipv6 packet, length:", len(bs))
 			return
 		}
 		// Check the packet size
@@ -195,7 +120,7 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 	} else if bs[0]&0xf0 == 0x40 {
 		// Check if we have a fully-sized IPv4 header
 		if len(bs) < 20 {
-			tun.log.Traceln("TUN/TAP iface read undersized ipv4 packet, length:", len(bs))
+			tun.log.Traceln("TUN iface read undersized ipv4 packet, length:", len(bs))
 			return
 		}
 		// Check the packet size
@@ -267,7 +192,7 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 					if tc, err = tun._wrap(conn.(*yggdrasil.Conn)); err != nil {
 						// Something went wrong when storing the connection, typically that
 						// something already exists for this address or subnet
-						tun.log.Debugln("TUN/TAP iface wrap:", err)
+						tun.log.Debugln("TUN iface wrap:", err)
 						return
 					}
 					for _, packet := range packets {

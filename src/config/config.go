@@ -5,7 +5,7 @@ Yggdrasil node.
 The configuration contains, amongst other things, encryption keys which are used
 to derive a node's identity, information about peerings and node information
 that is shared with the network. There are also some module-specific options
-related to TUN/TAP, multicast and the admin socket.
+related to TUN, multicast and the admin socket.
 
 In order for a node to maintain the same identity across restarts, you should
 persist the configuration onto the filesystem or into some configuration storage
@@ -22,7 +22,10 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/types"
 )
+
+type MTU = types.MTU
 
 // NodeState represents the active and previous configuration of an Yggdrasil
 // node. A NodeState object is returned when starting an Yggdrasil node. Note
@@ -70,9 +73,8 @@ type NodeConfig struct {
 	SigningPublicKey            string                 `comment:"Your public signing key. You should not ordinarily need to share\nthis with anyone."`
 	SigningPrivateKey           string                 `comment:"Your private signing key. DO NOT share this with anyone!"`
 	LinkLocalTCPPort            uint16                 `comment:"The port number to be used for the link-local TCP listeners for the\nconfigured MulticastInterfaces. This option does not affect listeners\nspecified in the Listen option. Unless you plan to firewall link-local\ntraffic, it is best to leave this as the default value of 0. This\noption cannot currently be changed by reloading config during runtime."`
-	IfName                      string                 `comment:"Local network interface name for TUN/TAP adapter, or \"auto\" to select\nan interface automatically, or \"none\" to run without TUN/TAP."`
-	IfTAPMode                   bool                   `comment:"Set local network interface to TAP mode rather than TUN mode if\nsupported by your platform - option will be ignored if not."`
-	IfMTU                       int                    `comment:"Maximux Transmission Unit (MTU) size for your local TUN/TAP interface.\nDefault is the largest supported size for your platform. The lowest\npossible value is 1280."`
+	IfName                      string                 `comment:"Local network interface name for TUN adapter, or \"auto\" to select\nan interface automatically, or \"none\" to run without TUN."`
+	IfMTU                       MTU                    `comment:"Maximum Transmission Unit (MTU) size for your local TUN interface.\nDefault is the largest supported size for your platform. The lowest\npossible value is 1280."`
 	SessionFirewall             SessionFirewall        `comment:"The session firewall controls who can send/receive network traffic\nto/from. This is useful if you want to protect this node without\nresorting to using a real firewall. This does not affect traffic\nbeing routed via this node to somewhere else. Rules are prioritised as\nfollows: blacklist, whitelist, always allow outgoing, direct, remote."`
 	TunnelRouting               TunnelRouting          `comment:"Allow tunneling non-Yggdrasil traffic over Yggdrasil. This effectively\nallows you to use Yggdrasil to route to, or to bridge other networks,\nsimilar to a VPN tunnel. Tunnelling works between any two nodes and\ndoes not require them to be directly peered."`
 	SwitchOptions               SwitchOptions          `comment:"Advanced options for tuning the switch. Normally you will not need\nto edit these options."`
@@ -127,7 +129,6 @@ func GenerateConfig() *NodeConfig {
 	cfg.MulticastInterfaces = defaults.GetDefaults().DefaultMulticastInterfaces
 	cfg.IfName = defaults.GetDefaults().DefaultIfName
 	cfg.IfMTU = defaults.GetDefaults().DefaultIfMTU
-	cfg.IfTAPMode = defaults.GetDefaults().DefaultIfTAPMode
 	cfg.SessionFirewall.Enable = false
 	cfg.SessionFirewall.AllowFromDirect = true
 	cfg.SessionFirewall.AllowFromRemote = true

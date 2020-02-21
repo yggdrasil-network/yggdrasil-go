@@ -5,13 +5,14 @@ WORKDIR /src
 
 ENV CGO_ENABLED=0
 
-RUN apk add git && ./build 
+RUN apk add git && ./build && go build -o /src/genkeys cmd/genkeys/main.go
 
 FROM docker.io/alpine
 LABEL maintainer="Christer Waren/CWINFO <christer.waren@cwinfo.org>"
 
 COPY --from=builder /src/yggdrasil /usr/bin/yggdrasil
 COPY --from=builder /src/yggdrasilctl /usr/bin/yggdrasilctl
+COPY --from=builder /src/genkeys /usr/bin/genkeys
 COPY contrib/docker/entrypoint.sh /usr/bin/entrypoint.sh
 
 # RUN addgroup -g 1000 -S yggdrasil-network \

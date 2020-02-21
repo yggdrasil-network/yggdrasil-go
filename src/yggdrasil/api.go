@@ -99,7 +99,7 @@ type Session struct {
 	Coords      []uint64         // The coordinates of the remote node
 	BytesSent   uint64           // Bytes sent to the session
 	BytesRecvd  uint64           // Bytes received from the session
-	MTU         uint16           // The maximum supported message size of the session
+	MTU         MTU              // The maximum supported message size of the session
 	Uptime      time.Duration    // How long this session has been active for
 	WasMTUFixed bool             // This field is no longer used
 }
@@ -364,8 +364,8 @@ func (c *Core) SetNodeInfo(nodeinfo interface{}, nodeinfoprivacy bool) {
 }
 
 // GetMaximumSessionMTU returns the maximum allowed session MTU size.
-func (c *Core) GetMaximumSessionMTU() uint16 {
-	var mtu uint16
+func (c *Core) GetMaximumSessionMTU() MTU {
+	var mtu MTU
 	phony.Block(&c.router, func() {
 		mtu = c.router.sessions.myMaximumMTU
 	})
@@ -375,7 +375,7 @@ func (c *Core) GetMaximumSessionMTU() uint16 {
 // SetMaximumSessionMTU sets the maximum allowed session MTU size. The default
 // value is 65535 bytes. Session pings will be sent to update all open sessions
 // if the MTU has changed.
-func (c *Core) SetMaximumSessionMTU(mtu uint16) {
+func (c *Core) SetMaximumSessionMTU(mtu MTU) {
 	phony.Block(&c.router, func() {
 		if c.router.sessions.myMaximumMTU != mtu {
 			c.router.sessions.myMaximumMTU = mtu
@@ -390,17 +390,15 @@ func (c *Core) SetMaximumSessionMTU(mtu uint16) {
 // necessary when, e.g. crawling the network.
 func (c *Core) GetNodeInfo(key crypto.BoxPubKey, coords []uint64, nocache bool) (NodeInfoPayload, error) {
 	response := make(chan *NodeInfoPayload, 1)
-	sendNodeInfoRequest := func() {
-		c.router.nodeinfo.addCallback(key, func(nodeinfo *NodeInfoPayload) {
-			defer func() { recover() }()
-			select {
-			case response <- nodeinfo:
-			default:
-			}
-		})
-		c.router.nodeinfo.sendNodeInfo(key, wire_coordsUint64stoBytes(coords), false)
-	}
-	phony.Block(&c.router, sendNodeInfoRequest)
+	c.router.nodeinfo.addCallback(key, func(nodeinfo *NodeInfoPayload) {
+		defer func() { recover() }()
+		select {
+		case response <- nodeinfo:
+		default:
+		}
+	})
+	c.router.nodeinfo.sendNodeInfo(key, wire_coordsUint64stoBytes(coords), false)
+	phony.Block(&c.router.nodeinfo, func() {}) // Wait for sendNodeInfo before starting timer
 	timer := time.AfterFunc(6*time.Second, func() { close(response) })
 	defer timer.Stop()
 	for res := range response {

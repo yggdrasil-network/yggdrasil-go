@@ -1,4 +1,4 @@
-// +build openbsd freebsd netbsd
+// +build openbsd freebsd
 
 package tuntap
 
@@ -12,7 +12,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/yggdrasil-network/water"
+	wgtun "golang.zx2c4.com/wireguard/tun"
 )
 
 const SIOCSIFADDR_IN6 = (0x80000000) | ((288 & 0x1fff) << 16) | uint32(byte('i'))<<8 | 12
@@ -72,34 +72,18 @@ type in6_ifreq_lifetime struct {
 	ifru_addrlifetime in6_addrlifetime
 }
 
-// Sets the IPv6 address of the utun adapter. On all BSD platforms (FreeBSD,
-// OpenBSD, NetBSD) an attempt is made to set the adapter properties by using
-// a system socket and making syscalls to the kernel. This is not refined though
-// and often doesn't work (if at all), therefore if a call fails, it resorts
-// to calling "ifconfig" instead.
-func (tun *TunAdapter) setup(ifname string, iftapmode bool, addr string, mtu int) error {
-	var config water.Config
-	if ifname[:4] == "auto" {
-		ifname = "/dev/tap0"
-	}
-	if len(ifname) < 9 {
-		panic("TUN/TAP name must be in format /dev/tunX or /dev/tapX")
-	}
-	switch {
-	case iftapmode || ifname[:8] == "/dev/tap":
-		config = water.Config{DeviceType: water.TAP}
-	case !iftapmode || ifname[:8] == "/dev/tun":
-		panic("TUN mode is not currently supported on this platform, please use TAP instead")
-	default:
-		panic("TUN/TAP name must be in format /dev/tunX or /dev/tapX")
-	}
-	config.Name = ifname
-	iface, err := water.New(config)
+// Configures the TUN adapter with the correct IPv6 address and MTU.
+func (tun *TunAdapter) setup(ifname string, addr string, mtu MTU) error {
+	iface, err := wgtun.CreateTUN(ifname, int(mtu))
 	if err != nil {
 		panic(err)
 	}
 	tun.iface = iface
-	tun.mtu = getSupportedMTU(mtu, iftapmode)
+	if mtu, err := iface.MTU(); err == nil {
+		tun.mtu = getSupportedMTU(MTU(mtu))
+	} else {
+		tun.mtu = 0
+	}
 	return tun.setupAddress(addr)
 }
 
@@ -114,13 +98,13 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	}
 
 	// Friendly output
-	tun.log.Infof("Interface name: %s", tun.iface.Name())
+	tun.log.Infof("Interface name: %s", tun.Name())
 	tun.log.Infof("Interface IPv6: %s", addr)
 	tun.log.Infof("Interface MTU: %d", tun.mtu)
 
 	// Create the MTU request
 	var ir in6_ifreq_mtu
-	copy(ir.ifr_name[:], tun.iface.Name())
+	copy(ir.ifr_name[:], tun.Name())
 	ir.ifru_mtu = int(tun.mtu)
 
 	// Set the MTU
@@ -129,7 +113,7 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 		tun.log.Errorf("Error in SIOCSIFMTU: %v", errno)
 
 		// Fall back to ifconfig to set the MTU
-		cmd := exec.Command("ifconfig", tun.iface.Name(), "mtu", string(tun.mtu))
+		cmd := exec.Command("ifconfig", tun.Name(), "mtu", string(tun.mtu))
 		tun.log.Warnf("Using ifconfig as fallback: %v", strings.Join(cmd.Args, " "))
 		output, err := cmd.CombinedOutput()
 		if err != nil {
@@ -141,7 +125,7 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	// Create the address request
 	// FIXME: I don't work!
 	var ar in6_ifreq_addr
-	copy(ar.ifr_name[:], tun.iface.Name())
+	copy(ar.ifr_name[:], tun.Name())
 	ar.ifru_addr.sin6_len = uint8(unsafe.Sizeof(ar.ifru_addr))
 	ar.ifru_addr.sin6_family = unix.AF_INET6
 	parts := strings.Split(strings.Split(addr, "/")[0], ":")
@@ -158,7 +142,7 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 		tun.log.Errorf("Error in SIOCSIFADDR_IN6: %v", errno)
 
 		// Fall back to ifconfig to set the address
-		cmd := exec.Command("ifconfig", tun.iface.Name(), "inet6", addr)
+		cmd := exec.Command("ifconfig", tun.Name(), "inet6", addr)
 		tun.log.Warnf("Using ifconfig as fallback: %v", strings.Join(cmd.Args, " "))
 		output, err := cmd.CombinedOutput()
 		if err != nil {
