@@ -110,7 +110,7 @@ EOF
 
 cp yggdrasil /tmp/$PKGNAME/usr/bin/
 cp yggdrasilctl /tmp/$PKGNAME/usr/bin/
-cp contrib/systemd/yggdrasil.service /tmp/$PKGNAME/etc/systemd/system/
+cp contrib/systemd/*.service /tmp/$PKGNAME/etc/systemd/system/
 
 tar -czvf /tmp/$PKGNAME/data.tar.gz -C /tmp/$PKGNAME/ \
   usr/bin/yggdrasil usr/bin/yggdrasilctl \
