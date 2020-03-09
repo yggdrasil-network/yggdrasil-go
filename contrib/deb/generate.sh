@@ -93,6 +93,7 @@ then
   echo "Normalising and updating /etc/yggdrasil.conf"
   /usr/bin/yggdrasil -useconf -normaliseconf < /var/backups/yggdrasil.conf.`date +%Y%m%d` > /etc/yggdrasil.conf
   chgrp yggdrasil /etc/yggdrasil.conf
+  chmod u=rw,g=r,o= /etc/yggdrasil.conf
 
   if command -v systemctl >/dev/null; then
     systemctl daemon-reload >/dev/null || true
@@ -104,6 +105,7 @@ else
   echo "Please familiarise yourself with this file before starting Yggdrasil"
   /usr/bin/yggdrasil -genconf > /etc/yggdrasil.conf
   chgrp yggdrasil /etc/yggdrasil.conf
+  chmod u=rw,g=r,o= /etc/yggdrasil.conf
 fi
 EOF
 cat > /tmp/$PKGNAME/debian/prerm << EOF
