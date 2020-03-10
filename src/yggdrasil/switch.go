@@ -596,14 +596,14 @@ func (t *switchTable) getCloser(dest []byte) []closerInfo {
 		// Skip the iteration step if it's impossible to be closer
 		return nil
 	}
-	t.queues.closer = t.queues.closer[:0]
+	var closer []closerInfo
 	for _, info := range table.elems {
 		dist := info.locator.dist(dest)
 		if dist < myDist {
-			t.queues.closer = append(t.queues.closer, closerInfo{info, dist})
+			closer = append(closer, closerInfo{info, dist})
 		}
 	}
-	return t.queues.closer
+	return closer
 }
 
 // Returns true if the peer is closer to the destination than ourself
@@ -645,20 +645,41 @@ func switch_getFlowLabelFromCoords(in []byte) []byte {
 	return []byte{}
 }
 
-// Find the best port for a given set of coords
-func (t *switchTable) bestPortForCoords(coords []byte) switchPort {
-	table := t.getTable()
-	var best switchPort
-	bestDist := table.self.dist(coords)
-	for to, elem := range table.elems {
-		dist := elem.locator.dist(coords)
-		if !(dist < bestDist) {
+// Find the best port to forward to for a given set of coords
+func (t *lookupTable) lookup(coords []byte) switchPort {
+	var bestPort switchPort
+	myDist := t.self.dist(coords)
+	bestDist := myDist
+	var bestElem tableElem
+	for _, info := range t.elems {
+		dist := info.locator.dist(coords)
+		if dist >= myDist {
 			continue
 		}
-		best = to
-		bestDist = dist
+		var update bool
+		switch {
+		case dist < bestDist:
+			// Closer to destination
+			update = true
+		case dist > bestDist:
+			// Further from destination
+		case info.locator.tstamp > bestElem.locator.tstamp:
+			// Newer root update
+			update = true
+		case info.locator.tstamp < bestElem.locator.tstamp:
+			// Older root update
+		case info.time.Before(bestElem.time):
+			// Received root update via this peer sooner
+			update = true
+		default:
+		}
+		if update {
+			bestPort = info.port
+			bestDist = dist
+			bestElem = info
+		}
 	}
-	return best
+	return bestPort
 }
 
 // Handle an incoming packet
@@ -666,57 +687,22 @@ func (t *switchTable) bestPortForCoords(coords []byte) switchPort {
 // Returns true if the packet has been handled somehow, false if it should be queued
 func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]struct{}) (bool, switchPort) {
 	coords := switch_getPacketCoords(packet)
-	closer := t.getCloser(coords)
-	var best *closerInfo
+	table := t.getTable()
+	port := table.lookup(coords)
 	ports := t.core.peers.getPorts()
-	for _, cinfo := range closer {
-		to := ports[cinfo.elem.port]
-		var update bool
-		switch {
-		case to == nil:
-			// no port was found, ignore it
-		case best == nil:
-			// this is the first idle port we've found, so select it until we find a
-			// better candidate port to use instead
-			update = true
-		case cinfo.dist < best.dist:
-			// the port takes a shorter path/is more direct than our current
-			// candidate, so select that instead
-			update = true
-		case cinfo.dist > best.dist:
-			// the port takes a longer path/is less direct than our current candidate,
-			// ignore it
-		case cinfo.elem.locator.tstamp > best.elem.locator.tstamp:
-			// has a newer tstamp from the root, so presumably a better path
-			update = true
-		case cinfo.elem.locator.tstamp < best.elem.locator.tstamp:
-			// has a n older tstamp, so presumably a worse path
-		case cinfo.elem.time.Before(best.elem.time):
-			// same tstamp, but got it earlier, so presumably a better path
-			//t.core.log.Println("DEBUG new best:", best.elem.time, cinfo.elem.time)
-			update = true
-		default:
-			// the search for a port has finished
-		}
-		if update {
-			b := cinfo // because cinfo gets mutated by the iteration
-			best = &b
-		}
-	}
-	if best == nil {
-		// No closer peers
-		// TODO? call the router directly, and remove the whole concept of a self peer?
-		self := t.core.peers.getPorts()[0]
-		self.sendPacketsFrom(t, [][]byte{packet})
+	peer := ports[port]
+	if peer == nil {
+		// FIXME hack, if the peer disappeared durring a race then don't buffer
 		return true, 0
 	}
-	if _, isIdle := idle[best.elem.port]; isIdle {
-		delete(idle, best.elem.port)
-		ports[best.elem.port].sendPacketsFrom(t, [][]byte{packet})
-		return true, best.elem.port
+	if _, isIdle := idle[port]; isIdle || port == 0 {
+		// Either no closer peers, or the closest peer is idle
+		delete(idle, port)
+		peer.sendPacketsFrom(t, [][]byte{packet})
+		return true, port
 	}
-	// Best node isn't idle, so return port and let the packet be buffered
-	return false, best.elem.port
+	// There's a closer peer, but it's not idle, so buffer it
+	return false, port
 }
 
 // Info about a buffered packet
@@ -737,7 +723,6 @@ type switch_buffers struct {
 	size         uint64                                  // Total size of all buffers, in bytes
 	maxbufs      int
 	maxsize      uint64
-	closer       []closerInfo // Scratch space
 }
 
 func (b *switch_buffers) _cleanup(t *switchTable) {
