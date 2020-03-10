@@ -74,8 +74,6 @@ etc/apparmor.d/* etc/apparmor.d
 EOF
 cat > /tmp/$PKGNAME/debian/postinst << EOF
 #!/bin/sh
-umask 077
-
 if ! getent group yggdrasil 2>&1 > /dev/null; then
   groupadd --system --force yggdrasil || echo "Failed to create group 'yggdrasil' - please create it manually and reinstall"
 fi
