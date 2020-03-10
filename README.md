@@ -34,7 +34,6 @@ some of the below:
 - Windows
 - FreeBSD
 - OpenBSD
-- NetBSD
 - OpenWrt
 
 Please see our [Platforms](https://yggdrasil-network.github.io/platforms.html) pages for more

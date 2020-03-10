@@ -804,7 +804,7 @@ func (t *switchTable) _handleIdle(port switchPort) bool {
 	now := time.Now()
 	pbufs := t.queues.bufs[port]
 	for psize < 65535 {
-		var best string
+		var best *string
 		var bestPriority float64
 		for streamID, buf := range pbufs {
 			// Filter over the streams that this node is closer to
@@ -812,25 +812,27 @@ func (t *switchTable) _handleIdle(port switchPort) bool {
 			packet := buf.packets[0]
 			priority := float64(now.Sub(packet.time)) / float64(buf.size)
 			if priority >= bestPriority {
-				best = streamID
+				b := streamID // copy since streamID is mutated in the loop
+				best = &b
 				bestPriority = priority
 			}
 		}
-		if best != "" {
-			buf := pbufs[best]
+		if best != nil {
+			buf := pbufs[*best]
 			var packet switch_packetInfo
 			// TODO decide if this should be LIFO or FIFO
 			packet, buf.packets = buf.packets[0], buf.packets[1:]
 			buf.size -= uint64(len(packet.bytes))
 			t.queues.size -= uint64(len(packet.bytes))
 			if len(buf.packets) == 0 {
-				delete(pbufs, best)
+				delete(pbufs, *best)
 				if len(pbufs) == 0 {
 					delete(t.queues.bufs, port)
 				}
 			} else {
 				// Need to update the map, since buf was retrieved by value
-				pbufs[best] = buf
+				pbufs[*best] = buf
+
 			}
 			packets = append(packets, packet.bytes)
 			psize += len(packet.bytes)
