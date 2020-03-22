@@ -4,15 +4,13 @@ package yggdrasil
 
 // The basic idea is as follows:
 //  We may know a NodeID (with a mask) and want to connect
-//  We begin a search by initializing a list of all nodes in our DHT, sorted by closest to the destination
-//  We then iteratively ping nodes from the search, marking each pinged node as visited
-//  We add any unvisited nodes from ping responses to the search, truncating to some maximum search size
-//  This stops when we either run out of nodes to ping (we hit a dead end where we can't make progress without going back), or we reach the destination
-//  A new search packet is sent immediately after receiving a response
-//  A new search packet is sent periodically, once per second, in case a packet was dropped (this slowly causes the search to become parallel if the search doesn't timeout but also doesn't finish within 1 second for whatever reason)
-
-// TODO?
-//  Some kind of max search steps, in case the node is offline, so we don't crawl through too much of the network looking for a destination that isn't there?
+//  We beign a search by sending a dht lookup to ourself
+//  Each time a node responds, we sort the results and filter to only include useful nodes
+//  We then periodically send a packet to the first node from the list (after re-filtering)
+//  This happens in parallel for each node that replies
+//  Meanwhile, we keep a list of the (up to) 16 closest nodes to the destination that we've visited
+//  We only consider an unvisited node useful if either the list isn't full or the unvisited node is closer to the destination than the furthest node on the list
+//  That gives the search some chance to recover if it hits a dead end where a node doesn't know everyone it should
 
 import (
 	"errors"
