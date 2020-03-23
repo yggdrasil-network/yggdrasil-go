@@ -4,7 +4,7 @@ package yggdrasil
 
 // The basic idea is as follows:
 //  We may know a NodeID (with a mask) and want to connect
-//  We beign a search by sending a dht lookup to ourself
+//  We begin a search by sending a dht lookup to ourself
 //  Each time a node responds, we sort the results and filter to only include useful nodes
 //  We then periodically send a packet to the first node from the list (after re-filtering)
 //  This happens in parallel for each node that replies
