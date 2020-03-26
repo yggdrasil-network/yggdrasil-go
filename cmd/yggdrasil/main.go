@@ -25,6 +25,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/dhtcrawler"
 	"github.com/yggdrasil-network/yggdrasil-go/src/module"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
@@ -33,11 +34,12 @@ import (
 )
 
 type node struct {
-	core      yggdrasil.Core
-	state     *config.NodeState
-	tuntap    module.Module // tuntap.TunAdapter
-	multicast module.Module // multicast.Multicast
-	admin     module.Module // admin.AdminSocket
+	core       yggdrasil.Core
+	state      *config.NodeState
+	tuntap     module.Module // tuntap.TunAdapter
+	multicast  module.Module // multicast.Multicast
+	admin      module.Module // admin.AdminSocket
+	dhtcrawler module.Module // dhtcrawler.Crawler
 }
 
 func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *config.NodeConfig {
@@ -284,6 +286,7 @@ func main() {
 	n.admin = &admin.AdminSocket{}
 	n.multicast = &multicast.Multicast{}
 	n.tuntap = &tuntap.TunAdapter{}
+	n.dhtcrawler = &dhtcrawler.Crawler{}
 	// Start the admin socket
 	n.admin.Init(&n.core, n.state, logger, nil)
 	if err := n.admin.Start(); err != nil {
@@ -310,6 +313,10 @@ func main() {
 	} else {
 		logger.Errorln("Unable to get Listener:", err)
 	}
+
+	n.dhtcrawler.Init(&n.core, n.state, logger, nil)
+	n.dhtcrawler.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
+
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
 	address := n.core.Address()
@@ -337,6 +344,7 @@ func main() {
 				n.core.UpdateConfig(cfg)
 				n.tuntap.UpdateConfig(cfg)
 				n.multicast.UpdateConfig(cfg)
+				n.dhtcrawler.UpdateConfig(cfg)
 			} else {
 				logger.Errorln("Reloading config at runtime is only possible with -useconffile")
 			}
