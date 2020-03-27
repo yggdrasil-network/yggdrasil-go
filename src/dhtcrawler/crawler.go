@@ -107,7 +107,7 @@ func (s *Crawler) SetupAdminHandlers(a *admin.AdminSocket) {
 	})
 }
 
-func (s *Crawler) getNetworkMap() string {
+func (s *Crawler) getNetworkMap() results {
 	starttime := time.Now()
 	s.dhtVisited = make(map[string]attempt)
 	s.nodeInfoVisited = make(map[string]interface{})
@@ -150,11 +150,7 @@ func (s *Crawler) getNetworkMap() string {
 	res.Meta.NodesSuccessful = found
 	res.Meta.NodesFailed = attempted - found
 
-	if j, err := json.MarshalIndent(res, "", "\t"); err == nil {
-		return string(j)
-	} else {
-		return "json marshaling error"
-	}
+	return res
 }
 
 func (s *Crawler) dhtPing(pubkey crypto.BoxPubKey, coords []uint64) {
