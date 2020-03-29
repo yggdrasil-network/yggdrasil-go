@@ -250,7 +250,7 @@ func (t *switchTable) cleanRoot() {
 		t.time = now
 		if t.data.locator.root != t.key {
 			t.data.seq++
-			t.updateTable()
+			defer t.updateTable()
 			t.core.router.reset(nil)
 		}
 		t.data.locator = switchLocator{root: t.key, tstamp: now.Unix()}
@@ -524,7 +524,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		t.core.peers.sendSwitchMsgs(t)
 	}
 	if true || doUpdate {
-		t.updateTable()
+		defer t.updateTable()
 	}
 	return
 }
