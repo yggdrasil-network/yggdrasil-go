@@ -12,9 +12,9 @@ import (
 	"net"
 	"os"
 
+	"github.com/cheggaaa/pb/v3"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/cheggaaa/pb/v3"
 )
 
 var numHosts = flag.Int("hosts", 1, "number of host vars to generate")
@@ -30,7 +30,7 @@ type keySet struct {
 func main() {
 	flag.Parse()
 
-	bar := pb.StartNew(*keyTries * 2 + *numHosts)
+	bar := pb.StartNew(*keyTries*2 + *numHosts)
 
 	if *numHosts > *keyTries {
 		println("Can't generate less keys than hosts.")

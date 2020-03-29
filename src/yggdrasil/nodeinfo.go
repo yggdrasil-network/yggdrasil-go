@@ -187,9 +187,9 @@ func (m *nodeinfo) sendNodeInfo(key crypto.BoxPubKey, coords []byte, isResponse 
 }
 
 func (m *nodeinfo) _sendNodeInfo(key crypto.BoxPubKey, coords []byte, isResponse bool) {
-	table := m.core.switchTable.table.Load().(lookupTable)
+	loc := m.core.switchTable.getLocator()
 	nodeinfo := nodeinfoReqRes{
-		SendCoords: table.self.getCoords(),
+		SendCoords: loc.getCoords(),
 		IsResponse: isResponse,
 		NodeInfo:   m._getNodeInfo(),
 	}

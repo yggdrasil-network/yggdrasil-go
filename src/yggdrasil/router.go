@@ -61,7 +61,11 @@ func (r *router) init(core *Core) {
 			linkType: "self",
 		},
 	}
-	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, &self, nil)
+	var p *peer
+	phony.Block(&r.core.peers, func() {
+		// FIXME don't block here!
+		p = r.core.peers._newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, &self, nil)
+	})
 	p.out = func(packets [][]byte) { r.handlePackets(p, packets) }
 	r.out = func(bs []byte) { p.handlePacketFrom(r, bs) }
 	r.nodeinfo.init(r.core)

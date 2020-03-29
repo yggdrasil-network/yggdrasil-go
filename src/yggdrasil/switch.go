@@ -12,13 +12,12 @@ package yggdrasil
 //  A little annoying to do with constant changes from backpressure
 
 import (
-	"math/rand"
+	//"math/rand"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
+	//"github.com/yggdrasil-network/yggdrasil-go/src/util"
 
 	"github.com/Arceliar/phony"
 )
@@ -172,8 +171,6 @@ type switchTable struct {
 	mutex       sync.RWMutex               // Lock for reads/writes of switchData
 	parent      switchPort                 // Port of whatever peer is our parent, or self if we're root
 	data        switchData                 //
-	updater     atomic.Value               // *sync.Once
-	table       atomic.Value               // lookupTable
 	phony.Inbox                            // Owns the below
 	queues      switch_buffers             // Queues - not atomic so ONLY use through the actor
 	idle        map[switchPort]struct{}    // idle peers - not atomic so ONLY use through the actor
@@ -190,8 +187,6 @@ func (t *switchTable) init(core *Core) {
 	locator := switchLocator{root: t.key, tstamp: now.Unix()}
 	peers := make(map[switchPort]peerInfo)
 	t.data = switchData{locator: locator, peers: peers}
-	t.updater.Store(&sync.Once{})
-	t.table.Store(lookupTable{})
 	t.drop = make(map[crypto.SigPubKey]int64)
 	phony.Block(t, func() {
 		core.config.Mutex.RLock()
@@ -204,6 +199,7 @@ func (t *switchTable) init(core *Core) {
 		t.queues.bufs = make(map[switchPort]map[string]switch_buffer)
 		t.idle = make(map[switchPort]struct{})
 	})
+	t.updateTable()
 }
 
 func (t *switchTable) reconfigure() {
@@ -254,7 +250,7 @@ func (t *switchTable) cleanRoot() {
 		t.time = now
 		if t.data.locator.root != t.key {
 			t.data.seq++
-			t.updater.Store(&sync.Once{})
+			t.updateTable()
 			t.core.router.reset(nil)
 		}
 		t.data.locator = switchLocator{root: t.key, tstamp: now.Unix()}
@@ -292,7 +288,7 @@ func (t *switchTable) forgetPeer(port switchPort) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	delete(t.data.peers, port)
-	t.updater.Store(&sync.Once{})
+	defer t.updateTable()
 	if port != t.parent {
 		return
 	}
@@ -528,7 +524,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		t.core.peers.sendSwitchMsgs(t)
 	}
 	if true || doUpdate {
-		t.updater.Store(&sync.Once{})
+		t.updateTable()
 	}
 	return
 }
@@ -566,13 +562,7 @@ func (t *switchTable) updateTable() {
 			time:    pinfo.time,
 		}
 	}
-	t.table.Store(newTable)
-}
-
-// Returns a copy of the atomically-updated table used for switch lookups
-func (t *switchTable) getTable() lookupTable {
-	t.updater.Load().(*sync.Once).Do(t.updateTable)
-	return t.table.Load().(lookupTable)
+	t.core.peers.updateTables(nil, &newTable) // TODO not be from nil
 }
 
 // Starts the switch worker
@@ -589,6 +579,7 @@ type closerInfo struct {
 
 // Return a map of ports onto distance, keeping only ports closer to the destination than this node
 // If the map is empty (or nil), then no peer is closer
+/*
 func (t *switchTable) getCloser(dest []byte) []closerInfo {
 	table := t.getTable()
 	myDist := table.self.dist(dest)
@@ -605,8 +596,10 @@ func (t *switchTable) getCloser(dest []byte) []closerInfo {
 	}
 	return closer
 }
+*/
 
 // Returns true if the peer is closer to the destination than ourself
+/*
 func (t *switchTable) portIsCloser(dest []byte, port switchPort) bool {
 	table := t.getTable()
 	if info, isIn := table.elems[port]; isIn {
@@ -617,6 +610,7 @@ func (t *switchTable) portIsCloser(dest []byte, port switchPort) bool {
 		return false
 	}
 }
+*/
 
 // Get the coords of a packet without decoding
 func switch_getPacketCoords(packet []byte) []byte {
@@ -686,23 +680,26 @@ func (t *lookupTable) lookup(coords []byte) switchPort {
 // Either send it to ourself, or to the first idle peer that's free
 // Returns true if the packet has been handled somehow, false if it should be queued
 func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]struct{}) (bool, switchPort) {
-	coords := switch_getPacketCoords(packet)
-	table := t.getTable()
-	port := table.lookup(coords)
-	ports := t.core.peers.getPorts()
-	peer := ports[port]
-	if peer == nil {
-		// FIXME hack, if the peer disappeared durring a race then don't buffer
-		return true, 0
-	}
-	if _, isIdle := idle[port]; isIdle || port == 0 {
-		// Either no closer peers, or the closest peer is idle
-		delete(idle, port)
-		peer.sendPacketsFrom(t, [][]byte{packet})
-		return true, port
-	}
-	// There's a closer peer, but it's not idle, so buffer it
-	return false, port
+	/*
+		coords := switch_getPacketCoords(packet)
+		table := t.getTable()
+		port := table.lookup(coords)
+		ports := t.core.peers.getPorts()
+		peer := ports[port]
+		if peer == nil {
+			// FIXME hack, if the peer disappeared durring a race then don't buffer
+			return true, 0
+		}
+		if _, isIdle := idle[port]; isIdle || port == 0 {
+			// Either no closer peers, or the closest peer is idle
+			delete(idle, port)
+			peer.sendPacketsFrom(t, [][]byte{packet})
+			return true, port
+		}
+		// There's a closer peer, but it's not idle, so buffer it
+		return false, port
+	*/
+	return true, 0
 }
 
 // Info about a buffered packet
@@ -726,52 +723,54 @@ type switch_buffers struct {
 }
 
 func (b *switch_buffers) _cleanup(t *switchTable) {
-	for port, pbufs := range b.bufs {
-		for streamID, buf := range pbufs {
-			// Remove queues for which we have no next hop
-			packet := buf.packets[0]
-			coords := switch_getPacketCoords(packet.bytes)
-			if len(t.getCloser(coords)) == 0 {
-				for _, packet := range buf.packets {
-					util.PutBytes(packet.bytes)
-				}
-				b.size -= buf.size
-				delete(pbufs, streamID)
-			}
-		}
-		if len(pbufs) == 0 {
-			delete(b.bufs, port)
-		}
-	}
-
-	for b.size > b.totalMaxSize {
-		// Drop a random queue
-		target := rand.Uint64() % b.size
-		var size uint64 // running total
+	/*
 		for port, pbufs := range b.bufs {
 			for streamID, buf := range pbufs {
-				size += buf.size
-				if size < target {
-					continue
-				}
-				var packet switch_packetInfo
-				packet, buf.packets = buf.packets[0], buf.packets[1:]
-				buf.size -= uint64(len(packet.bytes))
-				b.size -= uint64(len(packet.bytes))
-				util.PutBytes(packet.bytes)
-				if len(buf.packets) == 0 {
-					delete(pbufs, streamID)
-					if len(pbufs) == 0 {
-						delete(b.bufs, port)
+				// Remove queues for which we have no next hop
+				packet := buf.packets[0]
+				coords := switch_getPacketCoords(packet.bytes)
+				if len(t.getCloser(coords)) == 0 {
+					for _, packet := range buf.packets {
+						util.PutBytes(packet.bytes)
 					}
-				} else {
-					// Need to update the map, since buf was retrieved by value
-					pbufs[streamID] = buf
+					b.size -= buf.size
+					delete(pbufs, streamID)
 				}
-				break
+			}
+			if len(pbufs) == 0 {
+				delete(b.bufs, port)
 			}
 		}
-	}
+
+		for b.size > b.totalMaxSize {
+			// Drop a random queue
+			target := rand.Uint64() % b.size
+			var size uint64 // running total
+			for port, pbufs := range b.bufs {
+				for streamID, buf := range pbufs {
+					size += buf.size
+					if size < target {
+						continue
+					}
+					var packet switch_packetInfo
+					packet, buf.packets = buf.packets[0], buf.packets[1:]
+					buf.size -= uint64(len(packet.bytes))
+					b.size -= uint64(len(packet.bytes))
+					util.PutBytes(packet.bytes)
+					if len(buf.packets) == 0 {
+						delete(pbufs, streamID)
+						if len(pbufs) == 0 {
+							delete(b.bufs, port)
+						}
+					} else {
+						// Need to update the map, since buf was retrieved by value
+						pbufs[streamID] = buf
+					}
+					break
+				}
+			}
+		}
+	*/
 }
 
 // Handles incoming idle notifications
@@ -779,57 +778,60 @@ func (b *switch_buffers) _cleanup(t *switchTable) {
 // Returns true if the peer is no longer idle, false if it should be added to the idle list
 func (t *switchTable) _handleIdle(port switchPort) bool {
 	// TODO? only send packets for which this is the best next hop that isn't currently blocked sending
-	to := t.core.peers.getPorts()[port]
-	if to == nil {
-		return true
-	}
-	var packets [][]byte
-	var psize int
-	t.queues._cleanup(t)
-	now := time.Now()
-	pbufs := t.queues.bufs[port]
-	for psize < 65535 {
-		var best *string
-		var bestPriority float64
-		for streamID, buf := range pbufs {
-			// Filter over the streams that this node is closer to
-			// Keep the one with the smallest queue
-			packet := buf.packets[0]
-			priority := float64(now.Sub(packet.time)) / float64(buf.size)
-			if priority >= bestPriority {
-				b := streamID // copy since streamID is mutated in the loop
-				best = &b
-				bestPriority = priority
-			}
+	/*
+		to := t.core.peers.getPorts()[port]
+		if to == nil {
+			return true
 		}
-		if best != nil {
-			buf := pbufs[*best]
-			var packet switch_packetInfo
-			// TODO decide if this should be LIFO or FIFO
-			packet, buf.packets = buf.packets[0], buf.packets[1:]
-			buf.size -= uint64(len(packet.bytes))
-			t.queues.size -= uint64(len(packet.bytes))
-			if len(buf.packets) == 0 {
-				delete(pbufs, *best)
-				if len(pbufs) == 0 {
-					delete(t.queues.bufs, port)
+		var packets [][]byte
+		var psize int
+		t.queues._cleanup(t)
+		now := time.Now()
+		pbufs := t.queues.bufs[port]
+		for psize < 65535 {
+			var best *string
+			var bestPriority float64
+			for streamID, buf := range pbufs {
+				// Filter over the streams that this node is closer to
+				// Keep the one with the smallest queue
+				packet := buf.packets[0]
+				priority := float64(now.Sub(packet.time)) / float64(buf.size)
+				if priority >= bestPriority {
+					b := streamID // copy since streamID is mutated in the loop
+					best = &b
+					bestPriority = priority
 				}
-			} else {
-				// Need to update the map, since buf was retrieved by value
-				pbufs[*best] = buf
-
 			}
-			packets = append(packets, packet.bytes)
-			psize += len(packet.bytes)
-		} else {
-			// Finished finding packets
-			break
+			if best != nil {
+				buf := pbufs[*best]
+				var packet switch_packetInfo
+				// TODO decide if this should be LIFO or FIFO
+				packet, buf.packets = buf.packets[0], buf.packets[1:]
+				buf.size -= uint64(len(packet.bytes))
+				t.queues.size -= uint64(len(packet.bytes))
+				if len(buf.packets) == 0 {
+					delete(pbufs, *best)
+					if len(pbufs) == 0 {
+						delete(t.queues.bufs, port)
+					}
+				} else {
+					// Need to update the map, since buf was retrieved by value
+					pbufs[*best] = buf
+
+				}
+				packets = append(packets, packet.bytes)
+				psize += len(packet.bytes)
+			} else {
+				// Finished finding packets
+				break
+			}
 		}
-	}
-	if len(packets) > 0 {
-		to.sendPacketsFrom(t, packets)
-		return true
-	}
+		if len(packets) > 0 {
+			to.sendPacketsFrom(t, packets)
+			return true
+		}
+		return false
+	*/
 	return false
 }
 

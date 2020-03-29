@@ -217,13 +217,16 @@ func (intf *linkInterface) handler() error {
 	intf.link.mutex.Unlock()
 	// Create peer
 	shared := crypto.GetSharedKey(myLinkPriv, &meta.link)
-	intf.peer = intf.link.core.peers.newPeer(&meta.box, &meta.sig, shared, intf, func() { intf.msgIO.close() })
+	phony.Block(&intf.link.core.peers, func() {
+		// FIXME don't use phony.Block, it's bad practice, even if it's safe here
+		intf.peer = intf.link.core.peers._newPeer(&meta.box, &meta.sig, shared, intf, func() { intf.msgIO.close() })
+	})
 	if intf.peer == nil {
 		return errors.New("failed to create peer")
 	}
 	defer func() {
 		// More cleanup can go here
-		intf.link.core.peers.removePeer(intf.peer.port)
+		intf.peer.Act(nil, intf.peer._removeSelf)
 	}()
 	intf.peer.out = func(msgs [][]byte) {
 		intf.writer.sendFrom(intf.peer, msgs, false)
