@@ -199,7 +199,7 @@ func (t *switchTable) init(core *Core) {
 		t.queues.bufs = make(map[switchPort]map[string]switch_buffer)
 		t.idle = make(map[switchPort]struct{})
 	})
-	t.updateTable()
+	t._updateTable()
 }
 
 func (t *switchTable) reconfigure() {
@@ -250,7 +250,7 @@ func (t *switchTable) cleanRoot() {
 		t.time = now
 		if t.data.locator.root != t.key {
 			t.data.seq++
-			defer t.updateTable()
+			defer t._updateTable()
 			t.core.router.reset(nil)
 		}
 		t.data.locator = switchLocator{root: t.key, tstamp: now.Unix()}
@@ -288,7 +288,7 @@ func (t *switchTable) forgetPeer(port switchPort) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 	delete(t.data.peers, port)
-	defer t.updateTable()
+	defer t._updateTable()
 	if port != t.parent {
 		return
 	}
@@ -524,7 +524,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		t.core.peers.sendSwitchMsgs(t)
 	}
 	if true || doUpdate {
-		defer t.updateTable()
+		defer t._updateTable()
 	}
 	return
 }
@@ -534,7 +534,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 // The rest of these are related to the switch worker
 
 // This is called via a sync.Once to update the atomically readable subset of switch information that gets used for routing decisions.
-func (t *switchTable) updateTable() {
+func (t *switchTable) _updateTable() {
 	// WARNING this should only be called from within t.data.updater.Do()
 	//  It relies on the sync.Once for synchronization with messages and lookups
 	// TODO use a pre-computed faster lookup table
@@ -543,8 +543,6 @@ func (t *switchTable) updateTable() {
 	//  Each struct has stores the best port to forward to, and a next coord map
 	//  Move to struct, then iterate over coord maps until you dead end
 	//  The last port before the dead end should be the closest
-	t.mutex.RLock()
-	defer t.mutex.RUnlock()
 	newTable := lookupTable{
 		self:  t.data.locator.clone(),
 		elems: make(map[switchPort]tableElem, len(t.data.peers)),
