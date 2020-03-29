@@ -1,10 +1,11 @@
-# Last Modified: Sat Mar  9 06:08:02 2019
+# Last Modified: Tue Mar 10 16:38:14 2020
 #include <tunables/global>
 
 /usr/bin/yggdrasil {
   #include <abstractions/base>
 
   capability net_admin,
+  capability net_raw,
 
   network inet stream,
   network inet dgram,
@@ -14,6 +15,7 @@
 
   /lib/@{multiarch}/ld-*.so mr,
   /proc/sys/net/core/somaxconn r,
+  owner /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
   /dev/net/tun rw,
 
   /usr/bin/yggdrasil mr,
