@@ -12,12 +12,9 @@ package yggdrasil
 //  A little annoying to do with constant changes from backpressure
 
 import (
-	//"math/rand"
-	"sync"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	//"github.com/yggdrasil-network/yggdrasil-go/src/util"
 
 	"github.com/Arceliar/phony"
 )
@@ -149,6 +146,7 @@ type tableElem struct {
 type lookupTable struct {
 	self  switchLocator
 	elems map[switchPort]tableElem
+	_msg  switchMsg
 }
 
 // This is switch information which is mutable and needs to be modified by other goroutines, but is not accessed atomically.
@@ -168,7 +166,6 @@ type switchTable struct {
 	key         crypto.SigPubKey           // Our own key
 	time        time.Time                  // Time when locator.tstamp was last updated
 	drop        map[crypto.SigPubKey]int64 // Tstamp associated with a dropped root
-	mutex       sync.RWMutex               // Lock for reads/writes of switchData
 	parent      switchPort                 // Port of whatever peer is our parent, or self if we're root
 	data        switchData                 //
 	phony.Inbox                            // Owns the below
@@ -208,24 +205,17 @@ func (t *switchTable) reconfigure() {
 	t.core.peers.reconfigure()
 }
 
-// Safely gets a copy of this node's locator.
-func (t *switchTable) getLocator() switchLocator {
-	t.mutex.RLock()
-	defer t.mutex.RUnlock()
-	return t.data.locator.clone()
-}
-
 // Regular maintenance to possibly timeout/reset the root and similar.
-func (t *switchTable) doMaintenance() {
-	// Periodic maintenance work to keep things internally consistent
-	t.mutex.Lock()         // Write lock
-	defer t.mutex.Unlock() // Release lock when we're done
-	t.cleanRoot()
-	t.cleanDropped()
+func (t *switchTable) doMaintenance(from phony.Actor) {
+	t.Act(from, func() {
+		// Periodic maintenance work to keep things internally consistent
+		t._cleanRoot()
+		t._cleanDropped()
+	})
 }
 
 // Updates the root periodically if it is ourself, or promotes ourself to root if we're better than the current root or if the current root has timed out.
-func (t *switchTable) cleanRoot() {
+func (t *switchTable) _cleanRoot() {
 	// TODO rethink how this is done?...
 	// Get rid of the root if it looks like its timed out
 	now := time.Now()
@@ -259,49 +249,49 @@ func (t *switchTable) cleanRoot() {
 }
 
 // Blocks and, if possible, unparents a peer
-func (t *switchTable) blockPeer(port switchPort) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	peer, isIn := t.data.peers[port]
-	if !isIn {
-		return
-	}
-	peer.blocked = true
-	t.data.peers[port] = peer
-	if port != t.parent {
-		return
-	}
-	t.parent = 0
-	for _, info := range t.data.peers {
-		if info.port == port {
-			continue
+func (t *switchTable) blockPeer(from phony.Actor, port switchPort) {
+	t.Act(from, func() {
+		peer, isIn := t.data.peers[port]
+		if !isIn {
+			return
 		}
-		t.unlockedHandleMsg(&info.msg, info.port, true)
-	}
-	t.unlockedHandleMsg(&peer.msg, peer.port, true)
+		peer.blocked = true
+		t.data.peers[port] = peer
+		if port != t.parent {
+			return
+		}
+		t.parent = 0
+		for _, info := range t.data.peers {
+			if info.port == port {
+				continue
+			}
+			t._handleMsg(&info.msg, info.port, true)
+		}
+		t._handleMsg(&peer.msg, peer.port, true)
+	})
 }
 
 // Removes a peer.
 // Must be called by the router actor with a lambda that calls this.
 // If the removed peer was this node's parent, it immediately tries to find a new parent.
-func (t *switchTable) forgetPeer(port switchPort) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	delete(t.data.peers, port)
-	defer t._updateTable()
-	if port != t.parent {
-		return
-	}
-	t.parent = 0
-	for _, info := range t.data.peers {
-		t.unlockedHandleMsg(&info.msg, info.port, true)
-	}
+func (t *switchTable) forgetPeer(from phony.Actor, port switchPort) {
+	t.Act(from, func() {
+		delete(t.data.peers, port)
+		defer t._updateTable()
+		if port != t.parent {
+			return
+		}
+		t.parent = 0
+		for _, info := range t.data.peers {
+			t._handleMsg(&info.msg, info.port, true)
+		}
+	})
 }
 
 // Dropped is a list of roots that are better than the current root, but stopped sending new timestamps.
 // If we switch to a new root, and that root is better than an old root that previously timed out, then we can clean up the old dropped root infos.
 // This function is called periodically to do that cleanup.
-func (t *switchTable) cleanDropped() {
+func (t *switchTable) _cleanDropped() {
 	// TODO? only call this after root changes, not periodically
 	for root := range t.drop {
 		if !firstIsBetter(&root, &t.data.locator.root) {
@@ -327,9 +317,7 @@ type switchMsgHop struct {
 }
 
 // This returns a *switchMsg to a copy of this node's current switchMsg, which can safely have additional information appended to Hops and sent to a peer.
-func (t *switchTable) getMsg() *switchMsg {
-	t.mutex.RLock()
-	defer t.mutex.RUnlock()
+func (t *switchTable) _getMsg() *switchMsg {
 	if t.parent == 0 {
 		return &switchMsg{Root: t.key, TStamp: t.data.locator.tstamp}
 	} else if parent, isIn := t.data.peers[t.parent]; isIn {
@@ -341,14 +329,18 @@ func (t *switchTable) getMsg() *switchMsg {
 	}
 }
 
+func (t *lookupTable) getMsg() *switchMsg {
+	msg := t._msg
+	msg.Hops = append([]switchMsgHop(nil), t._msg.Hops...)
+	return &msg
+}
+
 // This function checks that the root information in a switchMsg is OK.
 // In particular, that the root is better, or else the same as the current root but with a good timestamp, and that this root+timestamp haven't been dropped due to timeout.
-func (t *switchTable) checkRoot(msg *switchMsg) bool {
+func (t *switchTable) _checkRoot(msg *switchMsg) bool {
 	// returns false if it's a dropped root, not a better root, or has an older timestamp
 	// returns true otherwise
 	// used elsewhere to keep inserting peers into the dht only if root info is OK
-	t.mutex.RLock()
-	defer t.mutex.RUnlock()
 	dropTstamp, isIn := t.drop[msg.Root]
 	switch {
 	case isIn && dropTstamp >= msg.TStamp:
@@ -364,20 +356,13 @@ func (t *switchTable) checkRoot(msg *switchMsg) bool {
 	}
 }
 
-// This is a mutexed wrapper to unlockedHandleMsg, and is called by the peer structs in peers.go to pass a switchMsg for that peer into the switch.
-func (t *switchTable) handleMsg(msg *switchMsg, fromPort switchPort) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	t.unlockedHandleMsg(msg, fromPort, false)
-}
-
 // This updates the switch with information about a peer.
 // Then the tricky part, it decides if it should update our own locator as a result.
 // That happens if this node is already our parent, or is advertising a better root, or is advertising a better path to the same root, etc...
 // There are a lot of very delicate order sensitive checks here, so its' best to just read the code if you need to understand what it's doing.
 // It's very important to not change the order of the statements in the case function unless you're absolutely sure that it's safe, including safe if used alongside nodes that used the previous order.
 // Set the third arg to true if you're reprocessing an old message, e.g. to find a new parent after one disconnects, to avoid updating some timing related things.
-func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, reprocessing bool) {
+func (t *switchTable) _handleMsg(msg *switchMsg, fromPort switchPort, reprocessing bool) {
 	// TODO directly use a switchMsg instead of switchMessage + sigs
 	now := time.Now()
 	// Set up the sender peerInfo
@@ -500,10 +485,10 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 			if peer.port == sender.port {
 				continue
 			}
-			t.unlockedHandleMsg(&peer.msg, peer.port, true)
+			t._handleMsg(&peer.msg, peer.port, true)
 		}
 		// Process the sender last, to avoid keeping them as a parent if at all possible.
-		t.unlockedHandleMsg(&sender.msg, sender.port, true)
+		t._handleMsg(&sender.msg, sender.port, true)
 	case now.Sub(t.time) < switch_throttle:
 		// We've already gotten an update from this root recently, so ignore this one to avoid flooding.
 	case sender.locator.tstamp > t.data.locator.tstamp:
@@ -521,7 +506,7 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		}
 		t.data.locator = sender.locator
 		t.parent = sender.port
-		t.core.peers.sendSwitchMsgs(t)
+		defer t.core.peers.sendSwitchMsgs(t)
 	}
 	if true || doUpdate {
 		defer t._updateTable()
@@ -560,7 +545,9 @@ func (t *switchTable) _updateTable() {
 			time:    pinfo.time,
 		}
 	}
-	t.core.peers.updateTables(nil, &newTable) // TODO not be from nil
+	newTable._msg = *t._getMsg()
+	t.core.peers.updateTables(t, &newTable)
+	t.core.router.updateTable(t, &newTable)
 }
 
 // Starts the switch worker

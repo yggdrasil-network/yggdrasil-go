@@ -300,7 +300,7 @@ func (intf *linkInterface) notifyBlockedSend() {
 	intf.Act(nil, func() {
 		if intf.sendTimer != nil {
 			//As far as we know, we're still trying to send, and the timer fired.
-			intf.link.core.switchTable.blockPeer(intf.peer.port)
+			intf.link.core.switchTable.blockPeer(intf, intf.peer.port)
 		}
 	})
 }
@@ -340,7 +340,7 @@ func (intf *linkInterface) notifyStalled() {
 			intf.stallTimer.Stop()
 			intf.stallTimer = nil
 			intf.stalled = true
-			intf.link.core.switchTable.blockPeer(intf.peer.port)
+			intf.link.core.switchTable.blockPeer(intf, intf.peer.port)
 		}
 	})
 }

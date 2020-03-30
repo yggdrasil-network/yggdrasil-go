@@ -330,8 +330,11 @@ func (c *Core) EncryptionPublicKey() string {
 // connected to any other nodes (effectively making you the root of a
 // single-node network).
 func (c *Core) Coords() []uint64 {
-	loc := c.switchTable.getLocator()
-	return wire_coordsBytestoUint64s(loc.getCoords())
+	var coords []byte
+	phony.Block(&c.router, func() {
+		coords = c.router.table.self.getCoords()
+	})
+	return wire_coordsBytestoUint64s(coords)
 }
 
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128

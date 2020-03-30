@@ -46,6 +46,7 @@ type router struct {
 	nodeinfo nodeinfo
 	searches searches
 	sessions sessions
+	table    *lookupTable // has a copy of our locator
 }
 
 // Initializes the router struct, which includes setting up channels to/from the adapter.
@@ -75,6 +76,21 @@ func (r *router) init(core *Core) {
 	r.dht.init(r)
 	r.searches.init(r)
 	r.sessions.init(r)
+}
+
+func (r *router) updateTable(from phony.Actor, table *lookupTable) {
+	r.Act(from, func() {
+		r.table = table
+		r.nodeinfo.Act(r, func() {
+			r.nodeinfo.table = table
+		})
+		for _, ses := range r.sessions.sinfos {
+			sinfo := ses
+			sinfo.Act(r, func() {
+				sinfo.table = table
+			})
+		}
+	})
 }
 
 // Reconfigures the router and any child modules. This should only ever be run
@@ -130,7 +146,7 @@ func (r *router) reset(from phony.Actor) {
 func (r *router) doMaintenance() {
 	phony.Block(r, func() {
 		// Any periodic maintenance stuff goes here
-		r.core.switchTable.doMaintenance()
+		r.core.switchTable.doMaintenance(r)
 		r.dht.doMaintenance()
 		r.sessions.cleanup()
 	})

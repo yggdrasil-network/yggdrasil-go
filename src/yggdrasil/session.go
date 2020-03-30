@@ -52,6 +52,7 @@ type sessionInfo struct {
 	cancel        util.Cancellation   // Used to terminate workers
 	conn          *Conn               // The associated Conn object
 	callbacks     []chan func()       // Finished work from crypto workers
+	table         *lookupTable        // table.self is a locator where we get our coords
 }
 
 // Represents a session ping/pong packet, and includes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
@@ -217,6 +218,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.myHandle = *crypto.NewHandle()
 	sinfo.theirAddr = *address.AddrForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
 	sinfo.theirSubnet = *address.SubnetForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
+	sinfo.table = ss.router.table
 	ss.sinfos[sinfo.myHandle] = &sinfo
 	ss.byTheirPerm[sinfo.theirPermPub] = &sinfo.myHandle
 	return &sinfo
@@ -266,8 +268,7 @@ func (ss *sessions) removeSession(sinfo *sessionInfo) {
 
 // Returns a session ping appropriate for the given session info.
 func (sinfo *sessionInfo) _getPing() sessionPing {
-	loc := sinfo.sessions.router.core.switchTable.getLocator()
-	coords := loc.getCoords()
+	coords := sinfo.table.self.getCoords()
 	ping := sessionPing{
 		SendPermPub: sinfo.sessions.router.core.boxPub,
 		Handle:      sinfo.myHandle,

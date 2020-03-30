@@ -162,7 +162,7 @@ func (ps *peers) _removePeer(p *peer) {
 	if q := ps.ports[p.port]; p.port == 0 || q != p {
 		return
 	} // Can't remove self peer or nonexistant peer
-	ps.core.switchTable.forgetPeer(p.port)
+	ps.core.switchTable.forgetPeer(ps, p.port)
 	oldPorts := ps.ports
 	newPorts := make(map[switchPort]*peer)
 	for k, v := range oldPorts {
@@ -328,7 +328,7 @@ func (p *peer) _handleLinkTraffic(bs []byte) {
 
 // Gets a switchMsg from the switch, adds signed next-hop info for this peer, and sends it to them.
 func (p *peer) _sendSwitchMsg() {
-	msg := p.core.switchTable.getMsg()
+	msg := p.table.getMsg()
 	if msg == nil {
 		return
 	}
@@ -367,19 +367,26 @@ func (p *peer) _handleSwitchMsg(packet []byte) {
 		}
 		prevKey = hop.Next
 	}
-	p.core.switchTable.handleMsg(&msg, p.port)
-	if !p.core.switchTable.checkRoot(&msg) {
-		// Bad switch message
-		p.dinfo = nil
-		return
-	}
-	// Pass a message to the dht informing it that this peer (still) exists
-	loc.coords = loc.coords[:len(loc.coords)-1]
-	p.dinfo = &dhtInfo{
-		key:    p.box,
-		coords: loc.getCoords(),
-	}
-	p._updateDHT()
+	p.core.switchTable.Act(p, func() {
+		if !p.core.switchTable._checkRoot(&msg) {
+			// Bad switch message
+			p.Act(&p.core.switchTable, func() {
+				p.dinfo = nil
+			})
+		} else {
+			// handle the message
+			p.core.switchTable._handleMsg(&msg, p.port, false)
+			p.Act(&p.core.switchTable, func() {
+				// Pass a message to the dht informing it that this peer (still) exists
+				loc.coords = loc.coords[:len(loc.coords)-1]
+				p.dinfo = &dhtInfo{
+					key:    p.box,
+					coords: loc.getCoords(),
+				}
+				p._updateDHT()
+			})
+		}
+	})
 }
 
 // This generates the bytes that we sign or check the signature of for a switchMsg.
