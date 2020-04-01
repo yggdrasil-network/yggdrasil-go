@@ -5,7 +5,7 @@ version: 2.1
 jobs:
   build-linux:
     docker:
-      - image: circleci/golang:1.13.3
+      - image: circleci/golang:1.14.1
 
     steps:
       - checkout
@@ -106,11 +106,11 @@ jobs:
               echo -e "Host *\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
 
       - run:
-          name: Install Go 1.13.3
+          name: Install Go 1.14.1
           command: |
               cd /tmp
-              curl -LO https://dl.google.com/go/go1.13.3.darwin-amd64.pkg
-              sudo installer -pkg /tmp/go1.13.3.darwin-amd64.pkg -target /
+              curl -LO https://dl.google.com/go/go1.14.1.darwin-amd64.pkg
+              sudo installer -pkg /tmp/go1.14.1.darwin-amd64.pkg -target /
 
       #- run:
       #    name: Install Gomobile
@@ -146,7 +146,7 @@ jobs:
 
   build-other:
     docker:
-      - image: circleci/golang:1.13.3
+      - image: circleci/golang:1.14.1
 
     steps:
       - checkout

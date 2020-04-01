@@ -25,6 +25,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.3.14] - 2020-03-28
+### Fixed
+- Fixes a memory leak that may occur if packets are incorrectly never removed from a switch queue
+
+### Changed
+- Make DHT searches a bit more reliable by tracking the 16 most recently visited nodes
+
 ## [0.3.13] - 2020-02-21
 ### Added
 - Support for the Wireguard TUN driver, which now replaces Water and provides far better support and performance on Windows

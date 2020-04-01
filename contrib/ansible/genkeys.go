@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 
+	"github.com/cheggaaa/pb/v3"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 )
@@ -29,6 +30,8 @@ type keySet struct {
 func main() {
 	flag.Parse()
 
+	bar := pb.StartNew(*keyTries*2 + *numHosts)
+
 	if *numHosts > *keyTries {
 		println("Can't generate less keys than hosts.")
 		return
@@ -37,21 +40,25 @@ func main() {
 	var encryptionKeys []keySet
 	for i := 0; i < *numHosts+1; i++ {
 		encryptionKeys = append(encryptionKeys, newBoxKey())
+		bar.Increment()
 	}
 	encryptionKeys = sortKeySetArray(encryptionKeys)
 	for i := 0; i < *keyTries-*numHosts-1; i++ {
 		encryptionKeys[0] = newBoxKey()
 		encryptionKeys = bubbleUpTo(encryptionKeys, 0)
+		bar.Increment()
 	}
 
 	var signatureKeys []keySet
 	for i := 0; i < *numHosts+1; i++ {
 		signatureKeys = append(signatureKeys, newSigKey())
+		bar.Increment()
 	}
 	signatureKeys = sortKeySetArray(signatureKeys)
 	for i := 0; i < *keyTries-*numHosts-1; i++ {
 		signatureKeys[0] = newSigKey()
 		signatureKeys = bubbleUpTo(signatureKeys, 0)
+		bar.Increment()
 	}
 
 	os.MkdirAll("host_vars", 0755)
@@ -76,7 +83,9 @@ func main() {
 		defer file.Close()
 		file.WriteString(fmt.Sprintf("vault_yggdrasil_encryption_private_key: %v\n", hex.EncodeToString(encryptionKeys[i].priv)))
 		file.WriteString(fmt.Sprintf("vault_yggdrasil_signing_private_key: %v\n", hex.EncodeToString(signatureKeys[i].priv)))
+		bar.Increment()
 	}
+	bar.Finish()
 }
 
 func newBoxKey() keySet {
