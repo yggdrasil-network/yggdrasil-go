@@ -160,7 +160,10 @@ func (c *Core) _start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState
 	}
 
 	c.log.Infoln("Starting up...")
-	c._init()
+	if err := c._init(); err != nil {
+		c.log.Errorln("Failed to initialize core")
+		return nil, err
+	}
 
 	if err := c.link.init(c); err != nil {
 		c.log.Errorln("Failed to start link interfaces")
