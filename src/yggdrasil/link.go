@@ -62,7 +62,7 @@ type linkInterface struct {
 	keepAliveTimer *time.Timer // Fires to send keep-alive traffic
 	stallTimer     *time.Timer // Fires to signal that no incoming traffic (including keep-alive) has been seen
 	closeTimer     *time.Timer // Fires when the link has been idle so long we need to close it
-	inSwitch       bool        // True if the switch is tracking this link
+	isIdle         bool        // True if the peer actor knows the link is idle
 	stalled        bool        // True if we haven't been receiving any response traffic
 	unstalled      bool        // False if an idle notification to the switch hasn't been sent because we stalled (or are first starting up)
 }
@@ -278,7 +278,7 @@ const (
 func (intf *linkInterface) notifySending(size int, isLinkTraffic bool) {
 	intf.Act(&intf.writer, func() {
 		if !isLinkTraffic {
-			intf.inSwitch = false
+			intf.isIdle = false
 		}
 		intf.sendTimer = time.AfterFunc(sendTime, intf.notifyBlockedSend)
 		intf._cancelStallTimer()
@@ -311,7 +311,7 @@ func (intf *linkInterface) notifySent(size int, isLinkTraffic bool) {
 		intf.sendTimer.Stop()
 		intf.sendTimer = nil
 		if !isLinkTraffic {
-			intf._notifySwitch()
+			intf._notifyIdle()
 		}
 		if size > 0 && intf.stallTimer == nil {
 			intf.stallTimer = time.AfterFunc(stallTime, intf.notifyStalled)
@@ -320,15 +320,13 @@ func (intf *linkInterface) notifySent(size int, isLinkTraffic bool) {
 }
 
 // Notify the switch that we're ready for more traffic, assuming we're not in a stalled state
-func (intf *linkInterface) _notifySwitch() {
-	if !intf.inSwitch {
+func (intf *linkInterface) _notifyIdle() {
+	if !intf.isIdle {
 		if intf.stalled {
 			intf.unstalled = false
 		} else {
-			intf.inSwitch = true
-			intf.link.core.switchTable.Act(intf, func() {
-				intf.link.core.switchTable._idleIn(intf.peer.port)
-			})
+			intf.isIdle = true
+			intf.peer.Act(intf, intf.peer._handleIdle)
 		}
 	}
 }
@@ -364,7 +362,7 @@ func (intf *linkInterface) notifyRead(size int) {
 		}
 		intf.stalled = false
 		if !intf.unstalled {
-			intf._notifySwitch()
+			intf._notifyIdle()
 			intf.unstalled = true
 		}
 		if size > 0 && intf.stallTimer == nil {

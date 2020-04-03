@@ -100,6 +100,8 @@ type peer struct {
 	bytesRecvd uint64
 	ports      map[switchPort]*peer
 	table      *lookupTable
+	queue      packetQueue
+	idle       bool
 }
 
 func (ps *peers) updateTables(from phony.Actor, table *lookupTable) {
@@ -243,6 +245,13 @@ func (p *peer) _handlePacket(packet []byte) {
 	}
 }
 
+// Get the coords of a packet without decoding
+func peer_getPacketCoords(packet []byte) []byte {
+	_, pTypeLen := wire_decode_uint64(packet)
+	coords, _ := wire_decode_coords(packet[pTypeLen:])
+	return coords
+}
+
 // Called to handle traffic or protocolTraffic packets.
 // In either case, this reads from the coords of the packet header, does a switch lookup, and forwards to the next node.
 func (p *peer) _handleTraffic(packet []byte) {
@@ -250,7 +259,7 @@ func (p *peer) _handleTraffic(packet []byte) {
 		// Drop traffic if the peer isn't in the switch
 		return
 	}
-	coords := switch_getPacketCoords(packet)
+	coords := peer_getPacketCoords(packet)
 	next := p.table.lookup(coords)
 	if nPeer, isIn := p.ports[next]; isIn {
 		nPeer.sendPacketsFrom(p, [][]byte{packet})
@@ -264,17 +273,33 @@ func (p *peer) sendPacketsFrom(from phony.Actor, packets [][]byte) {
 	})
 }
 
-// This just calls p.out(packet) for now.
 func (p *peer) _sendPackets(packets [][]byte) {
-	// Is there ever a case where something more complicated is needed?
-	// What if p.out blocks?
-	var size int
 	for _, packet := range packets {
-		size += len(packet)
+		p.queue.push(packet)
 	}
-	p.bytesSent += uint64(size)
-	// FIXME need to manage queues here or else things can block!
-	p.out(packets)
+	if p.idle {
+		p.idle = false
+		p._handleIdle()
+	}
+}
+
+func (p *peer) _handleIdle() {
+	var packets [][]byte
+	var size uint64
+	for size < 65535 {
+		if packet, success := p.queue.pop(); success {
+			packets = append(packets, packet)
+			size += uint64(len(packet))
+		} else {
+			break
+		}
+	}
+	if len(packets) > 0 {
+		p.bytesSent += uint64(size)
+		p.out(packets)
+	} else {
+		p.idle = true
+	}
 }
 
 // This wraps the packet in the inner (ephemeral) and outer (permanent) crypto layers.

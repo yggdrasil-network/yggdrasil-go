@@ -67,7 +67,14 @@ func (r *router) init(core *Core) {
 		// FIXME don't block here!
 		p = r.core.peers._newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, &self, nil)
 	})
-	p.out = func(packets [][]byte) { r.handlePackets(p, packets) }
+	p.out = func(packets [][]byte) {
+		r.handlePackets(p, packets)
+		r.Act(p, func() {
+			// after the router handle the packets, notify the peer that it's ready for more
+			p.Act(r, p._handleIdle)
+		})
+	}
+	p.Act(r, p._handleIdle)
 	r.out = func(bs []byte) { p.handlePacketFrom(r, bs) }
 	r.nodeinfo.init(r.core)
 	r.core.config.Mutex.RLock()

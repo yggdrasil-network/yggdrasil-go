@@ -199,35 +199,6 @@ func (c *Core) GetDHT() []DHTEntry {
 	return dhtentries
 }
 
-// GetSwitchQueues returns information about the switch queues that are
-// currently in effect. These values can change within an instant.
-func (c *Core) GetSwitchQueues() SwitchQueues {
-	var switchqueues SwitchQueues
-	switchTable := &c.switchTable
-	getSwitchQueues := func() {
-		switchqueues = SwitchQueues{
-			Count:        uint64(len(switchTable.queues.bufs)),
-			Size:         switchTable.queues.size,
-			HighestCount: uint64(switchTable.queues.maxbufs),
-			HighestSize:  switchTable.queues.maxsize,
-			MaximumSize:  switchTable.queues.totalMaxSize,
-		}
-		for port, pbuf := range switchTable.queues.bufs {
-			for k, v := range pbuf {
-				queue := SwitchQueue{
-					ID:      k,
-					Size:    v.size,
-					Packets: uint64(len(v.packets)),
-					Port:    uint64(port),
-				}
-				switchqueues.Queues = append(switchqueues.Queues, queue)
-			}
-		}
-	}
-	phony.Block(&c.switchTable, getSwitchQueues)
-	return switchqueues
-}
-
 // GetSessions returns a list of open sessions from this node to other nodes.
 func (c *Core) GetSessions() []Session {
 	var sessions []Session
