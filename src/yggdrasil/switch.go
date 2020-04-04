@@ -227,10 +227,10 @@ func (t *switchTable) _cleanRoot() {
 		t.time = now
 		if t.data.locator.root != t.key {
 			t.data.seq++
-			defer t._updateTable()
-			t.core.router.reset(nil)
+			defer t.core.router.reset(nil)
 		}
 		t.data.locator = switchLocator{root: t.key, tstamp: now.Unix()}
+		t._updateTable() // updates base copy of switch msg in lookupTable
 		t.core.peers.sendSwitchMsgs(t)
 	}
 }

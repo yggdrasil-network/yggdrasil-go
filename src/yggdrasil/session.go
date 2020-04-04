@@ -16,9 +16,6 @@ import (
 	"github.com/Arceliar/phony"
 )
 
-// Duration that we keep track of old nonces per session, to allow some out-of-order packet delivery
-const nonceWindow = time.Second
-
 // All the information we know about an active session.
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
 type sessionInfo struct {
@@ -394,14 +391,9 @@ func (sinfo *sessionInfo) _getMTU() MTU {
 	return sinfo.myMTU
 }
 
-// Checks if a packet's nonce is recent enough to fall within the window of allowed packets, and not already received.
+// Checks if a packet's nonce is newer than any previously received
 func (sinfo *sessionInfo) _nonceIsOK(theirNonce *crypto.BoxNonce) bool {
-	// The bitmask is to allow for some non-duplicate out-of-order packets
-	if theirNonce.Minus(&sinfo.theirNonce) > 0 {
-		// This is newer than the newest nonce we've seen
-		return true
-	}
-	return time.Since(sinfo.time) < nonceWindow
+	return theirNonce.Minus(&sinfo.theirNonce) > 0
 }
 
 // Updates the nonce mask by (possibly) shifting the bitmask and setting the bit corresponding to this nonce to 1, and then updating the most recent nonce
