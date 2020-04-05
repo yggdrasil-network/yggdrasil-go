@@ -181,13 +181,12 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 					in["uri"].(string),
 				},
 			}, nil
-		} else {
-			return Info{
-				"not_added": []string{
-					in["uri"].(string),
-				},
-			}, errors.New("Failed to add peer")
 		}
+		return Info{
+			"not_added": []string{
+				in["uri"].(string),
+			},
+		}, errors.New("Failed to add peer")
 	})
 	a.AddHandler("removePeer", []string{"port"}, func(in Info) (Info, error) {
 		port, err := strconv.ParseInt(fmt.Sprint(in["port"]), 10, 64)
@@ -200,13 +199,12 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 					fmt.Sprint(port),
 				},
 			}, nil
-		} else {
-			return Info{
-				"not_removed": []string{
-					fmt.Sprint(port),
-				},
-			}, errors.New("Failed to remove peer")
 		}
+		return Info{
+			"not_removed": []string{
+				fmt.Sprint(port),
+			},
+		}, errors.New("Failed to remove peer")
 	})
 	a.AddHandler("getAllowedEncryptionPublicKeys", []string{}, func(in Info) (Info, error) {
 		return Info{"allowed_box_pubs": a.core.GetAllowedEncryptionPublicKeys()}, nil
@@ -218,13 +216,12 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 					in["box_pub_key"].(string),
 				},
 			}, nil
-		} else {
-			return Info{
-				"not_added": []string{
-					in["box_pub_key"].(string),
-				},
-			}, errors.New("Failed to add allowed key")
 		}
+		return Info{
+			"not_added": []string{
+				in["box_pub_key"].(string),
+			},
+		}, errors.New("Failed to add allowed key")
 	})
 	a.AddHandler("removeAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in Info) (Info, error) {
 		if a.core.RemoveAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
@@ -250,10 +247,10 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 		coords := util.DecodeCoordString(in["coords"].(string))
 		var boxPubKey crypto.BoxPubKey
 		if b, err := hex.DecodeString(in["box_pub_key"].(string)); err == nil {
-			copy(boxPubKey[:], b[:])
+			copy(boxPubKey[:], b)
 			if n, err := hex.DecodeString(in["target"].(string)); err == nil {
 				var targetNodeID crypto.NodeID
-				copy(targetNodeID[:], n[:])
+				copy(targetNodeID[:], n)
 				result, reserr = a.core.DHTPing(boxPubKey, coords, &targetNodeID)
 			} else {
 				result, reserr = a.core.DHTPing(boxPubKey, coords, nil)
@@ -294,7 +291,7 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 			return Info{}, errors.New("Expecting both box_pub_key and coords")
 		} else {
 			if b, err := hex.DecodeString(in["box_pub_key"].(string)); err == nil {
-				copy(boxPubKey[:], b[:])
+				copy(boxPubKey[:], b)
 			} else {
 				return Info{}, err
 			}
