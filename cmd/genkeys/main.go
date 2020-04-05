@@ -76,10 +76,9 @@ func main() {
 
 func isBetter(oldID, newID []byte) bool {
 	for idx := range oldID {
-		if newID[idx] == oldID[idx] {
-			continue
+		if newID[idx] != oldID[idx] {
+			return newID[idx] > oldID[idx]
 		}
-		return newID[idx] > oldID[idx]
 	}
 	return false
 }
