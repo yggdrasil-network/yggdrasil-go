@@ -229,10 +229,18 @@ func (intf *linkInterface) handler() error {
 		intf.peer.Act(nil, intf.peer._removeSelf)
 	}()
 	intf.peer.out = func(msgs [][]byte) {
-		intf.writer.sendFrom(intf.peer, msgs, false)
+		// nil to prevent it from blocking if the link is somehow frozen
+		// this is safe because another packet won't be sent until the link notifies
+		//  the peer that it's ready for one
+		intf.writer.sendFrom(nil, msgs, false)
 	}
 	intf.peer.linkOut = func(bs []byte) {
-		intf.writer.sendFrom(intf.peer, [][]byte{bs}, true)
+		// nil to prevent it from blocking if the link is somehow frozen
+		// FIXME this is hypothetically not safe, the peer shouldn't be sending
+		//  additional packets until this one finishes, otherwise this could leak
+		//  memory if writing happens slower than link packets are generated...
+		//  that seems unlikely, so it's a lesser evil than deadlocking for now
+		intf.writer.sendFrom(nil, [][]byte{bs}, true)
 	}
 	themAddr := address.AddrForNodeID(crypto.GetNodeID(&intf.info.box))
 	themAddrString := net.IP(themAddr[:]).String()
