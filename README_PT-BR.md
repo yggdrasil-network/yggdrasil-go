@@ -99,6 +99,6 @@ ou no canal de IRC `#yggdrasil` no Freenode.
 
 ## Licença
 
-Este código é lançado sob os termos do LGPLv3, mas com uma exceção adicional que foi descaradamente retirada de [godeb] (https://github.com/niemeyer/godeb).
+Este código é lançado sob os termos do LGPLv3, mas com uma exceção adicional que foi descaradamente retirada de [godeb](https://github.com/niemeyer/godeb).
 Sob certas circunstâncias, essa exceção permite a distribuição de binários que estão (estaticamente ou dinamicamente) vinculados a esse código, sem exigir a distribuição do Minimal Corresponding Source ou Minimal Application Code.
 Para mais detalhes, consulte: [LICENSE](LICENSE).
