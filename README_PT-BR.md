@@ -31,7 +31,7 @@ etapas de instalação e advertências.
 
 Você também pode encontrar outros wrappers, scripts ou ferramentas específicos da plataforma na pasta `contrib`.
 
-## Construção
+## Compilando
 
 Se você deseja construir a partir do código-fonte, em vez de instalar um dos
 pacotes:
