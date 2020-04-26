@@ -45,7 +45,7 @@ elif [ $ANDROID ]; then
     github.com/yggdrasil-network/yggdrasil-extras/src/mobile \
     github.com/yggdrasil-network/yggdrasil-extras/src/dummy
 else
-  for CMD in yggdrasil yggdrasilctl ; do
+  for CMD in yggdrasil yggdrasilctl yggdrasilsim; do
     echo "Building: $CMD"
     go build $ARGS -ldflags="$LDFLAGS" -gcflags="$GCFLAGS" ./cmd/$CMD
 
