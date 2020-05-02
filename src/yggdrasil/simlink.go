@@ -14,12 +14,11 @@ type Simlink struct {
 }
 
 func (s *Simlink) readMsg() ([]byte, error) {
-	bs := <-s.rch
-	if bs != nil {
-		return bs, nil
-	} else {
+	bs, ok := <-s.rch
+	if !ok {
 		return nil, errors.New("read from closed Simlink")
 	}
+	return bs, nil
 }
 
 func (s *Simlink) _recvMetaBytes() ([]byte, error) {
@@ -32,6 +31,7 @@ func (s *Simlink) _sendMetaBytes(bs []byte) error {
 }
 
 func (s *Simlink) close() error {
+	defer func() { recover() }()
 	close(s.rch)
 	return nil
 }
