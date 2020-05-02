@@ -26,17 +26,16 @@ const (
 // automatically.
 type Multicast struct {
 	phony.Inbox
-	core             *yggdrasil.Core
-	config           *config.NodeState
-	log              *log.Logger
-	sock             *ipv6.PacketConn
-	groupAddr        *net.UDPAddr
-	listeners        map[string]*multicastInterface
-	listenPort       uint16
-	isOpen           bool
-	interfaceMonitor *time.Timer
-	announcer        *time.Timer
-	platformhandler  *time.Timer
+	core            *yggdrasil.Core
+	config          *config.NodeState
+	log             *log.Logger
+	sock            *ipv6.PacketConn
+	groupAddr       *net.UDPAddr
+	listeners       map[string]*multicastInterface
+	listenPort      uint16
+	isOpen          bool
+	monitor         *time.Timer
+	platformhandler *time.Timer
 }
 
 type multicastInterface struct {
@@ -47,13 +46,7 @@ type multicastInterface struct {
 	zone     string
 	timer    *time.Timer
 	interval time.Duration
-	send     chan<- beacon
 	stop     chan interface{}
-}
-
-type beacon struct {
-	llAddr string
-	zone   string
 }
 
 // Init prepares the multicast interface for use.
@@ -135,14 +128,10 @@ func (m *Multicast) Stop() error {
 func (m *Multicast) _stop() error {
 	m.log.Infoln("Stopping multicast module")
 	m.isOpen = false
-	/*
-		if m.monitorInterfaceChanges != nil {
-			m.monitorInterfaceChanges.Stop()
-		}
-		if m.sendBeacons != nil {
-			m.sendBeacons.Stop()
-		}
-	*/
+	for name := range m.listeners {
+		close(m.listeners[name].stop)
+		delete(m.listeners, name)
+	}
 	if m.platformhandler != nil {
 		m.platformhandler.Stop()
 	}
@@ -226,7 +215,7 @@ func (m *Multicast) monitorInterfaceChanges() {
 		}
 	}
 	// Queue the next check.
-	m.interfaceMonitor = time.AfterFunc(time.Second, func() {
+	m.monitor = time.AfterFunc(time.Second, func() {
 		m.Act(m, m.monitorInterfaceChanges)
 	})
 }
