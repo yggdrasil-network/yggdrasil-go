@@ -29,7 +29,6 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 
 	"github.com/Arceliar/phony"
 )
@@ -178,14 +177,12 @@ func (r *router) _handlePacket(packet []byte) {
 // Handles incoming traffic, i.e. encapuslated ordinary IPv6 packets.
 // Passes them to the crypto session worker to be decrypted and sent to the adapter.
 func (r *router) _handleTraffic(packet []byte) {
-	defer util.PutBytes(packet)
 	p := wire_trafficPacket{}
 	if !p.decode(packet) {
 		return
 	}
 	sinfo, isIn := r.sessions.getSessionForHandle(&p.Handle)
 	if !isIn {
-		util.PutBytes(p.Payload)
 		return
 	}
 	sinfo.recv(r, &p)
@@ -231,7 +228,6 @@ func (r *router) _handleProto(packet []byte) {
 	case wire_DHTLookupResponse:
 		r._handleDHTRes(bs, &p.FromKey)
 	default:
-		util.PutBytes(packet)
 	}
 }
 

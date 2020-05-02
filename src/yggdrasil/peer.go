@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 
 	"github.com/Arceliar/phony"
 )
@@ -241,7 +240,6 @@ func (p *peer) _handlePacket(packet []byte) {
 	case wire_LinkProtocolTraffic:
 		p._handleLinkTraffic(packet)
 	default:
-		util.PutBytes(packet)
 	}
 }
 
@@ -347,7 +345,6 @@ func (p *peer) _handleLinkTraffic(bs []byte) {
 	case wire_SwitchMsg:
 		p._handleSwitchMsg(payload)
 	default:
-		util.PutBytes(bs)
 	}
 }
 
