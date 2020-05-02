@@ -9,7 +9,6 @@ package yggdrasil
 
 import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 const (
@@ -230,8 +229,9 @@ type wire_trafficPacket struct {
 }
 
 // Encodes a wire_trafficPacket into its wire format.
+// The returned slice was taken from the pool.
 func (p *wire_trafficPacket) encode() []byte {
-	bs := util.GetBytes()
+	bs := pool_getBytes(0)
 	bs = wire_put_uint64(wire_Traffic, bs)
 	bs = wire_put_coords(p.Coords, bs)
 	bs = append(bs, p.Handle[:]...)
@@ -241,7 +241,9 @@ func (p *wire_trafficPacket) encode() []byte {
 }
 
 // Decodes an encoded wire_trafficPacket into the struct, returning true if successful.
+// Either way, the argument slice is added to the pool.
 func (p *wire_trafficPacket) decode(bs []byte) bool {
+	defer pool_putBytes(bs)
 	var pType uint64
 	switch {
 	case !wire_chop_uint64(&pType, &bs):
@@ -255,7 +257,7 @@ func (p *wire_trafficPacket) decode(bs []byte) bool {
 	case !wire_chop_slice(p.Nonce[:], &bs):
 		return false
 	}
-	p.Payload = append(util.GetBytes(), bs...)
+	p.Payload = append(p.Payload, bs...)
 	return true
 }
 
