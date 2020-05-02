@@ -448,12 +448,9 @@ func (sinfo *sessionInfo) _recvPacket(p *wire_trafficPacket) {
 	select {
 	case <-sinfo.init:
 	default:
-		// TODO find a better way to drop things until initialized
-		util.PutBytes(p.Payload)
 		return
 	}
 	if !sinfo._nonceIsOK(&p.Nonce) {
-		util.PutBytes(p.Payload)
 		return
 	}
 	k := sinfo.sharedSesKey
@@ -463,11 +460,9 @@ func (sinfo *sessionInfo) _recvPacket(p *wire_trafficPacket) {
 	poolFunc := func() {
 		bs, isOK = crypto.BoxOpen(&k, p.Payload, &p.Nonce)
 		callback := func() {
-			util.PutBytes(p.Payload)
 			if !isOK || k != sinfo.sharedSesKey || !sinfo._nonceIsOK(&p.Nonce) {
 				// Either we failed to decrypt, or the session was updated, or we
 				// received this packet in the mean time
-				util.PutBytes(bs)
 				return
 			}
 			sinfo._updateNonce(&p.Nonce)
@@ -485,8 +480,6 @@ func (sinfo *sessionInfo) _send(msg FlowKeyMessage) {
 	select {
 	case <-sinfo.init:
 	default:
-		// TODO find a better way to drop things until initialized
-		util.PutBytes(msg.Message)
 		return
 	}
 	sinfo.bytesSent += uint64(len(msg.Message))
@@ -505,14 +498,8 @@ func (sinfo *sessionInfo) _send(msg FlowKeyMessage) {
 	ch := make(chan func(), 1)
 	poolFunc := func() {
 		p.Payload, _ = crypto.BoxSeal(&k, msg.Message, &p.Nonce)
+		packet := p.encode()
 		callback := func() {
-			// Encoding may block on a util.GetBytes(), so kept out of the worker pool
-			packet := p.encode()
-			// Cleanup
-			util.PutBytes(msg.Message)
-			util.PutBytes(p.Payload)
-			// Send the packet
-			// TODO replace this with a send to the peer struct if that becomes an actor
 			sinfo.sessions.router.Act(sinfo, func() {
 				sinfo.sessions.router.out(packet)
 			})

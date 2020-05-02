@@ -2,8 +2,6 @@ package yggdrasil
 
 import (
 	"time"
-
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 // TODO take max size from config
@@ -59,7 +57,7 @@ func (q *packetQueue) cleanup() {
 		worstStream.infos = worstStream.infos[1:]
 		worstStream.size -= uint64(len(packet))
 		q.size -= uint64(len(packet))
-		util.PutBytes(packet)
+		pool_putBytes(packet)
 		// save the modified stream to queues
 		if len(worstStream.infos) > 0 {
 			q.streams[worst] = worstStream
