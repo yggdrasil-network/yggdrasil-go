@@ -211,7 +211,7 @@ func (m *Multicast) monitorInterfaceChanges() {
 				}
 				multicastInterface.Act(multicastInterface, multicastInterface.announce)
 				m.listeners[name] = multicastInterface
-				m.log.Infoln("Started multicasting on", name)
+				m.log.Debugln("Started multicasting on", name)
 				break
 			}
 		}
@@ -222,7 +222,7 @@ func (m *Multicast) monitorInterfaceChanges() {
 			// This is a disappeared interface. Stop the announcer.
 			close(intf.stop)
 			delete(m.listeners, name)
-			m.log.Infoln("Stopped multicasting on", name)
+			m.log.Debugln("Stopped multicasting on", name)
 		}
 	}
 	// Queue the next check.
