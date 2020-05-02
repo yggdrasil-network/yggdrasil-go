@@ -36,6 +36,8 @@ type Multicast struct {
 	isOpen          bool
 	monitor         *time.Timer
 	platformhandler *time.Timer
+	_interfaces     map[string]net.Interface
+	_interfaceAddrs map[string][]net.Addr
 }
 
 type multicastInterface struct {
@@ -100,8 +102,8 @@ func (m *Multicast) _start() error {
 
 	m.isOpen = true
 	go m.listen()
-	m.Act(m, m.multicastStarted)
-	m.Act(m, m.monitorInterfaceChanges)
+	m.Act(nil, m._multicastStarted)
+	m.Act(nil, m._monitorInterfaceChanges)
 
 	return nil
 }
@@ -145,7 +147,7 @@ func (m *Multicast) _stop() error {
 // and then signals the various module goroutines to reconfigure themselves if
 // needed.
 func (m *Multicast) UpdateConfig(config *config.NodeConfig) {
-	m.Act(m, func() { m._updateConfig(config) })
+	m.Act(nil, func() { m._updateConfig(config) })
 }
 
 func (m *Multicast) _updateConfig(config *config.NodeConfig) {
@@ -167,17 +169,14 @@ func (m *Multicast) _updateConfig(config *config.NodeConfig) {
 	m.log.Debugln("Reloaded multicast configuration successfully")
 }
 
-func (m *Multicast) monitorInterfaceChanges() {
-	interfaces := m.Interfaces()
+func (m *Multicast) _monitorInterfaceChanges() {
+	m._updateInterfaces() // update interfaces and interfaceAddrs
 
 	// Look for interfaces we don't know about yet.
-	for name, intf := range interfaces {
+	for name, intf := range m._interfaces {
 		if _, ok := m.listeners[name]; !ok {
 			// Look up interface addresses.
-			addrs, err := intf.Addrs()
-			if err != nil {
-				continue
-			}
+			addrs := m._interfaceAddrs[intf.Name]
 			// Find the first link-local address.
 			for _, addr := range addrs {
 				addrIP, _, _ := net.ParseCIDR(addr.String())
@@ -198,7 +197,7 @@ func (m *Multicast) monitorInterfaceChanges() {
 					stop:     make(chan interface{}),
 					zone:     name,
 				}
-				multicastInterface.Act(multicastInterface, multicastInterface.announce)
+				multicastInterface.Act(m, multicastInterface._announce)
 				m.listeners[name] = multicastInterface
 				m.log.Debugln("Started multicasting on", name)
 				break
@@ -207,7 +206,7 @@ func (m *Multicast) monitorInterfaceChanges() {
 	}
 	// Look for interfaces we knew about but are no longer there.
 	for name, intf := range m.listeners {
-		if _, ok := interfaces[name]; !ok {
+		if _, ok := m._interfaces[name]; !ok {
 			// This is a disappeared interface. Stop the announcer.
 			close(intf.stop)
 			delete(m.listeners, name)
@@ -216,11 +215,11 @@ func (m *Multicast) monitorInterfaceChanges() {
 	}
 	// Queue the next check.
 	m.monitor = time.AfterFunc(time.Second, func() {
-		m.Act(m, m.monitorInterfaceChanges)
+		m.Act(nil, m._monitorInterfaceChanges)
 	})
 }
 
-func (m *multicastInterface) announce() {
+func (m *multicastInterface) _announce() {
 	// Check if the multicast interface has been stopped. This will happen
 	// if it disappears from the system or goes down.
 	select {
@@ -240,7 +239,7 @@ func (m *multicastInterface) announce() {
 		m.interval += time.Second
 	}
 	m.timer = time.AfterFunc(m.interval, func() {
-		m.Act(m, m.announce)
+		m.Act(nil, m._announce)
 	})
 }
 
@@ -248,6 +247,14 @@ func (m *multicastInterface) announce() {
 // expected that UpdateInterfaces has been called at least once before calling
 // this method.
 func (m *Multicast) Interfaces() map[string]net.Interface {
+	var interfaces map[string]net.Interface
+	phony.Block(m, func() {
+		interfaces = m._interfaces
+	})
+	return interfaces
+}
+
+func (m *Multicast) _updateInterfaces() {
 	interfaces := make(map[string]net.Interface)
 	// Get interface expressions from config
 	current := m.config.GetCurrent()
@@ -258,6 +265,7 @@ func (m *Multicast) Interfaces() map[string]net.Interface {
 		panic(err)
 	}
 	// Work out which interfaces to announce on
+	interfaceAddrs := make(map[string][]net.Addr)
 	for _, iface := range allifaces {
 		if iface.Flags&net.FlagUp == 0 {
 			// Ignore interfaces that are down
@@ -293,10 +301,12 @@ func (m *Multicast) Interfaces() map[string]net.Interface {
 			// Does the interface match the regular expression? Store it if so
 			if e.MatchString(iface.Name) {
 				interfaces[iface.Name] = iface
+				interfaceAddrs[iface.Name] = addrs
 			}
 		}
 	}
-	return interfaces
+	m._interfaces = interfaces
+	m._interfaceAddrs = interfaceAddrs
 }
 
 func (m *Multicast) listen() {
@@ -333,6 +343,7 @@ func (m *Multicast) listen() {
 		if addr.IP.String() != from.IP.String() {
 			continue
 		}
+		// Note that m.Interfaces would block if it was being run by the actor itself
 		if _, ok := m.Interfaces()[from.Zone]; ok {
 			addr.Zone = ""
 			if err := m.core.CallPeer("tcp://"+addr.String(), from.Zone); err != nil {
