@@ -62,7 +62,7 @@ type linkInterface struct {
 	keepAliveTimer *time.Timer // Fires to send keep-alive traffic
 	stallTimer     *time.Timer // Fires to signal that no incoming traffic (including keep-alive) has been seen
 	closeTimer     *time.Timer // Fires when the link has been idle so long we need to close it
-	inSwitch       bool        // True if the switch is tracking this link
+	isIdle         bool        // True if the peer actor knows the link is idle
 	stalled        bool        // True if we haven't been receiving any response traffic
 	unstalled      bool        // False if an idle notification to the switch hasn't been sent because we stalled (or are first starting up)
 }
@@ -217,19 +217,30 @@ func (intf *linkInterface) handler() error {
 	intf.link.mutex.Unlock()
 	// Create peer
 	shared := crypto.GetSharedKey(myLinkPriv, &meta.link)
-	intf.peer = intf.link.core.peers.newPeer(&meta.box, &meta.sig, shared, intf, func() { intf.msgIO.close() })
+	phony.Block(&intf.link.core.peers, func() {
+		// FIXME don't use phony.Block, it's bad practice, even if it's safe here
+		intf.peer = intf.link.core.peers._newPeer(&meta.box, &meta.sig, shared, intf, func() { intf.msgIO.close() })
+	})
 	if intf.peer == nil {
 		return errors.New("failed to create peer")
 	}
 	defer func() {
 		// More cleanup can go here
-		intf.link.core.peers.removePeer(intf.peer.port)
+		intf.peer.Act(nil, intf.peer._removeSelf)
 	}()
 	intf.peer.out = func(msgs [][]byte) {
-		intf.writer.sendFrom(intf.peer, msgs, false)
+		// nil to prevent it from blocking if the link is somehow frozen
+		// this is safe because another packet won't be sent until the link notifies
+		//  the peer that it's ready for one
+		intf.writer.sendFrom(nil, msgs, false)
 	}
 	intf.peer.linkOut = func(bs []byte) {
-		intf.writer.sendFrom(intf.peer, [][]byte{bs}, true)
+		// nil to prevent it from blocking if the link is somehow frozen
+		// FIXME this is hypothetically not safe, the peer shouldn't be sending
+		//  additional packets until this one finishes, otherwise this could leak
+		//  memory if writing happens slower than link packets are generated...
+		//  that seems unlikely, so it's a lesser evil than deadlocking for now
+		intf.writer.sendFrom(nil, [][]byte{bs}, true)
 	}
 	themAddr := address.AddrForNodeID(crypto.GetNodeID(&intf.info.box))
 	themAddrString := net.IP(themAddr[:]).String()
@@ -275,17 +286,10 @@ const (
 func (intf *linkInterface) notifySending(size int, isLinkTraffic bool) {
 	intf.Act(&intf.writer, func() {
 		if !isLinkTraffic {
-			intf.inSwitch = false
+			intf.isIdle = false
 		}
 		intf.sendTimer = time.AfterFunc(sendTime, intf.notifyBlockedSend)
 		intf._cancelStallTimer()
-	})
-}
-
-// called by an AfterFunc if we seem to be blocked in a send syscall for a long time
-func (intf *linkInterface) _notifySyscall() {
-	intf.link.core.switchTable.Act(intf, func() {
-		intf.link.core.switchTable._sendingIn(intf.peer.port)
 	})
 }
 
@@ -304,7 +308,7 @@ func (intf *linkInterface) notifyBlockedSend() {
 	intf.Act(nil, func() {
 		if intf.sendTimer != nil {
 			//As far as we know, we're still trying to send, and the timer fired.
-			intf.link.core.switchTable.blockPeer(intf.peer.port)
+			intf.link.core.switchTable.blockPeer(intf, intf.peer.port)
 		}
 	})
 }
@@ -315,7 +319,7 @@ func (intf *linkInterface) notifySent(size int, isLinkTraffic bool) {
 		intf.sendTimer.Stop()
 		intf.sendTimer = nil
 		if !isLinkTraffic {
-			intf._notifySwitch()
+			intf._notifyIdle()
 		}
 		if size > 0 && intf.stallTimer == nil {
 			intf.stallTimer = time.AfterFunc(stallTime, intf.notifyStalled)
@@ -324,15 +328,13 @@ func (intf *linkInterface) notifySent(size int, isLinkTraffic bool) {
 }
 
 // Notify the switch that we're ready for more traffic, assuming we're not in a stalled state
-func (intf *linkInterface) _notifySwitch() {
-	if !intf.inSwitch {
+func (intf *linkInterface) _notifyIdle() {
+	if !intf.isIdle {
 		if intf.stalled {
 			intf.unstalled = false
 		} else {
-			intf.inSwitch = true
-			intf.link.core.switchTable.Act(intf, func() {
-				intf.link.core.switchTable._idleIn(intf.peer.port)
-			})
+			intf.isIdle = true
+			intf.peer.Act(intf, intf.peer._handleIdle)
 		}
 	}
 }
@@ -344,7 +346,7 @@ func (intf *linkInterface) notifyStalled() {
 			intf.stallTimer.Stop()
 			intf.stallTimer = nil
 			intf.stalled = true
-			intf.link.core.switchTable.blockPeer(intf.peer.port)
+			intf.link.core.switchTable.blockPeer(intf, intf.peer.port)
 		}
 	})
 }
@@ -368,7 +370,7 @@ func (intf *linkInterface) notifyRead(size int) {
 		}
 		intf.stalled = false
 		if !intf.unstalled {
-			intf._notifySwitch()
+			intf._notifyIdle()
 			intf.unstalled = true
 		}
 		if size > 0 && intf.stallTimer == nil {
@@ -402,19 +404,7 @@ func (w *linkWriter) sendFrom(from phony.Actor, bss [][]byte, isLinkTraffic bool
 			size += len(bs)
 		}
 		w.intf.notifySending(size, isLinkTraffic)
-		// start a timer that will fire if we get stuck in writeMsgs for an oddly long time
-		var once sync.Once
-		timer := time.AfterFunc(time.Millisecond, func() {
-			// 1 ms is kind of arbitrary
-			// the rationale is that this should be very long compared to a syscall
-			// but it's still short compared to end-to-end latency or human perception
-			once.Do(func() {
-				w.intf.Act(nil, w.intf._notifySyscall)
-			})
-		})
 		w.intf.msgIO.writeMsgs(bss)
-		// Make sure we either stop the timer from doing anything or wait until it's done
-		once.Do(func() { timer.Stop() })
 		w.intf.notifySent(size, isLinkTraffic)
 		// Cleanup
 		for _, bs := range bss {

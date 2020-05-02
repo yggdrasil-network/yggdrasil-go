@@ -6,8 +6,6 @@ package yggdrasil
 
 import (
 	"encoding/hex"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
@@ -21,17 +19,17 @@ import (
 // In most cases, this involves passing the packet to the handler for outgoing traffic to another peer.
 // In other cases, its link protocol traffic is used to build the spanning tree, in which case this checks signatures and passes the message along to the switch.
 type peers struct {
+	phony.Inbox
 	core  *Core
-	mutex sync.Mutex   // Synchronize writes to atomic
-	ports atomic.Value //map[switchPort]*peer, use CoW semantics
+	ports map[switchPort]*peer // use CoW semantics, share updated version with each peer
+	table *lookupTable         // Sent from switch, share updated version with each peer
 }
 
 // Initializes the peers struct.
 func (ps *peers) init(c *Core) {
-	ps.mutex.Lock()
-	defer ps.mutex.Unlock()
-	ps.putPorts(make(map[switchPort]*peer))
 	ps.core = c
+	ps.ports = make(map[switchPort]*peer)
+	ps.table = new(lookupTable)
 }
 
 func (ps *peers) reconfigure() {
@@ -80,16 +78,6 @@ func (ps *peers) getAllowedEncryptionPublicKeys() []string {
 	return ps.core.config.Current.AllowedEncryptionPublicKeys
 }
 
-// Atomically gets a map[switchPort]*peer of known peers.
-func (ps *peers) getPorts() map[switchPort]*peer {
-	return ps.ports.Load().(map[switchPort]*peer)
-}
-
-// Stores a map[switchPort]*peer (note that you should take a mutex before store operations to avoid conflicts with other nodes attempting to read/change/store at the same time).
-func (ps *peers) putPorts(ports map[switchPort]*peer) {
-	ps.ports.Store(ports)
-}
-
 // Information known about a peer, including their box/sig keys, precomputed shared keys (static and ephemeral) and a handler for their outgoing traffic
 type peer struct {
 	phony.Inbox
@@ -110,10 +98,33 @@ type peer struct {
 	// The below aren't actually useful internally, they're just gathered for getPeers statistics
 	bytesSent  uint64
 	bytesRecvd uint64
+	ports      map[switchPort]*peer
+	table      *lookupTable
+	queue      packetQueue
+	idle       bool
+}
+
+func (ps *peers) updateTables(from phony.Actor, table *lookupTable) {
+	ps.Act(from, func() {
+		ps.table = table
+		ps._updatePeers()
+	})
+}
+
+func (ps *peers) _updatePeers() {
+	ports := ps.ports
+	table := ps.table
+	for _, peer := range ps.ports {
+		p := peer // peer is mutated during iteration
+		p.Act(ps, func() {
+			p.ports = ports
+			p.table = table
+		})
+	}
 }
 
 // Creates a new peer with the specified box, sig, and linkShared keys, using the lowest unoccupied port number.
-func (ps *peers) newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShared *crypto.BoxSharedKey, intf *linkInterface, closer func()) *peer {
+func (ps *peers) _newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShared *crypto.BoxSharedKey, intf *linkInterface, closer func()) *peer {
 	now := time.Now()
 	p := peer{box: *box,
 		sig:        *sig,
@@ -125,9 +136,7 @@ func (ps *peers) newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShare
 		core:       ps.core,
 		intf:       intf,
 	}
-	ps.mutex.Lock()
-	defer ps.mutex.Unlock()
-	oldPorts := ps.getPorts()
+	oldPorts := ps.ports
 	newPorts := make(map[switchPort]*peer)
 	for k, v := range oldPorts {
 		newPorts[k] = v
@@ -139,46 +148,49 @@ func (ps *peers) newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShare
 			break
 		}
 	}
-	ps.putPorts(newPorts)
+	ps.ports = newPorts
+	ps._updatePeers()
 	return &p
 }
 
-// Removes a peer for a given port, if one exists.
-func (ps *peers) removePeer(port switchPort) {
-	if port == 0 {
-		return
-	} // Can't remove self peer
-	phony.Block(&ps.core.router, func() {
-		ps.core.switchTable.forgetPeer(port)
+func (p *peer) _removeSelf() {
+	p.core.peers.Act(p, func() {
+		p.core.peers._removePeer(p)
 	})
-	ps.mutex.Lock()
-	oldPorts := ps.getPorts()
-	p, isIn := oldPorts[port]
+}
+
+// Removes a peer for a given port, if one exists.
+func (ps *peers) _removePeer(p *peer) {
+	if q := ps.ports[p.port]; p.port == 0 || q != p {
+		return
+	} // Can't remove self peer or nonexistant peer
+	ps.core.switchTable.forgetPeer(ps, p.port)
+	oldPorts := ps.ports
 	newPorts := make(map[switchPort]*peer)
 	for k, v := range oldPorts {
 		newPorts[k] = v
 	}
-	delete(newPorts, port)
-	ps.putPorts(newPorts)
-	ps.mutex.Unlock()
-	if isIn {
-		if p.close != nil {
-			p.close()
-		}
-		close(p.done)
+	delete(newPorts, p.port)
+	if p.close != nil {
+		p.close()
 	}
+	close(p.done)
+	ps.ports = newPorts
+	ps._updatePeers()
 }
 
 // If called, sends a notification to each peer that they should send a new switch message.
 // Mainly called by the switch after an update.
 func (ps *peers) sendSwitchMsgs(from phony.Actor) {
-	ports := ps.getPorts()
-	for _, p := range ports {
-		if p.port == 0 {
-			continue
+	ps.Act(from, func() {
+		for _, peer := range ps.ports {
+			p := peer
+			if p.port == 0 {
+				continue
+			}
+			p.Act(ps, p._sendSwitchMsg)
 		}
-		p.Act(from, p._sendSwitchMsg)
-	}
+	})
 }
 
 // This must be launched in a separate goroutine by whatever sets up the peer struct.
@@ -233,15 +245,26 @@ func (p *peer) _handlePacket(packet []byte) {
 	}
 }
 
+// Get the coords of a packet without decoding
+func peer_getPacketCoords(packet []byte) []byte {
+	_, pTypeLen := wire_decode_uint64(packet)
+	coords, _ := wire_decode_coords(packet[pTypeLen:])
+	return coords
+}
+
 // Called to handle traffic or protocolTraffic packets.
 // In either case, this reads from the coords of the packet header, does a switch lookup, and forwards to the next node.
 func (p *peer) _handleTraffic(packet []byte) {
-	table := p.core.switchTable.getTable()
-	if _, isIn := table.elems[p.port]; !isIn && p.port != 0 {
+	if _, isIn := p.table.elems[p.port]; !isIn && p.port != 0 {
 		// Drop traffic if the peer isn't in the switch
 		return
 	}
-	p.core.switchTable.packetInFrom(p, packet)
+	coords := peer_getPacketCoords(packet)
+	next := p.table.lookup(coords)
+	if nPeer, isIn := p.ports[next]; isIn {
+		nPeer.sendPacketsFrom(p, [][]byte{packet})
+	}
+	//p.core.switchTable.packetInFrom(p, packet)
 }
 
 func (p *peer) sendPacketsFrom(from phony.Actor, packets [][]byte) {
@@ -250,16 +273,33 @@ func (p *peer) sendPacketsFrom(from phony.Actor, packets [][]byte) {
 	})
 }
 
-// This just calls p.out(packet) for now.
 func (p *peer) _sendPackets(packets [][]byte) {
-	// Is there ever a case where something more complicated is needed?
-	// What if p.out blocks?
-	var size int
 	for _, packet := range packets {
-		size += len(packet)
+		p.queue.push(packet)
 	}
-	p.bytesSent += uint64(size)
-	p.out(packets)
+	if p.idle {
+		p.idle = false
+		p._handleIdle()
+	}
+}
+
+func (p *peer) _handleIdle() {
+	var packets [][]byte
+	var size uint64
+	for size < 65535 {
+		if packet, success := p.queue.pop(); success {
+			packets = append(packets, packet)
+			size += uint64(len(packet))
+		} else {
+			break
+		}
+	}
+	if len(packets) > 0 {
+		p.bytesSent += uint64(size)
+		p.out(packets)
+	} else {
+		p.idle = true
+	}
 }
 
 // This wraps the packet in the inner (ephemeral) and outer (permanent) crypto layers.
@@ -313,7 +353,7 @@ func (p *peer) _handleLinkTraffic(bs []byte) {
 
 // Gets a switchMsg from the switch, adds signed next-hop info for this peer, and sends it to them.
 func (p *peer) _sendSwitchMsg() {
-	msg := p.core.switchTable.getMsg()
+	msg := p.table.getMsg()
 	if msg == nil {
 		return
 	}
@@ -335,7 +375,8 @@ func (p *peer) _handleSwitchMsg(packet []byte) {
 		return
 	}
 	if len(msg.Hops) < 1 {
-		p.core.peers.removePeer(p.port)
+		p._removeSelf()
+		return
 	}
 	var loc switchLocator
 	prevKey := msg.Root
@@ -346,23 +387,31 @@ func (p *peer) _handleSwitchMsg(packet []byte) {
 		loc.coords = append(loc.coords, hop.Port)
 		bs := getBytesForSig(&hop.Next, &sigMsg)
 		if !crypto.Verify(&prevKey, bs, &hop.Sig) {
-			p.core.peers.removePeer(p.port)
+			p._removeSelf()
+			return
 		}
 		prevKey = hop.Next
 	}
-	p.core.switchTable.handleMsg(&msg, p.port)
-	if !p.core.switchTable.checkRoot(&msg) {
-		// Bad switch message
-		p.dinfo = nil
-		return
-	}
-	// Pass a message to the dht informing it that this peer (still) exists
-	loc.coords = loc.coords[:len(loc.coords)-1]
-	p.dinfo = &dhtInfo{
-		key:    p.box,
-		coords: loc.getCoords(),
-	}
-	p._updateDHT()
+	p.core.switchTable.Act(p, func() {
+		if !p.core.switchTable._checkRoot(&msg) {
+			// Bad switch message
+			p.Act(&p.core.switchTable, func() {
+				p.dinfo = nil
+			})
+		} else {
+			// handle the message
+			p.core.switchTable._handleMsg(&msg, p.port, false)
+			p.Act(&p.core.switchTable, func() {
+				// Pass a message to the dht informing it that this peer (still) exists
+				loc.coords = loc.coords[:len(loc.coords)-1]
+				p.dinfo = &dhtInfo{
+					key:    p.box,
+					coords: loc.getCoords(),
+				}
+				p._updateDHT()
+			})
+		}
+	})
 }
 
 // This generates the bytes that we sign or check the signature of for a switchMsg.

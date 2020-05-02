@@ -186,11 +186,9 @@ func dht_ordered(first, second, third *crypto.NodeID) bool {
 // Update info about the node that sent the request.
 func (t *dht) handleReq(req *dhtReq) {
 	// Send them what they asked for
-	loc := t.router.core.switchTable.getLocator()
-	coords := loc.getCoords()
 	res := dhtRes{
 		Key:    t.router.core.boxPub,
-		Coords: coords,
+		Coords: t.router.table.self.getCoords(),
 		Dest:   req.Dest,
 		Infos:  t.lookup(&req.Dest, false),
 	}
@@ -300,11 +298,9 @@ func (t *dht) ping(info *dhtInfo, target *crypto.NodeID) {
 	if target == nil {
 		target = &t.nodeID
 	}
-	loc := t.router.core.switchTable.getLocator()
-	coords := loc.getCoords()
 	req := dhtReq{
 		Key:    t.router.core.boxPub,
-		Coords: coords,
+		Coords: t.router.table.self.getCoords(),
 		Dest:   *target,
 	}
 	t.sendReq(&req, info)
@@ -378,7 +374,7 @@ func (t *dht) getImportant() []*dhtInfo {
 		})
 		// Keep the ones that are no further than the closest seen so far
 		minDist := ^uint64(0)
-		loc := t.router.core.switchTable.getLocator()
+		loc := t.router.table.self
 		important := infos[:0]
 		for _, info := range infos {
 			dist := uint64(loc.dist(info.coords))
@@ -416,7 +412,7 @@ func (t *dht) isImportant(ninfo *dhtInfo) bool {
 	}
 	important := t.getImportant()
 	// Check if ninfo is of equal or greater importance to what we already know
-	loc := t.router.core.switchTable.getLocator()
+	loc := t.router.table.self
 	ndist := uint64(loc.dist(ninfo.coords))
 	minDist := ^uint64(0)
 	for _, info := range important {

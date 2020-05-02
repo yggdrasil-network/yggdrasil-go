@@ -110,7 +110,8 @@ type Session struct {
 // there is exactly one entry then this node is not connected to any other nodes
 // and is therefore isolated.
 func (c *Core) GetPeers() []Peer {
-	ports := c.peers.ports.Load().(map[switchPort]*peer)
+	var ports map[switchPort]*peer
+	phony.Block(&c.peers, func() { ports = c.peers.ports })
 	var peers []Peer
 	var ps []switchPort
 	for port := range ports {
@@ -143,10 +144,14 @@ func (c *Core) GetPeers() []Peer {
 // isolated or not connected to any peers.
 func (c *Core) GetSwitchPeers() []SwitchPeer {
 	var switchpeers []SwitchPeer
-	table := c.switchTable.table.Load().(lookupTable)
-	peers := c.peers.ports.Load().(map[switchPort]*peer)
+	var table *lookupTable
+	var ports map[switchPort]*peer
+	phony.Block(&c.peers, func() {
+		table = c.peers.table
+		ports = c.peers.ports
+	})
 	for _, elem := range table.elems {
-		peer, isIn := peers[elem.port]
+		peer, isIn := ports[elem.port]
 		if !isIn {
 			continue
 		}
@@ -192,34 +197,6 @@ func (c *Core) GetDHT() []DHTEntry {
 	}
 	phony.Block(&c.router, getDHT)
 	return dhtentries
-}
-
-// GetSwitchQueues returns information about the switch queues that are
-// currently in effect. These values can change within an instant.
-func (c *Core) GetSwitchQueues() SwitchQueues {
-	var switchqueues SwitchQueues
-	switchTable := &c.switchTable
-	getSwitchQueues := func() {
-		switchqueues = SwitchQueues{
-			Count:        uint64(len(switchTable.queues.bufs)),
-			Size:         switchTable.queues.size,
-			HighestCount: uint64(switchTable.queues.maxbufs),
-			HighestSize:  switchTable.queues.maxsize,
-			MaximumSize:  switchTable.queues.totalMaxSize,
-		}
-		for k, v := range switchTable.queues.bufs {
-			nexthop := switchTable.bestPortForCoords([]byte(k))
-			queue := SwitchQueue{
-				ID:      k,
-				Size:    v.size,
-				Packets: uint64(len(v.packets)),
-				Port:    uint64(nexthop),
-			}
-			switchqueues.Queues = append(switchqueues.Queues, queue)
-		}
-	}
-	phony.Block(&c.switchTable, getSwitchQueues)
-	return switchqueues
 }
 
 // GetSessions returns a list of open sessions from this node to other nodes.
@@ -324,8 +301,11 @@ func (c *Core) EncryptionPublicKey() string {
 // connected to any other nodes (effectively making you the root of a
 // single-node network).
 func (c *Core) Coords() []uint64 {
-	table := c.switchTable.table.Load().(lookupTable)
-	return wire_coordsBytestoUint64s(table.self.getCoords())
+	var coords []byte
+	phony.Block(&c.router, func() {
+		coords = c.router.table.self.getCoords()
+	})
+	return wire_coordsBytestoUint64s(coords)
 }
 
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128
@@ -489,7 +469,11 @@ func (c *Core) CallPeer(addr string, sintf string) error {
 // DisconnectPeer disconnects a peer once. This should be specified as a port
 // number.
 func (c *Core) DisconnectPeer(port uint64) error {
-	c.peers.removePeer(switchPort(port))
+	c.peers.Act(nil, func() {
+		if p, isIn := c.peers.ports[switchPort(port)]; isIn {
+			p.Act(&c.peers, p._removeSelf)
+		}
+	})
 	return nil
 }
 
