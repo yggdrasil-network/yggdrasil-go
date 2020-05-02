@@ -217,9 +217,23 @@ func (intf *linkInterface) handler() error {
 	intf.link.mutex.Unlock()
 	// Create peer
 	shared := crypto.GetSharedKey(myLinkPriv, &meta.link)
+	out := func(msgs [][]byte) {
+		// nil to prevent it from blocking if the link is somehow frozen
+		// this is safe because another packet won't be sent until the link notifies
+		//  the peer that it's ready for one
+		intf.writer.sendFrom(nil, msgs, false)
+	}
+	linkOut := func(bs []byte) {
+		// nil to prevent it from blocking if the link is somehow frozen
+		// FIXME this is hypothetically not safe, the peer shouldn't be sending
+		//  additional packets until this one finishes, otherwise this could leak
+		//  memory if writing happens slower than link packets are generated...
+		//  that seems unlikely, so it's a lesser evil than deadlocking for now
+		intf.writer.sendFrom(nil, [][]byte{bs}, true)
+	}
 	phony.Block(&intf.link.core.peers, func() {
 		// FIXME don't use phony.Block, it's bad practice, even if it's safe here
-		intf.peer = intf.link.core.peers._newPeer(&meta.box, &meta.sig, shared, intf, func() { intf.msgIO.close() })
+		intf.peer = intf.link.core.peers._newPeer(&meta.box, &meta.sig, shared, intf, func() { intf.msgIO.close() }, out, linkOut)
 	})
 	if intf.peer == nil {
 		return errors.New("failed to create peer")
@@ -228,20 +242,6 @@ func (intf *linkInterface) handler() error {
 		// More cleanup can go here
 		intf.peer.Act(nil, intf.peer._removeSelf)
 	}()
-	intf.peer.out = func(msgs [][]byte) {
-		// nil to prevent it from blocking if the link is somehow frozen
-		// this is safe because another packet won't be sent until the link notifies
-		//  the peer that it's ready for one
-		intf.writer.sendFrom(nil, msgs, false)
-	}
-	intf.peer.linkOut = func(bs []byte) {
-		// nil to prevent it from blocking if the link is somehow frozen
-		// FIXME this is hypothetically not safe, the peer shouldn't be sending
-		//  additional packets until this one finishes, otherwise this could leak
-		//  memory if writing happens slower than link packets are generated...
-		//  that seems unlikely, so it's a lesser evil than deadlocking for now
-		intf.writer.sendFrom(nil, [][]byte{bs}, true)
-	}
 	themAddr := address.AddrForNodeID(crypto.GetNodeID(&intf.info.box))
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, intf.info.remote)

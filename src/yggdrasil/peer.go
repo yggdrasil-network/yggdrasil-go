@@ -123,7 +123,7 @@ func (ps *peers) _updatePeers() {
 }
 
 // Creates a new peer with the specified box, sig, and linkShared keys, using the lowest unoccupied port number.
-func (ps *peers) _newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShared *crypto.BoxSharedKey, intf *linkInterface, closer func()) *peer {
+func (ps *peers) _newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShared *crypto.BoxSharedKey, intf *linkInterface, closer func(), out func([][]byte), linkOut func([]byte)) *peer {
 	now := time.Now()
 	p := peer{box: *box,
 		sig:        *sig,
@@ -134,6 +134,8 @@ func (ps *peers) _newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShar
 		close:      closer,
 		core:       ps.core,
 		intf:       intf,
+		out:        out,
+		linkOut:    linkOut,
 	}
 	oldPorts := ps.ports
 	newPorts := make(map[switchPort]*peer)
