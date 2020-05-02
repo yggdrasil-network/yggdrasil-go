@@ -3,7 +3,6 @@ package yggdrasil
 import (
 	"errors"
 	"github.com/Arceliar/phony"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 type Simlink struct {
@@ -44,7 +43,7 @@ func (s *Simlink) writeMsgs(msgs [][]byte) (int, error) {
 	var size int
 	for _, msg := range msgs {
 		size += len(msg)
-		bs := append(util.GetBytes(), msg...)
+		bs := append([]byte(nil), msg...)
 		phony.Block(s, func() {
 			s.dest.Act(s, func() {
 				defer func() { recover() }()

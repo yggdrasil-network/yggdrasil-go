@@ -9,7 +9,5 @@ import (
 
 func main() {
 	store := makeStoreSquareGrid(4)
-	var block chan struct{}
-	<-block
-	panic(store)
+	dialStore(store)
 }
