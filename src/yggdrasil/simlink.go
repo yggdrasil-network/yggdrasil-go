@@ -57,7 +57,11 @@ func (s *Simlink) writeMsgs(msgs [][]byte) (int, error) {
 func (c *Core) NewSimlink() *Simlink {
 	s := &Simlink{rch: make(chan []byte, 1)}
 	n := "Simlink"
-	s.link, _ = c.link.create(s, n, n, n, n, false, true)
+	var err error
+	s.link, err = c.link.create(s, n, n, n, n, false, true)
+	if err != nil {
+		panic(err)
+	}
 	return s
 }
 

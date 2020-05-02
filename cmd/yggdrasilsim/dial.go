@@ -9,6 +9,7 @@ import (
 )
 
 func doListen(recvNode *simNode) {
+	// TODO be able to stop the listeners somehow so they don't leak across different tests
 	for {
 		c, err := recvNode.listener.Accept()
 		if err != nil {

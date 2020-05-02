@@ -62,17 +62,17 @@ func (r *router) init(core *Core) {
 		},
 	}
 	var p *peer
-	phony.Block(&r.core.peers, func() {
-		// FIXME don't block here!
-		p = r.core.peers._newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, &self, nil)
-	})
-	p.out = func(packets [][]byte) {
+	peerOut := func(packets [][]byte) {
 		r.handlePackets(p, packets)
 		r.Act(p, func() {
 			// after the router handle the packets, notify the peer that it's ready for more
 			p.Act(r, p._handleIdle)
 		})
 	}
+	phony.Block(&r.core.peers, func() {
+		// FIXME don't block here!
+		p = r.core.peers._newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, &self, nil, peerOut, nil)
+	})
 	p.Act(r, p._handleIdle)
 	r.out = func(bs []byte) { p.handlePacketFrom(r, bs) }
 	r.nodeinfo.init(r.core)
