@@ -292,15 +292,15 @@ func (m *Multicast) _updateInterfaces() {
 			aInfo.addrs, _ = iface.Addrs()
 			aInfo.time = time.Now()
 		}
-		hasLLAddr := false
+		lladdrs := aInfo.addrs[:0]
 		for _, addr := range aInfo.addrs {
 			addrIP, _, _ := net.ParseCIDR(addr.String())
 			if addrIP.To4() == nil && addrIP.IsLinkLocalUnicast() {
-				hasLLAddr = true
-				break
+				lladdrs = append(lladdrs, addr)
 			}
 		}
-		if !hasLLAddr {
+		aInfo.addrs = lladdrs
+		if len(lladdrs) == 0 {
 			// Ignore interfaces without link-local addresses
 			continue
 		}
