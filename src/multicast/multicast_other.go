@@ -4,7 +4,7 @@ package multicast
 
 import "syscall"
 
-func (m *Multicast) multicastStarted() {
+func (m *Multicast) _multicastStarted() {
 
 }
 

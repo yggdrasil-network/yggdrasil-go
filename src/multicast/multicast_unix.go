@@ -5,7 +5,7 @@ package multicast
 import "syscall"
 import "golang.org/x/sys/unix"
 
-func (m *Multicast) multicastStarted() {
+func (m *Multicast) _multicastStarted() {
 
 }
 
