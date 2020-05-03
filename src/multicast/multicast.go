@@ -37,7 +37,12 @@ type Multicast struct {
 	monitor         *time.Timer
 	platformhandler *time.Timer
 	_interfaces     map[string]net.Interface
-	_interfaceAddrs map[string][]net.Addr
+	_interfaceAddrs map[string]addrInfo
+}
+
+type addrInfo struct {
+	addrs []net.Addr
+	time  time.Time
 }
 
 type multicastInterface struct {
@@ -176,7 +181,7 @@ func (m *Multicast) _monitorInterfaceChanges() {
 	for name, intf := range m._interfaces {
 		if _, ok := m.listeners[name]; !ok {
 			// Look up interface addresses.
-			addrs := m._interfaceAddrs[intf.Name]
+			addrs := m._interfaceAddrs[intf.Name].addrs
 			// Find the first link-local address.
 			for _, addr := range addrs {
 				addrIP, _, _ := net.ParseCIDR(addr.String())
@@ -265,7 +270,7 @@ func (m *Multicast) _updateInterfaces() {
 		panic(err)
 	}
 	// Work out which interfaces to announce on
-	interfaceAddrs := make(map[string][]net.Addr)
+	interfaceAddrs := make(map[string]addrInfo)
 	for _, iface := range allifaces {
 		if iface.Flags&net.FlagUp == 0 {
 			// Ignore interfaces that are down
@@ -279,9 +284,16 @@ func (m *Multicast) _updateInterfaces() {
 			// Ignore point-to-point interfaces
 			continue
 		}
-		addrs, _ := iface.Addrs()
+		var aInfo addrInfo
+		var isIn bool
+		if aInfo, isIn = m._interfaceAddrs[iface.Name]; isIn && time.Since(aInfo.time) < time.Minute {
+			// don't call iface.Addrs, it's unlikely things have changed
+		} else {
+			aInfo.addrs, _ = iface.Addrs()
+			aInfo.time = time.Now()
+		}
 		hasLLAddr := false
-		for _, addr := range addrs {
+		for _, addr := range aInfo.addrs {
 			addrIP, _, _ := net.ParseCIDR(addr.String())
 			if addrIP.To4() == nil && addrIP.IsLinkLocalUnicast() {
 				hasLLAddr = true
@@ -301,7 +313,7 @@ func (m *Multicast) _updateInterfaces() {
 			// Does the interface match the regular expression? Store it if so
 			if e.MatchString(iface.Name) {
 				interfaces[iface.Name] = iface
-				interfaceAddrs[iface.Name] = addrs
+				interfaceAddrs[iface.Name] = aInfo
 			}
 		}
 	}
