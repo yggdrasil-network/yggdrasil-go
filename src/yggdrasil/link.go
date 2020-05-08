@@ -70,7 +70,8 @@ type linkInterface struct {
 }
 
 type linkOptions struct {
-	pinningInfo *url.Userinfo
+	pinnedCurve25519Keys []crypto.BoxPubKey
+	pinnedEd25519Keys    []crypto.SigPubKey
 }
 
 func (l *link) init(c *Core) error {
@@ -99,8 +100,27 @@ func (l *link) call(uri string, sintf string) error {
 	}
 	pathtokens := strings.Split(strings.Trim(u.Path, "/"), "/")
 	tcpOpts := tcpOptions{}
-	if u.User != nil {
-		tcpOpts.pinningInfo = u.User
+	if pubkeys, ok := u.Query()["curve25519"]; ok && len(pubkeys) > 0 {
+		for _, pubkey := range pubkeys {
+			if boxPub, err := hex.DecodeString(pubkey); err != nil {
+				var boxPubKey crypto.BoxPubKey
+				copy(boxPubKey[:], boxPub)
+				tcpOpts.pinnedCurve25519Keys = append(
+					tcpOpts.pinnedCurve25519Keys, boxPubKey,
+				)
+			}
+		}
+	}
+	if pubkeys, ok := u.Query()["ed25519"]; ok && len(pubkeys) > 0 {
+		for _, pubkey := range pubkeys {
+			if sigPub, err := hex.DecodeString(pubkey); err != nil {
+				var sigPubKey crypto.SigPubKey
+				copy(sigPubKey[:], sigPub)
+				tcpOpts.pinnedEd25519Keys = append(
+					tcpOpts.pinnedEd25519Keys, sigPubKey,
+				)
+			}
+		}
 	}
 	switch u.Scheme {
 	case "tcp":
@@ -196,32 +216,24 @@ func (intf *linkInterface) handler() error {
 	}
 	// Check if the remote side matches the keys we expected. This is a bit of a weak
 	// check - in future versions we really should check a signature or something like that.
-	if pinning := intf.options.pinningInfo; pinning != nil {
-		allowed := true
-		keytype := pinning.Username()
-		if pubkey, ok := pinning.Password(); ok {
-			switch keytype {
-			case "curve25519":
-				boxPub, err := hex.DecodeString(pubkey)
-				if err != nil || len(boxPub) != crypto.BoxPubKeyLen {
-					allowed = false
-					break
-				}
-				allowed = bytes.Compare(boxPub, meta.box[:]) == 0
-			case "ed25519":
-				sigPub, err := hex.DecodeString(pubkey)
-				if err != nil || len(sigPub) != crypto.SigPubKeyLen {
-					allowed = false
-					break
-				}
-				allowed = bytes.Compare(sigPub, meta.sig[:]) == 0
-			}
-		} else {
-			allowed = false
+	if pinned := intf.options.pinnedCurve25519Keys; len(pinned) > 0 {
+		allowed := false
+		for _, key := range pinned {
+			allowed = allowed || (bytes.Compare(key[:], meta.box[:]) == 0)
 		}
 		if !allowed {
-			intf.link.core.log.Errorf("Failed to connect to node: %q sent key that does not match pinned %q key", intf.name, keytype)
-			return fmt.Errorf("failed to connect: host does not match pinned %q key", pinning.Username())
+			intf.link.core.log.Errorf("Failed to connect to node: %q sent curve25519 key that does not match pinned keys", intf.name)
+			return fmt.Errorf("failed to connect: host sent curve25519 key that does not match pinned keys")
+		}
+	}
+	if pinned := intf.options.pinnedEd25519Keys; len(pinned) > 0 {
+		allowed := false
+		for _, key := range pinned {
+			allowed = allowed || (bytes.Compare(key[:], meta.sig[:]) == 0)
+		}
+		if !allowed {
+			intf.link.core.log.Errorf("Failed to connect to node: %q sent ed25519 key that does not match pinned keys", intf.name)
+			return fmt.Errorf("failed to connect: host sent ed25519 key that does not match pinned keys")
 		}
 	}
 	// Check if we're authorized to connect to this key / IP
