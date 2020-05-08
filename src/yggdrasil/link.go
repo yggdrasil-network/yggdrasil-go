@@ -1,6 +1,7 @@
 package yggdrasil
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -50,6 +51,7 @@ type linkInterface struct {
 	name           string
 	link           *link
 	peer           *peer
+	options        linkOptions
 	msgIO          linkInterfaceMsgIO
 	info           linkInfo
 	incoming       bool
@@ -65,6 +67,10 @@ type linkInterface struct {
 	inSwitch       bool        // True if the switch is tracking this link
 	stalled        bool        // True if we haven't been receiving any response traffic
 	unstalled      bool        // False if an idle notification to the switch hasn't been sent because we stalled (or are first starting up)
+}
+
+type linkOptions struct {
+	pinningInfo *url.Userinfo
 }
 
 func (l *link) init(c *Core) error {
@@ -92,13 +98,19 @@ func (l *link) call(uri string, sintf string) error {
 		return fmt.Errorf("peer %s is not correctly formatted (%s)", uri, err)
 	}
 	pathtokens := strings.Split(strings.Trim(u.Path, "/"), "/")
+	tcpOpts := tcpOptions{}
+	if u.User != nil {
+		tcpOpts.pinningInfo = u.User
+	}
 	switch u.Scheme {
 	case "tcp":
-		l.tcp.call(u.Host, nil, sintf, nil)
+		l.tcp.call(u.Host, tcpOpts, sintf)
 	case "socks":
-		l.tcp.call(pathtokens[0], u.Host, sintf, nil)
+		tcpOpts.socksProxyAddr = u.Host
+		l.tcp.call(pathtokens[0], tcpOpts, sintf)
 	case "tls":
-		l.tcp.call(u.Host, nil, sintf, l.tcp.tls.forDialer)
+		tcpOpts.upgrade = l.tcp.tls.forDialer
+		l.tcp.call(u.Host, tcpOpts, sintf)
 	default:
 		return errors.New("unknown call scheme: " + u.Scheme)
 	}
@@ -122,12 +134,13 @@ func (l *link) listen(uri string) error {
 	}
 }
 
-func (l *link) create(msgIO linkInterfaceMsgIO, name, linkType, local, remote string, incoming, force bool) (*linkInterface, error) {
+func (l *link) create(msgIO linkInterfaceMsgIO, name, linkType, local, remote string, incoming, force bool, options linkOptions) (*linkInterface, error) {
 	// Technically anything unique would work for names, but let's pick something human readable, just for debugging
 	intf := linkInterface{
-		name:  name,
-		link:  l,
-		msgIO: msgIO,
+		name:    name,
+		link:    l,
+		options: options,
+		msgIO:   msgIO,
 		info: linkInfo{
 			linkType: linkType,
 			local:    local,
@@ -180,6 +193,36 @@ func (intf *linkInterface) handler() error {
 	if meta.ver > base.ver || meta.ver == base.ver && meta.minorVer > base.minorVer {
 		intf.link.core.log.Errorln("Failed to connect to node: " + intf.name + " version: " + fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
 		return errors.New("failed to connect: wrong version")
+	}
+	// Check if the remote side matches the keys we expected. This is a bit of a weak
+	// check - in future versions we really should check a signature or something like that.
+	if pinning := intf.options.pinningInfo; pinning != nil {
+		allowed := true
+		keytype := pinning.Username()
+		if pubkey, ok := pinning.Password(); ok {
+			switch keytype {
+			case "curve25519":
+				boxPub, err := hex.DecodeString(pubkey)
+				if err != nil || len(boxPub) != crypto.BoxPubKeyLen {
+					allowed = false
+					break
+				}
+				allowed = bytes.Compare(boxPub, meta.box[:]) == 0
+			case "ed25519":
+				sigPub, err := hex.DecodeString(pubkey)
+				if err != nil || len(sigPub) != crypto.SigPubKeyLen {
+					allowed = false
+					break
+				}
+				allowed = bytes.Compare(sigPub, meta.sig[:]) == 0
+			}
+		} else {
+			allowed = false
+		}
+		if !allowed {
+			intf.link.core.log.Errorf("Failed to connect to node: %q sent key that does not match pinned %q key", intf.name, keytype)
+			return fmt.Errorf("failed to connect: host does not match pinned %q key", pinning.Username())
+		}
 	}
 	// Check if we're authorized to connect to this key / IP
 	if intf.incoming && !intf.force && !intf.link.core.peers.isAllowedEncryptionPublicKey(&meta.box) {

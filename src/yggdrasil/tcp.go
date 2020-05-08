@@ -57,6 +57,12 @@ type TcpUpgrade struct {
 	name    string
 }
 
+type tcpOptions struct {
+	linkOptions
+	upgrade        *TcpUpgrade
+	socksProxyAddr string
+}
+
 func (l *TcpListener) Stop() {
 	defer func() { recover() }()
 	close(l.stop)
@@ -221,7 +227,10 @@ func (t *tcp) listener(l *TcpListener, listenaddr string) {
 			return
 		}
 		t.waitgroup.Add(1)
-		go t.handler(sock, true, nil, l.upgrade)
+		options := tcpOptions{
+			upgrade: l.upgrade,
+		}
+		go t.handler(sock, true, options)
 	}
 }
 
@@ -239,12 +248,12 @@ func (t *tcp) startCalling(saddr string) bool {
 // If the dial is successful, it launches the handler.
 // When finished, it removes the outgoing call, so reconnection attempts can be made later.
 // This all happens in a separate goroutine that it spawns.
-func (t *tcp) call(saddr string, options interface{}, sintf string, upgrade *TcpUpgrade) {
+func (t *tcp) call(saddr string, options tcpOptions, sintf string) {
 	go func() {
 		callname := saddr
 		callproto := "TCP"
-		if upgrade != nil {
-			callproto = strings.ToUpper(upgrade.name)
+		if options.upgrade != nil {
+			callproto = strings.ToUpper(options.upgrade.name)
 		}
 		if sintf != "" {
 			callname = fmt.Sprintf("%s/%s/%s", callproto, saddr, sintf)
@@ -263,12 +272,11 @@ func (t *tcp) call(saddr string, options interface{}, sintf string, upgrade *Tcp
 		}()
 		var conn net.Conn
 		var err error
-		socksaddr, issocks := options.(string)
-		if issocks {
+		if options.socksProxyAddr != "" {
 			if sintf != "" {
 				return
 			}
-			dialerdst, er := net.ResolveTCPAddr("tcp", socksaddr)
+			dialerdst, er := net.ResolveTCPAddr("tcp", options.socksProxyAddr)
 			if er != nil {
 				return
 			}
@@ -282,7 +290,7 @@ func (t *tcp) call(saddr string, options interface{}, sintf string, upgrade *Tcp
 				return
 			}
 			t.waitgroup.Add(1)
-			t.handler(conn, false, saddr, nil)
+			t.handler(conn, false, options)
 		} else {
 			dst, err := net.ResolveTCPAddr("tcp", saddr)
 			if err != nil {
@@ -348,19 +356,19 @@ func (t *tcp) call(saddr string, options interface{}, sintf string, upgrade *Tcp
 				return
 			}
 			t.waitgroup.Add(1)
-			t.handler(conn, false, nil, upgrade)
+			t.handler(conn, false, options)
 		}
 	}()
 }
 
-func (t *tcp) handler(sock net.Conn, incoming bool, options interface{}, upgrade *TcpUpgrade) {
+func (t *tcp) handler(sock net.Conn, incoming bool, options tcpOptions) {
 	defer t.waitgroup.Done() // Happens after sock.close
 	defer sock.Close()
 	t.setExtraOptions(sock)
 	var upgraded bool
-	if upgrade != nil {
+	if options.upgrade != nil {
 		var err error
-		if sock, err = upgrade.upgrade(sock); err != nil {
+		if sock, err = options.upgrade.upgrade(sock); err != nil {
 			t.link.core.log.Errorln("TCP handler upgrade failed:", err)
 			return
 		} else {
@@ -370,14 +378,14 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options interface{}, upgrade
 	stream := stream{}
 	stream.init(sock)
 	var name, proto, local, remote string
-	if socksaddr, issocks := options.(string); issocks {
-		name = "socks://" + sock.RemoteAddr().String() + "/" + socksaddr
+	if options.socksProxyAddr != "" {
+		name = "socks://" + sock.RemoteAddr().String() + "/" + options.socksProxyAddr
 		proto = "socks"
 		local, _, _ = net.SplitHostPort(sock.LocalAddr().String())
-		remote, _, _ = net.SplitHostPort(socksaddr)
+		remote, _, _ = net.SplitHostPort(options.socksProxyAddr)
 	} else {
 		if upgraded {
-			proto = upgrade.name
+			proto = options.upgrade.name
 			name = proto + "://" + sock.RemoteAddr().String()
 		} else {
 			proto = "tcp"
@@ -387,7 +395,7 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options interface{}, upgrade
 		remote, _, _ = net.SplitHostPort(sock.RemoteAddr().String())
 	}
 	force := net.ParseIP(strings.Split(remote, "%")[0]).IsLinkLocalUnicast()
-	link, err := t.link.core.link.create(&stream, name, proto, local, remote, incoming, force)
+	link, err := t.link.core.link.create(&stream, name, proto, local, remote, incoming, force, options.linkOptions)
 	if err != nil {
 		t.link.core.log.Println(err)
 		panic(err)
