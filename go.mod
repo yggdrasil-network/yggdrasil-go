@@ -7,7 +7,7 @@ require (
 	github.com/cheggaaa/pb/v3 v3.0.4
 	github.com/gologme/log v0.0.0-20181207131047-4e5d8ccb38e8
 	github.com/hashicorp/go-syslog v1.0.0
-	github.com/hjson/hjson-go v3.0.1-0.20190209023717-9147687966d9+incompatible
+	github.com/hjson/hjson-go v3.0.2-0.20200316202735-d5d0e8b0617d+incompatible
 	github.com/kardianos/minwinsvc v0.0.0-20151122163309-cad6b2b879b0
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/vishvananda/netlink v1.0.0
