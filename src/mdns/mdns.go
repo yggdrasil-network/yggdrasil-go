@@ -339,12 +339,10 @@ func (s *mDNSServer) listen() {
 			break
 		case entry := <-incoming:
 			if bytes.Equal(entry.Addr, s.ourIP) {
-				s.mdns.log.Warnln("That's us")
 				continue
 			}
-			if entry.AddrV6.IP.IsLinkLocalUnicast() && entry.AddrV6.Zone == "" {
-				s.mdns.log.Warnln("Not link-local")
-				continue
+			if entry.AddrV6.Zone == "" {
+				entry.AddrV6.Zone = s.intf.Name
 			}
 			addr := fmt.Sprintf("tcp://[%s]:%d", entry.AddrV6.IP, entry.Port)
 			s.mdns.log.Println("Calling", addr, "via", entry.AddrV6.Zone)
