@@ -26,7 +26,7 @@ some of the below:
 - Linux
   - `.deb` and `.rpm` packages are built by CI for Debian and Red Hat-based
     distributions
-  - Void and Arch packages also available within their respective repositories
+  - Arch, Nix, Void packages also available within their respective repositories
 - macOS
   - `.pkg` packages are built by CI
 - Ubiquiti EdgeOS
