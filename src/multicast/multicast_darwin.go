@@ -33,14 +33,14 @@ var awdlGoroutineStarted bool
 
 func (m *Multicast) _multicastStarted() {
 	C.StopAWDLBrowsing()
-	for intf := range m.Interfaces() {
+	for intf := range m._interfaces {
 		if intf == "awdl0" {
 			C.StartAWDLBrowsing()
 			break
 		}
 	}
 	m.platformhandler = time.AfterFunc(time.Minute, func() {
-		m.Act(m, m._multicastStarted)
+		m.Act(nil, m._multicastStarted)
 	})
 }
 
