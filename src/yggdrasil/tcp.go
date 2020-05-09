@@ -61,6 +61,7 @@ type tcpOptions struct {
 	linkOptions
 	upgrade        *TcpUpgrade
 	socksProxyAddr string
+	socksPeerAddr  string
 }
 
 func (l *TcpListener) Stop() {
@@ -290,6 +291,7 @@ func (t *tcp) call(saddr string, options tcpOptions, sintf string) {
 				return
 			}
 			t.waitgroup.Add(1)
+			options.socksPeerAddr = saddr
 			t.handler(conn, false, options)
 		} else {
 			dst, err := net.ResolveTCPAddr("tcp", saddr)
@@ -379,10 +381,10 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options tcpOptions) {
 	stream.init(sock)
 	var name, proto, local, remote string
 	if options.socksProxyAddr != "" {
-		name = "socks://" + sock.RemoteAddr().String() + "/" + options.socksProxyAddr
+		name = "socks://" + sock.RemoteAddr().String() + "/" + options.socksPeerAddr
 		proto = "socks"
 		local, _, _ = net.SplitHostPort(sock.LocalAddr().String())
-		remote, _, _ = net.SplitHostPort(options.socksProxyAddr)
+		remote, _, _ = net.SplitHostPort(options.socksPeerAddr)
 	} else {
 		if upgraded {
 			proto = options.upgrade.name
