@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/Arceliar/phony"
@@ -344,10 +346,32 @@ func (s *mDNSServer) listen() {
 			if entry.AddrV6.Zone == "" {
 				entry.AddrV6.Zone = s.intf.Name
 			}
+			fields := parseTXTFields(entry.InfoFields)
 			addr := fmt.Sprintf("tcp://[%s]:%d", entry.AddrV6.IP, entry.Port)
-			if err := s.mdns.core.CallPeer(addr, entry.AddrV6.Zone); err != nil {
+			u, err := url.Parse(addr)
+			if err != nil {
+				continue
+			}
+			query := u.Query()
+			if curve, ok := fields["curve25519"]; ok {
+				query.Set("curve25519", curve)
+			}
+			if ed, ok := fields["ed25519"]; ok {
+				query.Set("ed25519", ed)
+			}
+			u.RawQuery = query.Encode()
+			if err := s.mdns.core.CallPeer(u.String(), entry.AddrV6.Zone); err != nil {
 				s.mdns.log.Warn("Failed to add peer from mDNS: ", err)
 			}
 		}
 	}
+}
+
+func parseTXTFields(fields []string) map[string]string {
+	result := make(map[string]string)
+	for _, field := range fields {
+		pos := strings.Index(field, "=")
+		result[field[:pos]] = field[pos+1:]
+	}
+	return result
 }
