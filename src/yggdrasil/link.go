@@ -103,7 +103,7 @@ func (l *link) call(uri string, sintf string) error {
 	if pubkeys, ok := u.Query()["curve25519"]; ok && len(pubkeys) > 0 {
 		tcpOpts.pinnedCurve25519Keys = make(map[crypto.BoxPubKey]struct{})
 		for _, pubkey := range pubkeys {
-			if boxPub, err := hex.DecodeString(pubkey); err != nil {
+			if boxPub, err := hex.DecodeString(pubkey); err == nil {
 				var boxPubKey crypto.BoxPubKey
 				copy(boxPubKey[:], boxPub)
 				tcpOpts.pinnedCurve25519Keys[boxPubKey] = struct{}{}
@@ -113,7 +113,7 @@ func (l *link) call(uri string, sintf string) error {
 	if pubkeys, ok := u.Query()["ed25519"]; ok && len(pubkeys) > 0 {
 		tcpOpts.pinnedEd25519Keys = make(map[crypto.SigPubKey]struct{})
 		for _, pubkey := range pubkeys {
-			if sigPub, err := hex.DecodeString(pubkey); err != nil {
+			if sigPub, err := hex.DecodeString(pubkey); err == nil {
 				var sigPubKey crypto.SigPubKey
 				copy(sigPubKey[:], sigPub)
 				tcpOpts.pinnedEd25519Keys[sigPubKey] = struct{}{}
