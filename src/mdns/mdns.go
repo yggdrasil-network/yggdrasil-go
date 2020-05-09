@@ -345,8 +345,6 @@ func (s *mDNSServer) listen() {
 				entry.AddrV6.Zone = s.intf.Name
 			}
 			addr := fmt.Sprintf("tcp://[%s]:%d", entry.AddrV6.IP, entry.Port)
-			s.mdns.log.Println("Calling", addr, "via", entry.AddrV6.Zone)
-
 			if err := s.mdns.core.CallPeer(addr, entry.AddrV6.Zone); err != nil {
 				s.mdns.log.Warn("Failed to add peer from mDNS: ", err)
 			}
