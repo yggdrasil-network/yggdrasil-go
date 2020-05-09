@@ -67,6 +67,7 @@ type NodeConfig struct {
 	Listen                      []string               `comment:"Listen addresses for incoming connections. You will need to add\nlisteners in order to accept incoming peerings from non-local nodes.\nMulticast peer discovery will work regardless of any listeners set\nhere. Each listener should be specified in URI format as above, e.g.\ntcp://0.0.0.0:0 or tcp://[::]:0 to listen on all interfaces."`
 	AdminListen                 string                 `comment:"Listen address for admin connections. Default is to listen for local\nconnections either on TCP/9001 or a UNIX socket depending on your\nplatform. Use this value for yggdrasilctl -endpoint=X. To disable\nthe admin socket, use the value \"none\" instead."`
 	MulticastInterfaces         []string               `comment:"Regular expressions for which interfaces multicast peer discovery\nshould be enabled on. If none specified, multicast peer discovery is\ndisabled. The default value is .* which uses all interfaces."`
+	MulticastDNSInterfaces      []string               `comment:"Regular expressions for which interfaces mDNS peer discovery\nshould be enabled on. If none specified, mDNS peer discovery is\ndisabled. The default value is .* which uses all interfaces."`
 	AllowedEncryptionPublicKeys []string               `comment:"List of peer encryption public keys to allow incoming TCP peering\nconnections from. If left empty/undefined then all connections will\nbe allowed by default. This does not affect outgoing peerings, nor\ndoes it affect link-local peers discovered via multicast."`
 	EncryptionPublicKey         string                 `comment:"Your public encryption key. Your peers may ask you for this to put\ninto their AllowedEncryptionPublicKeys configuration."`
 	EncryptionPrivateKey        string                 `comment:"Your private encryption key. DO NOT share this with anyone!"`
@@ -127,6 +128,7 @@ func GenerateConfig() *NodeConfig {
 	cfg.InterfacePeers = map[string][]string{}
 	cfg.AllowedEncryptionPublicKeys = []string{}
 	cfg.MulticastInterfaces = defaults.GetDefaults().DefaultMulticastInterfaces
+	cfg.MulticastDNSInterfaces = defaults.GetDefaults().DefaultMulticastDNSInterfaces
 	cfg.IfName = defaults.GetDefaults().DefaultIfName
 	cfg.IfMTU = defaults.GetDefaults().DefaultIfMTU
 	cfg.SessionFirewall.Enable = false
