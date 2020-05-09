@@ -61,6 +61,7 @@ type tcpOptions struct {
 	linkOptions
 	upgrade        *TcpUpgrade
 	socksProxyAddr string
+	socksProxyAuth *proxy.Auth
 	socksPeerAddr  string
 }
 
@@ -282,7 +283,7 @@ func (t *tcp) call(saddr string, options tcpOptions, sintf string) {
 				return
 			}
 			var dialer proxy.Dialer
-			dialer, err = proxy.SOCKS5("tcp", dialerdst.String(), nil, proxy.Direct)
+			dialer, err = proxy.SOCKS5("tcp", dialerdst.String(), options.socksProxyAuth, proxy.Direct)
 			if err != nil {
 				return
 			}

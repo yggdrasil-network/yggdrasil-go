@@ -17,6 +17,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
+	"golang.org/x/net/proxy"
 
 	"github.com/Arceliar/phony"
 )
@@ -127,6 +128,11 @@ func (l *link) call(uri string, sintf string) error {
 		l.tcp.call(u.Host, tcpOpts, sintf)
 	case "socks":
 		tcpOpts.socksProxyAddr = u.Host
+		if u.User != nil {
+			tcpOpts.socksProxyAuth = &proxy.Auth{}
+			tcpOpts.socksProxyAuth.User = u.User.Username()
+			tcpOpts.socksProxyAuth.Password, _ = u.User.Password()
+		}
 		l.tcp.call(pathtokens[0], tcpOpts, sintf)
 	case "tls":
 		tcpOpts.upgrade = l.tcp.tls.forDialer
