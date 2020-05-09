@@ -1,6 +1,7 @@
 package mdns
 
 import (
+	"bytes"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -36,6 +37,7 @@ type MDNS struct {
 
 type mDNSServer struct {
 	mdns     *MDNS
+	ourIP    net.IP
 	intf     net.Interface
 	server   *mdns.Server
 	listener *yggdrasil.TcpListener
@@ -282,6 +284,7 @@ func (m *MDNS) _startInterface(intf net.Interface, addr string) error {
 	m._servers[intf.Name][addr] = &mDNSServer{
 		mdns:     m,
 		intf:     intf,
+		ourIP:    tcpaddr.IP,
 		stop:     make(chan struct{}),
 		server:   server,
 		listener: listener,
@@ -323,7 +326,8 @@ func (s *mDNSServer) listen() {
 	incoming := make(chan *mdns.ServiceEntry)
 
 	go func() {
-		if err := mdns.Listen(incoming, s.stop, &s.intf); err != nil {
+		defer close(s.stop)
+		if err := mdns.Lookup(MDNSService, MDNSDomain, incoming); err != nil {
 			s.mdns.log.Errorln("Failed to initialize resolver:", err.Error())
 		}
 	}()
@@ -334,10 +338,17 @@ func (s *mDNSServer) listen() {
 			s.mdns.log.Debugln("Stopped listening for mDNS on", s.intf.Name)
 			break
 		case entry := <-incoming:
-			if entry.AddrV6.IP.IsLinkLocalUnicast() && entry.AddrV6.Zone == "" {
+			if bytes.Equal(entry.Addr, s.ourIP) {
+				s.mdns.log.Warnln("That's us")
 				continue
 			}
-			addr := fmt.Sprintf("tcp://%s:%d", entry.AddrV6.IP, entry.Port)
+			if entry.AddrV6.IP.IsLinkLocalUnicast() && entry.AddrV6.Zone == "" {
+				s.mdns.log.Warnln("Not link-local")
+				continue
+			}
+			addr := fmt.Sprintf("tcp://[%s]:%d", entry.AddrV6.IP, entry.Port)
+			s.mdns.log.Println("Calling", addr, "via", entry.AddrV6.Zone)
+
 			if err := s.mdns.core.CallPeer(addr, entry.AddrV6.Zone); err != nil {
 				s.mdns.log.Warn("Failed to add peer from mDNS: ", err)
 			}

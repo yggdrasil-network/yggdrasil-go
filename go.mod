@@ -11,7 +11,7 @@ require (
 	github.com/kardianos/minwinsvc v0.0.0-20151122163309-cad6b2b879b0
 	github.com/miekg/dns v1.1.27 // indirect
 	github.com/mitchellh/mapstructure v1.1.2
-	github.com/neilalexander/mdns v0.3.1-0.20200509190551-a13500818a93
+	github.com/neilalexander/mdns v0.3.1-0.20200509205547-9b2aa0712e91
 	github.com/vishvananda/netlink v1.0.0
 	github.com/vishvananda/netns v0.0.0-20190625233234-7109fa855b0f // indirect
 	golang.org/x/crypto v0.0.0-20200221231518-2aa609cf4a9d
