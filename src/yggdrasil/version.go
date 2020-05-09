@@ -6,6 +6,11 @@ package yggdrasil
 
 import "github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 
+const (
+	ProtocolMajorVersion uint64 = 0 // Major version number of the protocol.
+	ProtocolMinorVersion uint64 = 2 // Minor version number of the protocol.
+)
+
 // This is the version-specific metadata exchanged at the start of a connection.
 // It must always begin with the 4 bytes "meta" and a wire formatted uint64 major version number.
 // The current version also includes a minor version number, and the box/sig/link keys that need to be exchanged to open a connection.
@@ -23,8 +28,8 @@ type version_metadata struct {
 func version_getBaseMetadata() version_metadata {
 	return version_metadata{
 		meta:     [4]byte{'m', 'e', 't', 'a'},
-		ver:      0,
-		minorVer: 2,
+		ver:      ProtocolMajorVersion,
+		minorVer: ProtocolMinorVersion,
 	}
 }
 

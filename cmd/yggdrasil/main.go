@@ -25,6 +25,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/mdns"
 	"github.com/yggdrasil-network/yggdrasil-go/src/module"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
@@ -37,6 +38,7 @@ type node struct {
 	state     *config.NodeState
 	tuntap    module.Module // tuntap.TunAdapter
 	multicast module.Module // multicast.Multicast
+	mdns      module.Module // mdns.MDNS
 	admin     module.Module // admin.AdminSocket
 }
 
@@ -283,6 +285,7 @@ func main() {
 	// Allocate our modules
 	n.admin = &admin.AdminSocket{}
 	n.multicast = &multicast.Multicast{}
+	n.mdns = &mdns.MDNS{}
 	n.tuntap = &tuntap.TunAdapter{}
 	// Start the admin socket
 	n.admin.Init(&n.core, n.state, logger, nil)
@@ -296,6 +299,12 @@ func main() {
 		logger.Errorln("An error occurred starting multicast:", err)
 	}
 	n.multicast.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
+	// Start the mDNS interface
+	n.mdns.Init(&n.core, n.state, logger, nil)
+	if err := n.mdns.Start(); err != nil {
+		logger.Errorln("An error occurred starting mDNS:", err)
+	}
+	n.mdns.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 	// Start the TUN/TAP interface
 	if listener, err := n.core.ConnListen(); err == nil {
 		if dialer, err := n.core.ConnDialer(); err == nil {
@@ -337,6 +346,7 @@ func main() {
 				n.core.UpdateConfig(cfg)
 				n.tuntap.UpdateConfig(cfg)
 				n.multicast.UpdateConfig(cfg)
+				n.mdns.UpdateConfig(cfg)
 			} else {
 				logger.Errorln("Reloading config at runtime is only possible with -useconffile")
 			}
