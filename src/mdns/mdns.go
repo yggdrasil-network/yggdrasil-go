@@ -197,7 +197,10 @@ func (m *MDNS) _updateInterfaces() {
 	// Work out which interfaces are new.
 	for n, addrs := range interfaces {
 		if _, ok := m._servers[n]; !ok {
-			for addr, intf := range addrs {
+			m._servers[n] = make(map[string]*mDNSServer)
+		}
+		for addr, intf := range addrs {
+			if _, ok := m._servers[n][addr]; !ok {
 				if err := m._startInterface(intf, addr); err != nil {
 					m.log.Errorf("Failed to start mDNS interface %s on address %s: %s", n, addr, err)
 				} else {
@@ -236,6 +239,11 @@ func (m *MDNS) _updateInterfaces() {
 }
 
 func (m *MDNS) _startInterface(intf net.Interface, addr string) error {
+	// Don't start a new interface if it is already alive.
+	if _, ok := m._servers[intf.Name][addr]; ok {
+		return errors.New("already started")
+	}
+
 	// Construct a listener on this address.
 	// Work out what the listen address of the new TCP listener should be.
 	ip := net.ParseIP(addr)
@@ -328,9 +336,8 @@ func (s *mDNSServer) listen() {
 	incoming := make(chan *mdns.ServiceEntry)
 
 	go func() {
-		defer close(s.stop)
 		if err := mdns.Lookup(MDNSService, MDNSDomain, incoming); err != nil {
-			s.mdns.log.Errorln("Failed to initialize resolver:", err.Error())
+			s.mdns.log.Println("Failed to initialize resolver:", err.Error())
 		}
 	}()
 
@@ -338,7 +345,7 @@ func (s *mDNSServer) listen() {
 		select {
 		case <-s.stop:
 			s.mdns.log.Debugln("Stopped listening for mDNS on", s.intf.Name)
-			break
+			return
 		case entry := <-incoming:
 			if bytes.Equal(entry.Addr, s.ourIP) {
 				continue
