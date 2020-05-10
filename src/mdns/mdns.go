@@ -336,10 +336,10 @@ func (s *mDNSServer) listen() {
 	incoming := make(chan *mdns.ServiceEntry)
 
 	go func() {
+		defer close(incoming)
 		if err := mdns.Listen(incoming, s.stop, &s.intf); err != nil {
 			s.mdns.log.Println("Failed to initialize resolver:", err.Error())
 		}
-		close(incoming)
 	}()
 
 	for {
@@ -348,6 +348,10 @@ func (s *mDNSServer) listen() {
 			s.mdns.log.Debugln("Stopped listening for mDNS on", s.intf.Name)
 			return
 		case entry := <-incoming:
+			suffix := fmt.Sprintf("%s.%s", MDNSService, MDNSDomain)
+			if entry.Name[len(entry.Name)-len(suffix):] != suffix {
+				continue
+			}
 			if bytes.Equal(entry.Addr, s.ourIP) {
 				continue
 			}
