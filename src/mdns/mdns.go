@@ -348,7 +348,13 @@ func (s *mDNSServer) listen() {
 			s.mdns.log.Debugln("Stopped listening for mDNS on", s.intf.Name)
 			return
 		case entry := <-incoming:
+			if entry == nil {
+				return
+			}
 			suffix := fmt.Sprintf("%s.%s", MDNSService, MDNSDomain)
+			if len(entry.Name) <= len(suffix) {
+				continue
+			}
 			if entry.Name[len(entry.Name)-len(suffix):] != suffix {
 				continue
 			}
