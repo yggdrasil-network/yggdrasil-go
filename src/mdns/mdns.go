@@ -336,9 +336,10 @@ func (s *mDNSServer) listen() {
 	incoming := make(chan *mdns.ServiceEntry)
 
 	go func() {
-		if err := mdns.Lookup(MDNSService, MDNSDomain, incoming); err != nil {
+		if err := mdns.Listen(incoming, s.stop, &s.intf); err != nil {
 			s.mdns.log.Println("Failed to initialize resolver:", err.Error())
 		}
+		close(incoming)
 	}()
 
 	for {
@@ -378,7 +379,9 @@ func parseTXTFields(fields []string) map[string]string {
 	result := make(map[string]string)
 	for _, field := range fields {
 		pos := strings.Index(field, "=")
-		result[field[:pos]] = field[pos+1:]
+		if pos > 0 && len(field) > pos+1 {
+			result[field[:pos]] = field[pos+1:]
+		}
 	}
 	return result
 }
