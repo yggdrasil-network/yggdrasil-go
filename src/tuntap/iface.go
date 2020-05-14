@@ -199,7 +199,6 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 						tc.writeFrom(nil, packet)
 					}
 				})
-				return
 			}()
 		}
 	}

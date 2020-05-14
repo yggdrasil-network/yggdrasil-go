@@ -328,9 +328,9 @@ func main() {
 	// deferred Stop function above will run which will shut down TUN/TAP.
 	for {
 		select {
-		case _ = <-c:
+		case <-c:
 			goto exit
-		case _ = <-r:
+		case <-r:
 			if *useconffile != "" {
 				cfg = readConfig(useconf, useconffile, normaliseconf)
 				logger.Infoln("Reloading configuration from", *useconffile)

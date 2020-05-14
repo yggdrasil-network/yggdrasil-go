@@ -54,12 +54,11 @@ func (c *cancellation) Cancel(err error) error {
 	defer c.mutex.Unlock()
 	if c.done {
 		return c.err
-	} else {
-		c.err = err
-		c.done = true
-		close(c.cancel)
-		return nil
 	}
+	c.err = err
+	c.done = true
+	close(c.cancel)
+	return nil
 }
 
 // Error returns the error provided to Cancel, or nil if no error has been provided.

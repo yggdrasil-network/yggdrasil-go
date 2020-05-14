@@ -53,7 +53,7 @@ func (a *AdminSocket) AddHandler(name string, args []string, handlerfunc func(In
 	return nil
 }
 
-// init runs the initial admin setup.
+// Init runs the initial admin setup.
 func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.Logger, options interface{}) error {
 	a.core = c
 	a.log = log
@@ -230,13 +230,12 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 					in["box_pub_key"].(string),
 				},
 			}, nil
-		} else {
-			return Info{
-				"not_removed": []string{
-					in["box_pub_key"].(string),
-				},
-			}, errors.New("Failed to remove allowed key")
 		}
+		return Info{
+			"not_removed": []string{
+				in["box_pub_key"].(string),
+			},
+		}, errors.New("Failed to remove allowed key")
 	})
 	a.AddHandler("dhtPing", []string{"box_pub_key", "coords", "[target]"}, func(in Info) (Info, error) {
 		var reserr error
@@ -284,9 +283,8 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 			var jsoninfo interface{}
 			if err := json.Unmarshal(nodeinfo, &jsoninfo); err != nil {
 				return Info{}, err
-			} else {
-				return Info{"nodeinfo": jsoninfo}, nil
 			}
+			return Info{"nodeinfo": jsoninfo}, nil
 		} else if in["box_pub_key"] == nil || in["coords"] == nil {
 			return Info{}, errors.New("Expecting both box_pub_key and coords")
 		} else {
@@ -302,12 +300,10 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 			var m map[string]interface{}
 			if err = json.Unmarshal(result, &m); err == nil {
 				return Info{"nodeinfo": m}, nil
-			} else {
-				return Info{}, err
 			}
-		} else {
 			return Info{}, err
 		}
+		return Info{}, err
 	})
 }
 
@@ -330,9 +326,8 @@ func (a *AdminSocket) Stop() error {
 	if a.listener != nil {
 		a.started = false
 		return a.listener.Close()
-	} else {
-		return nil
 	}
+	return nil
 }
 
 // listen is run by start and manages API connections.

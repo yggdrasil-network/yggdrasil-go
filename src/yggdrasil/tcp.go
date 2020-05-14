@@ -196,10 +196,9 @@ func (t *tcp) listener(l *TcpListener, listenaddr string) {
 		t.mutex.Unlock()
 		l.Listener.Close()
 		return
-	} else {
-		t.listeners[listenaddr] = l
-		t.mutex.Unlock()
 	}
+	t.listeners[listenaddr] = l
+	t.mutex.Unlock()
 	// And here we go!
 	defer func() {
 		t.link.core.log.Infoln("Stopping TCP listener on:", l.Listener.Addr().String())
@@ -363,9 +362,8 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options interface{}, upgrade
 		if sock, err = upgrade.upgrade(sock); err != nil {
 			t.link.core.log.Errorln("TCP handler upgrade failed:", err)
 			return
-		} else {
-			upgraded = true
 		}
+		upgraded = true
 	}
 	stream := stream{}
 	stream.init(sock)

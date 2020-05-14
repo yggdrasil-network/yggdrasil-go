@@ -136,15 +136,15 @@ func (m *nodeinfo) _setNodeInfo(given interface{}, privacy bool) error {
 			newnodeinfo[key] = value
 		}
 	}
-	if newjson, err := json.Marshal(newnodeinfo); err == nil {
+	newjson, err := json.Marshal(newnodeinfo)
+	if err == nil {
 		if len(newjson) > 16384 {
 			return errors.New("NodeInfo exceeds max length of 16384 bytes")
 		}
 		m.myNodeInfo = newjson
 		return nil
-	} else {
-		return err
 	}
+	return err
 }
 
 // Add nodeinfo into the cache for a node
