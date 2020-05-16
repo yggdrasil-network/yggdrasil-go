@@ -77,29 +77,38 @@ func (ps *peers) getAllowedEncryptionPublicKeys() []string {
 	return ps.core.config.Current.AllowedEncryptionPublicKeys
 }
 
+type peerInterface interface {
+	out([][]byte)
+	linkOut([]byte)
+	notifyQueued(uint64)
+	close()
+	// These next ones are only used by the API
+	name() string
+	local() string
+	remote() string
+	interfaceType() string
+}
+
 // Information known about a peer, including their box/sig keys, precomputed shared keys (static and ephemeral) and a handler for their outgoing traffic
 type peer struct {
 	phony.Inbox
 	core       *Core
-	intf       *linkInterface
+	intf       peerInterface
 	port       switchPort
 	box        crypto.BoxPubKey
 	sig        crypto.SigPubKey
 	shared     crypto.BoxSharedKey
 	linkShared crypto.BoxSharedKey
 	endpoint   string
-	firstSeen  time.Time       // To track uptime for getPeers
-	linkOut    func([]byte)    // used for protocol traffic (bypasses the switch)
-	dinfo      *dhtInfo        // used to keep the DHT working
-	out        func([][]byte)  // Set up by whatever created the peers struct, used to send packets to other nodes
-	done       (chan struct{}) // closed to exit the linkLoop
-	close      func()          // Called when a peer is removed, to close the underlying connection, or via admin api
+	firstSeen  time.Time // To track uptime for getPeers
+	dinfo      *dhtInfo  // used to keep the DHT working
 	// The below aren't actually useful internally, they're just gathered for getPeers statistics
 	bytesSent  uint64
 	bytesRecvd uint64
 	ports      map[switchPort]*peer
 	table      *lookupTable
 	queue      packetQueue
+	seq        uint64 // this and idle are used to detect when to drop packets from queue
 	idle       bool
 }
 
@@ -123,19 +132,15 @@ func (ps *peers) _updatePeers() {
 }
 
 // Creates a new peer with the specified box, sig, and linkShared keys, using the lowest unoccupied port number.
-func (ps *peers) _newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShared *crypto.BoxSharedKey, intf *linkInterface, closer func(), out func([][]byte), linkOut func([]byte)) *peer {
+func (ps *peers) _newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShared *crypto.BoxSharedKey, intf peerInterface) *peer {
 	now := time.Now()
 	p := peer{box: *box,
+		core:       ps.core,
+		intf:       intf,
 		sig:        *sig,
 		shared:     *crypto.GetSharedKey(&ps.core.boxPriv, box),
 		linkShared: *linkShared,
 		firstSeen:  now,
-		done:       make(chan struct{}),
-		close:      closer,
-		core:       ps.core,
-		intf:       intf,
-		out:        out,
-		linkOut:    linkOut,
 	}
 	oldPorts := ps.ports
 	newPorts := make(map[switchPort]*peer)
@@ -172,10 +177,7 @@ func (ps *peers) _removePeer(p *peer) {
 		newPorts[k] = v
 	}
 	delete(newPorts, p.port)
-	if p.close != nil {
-		p.close()
-	}
-	close(p.done)
+	p.intf.close()
 	ps.ports = newPorts
 	ps._updatePeers()
 }
@@ -295,10 +297,24 @@ func (p *peer) _handleIdle() {
 	}
 	if len(packets) > 0 {
 		p.bytesSent += uint64(size)
-		p.out(packets)
+		p.intf.out(packets)
 	} else {
 		p.idle = true
 	}
+}
+
+func (p *peer) dropFromQueue(from phony.Actor, seq uint64) {
+	p.Act(from, func() {
+		switch {
+		case seq != p.seq:
+		case p.queue.drop():
+			p.intf.notifyQueued(p.seq)
+		}
+		if seq != p.seq {
+			return
+		}
+
+	})
 }
 
 // This wraps the packet in the inner (ephemeral) and outer (permanent) crypto layers.
@@ -316,7 +332,7 @@ func (p *peer) _sendLinkPacket(packet []byte) {
 		Payload: bs,
 	}
 	packet = linkPacket.encode()
-	p.linkOut(packet)
+	p.intf.linkOut(packet)
 }
 
 // Decrypts the outer (permanent) and inner (ephemeral) crypto layers on link traffic.

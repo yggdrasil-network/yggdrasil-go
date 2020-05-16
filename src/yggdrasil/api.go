@@ -123,10 +123,10 @@ func (c *Core) GetPeers() []Peer {
 		var info Peer
 		phony.Block(p, func() {
 			info = Peer{
-				Endpoint:   p.intf.name,
+				Endpoint:   p.intf.name(),
 				BytesSent:  p.bytesSent,
 				BytesRecvd: p.bytesRecvd,
-				Protocol:   p.intf.info.linkType,
+				Protocol:   p.intf.interfaceType(),
 				Port:       uint64(port),
 				Uptime:     time.Since(p.firstSeen),
 			}
@@ -163,8 +163,8 @@ func (c *Core) GetSwitchPeers() []SwitchPeer {
 				BytesSent:  peer.bytesSent,
 				BytesRecvd: peer.bytesRecvd,
 				Port:       uint64(elem.port),
-				Protocol:   peer.intf.info.linkType,
-				Endpoint:   peer.intf.info.remote,
+				Protocol:   peer.intf.interfaceType(),
+				Endpoint:   peer.intf.remote(),
 			}
 			copy(info.PublicKey[:], peer.box[:])
 		})

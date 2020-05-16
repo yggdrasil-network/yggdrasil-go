@@ -45,6 +45,8 @@ type router struct {
 	nodeinfo nodeinfo
 	searches searches
 	sessions sessions
+	intf     routerInterface
+	peer     *peer
 	table    *lookupTable // has a copy of our locator
 }
 
@@ -53,28 +55,17 @@ func (r *router) init(core *Core) {
 	r.core = core
 	r.addr = *address.AddrForNodeID(&r.dht.nodeID)
 	r.subnet = *address.SubnetForNodeID(&r.dht.nodeID)
-	self := linkInterface{
-		name: "(self)",
-		info: linkInfo{
-			local:    "(self)",
-			remote:   "(self)",
-			linkType: "self",
-		},
-	}
-	var p *peer
-	peerOut := func(packets [][]byte) {
-		r.handlePackets(p, packets)
-		r.Act(p, func() {
-			// after the router handle the packets, notify the peer that it's ready for more
-			p.Act(r, p._handleIdle)
-		})
-	}
+	r.intf.router = r
 	phony.Block(&r.core.peers, func() {
 		// FIXME don't block here!
-		p = r.core.peers._newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, &self, nil, peerOut, nil)
+		r.peer = r.core.peers._newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, &r.intf)
 	})
-	p.Act(r, p._handleIdle)
-	r.out = func(bs []byte) { p.handlePacketFrom(r, bs) }
+	r.peer.Act(r, r.peer._handleIdle)
+	r.out = func(bs []byte) {
+		r.intf.Act(r, func() {
+			r.peer.handlePacketFrom(&r.intf, bs)
+		})
+	}
 	r.nodeinfo.init(r.core)
 	r.core.config.Mutex.RLock()
 	r.nodeinfo.setNodeInfo(r.core.config.Current.NodeInfo, r.core.config.Current.NodeInfoPrivacy)
@@ -121,15 +112,6 @@ func (r *router) start() error {
 	r.core.log.Infoln("Starting router")
 	go r.doMaintenance()
 	return nil
-}
-
-// In practice, the switch will call this with 1 packet
-func (r *router) handlePackets(from phony.Actor, packets [][]byte) {
-	r.Act(from, func() {
-		for _, packet := range packets {
-			r._handlePacket(packet)
-		}
-	})
 }
 
 // Insert a peer info into the dht, TODO? make the dht a separate actor
@@ -275,3 +257,58 @@ func (r *router) _handleNodeInfo(bs []byte, fromKey *crypto.BoxPubKey) {
 	req.SendPermPub = *fromKey
 	r.nodeinfo.handleNodeInfo(r, &req)
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// routerInterface is a helper that implements peerInterface
+type routerInterface struct {
+	phony.Inbox
+	router *router
+	busy   bool
+}
+
+func (intf *routerInterface) out(bss [][]byte) {
+	intf.Act(intf.router.peer, func() {
+		intf.router.Act(intf, func() {
+			for _, bs := range bss {
+				intf.router._handlePacket(bs)
+			}
+			// we may block due to the above
+			// so we send a message to ourself, that we'd handle after unblocking
+			// that message tells us to tell the interface that we're finally idle again
+			intf.router.Act(nil, func() {
+				intf.Act(intf.router, intf._handleIdle)
+			})
+			intf.Act(intf.router, intf._handleBusy)
+		})
+	})
+}
+
+func (intf *routerInterface) _handleBusy() {
+	intf.busy = true
+}
+
+func (intf *routerInterface) _handleIdle() {
+	intf.busy = false
+	intf.router.peer.Act(intf, intf.router.peer._handleIdle)
+}
+
+func (intf *routerInterface) linkOut(_ []byte) {}
+
+func (intf *routerInterface) notifyQueued(seq uint64) {
+	intf.Act(intf.router.peer, func() {
+		if intf.busy {
+			intf.router.peer.dropFromQueue(intf, seq)
+		}
+	})
+}
+
+func (intf *routerInterface) close() {}
+
+func (intf *routerInterface) name() string { return "(self)" }
+
+func (intf *routerInterface) local() string { return "(self)" }
+
+func (intf *routerInterface) remote() string { return "(self)" }
+
+func (intf *routerInterface) interfaceType() string { return "self" }
