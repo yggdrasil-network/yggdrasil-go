@@ -239,11 +239,12 @@ func (t *switchTable) _cleanRoot() {
 func (t *switchTable) blockPeer(from phony.Actor, port switchPort) {
 	t.Act(from, func() {
 		peer, isIn := t.data.peers[port]
-		if !isIn {
+		if !isIn || peer.blocked {
 			return
 		}
 		peer.blocked = true
 		t.data.peers[port] = peer
+		t._updateTable()
 		if port != t.parent {
 			return
 		}
@@ -255,6 +256,18 @@ func (t *switchTable) blockPeer(from phony.Actor, port switchPort) {
 			t._handleMsg(&info.msg, info.port, true)
 		}
 		t._handleMsg(&peer.msg, peer.port, true)
+	})
+}
+
+func (t *switchTable) unblockPeer(from phony.Actor, port switchPort) {
+	t.Act(from, func() {
+		peer, isIn := t.data.peers[port]
+		if !isIn || !peer.blocked {
+			return
+		}
+		peer.blocked = false
+		t.data.peers[port] = peer
+		t._updateTable()
 	})
 }
 
@@ -482,11 +495,12 @@ func (t *switchTable) _handleMsg(msg *switchMsg, fromPort switchPort, reprocessi
 		// The timestamp was updated, so we need to update locally and send to our peers.
 		updateRoot = true
 	}
+	// Note that we depend on the LIFO order of the stack of defers here...
 	if updateRoot {
 		if !equiv(&sender.locator, &t.data.locator) {
 			doUpdate = true
 			t.data.seq++
-			t.core.router.reset(nil)
+			defer t.core.router.reset(t)
 		}
 		if t.data.locator.tstamp != sender.locator.tstamp {
 			t.time = now
@@ -495,7 +509,7 @@ func (t *switchTable) _handleMsg(msg *switchMsg, fromPort switchPort, reprocessi
 		t.parent = sender.port
 		defer t.core.peers.sendSwitchMsgs(t)
 	}
-	if true || doUpdate {
+	if doUpdate {
 		defer t._updateTable()
 	}
 	return

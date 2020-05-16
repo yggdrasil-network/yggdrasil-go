@@ -89,6 +89,11 @@ func (t *dht) reconfigure() {
 // Resets the DHT in response to coord changes.
 // This empties all info from the DHT and drops outstanding requests.
 func (t *dht) reset() {
+	for _, info := range t.table {
+		if t.isImportant(info) {
+			t.ping(info, nil)
+		}
+	}
 	t.reqs = make(map[dhtReqKey]time.Time)
 	t.table = make(map[crypto.NodeID]*dhtInfo)
 	t.imp = nil
@@ -144,12 +149,8 @@ func (t *dht) insert(info *dhtInfo) {
 
 // Insert a peer into the table if it hasn't been pinged lately, to keep peers from dropping
 func (t *dht) insertPeer(info *dhtInfo) {
-	oldInfo, isIn := t.table[*info.getNodeID()]
-	if !isIn || time.Since(oldInfo.recv) > dht_max_delay+30*time.Second {
-		// TODO? also check coords?
-		newInfo := *info // Insert a copy
-		t.insert(&newInfo)
-	}
+	t.insert(info)    // FIXME this resets timers / ping counts / etc, so it seems kind of dangerous
+	t.ping(info, nil) // This is a quick fix to the above, ping them immediately...
 }
 
 // Return true if first/second/third are (partially) ordered correctly.

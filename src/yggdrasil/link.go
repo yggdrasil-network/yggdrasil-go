@@ -376,6 +376,7 @@ func (intf *linkInterface) notifyRead(size int) {
 		if size > 0 && intf.stallTimer == nil {
 			intf.stallTimer = time.AfterFunc(keepAliveTime, intf.notifyDoKeepAlive)
 		}
+		intf.link.core.switchTable.unblockPeer(intf, intf.peer.port)
 	})
 }
 
