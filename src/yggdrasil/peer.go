@@ -289,7 +289,7 @@ func (p *peer) _sendPackets(packets [][]byte) {
 func (p *peer) _handleIdle() {
 	var packets [][]byte
 	var size uint64
-	for size < 65535 {
+	for size < streamMsgSize {
 		if packet, success := p.queue.pop(); success {
 			packets = append(packets, packet)
 			size += uint64(len(packet))

@@ -55,6 +55,11 @@ func (q *packetQueue) drop() bool {
 	}
 	// Drop the oldest packet from the worst stream
 	packet := worstStream.infos[0].packet
+	if q.size-uint64(len(packet)) < streamMsgSize {
+		// TODO something better
+		// We don't want to drop *all* packets, so lets save 1 batch worth...
+		return false
+	}
 	worstStream.infos = worstStream.infos[1:]
 	worstStream.size -= uint64(len(packet))
 	q.size -= uint64(len(packet))
