@@ -311,12 +311,9 @@ func (p *peer) dropFromQueue(from phony.Actor, seq uint64) {
 		switch {
 		case seq != p.seq:
 		case p.queue.drop():
+			p.core.log.Debugln("DEBUG dropped:", p.port, p.queue.size)
 			p.intf.notifyQueued(p.seq)
 		}
-		if seq != p.seq {
-			return
-		}
-
 	})
 }
 
