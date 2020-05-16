@@ -281,6 +281,8 @@ func (p *peer) _sendPackets(packets [][]byte) {
 	if p.idle {
 		p.idle = false
 		p._handleIdle()
+	} else {
+		p.intf.notifyQueued(p.seq)
 	}
 }
 
@@ -296,6 +298,7 @@ func (p *peer) _handleIdle() {
 		}
 	}
 	if len(packets) > 0 {
+		p.seq++
 		p.bytesSent += uint64(size)
 		p.intf.out(packets)
 	} else {
