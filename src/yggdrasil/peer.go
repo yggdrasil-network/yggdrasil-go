@@ -108,6 +108,7 @@ type peer struct {
 	ports      map[switchPort]*peer
 	table      *lookupTable
 	queue      packetQueue
+	max        uint64
 	seq        uint64 // this and idle are used to detect when to drop packets from queue
 	idle       bool
 	drop       bool // set to true if we're dropping packets from the queue
@@ -276,14 +277,13 @@ func (p *peer) sendPacketFrom(from phony.Actor, packet []byte) {
 }
 
 func (p *peer) _sendPacket(packet []byte) {
-	size := p.queue.size
 	p.queue.push(packet)
 	switch {
 	case p.idle:
 		p.idle = false
 		p._handleIdle()
 	case p.drop:
-		for p.queue.size > size {
+		for p.queue.size > p.max {
 			p.queue.drop()
 		}
 	default:
@@ -306,6 +306,9 @@ func (p *peer) _handleIdle() {
 		p.seq++
 		p.bytesSent += uint64(size)
 		p.intf.out(packets)
+		if p.drop {
+			p.max = p.queue.size
+		}
 	} else {
 		p.idle = true
 		p.drop = false
