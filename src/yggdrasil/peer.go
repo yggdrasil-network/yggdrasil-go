@@ -264,22 +264,20 @@ func (p *peer) _handleTraffic(packet []byte) {
 	coords := peer_getPacketCoords(packet)
 	next := p.table.lookup(coords)
 	if nPeer, isIn := p.ports[next]; isIn {
-		nPeer.sendPacketsFrom(p, [][]byte{packet})
+		nPeer.sendPacketFrom(p, packet)
 	}
 	//p.core.switchTable.packetInFrom(p, packet)
 }
 
-func (p *peer) sendPacketsFrom(from phony.Actor, packets [][]byte) {
+func (p *peer) sendPacketFrom(from phony.Actor, packet []byte) {
 	p.Act(from, func() {
-		p._sendPackets(packets)
+		p._sendPacket(packet)
 	})
 }
 
-func (p *peer) _sendPackets(packets [][]byte) {
+func (p *peer) _sendPacket(packet []byte) {
 	size := p.queue.size
-	for _, packet := range packets {
-		p.queue.push(packet)
-	}
+	p.queue.push(packet)
 	switch {
 	case p.idle:
 		p.idle = false
