@@ -1,6 +1,7 @@
 package yggdrasil
 
 import (
+	"math/rand"
 	"time"
 )
 
@@ -28,32 +29,19 @@ func (q *packetQueue) drop() bool {
 	if q.size == 0 {
 		return false
 	}
-	// TODO? drop from a random stream
-	//  odds proportional to size? bandwidth?
-	//  always using the worst is exploitable -> flood 1 packet per random stream
-	// find the stream that's using the most bandwidth
-	now := time.Now()
+	// select a random stream, odds based on stream size
+	offset := rand.Uint64() % q.size
 	var worst pqStreamID
-	for id := range q.streams {
-		worst = id
-		break // get a random ID to start
-	}
-	worstStream := q.streams[worst]
-	worstSize := float64(worstStream.size)
-	worstAge := now.Sub(worstStream.infos[0].time).Seconds()
+	var size uint64
 	for id, stream := range q.streams {
-		thisSize := float64(stream.size)
-		thisAge := now.Sub(stream.infos[0].time).Seconds()
-		// cross multiply to avoid division by zero issues
-		if worstSize*thisAge < thisSize*worstAge {
-			// worstSize/worstAge < thisSize/thisAge -> this uses more bandwidth
-			worst = id
-			worstStream = stream
-			worstSize = thisSize
-			worstAge = thisAge
+		worst = id
+		size += stream.size
+		if size >= offset {
+			break
 		}
 	}
-	// Drop the oldest packet from the worst stream
+	// drop the oldest packet from the stream
+	worstStream := q.streams[worst]
 	packet := worstStream.infos[0].packet
 	worstStream.infos = worstStream.infos[1:]
 	worstStream.size -= uint64(len(packet))

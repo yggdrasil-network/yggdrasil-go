@@ -110,6 +110,7 @@ type peer struct {
 	queue      packetQueue
 	seq        uint64 // this and idle are used to detect when to drop packets from queue
 	idle       bool
+	drop       bool // set to true if we're dropping packets from the queue
 }
 
 func (ps *peers) updateTables(from phony.Actor, table *lookupTable) {
@@ -275,13 +276,19 @@ func (p *peer) sendPacketsFrom(from phony.Actor, packets [][]byte) {
 }
 
 func (p *peer) _sendPackets(packets [][]byte) {
+	size := p.queue.size
 	for _, packet := range packets {
 		p.queue.push(packet)
 	}
-	if p.idle {
+	switch {
+	case p.idle:
 		p.idle = false
 		p._handleIdle()
-	} else {
+	case p.drop:
+		for p.queue.size > size {
+			p.queue.drop()
+		}
+	default:
 		p.intf.notifyQueued(p.seq)
 	}
 }
@@ -303,17 +310,14 @@ func (p *peer) _handleIdle() {
 		p.intf.out(packets)
 	} else {
 		p.idle = true
+		p.drop = false
 	}
 }
 
 func (p *peer) dropFromQueue(from phony.Actor, seq uint64) {
 	p.Act(from, func() {
-		switch {
-		case seq != p.seq:
-		case p.queue.size < streamMsgSize:
-		case p.queue.drop():
-			p.core.log.Debugln("DEBUG dropped:", p.port, p.queue.size)
-			p.intf.notifyQueued(p.seq)
+		if seq == p.seq {
+			p.drop = true
 		}
 	})
 }
