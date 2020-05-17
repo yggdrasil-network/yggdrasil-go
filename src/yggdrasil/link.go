@@ -63,6 +63,7 @@ type linkInterface struct {
 	stallTimer     *time.Timer // Fires to signal that no incoming traffic (including keep-alive) has been seen
 	closeTimer     *time.Timer // Fires when the link has been idle so long we need to close it
 	isIdle         bool        // True if the peer actor knows the link is idle
+	isSending      bool        // True between a notifySending and a notifySent
 	blocked        bool        // True if we've blocked the peer in the switch
 }
 
@@ -296,7 +297,7 @@ func (intf *linkInterface) linkOut(bs []byte) {
 func (intf *linkInterface) notifyQueued(seq uint64) {
 	// This is the part where we want non-nil 'from' fields
 	intf.Act(intf.peer, func() {
-		if !intf.isIdle {
+		if intf.isSending {
 			intf.peer.dropFromQueue(intf, seq)
 		}
 	})
@@ -336,6 +337,7 @@ func (intf *linkInterface) notifySending(size int, isLinkTraffic bool) {
 		if !isLinkTraffic {
 			intf.isIdle = false
 		}
+		intf.isSending = true
 		intf.sendTimer = time.AfterFunc(sendTime, intf.notifyBlockedSend)
 		intf._cancelStallTimer()
 	})
@@ -370,6 +372,7 @@ func (intf *linkInterface) notifySent(size int, isLinkTraffic bool) {
 		if !isLinkTraffic {
 			intf._notifyIdle()
 		}
+		intf.isSending = false
 		if size > 0 && intf.stallTimer == nil {
 			intf.stallTimer = time.AfterFunc(stallTime, intf.notifyStalled)
 		}
