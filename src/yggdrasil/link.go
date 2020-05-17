@@ -256,6 +256,11 @@ func (intf *linkInterface) handler() error {
 		intf.link.core.log.Infof("Disconnected %s: %s, source %s",
 			strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 	}
+	intf.writer.Act(nil, func() {
+		if intf.writer.worker != nil {
+			close(intf.writer.worker)
+		}
+	})
 	return err
 }
 
@@ -428,7 +433,8 @@ func (intf *linkInterface) notifyDoKeepAlive() {
 
 type linkWriter struct {
 	phony.Inbox
-	intf *linkInterface
+	intf   *linkInterface
+	worker chan [][]byte
 }
 
 func (w *linkWriter) sendFrom(from phony.Actor, bss [][]byte, isLinkTraffic bool) {
@@ -437,8 +443,19 @@ func (w *linkWriter) sendFrom(from phony.Actor, bss [][]byte, isLinkTraffic bool
 		for _, bs := range bss {
 			size += len(bs)
 		}
+		if w.worker == nil {
+			w.worker = make(chan [][]byte, 1)
+			go func() {
+				for bss := range w.worker {
+					w.intf.msgIO.writeMsgs(bss)
+				}
+			}()
+		}
 		w.intf.notifySending(size, isLinkTraffic)
-		w.intf.msgIO.writeMsgs(bss)
+		func() {
+			defer func() { recover() }()
+			w.worker <- bss
+		}()
 		w.intf.notifySent(size, isLinkTraffic)
 	})
 }
