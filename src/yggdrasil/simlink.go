@@ -9,7 +9,7 @@ type Simlink struct {
 	phony.Inbox
 	rch     chan []byte
 	dest    *Simlink
-	link    *linkInterface
+	link    *link
 	started bool
 }
 

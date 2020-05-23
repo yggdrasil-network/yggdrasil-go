@@ -77,23 +77,11 @@ func (ps *peers) getAllowedEncryptionPublicKeys() []string {
 	return ps.core.config.Current.AllowedEncryptionPublicKeys
 }
 
-type peerInterface interface {
-	out([][]byte)
-	linkOut([]byte)
-	notifyQueued(uint64)
-	close()
-	// These next ones are only used by the API
-	name() string
-	local() string
-	remote() string
-	interfaceType() string
-}
-
 // Information known about a peer, including their box/sig keys, precomputed shared keys (static and ephemeral) and a handler for their outgoing traffic
 type peer struct {
 	phony.Inbox
 	core       *Core
-	intf       peerInterface
+	intf       linkInterface
 	port       switchPort
 	box        crypto.BoxPubKey
 	sig        crypto.SigPubKey
@@ -134,7 +122,7 @@ func (ps *peers) _updatePeers() {
 }
 
 // Creates a new peer with the specified box, sig, and linkShared keys, using the lowest unoccupied port number.
-func (ps *peers) _newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShared *crypto.BoxSharedKey, intf peerInterface) *peer {
+func (ps *peers) _newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShared *crypto.BoxSharedKey, intf linkInterface) *peer {
 	now := time.Now()
 	p := peer{box: *box,
 		core:       ps.core,
