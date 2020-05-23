@@ -62,9 +62,7 @@ func (r *router) init(core *Core) {
 	})
 	r.peer.Act(r, r.peer._handleIdle)
 	r.out = func(bs []byte) {
-		r.intf.Act(r, func() {
-			r.peer.handlePacketFrom(&r.intf, bs)
-		})
+		r.peer.handlePacketFrom(r, bs)
 	}
 	r.nodeinfo.init(r.core)
 	r.core.config.Mutex.RLock()
@@ -262,46 +260,23 @@ func (r *router) _handleNodeInfo(bs []byte, fromKey *crypto.BoxPubKey) {
 
 // routerInterface is a helper that implements peerInterface
 type routerInterface struct {
-	phony.Inbox
 	router *router
-	busy   bool
 }
 
 func (intf *routerInterface) out(bss [][]byte) {
-	intf.Act(intf.router.peer, func() {
-		intf.router.Act(intf, func() {
-			for _, bs := range bss {
-				intf.router._handlePacket(bs)
-			}
-			// we may block due to the above
-			// so we send a message to ourself, that we'd handle after unblocking
-			// that message tells us to tell the interface that we're finally idle again
-			intf.router.Act(nil, func() {
-				intf.Act(intf.router, intf._handleIdle)
-			})
-			intf.Act(intf.router, intf._handleBusy)
-		})
+	// Note that this is run in the peer's goroutine
+	intf.router.Act(intf.router.peer, func() {
+		for _, bs := range bss {
+			intf.router._handlePacket(bs)
+		}
 	})
-}
-
-func (intf *routerInterface) _handleBusy() {
-	intf.busy = true
-}
-
-func (intf *routerInterface) _handleIdle() {
-	intf.busy = false
-	intf.router.peer.Act(intf, intf.router.peer._handleIdle)
+	//intf.router.peer.Act(nil, intf.router.peer._handleIdle)
+	intf.router.peer._handleIdle()
 }
 
 func (intf *routerInterface) linkOut(_ []byte) {}
 
-func (intf *routerInterface) notifyQueued(seq uint64) {
-	intf.Act(intf.router.peer, func() {
-		if intf.busy {
-			intf.router.peer.dropFromQueue(intf, seq)
-		}
-	})
-}
+func (intf *routerInterface) notifyQueued(seq uint64) {}
 
 func (intf *routerInterface) close() {}
 
