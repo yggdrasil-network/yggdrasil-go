@@ -258,7 +258,7 @@ func (r *router) _handleNodeInfo(bs []byte, fromKey *crypto.BoxPubKey) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// routerInterface is a helper that implements peerInterface
+// routerInterface is a helper that implements linkInterface
 type routerInterface struct {
 	router *router
 }
