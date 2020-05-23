@@ -20,10 +20,10 @@ func (t *tcp) tcpContext(network, address string, c syscall.RawConn) error {
 
 	// Log any errors
 	if bbr != nil {
-		t.link.core.log.Debugln("Failed to set tcp_congestion_control to bbr for socket, SetsockoptString error:", bbr)
+		t.links.core.log.Debugln("Failed to set tcp_congestion_control to bbr for socket, SetsockoptString error:", bbr)
 	}
 	if control != nil {
-		t.link.core.log.Debugln("Failed to set tcp_congestion_control to bbr for socket, Control error:", control)
+		t.links.core.log.Debugln("Failed to set tcp_congestion_control to bbr for socket, Control error:", control)
 	}
 
 	// Return nil because errors here are not considered fatal for the connection, it just means congestion control is suboptimal
@@ -38,7 +38,7 @@ func (t *tcp) getControl(sintf string) func(string, string, syscall.RawConn) err
 		}
 		c.Control(btd)
 		if err != nil {
-			t.link.core.log.Debugln("Failed to set SO_BINDTODEVICE:", sintf)
+			t.links.core.log.Debugln("Failed to set SO_BINDTODEVICE:", sintf)
 		}
 		return t.tcpContext(network, address, c)
 	}

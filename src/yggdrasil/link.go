@@ -20,7 +20,7 @@ import (
 	"github.com/Arceliar/phony"
 )
 
-type link struct {
+type links struct {
 	core       *Core
 	mutex      sync.RWMutex // protects interfaces below
 	interfaces map[linkInfo]*linkInterface
@@ -37,7 +37,7 @@ type linkInfo struct {
 	remote   string           // Remote name or address
 }
 
-type linkInterfaceMsgIO interface {
+type linkMsgIO interface {
 	readMsg() ([]byte, error)
 	writeMsgs([][]byte) (int, error)
 	close() error
@@ -48,9 +48,9 @@ type linkInterfaceMsgIO interface {
 
 type linkInterface struct {
 	lname          string
-	link           *link
+	links          *links
 	peer           *peer
-	msgIO          linkInterfaceMsgIO
+	msgIO          linkMsgIO
 	info           linkInfo
 	incoming       bool
 	force          bool
@@ -66,7 +66,7 @@ type linkInterface struct {
 	blocked        bool        // True if we've blocked the peer in the switch
 }
 
-func (l *link) init(c *Core) error {
+func (l *links) init(c *Core) error {
 	l.core = c
 	l.mutex.Lock()
 	l.interfaces = make(map[linkInfo]*linkInterface)
@@ -81,11 +81,11 @@ func (l *link) init(c *Core) error {
 	return nil
 }
 
-func (l *link) reconfigure() {
+func (l *links) reconfigure() {
 	l.tcp.reconfigure()
 }
 
-func (l *link) call(uri string, sintf string) error {
+func (l *links) call(uri string, sintf string) error {
 	u, err := url.Parse(uri)
 	if err != nil {
 		return fmt.Errorf("peer %s is not correctly formatted (%s)", uri, err)
@@ -104,7 +104,7 @@ func (l *link) call(uri string, sintf string) error {
 	return nil
 }
 
-func (l *link) listen(uri string) error {
+func (l *links) listen(uri string) error {
 	u, err := url.Parse(uri)
 	if err != nil {
 		return fmt.Errorf("listener %s is not correctly formatted (%s)", uri, err)
@@ -121,11 +121,11 @@ func (l *link) listen(uri string) error {
 	}
 }
 
-func (l *link) create(msgIO linkInterfaceMsgIO, name, linkType, local, remote string, incoming, force bool) (*linkInterface, error) {
+func (l *links) create(msgIO linkMsgIO, name, linkType, local, remote string, incoming, force bool) (*linkInterface, error) {
 	// Technically anything unique would work for names, but let's pick something human readable, just for debugging
 	intf := linkInterface{
 		lname: name,
-		link:  l,
+		links: l,
 		msgIO: msgIO,
 		info: linkInfo{
 			linkType: linkType,
@@ -142,7 +142,7 @@ func (l *link) create(msgIO linkInterfaceMsgIO, name, linkType, local, remote st
 	return &intf, nil
 }
 
-func (l *link) stop() error {
+func (l *links) stop() error {
 	close(l.stopped)
 	if err := l.tcp.stop(); err != nil {
 		return err
@@ -163,8 +163,8 @@ func (intf *linkInterface) handler() error {
 	})
 	myLinkPub, myLinkPriv := crypto.NewBoxKeys()
 	meta := version_getBaseMetadata()
-	meta.box = intf.link.core.boxPub
-	meta.sig = intf.link.core.sigPub
+	meta.box = intf.links.core.boxPub
+	meta.sig = intf.links.core.sigPub
 	meta.link = *myLinkPub
 	metaBytes := meta.encode()
 	// TODO timeouts on send/recv (goroutine for send/recv, channel select w/ timer)
@@ -187,12 +187,12 @@ func (intf *linkInterface) handler() error {
 	}
 	base := version_getBaseMetadata()
 	if meta.ver > base.ver || meta.ver == base.ver && meta.minorVer > base.minorVer {
-		intf.link.core.log.Errorln("Failed to connect to node: " + intf.lname + " version: " + fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
+		intf.links.core.log.Errorln("Failed to connect to node: " + intf.lname + " version: " + fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
 		return errors.New("failed to connect: wrong version")
 	}
 	// Check if we're authorized to connect to this key / IP
-	if intf.incoming && !intf.force && !intf.link.core.peers.isAllowedEncryptionPublicKey(&meta.box) {
-		intf.link.core.log.Warnf("%s connection from %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
+	if intf.incoming && !intf.force && !intf.links.core.peers.isAllowedEncryptionPublicKey(&meta.box) {
+		intf.links.core.log.Warnf("%s connection from %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
 			strings.ToUpper(intf.info.linkType), intf.info.remote, hex.EncodeToString(meta.box[:]))
 		intf.msgIO.close()
 		return nil
@@ -200,12 +200,12 @@ func (intf *linkInterface) handler() error {
 	// Check if we already have a link to this node
 	intf.info.box = meta.box
 	intf.info.sig = meta.sig
-	intf.link.mutex.Lock()
-	if oldIntf, isIn := intf.link.interfaces[intf.info]; isIn {
-		intf.link.mutex.Unlock()
+	intf.links.mutex.Lock()
+	if oldIntf, isIn := intf.links.interfaces[intf.info]; isIn {
+		intf.links.mutex.Unlock()
 		// FIXME we should really return an error and let the caller block instead
 		// That lets them do things like close connections on its own, avoid printing a connection message in the first place, etc.
-		intf.link.core.log.Debugln("DEBUG: found existing interface for", intf.name)
+		intf.links.core.log.Debugln("DEBUG: found existing interface for", intf.name)
 		intf.msgIO.close()
 		if !intf.incoming {
 			// Block outgoing connection attempts until the existing connection closes
@@ -214,21 +214,21 @@ func (intf *linkInterface) handler() error {
 		return nil
 	} else {
 		intf.closed = make(chan struct{})
-		intf.link.interfaces[intf.info] = intf
+		intf.links.interfaces[intf.info] = intf
 		defer func() {
-			intf.link.mutex.Lock()
-			delete(intf.link.interfaces, intf.info)
-			intf.link.mutex.Unlock()
+			intf.links.mutex.Lock()
+			delete(intf.links.interfaces, intf.info)
+			intf.links.mutex.Unlock()
 			close(intf.closed)
 		}()
-		intf.link.core.log.Debugln("DEBUG: registered interface for", intf.name)
+		intf.links.core.log.Debugln("DEBUG: registered interface for", intf.name)
 	}
-	intf.link.mutex.Unlock()
+	intf.links.mutex.Unlock()
 	// Create peer
 	shared := crypto.GetSharedKey(myLinkPriv, &meta.link)
-	phony.Block(&intf.link.core.peers, func() {
+	phony.Block(&intf.links.core.peers, func() {
 		// FIXME don't use phony.Block, it's bad practice, even if it's safe here
-		intf.peer = intf.link.core.peers._newPeer(&meta.box, &meta.sig, shared, intf)
+		intf.peer = intf.links.core.peers._newPeer(&meta.box, &meta.sig, shared, intf)
 	})
 	if intf.peer == nil {
 		return errors.New("failed to create peer")
@@ -240,7 +240,7 @@ func (intf *linkInterface) handler() error {
 	themAddr := address.AddrForNodeID(crypto.GetNodeID(&intf.info.box))
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, intf.info.remote)
-	intf.link.core.log.Infof("Connected %s: %s, source %s",
+	intf.links.core.log.Infof("Connected %s: %s, source %s",
 		strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 	// Start things
 	go intf.peer.start()
@@ -252,7 +252,7 @@ func (intf *linkInterface) handler() error {
 	defer close(done)
 	go func() {
 		select {
-		case <-intf.link.stopped:
+		case <-intf.links.stopped:
 			intf.msgIO.close()
 		case <-done:
 		}
@@ -260,10 +260,10 @@ func (intf *linkInterface) handler() error {
 	err = <-intf.reader.err
 	// TODO don't report an error if it's just a 'use of closed network connection'
 	if err != nil {
-		intf.link.core.log.Infof("Disconnected %s: %s, source %s; error: %s",
+		intf.links.core.log.Infof("Disconnected %s: %s, source %s; error: %s",
 			strings.ToUpper(intf.info.linkType), themString, intf.info.local, err)
 	} else {
-		intf.link.core.log.Infof("Disconnected %s: %s, source %s",
+		intf.links.core.log.Infof("Disconnected %s: %s, source %s",
 			strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 	}
 	return err
@@ -355,7 +355,7 @@ func (intf *linkInterface) notifyBlockedSend() {
 		if intf.sendTimer != nil && !intf.blocked {
 			//As far as we know, we're still trying to send, and the timer fired.
 			intf.blocked = true
-			intf.link.core.switchTable.blockPeer(intf, intf.peer.port)
+			intf.links.core.switchTable.blockPeer(intf, intf.peer.port)
 		}
 	})
 }
@@ -392,7 +392,7 @@ func (intf *linkInterface) notifyStalled() {
 			intf.stallTimer.Stop()
 			intf.stallTimer = nil
 			intf.blocked = true
-			intf.link.core.switchTable.blockPeer(intf, intf.peer.port)
+			intf.links.core.switchTable.blockPeer(intf, intf.peer.port)
 		}
 	})
 }
@@ -419,7 +419,7 @@ func (intf *linkInterface) notifyRead(size int) {
 		}
 		if intf.blocked {
 			intf.blocked = false
-			intf.link.core.switchTable.unblockPeer(intf, intf.peer.port)
+			intf.links.core.switchTable.unblockPeer(intf, intf.peer.port)
 		}
 	})
 }

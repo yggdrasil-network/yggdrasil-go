@@ -9,7 +9,7 @@ import (
 )
 
 // Test that this matches the interface we expect
-var _ = linkInterfaceMsgIO(&stream{})
+var _ = linkMsgIO(&stream{})
 
 type stream struct {
 	rwc          io.ReadWriteCloser
