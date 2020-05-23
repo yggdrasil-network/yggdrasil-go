@@ -153,7 +153,7 @@ func (c *Conn) doSearch() {
 			// Nothing was found, so create a new search
 			searchCompleted := func(sinfo *sessionInfo, e error) {}
 			sinfo = c.core.router.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
-			c.core.log.Debugf("%s DHT search started: %p", c.String(), sinfo)
+			c.core.log.Debugf("%s DHT search started: %p", fmt.Sprintf("conn=%p", c), sinfo)
 			// Start the search
 			sinfo.startSearch()
 		}
