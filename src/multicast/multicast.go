@@ -136,6 +136,7 @@ func (m *Multicast) _stop() error {
 	m.log.Infoln("Stopping multicast module")
 	m.isOpen = false
 	for name := range m.listeners {
+		m.listeners[name].listener.Listener.Close()
 		close(m.listeners[name].stop)
 		delete(m.listeners, name)
 	}
@@ -213,6 +214,7 @@ func (m *Multicast) _monitorInterfaceChanges() {
 	for name, intf := range m.listeners {
 		if _, ok := m._interfaces[name]; !ok {
 			// This is a disappeared interface. Stop the announcer.
+			intf.listener.Listener.Close()
 			close(intf.stop)
 			delete(m.listeners, name)
 			m.log.Debugln("Stopped multicasting on", name)
