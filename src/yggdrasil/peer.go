@@ -303,10 +303,12 @@ func (p *peer) _handleIdle() {
 
 func (p *peer) dropFromQueue(from phony.Actor, seq uint64) {
 	p.Act(from, func() {
-		if seq == p.seq {
-			p.drop = true
-			p.max = p.queue.size + streamMsgSize
-		}
+		p.Act(nil, func() {
+			if seq == p.seq {
+				p.drop = true
+				p.max = p.queue.size + streamMsgSize
+			}
+		})
 	})
 }
 
