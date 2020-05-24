@@ -21,14 +21,20 @@ import (
 // automatically.
 type Multicast struct {
 	phony.Inbox
-	core       *yggdrasil.Core
-	config     *config.NodeState
-	log        *log.Logger
-	sock       *ipv6.PacketConn
-	groupAddr  string
-	listeners  map[string]*listenerInfo
-	listenPort uint16
-	isOpen     bool
+	core        *yggdrasil.Core
+	config      *config.NodeState
+	log         *log.Logger
+	sock        *ipv6.PacketConn
+	groupAddr   string
+	listeners   map[string]*listenerInfo
+	listenPort  uint16
+	isOpen      bool
+	_interfaces map[string]interfaceInfo
+}
+
+type interfaceInfo struct {
+	iface net.Interface
+	addrs []net.Addr
 }
 
 type listenerInfo struct {
@@ -43,6 +49,7 @@ func (m *Multicast) Init(core *yggdrasil.Core, state *config.NodeState, log *log
 	m.config = state
 	m.log = log
 	m.listeners = make(map[string]*listenerInfo)
+	m._interfaces = make(map[string]interfaceInfo)
 	current := m.config.GetCurrent()
 	m.listenPort = current.LinkLocalTCPPort
 	m.groupAddr = "[ff02::114]:9001"
@@ -148,10 +155,35 @@ func (m *Multicast) _updateConfig(config *config.NodeConfig) {
 	m.log.Debugln("Reloaded multicast configuration successfully")
 }
 
-// GetInterfaces returns the currently known/enabled multicast interfaces. It is
-// expected that UpdateInterfaces has been called at least once before calling
-// this method.
+func (m *Multicast) _updateInterfaces() {
+	interfaces := make(map[string]interfaceInfo)
+	intfs := m.getAllowedInterfaces()
+	for _, intf := range intfs {
+		addrs, err := intf.Addrs()
+		if err != nil {
+			m.log.Warnf("Failed up get addresses for interface %s: %s", intf.Name, err)
+			continue
+		}
+		interfaces[intf.Name] = interfaceInfo{
+			iface: intf,
+			addrs: addrs,
+		}
+	}
+	m._interfaces = interfaces
+}
+
 func (m *Multicast) Interfaces() map[string]net.Interface {
+	interfaces := make(map[string]net.Interface)
+	phony.Block(m, func() {
+		for _, info := range m._interfaces {
+			interfaces[info.iface.Name] = info.iface
+		}
+	})
+	return interfaces
+}
+
+// getAllowedInterfaces returns the currently known/enabled multicast interfaces.
+func (m *Multicast) getAllowedInterfaces() map[string]net.Interface {
 	interfaces := make(map[string]net.Interface)
 	// Get interface expressions from config
 	current := m.config.GetCurrent()
@@ -194,6 +226,7 @@ func (m *Multicast) _announce() {
 	if !m.isOpen {
 		return
 	}
+	m._updateInterfaces()
 	groupAddr, err := net.ResolveUDPAddr("udp6", m.groupAddr)
 	if err != nil {
 		panic(err)
@@ -202,7 +235,6 @@ func (m *Multicast) _announce() {
 	if err != nil {
 		panic(err)
 	}
-	interfaces := m.Interfaces()
 	// There might be interfaces that we configured listeners for but are no
 	// longer up - if that's the case then we should stop the listeners
 	for name, info := range m.listeners {
@@ -214,7 +246,7 @@ func (m *Multicast) _announce() {
 		}
 		// If the interface is no longer visible on the system then stop the
 		// listener, as another one will be started further down
-		if _, ok := interfaces[name]; !ok {
+		if _, ok := m._interfaces[name]; !ok {
 			stop()
 			continue
 		}
@@ -251,13 +283,9 @@ func (m *Multicast) _announce() {
 	}
 	// Now that we have a list of valid interfaces from the operating system,
 	// we can start checking if we can send multicasts on them
-	for _, iface := range interfaces {
-		// Find interface addresses
-		addrs, err := iface.Addrs()
-		if err != nil {
-			panic(err)
-		}
-		for _, addr := range addrs {
+	for _, info := range m._interfaces {
+		iface := info.iface
+		for _, addr := range info.addrs {
 			addrIP, _, _ := net.ParseCIDR(addr.String())
 			// Ignore IPv4 addresses
 			if addrIP.To4() != nil {
@@ -346,7 +374,11 @@ func (m *Multicast) listen() {
 		if addr.IP.String() != from.IP.String() {
 			continue
 		}
-		if _, ok := m.Interfaces()[from.Zone]; ok {
+		var interfaces map[string]interfaceInfo
+		phony.Block(m, func() {
+			interfaces = m._interfaces
+		})
+		if _, ok := interfaces[from.Zone]; ok {
 			addr.Zone = ""
 			if err := m.core.CallPeer("tcp://"+addr.String(), from.Zone); err != nil {
 				m.log.Debugln("Call from multicast failed:", err)
