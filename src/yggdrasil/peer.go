@@ -194,21 +194,20 @@ func (ps *peers) sendSwitchMsgs(from phony.Actor) {
 	})
 }
 
-// This must be launched in a separate goroutine by whatever sets up the peer struct.
-// It handles link protocol traffic.
-func (p *peer) start() {
-	var updateDHT func()
-	updateDHT = func() {
-		phony.Block(p, func() {
-			select {
-			case <-p.done:
-			default:
-				p._updateDHT()
-				time.AfterFunc(time.Second, updateDHT)
+func (ps *peers) updateDHT(from phony.Actor) {
+	ps.Act(from, func() {
+		for _, peer := range ps.ports {
+			p := peer
+			if p.port == 0 {
+				continue
 			}
-		})
-	}
-	updateDHT()
+			p.Act(ps, p._updateDHT)
+		}
+	})
+}
+
+// This must be launched in a separate goroutine by whatever sets up the peer struct.
+func (p *peer) start() {
 	// Just for good measure, immediately send a switch message to this peer when we start
 	p.Act(nil, p._sendSwitchMsg)
 }
