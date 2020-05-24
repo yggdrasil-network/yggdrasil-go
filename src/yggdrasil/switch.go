@@ -188,7 +188,7 @@ func (t *switchTable) init(core *Core) {
 
 func (t *switchTable) reconfigure() {
 	// This is where reconfiguration would go, if we had anything useful to do.
-	t.core.link.reconfigure()
+	t.core.links.reconfigure()
 	t.core.peers.reconfigure()
 }
 

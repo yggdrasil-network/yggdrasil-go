@@ -81,26 +81,25 @@ func (ps *peers) getAllowedEncryptionPublicKeys() []string {
 type peer struct {
 	phony.Inbox
 	core       *Core
-	intf       *linkInterface
+	intf       linkInterface
 	port       switchPort
 	box        crypto.BoxPubKey
 	sig        crypto.SigPubKey
 	shared     crypto.BoxSharedKey
 	linkShared crypto.BoxSharedKey
 	endpoint   string
-	firstSeen  time.Time       // To track uptime for getPeers
-	linkOut    func([]byte)    // used for protocol traffic (bypasses the switch)
-	dinfo      *dhtInfo        // used to keep the DHT working
-	out        func([][]byte)  // Set up by whatever created the peers struct, used to send packets to other nodes
-	done       (chan struct{}) // closed to exit the linkLoop
-	close      func()          // Called when a peer is removed, to close the underlying connection, or via admin api
+	firstSeen  time.Time // To track uptime for getPeers
+	dinfo      *dhtInfo  // used to keep the DHT working
 	// The below aren't actually useful internally, they're just gathered for getPeers statistics
 	bytesSent  uint64
 	bytesRecvd uint64
 	ports      map[switchPort]*peer
 	table      *lookupTable
 	queue      packetQueue
+	max        uint64
+	seq        uint64 // this and idle are used to detect when to drop packets from queue
 	idle       bool
+	drop       bool // set to true if we're dropping packets from the queue
 }
 
 func (ps *peers) updateTables(from phony.Actor, table *lookupTable) {
@@ -123,19 +122,15 @@ func (ps *peers) _updatePeers() {
 }
 
 // Creates a new peer with the specified box, sig, and linkShared keys, using the lowest unoccupied port number.
-func (ps *peers) _newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShared *crypto.BoxSharedKey, intf *linkInterface, closer func(), out func([][]byte), linkOut func([]byte)) *peer {
+func (ps *peers) _newPeer(box *crypto.BoxPubKey, sig *crypto.SigPubKey, linkShared *crypto.BoxSharedKey, intf linkInterface) *peer {
 	now := time.Now()
 	p := peer{box: *box,
+		core:       ps.core,
+		intf:       intf,
 		sig:        *sig,
 		shared:     *crypto.GetSharedKey(&ps.core.boxPriv, box),
 		linkShared: *linkShared,
 		firstSeen:  now,
-		done:       make(chan struct{}),
-		close:      closer,
-		core:       ps.core,
-		intf:       intf,
-		out:        out,
-		linkOut:    linkOut,
 	}
 	oldPorts := ps.ports
 	newPorts := make(map[switchPort]*peer)
@@ -172,10 +167,7 @@ func (ps *peers) _removePeer(p *peer) {
 		newPorts[k] = v
 	}
 	delete(newPorts, p.port)
-	if p.close != nil {
-		p.close()
-	}
-	close(p.done)
+	p.intf.close()
 	ps.ports = newPorts
 	ps._updatePeers()
 }
@@ -261,31 +253,36 @@ func (p *peer) _handleTraffic(packet []byte) {
 	coords := peer_getPacketCoords(packet)
 	next := p.table.lookup(coords)
 	if nPeer, isIn := p.ports[next]; isIn {
-		nPeer.sendPacketsFrom(p, [][]byte{packet})
+		nPeer.sendPacketFrom(p, packet)
 	}
 	//p.core.switchTable.packetInFrom(p, packet)
 }
 
-func (p *peer) sendPacketsFrom(from phony.Actor, packets [][]byte) {
+func (p *peer) sendPacketFrom(from phony.Actor, packet []byte) {
 	p.Act(from, func() {
-		p._sendPackets(packets)
+		p._sendPacket(packet)
 	})
 }
 
-func (p *peer) _sendPackets(packets [][]byte) {
-	for _, packet := range packets {
-		p.queue.push(packet)
-	}
-	if p.idle {
+func (p *peer) _sendPacket(packet []byte) {
+	p.queue.push(packet)
+	switch {
+	case p.idle:
 		p.idle = false
 		p._handleIdle()
+	case p.drop:
+		for p.queue.size > p.max {
+			p.queue.drop()
+		}
+	default:
+		p.intf.notifyQueued(p.seq)
 	}
 }
 
 func (p *peer) _handleIdle() {
 	var packets [][]byte
 	var size uint64
-	for size < 65535 {
+	for size < streamMsgSize {
 		if packet, success := p.queue.pop(); success {
 			packets = append(packets, packet)
 			size += uint64(len(packet))
@@ -294,11 +291,23 @@ func (p *peer) _handleIdle() {
 		}
 	}
 	if len(packets) > 0 {
+		p.seq++
 		p.bytesSent += uint64(size)
-		p.out(packets)
+		p.intf.out(packets)
+		p.max = p.queue.size
 	} else {
 		p.idle = true
+		p.drop = false
 	}
+}
+
+func (p *peer) dropFromQueue(from phony.Actor, seq uint64) {
+	p.Act(from, func() {
+		if seq == p.seq {
+			p.drop = true
+			p.max = p.queue.size + streamMsgSize
+		}
+	})
 }
 
 // This wraps the packet in the inner (ephemeral) and outer (permanent) crypto layers.
@@ -316,7 +325,7 @@ func (p *peer) _sendLinkPacket(packet []byte) {
 		Payload: bs,
 	}
 	packet = linkPacket.encode()
-	p.linkOut(packet)
+	p.intf.linkOut(packet)
 }
 
 // Decrypts the outer (permanent) and inner (ephemeral) crypto layers on link traffic.

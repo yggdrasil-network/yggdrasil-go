@@ -123,10 +123,10 @@ func (c *Core) GetPeers() []Peer {
 		var info Peer
 		phony.Block(p, func() {
 			info = Peer{
-				Endpoint:   p.intf.name,
+				Endpoint:   p.intf.name(),
 				BytesSent:  p.bytesSent,
 				BytesRecvd: p.bytesRecvd,
-				Protocol:   p.intf.info.linkType,
+				Protocol:   p.intf.interfaceType(),
 				Port:       uint64(port),
 				Uptime:     time.Since(p.firstSeen),
 			}
@@ -163,8 +163,8 @@ func (c *Core) GetSwitchPeers() []SwitchPeer {
 				BytesSent:  peer.bytesSent,
 				BytesRecvd: peer.bytesRecvd,
 				Port:       uint64(elem.port),
-				Protocol:   peer.intf.info.linkType,
-				Endpoint:   peer.intf.info.remote,
+				Protocol:   peer.intf.interfaceType(),
+				Endpoint:   peer.intf.remote(),
 			}
 			copy(info.PublicKey[:], peer.box[:])
 		})
@@ -257,14 +257,14 @@ func (c *Core) ConnDialer() (*Dialer, error) {
 // "Listen" configuration item, e.g.
 // 		tcp://a.b.c.d:e
 func (c *Core) ListenTCP(uri string) (*TcpListener, error) {
-	return c.link.tcp.listen(uri, nil)
+	return c.links.tcp.listen(uri, nil)
 }
 
 // ListenTLS starts a new TLS listener. The input URI should match that of the
 // "Listen" configuration item, e.g.
 // 		tls://a.b.c.d:e
 func (c *Core) ListenTLS(uri string) (*TcpListener, error) {
-	return c.link.tcp.listen(uri, c.link.tcp.tls.forListener)
+	return c.links.tcp.listen(uri, c.links.tcp.tls.forListener)
 }
 
 // NodeID gets the node ID. This is derived from your router encryption keys.
@@ -463,7 +463,7 @@ func (c *Core) RemovePeer(addr string, sintf string) error {
 // This does not add the peer to the peer list, so if the connection drops, the
 // peer will not be called again automatically.
 func (c *Core) CallPeer(addr string, sintf string) error {
-	return c.link.call(addr, sintf)
+	return c.links.call(addr, sintf)
 }
 
 // DisconnectPeer disconnects a peer once. This should be specified as a port

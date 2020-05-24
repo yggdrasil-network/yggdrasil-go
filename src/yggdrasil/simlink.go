@@ -9,7 +9,7 @@ type Simlink struct {
 	phony.Inbox
 	rch     chan []byte
 	dest    *Simlink
-	link    *linkInterface
+	link    *link
 	started bool
 }
 
@@ -58,7 +58,7 @@ func (c *Core) NewSimlink() *Simlink {
 	s := &Simlink{rch: make(chan []byte, 1)}
 	n := "Simlink"
 	var err error
-	s.link, err = c.link.create(s, n, n, n, n, false, true)
+	s.link, err = c.links.create(s, n, n, n, n, false, true, linkOptions{})
 	if err != nil {
 		panic(err)
 	}
