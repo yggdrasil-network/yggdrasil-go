@@ -260,7 +260,7 @@ func (t *dht) handleRes(res *dhtRes) {
 		key:    res.Key,
 		coords: res.Coords,
 	}
-	if _, isIn := t.table[*rinfo.getNodeID()]; isIn || t.isImportant(&rinfo) {
+	if t.isImportant(&rinfo) {
 		t.insert(&rinfo)
 	}
 	for _, info := range res.Infos {
