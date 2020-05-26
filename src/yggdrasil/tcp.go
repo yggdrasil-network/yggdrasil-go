@@ -407,7 +407,10 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options tcpOptions) {
 		if laddr.IsValid() || lsubnet.IsValid() {
 			// The local address is with the network address/prefix range
 			// This would route ygg over ygg, which we don't want
-			t.link.core.log.Debugln("Dropping ygg-tunneled connection", local, remote)
+			// FIXME ideally this check should happen outside of the core library
+			//  Maybe dial/listen at the application level
+			//  Then pass a net.Conn to the core library (after these kinds of checks are done)
+			t.links.core.log.Debugln("Dropping ygg-tunneled connection", local, remote)
 			return
 		}
 	}
