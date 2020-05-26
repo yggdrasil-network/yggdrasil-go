@@ -25,6 +25,7 @@ import (
 
 	"golang.org/x/net/proxy"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
@@ -396,6 +397,19 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options tcpOptions) {
 		}
 		local, _, _ = net.SplitHostPort(sock.LocalAddr().String())
 		remote, _, _ = net.SplitHostPort(sock.RemoteAddr().String())
+	}
+	localIP := net.ParseIP(local)
+	if localIP = localIP.To16(); localIP != nil {
+		var laddr address.Address
+		var lsubnet address.Subnet
+		copy(laddr[:], localIP)
+		copy(lsubnet[:], localIP)
+		if laddr.IsValid() || lsubnet.IsValid() {
+			// The local address is with the network address/prefix range
+			// This would route ygg over ygg, which we don't want
+			t.link.core.log.Debugln("Dropping ygg-tunneled connection", local, remote)
+			return
+		}
 	}
 	force := net.ParseIP(strings.Split(remote, "%")[0]).IsLinkLocalUnicast()
 	link, err := t.link.core.link.create(&stream, name, proto, local, remote, incoming, force, options.linkOptions)
