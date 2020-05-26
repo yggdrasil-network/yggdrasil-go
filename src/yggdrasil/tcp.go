@@ -407,6 +407,7 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options tcpOptions) {
 		if laddr.IsValid() || lsubnet.IsValid() {
 			// The local address is with the network address/prefix range
 			// This would route ygg over ygg, which we don't want
+			t.link.core.log.Debugln("Dropping ygg-tunneled connection", local, remote)
 			return
 		}
 	}
