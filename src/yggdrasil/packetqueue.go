@@ -38,12 +38,16 @@ func (q *packetQueue) drop() bool {
 			longestIdx = idx
 		}
 	}
-	stream := heap.Remove(q, longestIdx).(pqStream)
+	stream := q.streams[longestIdx]
 	info := stream.infos[0]
 	if len(stream.infos) > 1 {
 		stream.infos = stream.infos[1:]
 		stream.size -= uint64(len(info.packet))
-		heap.Push(q, stream)
+		q.streams[longestIdx] = stream
+		q.size -= uint64(len(info.packet))
+		heap.Fix(q, longestIdx)
+	} else {
+		heap.Remove(q, longestIdx)
 	}
 	pool_putBytes(info.packet)
 	return true
@@ -67,12 +71,16 @@ func (q *packetQueue) push(packet []byte) {
 
 func (q *packetQueue) pop() ([]byte, bool) {
 	if q.size > 0 {
-		stream := heap.Pop(q).(pqStream)
+		stream := q.streams[0]
 		info := stream.infos[0]
 		if len(stream.infos) > 1 {
 			stream.infos = stream.infos[1:]
 			stream.size -= uint64(len(info.packet))
-			heap.Push(q, stream)
+			q.streams[0] = stream
+			q.size -= uint64(len(info.packet))
+			heap.Fix(q, 0)
+		} else {
+			heap.Remove(q, 0)
 		}
 		return info.packet, true
 	}
