@@ -266,23 +266,20 @@ func (p *peer) sendPacketFrom(from phony.Actor, packet []byte) {
 
 func (p *peer) _sendPacket(packet []byte) {
 	p.queue.push(packet)
-	switch {
-	case p.idle:
+	if p.idle {
 		p.idle = false
 		p._handleIdle()
-	case p.drop:
+	} else if p.drop {
 		for p.queue.size > p.max {
 			p.queue.drop()
 		}
-	default:
-		p.intf.notifyQueued(p.seq)
 	}
 }
 
 func (p *peer) _handleIdle() {
 	var packets [][]byte
 	var size uint64
-	for size < streamMsgSize {
+	for {
 		if packet, success := p.queue.pop(); success {
 			packets = append(packets, packet)
 			size += uint64(len(packet))
@@ -297,16 +294,17 @@ func (p *peer) _handleIdle() {
 		p.max = p.queue.size
 	} else {
 		p.idle = true
-		p.drop = false
 	}
+	p.drop = false
 }
 
-func (p *peer) dropFromQueue(from phony.Actor, seq uint64) {
+func (p *peer) notifyBlocked(from phony.Actor) {
 	p.Act(from, func() {
+		seq := p.seq
 		p.Act(nil, func() {
 			if seq == p.seq {
 				p.drop = true
-				p.max = p.queue.size + streamMsgSize
+				p.max = 2*p.queue.size + streamMsgSize
 			}
 		})
 	})

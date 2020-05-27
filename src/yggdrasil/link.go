@@ -326,7 +326,6 @@ func (intf *link) handler() error {
 type linkInterface interface {
 	out([][]byte)
 	linkOut([]byte)
-	notifyQueued(uint64)
 	close()
 	// These next ones are only used by the API
 	name() string
@@ -352,15 +351,6 @@ func (intf *link) linkOut(bs []byte) {
 		//  memory if writing happens slower than link packets are generated...
 		//  that seems unlikely, so it's a lesser evil than deadlocking for now
 		intf.writer.sendFrom(nil, [][]byte{bs})
-	})
-}
-
-func (intf *link) notifyQueued(seq uint64) {
-	// This is the part where we want non-nil 'from' fields
-	intf.Act(intf.peer, func() {
-		if intf.isSending {
-			intf.peer.dropFromQueue(intf, seq)
-		}
 	})
 }
 
@@ -398,6 +388,7 @@ func (intf *link) notifySending(size int) {
 		intf.isSending = true
 		intf.sendTimer = time.AfterFunc(sendTime, intf.notifyBlockedSend)
 		intf._cancelStallTimer()
+		intf.peer.notifyBlocked(intf)
 	})
 }
 
