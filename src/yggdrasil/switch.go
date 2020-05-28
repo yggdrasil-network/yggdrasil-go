@@ -528,7 +528,7 @@ func (t *switchTable) _handleMsg(msg *switchMsg, fromPort switchPort, reprocessi
 		t.parent = sender.port
 		defer t.core.peers.sendSwitchMsgs(t)
 	}
-	if doUpdate {
+	if true || doUpdate {
 		defer t._updateTable()
 	}
 	return
