@@ -444,6 +444,9 @@ func (t *switchTable) _handleMsg(msg *switchMsg, fromPort switchPort, reprocessi
 			}
 		}
 	}
+	if sender.blocked != oldSender.blocked {
+		doUpdate = true
+	}
 	// Update sender
 	t.data.peers[fromPort] = sender
 	// Decide if we should also update our root info to make the sender our parent
@@ -543,7 +546,9 @@ func (t *switchTable) _updateTable() {
 	}
 	newTable._init()
 	for _, pinfo := range t.data.peers {
-		if pinfo.locator.root != newTable.self.root {
+		if pinfo.blocked ||
+			pinfo.locator.root != newTable.self.root ||
+			pinfo.key == t.key {
 			continue
 		}
 		loc := pinfo.locator.clone()
