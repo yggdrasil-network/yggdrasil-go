@@ -93,6 +93,20 @@ func (l *switchLocator) dist(dest []byte) int {
 	return dist
 }
 
+func (l *switchLocator) ldist(sl *switchLocator) int {
+	lca := -1
+	for idx := 0; idx < len(l.coords); idx++ {
+		if idx >= len(sl.coords) {
+			break
+		}
+		if l.coords[idx] != sl.coords[idx] {
+			break
+		}
+		lca = idx
+	}
+	return len(l.coords) + len(sl.coords) - 2*(lca+1)
+}
+
 // Gets coords in wire encoded format, with *no* length prefix.
 func (l *switchLocator) getCoords() []byte {
 	bs := make([]byte, 0, len(l.coords))
@@ -140,13 +154,15 @@ type tableElem struct {
 	port    switchPort
 	locator switchLocator
 	time    time.Time
+	next    map[switchPort]*tableElem
 }
 
 // This is the subset of the information about all peers needed to make routing decisions, and it stored separately in an atomically accessed table, which gets hammered in the "hot loop" of the routing logic (see: peer.handleTraffic in peers.go).
 type lookupTable struct {
-	self  switchLocator
-	elems map[switchPort]tableElem
-	_msg  switchMsg
+	self   switchLocator
+	elems  map[switchPort]tableElem // all switch peers, just for sanity checks + API/debugging
+	_start tableElem                // used for lookups
+	_msg   switchMsg
 }
 
 // This is switch information which is mutable and needs to be modified by other goroutines, but is not accessed atomically.
@@ -155,7 +171,6 @@ type switchData struct {
 	// All data that's mutable and used by exported Table methods
 	// To be read/written with atomic.Value Store/Load calls
 	locator switchLocator
-	seq     uint64 // Sequence number, reported to peers, so they know about changes
 	peers   map[switchPort]peerInfo
 	msg     *switchMsg
 }
@@ -226,7 +241,6 @@ func (t *switchTable) _cleanRoot() {
 		t.parent = switchPort(0)
 		t.time = now
 		if t.data.locator.root != t.key {
-			t.data.seq++
 			defer t.core.router.reset(nil)
 		}
 		t.data.locator = switchLocator{root: t.key, tstamp: now.Unix()}
@@ -376,6 +390,9 @@ func (t *switchTable) _handleMsg(msg *switchMsg, fromPort switchPort, reprocessi
 		sender.key = prevKey
 		prevKey = hop.Next
 	}
+	if sender.key == t.key {
+		return // Don't peer with ourself via different interfaces
+	}
 	sender.msg = *msg
 	sender.port = fromPort
 	sender.time = now
@@ -427,6 +444,9 @@ func (t *switchTable) _handleMsg(msg *switchMsg, fromPort switchPort, reprocessi
 				}
 			}
 		}
+	}
+	if sender.blocked != oldSender.blocked {
+		doUpdate = true
 	}
 	// Update sender
 	t.data.peers[fromPort] = sender
@@ -497,9 +517,8 @@ func (t *switchTable) _handleMsg(msg *switchMsg, fromPort switchPort, reprocessi
 	}
 	// Note that we depend on the LIFO order of the stack of defers here...
 	if updateRoot {
+		doUpdate = true
 		if !equiv(&sender.locator, &t.data.locator) {
-			doUpdate = true
-			t.data.seq++
 			defer t.core.router.reset(t)
 		}
 		if t.data.locator.tstamp != sender.locator.tstamp {
@@ -510,45 +529,86 @@ func (t *switchTable) _handleMsg(msg *switchMsg, fromPort switchPort, reprocessi
 		defer t.core.peers.sendSwitchMsgs(t)
 	}
 	if doUpdate {
-		defer t._updateTable()
+		t._updateTable()
 	}
 	return
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// The rest of these are related to the switch worker
+// The rest of these are related to the switch lookup table
 
-// This is called via a sync.Once to update the atomically readable subset of switch information that gets used for routing decisions.
 func (t *switchTable) _updateTable() {
-	// WARNING this should only be called from within t.data.updater.Do()
-	//  It relies on the sync.Once for synchronization with messages and lookups
-	// TODO use a pre-computed faster lookup table
-	//  Instead of checking distance for every destination every time
-	//  Array of structs, indexed by first coord that differs from self
-	//  Each struct has stores the best port to forward to, and a next coord map
-	//  Move to struct, then iterate over coord maps until you dead end
-	//  The last port before the dead end should be the closest
 	newTable := lookupTable{
 		self:  t.data.locator.clone(),
 		elems: make(map[switchPort]tableElem, len(t.data.peers)),
+		_msg:  *t._getMsg(),
 	}
+	newTable._init()
 	for _, pinfo := range t.data.peers {
-		//if !pinfo.forward { continue }
-		if pinfo.locator.root != newTable.self.root {
+		if pinfo.blocked || pinfo.locator.root != newTable.self.root {
 			continue
 		}
 		loc := pinfo.locator.clone()
 		loc.coords = loc.coords[:len(loc.coords)-1] // Remove the them->self link
-		newTable.elems[pinfo.port] = tableElem{
+		elem := tableElem{
 			locator: loc,
 			port:    pinfo.port,
 			time:    pinfo.time,
 		}
+		newTable._insert(&elem)
+		newTable.elems[pinfo.port] = elem
 	}
-	newTable._msg = *t._getMsg()
 	t.core.peers.updateTables(t, &newTable)
 	t.core.router.updateTable(t, &newTable)
+}
+
+func (t *lookupTable) _init() {
+	// WARNING: this relies on the convention that the self port is 0
+	self := tableElem{locator: t.self} // create self elem
+	t._start = self                    // initialize _start to self
+	t._insert(&self)                   // insert self into table
+}
+
+func (t *lookupTable) _insert(elem *tableElem) {
+	// This is a helper that should only be run during _updateTable
+	here := &t._start
+	for idx := 0; idx <= len(elem.locator.coords); idx++ {
+		refLoc := here.locator
+		refLoc.coords = refLoc.coords[:idx] // Note that this is length idx (starts at length 0)
+		oldDist := refLoc.ldist(&here.locator)
+		newDist := refLoc.ldist(&elem.locator)
+		var update bool
+		switch {
+		case newDist < oldDist: // new elem is closer to this point in the tree
+			update = true
+		case newDist > oldDist: // new elem is too far
+		case elem.locator.tstamp > refLoc.tstamp: // new elem has a closer timestamp
+			update = true
+		case elem.locator.tstamp < refLoc.tstamp: // new elem's timestamp is too old
+		case elem.time.Before(here.time): // same dist+timestamp, but new elem delivered it faster
+			update = true
+		}
+		if update {
+			here.port = elem.port
+			here.locator = elem.locator
+			here.time = elem.time
+			// Problem: here is a value, so this doesn't actually update anything...
+		}
+		if idx < len(elem.locator.coords) {
+			if here.next == nil {
+				here.next = make(map[switchPort]*tableElem)
+			}
+			var next *tableElem
+			var ok bool
+			if next, ok = here.next[elem.locator.coords[idx]]; !ok {
+				nextVal := *elem
+				next = &nextVal
+				here.next[next.locator.coords[idx]] = next
+			}
+			here = next
+		}
+	}
 }
 
 // Starts the switch worker
@@ -558,39 +618,17 @@ func (t *switchTable) start() error {
 	return nil
 }
 
-// Find the best port to forward to for a given set of coords
 func (t *lookupTable) lookup(coords []byte) switchPort {
-	var bestPort switchPort
-	myDist := t.self.dist(coords)
-	bestDist := myDist
-	var bestElem tableElem
-	for _, info := range t.elems {
-		dist := info.locator.dist(coords)
-		if dist >= myDist {
-			continue
-		}
-		var update bool
-		switch {
-		case dist < bestDist:
-			// Closer to destination
-			update = true
-		case dist > bestDist:
-			// Further from destination
-		case info.locator.tstamp > bestElem.locator.tstamp:
-			// Newer root update
-			update = true
-		case info.locator.tstamp < bestElem.locator.tstamp:
-			// Older root update
-		case info.time.Before(bestElem.time):
-			// Received root update via this peer sooner
-			update = true
-		default:
-		}
-		if update {
-			bestPort = info.port
-			bestDist = dist
-			bestElem = info
+	var offset int
+	here := &t._start
+	for offset < len(coords) {
+		port, l := wire_decode_uint64(coords[offset:])
+		offset += l
+		if next, ok := here.next[switchPort(port)]; ok {
+			here = next
+		} else {
+			break
 		}
 	}
-	return bestPort
+	return here.port
 }
