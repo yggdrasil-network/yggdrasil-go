@@ -611,38 +611,6 @@ func (t *lookupTable) _insert(elem *tableElem) {
 	}
 }
 
-// This is called via a sync.Once to update the atomically readable subset of switch information that gets used for routing decisions.
-func (t *switchTable) old_updateTable() {
-	// WARNING this should only be called from within t.data.updater.Do()
-	//  It relies on the sync.Once for synchronization with messages and lookups
-	// TODO use a pre-computed faster lookup table
-	//  Instead of checking distance for every destination every time
-	//  Array of structs, indexed by first coord that differs from self
-	//  Each struct has stores the best port to forward to, and a next coord map
-	//  Move to struct, then iterate over coord maps until you dead end
-	//  The last port before the dead end should be the closest
-	newTable := lookupTable{
-		self:  t.data.locator.clone(),
-		elems: make(map[switchPort]tableElem, len(t.data.peers)),
-	}
-	for _, pinfo := range t.data.peers {
-		//if !pinfo.forward { continue }
-		if pinfo.locator.root != newTable.self.root {
-			continue
-		}
-		loc := pinfo.locator.clone()
-		loc.coords = loc.coords[:len(loc.coords)-1] // Remove the them->self link
-		newTable.elems[pinfo.port] = tableElem{
-			locator: loc,
-			port:    pinfo.port,
-			time:    pinfo.time,
-		}
-	}
-	newTable._msg = *t._getMsg()
-	t.core.peers.updateTables(t, &newTable)
-	t.core.router.updateTable(t, &newTable)
-}
-
 // Starts the switch worker
 func (t *switchTable) start() error {
 	t.core.log.Infoln("Starting switch")
@@ -663,41 +631,4 @@ func (t *lookupTable) lookup(coords []byte) switchPort {
 		}
 	}
 	return here.port
-}
-
-// Find the best port to forward to for a given set of coords
-func (t *lookupTable) old_lookup(coords []byte) switchPort {
-	var bestPort switchPort
-	myDist := t.self.dist(coords)
-	bestDist := myDist
-	var bestElem tableElem
-	for _, info := range t.elems {
-		dist := info.locator.dist(coords)
-		if dist >= myDist {
-			continue
-		}
-		var update bool
-		switch {
-		case dist < bestDist:
-			// Closer to destination
-			update = true
-		case dist > bestDist:
-			// Further from destination
-		case info.locator.tstamp > bestElem.locator.tstamp:
-			// Newer root update
-			update = true
-		case info.locator.tstamp < bestElem.locator.tstamp:
-			// Older root update
-		case info.time.Before(bestElem.time):
-			// Received root update via this peer sooner
-			update = true
-		default:
-		}
-		if update {
-			bestPort = info.port
-			bestDist = dist
-			bestElem = info
-		}
-	}
-	return bestPort
 }
