@@ -392,6 +392,9 @@ func (t *switchTable) _handleMsg(msg *switchMsg, fromPort switchPort, reprocessi
 		sender.key = prevKey
 		prevKey = hop.Next
 	}
+	if sender.key == t.key {
+		return // Don't peer with ourself via different interfaces
+	}
 	sender.msg = *msg
 	sender.port = fromPort
 	sender.time = now
@@ -516,8 +519,8 @@ func (t *switchTable) _handleMsg(msg *switchMsg, fromPort switchPort, reprocessi
 	}
 	// Note that we depend on the LIFO order of the stack of defers here...
 	if updateRoot {
+		doUpdate = true
 		if !equiv(&sender.locator, &t.data.locator) {
-			doUpdate = true
 			t.data.seq++
 			defer t.core.router.reset(t)
 		}
@@ -528,8 +531,8 @@ func (t *switchTable) _handleMsg(msg *switchMsg, fromPort switchPort, reprocessi
 		t.parent = sender.port
 		defer t.core.peers.sendSwitchMsgs(t)
 	}
-	if true || doUpdate {
-		defer t._updateTable()
+	if doUpdate {
+		t._updateTable()
 	}
 	return
 }
@@ -546,9 +549,7 @@ func (t *switchTable) _updateTable() {
 	}
 	newTable._init()
 	for _, pinfo := range t.data.peers {
-		if pinfo.blocked ||
-			pinfo.locator.root != newTable.self.root ||
-			pinfo.key == t.key {
+		if pinfo.blocked || pinfo.locator.root != newTable.self.root {
 			continue
 		}
 		loc := pinfo.locator.clone()
