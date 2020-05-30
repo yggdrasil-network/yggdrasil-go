@@ -270,13 +270,13 @@ func (intf *routerInterface) out(bss [][]byte) {
 			intf.router._handlePacket(bs)
 		}
 	})
-	//intf.router.peer.Act(nil, intf.router.peer._handleIdle)
+	// This should now immediately make the peer idle again
+	// So the self-peer shouldn't end up buffering anything
+	// We let backpressure act as a throttle instead
 	intf.router.peer._handleIdle()
 }
 
 func (intf *routerInterface) linkOut(_ []byte) {}
-
-func (intf *routerInterface) notifyQueued(seq uint64) {}
 
 func (intf *routerInterface) close() {}
 

@@ -326,7 +326,6 @@ func (intf *link) handler() error {
 type linkInterface interface {
 	out([][]byte)
 	linkOut([]byte)
-	notifyQueued(uint64)
 	close()
 	// These next ones are only used by the API
 	name() string
@@ -352,15 +351,6 @@ func (intf *link) linkOut(bs []byte) {
 		//  memory if writing happens slower than link packets are generated...
 		//  that seems unlikely, so it's a lesser evil than deadlocking for now
 		intf.writer.sendFrom(nil, [][]byte{bs})
-	})
-}
-
-func (intf *link) notifyQueued(seq uint64) {
-	// This is the part where we want non-nil 'from' fields
-	intf.Act(intf.peer, func() {
-		if intf.isSending {
-			intf.peer.dropFromQueue(intf, seq)
-		}
 	})
 }
 
@@ -397,16 +387,12 @@ func (intf *link) notifySending(size int) {
 	intf.Act(&intf.writer, func() {
 		intf.isSending = true
 		intf.sendTimer = time.AfterFunc(sendTime, intf.notifyBlockedSend)
-		intf._cancelStallTimer()
+		if intf.keepAliveTimer != nil {
+			intf.keepAliveTimer.Stop()
+			intf.keepAliveTimer = nil
+		}
+		intf.peer.notifyBlocked(intf)
 	})
-}
-
-// we just sent something, so cancel any pending timer to send keep-alive traffic
-func (intf *link) _cancelStallTimer() {
-	if intf.stallTimer != nil {
-		intf.stallTimer.Stop()
-		intf.stallTimer = nil
-	}
 }
 
 // This gets called from a time.AfterFunc, and notifies the switch that we appear
@@ -450,11 +436,13 @@ func (intf *link) _notifyIdle() {
 // Set the peer as stalled, to prevent them from returning to the switch until a read succeeds
 func (intf *link) notifyStalled() {
 	intf.Act(nil, func() { // Sent from a time.AfterFunc
-		if intf.stallTimer != nil && !intf.blocked {
+		if intf.stallTimer != nil {
 			intf.stallTimer.Stop()
 			intf.stallTimer = nil
-			intf.blocked = true
-			intf.links.core.switchTable.blockPeer(intf, intf.peer.port)
+			if !intf.blocked {
+				intf.blocked = true
+				intf.links.core.switchTable.blockPeer(intf, intf.peer.port)
+			}
 		}
 	})
 }
@@ -489,9 +477,9 @@ func (intf *link) notifyRead(size int) {
 // We need to send keep-alive traffic now
 func (intf *link) notifyDoKeepAlive() {
 	intf.Act(nil, func() { // Sent from a time.AfterFunc
-		if intf.stallTimer != nil {
-			intf.stallTimer.Stop()
-			intf.stallTimer = nil
+		if intf.keepAliveTimer != nil {
+			intf.keepAliveTimer.Stop()
+			intf.keepAliveTimer = nil
 			intf.writer.sendFrom(nil, [][]byte{nil}) // Empty keep-alive traffic
 		}
 	})
