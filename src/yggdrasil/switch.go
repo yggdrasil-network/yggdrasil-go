@@ -171,7 +171,6 @@ type switchData struct {
 	// All data that's mutable and used by exported Table methods
 	// To be read/written with atomic.Value Store/Load calls
 	locator switchLocator
-	seq     uint64 // Sequence number, reported to peers, so they know about changes
 	peers   map[switchPort]peerInfo
 	msg     *switchMsg
 }
@@ -242,7 +241,6 @@ func (t *switchTable) _cleanRoot() {
 		t.parent = switchPort(0)
 		t.time = now
 		if t.data.locator.root != t.key {
-			t.data.seq++
 			defer t.core.router.reset(nil)
 		}
 		t.data.locator = switchLocator{root: t.key, tstamp: now.Unix()}
@@ -521,7 +519,6 @@ func (t *switchTable) _handleMsg(msg *switchMsg, fromPort switchPort, reprocessi
 	if updateRoot {
 		doUpdate = true
 		if !equiv(&sender.locator, &t.data.locator) {
-			t.data.seq++
 			defer t.core.router.reset(t)
 		}
 		if t.data.locator.tstamp != sender.locator.tstamp {
