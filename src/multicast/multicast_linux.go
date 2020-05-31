@@ -3,7 +3,6 @@
 package multicast
 
 import (
-	"fmt"
 	"net"
 	"regexp"
 	"syscall"
@@ -21,7 +20,7 @@ func (m *Multicast) _multicastStarted() {
 	addrClose := make(chan struct{})
 
 	errorCallback := func(err error) {
-		fmt.Println("Netlink error:", err)
+		m.log.Warnln("Netlink error:", err)
 	}
 
 	linkSubscribeOptions := netlink.LinkSubscribeOptions{
@@ -45,10 +44,10 @@ func (m *Multicast) _multicastStarted() {
 		}
 	}()
 
-	fmt.Println("Listening for netlink changes")
+	m.log.Debugln("Listening for netlink interface changes")
 
 	go func() {
-		defer fmt.Println("No longer listening for netlink changes")
+		defer m.log.Debugln("No longer listening for netlink interface changes")
 
 		indexToIntf := map[int]string{}
 
@@ -60,22 +59,24 @@ func (m *Multicast) _multicastStarted() {
 			case change := <-linkChanges:
 				attrs := change.Attrs()
 				add := true
-				add = add && attrs.Flags&net.FlagUp == 1
-				//add = add && attrs.Flags&net.FlagMulticast == 1
-				//add = add && attrs.Flags&net.FlagPointToPoint == 0
+				add = add && attrs.Flags&net.FlagUp != 0
+				add = add && attrs.Flags&net.FlagMulticast != 0
+				add = add && attrs.Flags&net.FlagPointToPoint == 0
 
-				match := false
-				for _, expr := range exprs {
-					e, err := regexp.Compile(expr)
-					if err != nil {
-						panic(err)
+				if add {
+					match := false
+					for _, expr := range exprs {
+						e, err := regexp.Compile(expr)
+						if err != nil {
+							panic(err)
+						}
+						if e.MatchString(attrs.Name) {
+							match = true
+							break
+						}
 					}
-					if e.MatchString(attrs.Name) {
-						match = true
-						break
-					}
+					add = add && match
 				}
-				add = add && match
 
 				if add {
 					indexToIntf[attrs.Index] = attrs.Name
@@ -84,7 +85,7 @@ func (m *Multicast) _multicastStarted() {
 						if err != nil {
 							return
 						}
-						fmt.Println("Link added:", attrs.Name)
+						m.log.Debugln("Multicast on interface", attrs.Name, "enabled")
 						if info, ok := m._interfaces[attrs.Name]; ok {
 							info.iface = *iface
 							m._interfaces[attrs.Name] = info
@@ -97,7 +98,7 @@ func (m *Multicast) _multicastStarted() {
 				} else {
 					delete(indexToIntf, attrs.Index)
 					m.Act(nil, func() {
-						fmt.Println("Link removed:", attrs.Name)
+						m.log.Debugln("Multicast on interface", attrs.Name, "disabled")
 						delete(m._interfaces, attrs.Name)
 					})
 				}
@@ -113,7 +114,7 @@ func (m *Multicast) _multicastStarted() {
 
 				if add {
 					m.Act(nil, func() {
-						fmt.Println("Addr added:", change)
+						m.log.Debugln("Multicast address", change.LinkAddress.IP, "on", name, "enabled")
 						if info, ok := m._interfaces[name]; ok {
 							info.addrs = append(info.addrs, &net.IPAddr{
 								IP:   change.LinkAddress.IP,
@@ -124,7 +125,7 @@ func (m *Multicast) _multicastStarted() {
 					})
 				} else {
 					m.Act(nil, func() {
-						fmt.Println("Addr removed:", change)
+						m.log.Debugln("Multicast address", change.LinkAddress.IP, "on", name, "disabled")
 						if info, ok := m._interfaces[name]; ok {
 							info.addrs = nil
 							m._interfaces[name] = info
@@ -136,6 +137,11 @@ func (m *Multicast) _multicastStarted() {
 				return
 
 			case <-addrClose:
+				return
+
+			case <-m.stop:
+				close(linkClose)
+				close(addrClose)
 				return
 			}
 		}

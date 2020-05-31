@@ -28,6 +28,7 @@ type Multicast struct {
 	listeners   map[string]*listenerInfo
 	listenPort  uint16
 	isOpen      bool
+	stop        chan struct{}
 	_interfaces map[string]interfaceInfo
 }
 
@@ -74,6 +75,7 @@ func (m *Multicast) _start() error {
 	if len(m.config.GetCurrent().MulticastInterfaces) == 0 {
 		return nil
 	}
+	m.stop = make(chan struct{})
 	m.log.Infoln("Starting multicast module")
 	addr, err := net.ResolveUDPAddr("udp", m.groupAddr)
 	if err != nil {
@@ -121,6 +123,7 @@ func (m *Multicast) Stop() error {
 
 func (m *Multicast) _stop() error {
 	m.log.Infoln("Stopping multicast module")
+	close(m.stop)
 	m.isOpen = false
 	if m.sock != nil {
 		m.sock.Close()
@@ -158,7 +161,9 @@ func (m *Multicast) Interfaces() map[string]net.Interface {
 	interfaces := make(map[string]net.Interface)
 	phony.Block(m, func() {
 		for _, info := range m._interfaces {
-			interfaces[info.iface.Name] = info.iface
+			if len(info.addrs) > 0 {
+				interfaces[info.iface.Name] = info.iface
+			}
 		}
 	})
 	return interfaces
@@ -188,7 +193,7 @@ func (m *Multicast) _announce() {
 		}
 		// If the interface is no longer visible on the system then stop the
 		// listener, as another one will be started further down
-		if _, ok := m._interfaces[name]; !ok {
+		if intf, ok := m._interfaces[name]; !ok || len(intf.addrs) == 0 {
 			stop()
 			continue
 		}
@@ -201,7 +206,7 @@ func (m *Multicast) _announce() {
 			continue
 		}
 		// Find the interface that matches the listener
-		if info, ok := m._interfaces[name]; ok {
+		if info, ok := m._interfaces[name]; ok && len(info.addrs) > 0 {
 			for _, addr := range info.addrs {
 				if ip, _, err := net.ParseCIDR(addr.String()); err == nil {
 					// Does the interface address match our listener address?
