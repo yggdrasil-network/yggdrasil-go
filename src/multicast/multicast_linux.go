@@ -35,6 +35,9 @@ func (m *Multicast) _multicastStarted() {
 
 	go func() {
 		defer fmt.Println("No longer listening for netlink changes")
+
+		indexToIntf := map[int]string{}
+
 		for {
 			current := m.config.GetCurrent()
 			exprs := current.MulticastInterfaces
@@ -61,18 +64,24 @@ func (m *Multicast) _multicastStarted() {
 				add = add && match
 
 				if add {
+					indexToIntf[attrs.Index] = attrs.Name
 					m.Act(nil, func() {
+						iface, err := net.InterfaceByIndex(attrs.Index)
+						if err != nil {
+							return
+						}
 						fmt.Println("Link added:", attrs.Name)
-						if iface, err := net.InterfaceByName(attrs.Name); err == nil {
-							if addrs, err := iface.Addrs(); err == nil {
-								m._interfaces[attrs.Name] = interfaceInfo{
-									iface: *iface,
-									addrs: addrs,
-								}
+						if info, ok := m._interfaces[attrs.Name]; ok {
+							info.iface = *iface
+							m._interfaces[attrs.Name] = info
+						} else {
+							m._interfaces[attrs.Name] = interfaceInfo{
+								iface: *iface,
 							}
 						}
 					})
 				} else {
+					delete(indexToIntf, attrs.Index)
 					m.Act(nil, func() {
 						fmt.Println("Link removed:", attrs.Name)
 						delete(m._interfaces, attrs.Name)
@@ -80,9 +89,34 @@ func (m *Multicast) _multicastStarted() {
 				}
 
 			case change := <-addrChanges:
-				m.Act(nil, func() {
-					fmt.Println("Addr changed:", change)
-				})
+				name, ok := indexToIntf[change.LinkIndex]
+				if !ok {
+					return
+				}
+				add := true
+				add = add && change.NewAddr
+				add = add && change.LinkAddress.IP.IsLinkLocalUnicast()
+
+				if add {
+					m.Act(nil, func() {
+						fmt.Println("Addr added:", change)
+						if info, ok := m._interfaces[name]; ok {
+							info.addrs = append(info.addrs, &net.IPAddr{
+								IP:   change.LinkAddress.IP,
+								Zone: name,
+							})
+							m._interfaces[name] = info
+						}
+					})
+				} else {
+					m.Act(nil, func() {
+						fmt.Println("Addr removed:", change)
+						if info, ok := m._interfaces[name]; ok {
+							info.addrs = nil
+							m._interfaces[name] = info
+						}
+					})
+				}
 
 			case <-linkClose:
 				return
