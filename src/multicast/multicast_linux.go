@@ -32,6 +32,9 @@ func (m *Multicast) _multicastStarted() {
 	go func() {
 		defer fmt.Println("No longer listening for netlink changes")
 		for {
+			current := m.config.GetCurrent()
+			exprs := current.MulticastInterfaces
+
 			select {
 			case change := <-linkChanges:
 				attrs := change.Attrs()
@@ -56,8 +59,13 @@ func (m *Multicast) _multicastStarted() {
 				if add {
 					m.Act(nil, func() {
 						fmt.Println("Link added:", attrs.Name)
-						if intf, err := net.InterfaceByName(attrs.Name); err == nil {
-							m._interfaces[attrs.Name] = intf
+						if iface, err := net.InterfaceByName(attrs.Name); err == nil {
+							if addrs, err := iface.Addrs(); err == nil {
+								m._interfaces[attrs.Name] = interfaceInfo{
+									iface: iface,
+									addrs: addrs,
+								}
+							}
 						}
 					})
 				} else {
