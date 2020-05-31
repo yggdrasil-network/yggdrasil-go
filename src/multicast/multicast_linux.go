@@ -7,6 +7,7 @@ import (
 	"net"
 	"regexp"
 	"syscall"
+	"time"
 
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -19,17 +20,30 @@ func (m *Multicast) _multicastStarted() {
 	linkClose := make(chan struct{})
 	addrClose := make(chan struct{})
 
+	errorCallback := func(err error) {
+		fmt.Println("Netlink error:", err)
+	}
+
 	linkSubscribeOptions := netlink.LinkSubscribeOptions{
-		ListExisting: true,
+		ListExisting:  true,
+		ErrorCallback: errorCallback,
+	}
+
+	addrSubscribeOptions := netlink.AddrSubscribeOptions{
+		ListExisting:  true,
+		ErrorCallback: errorCallback,
 	}
 
 	if err := netlink.LinkSubscribeWithOptions(linkChanges, linkClose, linkSubscribeOptions); err != nil {
 		panic(err)
 	}
 
-	if err := netlink.AddrSubscribe(addrChanges, addrClose); err != nil {
-		panic(err)
-	}
+	go func() {
+		time.Sleep(time.Second)
+		if err := netlink.AddrSubscribeWithOptions(addrChanges, addrClose, addrSubscribeOptions); err != nil {
+			panic(err)
+		}
+	}()
 
 	fmt.Println("Listening for netlink changes")
 
@@ -91,7 +105,7 @@ func (m *Multicast) _multicastStarted() {
 			case change := <-addrChanges:
 				name, ok := indexToIntf[change.LinkIndex]
 				if !ok {
-					return
+					break
 				}
 				add := true
 				add = add && change.NewAddr
