@@ -19,7 +19,11 @@ func (m *Multicast) _multicastStarted() {
 	linkClose := make(chan struct{})
 	addrClose := make(chan struct{})
 
-	if err := netlink.LinkSubscribe(linkChanges, linkClose); err != nil {
+	linkSubscribeOptions := netlink.LinkSubscribeOptions{
+		ListExisting: true,
+	}
+
+	if err := netlink.LinkSubscribeWithOptions(linkChanges, linkClose, linkSubscribeOptions); err != nil {
 		panic(err)
 	}
 
@@ -40,8 +44,8 @@ func (m *Multicast) _multicastStarted() {
 				attrs := change.Attrs()
 				add := true
 				add = add && attrs.Flags&net.FlagUp == 1
-				add = add && attrs.Flags&net.FlagMulticast == 1
-				add = add && attrs.Flags&net.FlagPointToPoint == 0
+				//add = add && attrs.Flags&net.FlagMulticast == 1
+				//add = add && attrs.Flags&net.FlagPointToPoint == 0
 
 				match := false
 				for _, expr := range exprs {
@@ -62,7 +66,7 @@ func (m *Multicast) _multicastStarted() {
 						if iface, err := net.InterfaceByName(attrs.Name); err == nil {
 							if addrs, err := iface.Addrs(); err == nil {
 								m._interfaces[attrs.Name] = interfaceInfo{
-									iface: iface,
+									iface: *iface,
 									addrs: addrs,
 								}
 							}
