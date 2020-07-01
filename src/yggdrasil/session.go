@@ -447,10 +447,9 @@ func (sinfo *sessionInfo) _recvPacket(p *wire_trafficPacket) {
 			}
 			sinfo._updateNonce(&p.Nonce)
 			sinfo.bytesRecvd += uint64(len(bs))
-			sinfo.sessions.packetConn.readBuffer <- packet{
-				addr:    &sinfo.theirPermPub,
-				payload: bs,
-			}
+			sinfo.sessions.packetConn.Act(sinfo, func() {
+				sinfo.sessions.packetConn._sendToReader(&sinfo.theirPermPub, bs)
+			})
 		}
 		ch <- callback
 		sinfo.checkCallbacks()

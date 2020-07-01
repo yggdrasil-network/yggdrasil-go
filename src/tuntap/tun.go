@@ -43,7 +43,7 @@ type TunAdapter struct {
 	config            *config.NodeState
 	log               *log.Logger
 	reconfigure       chan chan error
-	packetConn        net.PacketConn
+	packetConn        *yggdrasil.PacketConn
 	addr              address.Address
 	subnet            address.Subnet
 	addrToBoxPubKey   map[address.Address]*crypto.BoxPubKey
@@ -58,7 +58,7 @@ type TunAdapter struct {
 }
 
 type TunOptions struct {
-	PacketConn net.PacketConn
+	PacketConn *yggdrasil.PacketConn
 }
 
 // Gets the maximum supported MTU for the platform based on the defaults in
@@ -168,18 +168,9 @@ func (tun *TunAdapter) _start() error {
 	tun.isOpen = true
 	tun.reader.Act(nil, tun.reader._read) // Start the reader
 	tun.ckr.init(tun)
-	go func() {
-		// TODO: put this somewhere more elegant
-		buf := make([]byte, 65535)
-		for {
-			n, _, err := tun.packetConn.ReadFrom(buf)
-			if err != nil {
-				log.Errorln("tun.packetConn.ReadFrom:", err)
-				continue
-			}
-			tun.writer.writeFrom(nil, buf[:n])
-		}
-	}()
+	tun.packetConn.SetReadCallback(func(addr net.Addr, bs []byte) {
+		tun.writer.writeFrom(nil, bs)
+	})
 	return nil
 }
 

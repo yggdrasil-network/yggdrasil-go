@@ -11,16 +11,19 @@ import (
 )
 
 type packet struct {
-	addr    *crypto.BoxPubKey
+	addr    net.Addr
 	payload []byte
 }
 
 type PacketConn struct {
 	phony.Inbox
 	net.PacketConn
-	closed     bool
-	readBuffer chan packet
-	sessions   *sessions
+	sessions      *sessions
+	closed        bool
+	readCallback  func(net.Addr, []byte)
+	readBuffer    chan packet
+	readDeadline  *time.Time
+	writeDeadline *time.Time
 }
 
 func newPacketConn(ss *sessions) *PacketConn {
@@ -30,9 +33,23 @@ func newPacketConn(ss *sessions) *PacketConn {
 	}
 }
 
+func (c *PacketConn) _sendToReader(addr net.Addr, payload []byte) {
+	if c.readCallback == nil {
+		c.readBuffer <- packet{
+			addr:    addr,
+			payload: payload,
+		}
+	} else {
+		c.readCallback(addr, payload)
+	}
+}
+
 // implements net.PacketConn
 func (c *PacketConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
-	if c.closed {
+	if c.readCallback != nil {
+		return 0, nil, errors.New("read callback is configured")
+	}
+	if c.closed { // TODO: unsafe?
 		return 0, nil, PacketConnError{closed: true}
 	}
 	packet := <-c.readBuffer
@@ -42,19 +59,23 @@ func (c *PacketConn) ReadFrom(b []byte) (n int, addr net.Addr, err error) {
 
 // implements net.PacketConn
 func (c *PacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
-	if c.closed {
+	if c.closed { // TODO: unsafe?
 		return 0, PacketConnError{closed: true}
 	}
 
 	boxPubKey, ok := addr.(*crypto.BoxPubKey)
 	if !ok {
-		return 0, errors.New("expected crypto.BoxPubKey as net.Addr")
+		return 0, errors.New("expected *crypto.BoxPubKey as net.Addr")
 	}
 
-	session, ok := c.sessions.getByTheirPerm(boxPubKey)
-	if !ok {
-		session = c.sessions.createSession(boxPubKey)
-	}
+	var session *sessionInfo
+	phony.Block(c.sessions.router, func() {
+		var ok bool
+		session, ok = c.sessions.getByTheirPerm(boxPubKey)
+		if !ok {
+			session = c.sessions.createSession(boxPubKey)
+		}
+	})
 	if session == nil {
 		return 0, errors.New("expected a session but there was none")
 	}
@@ -112,6 +133,7 @@ func (c *PacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 
 // implements net.PacketConn
 func (c *PacketConn) Close() error {
+	// TODO: implement this. don't know what makes sense for net.PacketConn?
 	return nil
 }
 
@@ -120,18 +142,60 @@ func (c *PacketConn) LocalAddr() net.Addr {
 	return &c.sessions.router.core.boxPub
 }
 
-// implements net.PacketConn
+// SetReadCallback allows you to specify a function that will be called whenever
+// a packet is received. This should be used if you wish to implement
+// asynchronous patterns for receiving data from the remote node.
+//
+// Note that if a read callback has been supplied, you should no longer attempt
+// to use the synchronous Read function.
+func (c *PacketConn) SetReadCallback(callback func(net.Addr, []byte)) {
+	c.Act(nil, func() {
+		c.readCallback = callback
+		c._drainReadBuffer()
+	})
+}
+
+func (c *PacketConn) _drainReadBuffer() {
+	if c.readCallback == nil {
+		return
+	}
+	select {
+	case bs := <-c.readBuffer:
+		c.readCallback(bs.addr, bs.payload)
+		c.Act(nil, c._drainReadBuffer) // In case there's more
+	default:
+	}
+}
+
+// SetDeadline is equivalent to calling both SetReadDeadline and
+// SetWriteDeadline with the same value, configuring the maximum amount of time
+// that synchronous Read and Write operations can block for. If no deadline is
+// configured, Read and Write operations can potentially block indefinitely.
 func (c *PacketConn) SetDeadline(t time.Time) error {
+	c.SetReadDeadline(t)
+	c.SetWriteDeadline(t)
 	return nil
 }
 
-// implements net.PacketConn
+// SetReadDeadline configures the maximum amount of time that a synchronous Read
+// operation can block for. A Read operation will unblock at the point that the
+// read deadline is reached if no other condition (such as data arrival or
+// connection closure) happens first. If no deadline is configured, Read
+// operations can potentially block indefinitely.
 func (c *PacketConn) SetReadDeadline(t time.Time) error {
+	// TODO warn that this can block while waiting for the Conn actor to run, so don't call it from other actors...
+	phony.Block(c, func() { c.readDeadline = &t })
 	return nil
 }
 
-// implements net.PacketConn
+// SetWriteDeadline configures the maximum amount of time that a synchronous
+// Write operation can block for. A Write operation will unblock at the point
+// that the read deadline is reached if no other condition (such as data sending
+// or connection closure) happens first. If no deadline is configured, Write
+// operations can potentially block indefinitely.
 func (c *PacketConn) SetWriteDeadline(t time.Time) error {
+	// TODO warn that this can block while waiting for the Conn actor to run, so don't call it from other actors...
+	phony.Block(c, func() { c.writeDeadline = &t })
 	return nil
 }
 

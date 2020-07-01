@@ -228,7 +228,7 @@ func (c *Core) GetSessions() []Session {
 
 // PacketConn returns a net.PacketConn which can be used to send and receive
 // information over Yggdrasil sessions.
-func (c *Core) PacketConn() net.PacketConn {
+func (c *Core) PacketConn() *PacketConn {
 	return c.router.sessions.packetConn
 }
 
