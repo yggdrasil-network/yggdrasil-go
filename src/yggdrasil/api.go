@@ -11,6 +11,7 @@ import (
 	"github.com/gologme/log"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/types"
 
 	"github.com/Arceliar/phony"
 )
@@ -99,7 +100,7 @@ type Session struct {
 	Coords      []uint64         // The coordinates of the remote node
 	BytesSent   uint64           // Bytes sent to the session
 	BytesRecvd  uint64           // Bytes received from the session
-	MTU         MTU              // The maximum supported message size of the session
+	MTU         types.MTU        // The maximum supported message size of the session
 	Uptime      time.Duration    // How long this session has been active for
 	WasMTUFixed bool             // This field is no longer used
 }
@@ -225,32 +226,50 @@ func (c *Core) GetSessions() []Session {
 	return sessions
 }
 
-// ConnListen returns a listener for Yggdrasil session connections. You can only
-// call this function once as each Yggdrasil node can only have a single
-// ConnListener. Make sure to keep the reference to this for as long as it is
-// needed.
-func (c *Core) ConnListen() (*Listener, error) {
-	c.router.sessions.listenerMutex.Lock()
-	defer c.router.sessions.listenerMutex.Unlock()
-	if c.router.sessions.listener != nil {
-		return nil, errors.New("a listener already exists")
-	}
-	c.router.sessions.listener = &Listener{
-		core:  c,
-		conn:  make(chan *Conn),
-		close: make(chan interface{}),
-	}
-	return c.router.sessions.listener, nil
+// PacketConn returns a net.PacketConn which can be used to send and receive
+// information over Yggdrasil sessions.
+func (c *Core) PacketConn() net.PacketConn {
+	return c.router.sessions.packetConn
 }
 
-// ConnDialer returns a dialer for Yggdrasil session connections. Since
-// ConnDialers are stateless, you can request as many dialers as you like,
-// although ideally you should request only one and keep the reference to it for
-// as long as it is needed.
-func (c *Core) ConnDialer() (*Dialer, error) {
-	return &Dialer{
-		core: c,
-	}, nil
+// Resolve takes a masked node ID and performs a search, returning the complete
+// node ID and the node's public key.
+func (c *Core) Resolve(nodeID, nodeMask *crypto.NodeID) (fullNodeID *crypto.NodeID, boxPubKey *crypto.BoxPubKey, err error) {
+	fmt.Println("**** START RESOLVE")
+	defer fmt.Println("**** END RESOLVE")
+
+	done := make(chan struct{})
+	c.router.Act(c, func() {
+		_, isIn := c.router.searches.searches[*nodeID]
+		if !isIn {
+			searchCompleted := func(sinfo *sessionInfo, e error) {
+				select {
+				case <-done:
+					// Somehow this was called multiple times, TODO don't let that happen
+					if sinfo != nil {
+						// Need to clean up to avoid a session leak
+						sinfo.cancel.Cancel(nil)
+						sinfo.sessions.removeSession(sinfo)
+					}
+				default:
+					if sinfo != nil {
+						fullNodeID = crypto.GetNodeID(&sinfo.theirPermPub)
+						boxPubKey = &sinfo.theirPermPub
+						c.router.sessions.createSession(&sinfo.theirPermPub)
+					}
+					err = e
+					close(done)
+				}
+			}
+			sinfo := c.router.searches.newIterSearch(nodeID, nodeMask, searchCompleted)
+			sinfo.startSearch()
+		} else {
+			err = errors.New("search already exists")
+			close(done)
+		}
+	})
+	<-done
+	return
 }
 
 // ListenTCP starts a new TCP listener. The input URI should match that of the
@@ -344,8 +363,8 @@ func (c *Core) SetNodeInfo(nodeinfo interface{}, nodeinfoprivacy bool) {
 }
 
 // GetMaximumSessionMTU returns the maximum allowed session MTU size.
-func (c *Core) GetMaximumSessionMTU() MTU {
-	var mtu MTU
+func (c *Core) GetMaximumSessionMTU() types.MTU {
+	var mtu types.MTU
 	phony.Block(&c.router, func() {
 		mtu = c.router.sessions.myMaximumMTU
 	})
@@ -355,7 +374,7 @@ func (c *Core) GetMaximumSessionMTU() MTU {
 // SetMaximumSessionMTU sets the maximum allowed session MTU size. The default
 // value is 65535 bytes. Session pings will be sent to update all open sessions
 // if the MTU has changed.
-func (c *Core) SetMaximumSessionMTU(mtu MTU) {
+func (c *Core) SetMaximumSessionMTU(mtu types.MTU) {
 	phony.Block(&c.router, func() {
 		if c.router.sessions.myMaximumMTU != mtu {
 			c.router.sessions.myMaximumMTU = mtu

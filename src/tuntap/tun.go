@@ -37,31 +37,28 @@ const tun_IPv6_HEADER_LENGTH = 40
 // should pass this object to the yggdrasil.SetRouterAdapter() function before
 // calling yggdrasil.Start().
 type TunAdapter struct {
-	core        *yggdrasil.Core
-	writer      tunWriter
-	reader      tunReader
-	config      *config.NodeState
-	log         *log.Logger
-	reconfigure chan chan error
-	listener    *yggdrasil.Listener
-	dialer      *yggdrasil.Dialer
-	addr        address.Address
-	subnet      address.Subnet
-	ckr         cryptokey
-	icmpv6      ICMPv6
-	mtu         MTU
-	iface       tun.Device
-	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
-	//mutex        sync.RWMutex // Protects the below
-	addrToConn   map[address.Address]*tunConn
-	subnetToConn map[address.Subnet]*tunConn
-	dials        map[string][][]byte // Buffer of packets to send after dialing finishes
-	isOpen       bool
+	core              *yggdrasil.Core
+	writer            tunWriter
+	reader            tunReader
+	config            *config.NodeState
+	log               *log.Logger
+	reconfigure       chan chan error
+	packetConn        net.PacketConn
+	addr              address.Address
+	subnet            address.Subnet
+	addrToBoxPubKey   map[address.Address]*crypto.BoxPubKey
+	subnetToBoxPubKey map[address.Subnet]*crypto.BoxPubKey
+	ckr               cryptokey
+	icmpv6            ICMPv6
+	mtu               MTU
+	iface             tun.Device
+	phony.Inbox                           // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
+	dials             map[string][][]byte // Buffer of packets to send after dialing finishes
+	isOpen            bool
 }
 
 type TunOptions struct {
-	Listener *yggdrasil.Listener
-	Dialer   *yggdrasil.Dialer
+	PacketConn net.PacketConn
 }
 
 // Gets the maximum supported MTU for the platform based on the defaults in
@@ -120,10 +117,9 @@ func (tun *TunAdapter) Init(core *yggdrasil.Core, config *config.NodeState, log 
 	tun.core = core
 	tun.config = config
 	tun.log = log
-	tun.listener = tunoptions.Listener
-	tun.dialer = tunoptions.Dialer
-	tun.addrToConn = make(map[address.Address]*tunConn)
-	tun.subnetToConn = make(map[address.Subnet]*tunConn)
+	tun.packetConn = tunoptions.PacketConn
+	tun.addrToBoxPubKey = make(map[address.Address]*crypto.BoxPubKey)
+	tun.subnetToBoxPubKey = make(map[address.Subnet]*crypto.BoxPubKey)
 	tun.dials = make(map[string][][]byte)
 	tun.writer.tun = tun
 	tun.reader.tun = tun
@@ -145,7 +141,7 @@ func (tun *TunAdapter) _start() error {
 		return errors.New("TUN module is already started")
 	}
 	current := tun.config.GetCurrent()
-	if tun.config == nil || tun.listener == nil || tun.dialer == nil {
+	if tun.config == nil {
 		return errors.New("no configuration available to TUN")
 	}
 	var boxPub crypto.BoxPubKey
@@ -170,9 +166,20 @@ func (tun *TunAdapter) _start() error {
 	}
 	tun.core.SetMaximumSessionMTU(tun.MTU())
 	tun.isOpen = true
-	go tun.handler()
 	tun.reader.Act(nil, tun.reader._read) // Start the reader
 	tun.ckr.init(tun)
+	go func() {
+		// TODO: put this somewhere more elegant
+		buf := make([]byte, 65535)
+		for {
+			n, _, err := tun.packetConn.ReadFrom(buf)
+			if err != nil {
+				log.Errorln("tun.packetConn.ReadFrom:", err)
+				continue
+			}
+			tun.writer.writeFrom(nil, buf[:n])
+		}
+	}()
 	return nil
 }
 
@@ -222,62 +229,4 @@ func (tun *TunAdapter) UpdateConfig(config *config.NodeConfig) {
 
 	// Notify children about the configuration change
 	tun.Act(nil, tun.ckr.configure)
-}
-
-func (tun *TunAdapter) handler() error {
-	for {
-		// Accept the incoming connection
-		conn, err := tun.listener.Accept()
-		if err != nil {
-			tun.log.Errorln("TUN connection accept error:", err)
-			return err
-		}
-		phony.Block(tun, func() {
-			if _, err := tun._wrap(conn.(*yggdrasil.Conn)); err != nil {
-				// Something went wrong when storing the connection, typically that
-				// something already exists for this address or subnet
-				tun.log.Debugln("TUN handler wrap:", err)
-			}
-		})
-	}
-}
-
-func (tun *TunAdapter) _wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
-	// Prepare a session wrapper for the given connection
-	s := tunConn{
-		tun:  tun,
-		conn: conn,
-		stop: make(chan struct{}),
-	}
-	c = &s
-	// Get the remote address and subnet of the other side
-	remotePubKey := conn.RemoteAddr().(*crypto.BoxPubKey)
-	remoteNodeID := crypto.GetNodeID(remotePubKey)
-	s.addr = *address.AddrForNodeID(remoteNodeID)
-	s.snet = *address.SubnetForNodeID(remoteNodeID)
-	// Work out if this is already a destination we already know about
-	atc, aok := tun.addrToConn[s.addr]
-	stc, sok := tun.subnetToConn[s.snet]
-	// If we know about a connection for this destination already then assume it
-	// is no longer valid and close it
-	if aok {
-		atc._close_from_tun()
-		err = errors.New("replaced connection for address")
-	} else if sok {
-		stc._close_from_tun()
-		err = errors.New("replaced connection for subnet")
-	}
-	// Save the session wrapper so that we can look it up quickly next time
-	// we receive a packet through the interface for this address
-	tun.addrToConn[s.addr] = &s
-	tun.subnetToConn[s.snet] = &s
-	// Set the read callback and start the timeout
-	conn.SetReadCallback(func(bs []byte) {
-		s.Act(conn, func() {
-			s._read(bs)
-		})
-	})
-	s.Act(nil, s.stillAlive)
-	// Return
-	return c, err
 }

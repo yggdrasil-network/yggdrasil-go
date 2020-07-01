@@ -1,9 +1,11 @@
 package tuntap
 
 import (
+	"fmt"
+	"net"
+
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 
 	"github.com/Arceliar/phony"
 )
@@ -149,60 +151,45 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 		// Couldn't find this node's ygg IP
 		return
 	}
-	// Do we have an active connection for this node address?
-	var dstString string
-	session, isIn := tun.addrToConn[dstAddr]
-	if !isIn || session == nil {
-		session, isIn = tun.subnetToConn[dstSnet]
-		if !isIn || session == nil {
-			// Neither an address nor a subnet mapping matched, therefore populate
-			// the node ID and mask to commence a search
-			if dstAddr.IsValid() {
-				dstString = dstAddr.GetNodeIDLengthString()
-			} else {
-				dstString = dstSnet.GetNodeIDLengthString()
-			}
+
+	var boxPubKey *crypto.BoxPubKey
+	if key, ok := tun.addrToBoxPubKey[dstAddr]; ok {
+		boxPubKey = key
+	} else if key, ok := tun.subnetToBoxPubKey[dstSnet]; ok {
+		boxPubKey = key
+	} else {
+		var dstNodeID, dstNodeMask *crypto.NodeID
+		if dstAddr[0] == 0x02 {
+			dstNodeID, dstNodeMask = dstAddr.GetNodeIDandMask()
+		} else if dstAddr[0] == 0x03 {
+			dstNodeID, dstNodeMask = dstSnet.GetNodeIDandMask()
 		}
+		if dstNodeID == nil || dstNodeMask == nil {
+			tun.log.Errorln("Didn't find node ID/mask")
+			return
+		}
+
+		fmt.Println("Start search for", net.IP(dstAddr[:]).String())
+
+		_, boxPubKey, err = tun.core.Resolve(dstNodeID, dstNodeMask)
+		if err != nil {
+			tun.log.Errorln("tun.core.Resolve:", err)
+			return
+		}
+		tun.addrToBoxPubKey[dstAddr] = boxPubKey
+		tun.subnetToBoxPubKey[dstSnet] = boxPubKey
 	}
-	// If we don't have a connection then we should open one
-	if !isIn || session == nil {
-		// Check we haven't been given empty node ID, really this shouldn't ever
-		// happen but just to be sure...
-		if dstString == "" {
-			panic("Given empty dstString - this shouldn't happen")
-		}
-		_, known := tun.dials[dstString]
-		tun.dials[dstString] = append(tun.dials[dstString], bs)
-		for len(tun.dials[dstString]) > 32 {
-			tun.dials[dstString] = tun.dials[dstString][1:]
-		}
-		if !known {
-			go func() {
-				conn, err := tun.dialer.Dial("nodeid", dstString)
-				tun.Act(nil, func() {
-					packets := tun.dials[dstString]
-					delete(tun.dials, dstString)
-					if err != nil {
-						return
-					}
-					// We've been given a connection so prepare the session wrapper
-					var tc *tunConn
-					if tc, err = tun._wrap(conn.(*yggdrasil.Conn)); err != nil {
-						// Something went wrong when storing the connection, typically that
-						// something already exists for this address or subnet
-						tun.log.Debugln("TUN iface wrap:", err)
-						return
-					}
-					for _, packet := range packets {
-						tc.writeFrom(nil, packet)
-					}
-				})
-				return
-			}()
-		}
+
+	if boxPubKey == nil {
+		tun.log.Errorln("No destination public key found for this packet")
+		return
 	}
-	// If we have a connection now, try writing to it
-	if isIn && session != nil {
-		session.writeFrom(tun, bs)
+
+	n, err = tun.packetConn.WriteTo(recvd, boxPubKey)
+	if err != nil {
+		tun.log.Errorln("tun.packetConn.WriteTo:", err)
+	}
+	if n != len(recvd) {
+		tun.log.Errorln("Expected to send", len(recvd), "bytes but sent", n, "bytes")
 	}
 }

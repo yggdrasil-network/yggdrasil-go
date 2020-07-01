@@ -297,19 +297,11 @@ func main() {
 	}
 	n.multicast.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 	// Start the TUN/TAP interface
-	if listener, err := n.core.ConnListen(); err == nil {
-		if dialer, err := n.core.ConnDialer(); err == nil {
-			n.tuntap.Init(&n.core, n.state, logger, tuntap.TunOptions{Listener: listener, Dialer: dialer})
-			if err := n.tuntap.Start(); err != nil {
-				logger.Errorln("An error occurred starting TUN/TAP:", err)
-			}
-			n.tuntap.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
-		} else {
-			logger.Errorln("Unable to get Dialer:", err)
-		}
-	} else {
-		logger.Errorln("Unable to get Listener:", err)
+	n.tuntap.Init(&n.core, n.state, logger, tuntap.TunOptions{PacketConn: n.core.PacketConn()})
+	if err := n.tuntap.Start(); err != nil {
+		logger.Errorln("An error occurred starting TUN/TAP:", err)
 	}
+	n.tuntap.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
 	address := n.core.Address()

@@ -11,6 +11,7 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/types"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 
 	"github.com/Arceliar/phony"
@@ -33,8 +34,8 @@ type sessionInfo struct {
 	myHandle      crypto.Handle       //
 	theirNonce    crypto.BoxNonce     //
 	myNonce       crypto.BoxNonce     //
-	theirMTU      MTU                 //
-	myMTU         MTU                 //
+	theirMTU      types.MTU           //
+	myMTU         types.MTU           //
 	wasMTUFixed   bool                // Was the MTU fixed by a receive error?
 	timeOpened    time.Time           // Time the session was opened
 	time          time.Time           // Time we last received a packet
@@ -47,7 +48,7 @@ type sessionInfo struct {
 	bytesRecvd    uint64              // Bytes of real traffic received in this session
 	init          chan struct{}       // Closed when the first session pong arrives, used to signal that the session is ready for initial use
 	cancel        util.Cancellation   // Used to terminate workers
-	conn          *Conn               // The associated Conn object
+	conn          *PacketConn         // The associated PacketConn object
 	callbacks     []chan func()       // Finished work from crypto workers
 	table         *lookupTable        // table.self is a locator where we get our coords
 }
@@ -60,7 +61,7 @@ type sessionPing struct {
 	Coords      []byte           //
 	Tstamp      int64            // unix time, but the only real requirement is that it increases
 	IsPong      bool             //
-	MTU         MTU              //
+	MTU         types.MTU        //
 }
 
 // Updates session info in response to a ping, after checking that the ping is OK.
@@ -83,9 +84,6 @@ func (s *sessionInfo) _update(p *sessionPing) bool {
 	}
 	if p.MTU >= 1280 || p.MTU == 0 {
 		s.theirMTU = p.MTU
-		if s.conn != nil {
-			s.conn.setMTU(s, s._getMTU())
-		}
 	}
 	if !bytes.Equal(s.coords, p.Coords) {
 		// allocate enough space for additional coords
@@ -109,12 +107,11 @@ func (s *sessionInfo) _update(p *sessionPing) bool {
 // Additionally, stores maps of address/subnet onto keys, and keys onto handles.
 type sessions struct {
 	router           *router
-	listener         *Listener
-	listenerMutex    sync.Mutex
+	packetConn       *PacketConn
 	lastCleanup      time.Time
 	isAllowedHandler func(pubkey *crypto.BoxPubKey, initiator bool) bool // Returns true or false if session setup is allowed
 	isAllowedMutex   sync.RWMutex                                        // Protects the above
-	myMaximumMTU     MTU                                                 // Maximum allowed session MTU
+	myMaximumMTU     types.MTU                                           // Maximum allowed session MTU
 	permShared       map[crypto.BoxPubKey]*crypto.BoxSharedKey           // Maps known permanent keys to their shared key, used by DHT a lot
 	sinfos           map[crypto.Handle]*sessionInfo                      // Maps handle onto session info
 	byTheirPerm      map[crypto.BoxPubKey]*crypto.Handle                 // Maps theirPermPub onto handle
@@ -123,6 +120,7 @@ type sessions struct {
 // Initializes the session struct.
 func (ss *sessions) init(r *router) {
 	ss.router = r
+	ss.packetConn = newPacketConn(ss)
 	ss.permShared = make(map[crypto.BoxPubKey]*crypto.BoxSharedKey)
 	ss.sinfos = make(map[crypto.Handle]*sessionInfo)
 	ss.byTheirPerm = make(map[crypto.BoxPubKey]*crypto.Handle)
@@ -330,13 +328,6 @@ func (sinfo *sessionInfo) _sendPingPong(isPong bool) {
 	}
 }
 
-func (sinfo *sessionInfo) setConn(from phony.Actor, conn *Conn) {
-	sinfo.Act(from, func() {
-		sinfo.conn = conn
-		sinfo.conn.setMTU(sinfo, sinfo._getMTU())
-	})
-}
-
 // Handles a session ping, creating a session if needed and calling update, then possibly responding with a pong if the ping was in ping mode and the update was successful.
 // If the session has a packet cached (common when first setting up a session), it will be sent.
 func (ss *sessions) handlePing(ping *sessionPing) {
@@ -347,23 +338,12 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 	case isIn: // Session already exists
 	case !ss.isSessionAllowed(&ping.SendPermPub, false): // Session is not allowed
 	default:
-		ss.listenerMutex.Lock()
-		if ss.listener != nil {
-			// This is a ping from an allowed node for which no session exists, and we have a listener ready to handle sessions.
-			// We need to create a session and pass it to the listener.
-			sinfo = ss.createSession(&ping.SendPermPub)
-			if s, _ := ss.getByTheirPerm(&ping.SendPermPub); s != sinfo {
-				panic("This should not happen")
-			}
-			conn := newConn(ss.router.core, crypto.GetNodeID(&sinfo.theirPermPub), &crypto.NodeID{}, sinfo)
-			for i := range conn.nodeMask {
-				conn.nodeMask[i] = 0xFF
-			}
-			sinfo.setConn(ss.router, conn)
-			c := ss.listener.conn
-			go func() { c <- conn }()
+		// This is a ping from an allowed node for which no session exists, and we have a listener ready to handle sessions.
+		// We need to create a session and pass it to the listener.
+		sinfo = ss.createSession(&ping.SendPermPub)
+		if s, _ := ss.getByTheirPerm(&ping.SendPermPub); s != sinfo {
+			panic("This should not happen")
 		}
-		ss.listenerMutex.Unlock()
 	}
 	if sinfo != nil {
 		sinfo.Act(ss.router, func() {
@@ -381,7 +361,7 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 // Get the MTU of the session.
 // Will be equal to the smaller of this node's MTU or the remote node's MTU.
 // If sending over links with a maximum message size (this was a thing with the old UDP code), it could be further lowered, to a minimum of 1280.
-func (sinfo *sessionInfo) _getMTU() MTU {
+func (sinfo *sessionInfo) _getMTU() types.MTU {
 	if sinfo.theirMTU == 0 || sinfo.myMTU == 0 {
 		return 0
 	}
@@ -467,7 +447,10 @@ func (sinfo *sessionInfo) _recvPacket(p *wire_trafficPacket) {
 			}
 			sinfo._updateNonce(&p.Nonce)
 			sinfo.bytesRecvd += uint64(len(bs))
-			sinfo.conn.recvMsg(sinfo, bs)
+			sinfo.sessions.packetConn.readBuffer <- packet{
+				addr:    &sinfo.theirPermPub,
+				payload: bs,
+			}
 		}
 		ch <- callback
 		sinfo.checkCallbacks()

@@ -9,6 +9,7 @@ package yggdrasil
 
 import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/types"
 )
 
 const (
@@ -382,7 +383,7 @@ func (p *sessionPing) decode(bs []byte) bool {
 	if pType == wire_SessionPong {
 		p.IsPong = true
 	}
-	p.MTU = MTU(mtu)
+	p.MTU = types.MTU(mtu)
 	return true
 }
 
