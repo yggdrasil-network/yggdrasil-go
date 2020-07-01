@@ -53,6 +53,9 @@ func (c *PacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 
 	session, ok := c.sessions.getByTheirPerm(boxPubKey)
 	if !ok {
+		session = c.sessions.createSession(boxPubKey)
+	}
+	if session == nil {
 		return 0, errors.New("expected a session but there was none")
 	}
 
