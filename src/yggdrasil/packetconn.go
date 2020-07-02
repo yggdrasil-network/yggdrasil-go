@@ -2,6 +2,7 @@ package yggdrasil
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"time"
 
@@ -73,27 +74,33 @@ func (c *PacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 		nodeMask[i] = 0xFF
 	}
 
+	var err error
 	var session *sessionInfo
 	phony.Block(c.sessions.router, func() {
 		var ok bool
 		session, ok = c.sessions.getByTheirPerm(boxPubKey)
 		if !ok {
-			c.sessions.router.core.Resolve(nodeID, nodeMask)
-			session, _ = c.sessions.getByTheirPerm(boxPubKey)
+			nodeID, boxPubKey, err = c.sessions.router.core.Resolve(nodeID, nodeMask)
+			if err == nil {
+				session, _ = c.sessions.getByTheirPerm(boxPubKey)
+			}
 		}
 	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to find session/start search: %w", err)
+	}
 	if session == nil {
 		return 0, errors.New("expected a session but there was none")
 	}
 
-	err := make(chan error, 1)
+	sendErr := make(chan error, 1)
 	msg := FlowKeyMessage{Message: b}
 
 	session.Act(c, func() {
 		// Check if the packet is small enough to go through this session
 		sessionMTU := session._getMTU()
 		if types.MTU(len(b)) > sessionMTU {
-			err <- PacketConnError{maxsize: int(sessionMTU)}
+			sendErr <- PacketConnError{maxsize: int(sessionMTU)}
 			return
 		}
 
@@ -125,11 +132,11 @@ func (c *PacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 		default: // Don't do anything, to keep traffic throttled
 		}
 
-		err <- nil
+		sendErr <- nil
 	})
 
-	e := <-err
-	return len(b), e
+	err = <-sendErr
+	return len(b), err
 }
 
 // implements net.PacketConn
