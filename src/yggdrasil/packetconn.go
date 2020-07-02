@@ -74,22 +74,24 @@ func (c *PacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 		nodeMask[i] = 0xFF
 	}
 
+	// TODO: This is all a mess
 	var err error
 	var session *sessionInfo
 	phony.Block(c.sessions.router, func() {
-		var ok bool
 		session, ok = c.sessions.getByTheirPerm(boxPubKey)
-		if !ok {
-			nodeID, boxPubKey, err = c.sessions.router.core.Resolve(nodeID, nodeMask)
-			if err == nil {
-				session, _ = c.sessions.getByTheirPerm(boxPubKey)
-			}
-		}
 	})
+	if !ok {
+		nodeID, boxPubKey, err = c.sessions.router.core.Resolve(nodeID, nodeMask)
+		if err == nil {
+			phony.Block(c.sessions.router, func() {
+				session, ok = c.sessions.getByTheirPerm(boxPubKey)
+			})
+		}
+	}
 	if err != nil {
 		return 0, fmt.Errorf("failed to find session/start search: %w", err)
 	}
-	if session == nil {
+	if !ok || session == nil {
 		return 0, errors.New("expected a session but there was none")
 	}
 
