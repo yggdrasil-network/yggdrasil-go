@@ -1,9 +1,6 @@
 package tuntap
 
 import (
-	"fmt"
-	"net"
-
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 
@@ -168,8 +165,6 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 			tun.log.Errorln("Didn't find node ID/mask")
 			return
 		}
-
-		fmt.Println("Start search for", net.IP(dstAddr[:]).String())
 
 		_, boxPubKey, err = tun.core.Resolve(dstNodeID, dstNodeMask)
 		if err != nil {

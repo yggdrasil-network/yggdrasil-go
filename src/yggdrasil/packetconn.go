@@ -67,13 +67,19 @@ func (c *PacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	if !ok {
 		return 0, errors.New("expected *crypto.BoxPubKey as net.Addr")
 	}
+	nodeID := crypto.GetNodeID(boxPubKey)
+	nodeMask := &crypto.NodeID{}
+	for i := range nodeMask {
+		nodeMask[i] = 0xFF
+	}
 
 	var session *sessionInfo
 	phony.Block(c.sessions.router, func() {
 		var ok bool
 		session, ok = c.sessions.getByTheirPerm(boxPubKey)
 		if !ok {
-			session = c.sessions.createSession(boxPubKey)
+			c.sessions.router.core.Resolve(nodeID, nodeMask)
+			session, _ = c.sessions.getByTheirPerm(boxPubKey)
 		}
 	})
 	if session == nil {
@@ -82,11 +88,6 @@ func (c *PacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 
 	err := make(chan error, 1)
 	msg := FlowKeyMessage{Message: b}
-	nodeID := crypto.GetNodeID(boxPubKey)
-	nodeMask := &crypto.NodeID{}
-	for i := range nodeMask {
-		nodeMask[i] = 0xFF
-	}
 
 	session.Act(c, func() {
 		// Check if the packet is small enough to go through this session
