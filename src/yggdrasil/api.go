@@ -235,8 +235,8 @@ func (c *Core) PacketConn() *PacketConn {
 // Resolve takes a masked node ID and performs a search, returning the complete
 // node ID and the node's public key.
 func (c *Core) Resolve(nodeID, nodeMask *crypto.NodeID) (fullNodeID *crypto.NodeID, boxPubKey *crypto.BoxPubKey, err error) {
-	fmt.Println("**** START RESOLVE")
-	defer fmt.Println("**** END RESOLVE")
+	c.log.Debugln("Resolving", nodeID.String())
+	defer c.log.Debugln("Finished resolving", nodeID.String())
 
 	done := make(chan struct{})
 	c.router.Act(c, func() {
@@ -261,7 +261,7 @@ func (c *Core) Resolve(nodeID, nodeMask *crypto.NodeID) (fullNodeID *crypto.Node
 			}
 			c.router.searches.newIterSearch(nodeID, nodeMask, searchCompleted).startSearch()
 		} else {
-			err = errors.New("search already exists")
+			err = errors.New("a search for this node ID is already in progress")
 			close(done)
 		}
 	})
