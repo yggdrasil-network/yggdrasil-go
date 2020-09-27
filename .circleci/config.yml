@@ -3,7 +3,7 @@
 # Check https://circleci.com/docs/2.0/language-go/ for more details
 version: 2.1
 jobs:
-  verify:
+  lint:
     docker:
       - image: circleci/golang:1.14.1
 
@@ -214,16 +214,16 @@ workflows:
   version: 2.1
   build:
     jobs:
-      - verify
+      - lint
       - build-linux:
           requires:
-            - verify
+            - lint
       - build-macos:
           requires:
-            - verify
+            - lint
       - build-other:
           requires:
-            - verify
+            - lint
       - upload:
           requires:
             - build-linux
