@@ -188,17 +188,44 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 			},
 		}, errors.New("Failed to add peer")
 	})
-	a.AddHandler("removePeer", []string{"port"}, func(in Info) (Info, error) {
+	a.AddHandler("disconnectPeer", []string{"port"}, func(in Info) (Info, error) {
 		port, err := strconv.ParseInt(fmt.Sprint(in["port"]), 10, 64)
 		if err != nil {
 			return Info{}, err
 		}
 		if a.core.DisconnectPeer(uint64(port)) == nil {
 			return Info{
-				"removed": []string{
+				"disconnected": []string{
 					fmt.Sprint(port),
 				},
 			}, nil
+		} else {
+			return Info{
+				"not_disconnected": []string{
+					fmt.Sprint(port),
+				},
+			}, errors.New("Failed to disconnect peer")
+		}
+	})
+	a.AddHandler("removePeer", []string{"uri", "[interface]"}, func(in Info) (Info, error) {
+		// Set sane defaults
+		intf := ""
+		// Has interface been specified?
+		if itf, ok := in["interface"]; ok {
+			intf = itf.(string)
+		}
+		if a.core.RemovePeer(in["uri"].(string), intf) == nil {
+			return Info{
+				"removed": []string{
+					in["uri"].(string),
+				},
+			}, nil
+		} else {
+			return Info{
+				"not_removed": []string{
+					in["uri"].(string),
+				},
+			}, errors.New("Failed to remove peer")
 		}
 		return Info{
 			"not_removed": []string{

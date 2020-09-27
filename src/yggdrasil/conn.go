@@ -145,7 +145,8 @@ func (c *Conn) search() error {
 }
 
 // Used in session keep-alive traffic
-func (c *Conn) doSearch() {
+func (c *Conn) _doSearch() {
+	s := fmt.Sprintf("conn=%p", c)
 	routerWork := func() {
 		// Check to see if there is a search already matching the destination
 		sinfo, isIn := c.core.router.searches.searches[*c.nodeID]
@@ -153,7 +154,7 @@ func (c *Conn) doSearch() {
 			// Nothing was found, so create a new search
 			searchCompleted := func(sinfo *sessionInfo, e error) {}
 			sinfo = c.core.router.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
-			c.core.log.Debugf("%s DHT search started: %p", c.String(), sinfo)
+			c.core.log.Debugf("%s DHT search started: %p", s, sinfo)
 			// Start the search
 			sinfo.startSearch()
 		}
@@ -267,7 +268,7 @@ func (c *Conn) _write(msg FlowKeyMessage) error {
 		case time.Since(c.session.time) > 6*time.Second:
 			if c.session.time.Before(c.session.pingTime) && time.Since(c.session.pingTime) > 6*time.Second {
 				// TODO double check that the above condition is correct
-				c.doSearch()
+				c._doSearch()
 			} else {
 				c.session.ping(c.session) // TODO send from self if this becomes an actor
 			}

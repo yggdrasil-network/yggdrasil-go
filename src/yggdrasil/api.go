@@ -468,12 +468,31 @@ func (c *Core) AddPeer(addr string, sintf string) error {
 	return nil
 }
 
-// RemovePeer is not implemented yet.
 func (c *Core) RemovePeer(addr string, sintf string) error {
-	// TODO: Implement a reverse of AddPeer, where we look up the port number
-	// based on the addr and sintf, disconnect it and then remove it from the
-	// peers list so we don't reconnect to it later
-	return errors.New("not implemented")
+	if sintf == "" {
+		for i, peer := range c.config.Current.Peers {
+			if peer == addr {
+				c.config.Current.Peers = append(c.config.Current.Peers[:i], c.config.Current.Peers[i+1:]...)
+				break
+			}
+		}
+	} else if _, ok := c.config.Current.InterfacePeers[sintf]; ok {
+		for i, peer := range c.config.Current.InterfacePeers[sintf] {
+			if peer == addr {
+				c.config.Current.InterfacePeers[sintf] = append(c.config.Current.InterfacePeers[sintf][:i], c.config.Current.InterfacePeers[sintf][i+1:]...)
+				break
+			}
+		}
+	}
+
+	ports := c.peers.ports.Load().(map[switchPort]*peer)
+	for p, peer := range ports {
+		if addr == peer.intf.name {
+			c.peers.removePeer(p)
+		}
+	}
+
+	return nil
 }
 
 // CallPeer calls a peer once. This should be specified in the peer URI format,

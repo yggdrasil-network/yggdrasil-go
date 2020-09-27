@@ -10,7 +10,7 @@ func GetDefaults() platformDefaultParameters {
 		DefaultAdminListen: "unix:///var/run/yggdrasil.sock",
 
 		// Configuration (used for yggdrasilctl)
-		DefaultConfigFile: "/etc/yggdrasil.conf",
+		DefaultConfigFile: "/usr/local/etc/yggdrasil.conf",
 
 		// Multicast interfaces
 		DefaultMulticastInterfaces: []string{
