@@ -13,7 +13,7 @@ jobs:
       - run:
           name: Run golangci-lint
           command: |
-              curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.31.0
+              go get github.com/golangci/golangci-lint/cmd/golangci-lint@v1.31.0
               golangci-lint run
 
   build-linux:
@@ -216,8 +216,14 @@ workflows:
     jobs:
       - verify
       - build-linux
+          requires:
+            - verify
       - build-macos
+          requires:
+            - verify
       - build-other
+          requires:
+            - verify
       - upload:
           requires:
             - build-linux
