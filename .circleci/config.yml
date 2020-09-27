@@ -3,6 +3,19 @@
 # Check https://circleci.com/docs/2.0/language-go/ for more details
 version: 2.1
 jobs:
+  lint:
+    docker:
+      - image: circleci/golang:1.14.1
+
+    steps:
+      - checkout
+
+      - run:
+          name: Run golangci-lint
+          command: |
+              go get github.com/golangci/golangci-lint/cmd/golangci-lint@v1.31.0
+              golangci-lint run
+
   build-linux:
     docker:
       - image: circleci/golang:1.14.1
@@ -201,9 +214,16 @@ workflows:
   version: 2.1
   build:
     jobs:
-      - build-linux
-      - build-macos
-      - build-other
+      - lint
+      - build-linux:
+          requires:
+            - lint
+      - build-macos:
+          requires:
+            - lint
+      - build-other:
+          requires:
+            - lint
       - upload:
           requires:
             - build-linux

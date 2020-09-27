@@ -1,20 +1,24 @@
+// +build !lint
+
 package main
 
-import "fmt"
-import "bufio"
-import "os"
-import "strings"
-import "strconv"
-import "time"
+import (
+	"bufio"
+	"flag"
+	"fmt"
+	"os"
+	"runtime"
+	"runtime/pprof"
+	"strconv"
+	"strings"
+	"time"
 
-import "runtime"
-import "runtime/pprof"
-import "flag"
+	"github.com/gologme/log"
 
-import "github.com/gologme/log"
+	. "github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 
-import . "github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
-import . "github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	. "github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 
