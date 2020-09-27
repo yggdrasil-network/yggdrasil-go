@@ -253,17 +253,16 @@ func (intf *linkInterface) handler() error {
 			<-oldIntf.closed
 		}
 		return nil
-	} else {
-		intf.closed = make(chan struct{})
-		intf.link.interfaces[intf.info] = intf
-		defer func() {
-			intf.link.mutex.Lock()
-			delete(intf.link.interfaces, intf.info)
-			intf.link.mutex.Unlock()
-			close(intf.closed)
-		}()
-		intf.link.core.log.Debugln("DEBUG: registered interface for", intf.name)
 	}
+	intf.closed = make(chan struct{})
+	intf.link.interfaces[intf.info] = intf
+	defer func() {
+		intf.link.mutex.Lock()
+		delete(intf.link.interfaces, intf.info)
+		intf.link.mutex.Unlock()
+		close(intf.closed)
+	}()
+	intf.link.core.log.Debugln("DEBUG: registered interface for", intf.name)
 	intf.link.mutex.Unlock()
 	// Create peer
 	shared := crypto.GetSharedKey(myLinkPriv, &meta.link)

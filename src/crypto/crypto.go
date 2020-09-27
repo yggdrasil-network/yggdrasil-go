@@ -272,7 +272,7 @@ func (n *BoxNonce) Increment() {
 	n[len(n)-1] += 2
 	for i := len(n) - 2; i >= 0; i-- {
 		if n[i+1] < oldNonce[i+1] {
-			n[i] += 1
+			n[i]++
 		}
 	}
 }

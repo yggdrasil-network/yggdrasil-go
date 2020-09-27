@@ -167,10 +167,9 @@ func (c *Conn) _getDeadlineCancellation(t *time.Time) (util.Cancellation, bool) 
 		// A deadline is set, so return a Cancellation that uses it
 		c := util.CancellationWithDeadline(c.session.cancel, *t)
 		return c, true
-	} else {
-		// No deadline was set, so just return the existing cancellation and a dummy value
-		return c.session.cancel, false
 	}
+	// No deadline was set, so just return the existing cancellation and a dummy value
+	return c.session.cancel, false
 }
 
 // SetReadCallback allows you to specify a function that will be called whenever
@@ -225,9 +224,8 @@ func (c *Conn) readNoCopy() ([]byte, error) {
 	case <-cancel.Finished():
 		if cancel.Error() == util.CancellationTimeoutError {
 			return nil, ConnError{errors.New("read timeout"), true, false, false, 0}
-		} else {
-			return nil, ConnError{errors.New("session closed"), false, false, true, 0}
 		}
+		return nil, ConnError{errors.New("session closed"), false, false, true, 0}
 	case bs := <-c.readBuffer:
 		return bs, nil
 	}

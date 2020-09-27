@@ -532,7 +532,6 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 	if true || doUpdate {
 		t.updater.Store(&sync.Once{})
 	}
-	return
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -615,9 +614,8 @@ func (t *switchTable) portIsCloser(dest []byte, port switchPort) bool {
 		theirDist := info.locator.dist(dest)
 		myDist := table.self.dist(dest)
 		return theirDist < myDist
-	} else {
-		return false
 	}
+	return false
 }
 
 // Get the coords of a packet without decoding

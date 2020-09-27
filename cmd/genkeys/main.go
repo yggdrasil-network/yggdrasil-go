@@ -51,7 +51,7 @@ func main() {
 
 	for {
 		newKey := <-newKeys
-		if isBetter(currentBest[:], newKey.id[:]) || len(currentBest) == 0 {
+		if isBetter(currentBest, newKey.id[:]) || len(currentBest) == 0 {
 			currentBest = newKey.id
 			for _, channel := range threadChannels {
 				select {
@@ -61,13 +61,13 @@ func main() {
 			fmt.Println("--------------------------------------------------------------------------------")
 			switch {
 			case *doSig:
-				fmt.Println("sigPriv:", hex.EncodeToString(newKey.priv[:]))
-				fmt.Println("sigPub:", hex.EncodeToString(newKey.pub[:]))
-				fmt.Println("TreeID:", hex.EncodeToString(newKey.id[:]))
+				fmt.Println("sigPriv:", hex.EncodeToString(newKey.priv))
+				fmt.Println("sigPub:", hex.EncodeToString(newKey.pub))
+				fmt.Println("TreeID:", hex.EncodeToString(newKey.id))
 			default:
-				fmt.Println("boxPriv:", hex.EncodeToString(newKey.priv[:]))
-				fmt.Println("boxPub:", hex.EncodeToString(newKey.pub[:]))
-				fmt.Println("NodeID:", hex.EncodeToString(newKey.id[:]))
+				fmt.Println("boxPriv:", hex.EncodeToString(newKey.priv))
+				fmt.Println("boxPub:", hex.EncodeToString(newKey.pub))
+				fmt.Println("NodeID:", hex.EncodeToString(newKey.id))
 				fmt.Println("IP:", newKey.ip)
 			}
 		}
@@ -76,11 +76,8 @@ func main() {
 
 func isBetter(oldID, newID []byte) bool {
 	for idx := range oldID {
-		if newID[idx] > oldID[idx] {
-			return true
-		}
-		if newID[idx] < oldID[idx] {
-			return false
+		if newID[idx] != oldID[idx] {
+			return newID[idx] > oldID[idx]
 		}
 	}
 	return false

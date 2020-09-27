@@ -30,9 +30,8 @@ func UnlockThread() {
 func ResizeBytes(bs []byte, length int) []byte {
 	if cap(bs) >= length {
 		return bs[:length]
-	} else {
-		return make([]byte, length)
 	}
+	return make([]byte, length)
 }
 
 // TimerStop stops a timer and makes sure the channel is drained, returns true if the timer was stopped before firing.
