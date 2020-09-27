@@ -53,7 +53,7 @@ func (a *AdminSocket) AddHandler(name string, args []string, handlerfunc func(In
 	return nil
 }
 
-// init runs the initial admin setup.
+// Init runs the initial admin setup.
 func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.Logger, options interface{}) error {
 	a.core = c
 	a.log = log
@@ -181,32 +181,57 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 					in["uri"].(string),
 				},
 			}, nil
-		} else {
-			return Info{
-				"not_added": []string{
-					in["uri"].(string),
-				},
-			}, errors.New("Failed to add peer")
 		}
+		return Info{
+			"not_added": []string{
+				in["uri"].(string),
+			},
+		}, errors.New("Failed to add peer")
 	})
-	a.AddHandler("removePeer", []string{"port"}, func(in Info) (Info, error) {
+	a.AddHandler("disconnectPeer", []string{"port"}, func(in Info) (Info, error) {
 		port, err := strconv.ParseInt(fmt.Sprint(in["port"]), 10, 64)
 		if err != nil {
 			return Info{}, err
 		}
 		if a.core.DisconnectPeer(uint64(port)) == nil {
 			return Info{
-				"removed": []string{
+				"disconnected": []string{
 					fmt.Sprint(port),
 				},
 			}, nil
 		} else {
 			return Info{
-				"not_removed": []string{
+				"not_disconnected": []string{
 					fmt.Sprint(port),
+				},
+			}, errors.New("Failed to disconnect peer")
+		}
+	})
+	a.AddHandler("removePeer", []string{"uri", "[interface]"}, func(in Info) (Info, error) {
+		// Set sane defaults
+		intf := ""
+		// Has interface been specified?
+		if itf, ok := in["interface"]; ok {
+			intf = itf.(string)
+		}
+		if a.core.RemovePeer(in["uri"].(string), intf) == nil {
+			return Info{
+				"removed": []string{
+					in["uri"].(string),
+				},
+			}, nil
+		} else {
+			return Info{
+				"not_removed": []string{
+					in["uri"].(string),
 				},
 			}, errors.New("Failed to remove peer")
 		}
+		return Info{
+			"not_removed": []string{
+				in["uri"].(string),
+			},
+		}, errors.New("Failed to remove peer")
 	})
 	a.AddHandler("getAllowedEncryptionPublicKeys", []string{}, func(in Info) (Info, error) {
 		return Info{"allowed_box_pubs": a.core.GetAllowedEncryptionPublicKeys()}, nil
@@ -218,13 +243,12 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 					in["box_pub_key"].(string),
 				},
 			}, nil
-		} else {
-			return Info{
-				"not_added": []string{
-					in["box_pub_key"].(string),
-				},
-			}, errors.New("Failed to add allowed key")
 		}
+		return Info{
+			"not_added": []string{
+				in["box_pub_key"].(string),
+			},
+		}, errors.New("Failed to add allowed key")
 	})
 	a.AddHandler("removeAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in Info) (Info, error) {
 		if a.core.RemoveAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
@@ -233,13 +257,12 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 					in["box_pub_key"].(string),
 				},
 			}, nil
-		} else {
-			return Info{
-				"not_removed": []string{
-					in["box_pub_key"].(string),
-				},
-			}, errors.New("Failed to remove allowed key")
 		}
+		return Info{
+			"not_removed": []string{
+				in["box_pub_key"].(string),
+			},
+		}, errors.New("Failed to remove allowed key")
 	})
 	a.AddHandler("dhtPing", []string{"box_pub_key", "coords", "[target]"}, func(in Info) (Info, error) {
 		var reserr error
@@ -250,10 +273,10 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 		coords := util.DecodeCoordString(in["coords"].(string))
 		var boxPubKey crypto.BoxPubKey
 		if b, err := hex.DecodeString(in["box_pub_key"].(string)); err == nil {
-			copy(boxPubKey[:], b[:])
+			copy(boxPubKey[:], b)
 			if n, err := hex.DecodeString(in["target"].(string)); err == nil {
 				var targetNodeID crypto.NodeID
-				copy(targetNodeID[:], n[:])
+				copy(targetNodeID[:], n)
 				result, reserr = a.core.DHTPing(boxPubKey, coords, &targetNodeID)
 			} else {
 				result, reserr = a.core.DHTPing(boxPubKey, coords, nil)
@@ -287,14 +310,13 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 			var jsoninfo interface{}
 			if err := json.Unmarshal(nodeinfo, &jsoninfo); err != nil {
 				return Info{}, err
-			} else {
-				return Info{"nodeinfo": jsoninfo}, nil
 			}
+			return Info{"nodeinfo": jsoninfo}, nil
 		} else if in["box_pub_key"] == nil || in["coords"] == nil {
 			return Info{}, errors.New("Expecting both box_pub_key and coords")
 		} else {
 			if b, err := hex.DecodeString(in["box_pub_key"].(string)); err == nil {
-				copy(boxPubKey[:], b[:])
+				copy(boxPubKey[:], b)
 			} else {
 				return Info{}, err
 			}
@@ -305,12 +327,10 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 			var m map[string]interface{}
 			if err = json.Unmarshal(result, &m); err == nil {
 				return Info{"nodeinfo": m}, nil
-			} else {
-				return Info{}, err
 			}
-		} else {
 			return Info{}, err
 		}
+		return Info{}, err
 	})
 }
 
@@ -333,9 +353,8 @@ func (a *AdminSocket) Stop() error {
 	if a.listener != nil {
 		a.started = false
 		return a.listener.Close()
-	} else {
-		return nil
 	}
+	return nil
 }
 
 // listen is run by start and manages API connections.

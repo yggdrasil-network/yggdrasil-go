@@ -68,16 +68,14 @@ func (t *TunAdapter) SetupAdminHandlers(a *admin.AdminSocket) {
 	a.AddHandler("addLocalSubnet", []string{"subnet"}, func(in admin.Info) (admin.Info, error) {
 		if err := t.ckr.addLocalSubnet(in["subnet"].(string)); err == nil {
 			return admin.Info{"added": []string{in["subnet"].(string)}}, nil
-		} else {
-			return admin.Info{"not_added": []string{in["subnet"].(string)}}, errors.New("Failed to add source subnet")
 		}
+		return admin.Info{"not_added": []string{in["subnet"].(string)}}, errors.New("Failed to add source subnet")
 	})
 	a.AddHandler("addRemoteSubnet", []string{"subnet", "box_pub_key"}, func(in admin.Info) (admin.Info, error) {
 		if err := t.ckr.addRemoteSubnet(in["subnet"].(string), in["box_pub_key"].(string)); err == nil {
 			return admin.Info{"added": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, nil
-		} else {
-			return admin.Info{"not_added": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, errors.New("Failed to add route")
 		}
+		return admin.Info{"not_added": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, errors.New("Failed to add route")
 	})
 	a.AddHandler("getSourceSubnets", []string{}, func(in admin.Info) (admin.Info, error) {
 		var subnets []string
@@ -104,15 +102,13 @@ func (t *TunAdapter) SetupAdminHandlers(a *admin.AdminSocket) {
 	a.AddHandler("removeLocalSubnet", []string{"subnet"}, func(in admin.Info) (admin.Info, error) {
 		if err := t.ckr.removeLocalSubnet(in["subnet"].(string)); err == nil {
 			return admin.Info{"removed": []string{in["subnet"].(string)}}, nil
-		} else {
-			return admin.Info{"not_removed": []string{in["subnet"].(string)}}, errors.New("Failed to remove source subnet")
 		}
+		return admin.Info{"not_removed": []string{in["subnet"].(string)}}, errors.New("Failed to remove source subnet")
 	})
 	a.AddHandler("removeRemoteSubnet", []string{"subnet", "box_pub_key"}, func(in admin.Info) (admin.Info, error) {
 		if err := t.ckr.removeRemoteSubnet(in["subnet"].(string), in["box_pub_key"].(string)); err == nil {
 			return admin.Info{"removed": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, nil
-		} else {
-			return admin.Info{"not_removed": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, errors.New("Failed to remove route")
 		}
+		return admin.Info{"not_removed": []string{fmt.Sprintf("%s via %s", in["subnet"].(string), in["box_pub_key"].(string))}}, errors.New("Failed to remove route")
 	})
 }

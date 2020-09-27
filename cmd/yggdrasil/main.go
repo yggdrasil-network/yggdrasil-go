@@ -60,8 +60,8 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *config
 	// throwing everywhere when it's converting things into UTF-16 for the hell
 	// of it - remove it and decode back down into UTF-8. This is necessary
 	// because hjson doesn't know what to do with UTF-16 and will panic
-	if bytes.Compare(conf[0:2], []byte{0xFF, 0xFE}) == 0 ||
-		bytes.Compare(conf[0:2], []byte{0xFE, 0xFF}) == 0 {
+	if bytes.Equal(conf[0:2], []byte{0xFF, 0xFE}) ||
+		bytes.Equal(conf[0:2], []byte{0xFE, 0xFF}) {
 		utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
 		decoder := utf.NewDecoder()
 		conf, err = decoder.Bytes(conf)
@@ -222,7 +222,7 @@ func main() {
 	getNodeID := func() *crypto.NodeID {
 		if pubkey, err := hex.DecodeString(cfg.EncryptionPublicKey); err == nil {
 			var box crypto.BoxPubKey
-			copy(box[:], pubkey[:])
+			copy(box[:], pubkey)
 			return crypto.GetNodeID(&box)
 		}
 		return nil
@@ -328,9 +328,9 @@ func main() {
 	// deferred Stop function above will run which will shut down TUN/TAP.
 	for {
 		select {
-		case _ = <-c:
+		case <-c:
 			goto exit
-		case _ = <-r:
+		case <-r:
 			if *useconffile != "" {
 				cfg = readConfig(useconf, useconffile, normaliseconf)
 				logger.Infoln("Reloading configuration from", *useconffile)

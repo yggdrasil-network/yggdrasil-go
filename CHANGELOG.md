@@ -25,6 +25,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.3.15] - 2020-09-27
+### Added
+- Support for pinning remote public keys in peering strings has been added, e.g.
+  - By signing public key: `tcp://host:port?ed25519=key`
+  - By encryption public key: `tcp://host:port?curve25519=key`
+  - By both: `tcp://host:port?ed25519=key&curve25519=key`
+  - By multiple, in case of DNS round-robin or similar: `tcp://host:port?curve25519=key&curve25519=key&ed25519=key&ed25519=key`
+- Some checks to prevent Yggdrasil-over-Yggdrasil peerings have been added
+- Added support for SOCKS proxy authentication, e.g. `socks://user@password:host/...`
+
+### Fixed
+- Some bugs in the multicast code that could cause unnecessary CPU usage have been fixed
+- A possible multicast deadlock on macOS when enumerating interfaces has been fixed
+- A deadlock in the connection code has been fixed
+- Updated HJSON dependency that caused some build problems
+
+### Changed
+- `DisconnectPeer` and `RemovePeer` have been separated and implemented properly now
+- Less nodes are stored in the DHT now, reducing ambient network traffic and possible instability
+- Default config file for FreeBSD is now at `/usr/local/etc/yggdrasil.conf` instead of `/etc/yggdrasil.conf`
+
 ## [0.3.14] - 2020-03-28
 ### Fixed
 - Fixes a memory leak that may occur if packets are incorrectly never removed from a switch queue

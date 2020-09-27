@@ -28,11 +28,11 @@ func version_getBaseMetadata() version_metadata {
 	}
 }
 
-// Gest the length of the metadata for this version, used to know how many bytes to read from the start of a connection.
+// Gets the length of the metadata for this version, used to know how many bytes to read from the start of a connection.
 func version_getMetaLength() (mlen int) {
 	mlen += 4                   // meta
-	mlen += 1                   // ver, as long as it's < 127, which it is in this version
-	mlen += 1                   // minorVer, as long as it's < 127, which it is in this version
+	mlen++                      // ver, as long as it's < 127, which it is in this version
+	mlen++                      // minorVer, as long as it's < 127, which it is in this version
 	mlen += crypto.BoxPubKeyLen // box
 	mlen += crypto.SigPubKeyLen // sig
 	mlen += crypto.BoxPubKeyLen // link

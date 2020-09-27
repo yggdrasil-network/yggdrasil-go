@@ -16,6 +16,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
+	"golang.org/x/net/proxy"
 
 	"github.com/Arceliar/phony"
 )
@@ -50,6 +51,7 @@ type linkInterface struct {
 	name           string
 	link           *link
 	peer           *peer
+	options        linkOptions
 	msgIO          linkInterfaceMsgIO
 	info           linkInfo
 	incoming       bool
@@ -65,6 +67,11 @@ type linkInterface struct {
 	inSwitch       bool        // True if the switch is tracking this link
 	stalled        bool        // True if we haven't been receiving any response traffic
 	unstalled      bool        // False if an idle notification to the switch hasn't been sent because we stalled (or are first starting up)
+}
+
+type linkOptions struct {
+	pinnedCurve25519Keys map[crypto.BoxPubKey]struct{}
+	pinnedEd25519Keys    map[crypto.SigPubKey]struct{}
 }
 
 func (l *link) init(c *Core) error {
@@ -92,13 +99,41 @@ func (l *link) call(uri string, sintf string) error {
 		return fmt.Errorf("peer %s is not correctly formatted (%s)", uri, err)
 	}
 	pathtokens := strings.Split(strings.Trim(u.Path, "/"), "/")
+	tcpOpts := tcpOptions{}
+	if pubkeys, ok := u.Query()["curve25519"]; ok && len(pubkeys) > 0 {
+		tcpOpts.pinnedCurve25519Keys = make(map[crypto.BoxPubKey]struct{})
+		for _, pubkey := range pubkeys {
+			if boxPub, err := hex.DecodeString(pubkey); err == nil {
+				var boxPubKey crypto.BoxPubKey
+				copy(boxPubKey[:], boxPub)
+				tcpOpts.pinnedCurve25519Keys[boxPubKey] = struct{}{}
+			}
+		}
+	}
+	if pubkeys, ok := u.Query()["ed25519"]; ok && len(pubkeys) > 0 {
+		tcpOpts.pinnedEd25519Keys = make(map[crypto.SigPubKey]struct{})
+		for _, pubkey := range pubkeys {
+			if sigPub, err := hex.DecodeString(pubkey); err == nil {
+				var sigPubKey crypto.SigPubKey
+				copy(sigPubKey[:], sigPub)
+				tcpOpts.pinnedEd25519Keys[sigPubKey] = struct{}{}
+			}
+		}
+	}
 	switch u.Scheme {
 	case "tcp":
-		l.tcp.call(u.Host, nil, sintf, nil)
+		l.tcp.call(u.Host, tcpOpts, sintf)
 	case "socks":
-		l.tcp.call(pathtokens[0], u.Host, sintf, nil)
+		tcpOpts.socksProxyAddr = u.Host
+		if u.User != nil {
+			tcpOpts.socksProxyAuth = &proxy.Auth{}
+			tcpOpts.socksProxyAuth.User = u.User.Username()
+			tcpOpts.socksProxyAuth.Password, _ = u.User.Password()
+		}
+		l.tcp.call(pathtokens[0], tcpOpts, sintf)
 	case "tls":
-		l.tcp.call(u.Host, nil, sintf, l.tcp.tls.forDialer)
+		tcpOpts.upgrade = l.tcp.tls.forDialer
+		l.tcp.call(u.Host, tcpOpts, sintf)
 	default:
 		return errors.New("unknown call scheme: " + u.Scheme)
 	}
@@ -122,12 +157,13 @@ func (l *link) listen(uri string) error {
 	}
 }
 
-func (l *link) create(msgIO linkInterfaceMsgIO, name, linkType, local, remote string, incoming, force bool) (*linkInterface, error) {
+func (l *link) create(msgIO linkInterfaceMsgIO, name, linkType, local, remote string, incoming, force bool, options linkOptions) (*linkInterface, error) {
 	// Technically anything unique would work for names, but let's pick something human readable, just for debugging
 	intf := linkInterface{
-		name:  name,
-		link:  l,
-		msgIO: msgIO,
+		name:    name,
+		link:    l,
+		options: options,
+		msgIO:   msgIO,
 		info: linkInfo{
 			linkType: linkType,
 			local:    local,
@@ -181,6 +217,20 @@ func (intf *linkInterface) handler() error {
 		intf.link.core.log.Errorln("Failed to connect to node: " + intf.name + " version: " + fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
 		return errors.New("failed to connect: wrong version")
 	}
+	// Check if the remote side matches the keys we expected. This is a bit of a weak
+	// check - in future versions we really should check a signature or something like that.
+	if pinned := intf.options.pinnedCurve25519Keys; pinned != nil {
+		if _, allowed := pinned[meta.box]; !allowed {
+			intf.link.core.log.Errorf("Failed to connect to node: %q sent curve25519 key that does not match pinned keys", intf.name)
+			return fmt.Errorf("failed to connect: host sent curve25519 key that does not match pinned keys")
+		}
+	}
+	if pinned := intf.options.pinnedEd25519Keys; pinned != nil {
+		if _, allowed := pinned[meta.sig]; !allowed {
+			intf.link.core.log.Errorf("Failed to connect to node: %q sent ed25519 key that does not match pinned keys", intf.name)
+			return fmt.Errorf("failed to connect: host sent ed25519 key that does not match pinned keys")
+		}
+	}
 	// Check if we're authorized to connect to this key / IP
 	if intf.incoming && !intf.force && !intf.link.core.peers.isAllowedEncryptionPublicKey(&meta.box) {
 		intf.link.core.log.Warnf("%s connection from %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
@@ -203,17 +253,16 @@ func (intf *linkInterface) handler() error {
 			<-oldIntf.closed
 		}
 		return nil
-	} else {
-		intf.closed = make(chan struct{})
-		intf.link.interfaces[intf.info] = intf
-		defer func() {
-			intf.link.mutex.Lock()
-			delete(intf.link.interfaces, intf.info)
-			intf.link.mutex.Unlock()
-			close(intf.closed)
-		}()
-		intf.link.core.log.Debugln("DEBUG: registered interface for", intf.name)
 	}
+	intf.closed = make(chan struct{})
+	intf.link.interfaces[intf.info] = intf
+	defer func() {
+		intf.link.mutex.Lock()
+		delete(intf.link.interfaces, intf.info)
+		intf.link.mutex.Unlock()
+		close(intf.closed)
+	}()
+	intf.link.core.log.Debugln("DEBUG: registered interface for", intf.name)
 	intf.link.mutex.Unlock()
 	// Create peer
 	shared := crypto.GetSharedKey(myLinkPriv, &meta.link)
