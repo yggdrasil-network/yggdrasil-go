@@ -1,0 +1,9 @@
+---
+run:
+  issues-exit-code: 0 # TODO: change this to 1 when we want it to fail builds
+  skip-dirs:
+    - contrib/
+    - misc/
+linters:
+  disable:
+    - gocyclo
