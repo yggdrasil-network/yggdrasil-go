@@ -214,6 +214,7 @@ workflows:
   version: 2.1
   build:
     jobs:
+      - verify
       - build-linux
       - build-macos
       - build-other
