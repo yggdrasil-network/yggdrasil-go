@@ -21,12 +21,12 @@ import (
 	"github.com/Arceliar/phony"
 )
 
-type link struct {
-	core       *Core
-	mutex      sync.RWMutex // protects interfaces below
-	interfaces map[linkInfo]*linkInterface
-	tcp        tcp // TCP interface support
-	stopped    chan struct{}
+type links struct {
+	core    *Core
+	mutex   sync.RWMutex // protects links below
+	links   map[linkInfo]*link
+	tcp     tcp // TCP interface support
+	stopped chan struct{}
 	// TODO timeout (to remove from switch), read from config.ReadTimeout
 }
 
@@ -38,7 +38,7 @@ type linkInfo struct {
 	remote   string           // Remote name or address
 }
 
-type linkInterfaceMsgIO interface {
+type linkMsgIO interface {
 	readMsg() ([]byte, error)
 	writeMsgs([][]byte) (int, error)
 	close() error
@@ -47,26 +47,25 @@ type linkInterfaceMsgIO interface {
 	_recvMetaBytes() ([]byte, error)
 }
 
-type linkInterface struct {
-	name           string
-	link           *link
+type link struct {
+	lname          string
+	links          *links
 	peer           *peer
 	options        linkOptions
-	msgIO          linkInterfaceMsgIO
+	msgIO          linkMsgIO
 	info           linkInfo
 	incoming       bool
 	force          bool
 	closed         chan struct{}
-	reader         linkReader  // Reads packets, notifies this linkInterface, passes packets to switch
-	writer         linkWriter  // Writes packets, notifies this linkInterface
+	reader         linkReader  // Reads packets, notifies this link, passes packets to switch
+	writer         linkWriter  // Writes packets, notifies this link
 	phony.Inbox                // Protects the below
 	sendTimer      *time.Timer // Fires to signal that sending is blocked
 	keepAliveTimer *time.Timer // Fires to send keep-alive traffic
 	stallTimer     *time.Timer // Fires to signal that no incoming traffic (including keep-alive) has been seen
 	closeTimer     *time.Timer // Fires when the link has been idle so long we need to close it
-	inSwitch       bool        // True if the switch is tracking this link
-	stalled        bool        // True if we haven't been receiving any response traffic
-	unstalled      bool        // False if an idle notification to the switch hasn't been sent because we stalled (or are first starting up)
+	isSending      bool        // True between a notifySending and a notifySent
+	blocked        bool        // True if we've blocked the peer in the switch
 }
 
 type linkOptions struct {
@@ -74,10 +73,10 @@ type linkOptions struct {
 	pinnedEd25519Keys    map[crypto.SigPubKey]struct{}
 }
 
-func (l *link) init(c *Core) error {
+func (l *links) init(c *Core) error {
 	l.core = c
 	l.mutex.Lock()
-	l.interfaces = make(map[linkInfo]*linkInterface)
+	l.links = make(map[linkInfo]*link)
 	l.mutex.Unlock()
 	l.stopped = make(chan struct{})
 
@@ -89,11 +88,11 @@ func (l *link) init(c *Core) error {
 	return nil
 }
 
-func (l *link) reconfigure() {
+func (l *links) reconfigure() {
 	l.tcp.reconfigure()
 }
 
-func (l *link) call(uri string, sintf string) error {
+func (l *links) call(uri string, sintf string) error {
 	u, err := url.Parse(uri)
 	if err != nil {
 		return fmt.Errorf("peer %s is not correctly formatted (%s)", uri, err)
@@ -140,7 +139,7 @@ func (l *link) call(uri string, sintf string) error {
 	return nil
 }
 
-func (l *link) listen(uri string) error {
+func (l *links) listen(uri string) error {
 	u, err := url.Parse(uri)
 	if err != nil {
 		return fmt.Errorf("listener %s is not correctly formatted (%s)", uri, err)
@@ -157,11 +156,11 @@ func (l *link) listen(uri string) error {
 	}
 }
 
-func (l *link) create(msgIO linkInterfaceMsgIO, name, linkType, local, remote string, incoming, force bool, options linkOptions) (*linkInterface, error) {
+func (l *links) create(msgIO linkMsgIO, name, linkType, local, remote string, incoming, force bool, options linkOptions) (*link, error) {
 	// Technically anything unique would work for names, but let's pick something human readable, just for debugging
-	intf := linkInterface{
-		name:    name,
-		link:    l,
+	intf := link{
+		lname:   name,
+		links:   l,
 		options: options,
 		msgIO:   msgIO,
 		info: linkInfo{
@@ -173,12 +172,13 @@ func (l *link) create(msgIO linkInterfaceMsgIO, name, linkType, local, remote st
 		force:    force,
 	}
 	intf.writer.intf = &intf
+	intf.writer.worker = make(chan [][]byte, 1)
 	intf.reader.intf = &intf
 	intf.reader.err = make(chan error)
 	return &intf, nil
 }
 
-func (l *link) stop() error {
+func (l *links) stop() error {
 	close(l.stopped)
 	if err := l.tcp.stop(); err != nil {
 		return err
@@ -186,12 +186,21 @@ func (l *link) stop() error {
 	return nil
 }
 
-func (intf *linkInterface) handler() error {
+func (intf *link) handler() error {
 	// TODO split some of this into shorter functions, so it's easier to read, and for the FIXME duplicate peer issue mentioned later
+	go func() {
+		for bss := range intf.writer.worker {
+			intf.msgIO.writeMsgs(bss)
+		}
+	}()
+	defer intf.writer.Act(nil, func() {
+		intf.writer.closed = true
+		close(intf.writer.worker)
+	})
 	myLinkPub, myLinkPriv := crypto.NewBoxKeys()
 	meta := version_getBaseMetadata()
-	meta.box = intf.link.core.boxPub
-	meta.sig = intf.link.core.sigPub
+	meta.box = intf.links.core.boxPub
+	meta.sig = intf.links.core.sigPub
 	meta.link = *myLinkPub
 	metaBytes := meta.encode()
 	// TODO timeouts on send/recv (goroutine for send/recv, channel select w/ timer)
@@ -214,26 +223,26 @@ func (intf *linkInterface) handler() error {
 	}
 	base := version_getBaseMetadata()
 	if meta.ver > base.ver || meta.ver == base.ver && meta.minorVer > base.minorVer {
-		intf.link.core.log.Errorln("Failed to connect to node: " + intf.name + " version: " + fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
+		intf.links.core.log.Errorln("Failed to connect to node: " + intf.lname + " version: " + fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
 		return errors.New("failed to connect: wrong version")
 	}
 	// Check if the remote side matches the keys we expected. This is a bit of a weak
 	// check - in future versions we really should check a signature or something like that.
 	if pinned := intf.options.pinnedCurve25519Keys; pinned != nil {
 		if _, allowed := pinned[meta.box]; !allowed {
-			intf.link.core.log.Errorf("Failed to connect to node: %q sent curve25519 key that does not match pinned keys", intf.name)
+			intf.links.core.log.Errorf("Failed to connect to node: %q sent curve25519 key that does not match pinned keys", intf.name)
 			return fmt.Errorf("failed to connect: host sent curve25519 key that does not match pinned keys")
 		}
 	}
 	if pinned := intf.options.pinnedEd25519Keys; pinned != nil {
 		if _, allowed := pinned[meta.sig]; !allowed {
-			intf.link.core.log.Errorf("Failed to connect to node: %q sent ed25519 key that does not match pinned keys", intf.name)
+			intf.links.core.log.Errorf("Failed to connect to node: %q sent ed25519 key that does not match pinned keys", intf.name)
 			return fmt.Errorf("failed to connect: host sent ed25519 key that does not match pinned keys")
 		}
 	}
 	// Check if we're authorized to connect to this key / IP
-	if intf.incoming && !intf.force && !intf.link.core.peers.isAllowedEncryptionPublicKey(&meta.box) {
-		intf.link.core.log.Warnf("%s connection from %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
+	if intf.incoming && !intf.force && !intf.links.core.peers.isAllowedEncryptionPublicKey(&meta.box) {
+		intf.links.core.log.Warnf("%s connection from %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
 			strings.ToUpper(intf.info.linkType), intf.info.remote, hex.EncodeToString(meta.box[:]))
 		intf.msgIO.close()
 		return nil
@@ -241,52 +250,51 @@ func (intf *linkInterface) handler() error {
 	// Check if we already have a link to this node
 	intf.info.box = meta.box
 	intf.info.sig = meta.sig
-	intf.link.mutex.Lock()
-	if oldIntf, isIn := intf.link.interfaces[intf.info]; isIn {
-		intf.link.mutex.Unlock()
+	intf.links.mutex.Lock()
+	if oldIntf, isIn := intf.links.links[intf.info]; isIn {
+		intf.links.mutex.Unlock()
 		// FIXME we should really return an error and let the caller block instead
 		// That lets them do things like close connections on its own, avoid printing a connection message in the first place, etc.
-		intf.link.core.log.Debugln("DEBUG: found existing interface for", intf.name)
+		intf.links.core.log.Debugln("DEBUG: found existing interface for", intf.name)
 		intf.msgIO.close()
 		if !intf.incoming {
 			// Block outgoing connection attempts until the existing connection closes
 			<-oldIntf.closed
 		}
 		return nil
+	} else {
+		intf.closed = make(chan struct{})
+		intf.links.links[intf.info] = intf
+		defer func() {
+			intf.links.mutex.Lock()
+			delete(intf.links.links, intf.info)
+			intf.links.mutex.Unlock()
+			close(intf.closed)
+		}()
+		intf.links.core.log.Debugln("DEBUG: registered interface for", intf.name)
 	}
-	intf.closed = make(chan struct{})
-	intf.link.interfaces[intf.info] = intf
-	defer func() {
-		intf.link.mutex.Lock()
-		delete(intf.link.interfaces, intf.info)
-		intf.link.mutex.Unlock()
-		close(intf.closed)
-	}()
-	intf.link.core.log.Debugln("DEBUG: registered interface for", intf.name)
-	intf.link.mutex.Unlock()
+	intf.links.mutex.Unlock()
 	// Create peer
 	shared := crypto.GetSharedKey(myLinkPriv, &meta.link)
-	intf.peer = intf.link.core.peers.newPeer(&meta.box, &meta.sig, shared, intf, func() { intf.msgIO.close() })
+	phony.Block(&intf.links.core.peers, func() {
+		// FIXME don't use phony.Block, it's bad practice, even if it's safe here
+		intf.peer = intf.links.core.peers._newPeer(&meta.box, &meta.sig, shared, intf)
+	})
 	if intf.peer == nil {
 		return errors.New("failed to create peer")
 	}
 	defer func() {
 		// More cleanup can go here
-		intf.link.core.peers.removePeer(intf.peer.port)
+		intf.peer.Act(nil, intf.peer._removeSelf)
 	}()
-	intf.peer.out = func(msgs [][]byte) {
-		intf.writer.sendFrom(intf.peer, msgs, false)
-	}
-	intf.peer.linkOut = func(bs []byte) {
-		intf.writer.sendFrom(intf.peer, [][]byte{bs}, true)
-	}
 	themAddr := address.AddrForNodeID(crypto.GetNodeID(&intf.info.box))
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, intf.info.remote)
-	intf.link.core.log.Infof("Connected %s: %s, source %s",
+	intf.links.core.log.Infof("Connected %s: %s, source %s",
 		strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 	// Start things
 	go intf.peer.start()
+	intf.Act(nil, intf._notifyIdle)
 	intf.reader.Act(nil, intf.reader._read)
 	// Wait for the reader to finish
 	// TODO find a way to do this without keeping live goroutines around
@@ -294,7 +302,7 @@ func (intf *linkInterface) handler() error {
 	defer close(done)
 	go func() {
 		select {
-		case <-intf.link.stopped:
+		case <-intf.links.stopped:
 			intf.msgIO.close()
 		case <-done:
 		}
@@ -302,10 +310,10 @@ func (intf *linkInterface) handler() error {
 	err = <-intf.reader.err
 	// TODO don't report an error if it's just a 'use of closed network connection'
 	if err != nil {
-		intf.link.core.log.Infof("Disconnected %s: %s, source %s; error: %s",
+		intf.links.core.log.Infof("Disconnected %s: %s, source %s; error: %s",
 			strings.ToUpper(intf.info.linkType), themString, intf.info.local, err)
 	} else {
-		intf.link.core.log.Infof("Disconnected %s: %s, source %s",
+		intf.links.core.log.Infof("Disconnected %s: %s, source %s",
 			strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 	}
 	return err
@@ -313,6 +321,60 @@ func (intf *linkInterface) handler() error {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// link needs to match the linkInterface type needed by the peers
+
+type linkInterface interface {
+	out([][]byte)
+	linkOut([]byte)
+	close()
+	// These next ones are only used by the API
+	name() string
+	local() string
+	remote() string
+	interfaceType() string
+}
+
+func (intf *link) out(bss [][]byte) {
+	intf.Act(nil, func() {
+		// nil to prevent it from blocking if the link is somehow frozen
+		// this is safe because another packet won't be sent until the link notifies
+		//  the peer that it's ready for one
+		intf.writer.sendFrom(nil, bss)
+	})
+}
+
+func (intf *link) linkOut(bs []byte) {
+	intf.Act(nil, func() {
+		// nil to prevent it from blocking if the link is somehow frozen
+		// FIXME this is hypothetically not safe, the peer shouldn't be sending
+		//  additional packets until this one finishes, otherwise this could leak
+		//  memory if writing happens slower than link packets are generated...
+		//  that seems unlikely, so it's a lesser evil than deadlocking for now
+		intf.writer.sendFrom(nil, [][]byte{bs})
+	})
+}
+
+func (intf *link) close() {
+	intf.Act(nil, func() { intf.msgIO.close() })
+}
+
+func (intf *link) name() string {
+	return intf.lname
+}
+
+func (intf *link) local() string {
+	return intf.info.local
+}
+
+func (intf *link) remote() string {
+	return intf.info.remote
+}
+
+func (intf *link) interfaceType() string {
+	return intf.info.linkType
+}
+
+////////////////////////////////////////////////////////////////////////////////
 const (
 	sendTime      = 1 * time.Second    // How long to wait before deciding a send is blocked
 	keepAliveTime = 2 * time.Second    // How long to wait before sending a keep-alive response if we have no real traffic to send
@@ -321,85 +383,72 @@ const (
 )
 
 // notify the intf that we're currently sending
-func (intf *linkInterface) notifySending(size int, isLinkTraffic bool) {
+func (intf *link) notifySending(size int) {
 	intf.Act(&intf.writer, func() {
-		if !isLinkTraffic {
-			intf.inSwitch = false
-		}
+		intf.isSending = true
 		intf.sendTimer = time.AfterFunc(sendTime, intf.notifyBlockedSend)
-		intf._cancelStallTimer()
+		if intf.keepAliveTimer != nil {
+			intf.keepAliveTimer.Stop()
+			intf.keepAliveTimer = nil
+		}
+		intf.peer.notifyBlocked(intf)
 	})
-}
-
-// called by an AfterFunc if we seem to be blocked in a send syscall for a long time
-func (intf *linkInterface) _notifySyscall() {
-	intf.link.core.switchTable.Act(intf, func() {
-		intf.link.core.switchTable._sendingIn(intf.peer.port)
-	})
-}
-
-// we just sent something, so cancel any pending timer to send keep-alive traffic
-func (intf *linkInterface) _cancelStallTimer() {
-	if intf.stallTimer != nil {
-		intf.stallTimer.Stop()
-		intf.stallTimer = nil
-	}
 }
 
 // This gets called from a time.AfterFunc, and notifies the switch that we appear
 // to have gotten blocked on a write, so the switch should start routing traffic
 // through other links, if alternatives exist
-func (intf *linkInterface) notifyBlockedSend() {
+func (intf *link) notifyBlockedSend() {
 	intf.Act(nil, func() {
-		if intf.sendTimer != nil {
+		if intf.sendTimer != nil && !intf.blocked {
 			//As far as we know, we're still trying to send, and the timer fired.
-			intf.link.core.switchTable.blockPeer(intf.peer.port)
+			intf.blocked = true
+			intf.links.core.switchTable.blockPeer(intf, intf.peer.port)
 		}
 	})
 }
 
 // notify the intf that we've finished sending, returning the peer to the switch
-func (intf *linkInterface) notifySent(size int, isLinkTraffic bool) {
+func (intf *link) notifySent(size int) {
 	intf.Act(&intf.writer, func() {
-		intf.sendTimer.Stop()
-		intf.sendTimer = nil
-		if !isLinkTraffic {
-			intf._notifySwitch()
+		if intf.sendTimer != nil {
+			intf.sendTimer.Stop()
+			intf.sendTimer = nil
 		}
+		if intf.keepAliveTimer != nil {
+			// TODO? unset this when we start sending, not when we finish...
+			intf.keepAliveTimer.Stop()
+			intf.keepAliveTimer = nil
+		}
+		intf._notifyIdle()
+		intf.isSending = false
 		if size > 0 && intf.stallTimer == nil {
 			intf.stallTimer = time.AfterFunc(stallTime, intf.notifyStalled)
 		}
 	})
 }
 
-// Notify the switch that we're ready for more traffic, assuming we're not in a stalled state
-func (intf *linkInterface) _notifySwitch() {
-	if !intf.inSwitch {
-		if intf.stalled {
-			intf.unstalled = false
-		} else {
-			intf.inSwitch = true
-			intf.link.core.switchTable.Act(intf, func() {
-				intf.link.core.switchTable._idleIn(intf.peer.port)
-			})
-		}
-	}
+// Notify the peer that we're ready for more traffic
+func (intf *link) _notifyIdle() {
+	intf.peer.Act(intf, intf.peer._handleIdle)
 }
 
 // Set the peer as stalled, to prevent them from returning to the switch until a read succeeds
-func (intf *linkInterface) notifyStalled() {
+func (intf *link) notifyStalled() {
 	intf.Act(nil, func() { // Sent from a time.AfterFunc
 		if intf.stallTimer != nil {
 			intf.stallTimer.Stop()
 			intf.stallTimer = nil
-			intf.stalled = true
-			intf.link.core.switchTable.blockPeer(intf.peer.port)
+			if !intf.blocked {
+				intf.blocked = true
+				intf.links.core.switchTable.blockPeer(intf, intf.peer.port)
+			}
 		}
 	})
 }
 
 // reset the close timer
-func (intf *linkInterface) notifyReading() {
+func (intf *link) notifyReading() {
 	intf.Act(&intf.reader, func() {
 		if intf.closeTimer != nil {
 			intf.closeTimer.Stop()
@@ -409,30 +458,29 @@ func (intf *linkInterface) notifyReading() {
 }
 
 // wake up the link if it was stalled, and (if size > 0) prepare to send keep-alive traffic
-func (intf *linkInterface) notifyRead(size int) {
+func (intf *link) notifyRead(size int) {
 	intf.Act(&intf.reader, func() {
 		if intf.stallTimer != nil {
 			intf.stallTimer.Stop()
 			intf.stallTimer = nil
 		}
-		intf.stalled = false
-		if !intf.unstalled {
-			intf._notifySwitch()
-			intf.unstalled = true
+		if size > 0 && intf.keepAliveTimer == nil {
+			intf.keepAliveTimer = time.AfterFunc(keepAliveTime, intf.notifyDoKeepAlive)
 		}
-		if size > 0 && intf.stallTimer == nil {
-			intf.stallTimer = time.AfterFunc(keepAliveTime, intf.notifyDoKeepAlive)
+		if intf.blocked {
+			intf.blocked = false
+			intf.links.core.switchTable.unblockPeer(intf, intf.peer.port)
 		}
 	})
 }
 
 // We need to send keep-alive traffic now
-func (intf *linkInterface) notifyDoKeepAlive() {
+func (intf *link) notifyDoKeepAlive() {
 	intf.Act(nil, func() { // Sent from a time.AfterFunc
-		if intf.stallTimer != nil {
-			intf.stallTimer.Stop()
-			intf.stallTimer = nil
-			intf.writer.sendFrom(nil, [][]byte{nil}, true) // Empty keep-alive traffic
+		if intf.keepAliveTimer != nil {
+			intf.keepAliveTimer.Stop()
+			intf.keepAliveTimer = nil
+			intf.writer.sendFrom(nil, [][]byte{nil}) // Empty keep-alive traffic
 		}
 	})
 }
@@ -441,34 +489,23 @@ func (intf *linkInterface) notifyDoKeepAlive() {
 
 type linkWriter struct {
 	phony.Inbox
-	intf *linkInterface
+	intf   *link
+	worker chan [][]byte
+	closed bool
 }
 
-func (w *linkWriter) sendFrom(from phony.Actor, bss [][]byte, isLinkTraffic bool) {
+func (w *linkWriter) sendFrom(from phony.Actor, bss [][]byte) {
 	w.Act(from, func() {
+		if w.closed {
+			return
+		}
 		var size int
 		for _, bs := range bss {
 			size += len(bs)
 		}
-		w.intf.notifySending(size, isLinkTraffic)
-		// start a timer that will fire if we get stuck in writeMsgs for an oddly long time
-		var once sync.Once
-		timer := time.AfterFunc(time.Millisecond, func() {
-			// 1 ms is kind of arbitrary
-			// the rationale is that this should be very long compared to a syscall
-			// but it's still short compared to end-to-end latency or human perception
-			once.Do(func() {
-				w.intf.Act(nil, w.intf._notifySyscall)
-			})
-		})
-		w.intf.msgIO.writeMsgs(bss)
-		// Make sure we either stop the timer from doing anything or wait until it's done
-		once.Do(func() { timer.Stop() })
-		w.intf.notifySent(size, isLinkTraffic)
-		// Cleanup
-		for _, bs := range bss {
-			util.PutBytes(bs)
-		}
+		w.intf.notifySending(size)
+		w.worker <- bss
+		w.intf.notifySent(size)
 	})
 }
 
@@ -476,7 +513,7 @@ func (w *linkWriter) sendFrom(from phony.Actor, bss [][]byte, isLinkTraffic bool
 
 type linkReader struct {
 	phony.Inbox
-	intf *linkInterface
+	intf *link
 	err  chan error
 }
 
