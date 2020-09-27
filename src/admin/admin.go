@@ -229,7 +229,7 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 		}
 		return Info{
 			"not_removed": []string{
-				fmt.Sprint(port),
+				in["uri"].(string),
 			},
 		}, errors.New("Failed to remove peer")
 	})
