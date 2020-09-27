@@ -14,7 +14,7 @@ jobs:
           name: Run golangci-lint
           command: |
               go get github.com/golangci/golangci-lint/cmd/golangci-lint@v1.31.0
-              golangci-lint run --config .golangci.yml
+              golangci-lint run
 
   build-linux:
     docker:
