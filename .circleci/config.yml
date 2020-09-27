@@ -215,13 +215,13 @@ workflows:
   build:
     jobs:
       - verify
-      - build-linux
+      - build-linux:
           requires:
             - verify
-      - build-macos
+      - build-macos:
           requires:
             - verify
-      - build-other
+      - build-other:
           requires:
             - verify
       - upload:
