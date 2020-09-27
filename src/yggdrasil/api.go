@@ -485,14 +485,12 @@ func (c *Core) RemovePeer(addr string, sintf string) error {
 		}
 	}
 
-	c.peers.Act(nil, func() {
-		ports := c.peers.ports
-		for _, peer := range ports {
-			if addr == peer.intf.name() {
-				c.peers._removePeer(peer)
-			}
+	ports := c.peers.ports.Load().(map[switchPort]*peer)
+	for p, peer := range ports {
+		if addr == peer.intf.name {
+			c.peers.removePeer(p)
 		}
-	})
+	}
 
 	return nil
 }
