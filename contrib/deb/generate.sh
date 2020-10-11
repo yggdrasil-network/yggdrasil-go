@@ -83,7 +83,7 @@ then
   echo "Backing up configuration file to /var/backups/yggdrasil.conf.`date +%Y%m%d`"
   cp /etc/yggdrasil.conf /var/backups/yggdrasil.conf.`date +%Y%m%d`
   echo "Normalising and updating /etc/yggdrasil.conf"
-  /usr/bin/yggdrasil -useconffile /var/backups/yggdrasil.conf.`date +%Y%m%d` -normaliseconf > /etc/yggdrasil.conf
+  /usr/bin/yggdrasil -useconf -normaliseconf < /var/backups/yggdrasil.conf.`date +%Y%m%d` > /etc/yggdrasil.conf
   chgrp yggdrasil /etc/yggdrasil.conf
 
   if command -v systemctl >/dev/null; then
@@ -94,7 +94,7 @@ then
 else
   echo "Generating initial configuration file /etc/yggdrasil.conf"
   echo "Please familiarise yourself with this file before starting Yggdrasil"
-  /usr/bin/yggdrasil -genconf > /etc/yggdrasil.conf
+  sh -c 'umask 0027 && /usr/bin/yggdrasil -genconf > /etc/yggdrasil.conf'
   chgrp yggdrasil /etc/yggdrasil.conf
 fi
 EOF
