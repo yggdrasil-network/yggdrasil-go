@@ -251,7 +251,6 @@ func (c *Conn) Read(b []byte) (int, error) {
 	}
 	// Copy results to the output slice and clean up
 	copy(b, bs)
-	util.PutBytes(bs)
 	// Return the number of bytes copied to the slice, along with any error
 	return n, err
 }
@@ -322,10 +321,11 @@ func (c *Conn) writeNoCopy(msg FlowKeyMessage) error {
 // returned.
 func (c *Conn) Write(b []byte) (int, error) {
 	written := len(b)
-	msg := FlowKeyMessage{Message: append(util.GetBytes(), b...)}
+	bs := make([]byte, 0, len(b)+crypto.BoxOverhead)
+	bs = append(bs, b...)
+	msg := FlowKeyMessage{Message: bs}
 	err := c.writeNoCopy(msg)
 	if err != nil {
-		util.PutBytes(msg.Message)
 		written = 0
 	}
 	return written, err

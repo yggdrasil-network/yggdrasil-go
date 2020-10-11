@@ -44,13 +44,11 @@ func (s *tunConn) _read(bs []byte) (err error) {
 	select {
 	case <-s.stop:
 		err = errors.New("session was already closed")
-		util.PutBytes(bs)
 		return
 	default:
 	}
 	if len(bs) == 0 {
 		err = errors.New("read packet with 0 size")
-		util.PutBytes(bs)
 		return
 	}
 	ipv4 := len(bs) > 20 && bs[0]&0xf0 == 0x40
@@ -107,7 +105,6 @@ func (s *tunConn) _read(bs []byte) (err error) {
 	}
 	if skip {
 		err = errors.New("address not allowed")
-		util.PutBytes(bs)
 		return
 	}
 	s.tun.writer.writeFrom(s, bs)
@@ -125,7 +122,6 @@ func (s *tunConn) _write(bs []byte) (err error) {
 	select {
 	case <-s.stop:
 		err = errors.New("session was already closed")
-		util.PutBytes(bs)
 		return
 	default:
 	}
@@ -183,7 +179,6 @@ func (s *tunConn) _write(bs []byte) (err error) {
 	}
 	if skip {
 		err = errors.New("address not allowed")
-		util.PutBytes(bs)
 		return
 	}
 	msg := yggdrasil.FlowKeyMessage{

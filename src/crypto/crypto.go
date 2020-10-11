@@ -17,12 +17,11 @@ import (
 	"crypto/rand"
 	"crypto/sha512"
 	"encoding/hex"
+	"sync"
 
 	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/ed25519"
 	"golang.org/x/crypto/nacl/box"
-
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -225,29 +224,36 @@ func GetSharedKey(myPrivKey *BoxPrivKey,
 	return (*BoxSharedKey)(&shared)
 }
 
+// pool is used internally by BoxOpen and BoxSeal to avoid allocating temporary space
+var pool = sync.Pool{New: func() interface{} { return []byte(nil) }}
+
 // BoxOpen returns a message and true if it successfully opens a crypto box using the provided shared key and nonce.
+// The boxed input slice's backing array is reused for the unboxed output when possible.
 func BoxOpen(shared *BoxSharedKey,
 	boxed []byte,
 	nonce *BoxNonce) ([]byte, bool) {
-	out := util.GetBytes()
 	s := (*[BoxSharedKeyLen]byte)(shared)
 	n := (*[BoxNonceLen]byte)(nonce)
-	unboxed, success := box.OpenAfterPrecomputation(out, boxed, n, s)
+	temp := append(pool.Get().([]byte), boxed...)
+	unboxed, success := box.OpenAfterPrecomputation(boxed[:0], temp, n, s)
+	pool.Put(temp[:0])
 	return unboxed, success
 }
 
 // BoxSeal seals a crypto box using the provided shared key, returning the box and the nonce needed to decrypt it.
 // If nonce is nil, a random BoxNonce will be used and returned.
 // If nonce is non-nil, then nonce.Increment() will be called before using it, and the incremented BoxNonce is what is returned.
+// The unboxed input slice's backing array is reused for the boxed output when possible.
 func BoxSeal(shared *BoxSharedKey, unboxed []byte, nonce *BoxNonce) ([]byte, *BoxNonce) {
 	if nonce == nil {
 		nonce = NewBoxNonce()
 	}
 	nonce.Increment()
-	out := util.GetBytes()
 	s := (*[BoxSharedKeyLen]byte)(shared)
 	n := (*[BoxNonceLen]byte)(nonce)
-	boxed := box.SealAfterPrecomputation(out, unboxed, n, s)
+	temp := append(pool.Get().([]byte), unboxed...)
+	boxed := box.SealAfterPrecomputation(unboxed[:0], temp, n, s)
+	pool.Put(temp[:0])
 	return boxed, nonce
 }
 

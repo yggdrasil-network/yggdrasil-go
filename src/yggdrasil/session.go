@@ -16,9 +16,6 @@ import (
 	"github.com/Arceliar/phony"
 )
 
-// Duration that we keep track of old nonces per session, to allow some out-of-order packet delivery
-const nonceWindow = time.Second
-
 // All the information we know about an active session.
 // This includes coords, permanent and ephemeral keys, handles and nonces, various sorts of timing information for timeout and maintenance, and some metadata for the admin API.
 type sessionInfo struct {
@@ -52,6 +49,7 @@ type sessionInfo struct {
 	cancel        util.Cancellation   // Used to terminate workers
 	conn          *Conn               // The associated Conn object
 	callbacks     []chan func()       // Finished work from crypto workers
+	table         *lookupTable        // table.self is a locator where we get our coords
 }
 
 // Represents a session ping/pong packet, and includes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
@@ -217,6 +215,7 @@ func (ss *sessions) createSession(theirPermKey *crypto.BoxPubKey) *sessionInfo {
 	sinfo.myHandle = *crypto.NewHandle()
 	sinfo.theirAddr = *address.AddrForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
 	sinfo.theirSubnet = *address.SubnetForNodeID(crypto.GetNodeID(&sinfo.theirPermPub))
+	sinfo.table = ss.router.table
 	ss.sinfos[sinfo.myHandle] = &sinfo
 	ss.byTheirPerm[sinfo.theirPermPub] = &sinfo.myHandle
 	return &sinfo
@@ -266,8 +265,7 @@ func (ss *sessions) removeSession(sinfo *sessionInfo) {
 
 // Returns a session ping appropriate for the given session info.
 func (sinfo *sessionInfo) _getPing() sessionPing {
-	loc := sinfo.sessions.router.core.switchTable.getLocator()
-	coords := loc.getCoords()
+	coords := sinfo.table.self.getCoords()
 	ping := sessionPing{
 		SendPermPub: sinfo.sessions.router.core.boxPub,
 		Handle:      sinfo.myHandle,
@@ -393,14 +391,9 @@ func (sinfo *sessionInfo) _getMTU() MTU {
 	return sinfo.myMTU
 }
 
-// Checks if a packet's nonce is recent enough to fall within the window of allowed packets, and not already received.
+// Checks if a packet's nonce is newer than any previously received
 func (sinfo *sessionInfo) _nonceIsOK(theirNonce *crypto.BoxNonce) bool {
-	// The bitmask is to allow for some non-duplicate out-of-order packets
-	if theirNonce.Minus(&sinfo.theirNonce) > 0 {
-		// This is newer than the newest nonce we've seen
-		return true
-	}
-	return time.Since(sinfo.time) < nonceWindow
+	return theirNonce.Minus(&sinfo.theirNonce) > 0
 }
 
 // Updates the nonce mask by (possibly) shifting the bitmask and setting the bit corresponding to this nonce to 1, and then updating the most recent nonce
@@ -455,12 +448,9 @@ func (sinfo *sessionInfo) _recvPacket(p *wire_trafficPacket) {
 	select {
 	case <-sinfo.init:
 	default:
-		// TODO find a better way to drop things until initialized
-		util.PutBytes(p.Payload)
 		return
 	}
 	if !sinfo._nonceIsOK(&p.Nonce) {
-		util.PutBytes(p.Payload)
 		return
 	}
 	k := sinfo.sharedSesKey
@@ -470,11 +460,9 @@ func (sinfo *sessionInfo) _recvPacket(p *wire_trafficPacket) {
 	poolFunc := func() {
 		bs, isOK = crypto.BoxOpen(&k, p.Payload, &p.Nonce)
 		callback := func() {
-			util.PutBytes(p.Payload)
 			if !isOK || k != sinfo.sharedSesKey || !sinfo._nonceIsOK(&p.Nonce) {
 				// Either we failed to decrypt, or the session was updated, or we
 				// received this packet in the mean time
-				util.PutBytes(bs)
 				return
 			}
 			sinfo._updateNonce(&p.Nonce)
@@ -492,8 +480,6 @@ func (sinfo *sessionInfo) _send(msg FlowKeyMessage) {
 	select {
 	case <-sinfo.init:
 	default:
-		// TODO find a better way to drop things until initialized
-		util.PutBytes(msg.Message)
 		return
 	}
 	sinfo.bytesSent += uint64(len(msg.Message))
@@ -512,14 +498,8 @@ func (sinfo *sessionInfo) _send(msg FlowKeyMessage) {
 	ch := make(chan func(), 1)
 	poolFunc := func() {
 		p.Payload, _ = crypto.BoxSeal(&k, msg.Message, &p.Nonce)
+		packet := p.encode()
 		callback := func() {
-			// Encoding may block on a util.GetBytes(), so kept out of the worker pool
-			packet := p.encode()
-			// Cleanup
-			util.PutBytes(msg.Message)
-			util.PutBytes(p.Payload)
-			// Send the packet
-			// TODO replace this with a send to the peer struct if that becomes an actor
 			sinfo.sessions.router.Act(sinfo, func() {
 				sinfo.sessions.router.out(packet)
 			})

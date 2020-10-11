@@ -29,7 +29,6 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 
 	"github.com/Arceliar/phony"
 )
@@ -46,6 +45,9 @@ type router struct {
 	nodeinfo nodeinfo
 	searches searches
 	sessions sessions
+	intf     routerInterface
+	peer     *peer
+	table    *lookupTable // has a copy of our locator
 }
 
 // Initializes the router struct, which includes setting up channels to/from the adapter.
@@ -53,17 +55,15 @@ func (r *router) init(core *Core) {
 	r.core = core
 	r.addr = *address.AddrForNodeID(&r.dht.nodeID)
 	r.subnet = *address.SubnetForNodeID(&r.dht.nodeID)
-	self := linkInterface{
-		name: "(self)",
-		info: linkInfo{
-			local:    "(self)",
-			remote:   "(self)",
-			linkType: "self",
-		},
+	r.intf.router = r
+	phony.Block(&r.core.peers, func() {
+		// FIXME don't block here!
+		r.peer = r.core.peers._newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, &r.intf)
+	})
+	r.peer.Act(r, r.peer._handleIdle)
+	r.out = func(bs []byte) {
+		r.peer.handlePacketFrom(r, bs)
 	}
-	p := r.core.peers.newPeer(&r.core.boxPub, &r.core.sigPub, &crypto.BoxSharedKey{}, &self, nil)
-	p.out = func(packets [][]byte) { r.handlePackets(p, packets) }
-	r.out = func(bs []byte) { p.handlePacketFrom(r, bs) }
 	r.nodeinfo.init(r.core)
 	r.core.config.Mutex.RLock()
 	r.nodeinfo.setNodeInfo(r.core.config.Current.NodeInfo, r.core.config.Current.NodeInfoPrivacy)
@@ -71,6 +71,21 @@ func (r *router) init(core *Core) {
 	r.dht.init(r)
 	r.searches.init(r)
 	r.sessions.init(r)
+}
+
+func (r *router) updateTable(from phony.Actor, table *lookupTable) {
+	r.Act(from, func() {
+		r.table = table
+		r.nodeinfo.Act(r, func() {
+			r.nodeinfo.table = table
+		})
+		for _, ses := range r.sessions.sinfos {
+			sinfo := ses
+			sinfo.Act(r, func() {
+				sinfo.table = table
+			})
+		}
+	})
 }
 
 // Reconfigures the router and any child modules. This should only ever be run
@@ -97,15 +112,6 @@ func (r *router) start() error {
 	return nil
 }
 
-// In practice, the switch will call this with 1 packet
-func (r *router) handlePackets(from phony.Actor, packets [][]byte) {
-	r.Act(from, func() {
-		for _, packet := range packets {
-			r._handlePacket(packet)
-		}
-	})
-}
-
 // Insert a peer info into the dht, TODO? make the dht a separate actor
 func (r *router) insertPeer(from phony.Actor, info *dhtInfo) {
 	r.Act(from, func() {
@@ -126,7 +132,7 @@ func (r *router) reset(from phony.Actor) {
 func (r *router) doMaintenance() {
 	phony.Block(r, func() {
 		// Any periodic maintenance stuff goes here
-		r.core.switchTable.doMaintenance()
+		r.core.switchTable.doMaintenance(r)
 		r.dht.doMaintenance()
 		r.sessions.cleanup()
 	})
@@ -151,14 +157,12 @@ func (r *router) _handlePacket(packet []byte) {
 // Handles incoming traffic, i.e. encapuslated ordinary IPv6 packets.
 // Passes them to the crypto session worker to be decrypted and sent to the adapter.
 func (r *router) _handleTraffic(packet []byte) {
-	defer util.PutBytes(packet)
 	p := wire_trafficPacket{}
 	if !p.decode(packet) {
 		return
 	}
 	sinfo, isIn := r.sessions.getSessionForHandle(&p.Handle)
 	if !isIn {
-		util.PutBytes(p.Payload)
 		return
 	}
 	sinfo.recv(r, &p)
@@ -204,7 +208,6 @@ func (r *router) _handleProto(packet []byte) {
 	case wire_DHTLookupResponse:
 		r._handleDHTRes(bs, &p.FromKey)
 	default:
-		util.PutBytes(packet)
 	}
 }
 
@@ -252,3 +255,35 @@ func (r *router) _handleNodeInfo(bs []byte, fromKey *crypto.BoxPubKey) {
 	req.SendPermPub = *fromKey
 	r.nodeinfo.handleNodeInfo(r, &req)
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// routerInterface is a helper that implements linkInterface
+type routerInterface struct {
+	router *router
+}
+
+func (intf *routerInterface) out(bss [][]byte) {
+	// Note that this is run in the peer's goroutine
+	intf.router.Act(intf.router.peer, func() {
+		for _, bs := range bss {
+			intf.router._handlePacket(bs)
+		}
+	})
+	// This should now immediately make the peer idle again
+	// So the self-peer shouldn't end up buffering anything
+	// We let backpressure act as a throttle instead
+	intf.router.peer._handleIdle()
+}
+
+func (intf *routerInterface) linkOut(_ []byte) {}
+
+func (intf *routerInterface) close() {}
+
+func (intf *routerInterface) name() string { return "(self)" }
+
+func (intf *routerInterface) local() string { return "(self)" }
+
+func (intf *routerInterface) remote() string { return "(self)" }
+
+func (intf *routerInterface) interfaceType() string { return "self" }

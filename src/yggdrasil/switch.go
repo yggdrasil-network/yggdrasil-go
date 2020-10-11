@@ -12,13 +12,9 @@ package yggdrasil
 //  A little annoying to do with constant changes from backpressure
 
 import (
-	"math/rand"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 
 	"github.com/Arceliar/phony"
 )
@@ -97,6 +93,20 @@ func (l *switchLocator) dist(dest []byte) int {
 	return dist
 }
 
+func (l *switchLocator) ldist(sl *switchLocator) int {
+	lca := -1
+	for idx := 0; idx < len(l.coords); idx++ {
+		if idx >= len(sl.coords) {
+			break
+		}
+		if l.coords[idx] != sl.coords[idx] {
+			break
+		}
+		lca = idx
+	}
+	return len(l.coords) + len(sl.coords) - 2*(lca+1)
+}
+
 // Gets coords in wire encoded format, with *no* length prefix.
 func (l *switchLocator) getCoords() []byte {
 	bs := make([]byte, 0, len(l.coords))
@@ -126,14 +136,19 @@ func (x *switchLocator) isAncestorOf(y *switchLocator) bool {
 
 // Information about a peer, used by the switch to build the tree and eventually make routing decisions.
 type peerInfo struct {
-	key     crypto.SigPubKey      // ID of this peer
-	locator switchLocator         // Should be able to respond with signatures upon request
-	degree  uint64                // Self-reported degree
-	time    time.Time             // Time this node was last seen
-	faster  map[switchPort]uint64 // Counter of how often a node is faster than the current parent, penalized extra if slower
-	port    switchPort            // Interface number of this peer
-	msg     switchMsg             // The wire switchMsg used
-	blocked bool                  // True if the link is blocked, used to avoid parenting a blocked link
+	key        crypto.SigPubKey      // ID of this peer
+	locator    switchLocator         // Should be able to respond with signatures upon request
+	degree     uint64                // Self-reported degree
+	time       time.Time             // Time this node was last seen
+	faster     map[switchPort]uint64 // Counter of how often a node is faster than the current parent, penalized extra if slower
+	port       switchPort            // Interface number of this peer
+	msg        switchMsg             // The wire switchMsg used
+	readBlock  bool                  // True if the link notified us of a read that blocked too long
+	writeBlock bool                  // True of the link notified us of a write that blocked too long
+}
+
+func (pinfo *peerInfo) blocked() bool {
+	return pinfo.readBlock || pinfo.writeBlock
 }
 
 // This is just a uint64 with a named type for clarity reasons.
@@ -144,12 +159,15 @@ type tableElem struct {
 	port    switchPort
 	locator switchLocator
 	time    time.Time
+	next    map[switchPort]*tableElem
 }
 
 // This is the subset of the information about all peers needed to make routing decisions, and it stored separately in an atomically accessed table, which gets hammered in the "hot loop" of the routing logic (see: peer.handleTraffic in peers.go).
 type lookupTable struct {
-	self  switchLocator
-	elems map[switchPort]tableElem
+	self   switchLocator
+	elems  map[switchPort]tableElem // all switch peers, just for sanity checks + API/debugging
+	_start tableElem                // used for lookups
+	_msg   switchMsg
 }
 
 // This is switch information which is mutable and needs to be modified by other goroutines, but is not accessed atomically.
@@ -158,7 +176,6 @@ type switchData struct {
 	// All data that's mutable and used by exported Table methods
 	// To be read/written with atomic.Value Store/Load calls
 	locator switchLocator
-	seq     uint64 // Sequence number, reported to peers, so they know about changes
 	peers   map[switchPort]peerInfo
 	msg     *switchMsg
 }
@@ -167,17 +184,11 @@ type switchData struct {
 type switchTable struct {
 	core        *Core
 	key         crypto.SigPubKey           // Our own key
+	phony.Inbox                            // Owns the below
 	time        time.Time                  // Time when locator.tstamp was last updated
 	drop        map[crypto.SigPubKey]int64 // Tstamp associated with a dropped root
-	mutex       sync.RWMutex               // Lock for reads/writes of switchData
 	parent      switchPort                 // Port of whatever peer is our parent, or self if we're root
 	data        switchData                 //
-	updater     atomic.Value               // *sync.Once
-	table       atomic.Value               // lookupTable
-	phony.Inbox                            // Owns the below
-	queues      switch_buffers             // Queues - not atomic so ONLY use through the actor
-	idle        map[switchPort]struct{}    // idle peers - not atomic so ONLY use through the actor
-	sending     map[switchPort]struct{}    // peers known to be blocked in a send (somehow)
 }
 
 // Minimum allowed total size of switch queues.
@@ -191,47 +202,27 @@ func (t *switchTable) init(core *Core) {
 	locator := switchLocator{root: t.key, tstamp: now.Unix()}
 	peers := make(map[switchPort]peerInfo)
 	t.data = switchData{locator: locator, peers: peers}
-	t.updater.Store(&sync.Once{})
-	t.table.Store(lookupTable{})
 	t.drop = make(map[crypto.SigPubKey]int64)
-	phony.Block(t, func() {
-		core.config.Mutex.RLock()
-		if core.config.Current.SwitchOptions.MaxTotalQueueSize > SwitchQueueTotalMinSize {
-			t.queues.totalMaxSize = core.config.Current.SwitchOptions.MaxTotalQueueSize
-		} else {
-			t.queues.totalMaxSize = SwitchQueueTotalMinSize
-		}
-		core.config.Mutex.RUnlock()
-		t.queues.bufs = make(map[string]switch_buffer)
-		t.idle = make(map[switchPort]struct{})
-		t.sending = make(map[switchPort]struct{})
-	})
+	phony.Block(t, t._updateTable)
 }
 
 func (t *switchTable) reconfigure() {
 	// This is where reconfiguration would go, if we had anything useful to do.
-	t.core.link.reconfigure()
+	t.core.links.reconfigure()
 	t.core.peers.reconfigure()
 }
 
-// Safely gets a copy of this node's locator.
-func (t *switchTable) getLocator() switchLocator {
-	t.mutex.RLock()
-	defer t.mutex.RUnlock()
-	return t.data.locator.clone()
-}
-
 // Regular maintenance to possibly timeout/reset the root and similar.
-func (t *switchTable) doMaintenance() {
-	// Periodic maintenance work to keep things internally consistent
-	t.mutex.Lock()         // Write lock
-	defer t.mutex.Unlock() // Release lock when we're done
-	t.cleanRoot()
-	t.cleanDropped()
+func (t *switchTable) doMaintenance(from phony.Actor) {
+	t.Act(from, func() {
+		// Periodic maintenance work to keep things internally consistent
+		t._cleanRoot()
+		t._cleanDropped()
+	})
 }
 
 // Updates the root periodically if it is ourself, or promotes ourself to root if we're better than the current root or if the current root has timed out.
-func (t *switchTable) cleanRoot() {
+func (t *switchTable) _cleanRoot() {
 	// TODO rethink how this is done?...
 	// Get rid of the root if it looks like its timed out
 	now := time.Now()
@@ -255,59 +246,79 @@ func (t *switchTable) cleanRoot() {
 		t.parent = switchPort(0)
 		t.time = now
 		if t.data.locator.root != t.key {
-			t.data.seq++
-			t.updater.Store(&sync.Once{})
-			t.core.router.reset(nil)
+			defer t.core.router.reset(nil)
 		}
 		t.data.locator = switchLocator{root: t.key, tstamp: now.Unix()}
+		t._updateTable() // updates base copy of switch msg in lookupTable
 		t.core.peers.sendSwitchMsgs(t)
 	}
 }
 
 // Blocks and, if possible, unparents a peer
-func (t *switchTable) blockPeer(port switchPort) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	peer, isIn := t.data.peers[port]
-	if !isIn {
-		return
-	}
-	peer.blocked = true
-	t.data.peers[port] = peer
-	if port != t.parent {
-		return
-	}
-	t.parent = 0
-	for _, info := range t.data.peers {
-		if info.port == port {
-			continue
+func (t *switchTable) blockPeer(from phony.Actor, port switchPort, isWrite bool) {
+	t.Act(from, func() {
+		peer, isIn := t.data.peers[port]
+		switch {
+		case isIn && !isWrite && !peer.readBlock:
+			peer.readBlock = true
+		case isIn && isWrite && !peer.writeBlock:
+			peer.writeBlock = true
+		default:
+			return
 		}
-		t.unlockedHandleMsg(&info.msg, info.port, true)
-	}
-	t.unlockedHandleMsg(&peer.msg, peer.port, true)
+		t.data.peers[port] = peer
+		defer t._updateTable()
+		if port != t.parent {
+			return
+		}
+		t.parent = 0
+		for _, info := range t.data.peers {
+			if info.port == port {
+				continue
+			}
+			t._handleMsg(&info.msg, info.port, true)
+		}
+		t._handleMsg(&peer.msg, peer.port, true)
+	})
+}
+
+func (t *switchTable) unblockPeer(from phony.Actor, port switchPort, isWrite bool) {
+	t.Act(from, func() {
+		peer, isIn := t.data.peers[port]
+		switch {
+		case isIn && !isWrite && peer.readBlock:
+			peer.readBlock = false
+		case isIn && isWrite && peer.writeBlock:
+			peer.writeBlock = false
+		default:
+			return
+		}
+		t.data.peers[port] = peer
+		t._updateTable()
+	})
 }
 
 // Removes a peer.
 // Must be called by the router actor with a lambda that calls this.
 // If the removed peer was this node's parent, it immediately tries to find a new parent.
-func (t *switchTable) forgetPeer(port switchPort) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	delete(t.data.peers, port)
-	t.updater.Store(&sync.Once{})
-	if port != t.parent {
-		return
-	}
-	t.parent = 0
-	for _, info := range t.data.peers {
-		t.unlockedHandleMsg(&info.msg, info.port, true)
-	}
+func (t *switchTable) forgetPeer(from phony.Actor, port switchPort) {
+	t.Act(from, func() {
+		delete(t.data.peers, port)
+		defer t._updateTable()
+		if port != t.parent {
+			return
+		}
+		t.parent = 0
+		for _, info := range t.data.peers {
+			t._handleMsg(&info.msg, info.port, true)
+		}
+	})
 }
 
 // Dropped is a list of roots that are better than the current root, but stopped sending new timestamps.
 // If we switch to a new root, and that root is better than an old root that previously timed out, then we can clean up the old dropped root infos.
 // This function is called periodically to do that cleanup.
-func (t *switchTable) cleanDropped() {
+func (t *switchTable) _cleanDropped() {
 	// TODO? only call this after root changes, not periodically
 	for root := range t.drop {
 		if !firstIsBetter(&root, &t.data.locator.root) {
@@ -333,9 +344,7 @@ type switchMsgHop struct {
 }
 
 // This returns a *switchMsg to a copy of this node's current switchMsg, which can safely have additional information appended to Hops and sent to a peer.
-func (t *switchTable) getMsg() *switchMsg {
-	t.mutex.RLock()
-	defer t.mutex.RUnlock()
+func (t *switchTable) _getMsg() *switchMsg {
 	if t.parent == 0 {
 		return &switchMsg{Root: t.key, TStamp: t.data.locator.tstamp}
 	} else if parent, isIn := t.data.peers[t.parent]; isIn {
@@ -347,14 +356,18 @@ func (t *switchTable) getMsg() *switchMsg {
 	}
 }
 
+func (t *lookupTable) getMsg() *switchMsg {
+	msg := t._msg
+	msg.Hops = append([]switchMsgHop(nil), t._msg.Hops...)
+	return &msg
+}
+
 // This function checks that the root information in a switchMsg is OK.
 // In particular, that the root is better, or else the same as the current root but with a good timestamp, and that this root+timestamp haven't been dropped due to timeout.
-func (t *switchTable) checkRoot(msg *switchMsg) bool {
+func (t *switchTable) _checkRoot(msg *switchMsg) bool {
 	// returns false if it's a dropped root, not a better root, or has an older timestamp
 	// returns true otherwise
 	// used elsewhere to keep inserting peers into the dht only if root info is OK
-	t.mutex.RLock()
-	defer t.mutex.RUnlock()
 	dropTstamp, isIn := t.drop[msg.Root]
 	switch {
 	case isIn && dropTstamp >= msg.TStamp:
@@ -370,20 +383,13 @@ func (t *switchTable) checkRoot(msg *switchMsg) bool {
 	}
 }
 
-// This is a mutexed wrapper to unlockedHandleMsg, and is called by the peer structs in peers.go to pass a switchMsg for that peer into the switch.
-func (t *switchTable) handleMsg(msg *switchMsg, fromPort switchPort) {
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	t.unlockedHandleMsg(msg, fromPort, false)
-}
-
 // This updates the switch with information about a peer.
 // Then the tricky part, it decides if it should update our own locator as a result.
 // That happens if this node is already our parent, or is advertising a better root, or is advertising a better path to the same root, etc...
 // There are a lot of very delicate order sensitive checks here, so its' best to just read the code if you need to understand what it's doing.
 // It's very important to not change the order of the statements in the case function unless you're absolutely sure that it's safe, including safe if used alongside nodes that used the previous order.
 // Set the third arg to true if you're reprocessing an old message, e.g. to find a new parent after one disconnects, to avoid updating some timing related things.
-func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, reprocessing bool) {
+func (t *switchTable) _handleMsg(msg *switchMsg, fromPort switchPort, reprocessing bool) {
 	// TODO directly use a switchMsg instead of switchMessage + sigs
 	now := time.Now()
 	// Set up the sender peerInfo
@@ -396,6 +402,9 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 		sender.locator.coords = append(sender.locator.coords, hop.Port)
 		sender.key = prevKey
 		prevKey = hop.Next
+	}
+	if sender.key == t.key {
+		return // Don't peer with ourself via different interfaces
 	}
 	sender.msg = *msg
 	sender.port = fromPort
@@ -426,7 +435,8 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 	if reprocessing {
 		sender.faster = oldSender.faster
 		sender.time = oldSender.time
-		sender.blocked = oldSender.blocked
+		sender.readBlock = oldSender.readBlock
+		sender.writeBlock = oldSender.writeBlock
 	} else {
 		sender.faster = make(map[switchPort]uint64, len(oldSender.faster))
 		for port, peer := range t.data.peers {
@@ -448,6 +458,9 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 				}
 			}
 		}
+	}
+	if sender.blocked() != oldSender.blocked() {
+		doUpdate = true
 	}
 	// Update sender
 	t.data.peers[fromPort] = sender
@@ -486,10 +499,10 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 	case sender.faster[t.parent] >= switch_faster_threshold:
 		// The is reliably faster than the current parent.
 		updateRoot = true
-	case !sender.blocked && oldParent.blocked:
+	case !sender.blocked() && oldParent.blocked():
 		// Replace a blocked parent
 		updateRoot = true
-	case reprocessing && sender.blocked && !oldParent.blocked:
+	case reprocessing && sender.blocked() && !oldParent.blocked():
 		// Don't replace an unblocked parent when reprocessing
 	case reprocessing && sender.faster[t.parent] > oldParent.faster[sender.port]:
 		// The sender seems to be reliably faster than the current parent, so switch to them instead.
@@ -506,74 +519,109 @@ func (t *switchTable) unlockedHandleMsg(msg *switchMsg, fromPort switchPort, rep
 			if peer.port == sender.port {
 				continue
 			}
-			t.unlockedHandleMsg(&peer.msg, peer.port, true)
+			t._handleMsg(&peer.msg, peer.port, true)
 		}
 		// Process the sender last, to avoid keeping them as a parent if at all possible.
-		t.unlockedHandleMsg(&sender.msg, sender.port, true)
+		t._handleMsg(&sender.msg, sender.port, true)
 	case now.Sub(t.time) < switch_throttle:
 		// We've already gotten an update from this root recently, so ignore this one to avoid flooding.
 	case sender.locator.tstamp > t.data.locator.tstamp:
 		// The timestamp was updated, so we need to update locally and send to our peers.
 		updateRoot = true
 	}
+	// Note that we depend on the LIFO order of the stack of defers here...
 	if updateRoot {
+		doUpdate = true
 		if !equiv(&sender.locator, &t.data.locator) {
-			doUpdate = true
-			t.data.seq++
-			t.core.router.reset(nil)
+			defer t.core.router.reset(t)
 		}
 		if t.data.locator.tstamp != sender.locator.tstamp {
 			t.time = now
 		}
 		t.data.locator = sender.locator
 		t.parent = sender.port
-		t.core.peers.sendSwitchMsgs(t)
+		defer t.core.peers.sendSwitchMsgs(t)
 	}
-	if true || doUpdate {
-		t.updater.Store(&sync.Once{})
+	if doUpdate {
+		t._updateTable()
 	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// The rest of these are related to the switch worker
+// The rest of these are related to the switch lookup table
 
-// This is called via a sync.Once to update the atomically readable subset of switch information that gets used for routing decisions.
-func (t *switchTable) updateTable() {
-	// WARNING this should only be called from within t.data.updater.Do()
-	//  It relies on the sync.Once for synchronization with messages and lookups
-	// TODO use a pre-computed faster lookup table
-	//  Instead of checking distance for every destination every time
-	//  Array of structs, indexed by first coord that differs from self
-	//  Each struct has stores the best port to forward to, and a next coord map
-	//  Move to struct, then iterate over coord maps until you dead end
-	//  The last port before the dead end should be the closest
-	t.mutex.RLock()
-	defer t.mutex.RUnlock()
+func (t *switchTable) _updateTable() {
 	newTable := lookupTable{
 		self:  t.data.locator.clone(),
 		elems: make(map[switchPort]tableElem, len(t.data.peers)),
+		_msg:  *t._getMsg(),
 	}
+	newTable._init()
 	for _, pinfo := range t.data.peers {
-		//if !pinfo.forward { continue }
-		if pinfo.locator.root != newTable.self.root {
+		if pinfo.blocked() || pinfo.locator.root != newTable.self.root {
 			continue
 		}
 		loc := pinfo.locator.clone()
 		loc.coords = loc.coords[:len(loc.coords)-1] // Remove the them->self link
-		newTable.elems[pinfo.port] = tableElem{
+		elem := tableElem{
 			locator: loc,
 			port:    pinfo.port,
 			time:    pinfo.time,
 		}
+		newTable._insert(&elem)
+		newTable.elems[pinfo.port] = elem
 	}
-	t.table.Store(newTable)
+	t.core.peers.updateTables(t, &newTable)
+	t.core.router.updateTable(t, &newTable)
 }
 
-// Returns a copy of the atomically-updated table used for switch lookups
-func (t *switchTable) getTable() lookupTable {
-	t.updater.Load().(*sync.Once).Do(t.updateTable)
-	return t.table.Load().(lookupTable)
+func (t *lookupTable) _init() {
+	// WARNING: this relies on the convention that the self port is 0
+	self := tableElem{locator: t.self} // create self elem
+	t._start = self                    // initialize _start to self
+	t._insert(&self)                   // insert self into table
+}
+
+func (t *lookupTable) _insert(elem *tableElem) {
+	// This is a helper that should only be run during _updateTable
+	here := &t._start
+	for idx := 0; idx <= len(elem.locator.coords); idx++ {
+		refLoc := here.locator
+		refLoc.coords = refLoc.coords[:idx] // Note that this is length idx (starts at length 0)
+		oldDist := refLoc.ldist(&here.locator)
+		newDist := refLoc.ldist(&elem.locator)
+		var update bool
+		switch {
+		case newDist < oldDist: // new elem is closer to this point in the tree
+			update = true
+		case newDist > oldDist: // new elem is too far
+		case elem.locator.tstamp > refLoc.tstamp: // new elem has a closer timestamp
+			update = true
+		case elem.locator.tstamp < refLoc.tstamp: // new elem's timestamp is too old
+		case elem.time.Before(here.time): // same dist+timestamp, but new elem delivered it faster
+			update = true
+		}
+		if update {
+			here.port = elem.port
+			here.locator = elem.locator
+			here.time = elem.time
+			// Problem: here is a value, so this doesn't actually update anything...
+		}
+		if idx < len(elem.locator.coords) {
+			if here.next == nil {
+				here.next = make(map[switchPort]*tableElem)
+			}
+			var next *tableElem
+			var ok bool
+			if next, ok = here.next[elem.locator.coords[idx]]; !ok {
+				nextVal := *elem
+				next = &nextVal
+				here.next[next.locator.coords[idx]] = next
+			}
+			here = next
+		}
+	}
 }
 
 // Starts the switch worker
@@ -583,306 +631,17 @@ func (t *switchTable) start() error {
 	return nil
 }
 
-type closerInfo struct {
-	elem tableElem
-	dist int
-}
-
-// Return a map of ports onto distance, keeping only ports closer to the destination than this node
-// If the map is empty (or nil), then no peer is closer
-func (t *switchTable) getCloser(dest []byte) []closerInfo {
-	table := t.getTable()
-	myDist := table.self.dist(dest)
-	if myDist == 0 {
-		// Skip the iteration step if it's impossible to be closer
-		return nil
-	}
-	t.queues.closer = t.queues.closer[:0]
-	for _, info := range table.elems {
-		dist := info.locator.dist(dest)
-		if dist < myDist {
-			t.queues.closer = append(t.queues.closer, closerInfo{info, dist})
-		}
-	}
-	return t.queues.closer
-}
-
-// Returns true if the peer is closer to the destination than ourself
-func (t *switchTable) portIsCloser(dest []byte, port switchPort) bool {
-	table := t.getTable()
-	if info, isIn := table.elems[port]; isIn {
-		theirDist := info.locator.dist(dest)
-		myDist := table.self.dist(dest)
-		return theirDist < myDist
-	}
-	return false
-}
-
-// Get the coords of a packet without decoding
-func switch_getPacketCoords(packet []byte) []byte {
-	_, pTypeLen := wire_decode_uint64(packet)
-	coords, _ := wire_decode_coords(packet[pTypeLen:])
-	return coords
-}
-
-// Returns a unique string for each stream of traffic
-// Equal to coords
-// The sender may append arbitrary info to the end of coords (as long as it's begins with a 0x00) to designate separate traffic streams
-// Currently, it's the IPv6 next header type and the first 2 uint16 of the next header
-// This is equivalent to the TCP/UDP protocol numbers and the source / dest ports
-// TODO figure out if something else would make more sense (other transport protocols?)
-func switch_getPacketStreamID(packet []byte) string {
-	return string(switch_getPacketCoords(packet))
-}
-
-// Returns the flowlabel from a given set of coords
-func switch_getFlowLabelFromCoords(in []byte) []byte {
-	for i, v := range in {
-		if v == 0 {
-			return in[i+1:]
-		}
-	}
-	return []byte{}
-}
-
-// Find the best port for a given set of coords
-func (t *switchTable) bestPortForCoords(coords []byte) switchPort {
-	table := t.getTable()
-	var best switchPort
-	bestDist := table.self.dist(coords)
-	for to, elem := range table.elems {
-		dist := elem.locator.dist(coords)
-		if !(dist < bestDist) {
-			continue
-		}
-		best = to
-		bestDist = dist
-	}
-	return best
-}
-
-// Handle an incoming packet
-// Either send it to ourself, or to the first idle peer that's free
-// Returns true if the packet has been handled somehow, false if it should be queued
-func (t *switchTable) _handleIn(packet []byte, idle map[switchPort]struct{}, sending map[switchPort]struct{}) bool {
-	coords := switch_getPacketCoords(packet)
-	closer := t.getCloser(coords)
-	if len(closer) == 0 {
-		// TODO? call the router directly, and remove the whole concept of a self peer?
-		self := t.core.peers.getPorts()[0]
-		self.sendPacketsFrom(t, [][]byte{packet})
-		return true
-	}
-	var best *closerInfo
-	ports := t.core.peers.getPorts()
-	for _, cinfo := range closer {
-		to := ports[cinfo.elem.port]
-		//_, isIdle := idle[cinfo.elem.port]
-		_, isSending := sending[cinfo.elem.port]
-		var update bool
-		switch {
-		case to == nil:
-			// no port was found, ignore it
-		case isSending:
-			// the port is busy, ignore it
-		case best == nil:
-			// this is the first idle port we've found, so select it until we find a
-			// better candidate port to use instead
-			update = true
-		case cinfo.dist < best.dist:
-			// the port takes a shorter path/is more direct than our current
-			// candidate, so select that instead
-			update = true
-		case cinfo.dist > best.dist:
-			// the port takes a longer path/is less direct than our current candidate,
-			// ignore it
-		case cinfo.elem.locator.tstamp > best.elem.locator.tstamp:
-			// has a newer tstamp from the root, so presumably a better path
-			update = true
-		case cinfo.elem.locator.tstamp < best.elem.locator.tstamp:
-			// has a n older tstamp, so presumably a worse path
-		case cinfo.elem.time.Before(best.elem.time):
-			// same tstamp, but got it earlier, so presumably a better path
-			//t.core.log.Println("DEBUG new best:", best.elem.time, cinfo.elem.time)
-			update = true
-		default:
-			// the search for a port has finished
-		}
-		if update {
-			b := cinfo // because cinfo gets mutated by the iteration
-			best = &b
-		}
-	}
-	if best != nil {
-		if _, isIdle := idle[best.elem.port]; isIdle {
-			delete(idle, best.elem.port)
-			ports[best.elem.port].sendPacketsFrom(t, [][]byte{packet})
-			return true
-		}
-	}
-	// Didn't find anyone idle to send it to
-	return false
-}
-
-// Info about a buffered packet
-type switch_packetInfo struct {
-	bytes []byte
-	time  time.Time // Timestamp of when the packet arrived
-}
-
-// Used to keep track of buffered packets
-type switch_buffer struct {
-	packets []switch_packetInfo // Currently buffered packets, which may be dropped if it grows too large
-	size    uint64              // Total queue size in bytes
-}
-
-type switch_buffers struct {
-	totalMaxSize uint64
-	bufs         map[string]switch_buffer // Buffers indexed by StreamID
-	size         uint64                   // Total size of all buffers, in bytes
-	maxbufs      int
-	maxsize      uint64
-	closer       []closerInfo // Scratch space
-}
-
-func (b *switch_buffers) _cleanup(t *switchTable) {
-	for streamID, buf := range b.bufs {
-		// Remove queues for which we have no next hop
-		packet := buf.packets[0]
-		coords := switch_getPacketCoords(packet.bytes)
-		if len(t.getCloser(coords)) == 0 {
-			for _, packet := range buf.packets {
-				util.PutBytes(packet.bytes)
-			}
-			b.size -= buf.size
-			delete(b.bufs, streamID)
-		}
-	}
-
-	for b.size > b.totalMaxSize {
-		// Drop a random queue
-		target := rand.Uint64() % b.size
-		var size uint64 // running total
-		for streamID, buf := range b.bufs {
-			size += buf.size
-			if size < target {
-				continue
-			}
-			var packet switch_packetInfo
-			packet, buf.packets = buf.packets[0], buf.packets[1:]
-			buf.size -= uint64(len(packet.bytes))
-			b.size -= uint64(len(packet.bytes))
-			util.PutBytes(packet.bytes)
-			if len(buf.packets) == 0 {
-				delete(b.bufs, streamID)
-			} else {
-				// Need to update the map, since buf was retrieved by value
-				b.bufs[streamID] = buf
-			}
-			break
-		}
-	}
-}
-
-// Handles incoming idle notifications
-// Loops over packets and sends the newest one that's OK for this peer to send
-// Returns true if the peer is no longer idle, false if it should be added to the idle list
-func (t *switchTable) _handleIdle(port switchPort) bool {
-	// TODO? only send packets for which this is the best next hop that isn't currently blocked sending
-	to := t.core.peers.getPorts()[port]
-	if to == nil {
-		return true
-	}
-	var packets [][]byte
-	var psize int
-	t.queues._cleanup(t)
-	now := time.Now()
-	for psize < 65535 {
-		var best *string
-		var bestPriority float64
-		for streamID, buf := range t.queues.bufs {
-			// Filter over the streams that this node is closer to
-			// Keep the one with the smallest queue
-			packet := buf.packets[0]
-			coords := switch_getPacketCoords(packet.bytes)
-			priority := float64(now.Sub(packet.time)) / float64(buf.size)
-			if priority >= bestPriority && t.portIsCloser(coords, port) {
-				b := streamID // copy since streamID is mutated in the loop
-				best = &b
-				bestPriority = priority
-			}
-		}
-		if best != nil {
-			buf := t.queues.bufs[*best]
-			var packet switch_packetInfo
-			// TODO decide if this should be LIFO or FIFO
-			packet, buf.packets = buf.packets[0], buf.packets[1:]
-			buf.size -= uint64(len(packet.bytes))
-			t.queues.size -= uint64(len(packet.bytes))
-			if len(buf.packets) == 0 {
-				delete(t.queues.bufs, *best)
-			} else {
-				// Need to update the map, since buf was retrieved by value
-				t.queues.bufs[*best] = buf
-			}
-			packets = append(packets, packet.bytes)
-			psize += len(packet.bytes)
+func (t *lookupTable) lookup(coords []byte) switchPort {
+	var offset int
+	here := &t._start
+	for offset < len(coords) {
+		port, l := wire_decode_uint64(coords[offset:])
+		offset += l
+		if next, ok := here.next[switchPort(port)]; ok {
+			here = next
 		} else {
-			// Finished finding packets
 			break
 		}
 	}
-	if len(packets) > 0 {
-		to.sendPacketsFrom(t, packets)
-		return true
-	}
-	return false
-}
-
-func (t *switchTable) packetInFrom(from phony.Actor, bytes []byte) {
-	t.Act(from, func() {
-		t._packetIn(bytes)
-	})
-}
-
-func (t *switchTable) _packetIn(bytes []byte) {
-	// Try to send it somewhere (or drop it if it's corrupt or at a dead end)
-	if !t._handleIn(bytes, t.idle, t.sending) {
-		// There's nobody free to take it right now, so queue it for later
-		packet := switch_packetInfo{bytes, time.Now()}
-		streamID := switch_getPacketStreamID(packet.bytes)
-		buf, bufExists := t.queues.bufs[streamID]
-		buf.packets = append(buf.packets, packet)
-		buf.size += uint64(len(packet.bytes))
-		t.queues.size += uint64(len(packet.bytes))
-		// Keep a track of the max total queue size
-		if t.queues.size > t.queues.maxsize {
-			t.queues.maxsize = t.queues.size
-		}
-		t.queues.bufs[streamID] = buf
-		if !bufExists {
-			// Keep a track of the max total queue count. Only recalculate this
-			// when the queue is new because otherwise repeating len(dict) might
-			// cause unnecessary processing overhead
-			if len(t.queues.bufs) > t.queues.maxbufs {
-				t.queues.maxbufs = len(t.queues.bufs)
-			}
-		}
-		t.queues._cleanup(t)
-	}
-}
-
-func (t *switchTable) _idleIn(port switchPort) {
-	// Try to find something to send to this peer
-	delete(t.sending, port)
-	if !t._handleIdle(port) {
-		// Didn't find anything ready to send yet, so stay idle
-		t.idle[port] = struct{}{}
-	}
-}
-
-func (t *switchTable) _sendingIn(port switchPort) {
-	if _, isIn := t.idle[port]; !isIn {
-		t.sending[port] = struct{}{}
-	}
+	return here.port
 }

@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"io"
 	"net"
-
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 // Test that this matches the interface we expect
-var _ = linkInterfaceMsgIO(&stream{})
+var _ = linkMsgIO(&stream{})
 
 type stream struct {
 	rwc          io.ReadWriteCloser
@@ -46,6 +44,9 @@ func (s *stream) writeMsgs(bss [][]byte) (int, error) {
 	}
 	s.outputBuffer = buf[:0] // So we can reuse the same underlying array later
 	_, err := buf.WriteTo(s.rwc)
+	for _, bs := range bss {
+		pool_putBytes(bs)
+	}
 	// TODO only include number of bytes from bs *successfully* written?
 	return written, err
 }
@@ -112,7 +113,7 @@ func (s *stream) readMsgFromBuffer() ([]byte, error) {
 	if msgLen > streamMsgSize {
 		return nil, errors.New("oversized message")
 	}
-	msg := util.ResizeBytes(util.GetBytes(), int(msgLen))
+	msg := pool_getBytes(int(msgLen))
 	_, err = io.ReadFull(s.inputBuffer, msg)
 	return msg, err
 }

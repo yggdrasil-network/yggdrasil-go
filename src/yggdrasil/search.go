@@ -161,11 +161,10 @@ func (sinfo *searchInfo) continueSearch(infos []*dhtInfo) {
 
 // Initially start a search
 func (sinfo *searchInfo) startSearch() {
-	loc := sinfo.searches.router.core.switchTable.getLocator()
 	var infos []*dhtInfo
 	infos = append(infos, &dhtInfo{
 		key:    sinfo.searches.router.core.boxPub,
-		coords: loc.getCoords(),
+		coords: sinfo.searches.router.table.self.getCoords(),
 	})
 	// Start the search by asking ourself, useful if we're the destination
 	sinfo.continueSearch(infos)
