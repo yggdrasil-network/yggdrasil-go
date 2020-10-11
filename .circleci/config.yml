@@ -215,15 +215,9 @@ workflows:
   build:
     jobs:
       - lint
-      - build-linux:
-          requires:
-            - lint
-      - build-macos:
-          requires:
-            - lint
-      - build-other:
-          requires:
-            - lint
+      - build-linux
+      - build-macos
+      - build-other
       - upload:
           requires:
             - build-linux
