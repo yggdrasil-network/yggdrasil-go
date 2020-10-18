@@ -191,7 +191,9 @@ func (m *Multicast) getAllowedInterfaces() map[string]net.Interface {
 	// Ask the system for network interfaces
 	allifaces, err := net.Interfaces()
 	if err != nil {
-		panic(err)
+		// Don't panic, since this may be from e.g. too many open files (from too much connection spam)
+		// TODO? log something
+		return nil
 	}
 	// Work out which interfaces to announce on
 	for _, iface := range allifaces {
