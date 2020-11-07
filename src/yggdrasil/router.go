@@ -196,9 +196,9 @@ func (r *router) _handleProto(packet []byte) {
 	}
 	switch bsType {
 	case wire_SessionPing:
-		r._handlePing(bs, &p.FromKey)
+		r._handlePing(bs, &p.FromKey, p.RPath)
 	case wire_SessionPong:
-		r._handlePong(bs, &p.FromKey)
+		r._handlePong(bs, &p.FromKey, p.RPath)
 	case wire_NodeInfoRequest:
 		fallthrough
 	case wire_NodeInfoResponse:
@@ -212,18 +212,18 @@ func (r *router) _handleProto(packet []byte) {
 }
 
 // Decodes session pings from wire format and passes them to sessions.handlePing where they either create or update a session.
-func (r *router) _handlePing(bs []byte, fromKey *crypto.BoxPubKey) {
+func (r *router) _handlePing(bs []byte, fromKey *crypto.BoxPubKey, rpath []byte) {
 	ping := sessionPing{}
 	if !ping.decode(bs) {
 		return
 	}
 	ping.SendPermPub = *fromKey
-	r.sessions.handlePing(&ping)
+	r.sessions.handlePing(&ping, rpath)
 }
 
 // Handles session pongs (which are really pings with an extra flag to prevent acknowledgement).
-func (r *router) _handlePong(bs []byte, fromKey *crypto.BoxPubKey) {
-	r._handlePing(bs, fromKey)
+func (r *router) _handlePong(bs []byte, fromKey *crypto.BoxPubKey, rpath []byte) {
+	r._handlePing(bs, fromKey, rpath)
 }
 
 // Decodes dht requests and passes them to dht.handleReq to trigger a lookup/response.

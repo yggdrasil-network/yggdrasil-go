@@ -655,6 +655,19 @@ func switch_getPorts(coords []byte) []switchPort {
 	return ports
 }
 
+func switch_reverseCoordBytes(coords []byte) []byte {
+	a := switch_getPorts(coords)
+	for i := len(a)/2 - 1; i >= 0; i-- {
+		opp := len(a) - 1 - i
+		a[i], a[opp] = a[opp], a[i]
+	}
+	var reversed []byte
+	for _, sPort := range a {
+		reversed = wire_put_uint64(uint64(sPort), reversed)
+	}
+	return reversed
+}
+
 func (t *lookupTable) isDescendant(ports []switchPort) bool {
 	// Note that this returns true for anyone in the subtree that starts at us
 	// That includes ourself, so we are our own descendant by this logic...
