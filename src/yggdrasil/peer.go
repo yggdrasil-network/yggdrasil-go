@@ -262,6 +262,7 @@ func (p *peer) _handleTraffic(packet []byte) {
 			wire_put_uint64(offset, obs[:0])
 		}
 	}
+	packet = wire_put_uint64(uint64(next), packet)
 	if nPeer, isIn := p.ports[next]; isIn {
 		nPeer.sendPacketFrom(p, packet)
 	}

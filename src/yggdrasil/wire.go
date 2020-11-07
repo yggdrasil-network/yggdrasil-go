@@ -96,9 +96,9 @@ func wire_encode_coords(coords []byte) []byte {
 
 // Puts a length prefix and the coords into bs, returns the wire formatted coords.
 // Useful in hot loops where we don't want to allocate and we know the rest of the later parts of the slice are safe to overwrite.
-func wire_put_coords(coords []byte, bs []byte) []byte {
-	bs = wire_put_uint64(uint64(len(coords)), bs)
-	bs = append(bs, coords...)
+func wire_put_vslice(slice []byte, bs []byte) []byte {
+	bs = wire_put_uint64(uint64(len(slice)), bs)
+	bs = append(bs, slice...)
 	return bs
 }
 
@@ -194,14 +194,14 @@ func wire_chop_slice(toSlice []byte, fromSlice *[]byte) bool {
 	return true
 }
 
-// A utility function to extract coords from a slice and advance the source slices, returning true if successful.
-func wire_chop_coords(toCoords *[]byte, fromSlice *[]byte) bool {
-	coords, coordLen := wire_decode_coords(*fromSlice)
-	if coordLen == 0 {
+// A utility function to extract a length-prefixed slice (such as coords) from a slice and advance the source slices, returning true if successful.
+func wire_chop_vslice(toSlice *[]byte, fromSlice *[]byte) bool {
+	slice, sliceLen := wire_decode_coords(*fromSlice)
+	if sliceLen == 0 { // sliceLen is length-prefix size + slice size, in bytes
 		return false
 	}
-	*toCoords = append((*toCoords)[:0], coords...)
-	*fromSlice = (*fromSlice)[coordLen:]
+	*toSlice = append((*toSlice)[:0], slice...)
+	*fromSlice = (*fromSlice)[sliceLen:]
 	return true
 }
 
@@ -227,6 +227,8 @@ type wire_trafficPacket struct {
 	Handle  crypto.Handle
 	Nonce   crypto.BoxNonce
 	Payload []byte
+	RPath   []byte
+	Path    []byte
 }
 
 // Encodes a wire_trafficPacket into its wire format.
@@ -235,10 +237,12 @@ func (p *wire_trafficPacket) encode() []byte {
 	bs := pool_getBytes(0)
 	bs = wire_put_uint64(wire_Traffic, bs)
 	bs = wire_put_uint64(p.Offset, bs)
-	bs = wire_put_coords(p.Coords, bs)
+	bs = wire_put_vslice(p.Coords, bs)
 	bs = append(bs, p.Handle[:]...)
 	bs = append(bs, p.Nonce[:]...)
-	bs = append(bs, p.Payload...)
+	bs = wire_put_vslice(p.Payload, bs)
+	bs = wire_put_vslice(p.RPath, bs)
+	bs = append(bs, p.Path...)
 	return bs
 }
 
@@ -254,14 +258,18 @@ func (p *wire_trafficPacket) decode(bs []byte) bool {
 		return false
 	case !wire_chop_uint64(&p.Offset, &bs):
 		return false
-	case !wire_chop_coords(&p.Coords, &bs):
+	case !wire_chop_vslice(&p.Coords, &bs):
 		return false
 	case !wire_chop_slice(p.Handle[:], &bs):
 		return false
 	case !wire_chop_slice(p.Nonce[:], &bs):
 		return false
+	case !wire_chop_vslice(&p.Payload, &bs):
+		return false
+	case !wire_chop_vslice(&p.RPath, &bs):
+		return false
 	}
-	p.Payload = append(p.Payload, bs...)
+	p.Path = bs
 	return true
 }
 
@@ -273,18 +281,21 @@ type wire_protoTrafficPacket struct {
 	FromKey crypto.BoxPubKey
 	Nonce   crypto.BoxNonce
 	Payload []byte
+	RPath   []byte
+	Path    []byte
 }
 
 // Encodes a wire_protoTrafficPacket into its wire format.
 func (p *wire_protoTrafficPacket) encode() []byte {
-	coords := wire_encode_coords(p.Coords)
 	bs := wire_encode_uint64(wire_ProtocolTraffic)
 	bs = wire_put_uint64(p.Offset, bs)
-	bs = append(bs, coords...)
+	bs = wire_put_vslice(p.Coords, bs)
 	bs = append(bs, p.ToKey[:]...)
 	bs = append(bs, p.FromKey[:]...)
 	bs = append(bs, p.Nonce[:]...)
-	bs = append(bs, p.Payload...)
+	bs = wire_put_vslice(p.Payload, bs)
+	bs = wire_put_vslice(p.RPath, bs)
+	bs = append(bs, p.Path...)
 	return bs
 }
 
@@ -298,7 +309,7 @@ func (p *wire_protoTrafficPacket) decode(bs []byte) bool {
 		return false
 	case !wire_chop_uint64(&p.Offset, &bs):
 		return false
-	case !wire_chop_coords(&p.Coords, &bs):
+	case !wire_chop_vslice(&p.Coords, &bs):
 		return false
 	case !wire_chop_slice(p.ToKey[:], &bs):
 		return false
@@ -306,8 +317,12 @@ func (p *wire_protoTrafficPacket) decode(bs []byte) bool {
 		return false
 	case !wire_chop_slice(p.Nonce[:], &bs):
 		return false
+	case !wire_chop_vslice(&p.Payload, &bs):
+		return false
+	case !wire_chop_vslice(&p.RPath, &bs):
+		return false
 	}
-	p.Payload = bs
+	p.Path = bs
 	return true
 }
 
@@ -391,7 +406,7 @@ func (p *sessionPing) decode(bs []byte) bool {
 		return false
 	case !wire_chop_uint64(&tstamp, &bs):
 		return false
-	case !wire_chop_coords(&p.Coords, &bs):
+	case !wire_chop_vslice(&p.Coords, &bs):
 		return false
 	case !wire_chop_uint64(&mtu, &bs):
 		mtu = 1280
@@ -415,7 +430,7 @@ func (p *nodeinfoReqRes) encode() []byte {
 		pTypeVal = wire_NodeInfoRequest
 	}
 	bs := wire_encode_uint64(pTypeVal)
-	bs = wire_put_coords(p.SendCoords, bs)
+	bs = wire_put_vslice(p.SendCoords, bs)
 	if pTypeVal == wire_NodeInfoResponse {
 		bs = append(bs, p.NodeInfo...)
 	}
@@ -430,7 +445,7 @@ func (p *nodeinfoReqRes) decode(bs []byte) bool {
 		return false
 	case pType != wire_NodeInfoRequest && pType != wire_NodeInfoResponse:
 		return false
-	case !wire_chop_coords(&p.SendCoords, &bs):
+	case !wire_chop_vslice(&p.SendCoords, &bs):
 		return false
 	}
 	if p.IsResponse = pType == wire_NodeInfoResponse; p.IsResponse {
@@ -464,7 +479,7 @@ func (r *dhtReq) decode(bs []byte) bool {
 		return false
 	case pType != wire_DHTLookupRequest:
 		return false
-	case !wire_chop_coords(&r.Coords, &bs):
+	case !wire_chop_vslice(&r.Coords, &bs):
 		return false
 	case !wire_chop_slice(r.Dest[:], &bs):
 		return false
@@ -495,7 +510,7 @@ func (r *dhtRes) decode(bs []byte) bool {
 		return false
 	case pType != wire_DHTLookupResponse:
 		return false
-	case !wire_chop_coords(&r.Coords, &bs):
+	case !wire_chop_vslice(&r.Coords, &bs):
 		return false
 	case !wire_chop_slice(r.Dest[:], &bs):
 		return false
@@ -505,7 +520,7 @@ func (r *dhtRes) decode(bs []byte) bool {
 		switch {
 		case !wire_chop_slice(info.key[:], &bs):
 			return false
-		case !wire_chop_coords(&info.coords, &bs):
+		case !wire_chop_vslice(&info.coords, &bs):
 			return false
 		}
 		r.Infos = append(r.Infos, &info)
