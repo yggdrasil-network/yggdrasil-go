@@ -228,7 +228,6 @@ type wire_trafficPacket struct {
 	Nonce   crypto.BoxNonce
 	Payload []byte
 	RPath   []byte
-	Path    []byte
 }
 
 // Encodes a wire_trafficPacket into its wire format.
@@ -241,8 +240,7 @@ func (p *wire_trafficPacket) encode() []byte {
 	bs = append(bs, p.Handle[:]...)
 	bs = append(bs, p.Nonce[:]...)
 	bs = wire_put_vslice(p.Payload, bs)
-	bs = wire_put_vslice(p.RPath, bs)
-	bs = append(bs, p.Path...)
+	bs = append(bs, p.RPath...)
 	return bs
 }
 
@@ -266,10 +264,8 @@ func (p *wire_trafficPacket) decode(bs []byte) bool {
 		return false
 	case !wire_chop_vslice(&p.Payload, &bs):
 		return false
-	case !wire_chop_vslice(&p.RPath, &bs):
-		return false
 	}
-	p.Path = append(p.Path[:0], bs...)
+	p.RPath = append(p.RPath[:0], bs...)
 	return true
 }
 
@@ -282,7 +278,6 @@ type wire_protoTrafficPacket struct {
 	Nonce   crypto.BoxNonce
 	Payload []byte
 	RPath   []byte
-	Path    []byte
 }
 
 // Encodes a wire_protoTrafficPacket into its wire format.
@@ -294,8 +289,7 @@ func (p *wire_protoTrafficPacket) encode() []byte {
 	bs = append(bs, p.FromKey[:]...)
 	bs = append(bs, p.Nonce[:]...)
 	bs = wire_put_vslice(p.Payload, bs)
-	bs = wire_put_vslice(p.RPath, bs)
-	bs = append(bs, p.Path...)
+	bs = append(bs, p.RPath...)
 	return bs
 }
 
@@ -319,10 +313,8 @@ func (p *wire_protoTrafficPacket) decode(bs []byte) bool {
 		return false
 	case !wire_chop_vslice(&p.Payload, &bs):
 		return false
-	case !wire_chop_vslice(&p.RPath, &bs):
-		return false
 	}
-	p.Path = append(p.Path[:0], bs...)
+	p.RPath = append(p.RPath[:0], bs...)
 	return true
 }
 

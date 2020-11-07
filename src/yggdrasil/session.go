@@ -474,8 +474,16 @@ func (sinfo *sessionInfo) _recvPacket(p *wire_trafficPacket) {
 			sinfo._updateNonce(&p.Nonce)
 			sinfo.bytesRecvd += uint64(len(bs))
 			sinfo.conn.recvMsg(sinfo, bs)
-			sinfo.path = append(sinfo.path[:0], p.RPath...)
-			sinfo.rpath = append(sinfo.rpath[:0], p.Path...)
+			a := switch_getPorts(p.RPath)
+			for i := len(a)/2 - 1; i >= 0; i-- {
+				opp := len(a) - 1 - i
+				a[i], a[opp] = a[opp], a[i]
+			}
+			sinfo.path = sinfo.path[:0]
+			for _, sPort := range a {
+				sinfo.path = wire_put_uint64(uint64(sPort), sinfo.path)
+			}
+			//sinfo.rpath = append(sinfo.rpath[:0], p.Path...)
 		}
 		ch <- callback
 		sinfo.checkCallbacks()
@@ -493,7 +501,7 @@ func (sinfo *sessionInfo) _send(msg FlowKeyMessage) {
 	sinfo.bytesSent += uint64(len(msg.Message))
 	var coords []byte
 	var offset uint64
-	if len(sinfo.path) > 0 && len(sinfo.path) <= len(sinfo.rpath) {
+	if len(sinfo.path) > 0 {
 		coords = append([]byte{0}, sinfo.path...)
 		offset += 1
 	} else {

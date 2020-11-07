@@ -644,7 +644,7 @@ func (t *lookupTable) lookup(ports []switchPort) switchPort {
 	return here.port
 }
 
-func (t *lookupTable) getPorts(coords []byte) []switchPort {
+func switch_getPorts(coords []byte) []switchPort {
 	var ports []switchPort
 	var offset int
 	for offset < len(coords) {

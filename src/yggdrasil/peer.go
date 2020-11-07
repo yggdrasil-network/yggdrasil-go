@@ -245,7 +245,7 @@ func (p *peer) _handleTraffic(packet []byte) {
 	}
 	obs, coords := wire_getTrafficOffsetAndCoords(packet)
 	offset, _ := wire_decode_uint64(obs)
-	ports := p.table.getPorts(coords)
+	ports := switch_getPorts(coords)
 	if offset == 0 {
 		offset = p.table.getOffset(ports)
 	}
@@ -262,7 +262,7 @@ func (p *peer) _handleTraffic(packet []byte) {
 			wire_put_uint64(offset, obs[:0])
 		}
 	}
-	packet = wire_put_uint64(uint64(next), packet)
+	packet = wire_put_uint64(uint64(p.port), packet)
 	if nPeer, isIn := p.ports[next]; isIn {
 		nPeer.sendPacketFrom(p, packet)
 	}
