@@ -269,7 +269,7 @@ func (p *wire_trafficPacket) decode(bs []byte) bool {
 	case !wire_chop_vslice(&p.RPath, &bs):
 		return false
 	}
-	p.Path = bs
+	p.Path = append(p.Path[:0], bs...)
 	return true
 }
 
@@ -322,7 +322,7 @@ func (p *wire_protoTrafficPacket) decode(bs []byte) bool {
 	case !wire_chop_vslice(&p.RPath, &bs):
 		return false
 	}
-	p.Path = bs
+	p.Path = append(p.Path[:0], bs...)
 	return true
 }
 

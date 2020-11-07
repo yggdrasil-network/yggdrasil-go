@@ -50,6 +50,8 @@ type sessionInfo struct {
 	conn          *Conn               // The associated Conn object
 	callbacks     []chan func()       // Finished work from crypto workers
 	table         *lookupTable        // table.self is a locator where we get our coords
+	path          []byte              // Path from self to destination
+	rpath         []byte              // Path from destination to self
 }
 
 // Represents a session ping/pong packet, and includes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
@@ -328,6 +330,10 @@ func (sinfo *sessionInfo) _sendPingPong(isPong bool) {
 	if sinfo.pingTime.Before(sinfo.time) {
 		sinfo.pingTime = time.Now()
 	}
+	// Sending a ping may happen when we don't know if our path info is good anymore...
+	// Reset paths just to be safe...
+	sinfo.path = nil
+	sinfo.rpath = nil
 }
 
 func (sinfo *sessionInfo) setConn(from phony.Actor, conn *Conn) {
@@ -468,6 +474,8 @@ func (sinfo *sessionInfo) _recvPacket(p *wire_trafficPacket) {
 			sinfo._updateNonce(&p.Nonce)
 			sinfo.bytesRecvd += uint64(len(bs))
 			sinfo.conn.recvMsg(sinfo, bs)
+			sinfo.path = append(sinfo.path[:0], p.RPath...)
+			sinfo.rpath = append(sinfo.rpath[:0], p.Path...)
 		}
 		ch <- callback
 		sinfo.checkCallbacks()
@@ -483,15 +491,24 @@ func (sinfo *sessionInfo) _send(msg FlowKeyMessage) {
 		return
 	}
 	sinfo.bytesSent += uint64(len(msg.Message))
-	coords := append([]byte(nil), sinfo.coords...)
+	var coords []byte
+	var offset uint64
+	if len(sinfo.path) > 0 && len(sinfo.path) <= len(sinfo.rpath) {
+		coords = append([]byte{0}, sinfo.path...)
+		offset += 1
+	} else {
+		coords = append([]byte(nil), sinfo.coords...)
+	}
 	if msg.FlowKey != 0 {
 		coords = append(coords, 0)
 		coords = append(coords, wire_encode_uint64(msg.FlowKey)...)
 	}
 	p := wire_trafficPacket{
+		Offset: offset,
 		Coords: coords,
 		Handle: sinfo.theirHandle,
 		Nonce:  sinfo.myNonce,
+		RPath:  sinfo.rpath,
 	}
 	sinfo.myNonce.Increment()
 	k := sinfo.sharedSesKey
