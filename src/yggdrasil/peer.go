@@ -243,8 +243,25 @@ func (p *peer) _handleTraffic(packet []byte) {
 		// Drop traffic if the peer isn't in the switch
 		return
 	}
-	_, coords := wire_getTrafficOffsetAndCoords(packet)
-	next := p.table.lookup(coords)
+	obs, coords := wire_getTrafficOffsetAndCoords(packet)
+	offset, _ := wire_decode_uint64(obs)
+	ports := p.table.getPorts(coords)
+	if offset == 0 {
+		offset = p.table.getOffset(ports)
+	}
+	var next switchPort
+	if offset == 0 {
+		// Greedy routing, find the best next hop
+		next = p.table.lookup(ports)
+	} else {
+		// Source routing, read next hop from coords and update offset/obs
+		if int(offset) < len(ports) {
+			next = ports[offset]
+			offset += 1
+			// FIXME this breaks if offset is > 127, it's just for testing
+			wire_put_uint64(offset, obs[:0])
+		}
+	}
 	if nPeer, isIn := p.ports[next]; isIn {
 		nPeer.sendPacketFrom(p, packet)
 	}

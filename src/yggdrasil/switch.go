@@ -631,17 +631,55 @@ func (t *switchTable) start() error {
 	return nil
 }
 
-func (t *lookupTable) lookup(coords []byte) switchPort {
-	var offset int
+func (t *lookupTable) lookup(ports []switchPort) switchPort {
 	here := &t._start
-	for offset < len(coords) {
-		port, l := wire_decode_uint64(coords[offset:])
-		offset += l
-		if next, ok := here.next[switchPort(port)]; ok {
+	for idx := range ports {
+		port := ports[idx]
+		if next, ok := here.next[port]; ok {
 			here = next
 		} else {
 			break
 		}
 	}
 	return here.port
+}
+
+func (t *lookupTable) getPorts(coords []byte) []switchPort {
+	var ports []switchPort
+	var offset int
+	for offset < len(coords) {
+		port, l := wire_decode_uint64(coords[offset:])
+		offset += l
+		ports = append(ports, switchPort(port))
+	}
+	return ports
+}
+
+func (t *lookupTable) isDescendant(ports []switchPort) bool {
+	// Note that this returns true for anyone in the subtree that starts at us
+	// That includes ourself, so we are our own descendant by this logic...
+	if len(t.self.coords) >= len(ports) {
+		// Our coords are longer, so they can't be our descendant
+		return false
+	}
+	for idx := range t.self.coords {
+		if ports[idx] != t.self.coords[idx] {
+			return false
+		}
+	}
+	return true
+}
+
+func (t *lookupTable) getOffset(ports []switchPort) uint64 {
+	// If they're our descendant, this returns the length of our coords, used as an offset for source routing
+	// If they're not our descendant, this returns 0
+	var offset uint64
+	for idx := range t.self.coords {
+		if idx < len(ports) && ports[idx] == t.self.coords[idx] {
+			offset += 1
+		} else {
+			return 0
+		}
+	}
+	return offset
 }
