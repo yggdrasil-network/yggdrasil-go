@@ -226,7 +226,13 @@ func (t *tcp) listener(l *TcpListener, listenaddr string) {
 		sock, err := l.Listener.Accept()
 		if err != nil {
 			t.links.core.log.Errorln("Failed to accept connection:", err)
-			return
+			select {
+			case <-l.stop:
+				return
+			default:
+			}
+			time.Sleep(time.Second) // So we don't busy loop
+			continue
 		}
 		t.waitgroup.Add(1)
 		options := tcpOptions{
