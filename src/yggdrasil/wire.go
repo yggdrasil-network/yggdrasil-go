@@ -222,6 +222,7 @@ func wire_chop_uint64(toUInt64 *uint64, fromSlice *[]byte) bool {
 
 // The wire format for ordinary IPv6 traffic encapsulated by the network.
 type wire_trafficPacket struct {
+	Offset  uint64
 	Coords  []byte
 	Handle  crypto.Handle
 	Nonce   crypto.BoxNonce
@@ -233,6 +234,7 @@ type wire_trafficPacket struct {
 func (p *wire_trafficPacket) encode() []byte {
 	bs := pool_getBytes(0)
 	bs = wire_put_uint64(wire_Traffic, bs)
+	bs = wire_put_uint64(p.Offset, bs)
 	bs = wire_put_coords(p.Coords, bs)
 	bs = append(bs, p.Handle[:]...)
 	bs = append(bs, p.Nonce[:]...)
@@ -250,6 +252,8 @@ func (p *wire_trafficPacket) decode(bs []byte) bool {
 		return false
 	case pType != wire_Traffic:
 		return false
+	case !wire_chop_uint64(&p.Offset, &bs):
+		return false
 	case !wire_chop_coords(&p.Coords, &bs):
 		return false
 	case !wire_chop_slice(p.Handle[:], &bs):
@@ -263,6 +267,7 @@ func (p *wire_trafficPacket) decode(bs []byte) bool {
 
 // The wire format for protocol traffic, such as dht req/res or session ping/pong packets.
 type wire_protoTrafficPacket struct {
+	Offset  uint64
 	Coords  []byte
 	ToKey   crypto.BoxPubKey
 	FromKey crypto.BoxPubKey
@@ -274,6 +279,7 @@ type wire_protoTrafficPacket struct {
 func (p *wire_protoTrafficPacket) encode() []byte {
 	coords := wire_encode_coords(p.Coords)
 	bs := wire_encode_uint64(wire_ProtocolTraffic)
+	bs = wire_put_uint64(p.Offset, bs)
 	bs = append(bs, coords...)
 	bs = append(bs, p.ToKey[:]...)
 	bs = append(bs, p.FromKey[:]...)
@@ -290,6 +296,8 @@ func (p *wire_protoTrafficPacket) decode(bs []byte) bool {
 		return false
 	case pType != wire_ProtocolTraffic:
 		return false
+	case !wire_chop_uint64(&p.Offset, &bs):
+		return false
 	case !wire_chop_coords(&p.Coords, &bs):
 		return false
 	case !wire_chop_slice(p.ToKey[:], &bs):
@@ -301,6 +309,16 @@ func (p *wire_protoTrafficPacket) decode(bs []byte) bool {
 	}
 	p.Payload = bs
 	return true
+}
+
+// Get the offset and coord slices of a (protocol) traffic packet without decoding
+func wire_getTrafficOffsetAndCoords(packet []byte) ([]byte, []byte) {
+	_, offsetBegin := wire_decode_uint64(packet)
+	_, offsetLen := wire_decode_uint64(packet[offsetBegin:])
+	offsetEnd := offsetBegin + offsetLen
+	offset := packet[offsetBegin:offsetEnd]
+	coords, _ := wire_decode_coords(packet[offsetEnd:])
+	return offset, coords
 }
 
 // The wire format for link protocol traffic, namely switchMsg.

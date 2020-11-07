@@ -236,13 +236,6 @@ func (p *peer) _handlePacket(packet []byte) {
 	}
 }
 
-// Get the coords of a packet without decoding
-func peer_getPacketCoords(packet []byte) []byte {
-	_, pTypeLen := wire_decode_uint64(packet)
-	coords, _ := wire_decode_coords(packet[pTypeLen:])
-	return coords
-}
-
 // Called to handle traffic or protocolTraffic packets.
 // In either case, this reads from the coords of the packet header, does a switch lookup, and forwards to the next node.
 func (p *peer) _handleTraffic(packet []byte) {
@@ -250,7 +243,7 @@ func (p *peer) _handleTraffic(packet []byte) {
 		// Drop traffic if the peer isn't in the switch
 		return
 	}
-	coords := peer_getPacketCoords(packet)
+	_, coords := wire_getTrafficOffsetAndCoords(packet)
 	next := p.table.lookup(coords)
 	if nPeer, isIn := p.ports[next]; isIn {
 		nPeer.sendPacketFrom(p, packet)
