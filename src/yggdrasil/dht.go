@@ -185,7 +185,7 @@ func dht_ordered(first, second, third *crypto.NodeID) bool {
 
 // Reads a request, performs a lookup, and responds.
 // Update info about the node that sent the request.
-func (t *dht) handleReq(req *dhtReq) {
+func (t *dht) handleReq(req *dhtReq, rpath []byte) {
 	// Send them what they asked for
 	res := dhtRes{
 		Key:    t.router.core.boxPub,
@@ -193,7 +193,7 @@ func (t *dht) handleReq(req *dhtReq) {
 		Dest:   req.Dest,
 		Infos:  t.lookup(&req.Dest, false),
 	}
-	t.sendRes(&res, req)
+	t.sendRes(&res, req, rpath)
 	// Also add them to our DHT
 	info := dhtInfo{
 		key:    req.Key,
@@ -213,13 +213,15 @@ func (t *dht) handleReq(req *dhtReq) {
 }
 
 // Sends a lookup response to the specified node.
-func (t *dht) sendRes(res *dhtRes, req *dhtReq) {
+func (t *dht) sendRes(res *dhtRes, req *dhtReq, rpath []byte) {
 	// Send a reply for a dhtReq
 	bs := res.encode()
 	shared := t.router.sessions.getSharedKey(&t.router.core.boxPriv, &req.Key)
 	payload, nonce := crypto.BoxSeal(shared, bs, nil)
+	path := append([]byte{0}, switch_reverseCoordBytes(rpath)...)
 	p := wire_protoTrafficPacket{
-		Coords:  req.Coords,
+		Offset:  1,
+		Coords:  path,
 		ToKey:   req.Key,
 		FromKey: t.router.core.boxPub,
 		Nonce:   *nonce,
