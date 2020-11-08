@@ -95,7 +95,7 @@ func (sinfo *sessionInfo) _update(p *sessionPing, rpath []byte) bool {
 	}
 	sinfo.time = time.Now()
 	sinfo.tstamp = p.Tstamp
-	if p.IsPong && sinfo.path == nil {
+	if p.IsPong {
 		path := switch_reverseCoordBytes(rpath)
 		sinfo.path = append(sinfo.path[:0], path...)
 	}
@@ -335,13 +335,8 @@ func (sinfo *sessionInfo) _sendPingPong(isPong bool, path []byte) {
 	packet := p.encode()
 	// TODO rewrite the below if/when the peer struct becomes an actor, to not go through the router first
 	sinfo.sessions.router.Act(sinfo, func() { sinfo.sessions.router.out(packet) })
-	if !isPong && sinfo.pingTime.Before(sinfo.time) {
-		sinfo.pingTime = time.Now()
-	}
 	if !isPong {
-		// Sending a ping may happen when we don't know if our path info is good anymore...
-		// Reset paths just to be safe...
-		sinfo.path = nil
+		sinfo.pingTime = time.Now()
 	}
 }
 
@@ -483,9 +478,6 @@ func (sinfo *sessionInfo) _recvPacket(p *wire_trafficPacket) {
 			sinfo._updateNonce(&p.Nonce)
 			sinfo.bytesRecvd += uint64(len(bs))
 			sinfo.conn.recvMsg(sinfo, bs)
-			if sinfo.path == nil {
-				sinfo._sendPingPong(false, nil)
-			}
 		}
 		ch <- callback
 		sinfo.checkCallbacks()
@@ -529,6 +521,9 @@ func (sinfo *sessionInfo) _send(msg FlowKeyMessage) {
 			sinfo.sessions.router.Act(sinfo, func() {
 				sinfo.sessions.router.out(packet)
 			})
+			if time.Since(sinfo.pingTime) > 3*time.Second {
+				sinfo._sendPingPong(false, nil)
+			}
 		}
 		ch <- callback
 		sinfo.checkCallbacks()
