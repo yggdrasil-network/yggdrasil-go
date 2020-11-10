@@ -92,13 +92,15 @@ func (sinfo *sessionInfo) _update(p *sessionPing, rpath []byte) bool {
 	if !bytes.Equal(sinfo.coords, p.Coords) {
 		// allocate enough space for additional coords
 		sinfo.coords = append(make([]byte, 0, len(p.Coords)+11), p.Coords...)
-	}
-	sinfo.time = time.Now()
-	sinfo.tstamp = p.Tstamp
-	if p.IsPong {
+		path := switch_reverseCoordBytes(rpath)
+		sinfo.path = append(sinfo.path[:0], path...)
+		defer sinfo._sendPingPong(false, nil)
+	} else if p.IsPong {
 		path := switch_reverseCoordBytes(rpath)
 		sinfo.path = append(sinfo.path[:0], path...)
 	}
+	sinfo.time = time.Now()
+	sinfo.tstamp = p.Tstamp
 	sinfo.reset = false
 	defer func() { recover() }() // Recover if the below panics
 	select {
@@ -423,6 +425,8 @@ func (ss *sessions) reset() {
 		sinfo := _sinfo // So we can safely put it in a closure
 		sinfo.Act(ss.router, func() {
 			sinfo.reset = true
+			sinfo._sendPingPong(false, sinfo.path)
+			sinfo._sendPingPong(false, nil)
 		})
 	}
 }

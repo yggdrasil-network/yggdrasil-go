@@ -94,7 +94,6 @@ func (t *dht) reset() {
 			t.ping(info, nil)
 		}
 	}
-	t.reqs = make(map[dhtReqKey]time.Time)
 	t.table = make(map[crypto.NodeID]*dhtInfo)
 	t.imp = nil
 }
