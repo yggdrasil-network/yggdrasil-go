@@ -460,9 +460,6 @@ func (intf *link) notifyStalled() {
 // reset the close timer
 func (intf *link) notifyReading() {
 	intf.Act(&intf.reader, func() {
-		if intf.closeTimer != nil {
-			intf.closeTimer.Stop()
-		}
 		intf.closeTimer = time.AfterFunc(closeTime, func() { intf.msgIO.close() })
 	})
 }
@@ -470,6 +467,7 @@ func (intf *link) notifyReading() {
 // wake up the link if it was stalled, and (if size > 0) prepare to send keep-alive traffic
 func (intf *link) notifyRead(size int) {
 	intf.Act(&intf.reader, func() {
+		intf.closeTimer.Stop()
 		if intf.stallTimer != nil {
 			intf.stallTimer.Stop()
 			intf.stallTimer = nil
