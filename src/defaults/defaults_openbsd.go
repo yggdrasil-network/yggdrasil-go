@@ -20,6 +20,6 @@ func GetDefaults() platformDefaultParameters {
 		// TUN/TAP
 		MaximumIfMTU:  16384,
 		DefaultIfMTU:  16384,
-		DefaultIfName: "/dev/tun0",
+		DefaultIfName: "tun0",
 	}
 }
