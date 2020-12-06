@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"time"
@@ -29,7 +30,7 @@ func dialTest(sendNode, recvNode *simNode) {
 		mask[idx] = 0xff
 	}
 	for {
-		c, err := sendNode.dialer.DialByNodeIDandMask(nil, &recvNode.nodeID, &mask)
+		c, err := sendNode.dialer.DialByNodeIDandMask(context.TODO(), &recvNode.nodeID, &mask)
 		if c != nil {
 			c.Close()
 			return

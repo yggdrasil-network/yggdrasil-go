@@ -42,13 +42,11 @@ type TunAdapter struct {
 	reader      tunReader
 	config      *config.NodeState
 	log         *log.Logger
-	reconfigure chan chan error
 	listener    *yggdrasil.Listener
 	dialer      *yggdrasil.Dialer
 	addr        address.Address
 	subnet      address.Subnet
 	ckr         cryptokey
-	icmpv6      ICMPv6
 	mtu         MTU
 	iface       tun.Device
 	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
@@ -170,7 +168,7 @@ func (tun *TunAdapter) _start() error {
 	}
 	tun.core.SetMaximumSessionMTU(tun.MTU())
 	tun.isOpen = true
-	go tun.handler()
+	go tun.handler()                      // nolint:errcheck
 	tun.reader.Act(nil, tun.reader._read) // Start the reader
 	tun.ckr.init(tun)
 	return nil
@@ -274,7 +272,7 @@ func (tun *TunAdapter) _wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 	// Set the read callback and start the timeout
 	conn.SetReadCallback(func(bs []byte) {
 		s.Act(conn, func() {
-			s._read(bs)
+			_ = s._read(bs)
 		})
 	})
 	s.Act(nil, s.stillAlive)

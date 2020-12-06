@@ -53,13 +53,11 @@ func (s *stream) writeMsgs(bss [][]byte) (int, error) {
 
 // readMsg reads a message from the stream, accounting for stream padding, and is *not* thread safe.
 func (s *stream) readMsg() ([]byte, error) {
-	for {
-		bs, err := s.readMsgFromBuffer()
-		if err != nil {
-			return nil, fmt.Errorf("message error: %v", err)
-		}
-		return bs, err
+	bs, err := s.readMsgFromBuffer()
+	if err != nil {
+		return nil, fmt.Errorf("message error: %v", err)
 	}
+	return bs, err
 }
 
 // Writes metadata bytes without stream padding, meant to be temporary

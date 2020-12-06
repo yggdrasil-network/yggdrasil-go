@@ -156,14 +156,6 @@ func (m *nodeinfo) _addCachedNodeInfo(key crypto.BoxPubKey, payload NodeInfoPayl
 	}
 }
 
-// Get a nodeinfo entry from the cache
-func (m *nodeinfo) _getCachedNodeInfo(key crypto.BoxPubKey) (NodeInfoPayload, error) {
-	if nodeinfo, ok := m.cache[key]; ok {
-		return nodeinfo.payload, nil
-	}
-	return NodeInfoPayload{}, errors.New("No cache entry found")
-}
-
 // Handles a nodeinfo request/response - called from the router
 func (m *nodeinfo) handleNodeInfo(from phony.Actor, nodeinfo *nodeinfoReqRes) {
 	m.Act(from, func() {

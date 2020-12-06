@@ -94,7 +94,7 @@ func (s *sessionInfo) _update(p *sessionPing) bool {
 	s.time = time.Now()
 	s.tstamp = p.Tstamp
 	s.reset = false
-	defer func() { recover() }() // Recover if the below panics
+	defer func() { _ = recover() }() // Recover if the below panics
 	select {
 	case <-s.init:
 	default:
@@ -285,20 +285,22 @@ func (ss *sessions) getSharedKey(myPriv *crypto.BoxPrivKey,
 	theirPub *crypto.BoxPubKey) *crypto.BoxSharedKey {
 	return crypto.GetSharedKey(myPriv, theirPub)
 	// FIXME concurrency issues with the below, so for now we just burn the CPU every time
-	if skey, isIn := ss.permShared[*theirPub]; isIn {
-		return skey
-	}
-	// First do some cleanup
-	const maxKeys = 1024
-	for key := range ss.permShared {
-		// Remove a random key until the store is small enough
-		if len(ss.permShared) < maxKeys {
-			break
+	/*
+		if skey, isIn := ss.permShared[*theirPub]; isIn {
+			return skey
 		}
-		delete(ss.permShared, key)
-	}
-	ss.permShared[*theirPub] = crypto.GetSharedKey(myPriv, theirPub)
-	return ss.permShared[*theirPub]
+		// First do some cleanup
+		const maxKeys = 1024
+		for key := range ss.permShared {
+			// Remove a random key until the store is small enough
+			if len(ss.permShared) < maxKeys {
+				break
+			}
+			delete(ss.permShared, key)
+		}
+		ss.permShared[*theirPub] = crypto.GetSharedKey(myPriv, theirPub)
+		return ss.permShared[*theirPub]
+	*/
 }
 
 // Sends a session ping by calling sendPingPong in ping mode.

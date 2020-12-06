@@ -30,7 +30,6 @@ import (
 )
 
 const default_timeout = 6 * time.Second
-const tcp_ping_interval = (default_timeout * 2 / 3)
 
 // The TCP listener and information about active TCP connections, to avoid duplication.
 type tcp struct {
@@ -67,7 +66,7 @@ type tcpOptions struct {
 }
 
 func (l *TcpListener) Stop() {
-	defer func() { recover() }()
+	defer func() { _ = recover() }()
 	close(l.stop)
 }
 
@@ -75,23 +74,12 @@ func (l *TcpListener) Stop() {
 func (t *tcp) setExtraOptions(c net.Conn) {
 	switch sock := c.(type) {
 	case *net.TCPConn:
-		sock.SetNoDelay(true)
+		if err := sock.SetNoDelay(true); err != nil {
+			t.links.core.log.Errorln("Error setting no-delay:", err)
+		}
 	// TODO something for socks5
 	default:
 	}
-}
-
-// Returns the address of the listener.
-func (t *tcp) getAddr() *net.TCPAddr {
-	// TODO: Fix this, because this will currently only give a single address
-	// to multicast.go, which obviously is not great, but right now multicast.go
-	// doesn't have the ability to send more than one address in a packet either
-	t.mutex.Lock()
-	defer t.mutex.Unlock()
-	for _, l := range t.listeners {
-		return l.Listener.Addr().(*net.TCPAddr)
-	}
-	return nil
 }
 
 // Initializes the struct.

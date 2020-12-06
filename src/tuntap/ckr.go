@@ -93,8 +93,8 @@ func (c *cryptokey) configure() {
 
 	// Wipe the caches
 	c.mutexcaches.Lock()
-	c.ipv4cache = make(map[address.Address]cryptokey_route, 0)
-	c.ipv6cache = make(map[address.Address]cryptokey_route, 0)
+	c.ipv4cache = make(map[address.Address]cryptokey_route)
+	c.ipv6cache = make(map[address.Address]cryptokey_route)
 	c.mutexcaches.Unlock()
 }
 

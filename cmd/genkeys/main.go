@@ -54,9 +54,7 @@ func main() {
 		if isBetter(currentBest, newKey.id[:]) || len(currentBest) == 0 {
 			currentBest = newKey.id
 			for _, channel := range threadChannels {
-				select {
-				case channel <- newKey.id:
-				}
+				channel <- newKey.id
 			}
 			fmt.Println("--------------------------------------------------------------------------------")
 			switch {

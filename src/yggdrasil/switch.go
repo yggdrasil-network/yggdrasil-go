@@ -117,28 +117,10 @@ func (l *switchLocator) getCoords() []byte {
 	return bs
 }
 
-// Returns true if this locator represents an ancestor of the locator given as an argument.
-// Ancestor means that it's the parent node, or the parent of parent, and so on...
-func (x *switchLocator) isAncestorOf(y *switchLocator) bool {
-	if x.root != y.root {
-		return false
-	}
-	if len(x.coords) > len(y.coords) {
-		return false
-	}
-	for idx := range x.coords {
-		if x.coords[idx] != y.coords[idx] {
-			return false
-		}
-	}
-	return true
-}
-
 // Information about a peer, used by the switch to build the tree and eventually make routing decisions.
 type peerInfo struct {
 	key        crypto.SigPubKey      // ID of this peer
 	locator    switchLocator         // Should be able to respond with signatures upon request
-	degree     uint64                // Self-reported degree
 	time       time.Time             // Time this node was last seen
 	faster     map[switchPort]uint64 // Counter of how often a node is faster than the current parent, penalized extra if slower
 	port       switchPort            // Interface number of this peer
@@ -177,7 +159,6 @@ type switchData struct {
 	// To be read/written with atomic.Value Store/Load calls
 	locator switchLocator
 	peers   map[switchPort]peerInfo
-	msg     *switchMsg
 }
 
 // All the information stored by the switch.
@@ -474,10 +455,7 @@ func (t *switchTable) _handleMsg(msg *switchMsg, fromPort switchPort, reprocessi
 				return false
 			}
 		}
-		if sender.locator.root == t.core.sigPub {
-			return false
-		}
-		return true
+		return sender.locator.root == t.core.sigPub
 	}()
 	dropTstamp, isIn := t.drop[sender.locator.root]
 	// Decide if we need to update info about the root or change parents.

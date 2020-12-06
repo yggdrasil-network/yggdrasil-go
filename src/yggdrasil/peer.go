@@ -87,7 +87,6 @@ type peer struct {
 	sig        crypto.SigPubKey
 	shared     crypto.BoxSharedKey
 	linkShared crypto.BoxSharedKey
-	endpoint   string
 	firstSeen  time.Time // To track uptime for getPeers
 	dinfo      *dhtInfo  // used to keep the DHT working
 	// The below aren't actually useful internally, they're just gathered for getPeers statistics
@@ -182,18 +181,6 @@ func (ps *peers) sendSwitchMsgs(from phony.Actor) {
 				continue
 			}
 			p.Act(ps, p._sendSwitchMsg)
-		}
-	})
-}
-
-func (ps *peers) updateDHT(from phony.Actor) {
-	ps.Act(from, func() {
-		for _, peer := range ps.ports {
-			p := peer
-			if p.port == 0 {
-				continue
-			}
-			p.Act(ps, p._updateDHT)
 		}
 	})
 }

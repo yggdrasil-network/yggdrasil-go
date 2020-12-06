@@ -2,19 +2,21 @@ package main
 
 type nodeStore map[int]*simNode
 
-func makeStoreSingle() nodeStore {
-	s := make(nodeStore)
-	s[0] = newNode(0)
-	return s
-}
-
 func linkNodes(a *simNode, b *simNode) {
 	la := a.core.NewSimlink()
 	lb := b.core.NewSimlink()
-	la.SetDestination(lb)
-	lb.SetDestination(la)
-	la.Start()
-	lb.Start()
+	if err := la.SetDestination(lb); err != nil {
+		panic(err)
+	}
+	if err := lb.SetDestination(la); err != nil {
+		panic(err)
+	}
+	if err := la.Start(); err != nil {
+		panic(err)
+	}
+	if err := lb.Start(); err != nil {
+		panic(err)
+	}
 }
 
 func makeStoreSquareGrid(sideLength int) nodeStore {

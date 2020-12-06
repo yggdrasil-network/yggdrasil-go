@@ -24,7 +24,7 @@ var CancellationTimeoutError = errors.New("timeout")
 
 // CancellationFinalizer is set as a finalizer when creating a new cancellation with NewCancellation(), and generally shouldn't be needed by the user, but is included in case other implementations of the same interface want to make use of it.
 func CancellationFinalizer(c Cancellation) {
-	c.Cancel(CancellationFinalized)
+	_ = c.Cancel(CancellationFinalized)
 }
 
 type cancellation struct {
@@ -76,7 +76,7 @@ func CancellationChild(parent Cancellation) Cancellation {
 		select {
 		case <-child.Finished():
 		case <-parent.Finished():
-			child.Cancel(parent.Error())
+			_ = child.Cancel(parent.Error())
 		}
 	}()
 	return child
@@ -91,7 +91,7 @@ func CancellationWithTimeout(parent Cancellation, timeout time.Duration) Cancell
 		select {
 		case <-child.Finished():
 		case <-timer.C:
-			child.Cancel(CancellationTimeoutError)
+			_ = child.Cancel(CancellationTimeoutError)
 		}
 	}()
 	return child
@@ -99,5 +99,5 @@ func CancellationWithTimeout(parent Cancellation, timeout time.Duration) Cancell
 
 // CancellationWithTimeout returns a ChildCancellation that will automatically be Cancelled with a CancellationTimeoutError after the specified deadline.
 func CancellationWithDeadline(parent Cancellation, deadline time.Time) Cancellation {
-	return CancellationWithTimeout(parent, deadline.Sub(time.Now()))
+	return CancellationWithTimeout(parent, time.Until(deadline))
 }

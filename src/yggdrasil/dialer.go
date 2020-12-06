@@ -21,7 +21,7 @@ type Dialer struct {
 // "curve25519" or "nodeid" and the second parameter should contain a
 // hexadecimal representation of the target. It uses DialContext internally.
 func (d *Dialer) Dial(network, address string) (net.Conn, error) {
-	return d.DialContext(nil, network, address)
+	return d.DialContext(context.TODO(), network, address)
 }
 
 // DialContext is used internally by Dial, and should only be used with a

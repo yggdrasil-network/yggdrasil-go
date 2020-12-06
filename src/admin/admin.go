@@ -42,15 +42,14 @@ type handler struct {
 }
 
 // AddHandler is called for each admin function to add the handler and help documentation to the API.
-func (a *AdminSocket) AddHandler(name string, args []string, handlerfunc func(Info) (Info, error)) error {
+func (a *AdminSocket) AddHandler(name string, args []string, handlerfunc func(Info) (Info, error)) {
 	if _, ok := a.handlers[strings.ToLower(name)]; ok {
-		return errors.New("handler already exists")
+		panic(fmt.Sprintf("admin handler %q already exists", name))
 	}
 	a.handlers[strings.ToLower(name)] = handler{
 		args:    args,
 		handler: handlerfunc,
 	}
-	return nil
 }
 
 // Init runs the initial admin setup.
@@ -75,9 +74,13 @@ func (a *AdminSocket) UpdateConfig(config *config.NodeConfig) {
 	if a.listenaddr != config.AdminListen {
 		a.listenaddr = config.AdminListen
 		if a.IsStarted() {
-			a.Stop()
+			if err := a.Stop(); err != nil {
+				a.log.Errorln("Failed to stop admin module:", err)
+			}
 		}
-		a.Start()
+		if err := a.Start(); err != nil {
+			a.log.Errorln("Failed to restart admin module:", err)
+		}
 	}
 }
 
@@ -227,11 +230,6 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 				},
 			}, errors.New("Failed to remove peer")
 		}
-		return Info{
-			"not_removed": []string{
-				in["uri"].(string),
-			},
-		}, errors.New("Failed to remove peer")
 	})
 	a.AddHandler("getAllowedEncryptionPublicKeys", []string{}, func(in Info) (Info, error) {
 		return Info{"allowed_box_pubs": a.core.GetAllowedEncryptionPublicKeys()}, nil

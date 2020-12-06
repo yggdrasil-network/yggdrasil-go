@@ -2,6 +2,7 @@ package yggdrasil
 
 import (
 	"errors"
+
 	"github.com/Arceliar/phony"
 )
 
@@ -31,7 +32,7 @@ func (s *Simlink) _sendMetaBytes(bs []byte) error {
 }
 
 func (s *Simlink) close() error {
-	defer func() { recover() }()
+	defer func() { _ = recover() }()
 	close(s.rch)
 	return nil
 }
@@ -46,7 +47,7 @@ func (s *Simlink) writeMsgs(msgs [][]byte) (int, error) {
 		bs := append([]byte(nil), msg...)
 		phony.Block(s, func() {
 			s.dest.Act(s, func() {
-				defer func() { recover() }()
+				defer func() { _ = recover() }()
 				s.dest.rch <- bs
 			})
 		})
@@ -84,7 +85,7 @@ func (s *Simlink) Start() error {
 			err = errors.New("already started")
 		} else {
 			s.started = true
-			go s.link.handler()
+			go s.link.handler() // nolint:errcheck
 		}
 	})
 	return err

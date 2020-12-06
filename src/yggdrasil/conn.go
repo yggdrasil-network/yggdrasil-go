@@ -113,7 +113,7 @@ func (c *Conn) search() error {
 					// Somehow this was called multiple times, TODO don't let that happen
 					if sinfo != nil {
 						// Need to clean up to avoid a session leak
-						sinfo.cancel.Cancel(nil)
+						_ = sinfo.cancel.Cancel(nil)
 						sinfo.sessions.removeSession(sinfo)
 					}
 				default:
@@ -149,11 +149,10 @@ func (c *Conn) _doSearch() {
 	s := fmt.Sprintf("conn=%p", c)
 	routerWork := func() {
 		// Check to see if there is a search already matching the destination
-		sinfo, isIn := c.core.router.searches.searches[*c.nodeID]
-		if !isIn {
+		if _, isIn := c.core.router.searches.searches[*c.nodeID]; !isIn {
 			// Nothing was found, so create a new search
 			searchCompleted := func(sinfo *sessionInfo, e error) {}
-			sinfo = c.core.router.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
+			sinfo := c.core.router.searches.newIterSearch(c.nodeID, c.nodeMask, searchCompleted)
 			c.core.log.Debugf("%s DHT search started: %p", s, sinfo)
 			// Start the search
 			sinfo.startSearch()
@@ -217,7 +216,7 @@ func (c *Conn) readNoCopy() ([]byte, error) {
 	var doCancel bool
 	phony.Block(c, func() { cancel, doCancel = c._getDeadlineCancellation(c.readDeadline) })
 	if doCancel {
-		defer cancel.Cancel(nil)
+		defer cancel.Cancel(nil) // nolint:errcheck
 	}
 	// Wait for some traffic to come through from the session
 	select {
@@ -295,7 +294,7 @@ func (c *Conn) writeNoCopy(msg FlowKeyMessage) error {
 	var doCancel bool
 	phony.Block(c, func() { cancel, doCancel = c._getDeadlineCancellation(c.writeDeadline) })
 	if doCancel {
-		defer cancel.Cancel(nil)
+		defer cancel.Cancel(nil) // nolint:errcheck
 	}
 	var err error
 	select {
@@ -369,8 +368,8 @@ func (c *Conn) RemoteAddr() net.Addr {
 // that synchronous Read and Write operations can block for. If no deadline is
 // configured, Read and Write operations can potentially block indefinitely.
 func (c *Conn) SetDeadline(t time.Time) error {
-	c.SetReadDeadline(t)
-	c.SetWriteDeadline(t)
+	_ = c.SetReadDeadline(t)
+	_ = c.SetWriteDeadline(t)
 	return nil
 }
 

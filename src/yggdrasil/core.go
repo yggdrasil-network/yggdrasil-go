@@ -197,7 +197,9 @@ func (c *Core) _stop() {
 	if c.addPeerTimer != nil {
 		c.addPeerTimer.Stop()
 	}
-	c.links.stop()
+	if err := c.links.stop(); err != nil {
+		c.log.Warnln("Error stopping links:", err)
+	}
 	/* FIXME this deadlocks, need a waitgroup or something to coordinate shutdown
 	for _, peer := range c.GetPeers() {
 		c.DisconnectPeer(peer.Port)

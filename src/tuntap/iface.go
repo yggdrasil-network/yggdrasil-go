@@ -28,24 +28,19 @@ func (w *tunWriter) writeFrom(from phony.Actor, b []byte) {
 // write is pretty loose with the memory safety rules, e.g. it assumes it can
 // read w.tun.iface.IsTap() safely
 func (w *tunWriter) _write(b []byte) {
-	var written int
 	var err error
 	n := len(b)
 	if n == 0 {
 		return
 	}
 	temp := append(w.buf[:TUN_OFFSET_BYTES], b...)
-	written, err = w.tun.iface.Write(temp, TUN_OFFSET_BYTES)
+	_, err = w.tun.iface.Write(temp, TUN_OFFSET_BYTES)
 	if err != nil {
 		w.tun.Act(w, func() {
 			if !w.tun.isOpen {
 				w.tun.log.Errorln("TUN iface write error:", err)
 			}
 		})
-	}
-	if written != n+TUN_OFFSET_BYTES {
-		// FIXME some platforms return the wrong number of bytes written, causing error spam
-		//w.tun.log.Errorln("TUN iface write mismatch:", written, "bytes written vs", n+TUN_OFFSET_BYTES, "bytes given")
 	}
 }
 

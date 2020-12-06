@@ -28,7 +28,7 @@ func (l *Listener) Accept() (net.Conn, error) {
 // Close will stop the listener
 func (l *Listener) Close() (err error) {
 	defer func() {
-		recover()
+		_ = recover()
 		err = errors.New("already closed")
 	}()
 	if l.core.router.sessions.listener == l {

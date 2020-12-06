@@ -140,23 +140,6 @@ func (l *links) call(uri string, sintf string) error {
 	return nil
 }
 
-func (l *links) listen(uri string) error {
-	u, err := url.Parse(uri)
-	if err != nil {
-		return fmt.Errorf("listener %s is not correctly formatted (%s)", uri, err)
-	}
-	switch u.Scheme {
-	case "tcp":
-		_, err := l.tcp.listen(u.Host, nil)
-		return err
-	case "tls":
-		_, err := l.tcp.listen(u.Host, l.tcp.tls.forListener)
-		return err
-	default:
-		return errors.New("unknown listen scheme: " + u.Scheme)
-	}
-}
-
 func (l *links) create(msgIO linkMsgIO, name, linkType, local, remote string, incoming, force bool, options linkOptions) (*link, error) {
 	// Technically anything unique would work for names, but let's pick something human readable, just for debugging
 	intf := link{
@@ -191,7 +174,7 @@ func (intf *link) handler() error {
 	// TODO split some of this into shorter functions, so it's easier to read, and for the FIXME duplicate peer issue mentioned later
 	go func() {
 		for bss := range intf.writer.worker {
-			intf.msgIO.writeMsgs(bss)
+			_, _ = intf.msgIO.writeMsgs(bss)
 		}
 	}()
 	defer intf.writer.Act(nil, func() {
@@ -231,13 +214,13 @@ func (intf *link) handler() error {
 	// check - in future versions we really should check a signature or something like that.
 	if pinned := intf.options.pinnedCurve25519Keys; pinned != nil {
 		if _, allowed := pinned[meta.box]; !allowed {
-			intf.links.core.log.Errorf("Failed to connect to node: %q sent curve25519 key that does not match pinned keys", intf.name)
+			intf.links.core.log.Errorf("Failed to connect to node: %q sent curve25519 key that does not match pinned keys", intf.name())
 			return fmt.Errorf("failed to connect: host sent curve25519 key that does not match pinned keys")
 		}
 	}
 	if pinned := intf.options.pinnedEd25519Keys; pinned != nil {
 		if _, allowed := pinned[meta.sig]; !allowed {
-			intf.links.core.log.Errorf("Failed to connect to node: %q sent ed25519 key that does not match pinned keys", intf.name)
+			intf.links.core.log.Errorf("Failed to connect to node: %q sent ed25519 key that does not match pinned keys", intf.name())
 			return fmt.Errorf("failed to connect: host sent ed25519 key that does not match pinned keys")
 		}
 	}
@@ -256,7 +239,7 @@ func (intf *link) handler() error {
 		intf.links.mutex.Unlock()
 		// FIXME we should really return an error and let the caller block instead
 		// That lets them do things like close connections on its own, avoid printing a connection message in the first place, etc.
-		intf.links.core.log.Debugln("DEBUG: found existing interface for", intf.name)
+		intf.links.core.log.Debugln("DEBUG: found existing interface for", intf.name())
 		intf.msgIO.close()
 		if !intf.incoming {
 			// Block outgoing connection attempts until the existing connection closes
@@ -272,7 +255,7 @@ func (intf *link) handler() error {
 			intf.links.mutex.Unlock()
 			close(intf.closed)
 		}()
-		intf.links.core.log.Debugln("DEBUG: registered interface for", intf.name)
+		intf.links.core.log.Debugln("DEBUG: registered interface for", intf.name())
 	}
 	intf.links.mutex.Unlock()
 	// Create peer

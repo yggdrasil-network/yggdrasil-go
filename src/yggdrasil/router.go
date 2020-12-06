@@ -66,7 +66,9 @@ func (r *router) init(core *Core) {
 	}
 	r.nodeinfo.init(r.core)
 	r.core.config.Mutex.RLock()
-	r.nodeinfo.setNodeInfo(r.core.config.Current.NodeInfo, r.core.config.Current.NodeInfoPrivacy)
+	if err := r.nodeinfo.setNodeInfo(r.core.config.Current.NodeInfo, r.core.config.Current.NodeInfoPrivacy); err != nil {
+		r.core.log.Errorln("Error setting NodeInfo:", err)
+	}
 	r.core.config.Mutex.RUnlock()
 	r.dht.init(r)
 	r.searches.init(r)

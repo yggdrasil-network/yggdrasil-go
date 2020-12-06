@@ -91,6 +91,7 @@ func (m *Multicast) _start() error {
 	m.sock = ipv6.NewPacketConn(conn)
 	if err = m.sock.SetControlMessage(ipv6.FlagDst, true); err != nil {
 		// Windows can't set this flag, so we need to handle it in other ways
+		m.log.Warnln("m.sock.SetControlMessage(ipv6.FlagDst) error:", err)
 	}
 
 	m.isOpen = true
@@ -294,7 +295,10 @@ func (m *Multicast) _announce() {
 				continue
 			}
 			// Join the multicast group
-			m.sock.JoinGroup(&iface, groupAddr)
+			if err := m.sock.JoinGroup(&iface, groupAddr); err != nil {
+				m.log.Errorln("Failed to join multicast group on", iface.Name, "due to error:", err)
+				continue
+			}
 			// Try and see if we already have a TCP listener for this interface
 			var info *listenerInfo
 			if nfo, ok := m.listeners[iface.Name]; !ok || nfo.listener.Listener == nil {
@@ -325,7 +329,9 @@ func (m *Multicast) _announce() {
 				a.Zone = ""
 				destAddr.Zone = iface.Name
 				msg := []byte(a.String())
-				m.sock.WriteTo(msg, nil, destAddr)
+				if _, err = m.sock.WriteTo(msg, nil, destAddr); err != nil {
+					m.log.Errorln("Failed to send multicast beacon on", iface.Name, "due to error:", err)
+				}
 			}
 			if info.interval.Seconds() < 15 {
 				info.interval += time.Second

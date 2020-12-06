@@ -20,7 +20,9 @@ type simNode struct {
 
 func newNode(id int) *simNode {
 	n := simNode{id: id}
-	n.core.Start(config.GenerateConfig(), log.New(ioutil.Discard, "", 0))
+	if _, err := n.core.Start(config.GenerateConfig(), log.New(ioutil.Discard, "", 0)); err != nil {
+		panic(err)
+	}
 	n.nodeID = *n.core.NodeID()
 	n.dialer, _ = n.core.ConnDialer()
 	n.listener, _ = n.core.ConnListen()

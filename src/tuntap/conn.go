@@ -35,7 +35,7 @@ func (s *tunConn) _close_from_tun() {
 	delete(s.tun.addrToConn, s.addr)
 	delete(s.tun.subnetToConn, s.snet)
 	func() {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		close(s.stop) // Closes reader/writer goroutines
 	}()
 }
@@ -114,7 +114,7 @@ func (s *tunConn) _read(bs []byte) (err error) {
 
 func (s *tunConn) writeFrom(from phony.Actor, bs []byte) {
 	s.Act(from, func() {
-		s._write(bs)
+		_ = s._write(bs)
 	})
 }
 

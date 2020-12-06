@@ -211,7 +211,7 @@ func (c *Core) GetSessions() []Session {
 					MTU:         sinfo._getMTU(),
 					BytesSent:   sinfo.bytesSent,
 					BytesRecvd:  sinfo.bytesRecvd,
-					Uptime:      time.Now().Sub(sinfo.timeOpened),
+					Uptime:      time.Since(sinfo.timeOpened),
 					WasMTUFixed: sinfo.wasMTUFixed,
 				}
 				copy(session.PublicKey[:], sinfo.theirPermPub[:])
@@ -340,7 +340,7 @@ func (c *Core) MyNodeInfo() NodeInfoPayload {
 // SetNodeInfo sets the local nodeinfo. Note that nodeinfo can be any value or
 // struct, it will be serialised into JSON automatically.
 func (c *Core) SetNodeInfo(nodeinfo interface{}, nodeinfoprivacy bool) {
-	c.router.nodeinfo.setNodeInfo(nodeinfo, nodeinfoprivacy)
+	_ = c.router.nodeinfo.setNodeInfo(nodeinfo, nodeinfoprivacy)
 }
 
 // GetMaximumSessionMTU returns the maximum allowed session MTU size.
@@ -371,7 +371,7 @@ func (c *Core) SetMaximumSessionMTU(mtu MTU) {
 func (c *Core) GetNodeInfo(key crypto.BoxPubKey, coords []uint64, nocache bool) (NodeInfoPayload, error) {
 	response := make(chan *NodeInfoPayload, 1)
 	c.router.nodeinfo.addCallback(key, func(nodeinfo *NodeInfoPayload) {
-		defer func() { recover() }()
+		defer func() { _ = recover() }()
 		select {
 		case response <- nodeinfo:
 		default:

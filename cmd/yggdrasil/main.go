@@ -106,7 +106,7 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *config
 	if err != nil {
 		panic(err)
 	}
-	json.Unmarshal(confJson, &cfg)
+	_ = json.Unmarshal(confJson, &cfg)
 	// Overlay our newly mapped configuration onto the autoconf node config that
 	// we generated above.
 	if err = mapstructure.Decode(dat, &cfg); err != nil {
@@ -285,25 +285,29 @@ func main() {
 	n.multicast = &multicast.Multicast{}
 	n.tuntap = &tuntap.TunAdapter{}
 	// Start the admin socket
-	n.admin.Init(&n.core, n.state, logger, nil)
-	if err := n.admin.Start(); err != nil {
+	if err := n.admin.Init(&n.core, n.state, logger, nil); err != nil {
+		logger.Errorln("An error occured initialising the admin module:", err)
+	} else if err := n.admin.Start(); err != nil {
 		logger.Errorln("An error occurred starting admin socket:", err)
 	}
 	n.admin.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 	// Start the multicast interface
-	n.multicast.Init(&n.core, n.state, logger, nil)
-	if err := n.multicast.Start(); err != nil {
+	if err := n.multicast.Init(&n.core, n.state, logger, nil); err != nil {
+		logger.Errorln("An error occured initialising the multicast module:", err)
+	} else if err := n.multicast.Start(); err != nil {
 		logger.Errorln("An error occurred starting multicast:", err)
 	}
 	n.multicast.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 	// Start the TUN/TAP interface
 	if listener, err := n.core.ConnListen(); err == nil {
 		if dialer, err := n.core.ConnDialer(); err == nil {
-			n.tuntap.Init(&n.core, n.state, logger, tuntap.TunOptions{Listener: listener, Dialer: dialer})
-			if err := n.tuntap.Start(); err != nil {
+			if err := n.tuntap.Init(&n.core, n.state, logger, tuntap.TunOptions{Listener: listener, Dialer: dialer}); err != nil {
+				logger.Errorln("An error occured initialising the TUN module:", err)
+			} else if err := n.tuntap.Start(); err != nil {
 				logger.Errorln("An error occurred starting TUN/TAP:", err)
+			} else {
+				n.tuntap.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 			}
-			n.tuntap.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 		} else {
 			logger.Errorln("Unable to get Dialer:", err)
 		}
@@ -346,9 +350,9 @@ exit:
 }
 
 func (n *node) shutdown() {
-	n.admin.Stop()
-	n.multicast.Stop()
-	n.tuntap.Stop()
+	_ = n.admin.Stop()
+	_ = n.multicast.Stop()
+	_ = n.tuntap.Stop()
 	n.core.Stop()
 }
 
