@@ -236,7 +236,7 @@ func BoxOpen(shared *BoxSharedKey,
 	n := (*[BoxNonceLen]byte)(nonce)
 	temp := append(pool.Get().([]byte), boxed...)
 	unboxed, success := box.OpenAfterPrecomputation(boxed[:0], temp, n, s)
-	pool.Put(temp[:0])
+	pool.Put(temp[:0]) // nolint:staticcheck
 	return unboxed, success
 }
 
@@ -253,7 +253,7 @@ func BoxSeal(shared *BoxSharedKey, unboxed []byte, nonce *BoxNonce) ([]byte, *Bo
 	n := (*[BoxNonceLen]byte)(nonce)
 	temp := append(pool.Get().([]byte), unboxed...)
 	boxed := box.SealAfterPrecomputation(unboxed[:0], temp, n, s)
-	pool.Put(temp[:0])
+	pool.Put(temp[:0]) // nolint:staticcheck
 	return boxed, nonce
 }
 

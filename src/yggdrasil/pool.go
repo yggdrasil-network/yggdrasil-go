@@ -16,5 +16,5 @@ func pool_getBytes(size int) []byte {
 }
 
 func pool_putBytes(bs []byte) {
-	pool.Put(bs)
+	pool.Put(bs) // nolint:staticcheck
 }
