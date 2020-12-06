@@ -5,6 +5,9 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 
+	"golang.org/x/net/icmp"
+	"golang.org/x/net/ipv6"
+
 	"github.com/Arceliar/phony"
 )
 
@@ -147,6 +150,16 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 	}
 	if addrlen != 16 || (!dstAddr.IsValid() && !dstSnet.IsValid()) {
 		// Couldn't find this node's ygg IP
+		dlen := len(bs)
+		if dlen > 900 {
+			dlen = 900
+		}
+		ptb := &icmp.DstUnreach{
+			Data: bs[:dlen],
+		}
+		if packet, err := CreateICMPv6(bs[8:24], bs[24:40], ipv6.ICMPTypeDestinationUnreachable, 0, ptb); err == nil {
+			tun.writer.writeFrom(nil, packet)
+		}
 		return
 	}
 	// Do we have an active connection for this node address?
