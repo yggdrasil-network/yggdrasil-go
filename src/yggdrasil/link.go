@@ -252,16 +252,12 @@ func (intf *link) handler() error {
 	intf.info.box = meta.box
 	intf.info.sig = meta.sig
 	intf.links.mutex.Lock()
-	if oldIntf, isIn := intf.links.links[intf.info]; isIn {
+	if _, isIn := intf.links.links[intf.info]; isIn {
 		intf.links.mutex.Unlock()
 		// FIXME we should really return an error and let the caller block instead
 		// That lets them do things like close connections on its own, avoid printing a connection message in the first place, etc.
 		intf.links.core.log.Debugln("DEBUG: found existing interface for", intf.name)
 		intf.msgIO.close()
-		if !intf.incoming {
-			// Block outgoing connection attempts until the existing connection closes
-			<-oldIntf.closed
-		}
 		return nil
 	} else {
 		intf.closed = make(chan struct{})
