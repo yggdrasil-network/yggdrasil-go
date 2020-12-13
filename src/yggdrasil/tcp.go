@@ -299,7 +299,9 @@ func (t *tcp) call(saddr string, options tcpOptions, sintf string) {
 			}
 			t.waitgroup.Add(1)
 			options.socksPeerAddr = conn.RemoteAddr().String()
-			t.handler(conn, false, options)
+			if ch := t.handler(conn, false, options); ch != nil {
+				<-ch
+			}
 		} else {
 			dst, err := net.ResolveTCPAddr("tcp", saddr)
 			if err != nil {
@@ -365,12 +367,14 @@ func (t *tcp) call(saddr string, options tcpOptions, sintf string) {
 				return
 			}
 			t.waitgroup.Add(1)
-			t.handler(conn, false, options)
+			if ch := t.handler(conn, false, options); ch != nil {
+				<-ch
+			}
 		}
 	}()
 }
 
-func (t *tcp) handler(sock net.Conn, incoming bool, options tcpOptions) {
+func (t *tcp) handler(sock net.Conn, incoming bool, options tcpOptions) chan struct{} {
 	defer t.waitgroup.Done() // Happens after sock.close
 	defer sock.Close()
 	t.setExtraOptions(sock)
@@ -379,7 +383,7 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options tcpOptions) {
 		var err error
 		if sock, err = options.upgrade.upgrade(sock); err != nil {
 			t.links.core.log.Errorln("TCP handler upgrade failed:", err)
-			return
+			return nil
 		}
 		upgraded = true
 	}
@@ -415,7 +419,7 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options tcpOptions) {
 			//  Maybe dial/listen at the application level
 			//  Then pass a net.Conn to the core library (after these kinds of checks are done)
 			t.links.core.log.Debugln("Dropping ygg-tunneled connection", local, remote)
-			return
+			return nil
 		}
 	}
 	force := net.ParseIP(strings.Split(remote, "%")[0]).IsLinkLocalUnicast()
@@ -425,6 +429,7 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options tcpOptions) {
 		panic(err)
 	}
 	t.links.core.log.Debugln("DEBUG: starting handler for", name)
-	err = link.handler()
+	ch, err := link.handler()
 	t.links.core.log.Debugln("DEBUG: stopped handler for", name, err)
+	return ch
 }
