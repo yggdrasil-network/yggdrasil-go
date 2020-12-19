@@ -187,7 +187,7 @@ func (l *links) stop() error {
 	return nil
 }
 
-func (intf *link) handler() error {
+func (intf *link) handler() (chan struct{}, error) {
 	// TODO split some of this into shorter functions, so it's easier to read, and for the FIXME duplicate peer issue mentioned later
 	go func() {
 		for bss := range intf.writer.worker {
@@ -207,38 +207,38 @@ func (intf *link) handler() error {
 	// TODO timeouts on send/recv (goroutine for send/recv, channel select w/ timer)
 	var err error
 	if !util.FuncTimeout(func() { err = intf.msgIO._sendMetaBytes(metaBytes) }, 30*time.Second) {
-		return errors.New("timeout on metadata send")
+		return nil, errors.New("timeout on metadata send")
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !util.FuncTimeout(func() { metaBytes, err = intf.msgIO._recvMetaBytes() }, 30*time.Second) {
-		return errors.New("timeout on metadata recv")
+		return nil, errors.New("timeout on metadata recv")
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 	meta = version_metadata{}
 	if !meta.decode(metaBytes) || !meta.check() {
-		return errors.New("failed to decode metadata")
+		return nil, errors.New("failed to decode metadata")
 	}
 	base := version_getBaseMetadata()
 	if meta.ver > base.ver || meta.ver == base.ver && meta.minorVer > base.minorVer {
 		intf.links.core.log.Errorln("Failed to connect to node: " + intf.lname + " version: " + fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
-		return errors.New("failed to connect: wrong version")
+		return nil, errors.New("failed to connect: wrong version")
 	}
 	// Check if the remote side matches the keys we expected. This is a bit of a weak
 	// check - in future versions we really should check a signature or something like that.
 	if pinned := intf.options.pinnedCurve25519Keys; pinned != nil {
 		if _, allowed := pinned[meta.box]; !allowed {
 			intf.links.core.log.Errorf("Failed to connect to node: %q sent curve25519 key that does not match pinned keys", intf.name)
-			return fmt.Errorf("failed to connect: host sent curve25519 key that does not match pinned keys")
+			return nil, fmt.Errorf("failed to connect: host sent curve25519 key that does not match pinned keys")
 		}
 	}
 	if pinned := intf.options.pinnedEd25519Keys; pinned != nil {
 		if _, allowed := pinned[meta.sig]; !allowed {
 			intf.links.core.log.Errorf("Failed to connect to node: %q sent ed25519 key that does not match pinned keys", intf.name)
-			return fmt.Errorf("failed to connect: host sent ed25519 key that does not match pinned keys")
+			return nil, fmt.Errorf("failed to connect: host sent ed25519 key that does not match pinned keys")
 		}
 	}
 	// Check if we're authorized to connect to this key / IP
@@ -246,7 +246,7 @@ func (intf *link) handler() error {
 		intf.links.core.log.Warnf("%s connection from %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
 			strings.ToUpper(intf.info.linkType), intf.info.remote, hex.EncodeToString(meta.box[:]))
 		intf.msgIO.close()
-		return nil
+		return nil, nil
 	}
 	// Check if we already have a link to this node
 	intf.info.box = meta.box
@@ -258,11 +258,7 @@ func (intf *link) handler() error {
 		// That lets them do things like close connections on its own, avoid printing a connection message in the first place, etc.
 		intf.links.core.log.Debugln("DEBUG: found existing interface for", intf.name)
 		intf.msgIO.close()
-		if !intf.incoming {
-			// Block outgoing connection attempts until the existing connection closes
-			<-oldIntf.closed
-		}
-		return nil
+		return oldIntf.closed, nil
 	} else {
 		intf.closed = make(chan struct{})
 		intf.links.links[intf.info] = intf
@@ -282,7 +278,7 @@ func (intf *link) handler() error {
 		intf.peer = intf.links.core.peers._newPeer(&meta.box, &meta.sig, shared, intf)
 	})
 	if intf.peer == nil {
-		return errors.New("failed to create peer")
+		return nil, errors.New("failed to create peer")
 	}
 	defer func() {
 		// More cleanup can go here
@@ -320,7 +316,7 @@ func (intf *link) handler() error {
 		intf.links.core.log.Infof("Disconnected %s: %s, source %s",
 			strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 	}
-	return err
+	return nil, err
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -460,9 +456,6 @@ func (intf *link) notifyStalled() {
 // reset the close timer
 func (intf *link) notifyReading() {
 	intf.Act(&intf.reader, func() {
-		if intf.closeTimer != nil {
-			intf.closeTimer.Stop()
-		}
 		intf.closeTimer = time.AfterFunc(closeTime, func() { intf.msgIO.close() })
 	})
 }
@@ -470,6 +463,7 @@ func (intf *link) notifyReading() {
 // wake up the link if it was stalled, and (if size > 0) prepare to send keep-alive traffic
 func (intf *link) notifyRead(size int) {
 	intf.Act(&intf.reader, func() {
+		intf.closeTimer.Stop()
 		if intf.stallTimer != nil {
 			intf.stallTimer.Stop()
 			intf.stallTimer = nil
