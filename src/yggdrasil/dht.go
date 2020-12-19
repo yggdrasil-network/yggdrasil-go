@@ -28,7 +28,8 @@ type dhtInfo struct {
 	recv          time.Time // When we last received a message
 	pings         int       // Time out if at least 3 consecutive maintenance pings drop
 	throttle      time.Duration
-	dirty         bool // Set to true if we've used this node in ping responses (for queries about someone other than the person doing the asking, i.e. real searches) since the last time we heard from the node
+	path          []byte // source route the destination, learned from response rpath
+	dirty         bool   // Set to true if we've used this node in ping responses (for queries about someone other than the person doing the asking, i.e. real searches) since the last time we heard from the node
 }
 
 // Returns the *NodeID associated with dhtInfo.key, calculating it on the fly the first time or from a cache all subsequent times.
@@ -91,7 +92,12 @@ func (t *dht) reconfigure() {
 func (t *dht) reset() {
 	for _, info := range t.table {
 		if t.isImportant(info) {
-			t.ping(info, nil)
+			t.ping(info, nil) // This will source route if a path is already known
+			if info.path != nil {
+				// In case the source route died, but the dest coords are still OK...
+				info.path = nil
+				t.ping(info, nil)
+			}
 		}
 	}
 	t.table = make(map[crypto.NodeID]*dhtInfo)
@@ -115,6 +121,9 @@ func (t *dht) lookup(nodeID *crypto.NodeID, everything bool) []*dhtInfo {
 		newRes = append(newRes, results[:len(results)-dht_lookup_size/2]...)
 		results = newRes
 		results = results[:dht_lookup_size]
+	}
+	for _, info := range results {
+		info.dirty = true
 	}
 	return results
 }
@@ -243,7 +252,7 @@ func (t *dht) addCallback(rq *dhtReqKey, callback func(*dhtRes)) {
 
 // Reads a lookup response, checks that we had sent a matching request, and processes the response info.
 // This mainly consists of updating the node we asked in our DHT (they responded, so we know they're still alive), and deciding if we want to do anything with their responses
-func (t *dht) handleRes(res *dhtRes) {
+func (t *dht) handleRes(res *dhtRes, rpath []byte) {
 	rq := dhtReqKey{res.Key, res.Dest}
 	if callbacks, isIn := t.callbacks[rq]; isIn {
 		for _, callback := range callbacks {
@@ -259,6 +268,7 @@ func (t *dht) handleRes(res *dhtRes) {
 	rinfo := dhtInfo{
 		key:    res.Key,
 		coords: res.Coords,
+		path:   switch_reverseCoordBytes(rpath),
 	}
 	if t.isImportant(&rinfo) {
 		t.insert(&rinfo)
@@ -289,6 +299,10 @@ func (t *dht) sendReq(req *dhtReq, dest *dhtInfo) {
 		FromKey: t.router.core.boxPub,
 		Nonce:   *nonce,
 		Payload: payload,
+	}
+	if dest.path != nil {
+		p.Coords = append([]byte{0}, dest.path...)
+		p.Offset += 1
 	}
 	packet := p.encode()
 	t.router.out(packet)

@@ -206,7 +206,7 @@ func (r *router) _handleProto(packet []byte) {
 	case wire_DHTLookupRequest:
 		r._handleDHTReq(bs, &p.FromKey, p.RPath)
 	case wire_DHTLookupResponse:
-		r._handleDHTRes(bs, &p.FromKey)
+		r._handleDHTRes(bs, &p.FromKey, p.RPath)
 	default:
 	}
 }
@@ -237,13 +237,13 @@ func (r *router) _handleDHTReq(bs []byte, fromKey *crypto.BoxPubKey, rpath []byt
 }
 
 // Decodes dht responses and passes them to dht.handleRes to update the DHT table and further pass them to the search code (if applicable).
-func (r *router) _handleDHTRes(bs []byte, fromKey *crypto.BoxPubKey) {
+func (r *router) _handleDHTRes(bs []byte, fromKey *crypto.BoxPubKey, rpath []byte) {
 	res := dhtRes{}
 	if !res.decode(bs) {
 		return
 	}
 	res.Key = *fromKey
-	r.dht.handleRes(&res)
+	r.dht.handleRes(&res, rpath)
 }
 
 // Decodes nodeinfo request
