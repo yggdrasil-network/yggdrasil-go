@@ -90,6 +90,7 @@ func (t *dht) reconfigure() {
 // Resets the DHT in response to coord changes.
 // This empties all info from the DHT and drops outstanding requests.
 func (t *dht) reset() {
+	t.reqs = make(map[dhtReqKey]time.Time)
 	for _, info := range t.table {
 		if t.isImportant(info) {
 			t.ping(info, nil) // This will source route if a path is already known
