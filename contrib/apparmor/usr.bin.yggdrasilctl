@@ -1,0 +1,8 @@
+# Last Modified: Thu Dec 31 16:58:22 2020
+include <tunables/global>
+
+/usr/bin/yggdrasilctl {
+  include <abstractions/base>
+  /etc/yggdrasil.conf r,
+  /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
+}
