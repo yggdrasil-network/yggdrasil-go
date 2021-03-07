@@ -199,4 +199,4 @@ cat > wix.xml << EOF
 EOF
 
 # Generate the MSI
-wixl -v wix.xml -o ${PKGNAME}-${PKGVERSION}-${PKGARCH}.msi
+wixl -v wix.xml -a ${PKGARCH} -o ${PKGNAME}-${PKGVERSION}-${PKGARCH}.msi
