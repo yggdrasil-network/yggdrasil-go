@@ -1,9 +1,7 @@
 #!/bin/bash
 
 # This script generates an MSI file for Yggdrasil for a given architecture. It
-# needs to run on Windows within MSYS2 and Go 1.16 or later must be installed on
-# the system and within the PATH. This is ran currently by Appveyor (see
-# appveyor.yml in the repository root) for both x86 and x64.
+# needs to run on Linux or macOS with Go 1.16, wixl and msitools installed.
 #
 # Author: Neil Alexander <neilalexander@users.noreply.github.com>
 
