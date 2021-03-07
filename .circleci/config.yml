@@ -188,7 +188,6 @@ jobs:
               GOOS=windows GOARCH=arm ./build && mv yggdrasil.exe /tmp/upload/$CINAME-$CIVERSION-windows-arm.exe && mv yggdrasilctl.exe /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-windows-arm.exe;
               bash contrib/msi/build-msi.sh x64
               bash contrib/msi/build-msi.sh x86
-            #  bash contrib/msi/build-msi.sh arm
               mv *.msi /tmp/upload
 
       - persist_to_workspace:
