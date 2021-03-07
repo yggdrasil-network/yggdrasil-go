@@ -41,7 +41,9 @@ if not exist %ALLUSERSPROFILE%\\Yggdrasil (
 )
 if not exist %ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf (
   if exist yggdrasil.exe (
-    yggdrasil.exe -genconf > %ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf
+    if not exist %ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf (
+      yggdrasil.exe -genconf > %ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf
+    )
   )
 )
 EOF
@@ -188,9 +190,7 @@ cat > wix.xml << EOF
     <InstallExecuteSequence>
       <Custom
         Action="UpdateGenerateConfig"
-        Before="StartServices">
-          NOT Installed AND NOT REMOVE
-      </Custom>
+        Before="StartServices" />
     </InstallExecuteSequence>
 
   </Product>
