@@ -189,6 +189,7 @@ jobs:
               bash contrib/msi/build-msi.sh x64
               bash contrib/msi/build-msi.sh x86
               bash contrib/msi/build-msi.sh arm
+              mv *.msi /tmp/upload
 
       - persist_to_workspace:
           root: /tmp
