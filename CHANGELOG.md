@@ -41,6 +41,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Removed global `sync.Pool` of `[]byte`
   - Local `sync.Pool`s are used in the hot loops, but not exported, to avoid memory corruption if libraries are reused by other projects
   - This may increase allocations (and slightly reduce speed in CPU-bound benchmarks) when interacting with the tun/tap device, but traffic forwarded at the switch layer should be unaffected
+- Upgrade dependencies
+- Upgrade build to Go 1.16
 
 ### Fixed
 - Fixed a bug where the connection listener could exit prematurely due to resoruce exhaustion (if e.g. too many connections were opened)
