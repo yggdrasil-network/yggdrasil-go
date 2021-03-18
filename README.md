@@ -48,7 +48,7 @@ You may also find other platform-specific wrappers, scripts or tools in the
 If you want to build from source, as opposed to installing one of the pre-built
 packages:
 
-1. Install [Go](https://golang.org) (requires Go 1.13 or later)
+1. Install [Go](https://golang.org) (requires Go 1.16 or later)
 2. Clone this repository
 2. Run `./build`
 

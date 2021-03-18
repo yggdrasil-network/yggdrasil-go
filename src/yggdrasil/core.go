@@ -29,7 +29,7 @@ type Core struct {
 	switchTable  switchTable
 	peers        peers
 	router       router
-	link         link
+	links        links
 	log          *log.Logger
 	addPeerTimer *time.Timer
 }
@@ -165,7 +165,7 @@ func (c *Core) _start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState
 		return nil, err
 	}
 
-	if err := c.link.init(c); err != nil {
+	if err := c.links.init(c); err != nil {
 		c.log.Errorln("Failed to start link interfaces")
 		return nil, err
 	}
@@ -197,9 +197,11 @@ func (c *Core) _stop() {
 	if c.addPeerTimer != nil {
 		c.addPeerTimer.Stop()
 	}
-	c.link.stop()
+	c.links.stop()
+	/* FIXME this deadlocks, need a waitgroup or something to coordinate shutdown
 	for _, peer := range c.GetPeers() {
 		c.DisconnectPeer(peer.Port)
 	}
+	*/
 	c.log.Infoln("Stopped")
 }

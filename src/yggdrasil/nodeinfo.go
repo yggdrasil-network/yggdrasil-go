@@ -18,6 +18,7 @@ type nodeinfo struct {
 	myNodeInfo NodeInfoPayload
 	callbacks  map[crypto.BoxPubKey]nodeinfoCallback
 	cache      map[crypto.BoxPubKey]nodeinfoCached
+	table      *lookupTable
 }
 
 type nodeinfoCached struct {
@@ -187,9 +188,9 @@ func (m *nodeinfo) sendNodeInfo(key crypto.BoxPubKey, coords []byte, isResponse 
 }
 
 func (m *nodeinfo) _sendNodeInfo(key crypto.BoxPubKey, coords []byte, isResponse bool) {
-	table := m.core.switchTable.table.Load().(lookupTable)
+	loc := m.table.self
 	nodeinfo := nodeinfoReqRes{
-		SendCoords: table.self.getCoords(),
+		SendCoords: loc.getCoords(),
 		IsResponse: isResponse,
 		NodeInfo:   m._getNodeInfo(),
 	}

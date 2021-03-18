@@ -89,6 +89,11 @@ func (t *dht) reconfigure() {
 // Resets the DHT in response to coord changes.
 // This empties all info from the DHT and drops outstanding requests.
 func (t *dht) reset() {
+	for _, info := range t.table {
+		if t.isImportant(info) {
+			t.ping(info, nil)
+		}
+	}
 	t.reqs = make(map[dhtReqKey]time.Time)
 	t.table = make(map[crypto.NodeID]*dhtInfo)
 	t.imp = nil
@@ -144,12 +149,8 @@ func (t *dht) insert(info *dhtInfo) {
 
 // Insert a peer into the table if it hasn't been pinged lately, to keep peers from dropping
 func (t *dht) insertPeer(info *dhtInfo) {
-	oldInfo, isIn := t.table[*info.getNodeID()]
-	if !isIn || time.Since(oldInfo.recv) > dht_max_delay+30*time.Second {
-		// TODO? also check coords?
-		newInfo := *info // Insert a copy
-		t.insert(&newInfo)
-	}
+	t.insert(info)    // FIXME this resets timers / ping counts / etc, so it seems kind of dangerous
+	t.ping(info, nil) // This is a quick fix to the above, ping them immediately...
 }
 
 // Return true if first/second/third are (partially) ordered correctly.
@@ -186,11 +187,9 @@ func dht_ordered(first, second, third *crypto.NodeID) bool {
 // Update info about the node that sent the request.
 func (t *dht) handleReq(req *dhtReq) {
 	// Send them what they asked for
-	loc := t.router.core.switchTable.getLocator()
-	coords := loc.getCoords()
 	res := dhtRes{
 		Key:    t.router.core.boxPub,
-		Coords: coords,
+		Coords: t.router.table.self.getCoords(),
 		Dest:   req.Dest,
 		Infos:  t.lookup(&req.Dest, false),
 	}
@@ -302,11 +301,9 @@ func (t *dht) ping(info *dhtInfo, target *crypto.NodeID) {
 	if target == nil {
 		target = &t.nodeID
 	}
-	loc := t.router.core.switchTable.getLocator()
-	coords := loc.getCoords()
 	req := dhtReq{
 		Key:    t.router.core.boxPub,
-		Coords: coords,
+		Coords: t.router.table.self.getCoords(),
 		Dest:   *target,
 	}
 	t.sendReq(&req, info)
@@ -380,7 +377,7 @@ func (t *dht) getImportant() []*dhtInfo {
 		})
 		// Keep the ones that are no further than the closest seen so far
 		minDist := ^uint64(0)
-		loc := t.router.core.switchTable.getLocator()
+		loc := t.router.table.self
 		important := infos[:0]
 		for _, info := range infos {
 			dist := uint64(loc.dist(info.coords))
@@ -418,7 +415,7 @@ func (t *dht) isImportant(ninfo *dhtInfo) bool {
 	}
 	important := t.getImportant()
 	// Check if ninfo is of equal or greater importance to what we already know
-	loc := t.router.core.switchTable.getLocator()
+	loc := t.router.table.self
 	ndist := uint64(loc.dist(ninfo.coords))
 	minDist := ^uint64(0)
 	for _, info := range important {

@@ -3,8 +3,10 @@ package tuntap
 import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
+
+	"golang.org/x/net/icmp"
+	"golang.org/x/net/ipv6"
 
 	"github.com/Arceliar/phony"
 )
@@ -14,6 +16,7 @@ const TUN_OFFSET_BYTES = 4
 type tunWriter struct {
 	phony.Inbox
 	tun *TunAdapter
+	buf [TUN_OFFSET_BYTES + 65536]byte
 }
 
 func (w *tunWriter) writeFrom(from phony.Actor, b []byte) {
@@ -25,15 +28,13 @@ func (w *tunWriter) writeFrom(from phony.Actor, b []byte) {
 // write is pretty loose with the memory safety rules, e.g. it assumes it can
 // read w.tun.iface.IsTap() safely
 func (w *tunWriter) _write(b []byte) {
-	defer util.PutBytes(b)
 	var written int
 	var err error
 	n := len(b)
 	if n == 0 {
 		return
 	}
-	temp := append(util.ResizeBytes(util.GetBytes(), TUN_OFFSET_BYTES), b...)
-	defer util.PutBytes(temp)
+	temp := append(w.buf[:TUN_OFFSET_BYTES], b...)
 	written, err = w.tun.iface.Write(temp, TUN_OFFSET_BYTES)
 	if err != nil {
 		w.tun.Act(w, func() {
@@ -51,22 +52,23 @@ func (w *tunWriter) _write(b []byte) {
 type tunReader struct {
 	phony.Inbox
 	tun *TunAdapter
+	buf [TUN_OFFSET_BYTES + 65536]byte
 }
 
 func (r *tunReader) _read() {
 	// Get a slice to store the packet in
-	recvd := util.ResizeBytes(util.GetBytes(), int(r.tun.mtu)+TUN_OFFSET_BYTES)
 	// Wait for a packet to be delivered to us through the TUN adapter
-	n, err := r.tun.iface.Read(recvd, TUN_OFFSET_BYTES)
+	n, err := r.tun.iface.Read(r.buf[:], TUN_OFFSET_BYTES)
 	if n <= TUN_OFFSET_BYTES || err != nil {
 		r.tun.log.Errorln("Error reading TUN:", err)
 		ferr := r.tun.iface.Flush()
 		if ferr != nil {
 			r.tun.log.Errorln("Unable to flush packets:", ferr)
 		}
-		util.PutBytes(recvd)
 	} else {
-		r.tun.handlePacketFrom(r, recvd[TUN_OFFSET_BYTES:n+TUN_OFFSET_BYTES], err)
+		bs := make([]byte, n, n+crypto.BoxOverhead) // extra capacity for later...
+		copy(bs, r.buf[TUN_OFFSET_BYTES:n+TUN_OFFSET_BYTES])
+		r.tun.handlePacketFrom(r, bs, err)
 	}
 	if err == nil {
 		// Now read again
@@ -148,6 +150,16 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 	}
 	if addrlen != 16 || (!dstAddr.IsValid() && !dstSnet.IsValid()) {
 		// Couldn't find this node's ygg IP
+		dlen := len(bs)
+		if dlen > 900 {
+			dlen = 900
+		}
+		ptb := &icmp.DstUnreach{
+			Data: bs[:dlen],
+		}
+		if packet, err := CreateICMPv6(bs[8:24], bs[24:40], ipv6.ICMPTypeDestinationUnreachable, 0, ptb); err == nil {
+			tun.writer.writeFrom(nil, packet)
+		}
 		return
 	}
 	// Do we have an active connection for this node address?
@@ -175,7 +187,6 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 		_, known := tun.dials[dstString]
 		tun.dials[dstString] = append(tun.dials[dstString], bs)
 		for len(tun.dials[dstString]) > 32 {
-			util.PutBytes(tun.dials[dstString][0])
 			tun.dials[dstString] = tun.dials[dstString][1:]
 		}
 		if !known {

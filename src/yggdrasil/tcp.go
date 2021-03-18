@@ -34,7 +34,7 @@ const tcp_ping_interval = (default_timeout * 2 / 3)
 
 // The TCP listener and information about active TCP connections, to avoid duplication.
 type tcp struct {
-	link      *link
+	links     *links
 	waitgroup sync.WaitGroup
 	mutex     sync.Mutex // Protecting the below
 	listeners map[string]*TcpListener
@@ -95,8 +95,8 @@ func (t *tcp) getAddr() *net.TCPAddr {
 }
 
 // Initializes the struct.
-func (t *tcp) init(l *link) error {
-	t.link = l
+func (t *tcp) init(l *links) error {
+	t.links = l
 	t.tls.init(t)
 	t.mutex.Lock()
 	t.calls = make(map[string]struct{})
@@ -104,9 +104,9 @@ func (t *tcp) init(l *link) error {
 	t.listeners = make(map[string]*TcpListener)
 	t.mutex.Unlock()
 
-	t.link.core.config.Mutex.RLock()
-	defer t.link.core.config.Mutex.RUnlock()
-	for _, listenaddr := range t.link.core.config.Current.Listen {
+	t.links.core.config.Mutex.RLock()
+	defer t.links.core.config.Mutex.RUnlock()
+	for _, listenaddr := range t.links.core.config.Current.Listen {
 		switch listenaddr[:6] {
 		case "tcp://":
 			if _, err := t.listen(listenaddr[6:], nil); err != nil {
@@ -117,7 +117,7 @@ func (t *tcp) init(l *link) error {
 				return err
 			}
 		default:
-			t.link.core.log.Errorln("Failed to add listener: listener", listenaddr, "is not correctly formatted, ignoring")
+			t.links.core.log.Errorln("Failed to add listener: listener", listenaddr, "is not correctly formatted, ignoring")
 		}
 	}
 
@@ -135,35 +135,35 @@ func (t *tcp) stop() error {
 }
 
 func (t *tcp) reconfigure() {
-	t.link.core.config.Mutex.RLock()
-	added := util.Difference(t.link.core.config.Current.Listen, t.link.core.config.Previous.Listen)
-	deleted := util.Difference(t.link.core.config.Previous.Listen, t.link.core.config.Current.Listen)
-	t.link.core.config.Mutex.RUnlock()
+	t.links.core.config.Mutex.RLock()
+	added := util.Difference(t.links.core.config.Current.Listen, t.links.core.config.Previous.Listen)
+	deleted := util.Difference(t.links.core.config.Previous.Listen, t.links.core.config.Current.Listen)
+	t.links.core.config.Mutex.RUnlock()
 	if len(added) > 0 || len(deleted) > 0 {
 		for _, a := range added {
 			switch a[:6] {
 			case "tcp://":
 				if _, err := t.listen(a[6:], nil); err != nil {
-					t.link.core.log.Errorln("Error adding TCP", a[6:], "listener:", err)
+					t.links.core.log.Errorln("Error adding TCP", a[6:], "listener:", err)
 				}
 			case "tls://":
 				if _, err := t.listen(a[6:], t.tls.forListener); err != nil {
-					t.link.core.log.Errorln("Error adding TLS", a[6:], "listener:", err)
+					t.links.core.log.Errorln("Error adding TLS", a[6:], "listener:", err)
 				}
 			default:
-				t.link.core.log.Errorln("Failed to add listener: listener", a, "is not correctly formatted, ignoring")
+				t.links.core.log.Errorln("Failed to add listener: listener", a, "is not correctly formatted, ignoring")
 			}
 		}
 		for _, d := range deleted {
 			if d[:6] != "tcp://" && d[:6] != "tls://" {
-				t.link.core.log.Errorln("Failed to delete listener: listener", d, "is not correctly formatted, ignoring")
+				t.links.core.log.Errorln("Failed to delete listener: listener", d, "is not correctly formatted, ignoring")
 				continue
 			}
 			t.mutex.Lock()
 			if listener, ok := t.listeners[d[6:]]; ok {
 				t.mutex.Unlock()
 				listener.Stop()
-				t.link.core.log.Infoln("Stopped TCP listener:", d[6:])
+				t.links.core.log.Infoln("Stopped TCP listener:", d[6:])
 			} else {
 				t.mutex.Unlock()
 			}
@@ -210,13 +210,13 @@ func (t *tcp) listener(l *TcpListener, listenaddr string) {
 	t.mutex.Unlock()
 	// And here we go!
 	defer func() {
-		t.link.core.log.Infoln("Stopping TCP listener on:", l.Listener.Addr().String())
+		t.links.core.log.Infoln("Stopping TCP listener on:", l.Listener.Addr().String())
 		l.Listener.Close()
 		t.mutex.Lock()
 		delete(t.listeners, listenaddr)
 		t.mutex.Unlock()
 	}()
-	t.link.core.log.Infoln("Listening for TCP on:", l.Listener.Addr().String())
+	t.links.core.log.Infoln("Listening for TCP on:", l.Listener.Addr().String())
 	go func() {
 		<-l.stop
 		l.Listener.Close()
@@ -225,8 +225,14 @@ func (t *tcp) listener(l *TcpListener, listenaddr string) {
 	for {
 		sock, err := l.Listener.Accept()
 		if err != nil {
-			t.link.core.log.Errorln("Failed to accept connection:", err)
-			return
+			t.links.core.log.Errorln("Failed to accept connection:", err)
+			select {
+			case <-l.stop:
+				return
+			default:
+			}
+			time.Sleep(time.Second) // So we don't busy loop
+			continue
 		}
 		t.waitgroup.Add(1)
 		options := tcpOptions{
@@ -293,7 +299,9 @@ func (t *tcp) call(saddr string, options tcpOptions, sintf string) {
 			}
 			t.waitgroup.Add(1)
 			options.socksPeerAddr = conn.RemoteAddr().String()
-			t.handler(conn, false, options)
+			if ch := t.handler(conn, false, options); ch != nil {
+				<-ch
+			}
 		} else {
 			dst, err := net.ResolveTCPAddr("tcp", saddr)
 			if err != nil {
@@ -355,16 +363,18 @@ func (t *tcp) call(saddr string, options tcpOptions, sintf string) {
 			}
 			conn, err = dialer.Dial("tcp", dst.String())
 			if err != nil {
-				t.link.core.log.Debugf("Failed to dial %s: %s", callproto, err)
+				t.links.core.log.Debugf("Failed to dial %s: %s", callproto, err)
 				return
 			}
 			t.waitgroup.Add(1)
-			t.handler(conn, false, options)
+			if ch := t.handler(conn, false, options); ch != nil {
+				<-ch
+			}
 		}
 	}()
 }
 
-func (t *tcp) handler(sock net.Conn, incoming bool, options tcpOptions) {
+func (t *tcp) handler(sock net.Conn, incoming bool, options tcpOptions) chan struct{} {
 	defer t.waitgroup.Done() // Happens after sock.close
 	defer sock.Close()
 	t.setExtraOptions(sock)
@@ -372,8 +382,8 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options tcpOptions) {
 	if options.upgrade != nil {
 		var err error
 		if sock, err = options.upgrade.upgrade(sock); err != nil {
-			t.link.core.log.Errorln("TCP handler upgrade failed:", err)
-			return
+			t.links.core.log.Errorln("TCP handler upgrade failed:", err)
+			return nil
 		}
 		upgraded = true
 	}
@@ -405,17 +415,21 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options tcpOptions) {
 		if laddr.IsValid() || lsubnet.IsValid() {
 			// The local address is with the network address/prefix range
 			// This would route ygg over ygg, which we don't want
-			t.link.core.log.Debugln("Dropping ygg-tunneled connection", local, remote)
-			return
+			// FIXME ideally this check should happen outside of the core library
+			//  Maybe dial/listen at the application level
+			//  Then pass a net.Conn to the core library (after these kinds of checks are done)
+			t.links.core.log.Debugln("Dropping ygg-tunneled connection", local, remote)
+			return nil
 		}
 	}
 	force := net.ParseIP(strings.Split(remote, "%")[0]).IsLinkLocalUnicast()
-	link, err := t.link.core.link.create(&stream, name, proto, local, remote, incoming, force, options.linkOptions)
+	link, err := t.links.create(&stream, name, proto, local, remote, incoming, force, options.linkOptions)
 	if err != nil {
-		t.link.core.log.Println(err)
+		t.links.core.log.Println(err)
 		panic(err)
 	}
-	t.link.core.log.Debugln("DEBUG: starting handler for", name)
-	err = link.handler()
-	t.link.core.log.Debugln("DEBUG: stopped handler for", name, err)
+	t.links.core.log.Debugln("DEBUG: starting handler for", name)
+	ch, err := link.handler()
+	t.links.core.log.Debugln("DEBUG: stopped handler for", name, err)
+	return ch
 }

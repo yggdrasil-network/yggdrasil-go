@@ -5,7 +5,7 @@ version: 2.1
 jobs:
   lint:
     docker:
-      - image: circleci/golang:1.14.1
+      - image: circleci/golang:1.16
 
     steps:
       - checkout
@@ -18,7 +18,7 @@ jobs:
 
   build-linux:
     docker:
-      - image: circleci/golang:1.14.1
+      - image: circleci/golang:1.16
 
     steps:
       - checkout
@@ -119,11 +119,11 @@ jobs:
               echo -e "Host *\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
 
       - run:
-          name: Install Go 1.14.1
+          name: Install Go 1.16
           command: |
               cd /tmp
-              curl -LO https://dl.google.com/go/go1.14.1.darwin-amd64.pkg
-              sudo installer -pkg /tmp/go1.14.1.darwin-amd64.pkg -target /
+              curl -LO https://dl.google.com/go/go1.16.darwin-amd64.pkg
+              sudo installer -pkg /tmp/go1.16.darwin-amd64.pkg -target /
 
       #- run:
       #    name: Install Gomobile
@@ -157,9 +157,46 @@ jobs:
           paths:
             - upload
 
+  build-windows:
+    docker:
+      - image: circleci/golang:1.16
+
+    steps:
+      - checkout
+
+      - run:
+          name: Create artifact upload directory and set variables
+          command: |
+              mkdir /tmp/upload
+              echo 'export CINAME=$(sh contrib/semver/name.sh)' >> $BASH_ENV
+              echo 'export CIVERSION=$(sh contrib/semver/version.sh --bare)' >> $BASH_ENV
+              git config --global user.email "$(git log --format='%ae' HEAD -1)";
+              git config --global user.name "$(git log --format='%an' HEAD -1)";
+
+      - run:
+          name: Install tools
+          command: |
+              sudo apt-get update
+              sudo apt-get -y install msitools wixl
+
+      - run:
+          name: Build for Windows
+          command: |
+              rm -f {yggdrasil,yggdrasilctl}
+              GOOS=windows GOARCH=amd64 ./build && mv yggdrasil.exe /tmp/upload/$CINAME-$CIVERSION-windows-amd64.exe && mv yggdrasilctl.exe /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-windows-amd64.exe;
+              GOOS=windows GOARCH=386 ./build && mv yggdrasil.exe /tmp/upload/$CINAME-$CIVERSION-windows-i386.exe && mv yggdrasilctl.exe /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-windows-i386.exe;
+              bash contrib/msi/build-msi.sh x64
+              bash contrib/msi/build-msi.sh x86
+              mv *.msi /tmp/upload
+
+      - persist_to_workspace:
+          root: /tmp
+          paths:
+            - upload
+
   build-other:
     docker:
-      - image: circleci/golang:1.14.1
+      - image: circleci/golang:1.16
 
     steps:
       - checkout
@@ -187,13 +224,6 @@ jobs:
               GOOS=freebsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-freebsd-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-freebsd-amd64;
               GOOS=freebsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-freebsd-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-freebsd-i386;
 
-      - run:
-          name: Build for Windows
-          command: |
-              rm -f {yggdrasil,yggdrasilctl}
-              GOOS=windows GOARCH=amd64 ./build && mv yggdrasil.exe /tmp/upload/$CINAME-$CIVERSION-windows-amd64.exe && mv yggdrasilctl.exe /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-windows-amd64.exe;
-              GOOS=windows GOARCH=386 ./build && mv yggdrasil.exe /tmp/upload/$CINAME-$CIVERSION-windows-i386.exe && mv yggdrasilctl.exe /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-windows-i386.exe;
-
       - persist_to_workspace:
           root: /tmp
           paths:
@@ -215,17 +245,13 @@ workflows:
   build:
     jobs:
       - lint
-      - build-linux:
-          requires:
-            - lint
-      - build-macos:
-          requires:
-            - lint
-      - build-other:
-          requires:
-            - lint
+      - build-linux
+      - build-macos
+      - build-windows
+      - build-other
       - upload:
           requires:
             - build-linux
             - build-macos
+            - build-windows
             - build-other

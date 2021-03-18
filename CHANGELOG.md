@@ -25,6 +25,31 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.3.16] - 2021-03-18
+### Added
+- New simulation code under `cmd/yggdrasilsim` (work-in-progress)
+
+### Changed
+- Multi-threading in the switch
+  - Swich lookups happen independently for each (incoming) peer connection, instead of being funneled to a single dedicated switch worker
+  - Packets are queued for each (outgoing) peer connection, instead of being handled by a single dedicated switch worker
+- Queue logic rewritten
+  - Heap structure per peer that traffic is routed to, with one FIFO queue per traffic flow
+  - The total size of each heap is configured automatically (we basically queue packets until we think we're blocked on a socket write)
+  - When adding to a full heap, the oldest packet from the largest queue is dropped
+  - Packets are popped from the queue in FIFO order (oldest packet from among all queues in the heap) to prevent packet reordering at the session level
+- Removed global `sync.Pool` of `[]byte`
+  - Local `sync.Pool`s are used in the hot loops, but not exported, to avoid memory corruption if libraries are reused by other projects
+  - This may increase allocations (and slightly reduce speed in CPU-bound benchmarks) when interacting with the tun/tap device, but traffic forwarded at the switch layer should be unaffected
+- Upgrade dependencies
+- Upgrade build to Go 1.16
+
+### Fixed
+- Fixed a bug where the connection listener could exit prematurely due to resoruce exhaustion (if e.g. too many connections were opened)
+- Fixed DefaultIfName for OpenBSD (`/dev/tun0` -> `tun0`)
+- Fixed an issue where a peer could sometimes never be added to the switch
+- Fixed a goroutine leak that could occur if a peer with an open connection continued to spam additional connection attempts
+
 ## [0.3.15] - 2020-09-27
 ### Added
 - Support for pinning remote public keys in peering strings has been added, e.g.
