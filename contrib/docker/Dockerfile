@@ -8,7 +8,6 @@ ENV CGO_ENABLED=0
 RUN apk add git && ./build && go build -o /src/genkeys cmd/genkeys/main.go
 
 FROM docker.io/alpine
-LABEL maintainer="Christer Waren/CWINFO <christer.waren@cwinfo.org>"
 
 COPY --from=builder /src/yggdrasil /usr/bin/yggdrasil
 COPY --from=builder /src/yggdrasilctl /usr/bin/yggdrasilctl
