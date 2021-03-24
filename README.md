@@ -50,11 +50,16 @@ packages:
 
 1. Install [Go](https://golang.org) (requires Go 1.16 or later)
 2. Clone this repository
-2. Run `./build`
+3. Run `./build`
 
 Note that you can cross-compile for other platforms and architectures by
 specifying the `GOOS` and `GOARCH` environment variables, e.g. `GOOS=windows
-./build` or `GOOS=linux GOARCH=mipsle ./build`.
+./build` or `GOOS=linux GOARCH=mipsle ./build`. MSI build for 32/64bit platforms
+can be done by following command:
+
+```
+PKGNAME=master PKGVERSION=0.3.16 contrib/msi/build-msi.sh x64
+```
 
 ## Running
 
