@@ -50,7 +50,7 @@ func CreateAndConnectTwo(t testing.TB, verbose bool) (nodeA *Core, nodeB *Core) 
 		t.Fatal(err)
 	}
 
-	err = nodeB.AddPeer("tcp://"+nodeA.link.tcp.getAddr().String(), "")
+	err = nodeB.AddPeer("tcp://"+nodeA.links.tcp.getAddr().String(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
