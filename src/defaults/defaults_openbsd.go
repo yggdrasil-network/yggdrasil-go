@@ -21,5 +21,6 @@ func GetDefaults() platformDefaultParameters {
 		MaximumIfMTU:  16384,
 		DefaultIfMTU:  16384,
 		DefaultIfName: "tun0",
+		DefaultTCPCongestionControl: "",
 	}
 }

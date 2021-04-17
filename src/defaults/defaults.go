@@ -19,4 +19,5 @@ type platformDefaultParameters struct {
 	MaximumIfMTU  types.MTU
 	DefaultIfMTU  types.MTU
 	DefaultIfName string
+	DefaultTCPCongestionControl string
 }
