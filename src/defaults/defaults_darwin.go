@@ -22,5 +22,6 @@ func GetDefaults() platformDefaultParameters {
 		MaximumIfMTU:  65535,
 		DefaultIfMTU:  65535,
 		DefaultIfName: "auto",
+		DefaultTCPCongestionControl: "",
 	}
 }
