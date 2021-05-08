@@ -41,8 +41,6 @@ type TunAdapter struct {
 	core        *yggdrasil.Core
 	secret      ed25519.PrivateKey
 	store       keyStore
-	writer      tunWriter
-	reader      tunReader
 	config      *config.NodeState
 	log         *log.Logger
 	reconfigure chan chan error
@@ -122,8 +120,6 @@ func (tun *TunAdapter) Init(secret ed25519.PrivateKey, core *yggdrasil.Core, con
 	tun.store.init(tun)
 	tun.config = config
 	tun.log = log
-	tun.writer.tun = tun
-	tun.reader.tun = tun
 	tun.core.SetOutOfBandHandler(tun.oobHandler)
 
 	return nil
@@ -170,11 +166,9 @@ func (tun *TunAdapter) _start() error {
 	}
 	// TODO tun.core.SetMaximumSessionMTU(tun.MTU())
 	tun.isOpen = true
-	// TODO go tun.handler()
-	tun.reader.Act(nil, tun.reader._read) // Start the reader
 	tun.ckr.init(tun)
-	go tun.doRead()
-	go tun.doWrite()
+	go tun.read()
+	go tun.write()
 	return nil
 }
 
