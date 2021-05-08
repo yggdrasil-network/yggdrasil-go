@@ -113,7 +113,8 @@ func (s *stream) readMsgFromBuffer() ([]byte, error) {
 	if msgLen > streamMsgSize {
 		return nil, errors.New("oversized message")
 	}
-	msg := pool_getBytes(int(msgLen))
+	msg := pool_getBytes(int(msgLen + 10)) // Extra padding for up to 1 more switchPort
+	msg = msg[:msgLen]
 	_, err = io.ReadFull(s.inputBuffer, msg)
 	return msg, err
 }

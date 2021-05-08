@@ -196,54 +196,54 @@ func (r *router) _handleProto(packet []byte) {
 	}
 	switch bsType {
 	case wire_SessionPing:
-		r._handlePing(bs, &p.FromKey)
+		r._handlePing(bs, &p.FromKey, p.RPath)
 	case wire_SessionPong:
-		r._handlePong(bs, &p.FromKey)
+		r._handlePong(bs, &p.FromKey, p.RPath)
 	case wire_NodeInfoRequest:
 		fallthrough
 	case wire_NodeInfoResponse:
 		r._handleNodeInfo(bs, &p.FromKey)
 	case wire_DHTLookupRequest:
-		r._handleDHTReq(bs, &p.FromKey)
+		r._handleDHTReq(bs, &p.FromKey, p.RPath)
 	case wire_DHTLookupResponse:
-		r._handleDHTRes(bs, &p.FromKey)
+		r._handleDHTRes(bs, &p.FromKey, p.RPath)
 	default:
 	}
 }
 
 // Decodes session pings from wire format and passes them to sessions.handlePing where they either create or update a session.
-func (r *router) _handlePing(bs []byte, fromKey *crypto.BoxPubKey) {
+func (r *router) _handlePing(bs []byte, fromKey *crypto.BoxPubKey, rpath []byte) {
 	ping := sessionPing{}
 	if !ping.decode(bs) {
 		return
 	}
 	ping.SendPermPub = *fromKey
-	r.sessions.handlePing(&ping)
+	r.sessions.handlePing(&ping, rpath)
 }
 
 // Handles session pongs (which are really pings with an extra flag to prevent acknowledgement).
-func (r *router) _handlePong(bs []byte, fromKey *crypto.BoxPubKey) {
-	r._handlePing(bs, fromKey)
+func (r *router) _handlePong(bs []byte, fromKey *crypto.BoxPubKey, rpath []byte) {
+	r._handlePing(bs, fromKey, rpath)
 }
 
 // Decodes dht requests and passes them to dht.handleReq to trigger a lookup/response.
-func (r *router) _handleDHTReq(bs []byte, fromKey *crypto.BoxPubKey) {
+func (r *router) _handleDHTReq(bs []byte, fromKey *crypto.BoxPubKey, rpath []byte) {
 	req := dhtReq{}
 	if !req.decode(bs) {
 		return
 	}
 	req.Key = *fromKey
-	r.dht.handleReq(&req)
+	r.dht.handleReq(&req, rpath)
 }
 
 // Decodes dht responses and passes them to dht.handleRes to update the DHT table and further pass them to the search code (if applicable).
-func (r *router) _handleDHTRes(bs []byte, fromKey *crypto.BoxPubKey) {
+func (r *router) _handleDHTRes(bs []byte, fromKey *crypto.BoxPubKey, rpath []byte) {
 	res := dhtRes{}
 	if !res.decode(bs) {
 		return
 	}
 	res.Key = *fromKey
-	r.dht.handleRes(&res)
+	r.dht.handleRes(&res, rpath)
 }
 
 // Decodes nodeinfo request

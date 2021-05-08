@@ -50,6 +50,7 @@ type sessionInfo struct {
 	conn          *Conn               // The associated Conn object
 	callbacks     []chan func()       // Finished work from crypto workers
 	table         *lookupTable        // table.self is a locator where we get our coords
+	path          []byte              // Path from self to destination
 }
 
 // Represents a session ping/pong packet, and includes information like public keys, a session handle, coords, a timestamp to prevent replays, and the tun/tap MTU.
@@ -65,41 +66,48 @@ type sessionPing struct {
 
 // Updates session info in response to a ping, after checking that the ping is OK.
 // Returns true if the session was updated, or false otherwise.
-func (s *sessionInfo) _update(p *sessionPing) bool {
-	if !(p.Tstamp > s.tstamp) {
+func (sinfo *sessionInfo) _update(p *sessionPing, rpath []byte) bool {
+	if !(p.Tstamp > sinfo.tstamp) {
 		// To protect against replay attacks
 		return false
 	}
-	if p.SendPermPub != s.theirPermPub {
+	if p.SendPermPub != sinfo.theirPermPub {
 		// Should only happen if two sessions got the same handle
 		// That shouldn't be allowed anyway, but if it happens then let one time out
 		return false
 	}
-	if p.SendSesPub != s.theirSesPub {
-		s.theirSesPub = p.SendSesPub
-		s.theirHandle = p.Handle
-		s.sharedSesKey = *crypto.GetSharedKey(&s.mySesPriv, &s.theirSesPub)
-		s.theirNonce = crypto.BoxNonce{}
+	if p.SendSesPub != sinfo.theirSesPub {
+		sinfo.path = nil
+		sinfo.theirSesPub = p.SendSesPub
+		sinfo.theirHandle = p.Handle
+		sinfo.sharedSesKey = *crypto.GetSharedKey(&sinfo.mySesPriv, &sinfo.theirSesPub)
+		sinfo.theirNonce = crypto.BoxNonce{}
 	}
 	if p.MTU >= 1280 || p.MTU == 0 {
-		s.theirMTU = p.MTU
-		if s.conn != nil {
-			s.conn.setMTU(s, s._getMTU())
+		sinfo.theirMTU = p.MTU
+		if sinfo.conn != nil {
+			sinfo.conn.setMTU(sinfo, sinfo._getMTU())
 		}
 	}
-	if !bytes.Equal(s.coords, p.Coords) {
+	if !bytes.Equal(sinfo.coords, p.Coords) {
 		// allocate enough space for additional coords
-		s.coords = append(make([]byte, 0, len(p.Coords)+11), p.Coords...)
+		sinfo.coords = append(make([]byte, 0, len(p.Coords)+11), p.Coords...)
+		path := switch_reverseCoordBytes(rpath)
+		sinfo.path = append(sinfo.path[:0], path...)
+		defer sinfo._sendPingPong(false, nil)
+	} else if p.IsPong {
+		path := switch_reverseCoordBytes(rpath)
+		sinfo.path = append(sinfo.path[:0], path...)
 	}
-	s.time = time.Now()
-	s.tstamp = p.Tstamp
-	s.reset = false
+	sinfo.time = time.Now()
+	sinfo.tstamp = p.Tstamp
+	sinfo.reset = false
 	defer func() { recover() }() // Recover if the below panics
 	select {
-	case <-s.init:
+	case <-sinfo.init:
 	default:
 		// Unblock anything waiting for the session to initialize
-		close(s.init)
+		close(sinfo.init)
 	}
 	return true
 }
@@ -304,13 +312,13 @@ func (ss *sessions) getSharedKey(myPriv *crypto.BoxPrivKey,
 // Sends a session ping by calling sendPingPong in ping mode.
 func (sinfo *sessionInfo) ping(from phony.Actor) {
 	sinfo.Act(from, func() {
-		sinfo._sendPingPong(false)
+		sinfo._sendPingPong(false, nil)
 	})
 }
 
 // Calls getPing, sets the appropriate ping/pong flag, encodes to wire format, and send it.
 // Updates the time the last ping was sent in the session info.
-func (sinfo *sessionInfo) _sendPingPong(isPong bool) {
+func (sinfo *sessionInfo) _sendPingPong(isPong bool, path []byte) {
 	ping := sinfo._getPing()
 	ping.IsPong = isPong
 	bs := ping.encode()
@@ -322,10 +330,14 @@ func (sinfo *sessionInfo) _sendPingPong(isPong bool) {
 		Nonce:   *nonce,
 		Payload: payload,
 	}
+	if path != nil {
+		p.Coords = append([]byte{0}, path...)
+		p.Offset += 1
+	}
 	packet := p.encode()
 	// TODO rewrite the below if/when the peer struct becomes an actor, to not go through the router first
 	sinfo.sessions.router.Act(sinfo, func() { sinfo.sessions.router.out(packet) })
-	if sinfo.pingTime.Before(sinfo.time) {
+	if !isPong {
 		sinfo.pingTime = time.Now()
 	}
 }
@@ -339,7 +351,7 @@ func (sinfo *sessionInfo) setConn(from phony.Actor, conn *Conn) {
 
 // Handles a session ping, creating a session if needed and calling update, then possibly responding with a pong if the ping was in ping mode and the update was successful.
 // If the session has a packet cached (common when first setting up a session), it will be sent.
-func (ss *sessions) handlePing(ping *sessionPing) {
+func (ss *sessions) handlePing(ping *sessionPing, rpath []byte) {
 	// Get the corresponding session (or create a new session)
 	sinfo, isIn := ss.getByTheirPerm(&ping.SendPermPub)
 	switch {
@@ -368,11 +380,11 @@ func (ss *sessions) handlePing(ping *sessionPing) {
 	if sinfo != nil {
 		sinfo.Act(ss.router, func() {
 			// Update the session
-			if !sinfo._update(ping) { /*panic("Should not happen in testing")*/
+			if !sinfo._update(ping, rpath) { /*panic("Should not happen in testing")*/
 				return
 			}
 			if !ping.IsPong {
-				sinfo._sendPingPong(true)
+				sinfo._sendPingPong(true, switch_reverseCoordBytes(rpath))
 			}
 		})
 	}
@@ -413,6 +425,8 @@ func (ss *sessions) reset() {
 		sinfo := _sinfo // So we can safely put it in a closure
 		sinfo.Act(ss.router, func() {
 			sinfo.reset = true
+			sinfo._sendPingPong(false, sinfo.path)
+			sinfo._sendPingPong(false, nil)
 		})
 	}
 }
@@ -483,12 +497,20 @@ func (sinfo *sessionInfo) _send(msg FlowKeyMessage) {
 		return
 	}
 	sinfo.bytesSent += uint64(len(msg.Message))
-	coords := append([]byte(nil), sinfo.coords...)
+	var coords []byte
+	var offset uint64
+	if len(sinfo.path) > 0 {
+		coords = append([]byte{0}, sinfo.path...)
+		offset += 1
+	} else {
+		coords = append([]byte(nil), sinfo.coords...)
+	}
 	if msg.FlowKey != 0 {
 		coords = append(coords, 0)
 		coords = append(coords, wire_encode_uint64(msg.FlowKey)...)
 	}
 	p := wire_trafficPacket{
+		Offset: offset,
 		Coords: coords,
 		Handle: sinfo.theirHandle,
 		Nonce:  sinfo.myNonce,
@@ -503,6 +525,9 @@ func (sinfo *sessionInfo) _send(msg FlowKeyMessage) {
 			sinfo.sessions.router.Act(sinfo, func() {
 				sinfo.sessions.router.out(packet)
 			})
+			if time.Since(sinfo.pingTime) > 3*time.Second {
+				sinfo._sendPingPong(false, nil)
+			}
 		}
 		ch <- callback
 		sinfo.checkCallbacks()

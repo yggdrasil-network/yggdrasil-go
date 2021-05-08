@@ -20,10 +20,9 @@ import (
 )
 
 const (
-	switch_timeout          = time.Minute
-	switch_updateInterval   = switch_timeout / 2
-	switch_throttle         = switch_updateInterval / 2
-	switch_faster_threshold = 240 //Number of switch updates before switching to a faster parent
+	switch_timeout        = time.Minute
+	switch_updateInterval = switch_timeout / 2
+	switch_throttle       = switch_updateInterval / 2
 )
 
 // The switch locator represents the topology and network state dependent info about a node, minus the signatures that go with it.
@@ -136,15 +135,14 @@ func (x *switchLocator) isAncestorOf(y *switchLocator) bool {
 
 // Information about a peer, used by the switch to build the tree and eventually make routing decisions.
 type peerInfo struct {
-	key        crypto.SigPubKey      // ID of this peer
-	locator    switchLocator         // Should be able to respond with signatures upon request
-	degree     uint64                // Self-reported degree
-	time       time.Time             // Time this node was last seen
-	faster     map[switchPort]uint64 // Counter of how often a node is faster than the current parent, penalized extra if slower
-	port       switchPort            // Interface number of this peer
-	msg        switchMsg             // The wire switchMsg used
-	readBlock  bool                  // True if the link notified us of a read that blocked too long
-	writeBlock bool                  // True of the link notified us of a write that blocked too long
+	key        crypto.SigPubKey // ID of this peer
+	locator    switchLocator    // Should be able to respond with signatures upon request
+	degree     uint64           // Self-reported degree
+	time       time.Time        // Time this node was last seen
+	port       switchPort       // Interface number of this peer
+	msg        switchMsg        // The wire switchMsg used
+	readBlock  bool             // True if the link notified us of a read that blocked too long
+	writeBlock bool             // True of the link notified us of a write that blocked too long
 }
 
 func (pinfo *peerInfo) blocked() bool {
@@ -427,37 +425,12 @@ func (t *switchTable) _handleMsg(msg *switchMsg, fromPort switchPort, reprocessi
 	doUpdate := false
 	oldSender := t.data.peers[fromPort]
 	if !equiv(&sender.locator, &oldSender.locator) {
-		// Reset faster info, we'll start refilling it right after this
-		sender.faster = nil
 		doUpdate = true
 	}
-	// Update the matrix of peer "faster" thresholds
 	if reprocessing {
-		sender.faster = oldSender.faster
 		sender.time = oldSender.time
 		sender.readBlock = oldSender.readBlock
 		sender.writeBlock = oldSender.writeBlock
-	} else {
-		sender.faster = make(map[switchPort]uint64, len(oldSender.faster))
-		for port, peer := range t.data.peers {
-			if port == fromPort {
-				continue
-			} else if sender.locator.root != peer.locator.root || sender.locator.tstamp > peer.locator.tstamp {
-				// We were faster than this node, so increment, as long as we don't overflow because of it
-				if oldSender.faster[peer.port] < switch_faster_threshold {
-					sender.faster[port] = oldSender.faster[peer.port] + 1
-				} else {
-					sender.faster[port] = switch_faster_threshold
-				}
-			} else {
-				// Slower than this node, penalize (more than the reward amount)
-				if oldSender.faster[port] > 1 {
-					sender.faster[port] = oldSender.faster[peer.port] - 2
-				} else {
-					sender.faster[port] = 0
-				}
-			}
-		}
 	}
 	if sender.blocked() != oldSender.blocked() {
 		doUpdate = true
@@ -496,35 +469,11 @@ func (t *switchTable) _handleMsg(msg *switchMsg, fromPort switchPort, reprocessi
 	case noParent:
 		// We currently have no working parent, and at this point in the switch statement, anything is better than nothing.
 		updateRoot = true
-	case sender.faster[t.parent] >= switch_faster_threshold:
-		// The is reliably faster than the current parent.
-		updateRoot = true
 	case !sender.blocked() && oldParent.blocked():
 		// Replace a blocked parent
 		updateRoot = true
 	case reprocessing && sender.blocked() && !oldParent.blocked():
 		// Don't replace an unblocked parent when reprocessing
-	case reprocessing && sender.faster[t.parent] > oldParent.faster[sender.port]:
-		// The sender seems to be reliably faster than the current parent, so switch to them instead.
-		updateRoot = true
-	case sender.port != t.parent:
-		// Ignore further cases if the sender isn't our parent.
-	case !reprocessing && !equiv(&sender.locator, &t.data.locator):
-		// Special case:
-		// If coords changed, then we need to penalize this node somehow, to prevent flapping.
-		// First, reset all faster-related info to 0.
-		// Then, de-parent the node and reprocess all messages to find a new parent.
-		t.parent = 0
-		for _, peer := range t.data.peers {
-			if peer.port == sender.port {
-				continue
-			}
-			t._handleMsg(&peer.msg, peer.port, true)
-		}
-		// Process the sender last, to avoid keeping them as a parent if at all possible.
-		t._handleMsg(&sender.msg, sender.port, true)
-	case now.Sub(t.time) < switch_throttle:
-		// We've already gotten an update from this root recently, so ignore this one to avoid flooding.
 	case sender.locator.tstamp > t.data.locator.tstamp:
 		// The timestamp was updated, so we need to update locally and send to our peers.
 		updateRoot = true
@@ -631,17 +580,68 @@ func (t *switchTable) start() error {
 	return nil
 }
 
-func (t *lookupTable) lookup(coords []byte) switchPort {
-	var offset int
+func (t *lookupTable) lookup(ports []switchPort) switchPort {
 	here := &t._start
-	for offset < len(coords) {
-		port, l := wire_decode_uint64(coords[offset:])
-		offset += l
-		if next, ok := here.next[switchPort(port)]; ok {
+	for idx := range ports {
+		port := ports[idx]
+		if next, ok := here.next[port]; ok {
 			here = next
 		} else {
 			break
 		}
 	}
 	return here.port
+}
+
+func switch_getPorts(coords []byte) []switchPort {
+	var ports []switchPort
+	var offset int
+	for offset < len(coords) {
+		port, l := wire_decode_uint64(coords[offset:])
+		offset += l
+		ports = append(ports, switchPort(port))
+	}
+	return ports
+}
+
+func switch_reverseCoordBytes(coords []byte) []byte {
+	a := switch_getPorts(coords)
+	for i := len(a)/2 - 1; i >= 0; i-- {
+		opp := len(a) - 1 - i
+		a[i], a[opp] = a[opp], a[i]
+	}
+	var reversed []byte
+	for _, sPort := range a {
+		reversed = wire_put_uint64(uint64(sPort), reversed)
+	}
+	return reversed
+}
+
+func (t *lookupTable) isDescendant(ports []switchPort) bool {
+	// Note that this returns true for anyone in the subtree that starts at us
+	// That includes ourself, so we are our own descendant by this logic...
+	if len(t.self.coords) >= len(ports) {
+		// Our coords are longer, so they can't be our descendant
+		return false
+	}
+	for idx := range t.self.coords {
+		if ports[idx] != t.self.coords[idx] {
+			return false
+		}
+	}
+	return true
+}
+
+func (t *lookupTable) getOffset(ports []switchPort) uint64 {
+	// If they're our descendant, this returns the length of our coords, used as an offset for source routing
+	// If they're not our descendant, this returns 0
+	var offset uint64
+	for idx := range t.self.coords {
+		if idx < len(ports) && ports[idx] == t.self.coords[idx] {
+			offset += 1
+		} else {
+			return 0
+		}
+	}
+	return offset
 }

@@ -54,7 +54,8 @@ func (q *packetQueue) drop() bool {
 }
 
 func (q *packetQueue) push(packet []byte) {
-	id := pqStreamID(peer_getPacketCoords(packet)) // just coords for now
+	_, coords := wire_getTrafficOffsetAndCoords(packet)
+	id := pqStreamID(coords) // just coords for now
 	info := pqPacketInfo{packet: packet, time: time.Now()}
 	for idx := range q.streams {
 		if q.streams[idx].id == id {
