@@ -112,3 +112,35 @@ func SubnetForKey(publicKey ed25519.PublicKey) *Subnet {
 	snet[len(prefix)-1] |= 0x01
 	return &snet
 }
+
+// GetKet returns the partial ed25519.PublicKey for the Address.
+// This is used for key lookup.
+func (a *Address) GetKey() ed25519.PublicKey {
+	var key [ed25519.PublicKeySize]byte
+	prefix := GetPrefix()
+	ones := int(a[len(prefix)])
+	for idx := 0; idx < ones; idx++ {
+		key[idx/8] |= 0x80 >> byte(idx%8)
+	}
+	keyOffset := ones + 1
+	addrOffset := 8*len(prefix) + 8
+	for idx := addrOffset; idx < 8*len(a); idx++ {
+		bits := a[idx/8] & (0x80 >> byte(idx%8))
+		bits <<= byte(idx % 8)
+		keyIdx := keyOffset + (idx - addrOffset)
+		bits >>= byte(keyIdx % 8)
+		key[keyIdx/8] |= bits
+	}
+	for idx := range key {
+		key[idx] = ^key[idx]
+	}
+	return ed25519.PublicKey(key[:])
+}
+
+// GetKet returns the partial ed25519.PublicKey for the Subnet.
+// This is used for key lookup.
+func (s *Subnet) GetKey() ed25519.PublicKey {
+	var addr Address
+	copy(addr[:], s[:])
+	return addr.GetKey()
+}

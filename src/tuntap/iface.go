@@ -1,12 +1,12 @@
 package tuntap
 
 import (
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	//"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
+	//"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 
-	"golang.org/x/net/icmp"
-	"golang.org/x/net/ipv6"
+	//"golang.org/x/net/icmp"
+	//"golang.org/x/net/ipv6"
 
 	"github.com/Arceliar/phony"
 )
@@ -84,139 +84,142 @@ func (tun *TunAdapter) handlePacketFrom(from phony.Actor, packet []byte, err err
 
 // does the work of reading a packet and sending it to the correct tunConn
 func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
-	if err != nil {
-		tun.log.Errorln("TUN iface read error:", err)
-		return
-	}
-	// Offset the buffer from now on so that we can ignore ethernet frames if
-	// they are present
-	bs := recvd[:]
-	// Check if the packet is long enough to detect if it's an ICMP packet or not
-	if len(bs) < 7 {
-		tun.log.Traceln("TUN iface read undersized unknown packet, length:", len(bs))
-		return
-	}
-	// From the IP header, work out what our source and destination addresses
-	// and node IDs are. We will need these in order to work out where to send
-	// the packet
-	var dstAddr address.Address
-	var dstSnet address.Subnet
-	var addrlen int
-	n := len(bs)
-	// Check the IP protocol - if it doesn't match then we drop the packet and
-	// do nothing with it
-	if bs[0]&0xf0 == 0x60 {
-		// Check if we have a fully-sized IPv6 header
-		if len(bs) < 40 {
-			tun.log.Traceln("TUN iface read undersized ipv6 packet, length:", len(bs))
+	panic("TODO")
+	/*
+		if err != nil {
+			tun.log.Errorln("TUN iface read error:", err)
 			return
 		}
-		// Check the packet size
-		if n-tun_IPv6_HEADER_LENGTH != 256*int(bs[4])+int(bs[5]) {
+		// Offset the buffer from now on so that we can ignore ethernet frames if
+		// they are present
+		bs := recvd[:]
+		// Check if the packet is long enough to detect if it's an ICMP packet or not
+		if len(bs) < 7 {
+			tun.log.Traceln("TUN iface read undersized unknown packet, length:", len(bs))
 			return
 		}
-		// IPv6 address
-		addrlen = 16
-		copy(dstAddr[:addrlen], bs[24:])
-		copy(dstSnet[:addrlen/2], bs[24:])
-	} else if bs[0]&0xf0 == 0x40 {
-		// Check if we have a fully-sized IPv4 header
-		if len(bs) < 20 {
-			tun.log.Traceln("TUN iface read undersized ipv4 packet, length:", len(bs))
+		// From the IP header, work out what our source and destination addresses
+		// and node IDs are. We will need these in order to work out where to send
+		// the packet
+		var dstAddr address.Address
+		var dstSnet address.Subnet
+		var addrlen int
+		n := len(bs)
+		// Check the IP protocol - if it doesn't match then we drop the packet and
+		// do nothing with it
+		if bs[0]&0xf0 == 0x60 {
+			// Check if we have a fully-sized IPv6 header
+			if len(bs) < 40 {
+				tun.log.Traceln("TUN iface read undersized ipv6 packet, length:", len(bs))
+				return
+			}
+			// Check the packet size
+			if n-tun_IPv6_HEADER_LENGTH != 256*int(bs[4])+int(bs[5]) {
+				return
+			}
+			// IPv6 address
+			addrlen = 16
+			copy(dstAddr[:addrlen], bs[24:])
+			copy(dstSnet[:addrlen/2], bs[24:])
+		} else if bs[0]&0xf0 == 0x40 {
+			// Check if we have a fully-sized IPv4 header
+			if len(bs) < 20 {
+				tun.log.Traceln("TUN iface read undersized ipv4 packet, length:", len(bs))
+				return
+			}
+			// Check the packet size
+			if n != 256*int(bs[2])+int(bs[3]) {
+				return
+			}
+			// IPv4 address
+			addrlen = 4
+			copy(dstAddr[:addrlen], bs[16:])
+		} else {
+			// Unknown address length or protocol, so drop the packet and ignore it
+			tun.log.Traceln("Unknown packet type, dropping")
 			return
 		}
-		// Check the packet size
-		if n != 256*int(bs[2])+int(bs[3]) {
-			return
+		if tun.ckr.isEnabled() {
+			if addrlen != 16 || (!dstAddr.IsValid() && !dstSnet.IsValid()) {
+				if key, err := tun.ckr.getPublicKeyForAddress(dstAddr, addrlen); err == nil {
+					// A public key was found, get the node ID for the search
+					panic("TODO")
+					//dstNodeID := crypto.GetNodeID(&key)
+					//dstAddr = *address.AddrForNodeID(dstNodeID)
+					//dstSnet = *address.SubnetForNodeID(dstNodeID)
+					addrlen = 16
+				}
+			}
 		}
-		// IPv4 address
-		addrlen = 4
-		copy(dstAddr[:addrlen], bs[16:])
-	} else {
-		// Unknown address length or protocol, so drop the packet and ignore it
-		tun.log.Traceln("Unknown packet type, dropping")
-		return
-	}
-	if tun.ckr.isEnabled() {
 		if addrlen != 16 || (!dstAddr.IsValid() && !dstSnet.IsValid()) {
-			if /*key*/ _, err := tun.ckr.getPublicKeyForAddress(dstAddr, addrlen); err == nil {
-				// A public key was found, get the node ID for the search
-				panic("TODO")
-				//dstNodeID := crypto.GetNodeID(&key)
-				//dstAddr = *address.AddrForNodeID(dstNodeID)
-				//dstSnet = *address.SubnetForNodeID(dstNodeID)
-				addrlen = 16
+			// Couldn't find this node's ygg IP
+			dlen := len(bs)
+			if dlen > 900 {
+				dlen = 900
 			}
+			ptb := &icmp.DstUnreach{
+				Data: bs[:dlen],
+			}
+			if packet, err := CreateICMPv6(bs[8:24], bs[24:40], ipv6.ICMPTypeDestinationUnreachable, 0, ptb); err == nil {
+				tun.writer.writeFrom(nil, packet)
+			}
+			return
 		}
-	}
-	if addrlen != 16 || (!dstAddr.IsValid() && !dstSnet.IsValid()) {
-		// Couldn't find this node's ygg IP
-		dlen := len(bs)
-		if dlen > 900 {
-			dlen = 900
-		}
-		ptb := &icmp.DstUnreach{
-			Data: bs[:dlen],
-		}
-		if packet, err := CreateICMPv6(bs[8:24], bs[24:40], ipv6.ICMPTypeDestinationUnreachable, 0, ptb); err == nil {
-			tun.writer.writeFrom(nil, packet)
-		}
-		return
-	}
-	// Do we have an active connection for this node address?
-	var dstString string
-	session, isIn := tun.addrToConn[dstAddr]
-	if !isIn || session == nil {
-		session, isIn = tun.subnetToConn[dstSnet]
+		// Do we have an active connection for this node address?
+		var dstString string
+		session, isIn := tun.addrToConn[dstAddr]
 		if !isIn || session == nil {
-			// Neither an address nor a subnet mapping matched, therefore populate
-			// the node ID and mask to commence a search
-			panic("TODO")
-			if dstAddr.IsValid() {
-				//dstString = dstAddr.GetNodeIDLengthString()
-			} else {
-				//dstString = dstSnet.GetNodeIDLengthString()
+			session, isIn = tun.subnetToConn[dstSnet]
+			if !isIn || session == nil {
+				// Neither an address nor a subnet mapping matched, therefore populate
+				// the node ID and mask to commence a search
+				panic("TODO")
+				if dstAddr.IsValid() {
+					//dstString = dstAddr.GetNodeIDLengthString()
+				} else {
+					//dstString = dstSnet.GetNodeIDLengthString()
+				}
 			}
 		}
-	}
-	// If we don't have a connection then we should open one
-	if !isIn || session == nil {
-		// Check we haven't been given empty node ID, really this shouldn't ever
-		// happen but just to be sure...
-		if dstString == "" {
-			panic("Given empty dstString - this shouldn't happen")
+		// If we don't have a connection then we should open one
+		if !isIn || session == nil {
+			// Check we haven't been given empty node ID, really this shouldn't ever
+			// happen but just to be sure...
+			if dstString == "" {
+				panic("Given empty dstString - this shouldn't happen")
+			}
+			_, known := tun.dials[dstString]
+			tun.dials[dstString] = append(tun.dials[dstString], bs)
+			for len(tun.dials[dstString]) > 32 {
+				tun.dials[dstString] = tun.dials[dstString][1:]
+			}
+			if !known {
+				go func() {
+					conn, err := tun.dialer.Dial("nodeid", dstString)
+					tun.Act(nil, func() {
+						packets := tun.dials[dstString]
+						delete(tun.dials, dstString)
+						if err != nil {
+							return
+						}
+						// We've been given a connection so prepare the session wrapper
+						var tc *tunConn
+						if tc, err = tun._wrap(conn.(*yggdrasil.Conn)); err != nil {
+							// Something went wrong when storing the connection, typically that
+							// something already exists for this address or subnet
+							tun.log.Debugln("TUN iface wrap:", err)
+							return
+						}
+						for _, packet := range packets {
+							tc.writeFrom(nil, packet)
+						}
+					})
+				}()
+			}
 		}
-		_, known := tun.dials[dstString]
-		tun.dials[dstString] = append(tun.dials[dstString], bs)
-		for len(tun.dials[dstString]) > 32 {
-			tun.dials[dstString] = tun.dials[dstString][1:]
+		// If we have a connection now, try writing to it
+		if isIn && session != nil {
+			session.writeFrom(tun, bs)
 		}
-		if !known {
-			go func() {
-				conn, err := tun.dialer.Dial("nodeid", dstString)
-				tun.Act(nil, func() {
-					packets := tun.dials[dstString]
-					delete(tun.dials, dstString)
-					if err != nil {
-						return
-					}
-					// We've been given a connection so prepare the session wrapper
-					var tc *tunConn
-					if tc, err = tun._wrap(conn.(*yggdrasil.Conn)); err != nil {
-						// Something went wrong when storing the connection, typically that
-						// something already exists for this address or subnet
-						tun.log.Debugln("TUN iface wrap:", err)
-						return
-					}
-					for _, packet := range packets {
-						tc.writeFrom(nil, packet)
-					}
-				})
-			}()
-		}
-	}
-	// If we have a connection now, try writing to it
-	if isIn && session != nil {
-		session.writeFrom(tun, bs)
-	}
+	*/
 }

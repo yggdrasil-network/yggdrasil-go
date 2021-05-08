@@ -1,24 +1,24 @@
 package admin
 
 import (
-	"encoding/hex"
+	//"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/url"
 	"os"
-	"strconv"
+	//"strconv"
 	"strings"
 	"time"
 
 	"github.com/gologme/log"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	//"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
-	"github.com/yggdrasil-network/yggdrasil-go/src/version"
+	//"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	//"github.com/yggdrasil-network/yggdrasil-go/src/util"
+	//"github.com/yggdrasil-network/yggdrasil-go/src/version"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
@@ -82,13 +82,14 @@ func (a *AdminSocket) UpdateConfig(config *config.NodeConfig) {
 }
 
 func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
+	/* TODO
 	a.AddHandler("getSelf", []string{}, func(in Info) (Info, error) {
 		ip := a.core.Address().String()
 		subnet := a.core.Subnet()
 		return Info{
 			"self": Info{
 				ip: Info{
-					"box_pub_key":   a.core.EncryptionPublicKey(),
+					// TODO"box_pub_key":   a.core.EncryptionPublicKey(),
 					"build_name":    version.BuildName(),
 					"build_version": version.BuildVersion(),
 					"coords":        fmt.Sprintf("%v", a.core.Coords()),
@@ -140,203 +141,205 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 			return Info{"switchqueues": queues.asMap()}, nil
 		})
 	*/
-	a.AddHandler("getDHT", []string{}, func(in Info) (Info, error) {
-		dht := make(Info)
-		for _, d := range a.core.GetDHT() {
-			panic("TODO")
-			addr := new(address.Address) // TODO *address.AddrForNodeID(crypto.GetNodeID(&d.PublicKey))
-			so := net.IP(addr[:]).String()
-			dht[so] = Info{
-				"coords":      fmt.Sprintf("%v", d.Coords),
-				"last_seen":   d.LastSeen.Seconds(),
-				"box_pub_key": hex.EncodeToString(d.PublicKey[:]),
+	/*
+		a.AddHandler("getDHT", []string{}, func(in Info) (Info, error) {
+			dht := make(Info)
+			for _, d := range a.core.GetDHT() {
+				panic("TODO")
+				addr := new(address.Address) // TODO *address.AddrForNodeID(crypto.GetNodeID(&d.PublicKey))
+				so := net.IP(addr[:]).String()
+				dht[so] = Info{
+					"coords":      fmt.Sprintf("%v", d.Coords),
+					"last_seen":   d.LastSeen.Seconds(),
+					"box_pub_key": hex.EncodeToString(d.PublicKey[:]),
+				}
 			}
-		}
-		return Info{"dht": dht}, nil
-	})
-	a.AddHandler("getSessions", []string{}, func(in Info) (Info, error) {
-		sessions := make(Info)
-		for _, s := range a.core.GetSessions() {
-			panic("TODO")
-			addr := new(address.Address) //*address.AddrForNodeID(crypto.GetNodeID(&s.PublicKey))
-			so := net.IP(addr[:]).String()
-			sessions[so] = Info{
-				"coords":        fmt.Sprintf("%v", s.Coords),
-				"bytes_sent":    s.BytesSent,
-				"bytes_recvd":   s.BytesRecvd,
-				"mtu":           s.MTU,
-				"uptime":        s.Uptime.Seconds(),
-				"was_mtu_fixed": s.WasMTUFixed,
-				"box_pub_key":   hex.EncodeToString(s.PublicKey[:]),
+			return Info{"dht": dht}, nil
+		})
+		a.AddHandler("getSessions", []string{}, func(in Info) (Info, error) {
+			sessions := make(Info)
+			for _, s := range a.core.GetSessions() {
+				panic("TODO")
+				addr := new(address.Address) //*address.AddrForNodeID(crypto.GetNodeID(&s.PublicKey))
+				so := net.IP(addr[:]).String()
+				sessions[so] = Info{
+					"coords":        fmt.Sprintf("%v", s.Coords),
+					"bytes_sent":    s.BytesSent,
+					"bytes_recvd":   s.BytesRecvd,
+					"mtu":           s.MTU,
+					"uptime":        s.Uptime.Seconds(),
+					"was_mtu_fixed": s.WasMTUFixed,
+					"box_pub_key":   hex.EncodeToString(s.PublicKey[:]),
+				}
 			}
-		}
-		return Info{"sessions": sessions}, nil
-	})
-	a.AddHandler("addPeer", []string{"uri", "[interface]"}, func(in Info) (Info, error) {
-		// Set sane defaults
-		intf := ""
-		// Has interface been specified?
-		if itf, ok := in["interface"]; ok {
-			intf = itf.(string)
-		}
-		if a.core.AddPeer(in["uri"].(string), intf) == nil {
+			return Info{"sessions": sessions}, nil
+		})
+		a.AddHandler("addPeer", []string{"uri", "[interface]"}, func(in Info) (Info, error) {
+			// Set sane defaults
+			intf := ""
+			// Has interface been specified?
+			if itf, ok := in["interface"]; ok {
+				intf = itf.(string)
+			}
+			if a.core.AddPeer(in["uri"].(string), intf) == nil {
+				return Info{
+					"added": []string{
+						in["uri"].(string),
+					},
+				}, nil
+			}
 			return Info{
-				"added": []string{
+				"not_added": []string{
 					in["uri"].(string),
 				},
-			}, nil
-		}
-		return Info{
-			"not_added": []string{
-				in["uri"].(string),
-			},
-		}, errors.New("Failed to add peer")
-	})
-	a.AddHandler("disconnectPeer", []string{"port"}, func(in Info) (Info, error) {
-		port, err := strconv.ParseInt(fmt.Sprint(in["port"]), 10, 64)
-		if err != nil {
-			return Info{}, err
-		}
-		if a.core.DisconnectPeer(uint64(port)) == nil {
-			return Info{
-				"disconnected": []string{
-					fmt.Sprint(port),
-				},
-			}, nil
-		} else {
-			return Info{
-				"not_disconnected": []string{
-					fmt.Sprint(port),
-				},
-			}, errors.New("Failed to disconnect peer")
-		}
-	})
-	a.AddHandler("removePeer", []string{"uri", "[interface]"}, func(in Info) (Info, error) {
-		// Set sane defaults
-		intf := ""
-		// Has interface been specified?
-		if itf, ok := in["interface"]; ok {
-			intf = itf.(string)
-		}
-		if a.core.RemovePeer(in["uri"].(string), intf) == nil {
-			return Info{
-				"removed": []string{
-					in["uri"].(string),
-				},
-			}, nil
-		} else {
+			}, errors.New("Failed to add peer")
+		})
+		a.AddHandler("disconnectPeer", []string{"port"}, func(in Info) (Info, error) {
+			port, err := strconv.ParseInt(fmt.Sprint(in["port"]), 10, 64)
+			if err != nil {
+				return Info{}, err
+			}
+			if a.core.DisconnectPeer(uint64(port)) == nil {
+				return Info{
+					"disconnected": []string{
+						fmt.Sprint(port),
+					},
+				}, nil
+			} else {
+				return Info{
+					"not_disconnected": []string{
+						fmt.Sprint(port),
+					},
+				}, errors.New("Failed to disconnect peer")
+			}
+		})
+		a.AddHandler("removePeer", []string{"uri", "[interface]"}, func(in Info) (Info, error) {
+			// Set sane defaults
+			intf := ""
+			// Has interface been specified?
+			if itf, ok := in["interface"]; ok {
+				intf = itf.(string)
+			}
+			if a.core.RemovePeer(in["uri"].(string), intf) == nil {
+				return Info{
+					"removed": []string{
+						in["uri"].(string),
+					},
+				}, nil
+			} else {
+				return Info{
+					"not_removed": []string{
+						in["uri"].(string),
+					},
+				}, errors.New("Failed to remove peer")
+			}
 			return Info{
 				"not_removed": []string{
 					in["uri"].(string),
 				},
 			}, errors.New("Failed to remove peer")
-		}
-		return Info{
-			"not_removed": []string{
-				in["uri"].(string),
-			},
-		}, errors.New("Failed to remove peer")
-	})
-	a.AddHandler("getAllowedEncryptionPublicKeys", []string{}, func(in Info) (Info, error) {
-		return Info{"allowed_box_pubs": a.core.GetAllowedEncryptionPublicKeys()}, nil
-	})
-	a.AddHandler("addAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in Info) (Info, error) {
-		if a.core.AddAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
+		})
+		a.AddHandler("getAllowedEncryptionPublicKeys", []string{}, func(in Info) (Info, error) {
+			return Info{"allowed_box_pubs": a.core.GetAllowedEncryptionPublicKeys()}, nil
+		})
+		a.AddHandler("addAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in Info) (Info, error) {
+			if a.core.AddAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
+				return Info{
+					"added": []string{
+						in["box_pub_key"].(string),
+					},
+				}, nil
+			}
 			return Info{
-				"added": []string{
+				"not_added": []string{
 					in["box_pub_key"].(string),
 				},
-			}, nil
-		}
-		return Info{
-			"not_added": []string{
-				in["box_pub_key"].(string),
-			},
-		}, errors.New("Failed to add allowed key")
-	})
-	a.AddHandler("removeAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in Info) (Info, error) {
-		if a.core.RemoveAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
+			}, errors.New("Failed to add allowed key")
+		})
+		a.AddHandler("removeAllowedEncryptionPublicKey", []string{"box_pub_key"}, func(in Info) (Info, error) {
+			if a.core.RemoveAllowedEncryptionPublicKey(in["box_pub_key"].(string)) == nil {
+				return Info{
+					"removed": []string{
+						in["box_pub_key"].(string),
+					},
+				}, nil
+			}
 			return Info{
-				"removed": []string{
+				"not_removed": []string{
 					in["box_pub_key"].(string),
 				},
-			}, nil
-		}
-		return Info{
-			"not_removed": []string{
-				in["box_pub_key"].(string),
-			},
-		}, errors.New("Failed to remove allowed key")
-	})
-	a.AddHandler("dhtPing", []string{"box_pub_key", "coords", "[target]"}, func(in Info) (Info, error) {
-		var reserr error
-		var result yggdrasil.DHTRes
-		if in["target"] == nil {
-			in["target"] = "none"
-		}
-		coords := util.DecodeCoordString(in["coords"].(string))
-		var boxPubKey crypto.BoxPubKey
-		if b, err := hex.DecodeString(in["box_pub_key"].(string)); err == nil {
-			copy(boxPubKey[:], b)
-			if n, err := hex.DecodeString(in["target"].(string)); err == nil {
-				var targetNodeID crypto.NodeID
-				copy(targetNodeID[:], n)
-				result, reserr = a.core.DHTPing(boxPubKey, coords, &targetNodeID)
-			} else {
-				result, reserr = a.core.DHTPing(boxPubKey, coords, nil)
+			}, errors.New("Failed to remove allowed key")
+		})
+		a.AddHandler("dhtPing", []string{"box_pub_key", "coords", "[target]"}, func(in Info) (Info, error) {
+			var reserr error
+			var result yggdrasil.DHTRes
+			if in["target"] == nil {
+				in["target"] = "none"
 			}
-		} else {
-			return Info{}, err
-		}
-		if reserr != nil {
-			return Info{}, reserr
-		}
-		infos := make(map[string]map[string]string, len(result.Infos))
-		for _, dinfo := range result.Infos {
-			info := map[string]string{
-				"box_pub_key": hex.EncodeToString(dinfo.PublicKey[:]),
-				"coords":      fmt.Sprintf("%v", dinfo.Coords),
-			}
-			panic("TODO")
-			addr := "" //net.IP(address.AddrForNodeID(crypto.GetNodeID(&dinfo.PublicKey))[:]).String()
-			infos[addr] = info
-		}
-		return Info{"nodes": infos}, nil
-	})
-	a.AddHandler("getNodeInfo", []string{"[box_pub_key]", "[coords]", "[nocache]"}, func(in Info) (Info, error) {
-		var nocache bool
-		if in["nocache"] != nil {
-			nocache = in["nocache"].(string) == "true"
-		}
-		var boxPubKey crypto.BoxPubKey
-		var coords []uint64
-		if in["box_pub_key"] == nil && in["coords"] == nil {
-			nodeinfo := a.core.MyNodeInfo()
-			var jsoninfo interface{}
-			if err := json.Unmarshal(nodeinfo, &jsoninfo); err != nil {
-				return Info{}, err
-			}
-			return Info{"nodeinfo": jsoninfo}, nil
-		} else if in["box_pub_key"] == nil || in["coords"] == nil {
-			return Info{}, errors.New("Expecting both box_pub_key and coords")
-		} else {
+			coords := util.DecodeCoordString(in["coords"].(string))
+			var boxPubKey crypto.BoxPubKey
 			if b, err := hex.DecodeString(in["box_pub_key"].(string)); err == nil {
 				copy(boxPubKey[:], b)
+				if n, err := hex.DecodeString(in["target"].(string)); err == nil {
+					var targetNodeID crypto.NodeID
+					copy(targetNodeID[:], n)
+					result, reserr = a.core.DHTPing(boxPubKey, coords, &targetNodeID)
+				} else {
+					result, reserr = a.core.DHTPing(boxPubKey, coords, nil)
+				}
 			} else {
 				return Info{}, err
 			}
-			coords = util.DecodeCoordString(in["coords"].(string))
-		}
-		result, err := a.core.GetNodeInfo(boxPubKey, coords, nocache)
-		if err == nil {
-			var m map[string]interface{}
-			if err = json.Unmarshal(result, &m); err == nil {
-				return Info{"nodeinfo": m}, nil
+			if reserr != nil {
+				return Info{}, reserr
+			}
+			infos := make(map[string]map[string]string, len(result.Infos))
+			for _, dinfo := range result.Infos {
+				info := map[string]string{
+					"box_pub_key": hex.EncodeToString(dinfo.PublicKey[:]),
+					"coords":      fmt.Sprintf("%v", dinfo.Coords),
+				}
+				panic("TODO")
+				addr := "" //net.IP(address.AddrForNodeID(crypto.GetNodeID(&dinfo.PublicKey))[:]).String()
+				infos[addr] = info
+			}
+			return Info{"nodes": infos}, nil
+		})
+		a.AddHandler("getNodeInfo", []string{"[box_pub_key]", "[coords]", "[nocache]"}, func(in Info) (Info, error) {
+			var nocache bool
+			if in["nocache"] != nil {
+				nocache = in["nocache"].(string) == "true"
+			}
+			var boxPubKey crypto.BoxPubKey
+			var coords []uint64
+			if in["box_pub_key"] == nil && in["coords"] == nil {
+				nodeinfo := a.core.MyNodeInfo()
+				var jsoninfo interface{}
+				if err := json.Unmarshal(nodeinfo, &jsoninfo); err != nil {
+					return Info{}, err
+				}
+				return Info{"nodeinfo": jsoninfo}, nil
+			} else if in["box_pub_key"] == nil || in["coords"] == nil {
+				return Info{}, errors.New("Expecting both box_pub_key and coords")
+			} else {
+				if b, err := hex.DecodeString(in["box_pub_key"].(string)); err == nil {
+					copy(boxPubKey[:], b)
+				} else {
+					return Info{}, err
+				}
+				coords = util.DecodeCoordString(in["coords"].(string))
+			}
+			result, err := a.core.GetNodeInfo(boxPubKey, coords, nocache)
+			if err == nil {
+				var m map[string]interface{}
+				if err = json.Unmarshal(result, &m); err == nil {
+					return Info{"nodeinfo": m}, nil
+				}
+				return Info{}, err
 			}
 			return Info{}, err
-		}
-		return Info{}, err
-	})
+		})
+	*/
 }
 
 // Start runs the admin API socket to listen for / respond to admin API calls.

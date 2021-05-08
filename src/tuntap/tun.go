@@ -9,6 +9,7 @@ package tuntap
 // TODO: Don't block in reader on writes that are pending searches
 
 import (
+	"crypto/ed25519"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -38,13 +39,12 @@ const tun_IPv6_HEADER_LENGTH = 40
 // calling yggdrasil.Start().
 type TunAdapter struct {
 	core        *yggdrasil.Core
+	store       keyStore
 	writer      tunWriter
 	reader      tunReader
 	config      *config.NodeState
 	log         *log.Logger
 	reconfigure chan chan error
-	listener    *yggdrasil.Listener
-	dialer      *yggdrasil.Dialer
 	addr        address.Address
 	subnet      address.Subnet
 	ckr         cryptokey
@@ -53,15 +53,12 @@ type TunAdapter struct {
 	iface       tun.Device
 	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
 	//mutex        sync.RWMutex // Protects the below
-	addrToConn   map[address.Address]*tunConn
-	subnetToConn map[address.Subnet]*tunConn
-	dials        map[string][][]byte // Buffer of packets to send after dialing finishes
-	isOpen       bool
+	isOpen bool
 }
 
 type TunOptions struct {
-	Listener *yggdrasil.Listener
-	Dialer   *yggdrasil.Dialer
+	//Listener *yggdrasil.Listener
+	//Dialer   *yggdrasil.Dialer
 }
 
 // Gets the maximum supported MTU for the platform based on the defaults in
@@ -113,20 +110,20 @@ func MaximumMTU() MTU {
 // Init initialises the TUN module. You must have acquired a Listener from
 // the Yggdrasil core before this point and it must not be in use elsewhere.
 func (tun *TunAdapter) Init(core *yggdrasil.Core, config *config.NodeState, log *log.Logger, options interface{}) error {
+	/* TODO
 	tunoptions, ok := options.(TunOptions)
 	if !ok {
 		return fmt.Errorf("invalid options supplied to TunAdapter module")
 	}
+	*/
 	tun.core = core
+	tun.store.init(tun)
 	tun.config = config
 	tun.log = log
-	tun.listener = tunoptions.Listener
-	tun.dialer = tunoptions.Dialer
-	tun.addrToConn = make(map[address.Address]*tunConn)
-	tun.subnetToConn = make(map[address.Subnet]*tunConn)
-	tun.dials = make(map[string][][]byte)
 	tun.writer.tun = tun
 	tun.reader.tun = tun
+	tun.core.SetOutOfBandHandler(tun.oobHandler)
+
 	return nil
 }
 
@@ -145,7 +142,7 @@ func (tun *TunAdapter) _start() error {
 		return errors.New("TUN module is already started")
 	}
 	current := tun.config.GetCurrent()
-	if tun.config == nil || tun.listener == nil || tun.dialer == nil {
+	if tun.config == nil {
 		return errors.New("no configuration available to TUN")
 	}
 	var boxPub crypto.BoxPubKey
@@ -169,9 +166,9 @@ func (tun *TunAdapter) _start() error {
 	if tun.MTU() != current.IfMTU {
 		tun.log.Warnf("Warning: Interface MTU %d automatically adjusted to %d (supported range is 1280-%d)", current.IfMTU, tun.MTU(), MaximumMTU())
 	}
-	tun.core.SetMaximumSessionMTU(tun.MTU())
+	// TODO tun.core.SetMaximumSessionMTU(tun.MTU())
 	tun.isOpen = true
-	go tun.handler()
+	// TODO go tun.handler()
 	tun.reader.Act(nil, tun.reader._read) // Start the reader
 	tun.ckr.init(tun)
 	return nil
@@ -225,6 +222,7 @@ func (tun *TunAdapter) UpdateConfig(config *config.NodeConfig) {
 	tun.Act(nil, tun.ckr.configure)
 }
 
+/*
 func (tun *TunAdapter) handler() error {
 	for {
 		// Accept the incoming connection
@@ -282,4 +280,20 @@ func (tun *TunAdapter) _wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 	s.Act(nil, s.stillAlive)
 	// Return
 	return c, err
+}
+*/
+
+func (tun *TunAdapter) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte) {
+	panic("TODO")
+	// parse packet
+	// If it's a lookup then send a response
+	// If it's a response then (maybe) update the keystore
+}
+
+func (tun *TunAdapter) sendKeyLookup(partial ed25519.PublicKey) {
+	panic("TODO")
+}
+
+func (tun *TunAdapter) sendKeyResponse(dest ed25519.PublicKey) {
+	panic("TODO")
 }
