@@ -70,6 +70,7 @@ func (k *keyStore) sendToAddress(addr address.Address, bs []byte) {
 				delete(k.addrBuffer, addr)
 			}
 		})
+		panic("TODO") // TODO send lookup
 	}
 }
 
@@ -97,10 +98,11 @@ func (k *keyStore) sendToSubnet(subnet address.Subnet, bs []byte) {
 				delete(k.subnetBuffer, subnet)
 			}
 		})
+		panic("TODO") // TODO send lookup
 	}
 }
 
-func (k *keyStore) update(key ed25519.PublicKey) {
+func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 	k.mutex.Lock()
 	defer k.mutex.Unlock()
 	var kArray keyArray
@@ -130,6 +132,7 @@ func (k *keyStore) update(key ed25519.PublicKey) {
 		}
 	}
 	k.resetTimeout(info)
+	return info
 }
 
 func (k *keyStore) resetTimeout(info *keyInfo) {

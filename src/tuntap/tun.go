@@ -171,6 +171,8 @@ func (tun *TunAdapter) _start() error {
 	// TODO go tun.handler()
 	tun.reader.Act(nil, tun.reader._read) // Start the reader
 	tun.ckr.init(tun)
+	go tun.doRead()
+	go tun.doWrite()
 	return nil
 }
 
