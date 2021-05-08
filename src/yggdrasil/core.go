@@ -175,6 +175,7 @@ func (c *Core) Stop() {
 
 // This function is unsafe and should only be ran by the core actor.
 func (c *Core) _stop() {
+	c.PacketConn.Close()
 	c.log.Infoln("Stopping...")
 	if c.addPeerTimer != nil {
 		c.addPeerTimer.Stop()
