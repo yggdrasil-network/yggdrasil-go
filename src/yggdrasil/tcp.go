@@ -387,8 +387,6 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options tcpOptions) chan str
 		}
 		upgraded = true
 	}
-	stream := stream{}
-	stream.init(sock)
 	var name, proto, local, remote string
 	if options.socksProxyAddr != "" {
 		name = "socks://" + sock.RemoteAddr().String() + "/" + options.socksPeerAddr
@@ -423,7 +421,7 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options tcpOptions) chan str
 		}
 	}
 	force := net.ParseIP(strings.Split(remote, "%")[0]).IsLinkLocalUnicast()
-	link, err := t.links.create(&stream, name, proto, local, remote, incoming, force, options.linkOptions)
+	link, err := t.links.create(sock, name, proto, local, remote, incoming, force, options.linkOptions)
 	if err != nil {
 		t.links.core.log.Println(err)
 		panic(err)

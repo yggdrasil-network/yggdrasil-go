@@ -34,7 +34,7 @@ func (t *tcptls) init(tcp *tcp) {
 	}
 
 	edpriv := make(ed25519.PrivateKey, ed25519.PrivateKeySize)
-	copy(edpriv[:], tcp.links.core.sigPriv[:])
+	copy(edpriv[:], tcp.links.core.secret[:])
 
 	certBuf := &bytes.Buffer{}
 
@@ -42,7 +42,7 @@ func (t *tcptls) init(tcp *tcp) {
 	pubtemp := x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
-			CommonName: hex.EncodeToString(tcp.links.core.sigPub[:]),
+			CommonName: hex.EncodeToString(tcp.links.core.public[:]),
 		},
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().Add(time.Hour * 24 * 365),

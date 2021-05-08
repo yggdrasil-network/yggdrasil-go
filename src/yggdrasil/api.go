@@ -1,18 +1,17 @@
 package yggdrasil
 
 import (
-	"encoding/hex"
+	//"encoding/hex"
 	"errors"
-	"fmt"
+	//"fmt"
 	"net"
-	"sort"
+	//"sort"
 	"time"
 
 	"github.com/gologme/log"
-	//"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-
-	"github.com/Arceliar/phony"
+	//"github.com/Arceliar/phony"
 )
 
 // Peer represents a single peer object. This contains information from the
@@ -95,13 +94,13 @@ type SwitchQueue struct {
 // Note that sessions will automatically be closed by Yggdrasil if no traffic is
 // exchanged for around two minutes.
 type Session struct {
-	PublicKey   crypto.BoxPubKey // The public key of the remote node
-	Coords      []uint64         // The coordinates of the remote node
-	BytesSent   uint64           // Bytes sent to the session
-	BytesRecvd  uint64           // Bytes received from the session
-	MTU         MTU              // The maximum supported message size of the session
-	Uptime      time.Duration    // How long this session has been active for
-	WasMTUFixed bool             // This field is no longer used
+	PublicKey  crypto.BoxPubKey // The public key of the remote node
+	Coords     []uint64         // The coordinates of the remote node
+	BytesSent  uint64           // Bytes sent to the session
+	BytesRecvd uint64           // Bytes received from the session
+	//MTU         MTU              // The maximum supported message size of the session
+	Uptime      time.Duration // How long this session has been active for
+	WasMTUFixed bool          // This field is no longer used
 }
 
 // GetPeers returns one or more Peer objects containing information about active
@@ -109,6 +108,7 @@ type Session struct {
 // includes information about the current node (with a port number of 0). If
 // there is exactly one entry then this node is not connected to any other nodes
 // and is therefore isolated.
+/* TODO
 func (c *Core) GetPeers() []Peer {
 	var ports map[switchPort]*peer
 	phony.Block(&c.peers, func() { ports = c.peers.ports })
@@ -136,12 +136,14 @@ func (c *Core) GetPeers() []Peer {
 	}
 	return peers
 }
+*/
 
 // GetSwitchPeers returns zero or more SwitchPeer objects containing information
 // about switch port connections with other Yggdrasil nodes. Note that, unlike
 // GetPeers, GetSwitchPeers does not include information about the current node,
 // therefore it is possible for this to return zero elements if the node is
 // isolated or not connected to any peers.
+/* TODO
 func (c *Core) GetSwitchPeers() []SwitchPeer {
 	var switchpeers []SwitchPeer
 	var table *lookupTable
@@ -172,9 +174,11 @@ func (c *Core) GetSwitchPeers() []SwitchPeer {
 	}
 	return switchpeers
 }
+*/
 
 // GetDHT returns zero or more entries as stored in the DHT, cached primarily
 // from searches that have already taken place.
+/* TODO
 func (c *Core) GetDHT() []DHTEntry {
 	var dhtentries []DHTEntry
 	getDHT := func() {
@@ -198,8 +202,10 @@ func (c *Core) GetDHT() []DHTEntry {
 	phony.Block(&c.router, getDHT)
 	return dhtentries
 }
+*/
 
 // GetSessions returns a list of open sessions from this node to other nodes.
+/* TODO
 func (c *Core) GetSessions() []Session {
 	var sessions []Session
 	getSessions := func() {
@@ -224,11 +230,13 @@ func (c *Core) GetSessions() []Session {
 	phony.Block(&c.router, getSessions)
 	return sessions
 }
+*/
 
 // ConnListen returns a listener for Yggdrasil session connections. You can only
 // call this function once as each Yggdrasil node can only have a single
 // ConnListener. Make sure to keep the reference to this for as long as it is
 // needed.
+/* TODO?
 func (c *Core) ConnListen() (*Listener, error) {
 	c.router.sessions.listenerMutex.Lock()
 	defer c.router.sessions.listenerMutex.Unlock()
@@ -242,16 +250,19 @@ func (c *Core) ConnListen() (*Listener, error) {
 	}
 	return c.router.sessions.listener, nil
 }
+*/
 
 // ConnDialer returns a dialer for Yggdrasil session connections. Since
 // ConnDialers are stateless, you can request as many dialers as you like,
 // although ideally you should request only one and keep the reference to it for
 // as long as it is needed.
+/* TODO?
 func (c *Core) ConnDialer() (*Dialer, error) {
 	return &Dialer{
 		core: c,
 	}, nil
 }
+*/
 
 // ListenTCP starts a new TCP listener. The input URI should match that of the
 // "Listen" configuration item, e.g.
@@ -270,26 +281,34 @@ func (c *Core) ListenTLS(uri string) (*TcpListener, error) {
 // NodeID gets the node ID. This is derived from your router encryption keys.
 // Remote nodes wanting to open connections to your node will need to know your
 // node ID.
+/* TODO?
 func (c *Core) NodeID() *crypto.NodeID {
 	return crypto.GetNodeID(&c.boxPub)
 }
+*/
 
 // TreeID gets the tree ID. This is derived from your switch signing keys. There
 // is typically no need to share this key.
+/* TODO?
 func (c *Core) TreeID() *crypto.TreeID {
 	return crypto.GetTreeID(&c.sigPub)
 }
+*/
 
 // SigningPublicKey gets the node's signing public key, as used by the switch.
+/* TODO?
 func (c *Core) SigningPublicKey() string {
 	return hex.EncodeToString(c.sigPub[:])
 }
+*/
 
 // EncryptionPublicKey gets the node's encryption public key, as used by the
 // router.
+/* TODO?
 func (c *Core) EncryptionPublicKey() string {
 	return hex.EncodeToString(c.boxPub[:])
 }
+*/
 
 // Coords returns the current coordinates of the node. Note that these can
 // change at any time for a number of reasons, not limited to but including
@@ -300,6 +319,7 @@ func (c *Core) EncryptionPublicKey() string {
 // you are the root of the network that you are connected to, or you are not
 // connected to any other nodes (effectively making you the root of a
 // single-node network).
+/* TODO?
 func (c *Core) Coords() []uint64 {
 	var coords []byte
 	phony.Block(&c.router, func() {
@@ -307,6 +327,7 @@ func (c *Core) Coords() []uint64 {
 	})
 	return wire_coordsBytestoUint64s(coords)
 }
+*/
 
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128
 // address. The IPv6 address is only relevant when the node is operating as an
@@ -314,10 +335,8 @@ func (c *Core) Coords() []uint64 {
 // that application also implements either VPN functionality or deals with IP
 // packets specifically.
 func (c *Core) Address() net.IP {
-	panic("TODO")
-	return nil
-	//address := net.IP(address.AddrForNodeID(c.NodeID())[:])
-	//return address
+	addr := net.IP(address.AddrForKey(c.public)[:])
+	return addr
 }
 
 // Subnet gets the routed IPv6 subnet of the Yggdrasil node. This is always a
@@ -326,28 +345,31 @@ func (c *Core) Address() net.IP {
 // that application also implements either VPN functionality or deals with IP
 // packets specifically.
 func (c *Core) Subnet() net.IPNet {
-	panic("TODO")
-	return net.IPNet{}
-	//subnet := address.SubnetForNodeID(c.NodeID())[:]
-	//subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
-	//return net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
+	subnet := address.SubnetForKey(c.public)[:]
+	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
+	return net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
 }
 
 // MyNodeInfo gets the currently configured nodeinfo. NodeInfo is typically
 // specified through the "NodeInfo" option in the node configuration or using
 // the SetNodeInfo function, although it may also contain other built-in values
 // such as "buildname", "buildversion" etc.
+/* TODO?
 func (c *Core) MyNodeInfo() NodeInfoPayload {
 	return c.router.nodeinfo.getNodeInfo()
 }
+*/
 
 // SetNodeInfo sets the local nodeinfo. Note that nodeinfo can be any value or
 // struct, it will be serialised into JSON automatically.
+/* TODO?
 func (c *Core) SetNodeInfo(nodeinfo interface{}, nodeinfoprivacy bool) {
 	c.router.nodeinfo.setNodeInfo(nodeinfo, nodeinfoprivacy)
 }
+*/
 
 // GetMaximumSessionMTU returns the maximum allowed session MTU size.
+/* TODO?
 func (c *Core) GetMaximumSessionMTU() MTU {
 	var mtu MTU
 	phony.Block(&c.router, func() {
@@ -355,10 +377,12 @@ func (c *Core) GetMaximumSessionMTU() MTU {
 	})
 	return mtu
 }
+*/
 
 // SetMaximumSessionMTU sets the maximum allowed session MTU size. The default
 // value is 65535 bytes. Session pings will be sent to update all open sessions
 // if the MTU has changed.
+/* TODO?
 func (c *Core) SetMaximumSessionMTU(mtu MTU) {
 	phony.Block(&c.router, func() {
 		if c.router.sessions.myMaximumMTU != mtu {
@@ -367,11 +391,13 @@ func (c *Core) SetMaximumSessionMTU(mtu MTU) {
 		}
 	})
 }
+*/
 
 // GetNodeInfo requests nodeinfo from a remote node, as specified by the public
 // key and coordinates specified. The third parameter specifies whether a cached
 // result is acceptable - this results in less traffic being generated than is
 // necessary when, e.g. crawling the network.
+/* TODO?
 func (c *Core) GetNodeInfo(key crypto.BoxPubKey, coords []uint64, nocache bool) (NodeInfoPayload, error) {
 	response := make(chan *NodeInfoPayload, 1)
 	c.router.nodeinfo.addCallback(key, func(nodeinfo *NodeInfoPayload) {
@@ -390,6 +416,7 @@ func (c *Core) GetNodeInfo(key crypto.BoxPubKey, coords []uint64, nocache bool) 
 	}
 	return NodeInfoPayload{}, fmt.Errorf("getNodeInfo timeout: %s", hex.EncodeToString(key[:]))
 }
+*/
 
 // SetSessionGatekeeper allows you to configure a handler function for deciding
 // whether a session should be allowed or not. The default session firewall is
@@ -397,12 +424,14 @@ func (c *Core) GetNodeInfo(key crypto.BoxPubKey, coords []uint64, nocache bool) 
 // side and a boolean which is true if we initiated the session or false if we
 // received an incoming session request. The function should return true to
 // allow the session or false to reject it.
+/* TODO?
 func (c *Core) SetSessionGatekeeper(f func(pubkey *crypto.BoxPubKey, initiator bool) bool) {
 	c.router.sessions.isAllowedMutex.Lock()
 	defer c.router.sessions.isAllowedMutex.Unlock()
 
 	c.router.sessions.isAllowedHandler = f
 }
+*/
 
 // SetLogger sets the output logger of the Yggdrasil node after startup. This
 // may be useful if you want to redirect the output later. Note that this
@@ -469,6 +498,8 @@ func (c *Core) RemovePeer(addr string, sintf string) error {
 		}
 	}
 
+	panic("TODO")
+	/* TODO?
 	c.peers.Act(nil, func() {
 		ports := c.peers.ports
 		for _, peer := range ports {
@@ -477,6 +508,7 @@ func (c *Core) RemovePeer(addr string, sintf string) error {
 			}
 		}
 	})
+	*/
 
 	return nil
 }
@@ -493,6 +525,7 @@ func (c *Core) CallPeer(addr string, sintf string) error {
 
 // DisconnectPeer disconnects a peer once. This should be specified as a port
 // number.
+/* TODO?
 func (c *Core) DisconnectPeer(port uint64) error {
 	c.peers.Act(nil, func() {
 		if p, isIn := c.peers.ports[switchPort(port)]; isIn {
@@ -501,34 +534,42 @@ func (c *Core) DisconnectPeer(port uint64) error {
 	})
 	return nil
 }
+*/
 
 // GetAllowedEncryptionPublicKeys returns the public keys permitted for incoming
 // peer connections. If this list is empty then all incoming peer connections
 // are accepted by default.
+/* TODO?
 func (c *Core) GetAllowedEncryptionPublicKeys() []string {
 	return c.peers.getAllowedEncryptionPublicKeys()
 }
+*/
 
 // AddAllowedEncryptionPublicKey whitelists a key for incoming peer connections.
 // By default all incoming peer connections are accepted, but adding public keys
 // to the whitelist using this function enables strict checking from that point
 // forward. Once the whitelist is enabled, only peer connections from
 // whitelisted public keys will be accepted.
+/* TODO?
 func (c *Core) AddAllowedEncryptionPublicKey(bstr string) (err error) {
 	c.peers.addAllowedEncryptionPublicKey(bstr)
 	return nil
 }
+*/
 
 // RemoveAllowedEncryptionPublicKey removes a key from the whitelist for
 // incoming peer connections. If none are set, an empty list permits all
 // incoming connections.
+/* TODO?
 func (c *Core) RemoveAllowedEncryptionPublicKey(bstr string) (err error) {
 	c.peers.removeAllowedEncryptionPublicKey(bstr)
 	return nil
 }
+*/
 
 // DHTPing sends a DHT ping to the node with the provided key and coords,
 // optionally looking up the specified target NodeID.
+/* NOT TODO!!
 func (c *Core) DHTPing(key crypto.BoxPubKey, coords []uint64, target *crypto.NodeID) (DHTRes, error) {
 	resCh := make(chan *dhtRes, 1)
 	info := dhtInfo{
@@ -564,3 +605,4 @@ func (c *Core) DHTPing(key crypto.BoxPubKey, coords []uint64, target *crypto.Nod
 	}
 	return DHTRes{}, fmt.Errorf("DHT ping timeout: %s", hex.EncodeToString(key[:]))
 }
+*/

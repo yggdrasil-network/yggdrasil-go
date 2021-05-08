@@ -1,16 +1,18 @@
 package yggdrasil
 
 import (
+	"crypto/ed25519"
 	"encoding/hex"
 	"errors"
 	"io/ioutil"
 	"time"
 
+	iw "github.com/Arceliar/ironwood/encrypted"
 	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	//"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 )
 
@@ -21,14 +23,10 @@ type Core struct {
 	// We're going to keep our own copy of the provided config - that way we can
 	// guarantee that it will be covered by the mutex
 	phony.Inbox
+	*iw.PacketConn
 	config       config.NodeState // Config
-	boxPub       crypto.BoxPubKey
-	boxPriv      crypto.BoxPrivKey
-	sigPub       crypto.SigPubKey
-	sigPriv      crypto.SigPrivKey
-	switchTable  switchTable
-	peers        peers
-	router       router
+	secret       ed25519.PrivateKey
+	public       ed25519.PublicKey
 	links        links
 	log          *log.Logger
 	addPeerTimer *time.Timer
@@ -45,40 +43,23 @@ func (c *Core) _init() error {
 
 	current := c.config.GetCurrent()
 
-	boxPrivHex, err := hex.DecodeString(current.EncryptionPrivateKey)
+	sigPriv, err := hex.DecodeString(current.SigningPrivateKey)
 	if err != nil {
 		return err
 	}
-	if len(boxPrivHex) < crypto.BoxPrivKeyLen {
-		return errors.New("EncryptionPrivateKey is incorrect length")
-	}
-
-	sigPrivHex, err := hex.DecodeString(current.SigningPrivateKey)
-	if err != nil {
-		return err
-	}
-	if len(sigPrivHex) < crypto.SigPrivKeyLen {
+	if len(sigPriv) < ed25519.PrivateKeySize {
 		return errors.New("SigningPrivateKey is incorrect length")
 	}
 
-	copy(c.boxPriv[:], boxPrivHex)
-	copy(c.sigPriv[:], sigPrivHex)
+	c.secret = ed25519.PrivateKey(sigPriv)
+	sigPub := c.secret.Public()
+	c.public = sigPub.(ed25519.PublicKey)
 
-	boxPub, sigPub := c.boxPriv.Public(), c.sigPriv.Public()
-
-	copy(c.boxPub[:], boxPub[:])
-	copy(c.sigPub[:], sigPub[:])
-
-	if bp := hex.EncodeToString(c.boxPub[:]); current.EncryptionPublicKey != bp {
-		c.log.Warnln("EncryptionPublicKey in config is incorrect, should be", bp)
+	pc, err := iw.NewPacketConn(c.secret)
+	if err != nil {
+		return err
 	}
-	if sp := hex.EncodeToString(c.sigPub[:]); current.SigningPublicKey != sp {
-		c.log.Warnln("SigningPublicKey in config is incorrect, should be", sp)
-	}
-
-	c.peers.init(c)
-	c.router.init(c)
-	c.switchTable.init(c) // TODO move before peers? before router?
+	c.PacketConn = pc
 
 	return nil
 }
@@ -126,8 +107,9 @@ func (c *Core) UpdateConfig(config *config.NodeConfig) {
 		c.config.Replace(*config)
 
 		// Notify the router and switch about the new configuration
-		c.router.Act(c, c.router.reconfigure)
-		c.switchTable.Act(c, c.switchTable.reconfigure)
+		panic("TODO")
+		//c.router.Act(c, c.router.reconfigure)
+		//c.switchTable.Act(c, c.switchTable.reconfigure)
 	})
 }
 
@@ -170,15 +152,15 @@ func (c *Core) _start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState
 		return nil, err
 	}
 
-	if err := c.switchTable.start(); err != nil {
-		c.log.Errorln("Failed to start switch")
-		return nil, err
-	}
+	//if err := c.switchTable.start(); err != nil {
+	//	c.log.Errorln("Failed to start switch")
+	//	return nil, err
+	//}
 
-	if err := c.router.start(); err != nil {
-		c.log.Errorln("Failed to start router")
-		return nil, err
-	}
+	//if err := c.router.start(); err != nil {
+	//	c.log.Errorln("Failed to start router")
+	//	return nil, err
+	//}
 
 	c.Act(c, c._addPeerLoop)
 
