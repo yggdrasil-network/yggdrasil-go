@@ -39,6 +39,7 @@ const tun_IPv6_HEADER_LENGTH = 40
 // calling yggdrasil.Start().
 type TunAdapter struct {
 	core        *yggdrasil.Core
+	secret      ed25519.PrivateKey
 	store       keyStore
 	writer      tunWriter
 	reader      tunReader
@@ -109,13 +110,14 @@ func MaximumMTU() MTU {
 
 // Init initialises the TUN module. You must have acquired a Listener from
 // the Yggdrasil core before this point and it must not be in use elsewhere.
-func (tun *TunAdapter) Init(core *yggdrasil.Core, config *config.NodeState, log *log.Logger, options interface{}) error {
+func (tun *TunAdapter) Init(secret ed25519.PrivateKey, core *yggdrasil.Core, config *config.NodeState, log *log.Logger, options interface{}) error {
 	/* TODO
 	tunoptions, ok := options.(TunOptions)
 	if !ok {
 		return fmt.Errorf("invalid options supplied to TunAdapter module")
 	}
 	*/
+	tun.secret = secret
 	tun.core = core
 	tun.store.init(tun)
 	tun.config = config
@@ -224,78 +226,41 @@ func (tun *TunAdapter) UpdateConfig(config *config.NodeConfig) {
 	tun.Act(nil, tun.ckr.configure)
 }
 
-/*
-func (tun *TunAdapter) handler() error {
-	for {
-		// Accept the incoming connection
-		conn, err := tun.listener.Accept()
-		if err != nil {
-			tun.log.Errorln("TUN connection accept error:", err)
-			return err
-		}
-		phony.Block(tun, func() {
-			if _, err := tun._wrap(conn.(*yggdrasil.Conn)); err != nil {
-				// Something went wrong when storing the connection, typically that
-				// something already exists for this address or subnet
-				tun.log.Debugln("TUN handler wrap:", err)
-			}
-		})
-	}
-}
-
-func (tun *TunAdapter) _wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
-	// Prepare a session wrapper for the given connection
-	s := tunConn{
-		tun:  tun,
-		conn: conn,
-		stop: make(chan struct{}),
-	}
-	c = &s
-	// Get the remote address and subnet of the other side
-	panic("TODO")
-	//remotePubKey := conn.RemoteAddr().(*crypto.BoxPubKey)
-	//remoteNodeID := crypto.GetNodeID(remotePubKey)
-	//s.addr = *address.AddrForNodeID(remoteNodeID)
-	//s.snet = *address.SubnetForNodeID(remoteNodeID)
-	// Work out if this is already a destination we already know about
-	atc, aok := tun.addrToConn[s.addr]
-	stc, sok := tun.subnetToConn[s.snet]
-	// If we know about a connection for this destination already then assume it
-	// is no longer valid and close it
-	if aok {
-		atc._close_from_tun()
-		err = errors.New("replaced connection for address")
-	} else if sok {
-		stc._close_from_tun()
-		err = errors.New("replaced connection for subnet")
-	}
-	// Save the session wrapper so that we can look it up quickly next time
-	// we receive a packet through the interface for this address
-	tun.addrToConn[s.addr] = &s
-	tun.subnetToConn[s.snet] = &s
-	// Set the read callback and start the timeout
-	conn.SetReadCallback(func(bs []byte) {
-		s.Act(conn, func() {
-			s._read(bs)
-		})
-	})
-	s.Act(nil, s.stillAlive)
-	// Return
-	return c, err
-}
-*/
-
 func (tun *TunAdapter) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte) {
-	panic("TODO")
-	// parse packet
-	// If it's a lookup then send a response
-	// If it's a response then (maybe) update the keystore
+	if len(data) != 1+ed25519.SignatureSize {
+		return
+	}
+	sig := data[1:]
+	switch data[0] {
+	case typeKeyLookup:
+		snet := *address.SubnetForKey(toKey)
+		if snet == tun.subnet && ed25519.Verify(fromKey, toKey[:], sig) {
+			// This is looking for at least our subnet (possibly our address)
+			// Send a response
+			tun.sendKeyResponse(fromKey)
+		}
+	case typeKeyResponse:
+		// TODO keep a list of something to match against...
+		// Ignore the response if it doesn't match anything of interest...
+		if ed25519.Verify(fromKey, toKey[:], sig) {
+			tun.store.update(fromKey)
+		}
+	}
 }
+
+const (
+	typeKeyLookup   = 1
+	typeKeyResponse = 2
+)
 
 func (tun *TunAdapter) sendKeyLookup(partial ed25519.PublicKey) {
-	panic("TODO")
+	sig := ed25519.Sign(tun.secret, partial[:])
+	bs := append([]byte{typeKeyLookup}, sig...)
+	tun.core.SendOutOfBand(partial, bs)
 }
 
 func (tun *TunAdapter) sendKeyResponse(dest ed25519.PublicKey) {
-	panic("TODO")
+	sig := ed25519.Sign(tun.secret, dest[:])
+	bs := append([]byte{typeKeyResponse}, sig...)
+	tun.core.SendOutOfBand(dest, bs)
 }
