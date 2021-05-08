@@ -3,7 +3,7 @@ module github.com/yggdrasil-network/yggdrasil-go
 go 1.16
 
 require (
-	github.com/Arceliar/ironwood v0.0.0-00010101000000-000000000000
+	github.com/Arceliar/ironwood v0.0.0-20210508094446-74a68e4f5970
 	github.com/Arceliar/phony v0.0.0-20210209235338-dde1a8dca979
 	github.com/cheggaaa/pb/v3 v3.0.6
 	github.com/fatih/color v1.10.0 // indirect
@@ -23,5 +23,3 @@ require (
 	golang.zx2c4.com/wireguard v0.0.0-20210306175010-7e3b8371a1bf
 	golang.zx2c4.com/wireguard/windows v0.3.8
 )
-
-replace github.com/Arceliar/ironwood => ../ironwood
