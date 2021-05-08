@@ -70,7 +70,7 @@ func (k *keyStore) sendToAddress(addr address.Address, bs []byte) {
 				delete(k.addrBuffer, addr)
 			}
 		})
-		panic("TODO") // TODO send lookup
+		k.tun.sendKeyLookup(addr.GetKey())
 	}
 }
 
@@ -98,7 +98,7 @@ func (k *keyStore) sendToSubnet(subnet address.Subnet, bs []byte) {
 				delete(k.subnetBuffer, subnet)
 			}
 		})
-		panic("TODO") // TODO send lookup
+		k.tun.sendKeyLookup(subnet.GetKey())
 	}
 }
 

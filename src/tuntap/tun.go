@@ -39,7 +39,6 @@ const tun_IPv6_HEADER_LENGTH = 40
 // calling yggdrasil.Start().
 type TunAdapter struct {
 	core        *yggdrasil.Core
-	secret      ed25519.PrivateKey
 	store       keyStore
 	config      *config.NodeState
 	log         *log.Logger
@@ -108,14 +107,13 @@ func MaximumMTU() MTU {
 
 // Init initialises the TUN module. You must have acquired a Listener from
 // the Yggdrasil core before this point and it must not be in use elsewhere.
-func (tun *TunAdapter) Init(secret ed25519.PrivateKey, core *yggdrasil.Core, config *config.NodeState, log *log.Logger, options interface{}) error {
+func (tun *TunAdapter) Init(core *yggdrasil.Core, config *config.NodeState, log *log.Logger, options interface{}) error {
 	/* TODO
 	tunoptions, ok := options.(TunOptions)
 	if !ok {
 		return fmt.Errorf("invalid options supplied to TunAdapter module")
 	}
 	*/
-	tun.secret = secret
 	tun.core = core
 	tun.store.init(tun)
 	tun.config = config
@@ -149,10 +147,10 @@ func (tun *TunAdapter) _start() error {
 		return err
 	}
 	copy(boxPub[:], boxPubHex)
-	panic("TODO")
-	//nodeID := crypto.GetNodeID(&boxPub)
-	//tun.addr = *address.AddrForNodeID(nodeID)
-	//tun.subnet = *address.SubnetForNodeID(nodeID)
+	sk := tun.core.PrivateKey()
+	pk := sk.Public().(ed25519.PublicKey)
+	tun.addr = *address.AddrForKey(pk)
+	tun.subnet = *address.SubnetForKey(pk)
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
 	if current.IfName == "none" || current.IfName == "dummy" {
 		tun.log.Debugln("Not starting TUN as ifname is none or dummy")
@@ -248,13 +246,13 @@ const (
 )
 
 func (tun *TunAdapter) sendKeyLookup(partial ed25519.PublicKey) {
-	sig := ed25519.Sign(tun.secret, partial[:])
+	sig := ed25519.Sign(tun.core.PrivateKey(), partial[:])
 	bs := append([]byte{typeKeyLookup}, sig...)
 	tun.core.SendOutOfBand(partial, bs)
 }
 
 func (tun *TunAdapter) sendKeyResponse(dest ed25519.PublicKey) {
-	sig := ed25519.Sign(tun.secret, dest[:])
+	sig := ed25519.Sign(tun.core.PrivateKey(), dest[:])
 	bs := append([]byte{typeKeyResponse}, sig...)
 	tun.core.SendOutOfBand(dest, bs)
 }

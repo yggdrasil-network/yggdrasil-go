@@ -281,7 +281,7 @@ func main() {
 		panic(err)
 	}
 	// Register the session firewall gatekeeper function
-	n.core.SetSessionGatekeeper(n.sessionFirewall)
+	// TODO n.core.SetSessionGatekeeper(n.sessionFirewall)
 	// Allocate our modules
 	n.admin = &admin.AdminSocket{}
 	n.multicast = &multicast.Multicast{}
@@ -299,19 +299,26 @@ func main() {
 	}
 	n.multicast.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 	// Start the TUN/TAP interface
-	if listener, err := n.core.ConnListen(); err == nil {
-		if dialer, err := n.core.ConnDialer(); err == nil {
-			n.tuntap.Init(&n.core, n.state, logger, tuntap.TunOptions{Listener: listener, Dialer: dialer})
-			if err := n.tuntap.Start(); err != nil {
-				logger.Errorln("An error occurred starting TUN/TAP:", err)
-			}
-			n.tuntap.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
-		} else {
-			logger.Errorln("Unable to get Dialer:", err)
-		}
-	} else {
-		logger.Errorln("Unable to get Listener:", err)
+	n.tuntap.Init(&n.core, n.state, logger, tuntap.TunOptions{})
+	if err := n.tuntap.Start(); err != nil {
+		logger.Errorln("An error occurred starting TUN/TAP:", err)
 	}
+	n.tuntap.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
+	/*
+		if listener, err := n.core.ConnListen(); err == nil {
+			if dialer, err := n.core.ConnDialer(); err == nil {
+				n.tuntap.Init(&n.core, n.state, logger, tuntap.TunOptions{Listener: listener, Dialer: dialer})
+				if err := n.tuntap.Start(); err != nil {
+					logger.Errorln("An error occurred starting TUN/TAP:", err)
+				}
+				n.tuntap.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
+			} else {
+				logger.Errorln("Unable to get Dialer:", err)
+			}
+		} else {
+			logger.Errorln("Unable to get Listener:", err)
+		}
+	*/
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
 	address := n.core.Address()
@@ -396,12 +403,14 @@ func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
 
 	// Look and see if the pubkey is that of a direct peer
 	var isDirectPeer bool
+	/* TODO
 	for _, peer := range n.core.GetPeers() {
 		if peer.PublicKey == *pubkey {
 			isDirectPeer = true
 			break
 		}
 	}
+	*/
 
 	// Allow direct peers if appropriate
 	if n.state.Current.SessionFirewall.AllowFromDirect && isDirectPeer {
