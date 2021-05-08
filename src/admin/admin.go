@@ -100,7 +100,8 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 	a.AddHandler("getPeers", []string{}, func(in Info) (Info, error) {
 		peers := make(Info)
 		for _, p := range a.core.GetPeers() {
-			addr := *address.AddrForNodeID(crypto.GetNodeID(&p.PublicKey))
+			panic("TODO")
+			addr := new(address.Address) // TODO *address.AddrForNodeID(crypto.GetNodeID(&p.PublicKey))
 			so := net.IP(addr[:]).String()
 			peers[so] = Info{
 				"port":        p.Port,
@@ -117,7 +118,8 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 	a.AddHandler("getSwitchPeers", []string{}, func(in Info) (Info, error) {
 		switchpeers := make(Info)
 		for _, s := range a.core.GetSwitchPeers() {
-			addr := *address.AddrForNodeID(crypto.GetNodeID(&s.PublicKey))
+			panic("TODO")
+			addr := new(address.Address) // TODO *address.AddrForNodeID(crypto.GetNodeID(&s.PublicKey))
 			so := fmt.Sprint(s.Port)
 			switchpeers[so] = Info{
 				"ip":          net.IP(addr[:]).String(),
@@ -141,7 +143,8 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 	a.AddHandler("getDHT", []string{}, func(in Info) (Info, error) {
 		dht := make(Info)
 		for _, d := range a.core.GetDHT() {
-			addr := *address.AddrForNodeID(crypto.GetNodeID(&d.PublicKey))
+			panic("TODO")
+			addr := new(address.Address) // TODO *address.AddrForNodeID(crypto.GetNodeID(&d.PublicKey))
 			so := net.IP(addr[:]).String()
 			dht[so] = Info{
 				"coords":      fmt.Sprintf("%v", d.Coords),
@@ -154,7 +157,8 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 	a.AddHandler("getSessions", []string{}, func(in Info) (Info, error) {
 		sessions := make(Info)
 		for _, s := range a.core.GetSessions() {
-			addr := *address.AddrForNodeID(crypto.GetNodeID(&s.PublicKey))
+			panic("TODO")
+			addr := new(address.Address) //*address.AddrForNodeID(crypto.GetNodeID(&s.PublicKey))
 			so := net.IP(addr[:]).String()
 			sessions[so] = Info{
 				"coords":        fmt.Sprintf("%v", s.Coords),
@@ -293,7 +297,8 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 				"box_pub_key": hex.EncodeToString(dinfo.PublicKey[:]),
 				"coords":      fmt.Sprintf("%v", dinfo.Coords),
 			}
-			addr := net.IP(address.AddrForNodeID(crypto.GetNodeID(&dinfo.PublicKey))[:]).String()
+			panic("TODO")
+			addr := "" //net.IP(address.AddrForNodeID(crypto.GetNodeID(&dinfo.PublicKey))[:]).String()
 			infos[addr] = info
 		}
 		return Info{"nodes": infos}, nil

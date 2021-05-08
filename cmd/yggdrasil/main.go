@@ -230,14 +230,16 @@ func main() {
 	switch {
 	case *getaddr:
 		if nodeid := getNodeID(); nodeid != nil {
-			addr := *address.AddrForNodeID(nodeid)
+			panic("TODO")
+			addr := new(address.Address) //*address.AddrForNodeID(nodeid)
 			ip := net.IP(addr[:])
 			fmt.Println(ip.String())
 		}
 		return
 	case *getsnet:
 		if nodeid := getNodeID(); nodeid != nil {
-			snet := *address.SubnetForNodeID(nodeid)
+			panic("TODO")
+			snet := new(address.Address) //*address.SubnetForNodeID(nodeid)
 			ipnet := net.IPNet{
 				IP:   append(snet[:], 0, 0, 0, 0, 0, 0, 0, 0),
 				Mask: net.CIDRMask(len(snet)*8, 128),

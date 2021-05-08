@@ -13,7 +13,7 @@ import (
 	//"sync/atomic"
 	"time"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	//"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"golang.org/x/net/proxy"
@@ -287,7 +287,7 @@ func (intf *link) handler() (chan struct{}, error) {
 			intf.peer.Act(intf, intf.peer._removeSelf)
 		})
 	}()
-	themAddr := address.AddrForNodeID(crypto.GetNodeID(&intf.info.box))
+	themAddr := make([]byte, 16) // TODO address.AddrForNodeID(crypto.GetNodeID(&intf.info.box))
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, intf.info.remote)
 	intf.links.core.log.Infof("Connected %s: %s, source %s",

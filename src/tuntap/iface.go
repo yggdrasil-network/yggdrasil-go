@@ -139,11 +139,12 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 	}
 	if tun.ckr.isEnabled() {
 		if addrlen != 16 || (!dstAddr.IsValid() && !dstSnet.IsValid()) {
-			if key, err := tun.ckr.getPublicKeyForAddress(dstAddr, addrlen); err == nil {
+			if /*key*/ _, err := tun.ckr.getPublicKeyForAddress(dstAddr, addrlen); err == nil {
 				// A public key was found, get the node ID for the search
-				dstNodeID := crypto.GetNodeID(&key)
-				dstAddr = *address.AddrForNodeID(dstNodeID)
-				dstSnet = *address.SubnetForNodeID(dstNodeID)
+				panic("TODO")
+				//dstNodeID := crypto.GetNodeID(&key)
+				//dstAddr = *address.AddrForNodeID(dstNodeID)
+				//dstSnet = *address.SubnetForNodeID(dstNodeID)
 				addrlen = 16
 			}
 		}
@@ -170,10 +171,11 @@ func (tun *TunAdapter) _handlePacket(recvd []byte, err error) {
 		if !isIn || session == nil {
 			// Neither an address nor a subnet mapping matched, therefore populate
 			// the node ID and mask to commence a search
+			panic("TODO")
 			if dstAddr.IsValid() {
-				dstString = dstAddr.GetNodeIDLengthString()
+				//dstString = dstAddr.GetNodeIDLengthString()
 			} else {
-				dstString = dstSnet.GetNodeIDLengthString()
+				//dstString = dstSnet.GetNodeIDLengthString()
 			}
 		}
 	}

@@ -154,9 +154,10 @@ func (tun *TunAdapter) _start() error {
 		return err
 	}
 	copy(boxPub[:], boxPubHex)
-	nodeID := crypto.GetNodeID(&boxPub)
-	tun.addr = *address.AddrForNodeID(nodeID)
-	tun.subnet = *address.SubnetForNodeID(nodeID)
+	panic("TODO")
+	//nodeID := crypto.GetNodeID(&boxPub)
+	//tun.addr = *address.AddrForNodeID(nodeID)
+	//tun.subnet = *address.SubnetForNodeID(nodeID)
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
 	if current.IfName == "none" || current.IfName == "dummy" {
 		tun.log.Debugln("Not starting TUN as ifname is none or dummy")
@@ -251,10 +252,11 @@ func (tun *TunAdapter) _wrap(conn *yggdrasil.Conn) (c *tunConn, err error) {
 	}
 	c = &s
 	// Get the remote address and subnet of the other side
-	remotePubKey := conn.RemoteAddr().(*crypto.BoxPubKey)
-	remoteNodeID := crypto.GetNodeID(remotePubKey)
-	s.addr = *address.AddrForNodeID(remoteNodeID)
-	s.snet = *address.SubnetForNodeID(remoteNodeID)
+	panic("TODO")
+	//remotePubKey := conn.RemoteAddr().(*crypto.BoxPubKey)
+	//remoteNodeID := crypto.GetNodeID(remotePubKey)
+	//s.addr = *address.AddrForNodeID(remoteNodeID)
+	//s.snet = *address.SubnetForNodeID(remoteNodeID)
 	// Work out if this is already a destination we already know about
 	atc, aok := tun.addrToConn[s.addr]
 	stc, sok := tun.subnetToConn[s.snet]

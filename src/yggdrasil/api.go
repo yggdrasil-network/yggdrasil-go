@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gologme/log"
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	//"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 
 	"github.com/Arceliar/phony"
@@ -314,8 +314,10 @@ func (c *Core) Coords() []uint64 {
 // that application also implements either VPN functionality or deals with IP
 // packets specifically.
 func (c *Core) Address() net.IP {
-	address := net.IP(address.AddrForNodeID(c.NodeID())[:])
-	return address
+	panic("TODO")
+	return nil
+	//address := net.IP(address.AddrForNodeID(c.NodeID())[:])
+	//return address
 }
 
 // Subnet gets the routed IPv6 subnet of the Yggdrasil node. This is always a
@@ -324,9 +326,11 @@ func (c *Core) Address() net.IP {
 // that application also implements either VPN functionality or deals with IP
 // packets specifically.
 func (c *Core) Subnet() net.IPNet {
-	subnet := address.SubnetForNodeID(c.NodeID())[:]
-	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
-	return net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
+	panic("TODO")
+	return net.IPNet{}
+	//subnet := address.SubnetForNodeID(c.NodeID())[:]
+	//subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
+	//return net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
 }
 
 // MyNodeInfo gets the currently configured nodeinfo. NodeInfo is typically

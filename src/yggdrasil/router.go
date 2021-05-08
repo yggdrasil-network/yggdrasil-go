@@ -53,8 +53,8 @@ type router struct {
 // Initializes the router struct, which includes setting up channels to/from the adapter.
 func (r *router) init(core *Core) {
 	r.core = core
-	r.addr = *address.AddrForNodeID(&r.dht.nodeID)
-	r.subnet = *address.SubnetForNodeID(&r.dht.nodeID)
+	// TODO r.addr = *address.AddrForNodeID(&r.dht.nodeID)
+	// TODO r.subnet = *address.SubnetForNodeID(&r.dht.nodeID)
 	r.intf.router = r
 	phony.Block(&r.core.peers, func() {
 		// FIXME don't block here!
