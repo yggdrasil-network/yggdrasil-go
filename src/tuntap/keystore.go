@@ -48,10 +48,10 @@ func (k *keyStore) init(tun *TunAdapter) {
 
 func (k *keyStore) sendToAddress(addr address.Address, bs []byte) {
 	k.mutex.Lock()
-	defer k.mutex.Unlock()
 	if info := k.addrToInfo[addr]; info != nil {
-		k.tun.core.WriteTo(bs, iwt.Addr(info.key[:]))
 		k.resetTimeout(info)
+		k.mutex.Unlock()
+		k.tun.core.WriteTo(bs, iwt.Addr(info.key[:]))
 	} else {
 		var buf *buffer
 		if buf = k.addrBuffer[addr]; buf == nil {
@@ -70,16 +70,17 @@ func (k *keyStore) sendToAddress(addr address.Address, bs []byte) {
 				delete(k.addrBuffer, addr)
 			}
 		})
+		k.mutex.Unlock()
 		k.tun.sendKeyLookup(addr.GetKey())
 	}
 }
 
 func (k *keyStore) sendToSubnet(subnet address.Subnet, bs []byte) {
 	k.mutex.Lock()
-	defer k.mutex.Unlock()
 	if info := k.subnetToInfo[subnet]; info != nil {
-		k.tun.core.WriteTo(bs, iwt.Addr(info.key[:]))
 		k.resetTimeout(info)
+		k.mutex.Unlock()
+		k.tun.core.WriteTo(bs, iwt.Addr(info.key[:]))
 	} else {
 		var buf *buffer
 		if buf = k.subnetBuffer[subnet]; buf == nil {
@@ -98,13 +99,13 @@ func (k *keyStore) sendToSubnet(subnet address.Subnet, bs []byte) {
 				delete(k.subnetBuffer, subnet)
 			}
 		})
+		k.mutex.Unlock()
 		k.tun.sendKeyLookup(subnet.GetKey())
 	}
 }
 
 func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 	k.mutex.Lock()
-	defer k.mutex.Unlock()
 	var kArray keyArray
 	copy(kArray[:], key)
 	var info *keyInfo
@@ -118,6 +119,7 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 		k.addrToInfo[info.address] = info
 		k.subnetToInfo[info.subnet] = info
 		k.resetTimeout(info)
+		k.mutex.Unlock()
 		if buf := k.addrBuffer[info.address]; buf != nil {
 			for _, bs := range buf.packets {
 				k.tun.core.WriteTo(bs, iwt.Addr(info.key[:]))
@@ -130,8 +132,10 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 			}
 			delete(k.subnetBuffer, info.subnet)
 		}
+	} else {
+		k.resetTimeout(info)
+		k.mutex.Unlock()
 	}
-	k.resetTimeout(info)
 	return info
 }
 
