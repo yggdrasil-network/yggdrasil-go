@@ -156,10 +156,14 @@ func (tun *TunAdapter) _start() error {
 		tun.log.Debugln("Not starting TUN as ifname is none or dummy")
 		return nil
 	}
-	if err := tun.setup(current.IfName, addr, current.IfMTU); err != nil {
+	mtu := current.IfMTU
+	if tun.core.MTU() < uint64(mtu) {
+		mtu = MTU(tun.core.MTU())
+	}
+	if err := tun.setup(current.IfName, addr, mtu); err != nil {
 		return err
 	}
-	if tun.MTU() != current.IfMTU {
+	if tun.MTU() != mtu {
 		tun.log.Warnf("Warning: Interface MTU %d automatically adjusted to %d (supported range is 1280-%d)", current.IfMTU, tun.MTU(), MaximumMTU())
 	}
 	// TODO tun.core.SetMaximumSessionMTU(tun.MTU())
