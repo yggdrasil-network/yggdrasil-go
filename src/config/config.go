@@ -75,7 +75,6 @@ type NodeConfig struct {
 	IfMTU               MTU                    `comment:"Maximum Transmission Unit (MTU) size for your local TUN interface.\nDefault is the largest supported size for your platform. The lowest\npossible value is 1280."`
 	SessionFirewall     SessionFirewall        `comment:"The session firewall controls who can send/receive network traffic\nto/from. This is useful if you want to protect this node without\nresorting to using a real firewall. This does not affect traffic\nbeing routed via this node to somewhere else. Rules are prioritised as\nfollows: blacklist, whitelist, always allow outgoing, direct, remote."`
 	TunnelRouting       TunnelRouting          `comment:"Allow tunneling non-Yggdrasil traffic over Yggdrasil. This effectively\nallows you to use Yggdrasil to route to, or to bridge other networks,\nsimilar to a VPN tunnel. Tunnelling works between any two nodes and\ndoes not require them to be directly peered."`
-	SwitchOptions       SwitchOptions          `comment:"Advanced options for tuning the switch. Normally you will not need\nto edit these options."`
 	NodeInfoPrivacy     bool                   `comment:"By default, nodeinfo contains some defaults including the platform,\narchitecture and Yggdrasil version. These can help when surveying\nthe network and diagnosing network routing problems. Enabling\nnodeinfo privacy prevents this, so that only items specified in\n\"NodeInfo\" are sent back if specified."`
 	NodeInfo            map[string]interface{} `comment:"Optional node info. This must be a { \"key\": \"value\", ... } map\nor set as null. This is entirely optional but, if set, is visible\nto the whole network on request."`
 }
@@ -100,12 +99,6 @@ type TunnelRouting struct {
 	IPv4LocalSubnets  []string          `comment:"IPv4 subnets belonging to this node's end of the tunnels. Only traffic\nfrom these ranges will be tunnelled."`
 }
 
-// SwitchOptions contains tuning options for the switch. These are advanced
-// options and shouldn't be changed unless necessary.
-type SwitchOptions struct {
-	MaxTotalQueueSize uint64 `comment:"Maximum size of all switch queues combined (in bytes)."`
-}
-
 // Generates default configuration and returns a pointer to the resulting
 // NodeConfig. This is used when outputting the -genconf parameter and also when
 // using -autoconf.
@@ -128,7 +121,6 @@ func GenerateConfig() *NodeConfig {
 	cfg.SessionFirewall.AllowFromDirect = true
 	cfg.SessionFirewall.AllowFromRemote = true
 	cfg.SessionFirewall.AlwaysAllowOutbound = true
-	cfg.SwitchOptions.MaxTotalQueueSize = 4 * 1024 * 1024
 	cfg.NodeInfoPrivacy = false
 
 	return &cfg
