@@ -40,7 +40,6 @@ type TunAdapter struct {
 	store       keyStore
 	config      *config.NodeState
 	log         *log.Logger
-	reconfigure chan chan error
 	addr        address.Address
 	subnet      address.Subnet
 	ckr         cryptokey
@@ -195,25 +194,6 @@ func (tun *TunAdapter) _stop() error {
 		tun.iface.Close()
 	}
 	return nil
-}
-
-// UpdateConfig updates the TUN module with the provided config.NodeConfig
-// and then signals the various module goroutines to reconfigure themselves if
-// needed.
-func (tun *TunAdapter) UpdateConfig(config *config.NodeConfig) {
-	tun.log.Debugln("Reloading TUN configuration...")
-
-	// Replace the active configuration with the supplied one
-	tun.config.Replace(*config)
-
-	// If the MTU has changed in the TUN module then this is where we would
-	// tell the router so that updated session pings can be sent. However, we
-	// don't currently update the MTU of the adapter once it has been created so
-	// this doesn't actually happen in the real world yet.
-	//   tun.core.SetMaximumSessionMTU(...)
-
-	// Notify children about the configuration change
-	tun.Act(nil, tun.ckr.configure)
 }
 
 func (tun *TunAdapter) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte) {

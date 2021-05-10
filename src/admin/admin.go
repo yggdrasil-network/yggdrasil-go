@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+
 	//"strconv"
 	"strings"
 	"time"
@@ -68,17 +69,6 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 		return Info{"list": handlers}, nil
 	})
 	return nil
-}
-
-func (a *AdminSocket) UpdateConfig(config *config.NodeConfig) {
-	a.log.Debugln("Reloading admin configuration...")
-	if a.listenaddr != config.AdminListen {
-		a.listenaddr = config.AdminListen
-		if a.IsStarted() {
-			a.Stop()
-		}
-		a.Start()
-	}
 }
 
 func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {

@@ -90,23 +90,6 @@ func (c *Core) _addPeerLoop() {
 	})
 }
 
-// UpdateConfig updates the configuration in Core with the provided
-// config.NodeConfig and then signals the various module goroutines to
-// reconfigure themselves if needed.
-func (c *Core) UpdateConfig(config *config.NodeConfig) {
-	c.Act(nil, func() {
-		c.log.Debugln("Reloading node configuration...")
-
-		// Replace the active configuration with the supplied one
-		c.config.Replace(*config)
-
-		// Notify the router and switch about the new configuration
-		panic("TODO")
-		//c.router.Act(c, c.router.reconfigure)
-		//c.switchTable.Act(c, c.switchTable.reconfigure)
-	})
-}
-
 // Start starts up Yggdrasil using the provided config.NodeConfig, and outputs
 // debug logging through the provided log.Logger. The started stack will include
 // TCP and UDP sockets, a multicast discovery socket, an admin socket, router,

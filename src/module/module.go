@@ -14,7 +14,6 @@ type Module interface {
 	Init(core *yggdrasil.Core, state *config.NodeState, log *log.Logger, options interface{}) error
 	Start() error
 	Stop() error
-	UpdateConfig(config *config.NodeConfig)
 	SetupAdminHandlers(a *admin.AdminSocket)
 	IsStarted() bool
 }

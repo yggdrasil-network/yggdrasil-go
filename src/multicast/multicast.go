@@ -129,32 +129,6 @@ func (m *Multicast) _stop() error {
 	return nil
 }
 
-// UpdateConfig updates the multicast module with the provided config.NodeConfig
-// and then signals the various module goroutines to reconfigure themselves if
-// needed.
-func (m *Multicast) UpdateConfig(config *config.NodeConfig) {
-	m.Act(nil, func() { m._updateConfig(config) })
-}
-
-func (m *Multicast) _updateConfig(config *config.NodeConfig) {
-	m.log.Infoln("Reloading multicast configuration...")
-	if m.isOpen {
-		if len(config.MulticastInterfaces) == 0 || config.LinkLocalTCPPort != m.listenPort {
-			if err := m._stop(); err != nil {
-				m.log.Errorln("Error stopping multicast module:", err)
-			}
-		}
-	}
-	m.config.Replace(*config)
-	m.listenPort = config.LinkLocalTCPPort
-	if !m.isOpen && len(config.MulticastInterfaces) > 0 {
-		if err := m._start(); err != nil {
-			m.log.Errorln("Error starting multicast module:", err)
-		}
-	}
-	m.log.Debugln("Reloaded multicast configuration successfully")
-}
-
 func (m *Multicast) _updateInterfaces() {
 	interfaces := make(map[string]interfaceInfo)
 	intfs := m.getAllowedInterfaces()

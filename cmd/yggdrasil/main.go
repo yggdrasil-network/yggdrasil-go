@@ -323,31 +323,10 @@ func main() {
 	logger.Infof("Your IPv6 subnet is %s", subnet.String())
 	// Catch interrupts from the operating system to exit gracefully.
 	c := make(chan os.Signal, 1)
-	r := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	signal.Notify(r, os.Interrupt, syscall.SIGHUP)
 	// Capture the service being stopped on Windows.
 	minwinsvc.SetOnExit(n.shutdown)
-	defer n.shutdown()
-	// Wait for the terminate/interrupt signal. Once a signal is received, the
-	// deferred Stop function above will run which will shut down TUN/TAP.
-	for {
-		select {
-		case <-c:
-			goto exit
-		case <-r:
-			if *useconffile != "" {
-				cfg = readConfig(useconf, useconffile, normaliseconf)
-				logger.Infoln("Reloading configuration from", *useconffile)
-				n.core.UpdateConfig(cfg)
-				n.tuntap.UpdateConfig(cfg)
-				n.multicast.UpdateConfig(cfg)
-			} else {
-				logger.Errorln("Reloading config at runtime is only possible with -useconffile")
-			}
-		}
-	}
-exit:
+	n.shutdown()
 }
 
 func (n *node) shutdown() {
