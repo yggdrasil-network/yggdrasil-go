@@ -208,14 +208,20 @@ func (intf *link) handler() (chan struct{}, error) {
 		}
 	}
 	// Check if we're authorized to connect to this key / IP
-	/* TODO check allowed public keys
-	if intf.incoming && !intf.force && !intf.links.core.peers.isAllowedEncryptionPublicKey(&meta.box) {
+	allowed := intf.links.core.config.GetCurrent().AllowedPublicKeys
+	isallowed := len(allowed) == 0
+	for _, k := range allowed {
+		if k == hex.EncodeToString(meta.key) { // TODO: this is yuck
+			isallowed = true
+			break
+		}
+	}
+	if intf.incoming && !intf.force && !isallowed {
 		intf.links.core.log.Warnf("%s connection from %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
-			strings.ToUpper(intf.info.linkType), intf.info.remote, hex.EncodeToString(meta.box[:]))
-		intf.msgIO.close()
+			strings.ToUpper(intf.info.linkType), intf.info.remote, hex.EncodeToString(meta.key))
+		intf.close()
 		return nil, nil
 	}
-	*/
 	// Check if we already have a link to this node
 	copy(intf.info.key[:], meta.key)
 	intf.links.mutex.Lock()

@@ -369,7 +369,7 @@ func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
 	// Prepare for checking whitelist/blacklist
 	var box crypto.BoxPubKey
 	// Reject blacklisted nodes
-	for _, b := range n.state.Current.SessionFirewall.BlacklistEncryptionPublicKeys {
+	for _, b := range n.state.Current.SessionFirewall.BlacklistPublicKeys {
 		key, err := hex.DecodeString(b)
 		if err == nil {
 			copy(box[:crypto.BoxPubKeyLen], key)
@@ -380,7 +380,7 @@ func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
 	}
 
 	// Allow whitelisted nodes
-	for _, b := range n.state.Current.SessionFirewall.WhitelistEncryptionPublicKeys {
+	for _, b := range n.state.Current.SessionFirewall.WhitelistPublicKeys {
 		key, err := hex.DecodeString(b)
 		if err == nil {
 			copy(box[:crypto.BoxPubKeyLen], key)
