@@ -73,7 +73,6 @@ func (tun *TunAdapter) write() {
 		if len(bs) < 40 {
 			continue
 		}
-		tun.log.Println(len(bs), tun.MTU())
 		if len(bs) > int(tun.MTU()) {
 			ptb := &icmp.PacketTooBig{
 				MTU:  int(tun.mtu),
