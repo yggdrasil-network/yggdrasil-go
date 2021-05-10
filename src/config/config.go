@@ -68,8 +68,6 @@ type NodeConfig struct {
 	AdminListen                 string                 `comment:"Listen address for admin connections. Default is to listen for local\nconnections either on TCP/9001 or a UNIX socket depending on your\nplatform. Use this value for yggdrasilctl -endpoint=X. To disable\nthe admin socket, use the value \"none\" instead."`
 	MulticastInterfaces         []string               `comment:"Regular expressions for which interfaces multicast peer discovery\nshould be enabled on. If none specified, multicast peer discovery is\ndisabled. The default value is .* which uses all interfaces."`
 	AllowedEncryptionPublicKeys []string               `comment:"List of peer encryption public keys to allow incoming TCP peering\nconnections from. If left empty/undefined then all connections will\nbe allowed by default. This does not affect outgoing peerings, nor\ndoes it affect link-local peers discovered via multicast."`
-	EncryptionPublicKey         string                 `comment:"Your public encryption key. Your peers may ask you for this to put\ninto their AllowedEncryptionPublicKeys configuration."`
-	EncryptionPrivateKey        string                 `comment:"Your private encryption key. DO NOT share this with anyone!"`
 	SigningPublicKey            string                 `comment:"Your public signing key. You should not ordinarily need to share\nthis with anyone."`
 	SigningPrivateKey           string                 `comment:"Your private signing key. DO NOT share this with anyone!"`
 	LinkLocalTCPPort            uint16                 `comment:"The port number to be used for the link-local TCP listeners for the\nconfigured MulticastInterfaces. This option does not affect listeners\nspecified in the Listen option. Unless you plan to firewall link-local\ntraffic, it is best to leave this as the default value of 0. This\noption cannot currently be changed by reloading config during runtime."`
@@ -113,14 +111,11 @@ type SwitchOptions struct {
 // using -autoconf.
 func GenerateConfig() *NodeConfig {
 	// Generate encryption keys.
-	bpub, bpriv := crypto.NewBoxKeys()
 	spub, spriv := crypto.NewSigKeys()
 	// Create a node configuration and populate it.
 	cfg := NodeConfig{}
 	cfg.Listen = []string{}
 	cfg.AdminListen = defaults.GetDefaults().DefaultAdminListen
-	cfg.EncryptionPublicKey = hex.EncodeToString(bpub[:])
-	cfg.EncryptionPrivateKey = hex.EncodeToString(bpriv[:])
 	cfg.SigningPublicKey = hex.EncodeToString(spub[:])
 	cfg.SigningPrivateKey = hex.EncodeToString(spriv[:])
 	cfg.Peers = []string{}
@@ -137,16 +132,6 @@ func GenerateConfig() *NodeConfig {
 	cfg.NodeInfoPrivacy = false
 
 	return &cfg
-}
-
-// NewEncryptionKeys replaces the encryption keypair in the NodeConfig with a
-// new encryption keypair. The encryption keys are used by the router to encrypt
-// traffic and to derive the node ID and IPv6 address/subnet of the node, so
-// this is equivalent to discarding the node's identity on the network.
-func (cfg *NodeConfig) NewEncryptionKeys() {
-	bpub, bpriv := crypto.NewBoxKeys()
-	cfg.EncryptionPublicKey = hex.EncodeToString(bpub[:])
-	cfg.EncryptionPrivateKey = hex.EncodeToString(bpriv[:])
 }
 
 // NewSigningKeys replaces the signing keypair in the NodeConfig with a new

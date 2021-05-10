@@ -52,16 +52,10 @@ func (c *Core) _init() error {
 	}
 
 	c.secret = ed25519.PrivateKey(sigPriv)
-	sigPub := c.secret.Public()
-	c.public = sigPub.(ed25519.PublicKey)
+	c.public = c.secret.Public().(ed25519.PublicKey)
 
-	pc, err := iw.NewPacketConn(c.secret)
-	if err != nil {
-		return err
-	}
-	c.PacketConn = pc
-
-	return nil
+	c.PacketConn, err = iw.NewPacketConn(c.secret)
+	return err
 }
 
 // If any static peers were provided in the configuration above then we should

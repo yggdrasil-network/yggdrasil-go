@@ -22,7 +22,7 @@ func version_getBaseMetadata() version_metadata {
 	return version_metadata{
 		meta:     [4]byte{'m', 'e', 't', 'a'},
 		ver:      0,
-		minorVer: 0,
+		minorVer: 1,
 	}
 }
 

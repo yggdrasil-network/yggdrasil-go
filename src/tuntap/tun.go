@@ -10,7 +10,6 @@ package tuntap
 
 import (
 	"crypto/ed25519"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -23,7 +22,6 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 	"github.com/yggdrasil-network/yggdrasil-go/src/types"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
@@ -118,7 +116,9 @@ func (tun *TunAdapter) Init(core *yggdrasil.Core, config *config.NodeState, log 
 	tun.store.init(tun)
 	tun.config = config
 	tun.log = log
-	tun.core.SetOutOfBandHandler(tun.oobHandler)
+	if err := tun.core.SetOutOfBandHandler(tun.oobHandler); err != nil {
+		return fmt.Errorf("tun.core.SetOutOfBandHander: %w", err)
+	}
 
 	return nil
 }
@@ -141,12 +141,6 @@ func (tun *TunAdapter) _start() error {
 	if tun.config == nil {
 		return errors.New("no configuration available to TUN")
 	}
-	var boxPub crypto.BoxPubKey
-	boxPubHex, err := hex.DecodeString(current.EncryptionPublicKey)
-	if err != nil {
-		return err
-	}
-	copy(boxPub[:], boxPubHex)
 	sk := tun.core.PrivateKey()
 	pk := sk.Public().(ed25519.PublicKey)
 	tun.addr = *address.AddrForKey(pk)

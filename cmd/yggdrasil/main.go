@@ -220,11 +220,7 @@ func main() {
 	}
 	// Have we been asked for the node address yet? If so, print it and then stop.
 	getNodeID := func() *crypto.NodeID {
-		if pubkey, err := hex.DecodeString(cfg.EncryptionPublicKey); err == nil {
-			var box crypto.BoxPubKey
-			copy(box[:], pubkey)
-			return crypto.GetNodeID(&box)
-		}
+		// TODO: curve
 		return nil
 	}
 	switch {
