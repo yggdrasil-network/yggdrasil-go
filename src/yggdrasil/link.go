@@ -185,13 +185,17 @@ func (intf *link) handler() (chan struct{}, error) {
 		return nil, err
 	}
 	meta = version_metadata{}
-	if !meta.decode(metaBytes) || !meta.check() {
+	base := version_getBaseMetadata()
+	if !meta.decode(metaBytes) {
 		return nil, errors.New("failed to decode metadata")
 	}
-	base := version_getBaseMetadata()
-	if meta.ver > base.ver || meta.ver == base.ver && meta.minorVer > base.minorVer {
-		intf.links.core.log.Errorln("Failed to connect to node: " + intf.lname + " version: " + fmt.Sprintf("%d.%d", meta.ver, meta.minorVer))
-		return nil, errors.New("failed to connect: wrong version")
+	if !meta.check() {
+		intf.links.core.log.Errorf("Failed to connect to node: %s is incompatible version (local %s, remote %s)",
+			intf.lname,
+			fmt.Sprintf("%d.%d", base.ver, base.minorVer),
+			fmt.Sprintf("%d.%d", meta.ver, meta.minorVer),
+		)
+		return nil, errors.New("remote node is incompatible version")
 	}
 	// Check if the remote side matches the keys we expected. This is a bit of a weak
 	// check - in future versions we really should check a signature or something like that.
