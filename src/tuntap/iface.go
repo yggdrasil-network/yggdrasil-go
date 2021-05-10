@@ -4,6 +4,9 @@ import (
 	"crypto/ed25519"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"golang.org/x/net/icmp"
+	"golang.org/x/net/ipv6"
+
 	//"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	//"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 
@@ -68,6 +71,17 @@ func (tun *TunAdapter) write() {
 			continue // not IPv6
 		}
 		if len(bs) < 40 {
+			continue
+		}
+		tun.log.Println(len(bs), tun.MTU())
+		if len(bs) > int(tun.MTU()) {
+			ptb := &icmp.PacketTooBig{
+				MTU:  int(tun.mtu),
+				Data: bs[:40],
+			}
+			if packet, err := CreateICMPv6(bs[8:24], bs[24:40], ipv6.ICMPTypePacketTooBig, 0, ptb); err == nil {
+				_, _ = tun.core.WriteTo(packet, from)
+			}
 			continue
 		}
 		var srcAddr, dstAddr address.Address

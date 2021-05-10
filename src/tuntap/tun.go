@@ -29,8 +29,6 @@ import (
 
 type MTU = types.MTU
 
-const tun_IPv6_HEADER_LENGTH = 40
-
 // TunAdapter represents a running TUN interface and extends the
 // yggdrasil.Adapter type. In order to use the TUN adapter with Yggdrasil, you
 // should pass this object to the yggdrasil.SetRouterAdapter() function before
@@ -43,17 +41,11 @@ type TunAdapter struct {
 	addr        address.Address
 	subnet      address.Subnet
 	ckr         cryptokey
-	icmpv6      ICMPv6
 	mtu         MTU
 	iface       tun.Device
 	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
 	//mutex        sync.RWMutex // Protects the below
 	isOpen bool
-}
-
-type TunOptions struct {
-	//Listener *yggdrasil.Listener
-	//Dialer   *yggdrasil.Dialer
 }
 
 // Gets the maximum supported MTU for the platform based on the defaults in
@@ -105,12 +97,6 @@ func MaximumMTU() MTU {
 // Init initialises the TUN module. You must have acquired a Listener from
 // the Yggdrasil core before this point and it must not be in use elsewhere.
 func (tun *TunAdapter) Init(core *yggdrasil.Core, config *config.NodeState, log *log.Logger, options interface{}) error {
-	/* TODO
-	tunoptions, ok := options.(TunOptions)
-	if !ok {
-		return fmt.Errorf("invalid options supplied to TunAdapter module")
-	}
-	*/
 	tun.core = core
 	tun.store.init(tun)
 	tun.config = config
@@ -118,7 +104,6 @@ func (tun *TunAdapter) Init(core *yggdrasil.Core, config *config.NodeState, log 
 	if err := tun.core.SetOutOfBandHandler(tun.oobHandler); err != nil {
 		return fmt.Errorf("tun.core.SetOutOfBandHander: %w", err)
 	}
-
 	return nil
 }
 

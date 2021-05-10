@@ -295,7 +295,7 @@ func main() {
 	}
 	n.multicast.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 	// Start the TUN/TAP interface
-	n.tuntap.Init(&n.core, n.state, logger, tuntap.TunOptions{})
+	n.tuntap.Init(&n.core, n.state, logger, nil)
 	if err := n.tuntap.Start(); err != nil {
 		logger.Errorln("An error occurred starting TUN/TAP:", err)
 	}
@@ -325,6 +325,7 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	// Capture the service being stopped on Windows.
+	<-c
 	minwinsvc.SetOnExit(n.shutdown)
 	n.shutdown()
 }

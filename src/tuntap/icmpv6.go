@@ -40,13 +40,6 @@ func ipv6Header_Marshal(h *ipv6.Header) ([]byte, error) {
 	return b, nil
 }
 
-// Initialises the ICMPv6 module by assigning our link-local IPv6 address and
-// our MAC address. ICMPv6 messages will always appear to originate from these
-// addresses.
-func (i *ICMPv6) Init(t *TunAdapter) {
-	i.tun = t
-}
-
 // Creates an ICMPv6 packet based on the given icmp.MessageBody and other
 // parameters, complete with IP headers only, which can be written directly to
 // a TUN adapter, or called directly by the CreateICMPv6L2 function when
