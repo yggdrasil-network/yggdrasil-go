@@ -43,16 +43,17 @@ func (c *Core) _init() error {
 
 	current := c.config.GetCurrent()
 
-	sigPriv, err := hex.DecodeString(current.SigningPrivateKey)
+	sigPriv, err := hex.DecodeString(current.PrivateKey)
 	if err != nil {
 		return err
 	}
 	if len(sigPriv) < ed25519.PrivateKeySize {
-		return errors.New("SigningPrivateKey is incorrect length")
+		return errors.New("PrivateKey is incorrect length")
 	}
 
 	c.secret = ed25519.PrivateKey(sigPriv)
 	c.public = c.secret.Public().(ed25519.PublicKey)
+	// TODO check public against current.PublicKey, error if they don't match
 
 	c.PacketConn, err = iw.NewPacketConn(c.secret)
 	return err
