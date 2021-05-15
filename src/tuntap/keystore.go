@@ -28,7 +28,6 @@ type keyInfo struct {
 	key     keyArray
 	address address.Address
 	subnet  address.Subnet
-	mtu     MTU         // TODO use this
 	timeout *time.Timer // From calling a time.AfterFunc to do cleanup
 }
 
@@ -114,7 +113,6 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 		info.key = kArray
 		info.address = *address.AddrForKey(ed25519.PublicKey(info.key[:]))
 		info.subnet = *address.SubnetForKey(ed25519.PublicKey(info.key[:]))
-		info.mtu = MTU(^uint16(0)) // TODO
 		var isOutgoing bool
 		if k.addrBuffer[info.address] != nil {
 			isOutgoing = true
