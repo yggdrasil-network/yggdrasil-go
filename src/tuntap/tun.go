@@ -40,7 +40,6 @@ type TunAdapter struct {
 	log         *log.Logger
 	addr        address.Address
 	subnet      address.Subnet
-	ckr         cryptokey
 	mtu         MTU
 	iface       tun.Device
 	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
@@ -146,7 +145,6 @@ func (tun *TunAdapter) _start() error {
 	}
 	// TODO tun.core.SetMaximumSessionMTU(tun.MTU())
 	tun.isOpen = true
-	tun.ckr.init(tun)
 	go tun.read()
 	go tun.write()
 	return nil
