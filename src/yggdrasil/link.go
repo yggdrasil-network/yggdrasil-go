@@ -14,7 +14,7 @@ import (
 	//"sync/atomic"
 	"time"
 
-	//"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"golang.org/x/net/proxy"
@@ -243,7 +243,7 @@ func (intf *link) handler() (chan struct{}, error) {
 		intf.links.core.log.Debugln("DEBUG: registered interface for", intf.name)
 	}
 	intf.links.mutex.Unlock()
-	themAddr := make([]byte, 16) // TODO address.AddrForNodeID(crypto.GetNodeID(&intf.info.box))
+	themAddr := address.AddrForKey(ed25519.PublicKey(intf.info.key[:]))
 	themAddrString := net.IP(themAddr[:]).String()
 	themString := fmt.Sprintf("%s@%s", themAddrString, intf.info.remote)
 	intf.links.core.log.Infof("Connected %s: %s, source %s",
