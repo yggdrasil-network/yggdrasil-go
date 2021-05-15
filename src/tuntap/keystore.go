@@ -115,6 +115,18 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 		info.address = *address.AddrForKey(ed25519.PublicKey(info.key[:]))
 		info.subnet = *address.SubnetForKey(ed25519.PublicKey(info.key[:]))
 		info.mtu = MTU(^uint16(0)) // TODO
+		var isOutgoing bool
+		if k.addrBuffer[info.address] != nil {
+			isOutgoing = true
+		}
+		if k.subnetBuffer[info.subnet] != nil {
+			isOutgoing = true
+		}
+		if !k.tun.gatekeeper(key, isOutgoing) {
+			// Blocked by the gatekeeper, so don't create an entry for this
+			k.mutex.Unlock()
+			return nil
+		}
 		k.keyToInfo[info.key] = info
 		k.addrToInfo[info.address] = info
 		k.subnetToInfo[info.subnet] = info

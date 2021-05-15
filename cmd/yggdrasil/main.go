@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -277,11 +278,11 @@ func main() {
 		panic(err)
 	}
 	// Register the session firewall gatekeeper function
-	// TODO n.core.SetSessionGatekeeper(n.sessionFirewall)
 	// Allocate our modules
 	n.admin = &admin.AdminSocket{}
 	n.multicast = &multicast.Multicast{}
 	n.tuntap = &tuntap.TunAdapter{}
+	n.tuntap.(*tuntap.TunAdapter).SetSessionGatekeeper(n.sessionFirewall)
 	// Start the admin socket
 	n.admin.Init(&n.core, n.state, logger, nil)
 	if err := n.admin.Start(); err != nil {
@@ -300,21 +301,6 @@ func main() {
 		logger.Errorln("An error occurred starting TUN/TAP:", err)
 	}
 	n.tuntap.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
-	/*
-		if listener, err := n.core.ConnListen(); err == nil {
-			if dialer, err := n.core.ConnDialer(); err == nil {
-				n.tuntap.Init(&n.core, n.state, logger, tuntap.TunOptions{Listener: listener, Dialer: dialer})
-				if err := n.tuntap.Start(); err != nil {
-					logger.Errorln("An error occurred starting TUN/TAP:", err)
-				}
-				n.tuntap.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
-			} else {
-				logger.Errorln("Unable to get Dialer:", err)
-			}
-		} else {
-			logger.Errorln("Unable to get Listener:", err)
-		}
-	*/
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
 	address := n.core.Address()
@@ -337,7 +323,7 @@ func (n *node) shutdown() {
 	n.core.Stop()
 }
 
-func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
+func (n *node) sessionFirewall(pubkey ed25519.PublicKey, initiator bool) bool {
 	n.state.Mutex.RLock()
 	defer n.state.Mutex.RUnlock()
 
@@ -346,14 +332,11 @@ func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
 		return true
 	}
 
-	// Prepare for checking whitelist/blacklist
-	var box crypto.BoxPubKey
 	// Reject blacklisted nodes
 	for _, b := range n.state.Current.SessionFirewall.BlacklistPublicKeys {
 		key, err := hex.DecodeString(b)
 		if err == nil {
-			copy(box[:crypto.BoxPubKeyLen], key)
-			if box == *pubkey {
+			if bytes.Equal(key, pubkey) {
 				return false
 			}
 		}
@@ -363,8 +346,7 @@ func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
 	for _, b := range n.state.Current.SessionFirewall.WhitelistPublicKeys {
 		key, err := hex.DecodeString(b)
 		if err == nil {
-			copy(box[:crypto.BoxPubKeyLen], key)
-			if box == *pubkey {
+			if bytes.Equal(key, pubkey) {
 				return true
 			}
 		}
@@ -379,14 +361,12 @@ func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
 
 	// Look and see if the pubkey is that of a direct peer
 	var isDirectPeer bool
-	/* TODO
 	for _, peer := range n.core.GetPeers() {
-		if peer.PublicKey == *pubkey {
+		if bytes.Equal(peer.Key[:], pubkey[:]) {
 			isDirectPeer = true
 			break
 		}
 	}
-	*/
 
 	// Allow direct peers if appropriate
 	if n.state.Current.SessionFirewall.AllowFromDirect && isDirectPeer {
