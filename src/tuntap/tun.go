@@ -138,6 +138,15 @@ func (tun *TunAdapter) _start() error {
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
 	if current.IfName == "none" || current.IfName == "dummy" {
 		tun.log.Debugln("Not starting TUN as ifname is none or dummy")
+		go func() {
+			bs := make([]byte, tun.core.PacketConn.MTU())
+			for {
+				// Dump traffic to nowhere
+				if _, _, err := tun.core.PacketConn.ReadFrom(bs); err != nil {
+					return
+				}
+			}
+		}()
 		return nil
 	}
 	mtu := current.IfMTU
