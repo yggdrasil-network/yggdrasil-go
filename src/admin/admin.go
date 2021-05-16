@@ -43,7 +43,11 @@ type handler struct {
 }
 
 type ListResponse struct {
-	List map[string][]string `json:"list"`
+	List map[string]ListEntry `json:"list"`
+}
+
+type ListEntry struct {
+	Fields []string `json:"fields"`
 }
 
 // AddHandler is called for each admin function to add the handler and help documentation to the API.
@@ -66,9 +70,13 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 	current := state.GetCurrent()
 	a.listenaddr = current.AdminListen
 	_ = a.AddHandler("list", []string{}, func(_ json.RawMessage) (interface{}, error) {
-		res := &ListResponse{}
+		res := &ListResponse{
+			List: map[string]ListEntry{},
+		}
 		for name, handler := range a.handlers {
-			res.List[name] = handler.args
+			res.List[name] = ListEntry{
+				Fields: handler.args,
+			}
 		}
 		return res, nil
 	})
