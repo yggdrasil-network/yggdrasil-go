@@ -117,6 +117,17 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 		}
 		return res, nil
 	})
+	_ = a.AddHandler("getPaths", []string{}, func(in json.RawMessage) (interface{}, error) {
+		req := &GetPathsRequest{}
+		res := &GetPathsResponse{}
+		if err := json.Unmarshal(in, &req); err != nil {
+			return nil, err
+		}
+		if err := a.getPathsHandler(req, res); err != nil {
+			return nil, err
+		}
+		return res, nil
+	})
 	_ = a.AddHandler("getSessions", []string{}, func(in json.RawMessage) (interface{}, error) {
 		req := &GetSessionsRequest{}
 		res := &GetSessionsResponse{}
