@@ -150,8 +150,8 @@ func (tun *TunAdapter) _start() error {
 		return nil
 	}
 	mtu := current.IfMTU
-	if tun.core.MTU() < uint64(mtu) {
-		mtu = MTU(tun.core.MTU())
+	if tun.maxSessionMTU() < mtu {
+		mtu = tun.maxSessionMTU()
 	}
 	if err := tun.setup(current.IfName, addr, mtu); err != nil {
 		return err
@@ -216,11 +216,6 @@ func (tun *TunAdapter) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte)
 	}
 }
 
-const (
-	typeKeyLookup   = 1
-	typeKeyResponse = 2
-)
-
 func (tun *TunAdapter) sendKeyLookup(partial ed25519.PublicKey) {
 	sig := ed25519.Sign(tun.core.PrivateKey(), partial[:])
 	bs := append([]byte{typeKeyLookup}, sig...)
@@ -231,4 +226,9 @@ func (tun *TunAdapter) sendKeyResponse(dest ed25519.PublicKey) {
 	sig := ed25519.Sign(tun.core.PrivateKey(), dest[:])
 	bs := append([]byte{typeKeyResponse}, sig...)
 	tun.core.SendOutOfBand(dest, bs)
+}
+
+func (tun *TunAdapter) maxSessionMTU() MTU {
+	const sessionTypeOverhead = 1
+	return MTU(tun.core.MTU() - sessionTypeOverhead)
 }
