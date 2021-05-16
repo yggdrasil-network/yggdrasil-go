@@ -7,11 +7,17 @@ import (
 )
 
 type GetTUNRequest struct{}
-type GetTUNResponse map[string]uint64
+type GetTUNResponse map[string]TUNEntry
+
+type TUNEntry struct {
+	MTU uint64 `json:"mtu"`
+}
 
 func (t *TunAdapter) getTUNHandler(req *GetTUNRequest, res *GetTUNResponse) error {
-	res = &GetTUNResponse{
-		t.Name(): t.MTU(),
+	*res = GetTUNResponse{
+		t.Name(): TUNEntry{
+			MTU: t.MTU(),
+		},
 	}
 	return nil
 }
