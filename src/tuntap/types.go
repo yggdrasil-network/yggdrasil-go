@@ -11,4 +11,6 @@ const (
 const (
 	typeSessionDummy = iota
 	typeSessionTraffic
+	typeSessionNodeInfoRequest
+	typeSessionNodeInfoResponse
 )

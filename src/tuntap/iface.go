@@ -74,6 +74,9 @@ func (tun *TunAdapter) write() {
 		switch bs[0] {
 		case typeSessionTraffic:
 			// This is what we want to handle here
+			if !tun.isEnabled {
+				continue // Drop traffic if the tun is disabled
+			}
 		default:
 			continue
 		}
