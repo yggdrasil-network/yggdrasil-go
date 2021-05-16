@@ -23,11 +23,10 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
-	"github.com/yggdrasil-network/yggdrasil-go/src/types"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
-type MTU = types.MTU
+type MTU uint16
 
 // TunAdapter represents a running TUN interface and extends the
 // yggdrasil.Adapter type. In order to use the TUN adapter with Yggdrasil, you
@@ -40,7 +39,7 @@ type TunAdapter struct {
 	log         *log.Logger
 	addr        address.Address
 	subnet      address.Subnet
-	mtu         MTU
+	mtu         uint64
 	iface       tun.Device
 	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
 	//mutex        sync.RWMutex // Protects the below
@@ -58,7 +57,7 @@ func (tun *TunAdapter) SetSessionGatekeeper(gatekeeper func(pubkey ed25519.Publi
 
 // Gets the maximum supported MTU for the platform based on the defaults in
 // defaults.GetDefaults().
-func getSupportedMTU(mtu MTU) MTU {
+func getSupportedMTU(mtu uint64) uint64 {
 	if mtu < 1280 {
 		return 1280
 	}
@@ -80,7 +79,7 @@ func (tun *TunAdapter) Name() string {
 // MTU gets the adapter's MTU. This can range between 1280 and 65535, although
 // the maximum value is determined by your platform. The returned value will
 // never exceed that of MaximumMTU().
-func (tun *TunAdapter) MTU() MTU {
+func (tun *TunAdapter) MTU() uint64 {
 	return getSupportedMTU(tun.mtu)
 }
 
@@ -91,14 +90,14 @@ func DefaultName() string {
 
 // DefaultMTU gets the default TUN interface MTU for your platform. This can
 // be as high as MaximumMTU(), depending on platform, but is never lower than 1280.
-func DefaultMTU() MTU {
+func DefaultMTU() uint64 {
 	return defaults.GetDefaults().DefaultIfMTU
 }
 
 // MaximumMTU returns the maximum supported TUN interface MTU for your
 // platform. This can be as high as 65535, depending on platform, but is never
 // lower than 1280.
-func MaximumMTU() MTU {
+func MaximumMTU() uint64 {
 	return defaults.GetDefaults().MaximumIfMTU
 }
 
@@ -225,7 +224,7 @@ func (tun *TunAdapter) sendKeyResponse(dest ed25519.PublicKey) {
 	tun.core.SendOutOfBand(dest, bs)
 }
 
-func (tun *TunAdapter) maxSessionMTU() MTU {
+func (tun *TunAdapter) maxSessionMTU() uint64 {
 	const sessionTypeOverhead = 1
-	return MTU(tun.core.MTU() - sessionTypeOverhead)
+	return tun.core.MTU() - sessionTypeOverhead
 }

@@ -1,7 +1,5 @@
 package defaults
 
-import "github.com/yggdrasil-network/yggdrasil-go/src/types"
-
 // Defines which parameters are expected by default for configuration on a
 // specific platform. These values are populated in the relevant defaults_*.go
 // for the platform being targeted. They must be set.
@@ -16,7 +14,7 @@ type platformDefaultParameters struct {
 	DefaultMulticastInterfaces []string
 
 	// TUN/TAP
-	MaximumIfMTU  types.MTU
-	DefaultIfMTU  types.MTU
+	MaximumIfMTU  uint64
+	DefaultIfMTU  uint64
 	DefaultIfName string
 }
