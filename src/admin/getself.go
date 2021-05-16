@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"crypto/ed25519"
 	"encoding/hex"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
@@ -23,15 +22,15 @@ type SelfEntry struct {
 
 func (a *AdminSocket) getSelfHandler(req *GetSelfRequest, res *GetSelfResponse) error {
 	res.Self = make(map[string]SelfEntry)
-	public := a.core.PrivateKey().Public().(ed25519.PublicKey)
+	self := a.core.GetSelf()
 	addr := a.core.Address().String()
 	snet := a.core.Subnet()
 	res.Self[addr] = SelfEntry{
 		BuildName:    version.BuildName(),
 		BuildVersion: version.BuildVersion(),
-		PublicKey:    hex.EncodeToString(public[:]),
+		PublicKey:    hex.EncodeToString(self.Key[:]),
 		Subnet:       snet.String(),
-		// TODO: coords
+		Coords:       self.Coords,
 	}
 	return nil
 }

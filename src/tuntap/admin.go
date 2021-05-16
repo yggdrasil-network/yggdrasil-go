@@ -34,4 +34,5 @@ func (t *TunAdapter) SetupAdminHandlers(a *admin.AdminSocket) {
 		}
 		return res, nil
 	})
+	_ = a.AddHandler("getNodeInfo", []string{"key"}, t.nodeinfo.nodeInfoAdminHandler)
 }

@@ -1,6 +1,7 @@
 package tuntap
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"runtime"
@@ -23,7 +24,6 @@ type nodeinfo struct {
 	myNodeInfo NodeInfoPayload
 	callbacks  map[keyArray]nodeinfoCallback
 	cache      map[keyArray]nodeinfoCached
-	//table      *lookupTable
 }
 
 type nodeinfoCached struct {
@@ -32,7 +32,7 @@ type nodeinfoCached struct {
 }
 
 type nodeinfoCallback struct {
-	call    func(nodeinfo *NodeInfoPayload)
+	call    func(nodeinfo NodeInfoPayload)
 	created time.Time
 }
 
@@ -76,13 +76,13 @@ func (m *nodeinfo) _cleanup() {
 }
 
 // Add a callback for a nodeinfo lookup
-func (m *nodeinfo) addCallback(sender keyArray, call func(nodeinfo *NodeInfoPayload)) {
+func (m *nodeinfo) addCallback(sender keyArray, call func(nodeinfo NodeInfoPayload)) {
 	m.Act(nil, func() {
 		m._addCallback(sender, call)
 	})
 }
 
-func (m *nodeinfo) _addCallback(sender keyArray, call func(nodeinfo *NodeInfoPayload)) {
+func (m *nodeinfo) _addCallback(sender keyArray, call func(nodeinfo NodeInfoPayload)) {
 	m.callbacks[sender] = nodeinfoCallback{
 		created: time.Now(),
 		call:    call,
@@ -92,7 +92,7 @@ func (m *nodeinfo) _addCallback(sender keyArray, call func(nodeinfo *NodeInfoPay
 // Handles the callback, if there is one
 func (m *nodeinfo) _callback(sender keyArray, nodeinfo NodeInfoPayload) {
 	if callback, ok := m.callbacks[sender]; ok {
-		callback.call(&nodeinfo)
+		callback.call(nodeinfo)
 		delete(m.callbacks, sender)
 	}
 }
@@ -168,13 +168,13 @@ func (m *nodeinfo) _getCachedNodeInfo(key keyArray) (NodeInfoPayload, error) {
 	return NodeInfoPayload{}, errors.New("No cache entry found")
 }
 
-func (m *nodeinfo) sendReq(from phony.Actor, key keyArray, callback func(nodeinfo *NodeInfoPayload)) {
+func (m *nodeinfo) sendReq(from phony.Actor, key keyArray, callback func(nodeinfo NodeInfoPayload)) {
 	m.Act(from, func() {
 		m._sendReq(key, callback)
 	})
 }
 
-func (m *nodeinfo) _sendReq(key keyArray, callback func(nodeinfo *NodeInfoPayload)) {
+func (m *nodeinfo) _sendReq(key keyArray, callback func(nodeinfo NodeInfoPayload)) {
 	if callback != nil {
 		m._addCallback(key, callback)
 	}
@@ -197,4 +197,38 @@ func (m *nodeinfo) handleRes(from phony.Actor, key keyArray, info NodeInfoPayloa
 func (m *nodeinfo) _sendRes(key keyArray) {
 	bs := append([]byte{typeSessionNodeInfoResponse}, m._getNodeInfo()...)
 	m.tun.core.WriteTo(bs, iwt.Addr(key[:]))
+}
+
+// Admin socket stuff
+
+type GetNodeInfoRequest struct {
+	Key string `json:"key"`
+}
+type GetNodeInfoResponse map[string]NodeInfoPayload
+
+func (m *nodeinfo) nodeInfoAdminHandler(in json.RawMessage) (interface{}, error) {
+	var req GetNodeInfoRequest
+	if err := json.Unmarshal(in, &req); err != nil {
+		return nil, err
+	}
+	var key keyArray
+	var kbs []byte
+	var err error
+	if kbs, err = hex.DecodeString(req.Key); err != nil {
+		return nil, err
+	}
+	copy(key[:], kbs)
+	ch := make(chan []byte, 1)
+	m.sendReq(nil, key, func(info NodeInfoPayload) {
+		ch <- info
+	})
+	timer := time.NewTimer(6 * time.Second)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil, errors.New("timeout")
+	case info := <-ch:
+		res := GetNodeInfoResponse{req.Key: info}
+		return res, nil
+	}
 }
