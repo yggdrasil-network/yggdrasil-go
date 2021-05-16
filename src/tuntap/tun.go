@@ -224,7 +224,7 @@ func (tun *TunAdapter) sendKeyResponse(dest ed25519.PublicKey) {
 	tun.core.SendOutOfBand(dest, bs)
 }
 
-func (tun *TunAdapter) maxSessionMTU() MTU {
+func (tun *TunAdapter) maxSessionMTU() uint64 {
 	const sessionTypeOverhead = 1
-	return MTU(tun.core.MTU() - sessionTypeOverhead)
+	return tun.core.MTU() - sessionTypeOverhead
 }
