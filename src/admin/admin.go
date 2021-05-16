@@ -250,7 +250,6 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 				}
 			}
 		}
-		j, _ := json.Marshal(resp)
 		if err = encoder.Encode(resp); err != nil {
 			a.log.Debugln("Encode error:", err)
 		}

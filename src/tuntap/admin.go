@@ -7,7 +7,7 @@ import (
 )
 
 type GetTUNRequest struct{}
-type GetTUNResponse map[string]uint16
+type GetTUNResponse map[string]uint64
 
 func (t *TunAdapter) getTUNHandler(req *GetTUNRequest, res *GetTUNResponse) error {
 	res = &GetTUNResponse{

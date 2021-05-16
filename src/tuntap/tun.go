@@ -39,7 +39,7 @@ type TunAdapter struct {
 	log         *log.Logger
 	addr        address.Address
 	subnet      address.Subnet
-	mtu         uint16
+	mtu         uint64
 	iface       tun.Device
 	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
 	//mutex        sync.RWMutex // Protects the below
@@ -55,7 +55,7 @@ func (tun *TunAdapter) SetSessionGatekeeper(gatekeeper func(pubkey ed25519.Publi
 
 // Gets the maximum supported MTU for the platform based on the defaults in
 // defaults.GetDefaults().
-func getSupportedMTU(mtu uint16) uint16 {
+func getSupportedMTU(mtu uint64) uint64 {
 	if mtu < 1280 {
 		return 1280
 	}
@@ -77,7 +77,7 @@ func (tun *TunAdapter) Name() string {
 // MTU gets the adapter's MTU. This can range between 1280 and 65535, although
 // the maximum value is determined by your platform. The returned value will
 // never exceed that of MaximumMTU().
-func (tun *TunAdapter) MTU() uint16 {
+func (tun *TunAdapter) MTU() uint64 {
 	return getSupportedMTU(tun.mtu)
 }
 
@@ -88,14 +88,14 @@ func DefaultName() string {
 
 // DefaultMTU gets the default TUN interface MTU for your platform. This can
 // be as high as MaximumMTU(), depending on platform, but is never lower than 1280.
-func DefaultMTU() uint16 {
+func DefaultMTU() uint64 {
 	return defaults.GetDefaults().DefaultIfMTU
 }
 
 // MaximumMTU returns the maximum supported TUN interface MTU for your
 // platform. This can be as high as 65535, depending on platform, but is never
 // lower than 1280.
-func MaximumMTU() uint16 {
+func MaximumMTU() uint64 {
 	return defaults.GetDefaults().MaximumIfMTU
 }
 
@@ -150,7 +150,7 @@ func (tun *TunAdapter) _start() error {
 	}
 	mtu := current.IfMTU
 	if tun.core.MTU() < uint64(mtu) {
-		mtu = uint16(tun.core.MTU())
+		mtu = tun.core.MTU()
 	}
 	if err := tun.setup(current.IfName, addr, mtu); err != nil {
 		return err

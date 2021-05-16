@@ -14,7 +14,7 @@ type platformDefaultParameters struct {
 	DefaultMulticastInterfaces []string
 
 	// TUN/TAP
-	MaximumIfMTU  uint16
-	DefaultIfMTU  uint16
+	MaximumIfMTU  uint64
+	DefaultIfMTU  uint64
 	DefaultIfName string
 }
