@@ -44,7 +44,9 @@ type TunAdapter struct {
 	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
 	//mutex        sync.RWMutex // Protects the below
 	isOpen     bool
+	isEnabled  bool // Used by the writer to drop sessionTraffic if not enabled
 	gatekeeper func(pubkey ed25519.PublicKey, initiator bool) bool
+	nodeinfo   nodeinfo
 }
 
 func (tun *TunAdapter) SetSessionGatekeeper(gatekeeper func(pubkey ed25519.PublicKey, initiator bool) bool) {
@@ -106,6 +108,7 @@ func (tun *TunAdapter) Init(core *yggdrasil.Core, config *config.NodeState, log 
 	tun.store.init(tun)
 	tun.config = config
 	tun.log = log
+	tun.nodeinfo.init(tun)
 	if err := tun.core.SetOutOfBandHandler(tun.oobHandler); err != nil {
 		return fmt.Errorf("tun.core.SetOutOfBandHander: %w", err)
 	}
@@ -137,20 +140,13 @@ func (tun *TunAdapter) _start() error {
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
 	if current.IfName == "none" || current.IfName == "dummy" {
 		tun.log.Debugln("Not starting TUN as ifname is none or dummy")
-		go func() {
-			bs := make([]byte, tun.core.PacketConn.MTU())
-			for {
-				// Dump traffic to nowhere
-				if _, _, err := tun.core.PacketConn.ReadFrom(bs); err != nil {
-					return
-				}
-			}
-		}()
+		tun.isEnabled = false
+		go tun.write()
 		return nil
 	}
 	mtu := current.IfMTU
-	if tun.core.MTU() < uint64(mtu) {
-		mtu = tun.core.MTU()
+	if tun.maxSessionMTU() < mtu {
+		mtu = tun.maxSessionMTU()
 	}
 	if err := tun.setup(current.IfName, addr, mtu); err != nil {
 		return err
@@ -159,6 +155,7 @@ func (tun *TunAdapter) _start() error {
 		tun.log.Warnf("Warning: Interface MTU %d automatically adjusted to %d (supported range is 1280-%d)", current.IfMTU, tun.MTU(), MaximumMTU())
 	}
 	tun.isOpen = true
+	tun.isEnabled = true
 	go tun.read()
 	go tun.write()
 	return nil
@@ -215,11 +212,6 @@ func (tun *TunAdapter) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte)
 	}
 }
 
-const (
-	typeKeyLookup   = 1
-	typeKeyResponse = 2
-)
-
 func (tun *TunAdapter) sendKeyLookup(partial ed25519.PublicKey) {
 	sig := ed25519.Sign(tun.core.PrivateKey(), partial[:])
 	bs := append([]byte{typeKeyLookup}, sig...)
@@ -230,4 +222,9 @@ func (tun *TunAdapter) sendKeyResponse(dest ed25519.PublicKey) {
 	sig := ed25519.Sign(tun.core.PrivateKey(), dest[:])
 	bs := append([]byte{typeKeyResponse}, sig...)
 	tun.core.SendOutOfBand(dest, bs)
+}
+
+func (tun *TunAdapter) maxSessionMTU() MTU {
+	const sessionTypeOverhead = 1
+	return MTU(tun.core.MTU() - sessionTypeOverhead)
 }

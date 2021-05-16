@@ -50,6 +50,8 @@ func (tun *TunAdapter) read() {
 		if srcAddr != tun.addr && srcSubnet != tun.subnet {
 			continue // Wrong soruce address
 		}
+		bs = buf[begin-1 : end]
+		bs[0] = typeSessionTraffic
 		if dstAddr.IsValid() {
 			tun.store.sendToAddress(dstAddr, bs)
 		} else if dstSubnet.IsValid() {
@@ -61,12 +63,38 @@ func (tun *TunAdapter) read() {
 func (tun *TunAdapter) write() {
 	var buf [TUN_OFFSET_BYTES + 65535]byte
 	for {
-		bs := buf[TUN_OFFSET_BYTES:]
+		bs := buf[TUN_OFFSET_BYTES-1:]
 		n, from, err := tun.core.ReadFrom(bs)
 		if err != nil {
 			return
 		}
-		bs = bs[:n]
+		if n == 0 {
+			continue
+		}
+		switch bs[0] {
+		case typeSessionTraffic:
+			// This is what we want to handle here
+			if !tun.isEnabled {
+				continue // Drop traffic if the tun is disabled
+			}
+		case typeSessionNodeInfoRequest:
+			var key keyArray
+			copy(key[:], from.(iwt.Addr))
+			tun.nodeinfo.handleReq(nil, key)
+			continue
+		case typeSessionNodeInfoResponse:
+			var key keyArray
+			copy(key[:], from.(iwt.Addr))
+			res := append([]byte(nil), bs[1:n]...)
+			tun.nodeinfo.handleRes(nil, key, res)
+			continue
+		default:
+			continue
+		}
+		bs = bs[1:n]
+		if len(bs) == 0 {
+			continue
+		}
 		if bs[0]&0xf0 != 0x60 {
 			continue // not IPv6
 		}
@@ -99,7 +127,7 @@ func (tun *TunAdapter) write() {
 		if srcAddr != info.address && srcSubnet != info.subnet {
 			continue // bad remote address/subnet
 		}
-		bs = buf[:TUN_OFFSET_BYTES+n]
+		bs = buf[:TUN_OFFSET_BYTES+len(bs)]
 		n, err = tun.iface.Write(bs, TUN_OFFSET_BYTES)
 		if err != nil {
 			tun.Act(nil, func() {
