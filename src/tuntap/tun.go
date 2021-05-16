@@ -109,6 +109,7 @@ func (tun *TunAdapter) Init(core *yggdrasil.Core, config *config.NodeState, log 
 	tun.config = config
 	tun.log = log
 	tun.nodeinfo.init(tun)
+	tun.nodeinfo.setNodeInfo(config.Current.NodeInfo, config.Current.NodeInfoPrivacy)
 	if err := tun.core.SetOutOfBandHandler(tun.oobHandler); err != nil {
 		return fmt.Errorf("tun.core.SetOutOfBandHander: %w", err)
 	}

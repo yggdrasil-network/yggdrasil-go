@@ -23,7 +23,6 @@ type nodeinfo struct {
 	tun        *TunAdapter
 	myNodeInfo NodeInfoPayload
 	callbacks  map[keyArray]nodeinfoCallback
-	cache      map[keyArray]nodeinfoCached
 }
 
 type nodeinfoCached struct {
@@ -54,8 +53,6 @@ func (m *nodeinfo) init(tun *TunAdapter) {
 func (m *nodeinfo) _init(tun *TunAdapter) {
 	m.tun = tun
 	m.callbacks = make(map[keyArray]nodeinfoCallback)
-	m.cache = make(map[keyArray]nodeinfoCached)
-
 	m._cleanup()
 }
 
@@ -63,11 +60,6 @@ func (m *nodeinfo) _cleanup() {
 	for boxPubKey, callback := range m.callbacks {
 		if time.Since(callback.created) > time.Minute {
 			delete(m.callbacks, boxPubKey)
-		}
-	}
-	for boxPubKey, cache := range m.cache {
-		if time.Since(cache.created) > time.Hour {
-			delete(m.cache, boxPubKey)
 		}
 	}
 	time.AfterFunc(time.Second*30, func() {
@@ -152,22 +144,6 @@ func (m *nodeinfo) _setNodeInfo(given interface{}, privacy bool) error {
 	return err
 }
 
-// Add nodeinfo into the cache for a node
-func (m *nodeinfo) _addCachedNodeInfo(key keyArray, payload NodeInfoPayload) {
-	m.cache[key] = nodeinfoCached{
-		created: time.Now(),
-		payload: payload,
-	}
-}
-
-// Get a nodeinfo entry from the cache
-func (m *nodeinfo) _getCachedNodeInfo(key keyArray) (NodeInfoPayload, error) {
-	if nodeinfo, ok := m.cache[key]; ok {
-		return nodeinfo.payload, nil
-	}
-	return NodeInfoPayload{}, errors.New("No cache entry found")
-}
-
 func (m *nodeinfo) sendReq(from phony.Actor, key keyArray, callback func(nodeinfo NodeInfoPayload)) {
 	m.Act(from, func() {
 		m._sendReq(key, callback)
@@ -190,7 +166,6 @@ func (m *nodeinfo) handleReq(from phony.Actor, key keyArray) {
 func (m *nodeinfo) handleRes(from phony.Actor, key keyArray, info NodeInfoPayload) {
 	m.Act(from, func() {
 		m._callback(key, info)
-		m._addCachedNodeInfo(key, info)
 	})
 }
 
@@ -204,7 +179,7 @@ func (m *nodeinfo) _sendRes(key keyArray) {
 type GetNodeInfoRequest struct {
 	Key string `json:"key"`
 }
-type GetNodeInfoResponse map[string]NodeInfoPayload
+type GetNodeInfoResponse map[string]interface{}
 
 func (m *nodeinfo) nodeInfoAdminHandler(in json.RawMessage) (interface{}, error) {
 	var req GetNodeInfoRequest
@@ -228,7 +203,11 @@ func (m *nodeinfo) nodeInfoAdminHandler(in json.RawMessage) (interface{}, error)
 	case <-timer.C:
 		return nil, errors.New("timeout")
 	case info := <-ch:
-		res := GetNodeInfoResponse{req.Key: info}
+		var msg json.RawMessage
+		if err := msg.UnmarshalJSON(info); err != nil {
+			return nil, err
+		}
+		res := GetNodeInfoResponse{req.Key: msg}
 		return res, nil
 	}
 }
