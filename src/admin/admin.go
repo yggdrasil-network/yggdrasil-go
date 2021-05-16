@@ -1,7 +1,6 @@
 package admin
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,17 +8,12 @@ import (
 	"net/url"
 	"os"
 
-	//"strconv"
 	"strings"
 	"time"
 
 	"github.com/gologme/log"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	//"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	//"github.com/yggdrasil-network/yggdrasil-go/src/util"
-	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
@@ -34,16 +28,26 @@ type AdminSocket struct {
 	started    bool
 }
 
-// Info refers to information that is returned to the admin socket handler.
-type Info map[string]interface{}
+type AdminSocketResponse struct {
+	Status  string `json:"status"`
+	Request struct {
+		Name      string `json:"request"`
+		KeepAlive bool   `json:"keepalive"`
+	} `json:"request"`
+	Response interface{} `json:"response"`
+}
 
 type handler struct {
-	args    []string                 // List of human-readable argument names
-	handler func(Info) (Info, error) // First is input map, second is output
+	args    []string                                   // List of human-readable argument names
+	handler func(json.RawMessage) (interface{}, error) // First is input map, second is output
+}
+
+type ListResponse struct {
+	List map[string][]string `json:"list"`
 }
 
 // AddHandler is called for each admin function to add the handler and help documentation to the API.
-func (a *AdminSocket) AddHandler(name string, args []string, handlerfunc func(Info) (Info, error)) error {
+func (a *AdminSocket) AddHandler(name string, args []string, handlerfunc func(json.RawMessage) (interface{}, error)) error {
 	if _, ok := a.handlers[strings.ToLower(name)]; ok {
 		return errors.New("handler already exists")
 	}
@@ -61,70 +65,60 @@ func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.
 	a.handlers = make(map[string]handler)
 	current := state.GetCurrent()
 	a.listenaddr = current.AdminListen
-	a.AddHandler("list", []string{}, func(in Info) (Info, error) {
-		handlers := make(map[string]interface{})
-		for handlername, handler := range a.handlers {
-			handlers[handlername] = Info{"fields": handler.args}
+	_ = a.AddHandler("list", []string{}, func(_ json.RawMessage) (interface{}, error) {
+		res := &ListResponse{}
+		for name, handler := range a.handlers {
+			res.List[name] = handler.args
 		}
-		return Info{"list": handlers}, nil
+		return res, nil
 	})
 	return nil
 }
 
 func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
-	a.AddHandler("getSelf", []string{}, func(in Info) (Info, error) {
-		ip := a.core.Address().String()
-		subnet := a.core.Subnet()
-		self := a.core.GetSelf()
-		return Info{
-			"self": Info{
-				ip: Info{
-					// TODO"box_pub_key":   a.core.EncryptionPublicKey(),
-					"build_name":    version.BuildName(),
-					"build_version": version.BuildVersion(),
-					"key":           hex.EncodeToString(self.Key[:]),
-					"coords":        fmt.Sprintf("%v", self.Coords),
-					"subnet":        subnet.String(),
-				},
-			},
-		}, nil
-	})
-	a.AddHandler("getPeers", []string{}, func(in Info) (Info, error) {
-		peers := make(Info)
-		for _, p := range a.core.GetPeers() {
-			addr := address.AddrForKey(p.Key)
-			so := net.IP(addr[:]).String()
-			peers[so] = Info{
-				"key":    hex.EncodeToString(p.Key[:]),
-				"port":   p.Port,
-				"coords": fmt.Sprintf("%v", p.Coords),
-			}
+	_ = a.AddHandler("getSelf", []string{}, func(in json.RawMessage) (interface{}, error) {
+		req := &GetSelfRequest{}
+		res := &GetSelfResponse{}
+		if err := json.Unmarshal(in, &req); err != nil {
+			return nil, err
 		}
-		return Info{"peers": peers}, nil
-	})
-	a.AddHandler("getDHT", []string{}, func(in Info) (Info, error) {
-		dht := make(Info)
-		for _, d := range a.core.GetDHT() {
-			addr := address.AddrForKey(d.Key)
-			so := net.IP(addr[:]).String()
-			dht[so] = Info{
-				"key":  hex.EncodeToString(d.Key[:]),
-				"port": fmt.Sprintf("%v", d.Port),
-				"next": fmt.Sprintf("%v", d.Next),
-			}
+		if err := a.getSelfHandler(req, res); err != nil {
+			return nil, err
 		}
-		return Info{"dht": dht}, nil
+		return res, nil
 	})
-	a.AddHandler("getSessions", []string{}, func(in Info) (Info, error) {
-		sessions := make(Info)
-		for _, s := range a.core.GetSessions() {
-			addr := address.AddrForKey(s.Key)
-			so := net.IP(addr[:]).String()
-			sessions[so] = Info{
-				"key": hex.EncodeToString(s.Key[:]),
-			}
+	_ = a.AddHandler("getPeers", []string{}, func(in json.RawMessage) (interface{}, error) {
+		req := &GetPeersRequest{}
+		res := &GetPeersResponse{}
+		if err := json.Unmarshal(in, &req); err != nil {
+			return nil, err
 		}
-		return Info{"sessions": sessions}, nil
+		if err := a.getPeersHandler(req, res); err != nil {
+			return nil, err
+		}
+		return res, nil
+	})
+	_ = a.AddHandler("getDHT", []string{}, func(in json.RawMessage) (interface{}, error) {
+		req := &GetDHTRequest{}
+		res := &GetDHTResponse{}
+		if err := json.Unmarshal(in, &req); err != nil {
+			return nil, err
+		}
+		if err := a.getDHTHandler(req, res); err != nil {
+			return nil, err
+		}
+		return res, nil
+	})
+	_ = a.AddHandler("getSessions", []string{}, func(in json.RawMessage) (interface{}, error) {
+		req := &GetSessionsRequest{}
+		res := &GetSessionsResponse{}
+		if err := json.Unmarshal(in, &req); err != nil {
+			return nil, err
+		}
+		if err := a.getSessionsHandler(req, res); err != nil {
+			return nil, err
+		}
+		return res, nil
 	})
 }
 
@@ -209,20 +203,20 @@ func (a *AdminSocket) listen() {
 // handleRequest calls the request handler for each request sent to the admin API.
 func (a *AdminSocket) handleRequest(conn net.Conn) {
 	decoder := json.NewDecoder(conn)
+	decoder.DisallowUnknownFields()
+
 	encoder := json.NewEncoder(conn)
 	encoder.SetIndent("", "  ")
-	recv := make(Info)
-	send := make(Info)
+
+	defer conn.Close()
 
 	defer func() {
 		r := recover()
 		if r != nil {
-			send = Info{
-				"status": "error",
-				"error":  "Check your syntax and input types",
-			}
 			a.log.Debugln("Admin socket error:", r)
-			if err := encoder.Encode(&send); err != nil {
+			if err := encoder.Encode(&ErrorResponse{
+				Error: "Check your syntax and input types",
+			}); err != nil {
 				a.log.Debugln("Admin socket JSON encode error:", err)
 			}
 			conn.Close()
@@ -230,83 +224,40 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 	}()
 
 	for {
-		// Start with a clean slate on each request
-		recv = Info{}
-		send = Info{}
-
-		// Decode the input
-		if err := decoder.Decode(&recv); err != nil {
-			a.log.Debugln("Admin socket JSON decode error:", err)
-			return
-		}
-
-		// Send the request back with the response, and default to "error"
-		// unless the status is changed below by one of the handlers
-		send["request"] = recv
-		send["status"] = "error"
-
-		n := strings.ToLower(recv["request"].(string))
-
-		if _, ok := recv["request"]; !ok {
-			send["error"] = "No request sent"
-			goto respond
-		}
-
-		if h, ok := a.handlers[n]; ok {
-			// Check that we have all the required arguments
-			for _, arg := range h.args {
-				// An argument in [square brackets] is optional and not required,
-				// so we can safely ignore those
-				if strings.HasPrefix(arg, "[") && strings.HasSuffix(arg, "]") {
-					continue
+		var err error
+		var buf json.RawMessage
+		_ = decoder.Decode(&buf)
+		var resp AdminSocketResponse
+		resp.Status = "success"
+		if err = json.Unmarshal(buf, &resp.Request); err == nil {
+			if resp.Request.Name == "" {
+				resp.Status = "error"
+				resp.Response = &ErrorResponse{
+					Error: "No request specified",
 				}
-				// Check if the field is missing
-				if _, ok := recv[arg]; !ok {
-					send = Info{
-						"status":    "error",
-						"error":     "Expected field missing: " + arg,
-						"expecting": arg,
+			} else if h, ok := a.handlers[strings.ToLower(resp.Request.Name)]; ok {
+				resp.Response, err = h.handler(buf)
+				if err != nil {
+					resp.Status = "error"
+					resp.Response = &ErrorResponse{
+						Error: err.Error(),
 					}
-					goto respond
-				}
-			}
-
-			// By this point we should have all the fields we need, so call
-			// the handler
-			response, err := h.handler(recv)
-			if err != nil {
-				send["error"] = err.Error()
-				if response != nil {
-					send["response"] = response
-					goto respond
 				}
 			} else {
-				send["status"] = "success"
-				if response != nil {
-					send["response"] = response
-					goto respond
+				resp.Status = "error"
+				resp.Response = &ErrorResponse{
+					Error: fmt.Sprintf("Unknown action '%s', try 'list' for help", resp.Request.Name),
 				}
 			}
+		}
+		j, _ := json.Marshal(resp)
+		if err = encoder.Encode(resp); err != nil {
+			a.log.Debugln("Encode error:", err)
+		}
+		if !resp.Request.KeepAlive {
+			break
 		} else {
-			// Start with a clean response on each request, which defaults to an error
-			// state. If a handler is found below then this will be overwritten
-			send = Info{
-				"request": recv,
-				"status":  "error",
-				"error":   fmt.Sprintf("Unknown action '%s', try 'list' for help", recv["request"].(string)),
-			}
-			goto respond
-		}
-
-		// Send the response back
-	respond:
-		if err := encoder.Encode(&send); err != nil {
-			return
-		}
-
-		// If "keepalive" isn't true then close the connection
-		if keepalive, ok := recv["keepalive"]; !ok || !keepalive.(bool) {
-			conn.Close()
+			continue
 		}
 	}
 }

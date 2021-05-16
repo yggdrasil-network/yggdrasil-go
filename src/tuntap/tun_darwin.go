@@ -16,7 +16,7 @@ import (
 )
 
 // Configures the "utun" adapter with the correct IPv6 address and MTU.
-func (tun *TunAdapter) setup(ifname string, addr string, mtu MTU) error {
+func (tun *TunAdapter) setup(ifname string, addr string, mtu uint16) error {
 	if ifname == "auto" {
 		ifname = "utun"
 	}
@@ -25,8 +25,8 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu MTU) error {
 		panic(err)
 	}
 	tun.iface = iface
-	if mtu, err := iface.MTU(); err == nil {
-		tun.mtu = getSupportedMTU(MTU(mtu))
+	if m, err := iface.MTU(); err == nil {
+		tun.mtu = getSupportedMTU(uint16(m))
 	} else {
 		tun.mtu = 0
 	}
