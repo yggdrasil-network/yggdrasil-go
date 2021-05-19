@@ -31,7 +31,7 @@ type Peer struct {
 type DHTEntry struct {
 	Key  ed25519.PublicKey
 	Port uint64
-	Next uint64
+	Rest uint64
 }
 
 type PathEntry struct {
@@ -73,7 +73,7 @@ func (c *Core) GetDHT() []DHTEntry {
 		var info DHTEntry
 		info.Key = d.Key
 		info.Port = d.Port
-		info.Next = d.Next
+		info.Rest = d.Rest
 		dhts = append(dhts, info)
 	}
 	return dhts

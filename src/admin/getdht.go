@@ -16,7 +16,7 @@ type GetDHTResponse struct {
 type DHTEntry struct {
 	PublicKey string `json:"key"`
 	Port      uint64 `json:"port"`
-	Next      uint64 `json:"next"`
+	Rest      uint64 `json:"rest"`
 }
 
 func (a *AdminSocket) getDHTHandler(req *GetDHTRequest, res *GetDHTResponse) error {
@@ -27,7 +27,7 @@ func (a *AdminSocket) getDHTHandler(req *GetDHTRequest, res *GetDHTResponse) err
 		res.DHT[so] = DHTEntry{
 			PublicKey: hex.EncodeToString(d.Key[:]),
 			Port:      d.Port,
-			Next:      d.Next,
+			Rest:      d.Rest,
 		}
 	}
 	return nil
