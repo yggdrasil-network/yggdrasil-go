@@ -1,6 +1,9 @@
 package tuntap
 
 import (
+	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"time"
 
 	iwt "github.com/Arceliar/ironwood/types"
@@ -18,8 +21,8 @@ const (
 )
 
 type reqInfo struct {
-	ch    chan []byte
-	timer time.Timer // time.AfterFunc cleanup
+	callback func([]byte)
+	timer    *time.Timer // time.AfterFunc cleanup
 }
 
 type debugHandler struct {
@@ -72,6 +75,26 @@ func (d *debugHandler) _handleGetSelfResponse(key keyArray, bs []byte) {
 	// TODO
 }
 
+func (d *debugHandler) sendGetPeersRequest(key keyArray, callback func([]byte)) {
+	d.Act(nil, func() {
+		if info := d.preqs[key]; info != nil {
+			info.timer.Stop()
+			delete(d.preqs, key)
+		}
+		info := new(reqInfo)
+		info.callback = callback
+		info.timer = time.AfterFunc(time.Minute, func() {
+			d.Act(nil, func() {
+				if d.preqs[key] == info {
+					delete(d.preqs, key)
+				}
+			})
+		})
+		d.preqs[key] = info
+		d._sendDebug(key, typeDebugGetPeersRequest, nil)
+	})
+}
+
 func (d *debugHandler) _handleGetPeersRequest(key keyArray) {
 	peers := d.tun.core.GetPeers()
 	var bs []byte
@@ -89,9 +112,29 @@ func (d *debugHandler) _handleGetPeersRequest(key keyArray) {
 func (d *debugHandler) _handleGetPeersResponse(key keyArray, bs []byte) {
 	if info := d.preqs[key]; info != nil {
 		info.timer.Stop()
-		info.ch <- bs
+		info.callback(bs)
 		delete(d.preqs, key)
 	}
+}
+
+func (d *debugHandler) sendGetDHTRequest(key keyArray, callback func([]byte)) {
+	d.Act(nil, func() {
+		if info := d.dreqs[key]; info != nil {
+			info.timer.Stop()
+			delete(d.dreqs, key)
+		}
+		info := new(reqInfo)
+		info.callback = callback
+		info.timer = time.AfterFunc(time.Minute, func() {
+			d.Act(nil, func() {
+				if d.dreqs[key] == info {
+					delete(d.dreqs, key)
+				}
+			})
+		})
+		d.dreqs[key] = info
+		d._sendDebug(key, typeDebugGetDHTRequest, nil)
+	})
 }
 
 func (d *debugHandler) _handleGetDHTRequest(key keyArray) {
@@ -111,7 +154,7 @@ func (d *debugHandler) _handleGetDHTRequest(key keyArray) {
 func (d *debugHandler) _handleGetDHTResponse(key keyArray, bs []byte) {
 	if info := d.dreqs[key]; info != nil {
 		info.timer.Stop()
-		info.ch <- bs
+		info.callback(bs)
 		delete(d.dreqs, key)
 	}
 }
@@ -119,4 +162,100 @@ func (d *debugHandler) _handleGetDHTResponse(key keyArray, bs []byte) {
 func (d *debugHandler) _sendDebug(key keyArray, dType uint8, data []byte) {
 	bs := append([]byte{typeSessionDebug, dType}, data...)
 	d.tun.core.WriteTo(bs, iwt.Addr(key[:]))
+}
+
+// Admin socket stuff
+
+type DebugGetPeersRequest struct {
+	Key string `json:"key"`
+}
+
+type DebugGetPeersResponse map[string]interface{}
+
+func (d *debugHandler) getPeersHandler(in json.RawMessage) (interface{}, error) {
+	var req DebugGetPeersRequest
+	if err := json.Unmarshal(in, &req); err != nil {
+		return nil, err
+	}
+	var key keyArray
+	var kbs []byte
+	var err error
+	if kbs, err = hex.DecodeString(req.Key); err != nil {
+		return nil, err
+	}
+	copy(key[:], kbs)
+	ch := make(chan []byte, 1)
+	d.sendGetPeersRequest(key, func(info []byte) {
+		ch <- info
+	})
+	timer := time.NewTimer(6 * time.Second)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil, errors.New("timeout")
+	case info := <-ch:
+		ks := make(map[string][]string)
+		bs := info
+		for len(bs) >= len(key) {
+			ks["keys"] = append(ks["keys"], hex.EncodeToString(bs[:len(key)]))
+			bs = bs[len(key):]
+		}
+		js, err := json.Marshal(ks)
+		if err != nil {
+			return nil, err
+		}
+		var msg json.RawMessage
+		if err := msg.UnmarshalJSON(js); err != nil {
+			return nil, err
+		}
+		res := GetNodeInfoResponse{req.Key: msg}
+		return res, nil
+	}
+}
+
+type DebugGetDHTRequest struct {
+	Key string `json:"key"`
+}
+
+type DebugGetDHTResponse map[string]interface{}
+
+func (d *debugHandler) getDHTHandler(in json.RawMessage) (interface{}, error) {
+	var req DebugGetDHTRequest
+	if err := json.Unmarshal(in, &req); err != nil {
+		return nil, err
+	}
+	var key keyArray
+	var kbs []byte
+	var err error
+	if kbs, err = hex.DecodeString(req.Key); err != nil {
+		return nil, err
+	}
+	copy(key[:], kbs)
+	ch := make(chan []byte, 1)
+	d.sendGetDHTRequest(key, func(info []byte) {
+		ch <- info
+	})
+	timer := time.NewTimer(6 * time.Second)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil, errors.New("timeout")
+	case info := <-ch:
+		ks := make(map[string][]string)
+		bs := info
+		for len(bs) >= len(key) {
+			ks["keys"] = append(ks["keys"], hex.EncodeToString(bs[:len(key)]))
+			bs = bs[len(key):]
+		}
+		js, err := json.Marshal(ks)
+		if err != nil {
+			return nil, err
+		}
+		var msg json.RawMessage
+		if err := msg.UnmarshalJSON(js); err != nil {
+			return nil, err
+		}
+		res := GetNodeInfoResponse{req.Key: msg}
+		return res, nil
+	}
 }
