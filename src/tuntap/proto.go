@@ -4,10 +4,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net"
 	"time"
 
 	iwt "github.com/Arceliar/ironwood/types"
 	"github.com/Arceliar/phony"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 )
 
 const (
@@ -106,7 +110,11 @@ func (p *protoHandler) sendGetSelfRequest(key keyArray, callback func([]byte)) {
 
 func (p *protoHandler) _handleGetSelfRequest(key keyArray) {
 	self := p.tun.core.GetSelf()
-	bs, err := json.Marshal(self) // FIXME this puts keys in base64, not hex
+	res := map[string]string{
+		"key":    hex.EncodeToString(self.Key[:]),
+		"coords": fmt.Sprintf("%v", self.Coords),
+	}
+	bs, err := json.Marshal(res) // FIXME this puts keys in base64, not hex
 	if err != nil {
 		return
 	}
@@ -244,7 +252,8 @@ func (p *protoHandler) getSelfHandler(in json.RawMessage) (interface{}, error) {
 		if err := msg.UnmarshalJSON(info); err != nil {
 			return nil, err
 		}
-		res := DebugGetSelfResponse{req.Key: msg}
+		ip := net.IP(address.AddrForKey(kbs)[:])
+		res := DebugGetSelfResponse{ip.String(): msg}
 		return res, nil
 	}
 }
@@ -291,7 +300,8 @@ func (p *protoHandler) getPeersHandler(in json.RawMessage) (interface{}, error) 
 		if err := msg.UnmarshalJSON(js); err != nil {
 			return nil, err
 		}
-		res := DebugGetPeersResponse{req.Key: msg}
+		ip := net.IP(address.AddrForKey(kbs)[:])
+		res := DebugGetPeersResponse{ip.String(): msg}
 		return res, nil
 	}
 }
@@ -338,7 +348,8 @@ func (p *protoHandler) getDHTHandler(in json.RawMessage) (interface{}, error) {
 		if err := msg.UnmarshalJSON(js); err != nil {
 			return nil, err
 		}
-		res := DebugGetDHTResponse{req.Key: msg}
+		ip := net.IP(address.AddrForKey(kbs)[:])
+		res := DebugGetDHTResponse{ip.String(): msg}
 		return res, nil
 	}
 }

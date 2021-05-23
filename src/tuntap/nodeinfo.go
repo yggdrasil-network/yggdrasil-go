@@ -4,15 +4,17 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"net"
 	"runtime"
 	"strings"
 	"time"
 
-	"github.com/Arceliar/phony"
-	//"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/version"
-
 	iwt "github.com/Arceliar/ironwood/types"
+	"github.com/Arceliar/phony"
+
+	//"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 )
 
 // NodeInfoPayload represents a RequestNodeInfo response, in bytes.
@@ -207,7 +209,8 @@ func (m *nodeinfo) nodeInfoAdminHandler(in json.RawMessage) (interface{}, error)
 		if err := msg.UnmarshalJSON(info); err != nil {
 			return nil, err
 		}
-		res := GetNodeInfoResponse{req.Key: msg}
+		ip := net.IP(address.AddrForKey(kbs)[:])
+		res := GetNodeInfoResponse{ip.String(): msg}
 		return res, nil
 	}
 }
