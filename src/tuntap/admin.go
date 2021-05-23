@@ -35,6 +35,7 @@ func (t *TunAdapter) SetupAdminHandlers(a *admin.AdminSocket) {
 		return res, nil
 	})
 	_ = a.AddHandler("getNodeInfo", []string{"key"}, t.nodeinfo.nodeInfoAdminHandler)
+	_ = a.AddHandler("debugGetSelf", []string{"key"}, t.debug.getSelfHandler)
 	_ = a.AddHandler("debugGetPeers", []string{"key"}, t.debug.getPeersHandler)
 	_ = a.AddHandler("debugGetDHT", []string{"key"}, t.debug.getDHTHandler)
 }

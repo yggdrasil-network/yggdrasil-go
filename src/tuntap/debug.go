@@ -28,13 +28,14 @@ type reqInfo struct {
 type debugHandler struct {
 	phony.Inbox
 	tun   *TunAdapter
-	sreqs struct{} // TODO
+	sreqs map[keyArray]*reqInfo
 	preqs map[keyArray]*reqInfo
 	dreqs map[keyArray]*reqInfo
 }
 
 func (d *debugHandler) init(tun *TunAdapter) {
 	d.tun = tun
+	d.sreqs = make(map[keyArray]*reqInfo)
 	d.preqs = make(map[keyArray]*reqInfo)
 	d.dreqs = make(map[keyArray]*reqInfo)
 }
@@ -67,12 +68,41 @@ func (d *debugHandler) _handleDebug(key keyArray, bs []byte) {
 	}
 }
 
+func (d *debugHandler) sendGetSelfRequest(key keyArray, callback func([]byte)) {
+	d.Act(nil, func() {
+		if info := d.sreqs[key]; info != nil {
+			info.timer.Stop()
+			delete(d.sreqs, key)
+		}
+		info := new(reqInfo)
+		info.callback = callback
+		info.timer = time.AfterFunc(time.Minute, func() {
+			d.Act(nil, func() {
+				if d.sreqs[key] == info {
+					delete(d.sreqs, key)
+				}
+			})
+		})
+		d.sreqs[key] = info
+		d._sendDebug(key, typeDebugGetSelfRequest, nil)
+	})
+}
+
 func (d *debugHandler) _handleGetSelfRequest(key keyArray) {
-	// TODO
+	self := d.tun.core.GetSelf()
+	bs, err := json.Marshal(self)
+	if err != nil {
+		return
+	}
+	d._sendDebug(key, typeDebugGetSelfResponse, bs)
 }
 
 func (d *debugHandler) _handleGetSelfResponse(key keyArray, bs []byte) {
-	// TODO
+	if info := d.sreqs[key]; info != nil {
+		info.timer.Stop()
+		info.callback(bs)
+		delete(d.sreqs, key)
+	}
 }
 
 func (d *debugHandler) sendGetPeersRequest(key keyArray, callback func([]byte)) {
@@ -166,6 +196,43 @@ func (d *debugHandler) _sendDebug(key keyArray, dType uint8, data []byte) {
 
 // Admin socket stuff
 
+type DebugGetSelfRequest struct {
+	Key string `json:"key"`
+}
+
+type DebugGetSelfResponse map[string]interface{}
+
+func (d *debugHandler) getSelfHandler(in json.RawMessage) (interface{}, error) {
+	var req DebugGetSelfRequest
+	if err := json.Unmarshal(in, &req); err != nil {
+		return nil, err
+	}
+	var key keyArray
+	var kbs []byte
+	var err error
+	if kbs, err = hex.DecodeString(req.Key); err != nil {
+		return nil, err
+	}
+	copy(key[:], kbs)
+	ch := make(chan []byte, 1)
+	d.sendGetSelfRequest(key, func(info []byte) {
+		ch <- info
+	})
+	timer := time.NewTimer(6 * time.Second)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil, errors.New("timeout")
+	case info := <-ch:
+		var msg json.RawMessage
+		if err := msg.UnmarshalJSON(info); err != nil {
+			return nil, err
+		}
+		res := DebugGetSelfResponse{req.Key: msg}
+		return res, nil
+	}
+}
+
 type DebugGetPeersRequest struct {
 	Key string `json:"key"`
 }
@@ -208,7 +275,7 @@ func (d *debugHandler) getPeersHandler(in json.RawMessage) (interface{}, error) 
 		if err := msg.UnmarshalJSON(js); err != nil {
 			return nil, err
 		}
-		res := GetNodeInfoResponse{req.Key: msg}
+		res := DebugGetPeersResponse{req.Key: msg}
 		return res, nil
 	}
 }
@@ -255,7 +322,7 @@ func (d *debugHandler) getDHTHandler(in json.RawMessage) (interface{}, error) {
 		if err := msg.UnmarshalJSON(js); err != nil {
 			return nil, err
 		}
-		res := GetNodeInfoResponse{req.Key: msg}
+		res := DebugGetDHTResponse{req.Key: msg}
 		return res, nil
 	}
 }
