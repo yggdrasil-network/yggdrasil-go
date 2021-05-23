@@ -13,4 +13,5 @@ const (
 	typeSessionTraffic
 	typeSessionNodeInfoRequest
 	typeSessionNodeInfoResponse
+	typeSessionDebug // Debug messages, intended to be removed at some point
 )

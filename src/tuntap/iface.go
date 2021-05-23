@@ -88,6 +88,11 @@ func (tun *TunAdapter) write() {
 			res := append([]byte(nil), bs[1:n]...)
 			tun.nodeinfo.handleRes(nil, key, res)
 			continue
+		case typeSessionDebug:
+			var key keyArray
+			copy(key[:], from.(iwt.Addr))
+			data := append([]byte(nil), bs[1:n]...)
+			tun.debug.handleDebug(nil, key, data)
 		default:
 			continue
 		}
