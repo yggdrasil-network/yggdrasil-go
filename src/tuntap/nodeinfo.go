@@ -20,7 +20,7 @@ type NodeInfoPayload []byte
 
 type nodeinfo struct {
 	phony.Inbox
-	tun        *TunAdapter
+	proto      *protoHandler
 	myNodeInfo NodeInfoPayload
 	callbacks  map[keyArray]nodeinfoCallback
 }
@@ -44,14 +44,14 @@ type nodeinfoReqRes struct {
 
 // Initialises the nodeinfo cache/callback maps, and starts a goroutine to keep
 // the cache/callback maps clean of stale entries
-func (m *nodeinfo) init(tun *TunAdapter) {
+func (m *nodeinfo) init(proto *protoHandler) {
 	m.Act(nil, func() {
-		m._init(tun)
+		m._init(proto)
 	})
 }
 
-func (m *nodeinfo) _init(tun *TunAdapter) {
-	m.tun = tun
+func (m *nodeinfo) _init(proto *protoHandler) {
+	m.proto = proto
 	m.callbacks = make(map[keyArray]nodeinfoCallback)
 	m._cleanup()
 }
@@ -154,7 +154,7 @@ func (m *nodeinfo) _sendReq(key keyArray, callback func(nodeinfo NodeInfoPayload
 	if callback != nil {
 		m._addCallback(key, callback)
 	}
-	m.tun.core.WriteTo([]byte{typeSessionNodeInfoRequest}, iwt.Addr(key[:]))
+	m.proto.tun.core.WriteTo([]byte{typeSessionProto, typeProtoNodeInfoRequest}, iwt.Addr(key[:]))
 }
 
 func (m *nodeinfo) handleReq(from phony.Actor, key keyArray) {
@@ -170,8 +170,8 @@ func (m *nodeinfo) handleRes(from phony.Actor, key keyArray, info NodeInfoPayloa
 }
 
 func (m *nodeinfo) _sendRes(key keyArray) {
-	bs := append([]byte{typeSessionNodeInfoResponse}, m._getNodeInfo()...)
-	m.tun.core.WriteTo(bs, iwt.Addr(key[:]))
+	bs := append([]byte{typeSessionProto, typeProtoNodeInfoResponse}, m._getNodeInfo()...)
+	m.proto.tun.core.WriteTo(bs, iwt.Addr(key[:]))
 }
 
 // Admin socket stuff

@@ -77,22 +77,12 @@ func (tun *TunAdapter) write() {
 			if !tun.isEnabled {
 				continue // Drop traffic if the tun is disabled
 			}
-		case typeSessionNodeInfoRequest:
-			var key keyArray
-			copy(key[:], from.(iwt.Addr))
-			tun.nodeinfo.handleReq(nil, key)
-			continue
-		case typeSessionNodeInfoResponse:
-			var key keyArray
-			copy(key[:], from.(iwt.Addr))
-			res := append([]byte(nil), bs[1:n]...)
-			tun.nodeinfo.handleRes(nil, key, res)
-			continue
-		case typeSessionDebug:
+		case typeSessionProto:
 			var key keyArray
 			copy(key[:], from.(iwt.Addr))
 			data := append([]byte(nil), bs[1:n]...)
-			tun.debug.handleDebug(nil, key, data)
+			tun.proto.handleProto(nil, key, data)
+			continue
 		default:
 			continue
 		}

@@ -46,8 +46,7 @@ type TunAdapter struct {
 	isOpen     bool
 	isEnabled  bool // Used by the writer to drop sessionTraffic if not enabled
 	gatekeeper func(pubkey ed25519.PublicKey, initiator bool) bool
-	nodeinfo   nodeinfo
-	debug      debugHandler
+	proto      protoHandler
 }
 
 func (tun *TunAdapter) SetSessionGatekeeper(gatekeeper func(pubkey ed25519.PublicKey, initiator bool) bool) {
@@ -109,12 +108,11 @@ func (tun *TunAdapter) Init(core *yggdrasil.Core, config *config.NodeState, log 
 	tun.store.init(tun)
 	tun.config = config
 	tun.log = log
-	tun.nodeinfo.init(tun)
-	tun.nodeinfo.setNodeInfo(config.Current.NodeInfo, config.Current.NodeInfoPrivacy)
+	tun.proto.init(tun)
+	tun.proto.nodeinfo.setNodeInfo(config.Current.NodeInfo, config.Current.NodeInfoPrivacy)
 	if err := tun.core.SetOutOfBandHandler(tun.oobHandler); err != nil {
 		return fmt.Errorf("tun.core.SetOutOfBandHander: %w", err)
 	}
-	tun.debug.init(tun)
 	return nil
 }
 

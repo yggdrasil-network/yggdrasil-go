@@ -11,7 +11,13 @@ const (
 const (
 	typeSessionDummy = iota
 	typeSessionTraffic
-	typeSessionNodeInfoRequest
-	typeSessionNodeInfoResponse
-	typeSessionDebug // Debug messages, intended to be removed at some point
+	typeSessionProto
+)
+
+// Protocol packet types
+const (
+	typeProtoDummy = iota
+	typeProtoNodeInfoRequest
+	typeProtoNodeInfoResponse
+	typeProtoDebug = 255
 )
