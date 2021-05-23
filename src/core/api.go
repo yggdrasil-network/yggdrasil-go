@@ -1,4 +1,4 @@
-package yggdrasil
+package core
 
 import (
 	"crypto/ed25519"

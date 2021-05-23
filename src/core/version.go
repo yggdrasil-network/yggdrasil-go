@@ -1,4 +1,4 @@
-package yggdrasil
+package core
 
 // This file contains the version metadata struct
 // Used in the initial connection setup and key exchange

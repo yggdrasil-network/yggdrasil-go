@@ -14,13 +14,13 @@ import (
 	"github.com/gologme/log"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
+	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 )
 
 // TODO: Add authentication
 
 type AdminSocket struct {
-	core       *yggdrasil.Core
+	core       *core.Core
 	log        *log.Logger
 	listenaddr string
 	listener   net.Listener
@@ -63,7 +63,7 @@ func (a *AdminSocket) AddHandler(name string, args []string, handlerfunc func(js
 }
 
 // Init runs the initial admin setup.
-func (a *AdminSocket) Init(c *yggdrasil.Core, state *config.NodeState, log *log.Logger, options interface{}) error {
+func (a *AdminSocket) Init(c *core.Core, state *config.NodeState, log *log.Logger, options interface{}) error {
 	a.core = c
 	a.log = log
 	a.handlers = make(map[string]handler)

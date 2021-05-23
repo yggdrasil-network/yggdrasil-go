@@ -1,4 +1,4 @@
-package yggdrasil
+package core
 
 // This sends packets to peers using TCP as a transport
 // It's generally better tested than the UDP implementation

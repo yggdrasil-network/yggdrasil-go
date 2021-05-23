@@ -22,8 +22,8 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
-	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
 type MTU uint16
@@ -33,7 +33,7 @@ type MTU uint16
 // should pass this object to the yggdrasil.SetRouterAdapter() function before
 // calling yggdrasil.Start().
 type TunAdapter struct {
-	core        *yggdrasil.Core
+	core        *core.Core
 	store       keyStore
 	config      *config.NodeState
 	log         *log.Logger
@@ -103,7 +103,7 @@ func MaximumMTU() uint64 {
 
 // Init initialises the TUN module. You must have acquired a Listener from
 // the Yggdrasil core before this point and it must not be in use elsewhere.
-func (tun *TunAdapter) Init(core *yggdrasil.Core, config *config.NodeState, log *log.Logger, options interface{}) error {
+func (tun *TunAdapter) Init(core *core.Core, config *config.NodeState, log *log.Logger, options interface{}) error {
 	tun.core = core
 	tun.store.init(tun)
 	tun.config = config

@@ -1,5 +1,5 @@
 /*
-Package yggdrasil implements the core functionality of the Yggdrasil Network.
+Package core implements the core functionality of the Yggdrasil Network.
 
 Introduction
 
@@ -34,11 +34,11 @@ This may look something like this:
     "os"
     "github.com/gologme/log"
     "github.com/yggdrasil-network/yggdrasil-go/src/config"
-    "github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
+    "github.com/yggdrasil-network/yggdrasil-go/src/core"
   )
 
   type node struct {
-    core   yggdrasil.Core
+    core   core.Core
     config *config.NodeConfig
     log    *log.Logger
   }
@@ -173,4 +173,4 @@ then you should manually implement acknowledgement and retransmission of
 messages.
 
 */
-package yggdrasil
+package core

@@ -26,15 +26,15 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 	"github.com/yggdrasil-network/yggdrasil-go/src/module"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
-	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
 type node struct {
-	core      yggdrasil.Core
+	core      core.Core
 	state     *config.NodeState
 	tuntap    module.Module // tuntap.TunAdapter
 	multicast module.Module // multicast.Multicast

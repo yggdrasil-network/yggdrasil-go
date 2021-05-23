@@ -1,6 +1,6 @@
 // +build darwin
 
-package yggdrasil
+package core
 
 import (
 	"syscall"

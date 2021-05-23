@@ -1,6 +1,6 @@
 // +build linux
 
-package yggdrasil
+package core
 
 import (
 	"syscall"

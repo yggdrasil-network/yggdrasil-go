@@ -1,6 +1,6 @@
 // +build debug
 
-package yggdrasil
+package core
 
 import "fmt"
 

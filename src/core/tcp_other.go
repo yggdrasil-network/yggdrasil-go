@@ -1,6 +1,6 @@
 // +build !darwin,!linux
 
-package yggdrasil
+package core
 
 import (
 	"syscall"

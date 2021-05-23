@@ -11,7 +11,7 @@ import (
 	"github.com/gologme/log"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
+	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 	"golang.org/x/net/ipv6"
 )
 
@@ -21,7 +21,7 @@ import (
 // automatically.
 type Multicast struct {
 	phony.Inbox
-	core        *yggdrasil.Core
+	core        *core.Core
 	config      *config.NodeState
 	log         *log.Logger
 	sock        *ipv6.PacketConn
@@ -38,13 +38,13 @@ type interfaceInfo struct {
 }
 
 type listenerInfo struct {
-	listener *yggdrasil.TcpListener
+	listener *core.TcpListener
 	time     time.Time
 	interval time.Duration
 }
 
 // Init prepares the multicast interface for use.
-func (m *Multicast) Init(core *yggdrasil.Core, state *config.NodeState, log *log.Logger, options interface{}) error {
+func (m *Multicast) Init(core *core.Core, state *config.NodeState, log *log.Logger, options interface{}) error {
 	m.core = core
 	m.config = state
 	m.log = log
