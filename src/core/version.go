@@ -14,6 +14,7 @@ type version_metadata struct {
 	ver  uint8 // 1 byte in this version
 	// Everything after this point potentially depends on the version number, and is subject to change in future versions
 	minorVer uint8 // 1 byte in this version
+	metric   uint8 // 1 byte in this version
 	key      ed25519.PublicKey
 }
 
@@ -31,6 +32,7 @@ func version_getMetaLength() (mlen int) {
 	mlen += 4                     // meta
 	mlen++                        // ver, as long as it's < 127, which it is in this version
 	mlen++                        // minorVer, as long as it's < 127, which it is in this version
+	mlen++                        // metric
 	mlen += ed25519.PublicKeySize // key
 	return
 }
@@ -41,6 +43,7 @@ func (m *version_metadata) encode() []byte {
 	bs = append(bs, m.meta[:]...)
 	bs = append(bs, m.ver)
 	bs = append(bs, m.minorVer)
+	bs = append(bs, m.metric)
 	bs = append(bs, m.key[:]...)
 	if len(bs) != version_getMetaLength() {
 		panic("Inconsistent metadata length")
@@ -57,6 +60,7 @@ func (m *version_metadata) decode(bs []byte) bool {
 	offset += copy(m.meta[:], bs[offset:])
 	m.ver, offset = bs[offset], offset+1
 	m.minorVer, offset = bs[offset], offset+1
+	m.metric, offset = bs[offset], offset+1
 	m.key = append([]byte(nil), bs[offset:]...)
 	return true
 }
