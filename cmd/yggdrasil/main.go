@@ -25,7 +25,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+
 	"github.com/yggdrasil-network/yggdrasil-go/src/module"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
@@ -220,23 +220,23 @@ func main() {
 		return
 	}
 	// Have we been asked for the node address yet? If so, print it and then stop.
-	getNodeID := func() *crypto.NodeID {
-		// TODO: curve
+	getNodeKey := func() ed25519.PublicKey {
+		if pubkey, err := hex.DecodeString(cfg.PublicKey); err == nil {
+			return ed25519.PublicKey(pubkey)
+		}
 		return nil
 	}
 	switch {
 	case *getaddr:
-		if nodeid := getNodeID(); nodeid != nil {
-			panic("TODO")
-			addr := new(address.Address) //*address.AddrForNodeID(nodeid)
+		if key := getNodeKey(); key != nil {
+			addr := address.AddrForKey(key)
 			ip := net.IP(addr[:])
 			fmt.Println(ip.String())
 		}
 		return
 	case *getsnet:
-		if nodeid := getNodeID(); nodeid != nil {
-			panic("TODO")
-			snet := new(address.Address) //*address.SubnetForNodeID(nodeid)
+		if key := getNodeKey(); key != nil {
+			snet := address.SubnetForKey(key)
 			ipnet := net.IPNet{
 				IP:   append(snet[:], 0, 0, 0, 0, 0, 0, 0, 0),
 				Mask: net.CIDRMask(len(snet)*8, 128),

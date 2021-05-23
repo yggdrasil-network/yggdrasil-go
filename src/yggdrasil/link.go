@@ -15,11 +15,12 @@ import (
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"golang.org/x/net/proxy"
 	//"github.com/Arceliar/phony" // TODO? use instead of mutexes
 )
+
+type keyArray [ed25519.PublicKeySize]byte
 
 type links struct {
 	core    *Core
@@ -32,7 +33,7 @@ type links struct {
 
 // linkInfo is used as a map key
 type linkInfo struct {
-	key      crypto.SigPubKey
+	key      keyArray
 	linkType string // Type of link, e.g. TCP, AWDL
 	local    string // Local name or address
 	remote   string // Remote name or address
@@ -50,7 +51,7 @@ type link struct {
 }
 
 type linkOptions struct {
-	pinnedEd25519Keys map[crypto.SigPubKey]struct{}
+	pinnedEd25519Keys map[keyArray]struct{}
 }
 
 func (l *links) init(c *Core) error {
@@ -80,10 +81,10 @@ func (l *links) call(uri string, sintf string) error {
 	pathtokens := strings.Split(strings.Trim(u.Path, "/"), "/")
 	tcpOpts := tcpOptions{}
 	if pubkeys, ok := u.Query()["ed25519"]; ok && len(pubkeys) > 0 {
-		tcpOpts.pinnedEd25519Keys = make(map[crypto.SigPubKey]struct{})
+		tcpOpts.pinnedEd25519Keys = make(map[keyArray]struct{})
 		for _, pubkey := range pubkeys {
 			if sigPub, err := hex.DecodeString(pubkey); err == nil {
-				var sigPubKey crypto.SigPubKey
+				var sigPubKey keyArray
 				copy(sigPubKey[:], sigPub)
 				tcpOpts.pinnedEd25519Keys[sigPubKey] = struct{}{}
 			}
@@ -200,7 +201,7 @@ func (intf *link) handler() (chan struct{}, error) {
 	// Check if the remote side matches the keys we expected. This is a bit of a weak
 	// check - in future versions we really should check a signature or something like that.
 	if pinned := intf.options.pinnedEd25519Keys; pinned != nil {
-		var key crypto.SigPubKey
+		var key keyArray
 		copy(key[:], meta.key)
 		if _, allowed := pinned[key]; !allowed {
 			intf.links.core.log.Errorf("Failed to connect to node: %q sent ed25519 key that does not match pinned keys", intf.name)

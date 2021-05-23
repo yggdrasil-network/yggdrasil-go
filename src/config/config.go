@@ -17,10 +17,10 @@ configuration option that is not provided.
 package config
 
 import (
+	"crypto/ed25519"
 	"encoding/hex"
 	"sync"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 
@@ -90,7 +90,10 @@ type SessionFirewall struct {
 // using -autoconf.
 func GenerateConfig() *NodeConfig {
 	// Generate encryption keys.
-	spub, spriv := crypto.NewSigKeys()
+	spub, spriv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		panic(err)
+	}
 	// Create a node configuration and populate it.
 	cfg := NodeConfig{}
 	cfg.Listen = []string{}
@@ -116,7 +119,10 @@ func GenerateConfig() *NodeConfig {
 // signing keypair. The signing keys are used by the switch to derive the
 // structure of the spanning tree.
 func (cfg *NodeConfig) NewKeys() {
-	spub, spriv := crypto.NewSigKeys()
+	spub, spriv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		panic(err)
+	}
 	cfg.PublicKey = hex.EncodeToString(spub[:])
 	cfg.PrivateKey = hex.EncodeToString(spriv[:])
 }
