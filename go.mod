@@ -3,7 +3,7 @@ module github.com/yggdrasil-network/yggdrasil-go
 go 1.16
 
 require (
-	github.com/Arceliar/ironwood v0.0.0-20210519013150-a5401869b037
+	github.com/Arceliar/ironwood v0.0.0-20210523223424-d320cf0ed78e
 	github.com/Arceliar/phony v0.0.0-20210209235338-dde1a8dca979
 	github.com/cheggaaa/pb/v3 v3.0.6
 	github.com/fatih/color v1.10.0 // indirect
@@ -16,7 +16,6 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/vishvananda/netlink v1.1.0
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
-	golang.org/x/crypto v0.0.0-20210421170649-83a5a9bb288b
 	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110
 	golang.org/x/sys v0.0.0-20210305230114-8fe3ee5dd75b
 	golang.org/x/text v0.3.6-0.20210220033129-8f690f22cf1c

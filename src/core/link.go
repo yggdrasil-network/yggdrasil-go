@@ -250,7 +250,8 @@ func (intf *link) handler() (chan struct{}, error) {
 	intf.links.core.log.Infof("Connected %s: %s, source %s",
 		strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 	// Run the handler
-	err = intf.links.core.PacketConn.HandleConn(ed25519.PublicKey(intf.info.key[:]), intf.conn)
+	var metric uint64 // TODO exchange metric in matadata, use max value
+	err = intf.links.core.PacketConn.HandleConn(ed25519.PublicKey(intf.info.key[:]), intf.conn, metric)
 	// TODO don't report an error if it's just a 'use of closed network connection'
 	if err != nil {
 		intf.links.core.log.Infof("Disconnected %s: %s, source %s; error: %s",
