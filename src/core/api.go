@@ -3,9 +3,10 @@ package core
 import (
 	"crypto/ed25519"
 	//"encoding/hex"
-	"errors"
+	//"errors"
 	//"fmt"
 	"net"
+	"net/url"
 	//"sort"
 	//"time"
 
@@ -150,6 +151,7 @@ func (c *Core) SetLogger(log *log.Logger) {
 //		socks://a.b.c.d:e/f.g.h.i:j
 // This adds the peer to the peer list, so that they will be called again if the
 // connection drops.
+/*
 func (c *Core) AddPeer(addr string, sintf string) error {
 	if err := c.CallPeer(addr, sintf); err != nil {
 		// TODO: We maybe want this to write the peer to the persistent
@@ -184,6 +186,7 @@ func (c *Core) AddPeer(addr string, sintf string) error {
 	}
 	return nil
 }
+*/
 
 /*
 func (c *Core) RemovePeer(addr string, sintf string) error {
@@ -224,5 +227,9 @@ func (c *Core) RemovePeer(addr string, sintf string) error {
 // This does not add the peer to the peer list, so if the connection drops, the
 // peer will not be called again automatically.
 func (c *Core) CallPeer(addr string, sintf string) error {
-	return c.links.call(addr, sintf)
+	u, err := url.Parse(addr)
+	if err != nil {
+		return err
+	}
+	return c.links.call(u, sintf)
 }

@@ -73,11 +73,11 @@ func (l *links) reconfigure() {
 	l.tcp.reconfigure()
 }
 
-func (l *links) call(uri string, sintf string) error {
-	u, err := url.Parse(uri)
-	if err != nil {
-		return fmt.Errorf("peer %s is not correctly formatted (%s)", uri, err)
-	}
+func (l *links) call(u *url.URL, sintf string) error {
+	//u, err := url.Parse(uri)
+	//if err != nil {
+	//	return fmt.Errorf("peer %s is not correctly formatted (%s)", uri, err)
+	//}
 	pathtokens := strings.Split(strings.Trim(u.Path, "/"), "/")
 	tcpOpts := tcpOptions{}
 	if pubkeys, ok := u.Query()["ed25519"]; ok && len(pubkeys) > 0 {

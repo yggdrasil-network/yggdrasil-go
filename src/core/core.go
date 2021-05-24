@@ -68,7 +68,7 @@ func (c *Core) _addPeerLoop() {
 
 	// Add peers from the Peers section
 	for _, peer := range current.Peers {
-		go func(peer, intf string) {
+		go func(peer string, intf string) {
 			if err := c.CallPeer(peer, intf); err != nil {
 				c.log.Errorln("Failed to add peer:", err)
 			}
@@ -78,7 +78,7 @@ func (c *Core) _addPeerLoop() {
 	// Add peers from the InterfacePeers section
 	for intf, intfpeers := range current.InterfacePeers {
 		for _, peer := range intfpeers {
-			go func(peer, intf string) {
+			go func(peer string, intf string) {
 				if err := c.CallPeer(peer, intf); err != nil {
 					c.log.Errorln("Failed to add peer:", err)
 				}

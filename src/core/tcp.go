@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -26,7 +27,7 @@ import (
 	"golang.org/x/net/proxy"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
+	//"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 const default_timeout = 6 * time.Second
@@ -107,17 +108,21 @@ func (t *tcp) init(l *links) error {
 	t.links.core.config.Mutex.RLock()
 	defer t.links.core.config.Mutex.RUnlock()
 	for _, listenaddr := range t.links.core.config.Current.Listen {
-		switch listenaddr[:6] {
-		case "tcp://":
-			if _, err := t.listen(listenaddr[6:], nil); err != nil {
+		u, err := url.Parse(listenaddr)
+		if err != nil {
+			t.links.core.log.Errorln("Failed to parse listener: listener", listenaddr, "is not correctly formatted, ignoring")
+		}
+		switch u.Scheme {
+		case "tcp":
+			if _, err := t.listen(u.Host, nil); err != nil {
 				return err
 			}
-		case "tls://":
-			if _, err := t.listen(listenaddr[6:], t.tls.forListener); err != nil {
+		case "tls":
+			if _, err := t.listen(u.Host, t.tls.forListener); err != nil {
 				return err
 			}
 		default:
-			t.links.core.log.Errorln("Failed to add listener: listener", listenaddr, "is not correctly formatted, ignoring")
+			t.links.core.log.Errorln("Failed to add listener: listener", u.String(), "is not correctly formatted, ignoring")
 		}
 	}
 
@@ -135,40 +140,43 @@ func (t *tcp) stop() error {
 }
 
 func (t *tcp) reconfigure() {
-	t.links.core.config.Mutex.RLock()
-	added := util.Difference(t.links.core.config.Current.Listen, t.links.core.config.Previous.Listen)
-	deleted := util.Difference(t.links.core.config.Previous.Listen, t.links.core.config.Current.Listen)
-	t.links.core.config.Mutex.RUnlock()
-	if len(added) > 0 || len(deleted) > 0 {
-		for _, a := range added {
-			switch a[:6] {
-			case "tcp://":
-				if _, err := t.listen(a[6:], nil); err != nil {
-					t.links.core.log.Errorln("Error adding TCP", a[6:], "listener:", err)
+	panic("TODO cleanup obsolete reconfigure() stuff")
+	/*
+		t.links.core.config.Mutex.RLock()
+		added := util.Difference(t.links.core.config.Current.Listen, t.links.core.config.Previous.Listen)
+		deleted := util.Difference(t.links.core.config.Previous.Listen, t.links.core.config.Current.Listen)
+		t.links.core.config.Mutex.RUnlock()
+		if len(added) > 0 || len(deleted) > 0 {
+			for _, a := range added {
+				switch a[:6] {
+				case "tcp://":
+					if _, err := t.listen(a[6:], nil); err != nil {
+						t.links.core.log.Errorln("Error adding TCP", a[6:], "listener:", err)
+					}
+				case "tls://":
+					if _, err := t.listen(a[6:], t.tls.forListener); err != nil {
+						t.links.core.log.Errorln("Error adding TLS", a[6:], "listener:", err)
+					}
+				default:
+					t.links.core.log.Errorln("Failed to add listener: listener", a, "is not correctly formatted, ignoring")
 				}
-			case "tls://":
-				if _, err := t.listen(a[6:], t.tls.forListener); err != nil {
-					t.links.core.log.Errorln("Error adding TLS", a[6:], "listener:", err)
+			}
+			for _, d := range deleted {
+				if d[:6] != "tcp://" && d[:6] != "tls://" {
+					t.links.core.log.Errorln("Failed to delete listener: listener", d, "is not correctly formatted, ignoring")
+					continue
 				}
-			default:
-				t.links.core.log.Errorln("Failed to add listener: listener", a, "is not correctly formatted, ignoring")
+				t.mutex.Lock()
+				if listener, ok := t.listeners[d[6:]]; ok {
+					t.mutex.Unlock()
+					listener.Stop()
+					t.links.core.log.Infoln("Stopped TCP listener:", d[6:])
+				} else {
+					t.mutex.Unlock()
+				}
 			}
 		}
-		for _, d := range deleted {
-			if d[:6] != "tcp://" && d[:6] != "tls://" {
-				t.links.core.log.Errorln("Failed to delete listener: listener", d, "is not correctly formatted, ignoring")
-				continue
-			}
-			t.mutex.Lock()
-			if listener, ok := t.listeners[d[6:]]; ok {
-				t.mutex.Unlock()
-				listener.Stop()
-				t.links.core.log.Infoln("Stopped TCP listener:", d[6:])
-			} else {
-				t.mutex.Unlock()
-			}
-		}
-	}
+	*/
 }
 
 func (t *tcp) listen(listenaddr string, upgrade *TcpUpgrade) (*TcpListener, error) {
