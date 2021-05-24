@@ -274,7 +274,8 @@ func (m *Multicast) _announce() {
 			if nfo, ok := m.listeners[iface.Name]; !ok || nfo.listener.Listener == nil {
 				// No listener was found - let's create one
 				listenaddr := fmt.Sprintf("[%s%%%s]:%d", addrIP, iface.Name, m.listenPort)
-				if li, err := m.core.ListenTCP(listenaddr); err == nil {
+				var metric uint8 // TODO parse this from config
+				if li, err := m.core.ListenTCP(listenaddr, metric); err == nil {
 					m.log.Debugln("Started multicasting on", iface.Name)
 					// Store the listener so that we can stop it later if needed
 					info = &listenerInfo{listener: li, time: time.Now()}

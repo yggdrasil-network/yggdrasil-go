@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -52,6 +53,7 @@ type link struct {
 
 type linkOptions struct {
 	pinnedEd25519Keys map[keyArray]struct{}
+	metric            uint8
 }
 
 func (l *links) init(c *Core) error {
@@ -90,6 +92,10 @@ func (l *links) call(u *url.URL, sintf string) error {
 			}
 		}
 	}
+	if ms := u.Query()["metric"]; len(ms) == 1 {
+		m64, _ := strconv.ParseUint(ms[0], 10, 8)
+		tcpOpts.metric = uint8(m64)
+	}
 	switch u.Scheme {
 	case "tcp":
 		l.tcp.call(u.Host, tcpOpts, sintf)
@@ -108,23 +114,6 @@ func (l *links) call(u *url.URL, sintf string) error {
 		return errors.New("unknown call scheme: " + u.Scheme)
 	}
 	return nil
-}
-
-func (l *links) listen(uri string) error {
-	u, err := url.Parse(uri)
-	if err != nil {
-		return fmt.Errorf("listener %s is not correctly formatted (%s)", uri, err)
-	}
-	switch u.Scheme {
-	case "tcp":
-		_, err := l.tcp.listen(u.Host, nil)
-		return err
-	case "tls":
-		_, err := l.tcp.listen(u.Host, l.tcp.tls.forListener)
-		return err
-	default:
-		return errors.New("unknown listen scheme: " + u.Scheme)
-	}
 }
 
 func (l *links) create(conn net.Conn, name, linkType, local, remote string, incoming, force bool, options linkOptions) (*link, error) {
@@ -158,7 +147,7 @@ func (intf *link) handler() (chan struct{}, error) {
 	defer intf.conn.Close()
 	meta := version_getBaseMetadata()
 	meta.key = intf.links.core.public
-	// TODO set meta.metric
+	meta.metric = intf.options.metric
 	metric := uint64(meta.metric)
 	metaBytes := meta.encode()
 	// TODO timeouts on send/recv (goroutine for send/recv, channel select w/ timer)

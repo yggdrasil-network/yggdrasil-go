@@ -106,15 +106,15 @@ func (c *Core) GetSessions() []Session {
 // ListenTCP starts a new TCP listener. The input URI should match that of the
 // "Listen" configuration item, e.g.
 // 		tcp://a.b.c.d:e
-func (c *Core) ListenTCP(uri string) (*TcpListener, error) {
-	return c.links.tcp.listen(uri, nil)
+func (c *Core) ListenTCP(uri string, metric uint8) (*TcpListener, error) {
+	return c.links.tcp.listen(uri, nil, metric)
 }
 
 // ListenTLS starts a new TLS listener. The input URI should match that of the
 // "Listen" configuration item, e.g.
 // 		tls://a.b.c.d:e
-func (c *Core) ListenTLS(uri string) (*TcpListener, error) {
-	return c.links.tcp.listen(uri, c.links.tcp.tls.forListener)
+func (c *Core) ListenTLS(uri string, metric uint8) (*TcpListener, error) {
+	return c.links.tcp.listen(uri, c.links.tcp.tls.forListener, metric)
 }
 
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128

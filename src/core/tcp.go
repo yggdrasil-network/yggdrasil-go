@@ -20,6 +20,7 @@ import (
 	"math/rand"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -50,7 +51,7 @@ type tcp struct {
 // multicast interfaces.
 type TcpListener struct {
 	Listener net.Listener
-	upgrade  *TcpUpgrade
+	opts     tcpOptions
 	stop     chan struct{}
 }
 
@@ -112,13 +113,18 @@ func (t *tcp) init(l *links) error {
 		if err != nil {
 			t.links.core.log.Errorln("Failed to parse listener: listener", listenaddr, "is not correctly formatted, ignoring")
 		}
+		var metric uint8 // TODO parse from url
+		if ms := u.Query()["metric"]; len(ms) == 1 {
+			m64, _ := strconv.ParseUint(ms[0], 10, 8)
+			metric = uint8(m64)
+		}
 		switch u.Scheme {
 		case "tcp":
-			if _, err := t.listen(u.Host, nil); err != nil {
+			if _, err := t.listen(u.Host, nil, metric); err != nil {
 				return err
 			}
 		case "tls":
-			if _, err := t.listen(u.Host, t.tls.forListener); err != nil {
+			if _, err := t.listen(u.Host, t.tls.forListener, metric); err != nil {
 				return err
 			}
 		default:
@@ -179,7 +185,7 @@ func (t *tcp) reconfigure() {
 	*/
 }
 
-func (t *tcp) listen(listenaddr string, upgrade *TcpUpgrade) (*TcpListener, error) {
+func (t *tcp) listen(listenaddr string, upgrade *TcpUpgrade, metric uint8) (*TcpListener, error) {
 	var err error
 
 	ctx := context.Background()
@@ -190,9 +196,10 @@ func (t *tcp) listen(listenaddr string, upgrade *TcpUpgrade) (*TcpListener, erro
 	if err == nil {
 		l := TcpListener{
 			Listener: listener,
-			upgrade:  upgrade,
+			opts:     tcpOptions{upgrade: upgrade},
 			stop:     make(chan struct{}),
 		}
+		l.opts.metric = metric
 		t.waitgroup.Add(1)
 		go t.listener(&l, listenaddr)
 		return &l, nil
@@ -243,9 +250,7 @@ func (t *tcp) listener(l *TcpListener, listenaddr string) {
 			continue
 		}
 		t.waitgroup.Add(1)
-		options := tcpOptions{
-			upgrade: l.upgrade,
-		}
+		options := l.opts
 		go t.handler(sock, true, options)
 	}
 }
