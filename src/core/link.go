@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -53,7 +52,6 @@ type link struct {
 
 type linkOptions struct {
 	pinnedEd25519Keys map[keyArray]struct{}
-	metric            uint8
 }
 
 func (l *links) init(c *Core) error {
@@ -90,10 +88,6 @@ func (l *links) call(u *url.URL, sintf string) error {
 				tcpOpts.pinnedEd25519Keys[sigPubKey] = struct{}{}
 			}
 		}
-	}
-	if ms := u.Query()["metric"]; len(ms) == 1 {
-		m64, _ := strconv.ParseUint(ms[0], 10, 8)
-		tcpOpts.metric = uint8(m64)
 	}
 	switch u.Scheme {
 	case "tcp":
@@ -147,8 +141,6 @@ func (intf *link) handler() (chan struct{}, error) {
 	defer intf.conn.Close()
 	meta := version_getBaseMetadata()
 	meta.key = intf.links.core.public
-	meta.metric = intf.options.metric
-	metric := uint64(meta.metric)
 	metaBytes := meta.encode()
 	// TODO timeouts on send/recv (goroutine for send/recv, channel select w/ timer)
 	var err error
@@ -180,9 +172,6 @@ func (intf *link) handler() (chan struct{}, error) {
 	base := version_getBaseMetadata()
 	if !meta.decode(metaBytes) {
 		return nil, errors.New("failed to decode metadata")
-	}
-	if metric < uint64(meta.metric) {
-		metric = uint64(meta.metric)
 	}
 	if !meta.check() {
 		intf.links.core.log.Errorf("Failed to connect to node: %s is incompatible version (local %s, remote %s)",
@@ -244,7 +233,7 @@ func (intf *link) handler() (chan struct{}, error) {
 	intf.links.core.log.Infof("Connected %s: %s, source %s",
 		strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 	// Run the handler
-	err = intf.links.core.PacketConn.HandleConn(ed25519.PublicKey(intf.info.key[:]), intf.conn, metric)
+	err = intf.links.core.PacketConn.HandleConn(ed25519.PublicKey(intf.info.key[:]), intf.conn)
 	// TODO don't report an error if it's just a 'use of closed network connection'
 	if err != nil {
 		intf.links.core.log.Infof("Disconnected %s: %s, source %s; error: %s",

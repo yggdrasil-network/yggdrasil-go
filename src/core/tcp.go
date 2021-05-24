@@ -20,7 +20,6 @@ import (
 	"math/rand"
 	"net"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -172,11 +171,6 @@ func (t *tcp) reconfigure() {
 }
 
 func (t *tcp) listenURL(u *url.URL, sintf string) (*TcpListener, error) {
-	var metric uint8
-	if ms := u.Query()["metric"]; len(ms) == 1 {
-		m64, _ := strconv.ParseUint(ms[0], 10, 8)
-		metric = uint8(m64)
-	}
 	var listener *TcpListener
 	var err error
 	hostport := u.Host // Used for tcp and tls
@@ -188,16 +182,16 @@ func (t *tcp) listenURL(u *url.URL, sintf string) (*TcpListener, error) {
 	}
 	switch u.Scheme {
 	case "tcp":
-		listener, err = t.listen(hostport, nil, metric)
+		listener, err = t.listen(hostport, nil)
 	case "tls":
-		listener, err = t.listen(hostport, t.tls.forListener, metric)
+		listener, err = t.listen(hostport, t.tls.forListener)
 	default:
 		t.links.core.log.Errorln("Failed to add listener: listener", u.String(), "is not correctly formatted, ignoring")
 	}
 	return listener, err
 }
 
-func (t *tcp) listen(listenaddr string, upgrade *TcpUpgrade, metric uint8) (*TcpListener, error) {
+func (t *tcp) listen(listenaddr string, upgrade *TcpUpgrade) (*TcpListener, error) {
 	var err error
 
 	ctx := context.Background()
@@ -211,7 +205,6 @@ func (t *tcp) listen(listenaddr string, upgrade *TcpUpgrade, metric uint8) (*Tcp
 			opts:     tcpOptions{upgrade: upgrade},
 			stop:     make(chan struct{}),
 		}
-		l.opts.metric = metric
 		t.waitgroup.Add(1)
 		go t.listener(&l, listenaddr)
 		return &l, nil

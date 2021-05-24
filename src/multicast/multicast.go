@@ -274,8 +274,7 @@ func (m *Multicast) _announce() {
 			var info *listenerInfo
 			if nfo, ok := m.listeners[iface.Name]; !ok || nfo.listener.Listener == nil {
 				// No listener was found - let's create one
-				var metric uint8 // TODO parse this from the config
-				urlString := fmt.Sprintf("tcp://[%s]:%d/?metric=%d", addrIP, m.listenPort, metric)
+				urlString := fmt.Sprintf("tcp://[%s]:%d", addrIP, m.listenPort)
 				u, err := url.Parse(urlString)
 				if err != nil {
 					panic(err)
