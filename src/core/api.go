@@ -103,22 +103,11 @@ func (c *Core) GetSessions() []Session {
 	return sessions
 }
 
+// Listen starts a new listener (either TCP or TLS). The input should be a url.URL
+// parsed from a string of the form e.g. "tcp://a.b.c.d:e". In the case of a
+// link-local address, the interface should be provided as the second argument.
 func (c *Core) Listen(u *url.URL, sintf string) (*TcpListener, error) {
 	return c.links.tcp.listenURL(u, sintf)
-}
-
-// ListenTCP starts a new TCP listener. The input URI should match that of the
-// "Listen" configuration item, e.g.
-// 		tcp://a.b.c.d:e
-func (c *Core) xListenTCP(uri string, metric uint8) (*TcpListener, error) {
-	return c.links.tcp.listen(uri, nil, metric)
-}
-
-// ListenTLS starts a new TLS listener. The input URI should match that of the
-// "Listen" configuration item, e.g.
-// 		tls://a.b.c.d:e
-func (c *Core) xListenTLS(uri string, metric uint8) (*TcpListener, error) {
-	return c.links.tcp.listen(uri, c.links.tcp.tls.forListener, metric)
 }
 
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128

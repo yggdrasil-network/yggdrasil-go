@@ -113,22 +113,8 @@ func (t *tcp) init(l *links) error {
 		if err != nil {
 			t.links.core.log.Errorln("Failed to parse listener: listener", listenaddr, "is not correctly formatted, ignoring")
 		}
-		var metric uint8 // TODO parse from url
-		if ms := u.Query()["metric"]; len(ms) == 1 {
-			m64, _ := strconv.ParseUint(ms[0], 10, 8)
-			metric = uint8(m64)
-		}
-		switch u.Scheme {
-		case "tcp":
-			if _, err := t.listen(u.Host, nil, metric); err != nil {
-				return err
-			}
-		case "tls":
-			if _, err := t.listen(u.Host, t.tls.forListener, metric); err != nil {
-				return err
-			}
-		default:
-			t.links.core.log.Errorln("Failed to add listener: listener", u.String(), "is not correctly formatted, ignoring")
+		if _, err := t.listenURL(u, ""); err != nil {
+			return err
 		}
 	}
 
