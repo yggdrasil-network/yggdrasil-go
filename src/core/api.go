@@ -103,17 +103,21 @@ func (c *Core) GetSessions() []Session {
 	return sessions
 }
 
+func (c *Core) Listen(u *url.URL, sintf string) (*TcpListener, error) {
+	return c.links.tcp.listenURL(u, sintf)
+}
+
 // ListenTCP starts a new TCP listener. The input URI should match that of the
 // "Listen" configuration item, e.g.
 // 		tcp://a.b.c.d:e
-func (c *Core) ListenTCP(uri string, metric uint8) (*TcpListener, error) {
+func (c *Core) xListenTCP(uri string, metric uint8) (*TcpListener, error) {
 	return c.links.tcp.listen(uri, nil, metric)
 }
 
 // ListenTLS starts a new TLS listener. The input URI should match that of the
 // "Listen" configuration item, e.g.
 // 		tls://a.b.c.d:e
-func (c *Core) ListenTLS(uri string, metric uint8) (*TcpListener, error) {
+func (c *Core) xListenTLS(uri string, metric uint8) (*TcpListener, error) {
 	return c.links.tcp.listen(uri, c.links.tcp.tls.forListener, metric)
 }
 
@@ -226,10 +230,6 @@ func (c *Core) RemovePeer(addr string, sintf string) error {
 //		socks://a.b.c.d:e/f.g.h.i:j
 // This does not add the peer to the peer list, so if the connection drops, the
 // peer will not be called again automatically.
-func (c *Core) CallPeer(addr string, sintf string) error {
-	u, err := url.Parse(addr)
-	if err != nil {
-		return err
-	}
+func (c *Core) CallPeer(u *url.URL, sintf string) error {
 	return c.links.call(u, sintf)
 }

@@ -185,6 +185,32 @@ func (t *tcp) reconfigure() {
 	*/
 }
 
+func (t *tcp) listenURL(u *url.URL, sintf string) (*TcpListener, error) {
+	var metric uint8
+	if ms := u.Query()["metric"]; len(ms) == 1 {
+		m64, _ := strconv.ParseUint(ms[0], 10, 8)
+		metric = uint8(m64)
+	}
+	var listener *TcpListener
+	var err error
+	hostport := u.Host // Used for tcp and tls
+	if len(sintf) != 0 {
+		host, port, err := net.SplitHostPort(hostport)
+		if err == nil {
+			hostport = fmt.Sprintf("[%s%%%s]:%s", host, sintf, port)
+		}
+	}
+	switch u.Scheme {
+	case "tcp":
+		listener, err = t.listen(hostport, nil, metric)
+	case "tls":
+		listener, err = t.listen(hostport, t.tls.forListener, metric)
+	default:
+		t.links.core.log.Errorln("Failed to add listener: listener", u.String(), "is not correctly formatted, ignoring")
+	}
+	return listener, err
+}
+
 func (t *tcp) listen(listenaddr string, upgrade *TcpUpgrade, metric uint8) (*TcpListener, error) {
 	var err error
 

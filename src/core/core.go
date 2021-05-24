@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io/ioutil"
+	"net/url"
 	"time"
 
 	iw "github.com/Arceliar/ironwood/encrypted"
@@ -69,7 +70,11 @@ func (c *Core) _addPeerLoop() {
 	// Add peers from the Peers section
 	for _, peer := range current.Peers {
 		go func(peer string, intf string) {
-			if err := c.CallPeer(peer, intf); err != nil {
+			u, err := url.Parse(peer)
+			if err != nil {
+				c.log.Errorln("Failed to parse peer url:", peer, err)
+			}
+			if err := c.CallPeer(u, intf); err != nil {
 				c.log.Errorln("Failed to add peer:", err)
 			}
 		}(peer, "") // TODO: this should be acted and not in a goroutine?
@@ -79,7 +84,11 @@ func (c *Core) _addPeerLoop() {
 	for intf, intfpeers := range current.InterfacePeers {
 		for _, peer := range intfpeers {
 			go func(peer string, intf string) {
-				if err := c.CallPeer(peer, intf); err != nil {
+				u, err := url.Parse(peer)
+				if err != nil {
+					c.log.Errorln("Failed to parse peer url:", peer, err)
+				}
+				if err := c.CallPeer(u, intf); err != nil {
 					c.log.Errorln("Failed to add peer:", err)
 				}
 			}(peer, intf) // TODO: this should be acted and not in a goroutine?

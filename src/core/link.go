@@ -80,7 +80,6 @@ func (l *links) call(u *url.URL, sintf string) error {
 	//if err != nil {
 	//	return fmt.Errorf("peer %s is not correctly formatted (%s)", uri, err)
 	//}
-	pathtokens := strings.Split(strings.Trim(u.Path, "/"), "/")
 	tcpOpts := tcpOptions{}
 	if pubkeys, ok := u.Query()["ed25519"]; ok && len(pubkeys) > 0 {
 		tcpOpts.pinnedEd25519Keys = make(map[keyArray]struct{})
@@ -106,6 +105,7 @@ func (l *links) call(u *url.URL, sintf string) error {
 			tcpOpts.socksProxyAuth.User = u.User.Username()
 			tcpOpts.socksProxyAuth.Password, _ = u.User.Password()
 		}
+		pathtokens := strings.Split(strings.Trim(u.Path, "/"), "/")
 		l.tcp.call(pathtokens[0], tcpOpts, sintf)
 	case "tls":
 		tcpOpts.upgrade = l.tcp.tls.forDialer

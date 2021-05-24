@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/url"
 	"regexp"
 	"time"
 
@@ -273,9 +274,13 @@ func (m *Multicast) _announce() {
 			var info *listenerInfo
 			if nfo, ok := m.listeners[iface.Name]; !ok || nfo.listener.Listener == nil {
 				// No listener was found - let's create one
-				listenaddr := fmt.Sprintf("[%s%%%s]:%d", addrIP, iface.Name, m.listenPort)
-				var metric uint8 // TODO parse this from config
-				if li, err := m.core.ListenTCP(listenaddr, metric); err == nil {
+				var metric uint8 // TODO parse this from the config
+				urlString := fmt.Sprintf("tcp://[%s]:%d/?metric=%d", addrIP, m.listenPort, metric)
+				u, err := url.Parse(urlString)
+				if err != nil {
+					panic(err)
+				}
+				if li, err := m.core.Listen(u, iface.Name); err == nil {
 					m.log.Debugln("Started multicasting on", iface.Name)
 					// Store the listener so that we can stop it later if needed
 					info = &listenerInfo{listener: li, time: time.Now()}
@@ -353,7 +358,11 @@ func (m *Multicast) listen() {
 		})
 		if _, ok := interfaces[from.Zone]; ok {
 			addr.Zone = ""
-			if err := m.core.CallPeer("tcp://"+addr.String(), from.Zone); err != nil {
+			u, err := url.Parse("tcp://" + addr.String())
+			if err != nil {
+				m.log.Debugln("Call from multicast failed, parse error:", addr.String(), err)
+			}
+			if err := m.core.CallPeer(u, from.Zone); err != nil {
 				m.log.Debugln("Call from multicast failed:", err)
 			}
 		}
