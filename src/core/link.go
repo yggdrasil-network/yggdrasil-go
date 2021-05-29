@@ -187,7 +187,7 @@ func (intf *link) handler() (chan struct{}, error) {
 		var key keyArray
 		copy(key[:], meta.key)
 		if _, allowed := pinned[key]; !allowed {
-			intf.links.core.log.Errorf("Failed to connect to node: %q sent ed25519 key that does not match pinned keys", intf.name)
+			intf.links.core.log.Errorf("Failed to connect to node: %q sent ed25519 key that does not match pinned keys", intf.name())
 			return nil, fmt.Errorf("failed to connect: host sent ed25519 key that does not match pinned keys")
 		}
 	}
@@ -213,7 +213,7 @@ func (intf *link) handler() (chan struct{}, error) {
 		intf.links.mutex.Unlock()
 		// FIXME we should really return an error and let the caller block instead
 		// That lets them do things like close connections on its own, avoid printing a connection message in the first place, etc.
-		intf.links.core.log.Debugln("DEBUG: found existing interface for", intf.name)
+		intf.links.core.log.Debugln("DEBUG: found existing interface for", intf.name())
 		return oldIntf.closed, nil
 	} else {
 		intf.closed = make(chan struct{})
@@ -224,7 +224,7 @@ func (intf *link) handler() (chan struct{}, error) {
 			intf.links.mutex.Unlock()
 			close(intf.closed)
 		}()
-		intf.links.core.log.Debugln("DEBUG: registered interface for", intf.name)
+		intf.links.core.log.Debugln("DEBUG: registered interface for", intf.name())
 	}
 	intf.links.mutex.Unlock()
 	themAddr := address.AddrForKey(ed25519.PublicKey(intf.info.key[:]))

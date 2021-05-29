@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"math/rand"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -50,10 +51,16 @@ func CreateAndConnectTwo(t testing.TB, verbose bool) (nodeA *Core, nodeB *Core) 
 		t.Fatal(err)
 	}
 
-	err = nodeB.AddPeer("tcp://"+nodeA.link.tcp.getAddr().String(), "")
+	u, err := url.Parse("tcp://" + nodeA.links.tcp.getAddr().String())
 	if err != nil {
 		t.Fatal(err)
 	}
+	err = nodeB.CallPeer(u, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
 
 	if l := len(nodeA.GetPeers()); l != 1 {
 		t.Fatal("unexpected number of peers", l)
@@ -70,7 +77,7 @@ func WaitConnected(nodeA, nodeB *Core) bool {
 	// It may take up to 3 seconds, but let's wait 5.
 	for i := 0; i < 50; i++ {
 		time.Sleep(100 * time.Millisecond)
-		if len(nodeA.GetSwitchPeers()) > 0 && len(nodeB.GetSwitchPeers()) > 0 {
+		if len(nodeA.GetPeers()) > 0 && len(nodeB.GetPeers()) > 0 {
 			return true
 		}
 	}
@@ -80,26 +87,12 @@ func WaitConnected(nodeA, nodeB *Core) bool {
 // CreateEchoListener creates a routine listening on nodeA. It expects repeats messages of length bufLen.
 // It returns a channel used to synchronize the routine with caller.
 func CreateEchoListener(t testing.TB, nodeA *Core, bufLen int, repeats int) chan struct{} {
-	// Listen. Doing it here guarantees that there will be something to try to connect when it returns.
-	listener, err := nodeA.ConnListen()
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	// Start routine
 	done := make(chan struct{})
 	go func() {
-		defer listener.Close()
-		conn, err := listener.Accept()
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		defer conn.Close()
 		buf := make([]byte, bufLen)
-
 		for i := 0; i < repeats; i++ {
-			n, err := conn.Read(buf)
+			n, from, err := nodeA.ReadFrom(buf)
 			if err != nil {
 				t.Error(err)
 				return
@@ -108,7 +101,7 @@ func CreateEchoListener(t testing.TB, nodeA *Core, bufLen int, repeats int) chan
 				t.Error("missing data")
 				return
 			}
-			_, err = conn.Write(buf)
+			_, err = nodeA.WriteTo(buf, from)
 			if err != nil {
 				t.Error(err)
 			}
@@ -127,6 +120,8 @@ func TestCore_Start_Connect(t *testing.T) {
 // TestCore_Start_Transfer checks that messages can be passed between nodes (in both directions).
 func TestCore_Start_Transfer(t *testing.T) {
 	nodeA, nodeB := CreateAndConnectTwo(t, true)
+	defer nodeA.Stop()
+	defer nodeB.Stop()
 
 	msgLen := 1500
 	done := CreateEchoListener(t, nodeA, msgLen, 1)
@@ -135,24 +130,15 @@ func TestCore_Start_Transfer(t *testing.T) {
 		t.Fatal("nodes did not connect")
 	}
 
-	// Dial
-	dialer, err := nodeB.ConnDialer()
-	if err != nil {
-		t.Fatal(err)
-	}
-	conn, err := dialer.Dial("nodeid", nodeA.NodeID().String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
+	// Send
 	msg := make([]byte, msgLen)
 	rand.Read(msg)
-	conn.Write(msg)
+	_, err := nodeB.WriteTo(msg, nodeA.LocalAddr())
 	if err != nil {
 		t.Fatal(err)
 	}
 	buf := make([]byte, msgLen)
-	_, err = conn.Read(buf)
+	_, _, err = nodeB.ReadFrom(buf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,16 +159,7 @@ func BenchmarkCore_Start_Transfer(b *testing.B) {
 		b.Fatal("nodes did not connect")
 	}
 
-	// Dial
-	dialer, err := nodeB.ConnDialer()
-	if err != nil {
-		b.Fatal(err)
-	}
-	conn, err := dialer.Dial("nodeid", nodeA.NodeID().String())
-	if err != nil {
-		b.Fatal(err)
-	}
-	defer conn.Close()
+	// Send
 	msg := make([]byte, msgLen)
 	rand.Read(msg)
 	buf := make([]byte, msgLen)
@@ -191,11 +168,11 @@ func BenchmarkCore_Start_Transfer(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		conn.Write(msg)
+		_, err := nodeB.WriteTo(msg, nodeA.LocalAddr())
 		if err != nil {
 			b.Fatal(err)
 		}
-		_, err = conn.Read(buf)
+		_, _, err = nodeB.ReadFrom(buf)
 		if err != nil {
 			b.Fatal(err)
 		}
