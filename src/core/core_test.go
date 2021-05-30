@@ -142,7 +142,7 @@ func TestCore_Start_Transfer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Compare(msg, buf) != 0 {
+	if !bytes.Equal(msg, buf) {
 		t.Fatal("expected echo")
 	}
 	<-done

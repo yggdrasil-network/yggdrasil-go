@@ -31,7 +31,6 @@ import (
 )
 
 const default_timeout = 6 * time.Second
-const tcp_ping_interval = (default_timeout * 2 / 3)
 
 // The TCP listener and information about active TCP connections, to avoid duplication.
 type tcp struct {

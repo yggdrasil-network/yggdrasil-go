@@ -17,11 +17,7 @@ import (
 	"golang.org/x/net/ipv6"
 )
 
-const len_ETHER = 14
-
-type ICMPv6 struct {
-	tun *TunAdapter
-}
+type ICMPv6 struct{}
 
 // Marshal returns the binary encoding of h.
 func ipv6Header_Marshal(h *ipv6.Header) ([]byte, error) {

@@ -95,9 +95,11 @@ func (c *Core) _addPeerLoop() {
 		}
 	}
 
-	c.addPeerTimer = time.AfterFunc(time.Minute, func() {
-		c.Act(nil, c._addPeerLoop)
-	})
+	if c.addPeerTimer != nil {
+		c.addPeerTimer = time.AfterFunc(time.Minute, func() {
+			c.Act(nil, c._addPeerLoop)
+		})
+	}
 }
 
 // Start starts up Yggdrasil using the provided config.NodeConfig, and outputs
@@ -149,7 +151,9 @@ func (c *Core) _start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState
 	//	return nil, err
 	//}
 
-	c.Act(c, c._addPeerLoop)
+	c.addPeerTimer = time.AfterFunc(0, func() {
+		c.Act(nil, c._addPeerLoop)
+	})
 
 	c.log.Infoln("Startup complete")
 	return &c.config, nil
@@ -166,6 +170,7 @@ func (c *Core) _stop() {
 	c.log.Infoln("Stopping...")
 	if c.addPeerTimer != nil {
 		c.addPeerTimer.Stop()
+		c.addPeerTimer = nil
 	}
 	c.links.stop()
 	/* FIXME this deadlocks, need a waitgroup or something to coordinate shutdown

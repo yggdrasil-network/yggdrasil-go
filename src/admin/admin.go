@@ -25,7 +25,7 @@ type AdminSocket struct {
 	listenaddr string
 	listener   net.Listener
 	handlers   map[string]handler
-	started    bool
+	done       chan struct{}
 }
 
 type AdminSocketResponse struct {
@@ -69,6 +69,8 @@ func (a *AdminSocket) Init(c *core.Core, state *config.NodeState, log *log.Logge
 	a.handlers = make(map[string]handler)
 	current := state.GetCurrent()
 	a.listenaddr = current.AdminListen
+	a.done = make(chan struct{})
+	close(a.done) // Start in a done / not-started state
 	_ = a.AddHandler("list", []string{}, func(_ json.RawMessage) (interface{}, error) {
 		res := &ListResponse{
 			List: map[string]ListEntry{},
@@ -144,21 +146,32 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 // Start runs the admin API socket to listen for / respond to admin API calls.
 func (a *AdminSocket) Start() error {
 	if a.listenaddr != "none" && a.listenaddr != "" {
+		a.done = make(chan struct{})
 		go a.listen()
-		a.started = true
 	}
 	return nil
 }
 
 // IsStarted returns true if the module has been started.
 func (a *AdminSocket) IsStarted() bool {
-	return a.started
+	select {
+	case <-a.done:
+		// Not blocking, so we're not currently running
+		return false
+	default:
+		// Blocked, so we must have started
+		return true
+	}
 }
 
 // Stop will stop the admin API and close the socket.
 func (a *AdminSocket) Stop() error {
 	if a.listener != nil {
-		a.started = false
+		select {
+		case <-a.done:
+		default:
+			close(a.done)
+		}
 		return a.listener.Close()
 	}
 	return nil
@@ -215,6 +228,14 @@ func (a *AdminSocket) listen() {
 		conn, err := a.listener.Accept()
 		if err == nil {
 			go a.handleRequest(conn)
+		} else {
+			select {
+			case <-a.done:
+				// Not blocked, so we havent started or already stopped
+				return
+			default:
+				// Blocked, so we're supposed to keep running
+			}
 		}
 	}
 }
