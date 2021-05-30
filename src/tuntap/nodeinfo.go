@@ -27,21 +27,9 @@ type nodeinfo struct {
 	callbacks  map[keyArray]nodeinfoCallback
 }
 
-type nodeinfoCached struct {
-	payload NodeInfoPayload
-	created time.Time
-}
-
 type nodeinfoCallback struct {
 	call    func(nodeinfo NodeInfoPayload)
 	created time.Time
-}
-
-// Represents a session nodeinfo packet.
-type nodeinfoReqRes struct {
-	Key        keyArray // Sender's permanent key
-	IsResponse bool
-	NodeInfo   NodeInfoPayload
 }
 
 // Initialises the nodeinfo cache/callback maps, and starts a goroutine to keep
@@ -69,13 +57,6 @@ func (m *nodeinfo) _cleanup() {
 	})
 }
 
-// Add a callback for a nodeinfo lookup
-func (m *nodeinfo) addCallback(sender keyArray, call func(nodeinfo NodeInfoPayload)) {
-	m.Act(nil, func() {
-		m._addCallback(sender, call)
-	})
-}
-
 func (m *nodeinfo) _addCallback(sender keyArray, call func(nodeinfo NodeInfoPayload)) {
 	m.callbacks[sender] = nodeinfoCallback{
 		created: time.Now(),
@@ -89,14 +70,6 @@ func (m *nodeinfo) _callback(sender keyArray, nodeinfo NodeInfoPayload) {
 		callback.call(nodeinfo)
 		delete(m.callbacks, sender)
 	}
-}
-
-// Get the current node's nodeinfo
-func (m *nodeinfo) getNodeInfo() (p NodeInfoPayload) {
-	phony.Block(m, func() {
-		p = m._getNodeInfo()
-	})
-	return
 }
 
 func (m *nodeinfo) _getNodeInfo() NodeInfoPayload {

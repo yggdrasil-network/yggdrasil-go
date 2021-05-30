@@ -69,10 +69,6 @@ func (l *links) init(c *Core) error {
 	return nil
 }
 
-func (l *links) reconfigure() {
-	l.tcp.reconfigure()
-}
-
 func (l *links) call(u *url.URL, sintf string) error {
 	//u, err := url.Parse(uri)
 	//if err != nil {

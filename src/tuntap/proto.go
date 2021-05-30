@@ -61,12 +61,6 @@ func (p *protoHandler) handleProto(from phony.Actor, key keyArray, bs []byte) {
 	}
 }
 
-func (p *protoHandler) handleDebug(from phony.Actor, key keyArray, bs []byte) {
-	p.Act(from, func() {
-		p._handleDebug(key, bs)
-	})
-}
-
 func (p *protoHandler) _handleDebug(key keyArray, bs []byte) {
 	if len(bs) == 0 {
 		return

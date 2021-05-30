@@ -130,46 +130,6 @@ func (t *tcp) stop() error {
 	return nil
 }
 
-func (t *tcp) reconfigure() {
-	panic("TODO cleanup obsolete reconfigure() stuff")
-	/*
-		t.links.core.config.Mutex.RLock()
-		added := util.Difference(t.links.core.config.Current.Listen, t.links.core.config.Previous.Listen)
-		deleted := util.Difference(t.links.core.config.Previous.Listen, t.links.core.config.Current.Listen)
-		t.links.core.config.Mutex.RUnlock()
-		if len(added) > 0 || len(deleted) > 0 {
-			for _, a := range added {
-				switch a[:6] {
-				case "tcp://":
-					if _, err := t.listen(a[6:], nil); err != nil {
-						t.links.core.log.Errorln("Error adding TCP", a[6:], "listener:", err)
-					}
-				case "tls://":
-					if _, err := t.listen(a[6:], t.tls.forListener); err != nil {
-						t.links.core.log.Errorln("Error adding TLS", a[6:], "listener:", err)
-					}
-				default:
-					t.links.core.log.Errorln("Failed to add listener: listener", a, "is not correctly formatted, ignoring")
-				}
-			}
-			for _, d := range deleted {
-				if d[:6] != "tcp://" && d[:6] != "tls://" {
-					t.links.core.log.Errorln("Failed to delete listener: listener", d, "is not correctly formatted, ignoring")
-					continue
-				}
-				t.mutex.Lock()
-				if listener, ok := t.listeners[d[6:]]; ok {
-					t.mutex.Unlock()
-					listener.Stop()
-					t.links.core.log.Infoln("Stopped TCP listener:", d[6:])
-				} else {
-					t.mutex.Unlock()
-				}
-			}
-		}
-	*/
-}
-
 func (t *tcp) listenURL(u *url.URL, sintf string) (*TcpListener, error) {
 	var listener *TcpListener
 	var err error
