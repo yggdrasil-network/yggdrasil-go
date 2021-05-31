@@ -7,8 +7,8 @@ package core
 import "crypto/ed25519"
 
 const (
-	ProtocolMajorVersion uint64 = 0 // Major version number of the protocol.
-	ProtocolMinorVersion uint64 = 2 // Minor version number of the protocol.
+	ProtocolMajorVersion uint8 = 0 // Major version number of the protocol.
+	ProtocolMinorVersion uint8 = 0 // Minor version number of the protocol.
 )
 
 // This is the version-specific metadata exchanged at the start of a connection.
@@ -26,8 +26,8 @@ type version_metadata struct {
 func version_getBaseMetadata() version_metadata {
 	return version_metadata{
 		meta:     [4]byte{'m', 'e', 't', 'a'},
-		ver:      0,
-		minorVer: 0,
+		ver:      ProtocolMajorVersion,
+		minorVer: ProtocolMinorVersion,
 	}
 }
 
