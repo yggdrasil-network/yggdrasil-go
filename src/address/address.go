@@ -3,9 +3,7 @@
 package address
 
 import (
-	"fmt"
-
-	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"crypto/ed25519"
 )
 
 // Address represents an IPv6 address in the yggdrasil address range.
@@ -45,25 +43,34 @@ func (s *Subnet) IsValid() bool {
 	return (*s)[l-1] == prefix[l-1]|0x01
 }
 
-// AddrForNodeID takes a *NodeID as an argument and returns an *Address.
+// AddrForKey takes an ed25519.PublicKey as an argument and returns an *Address.
+// This function returns nil if the key length is not ed25519.PublicKeySize.
 // This address begins with the contents of GetPrefix(), with the last bit set to 0 to indicate an address.
-// The following 8 bits are set to the number of leading 1 bits in the NodeID.
-// The NodeID, excluding the leading 1 bits and the first leading 0 bit, is truncated to the appropriate length and makes up the remainder of the address.
-func AddrForNodeID(nid *crypto.NodeID) *Address {
+// The following 8 bits are set to the number of leading 1 bits in the bitwise inverse of the public key.
+// The bitwise inverse of the key, excluding the leading 1 bits and the first leading 0 bit, is truncated to the appropriate length and makes up the remainder of the address.
+func AddrForKey(publicKey ed25519.PublicKey) *Address {
 	// 128 bit address
 	// Begins with prefix
 	// Next bit is a 0
 	// Next 7 bits, interpreted as a uint, are # of leading 1s in the NodeID
 	// Leading 1s and first leading 0 of the NodeID are truncated off
 	// The rest is appended to the IPv6 address (truncated to 128 bits total)
+	if len(publicKey) != ed25519.PublicKeySize {
+		return nil
+	}
+	var buf [ed25519.PublicKeySize]byte
+	copy(buf[:], publicKey)
+	for idx := range buf {
+		buf[idx] = ^buf[idx]
+	}
 	var addr Address
 	var temp []byte
 	done := false
 	ones := byte(0)
 	bits := byte(0)
 	nBits := 0
-	for idx := 0; idx < 8*len(nid); idx++ {
-		bit := (nid[idx/8] & (0x80 >> byte(idx%8))) >> byte(7-(idx%8))
+	for idx := 0; idx < 8*len(buf); idx++ {
+		bit := (buf[idx/8] & (0x80 >> byte(idx%8))) >> byte(7-(idx%8))
 		if !done && bit != 0 {
 			ones++
 			continue
@@ -86,15 +93,19 @@ func AddrForNodeID(nid *crypto.NodeID) *Address {
 	return &addr
 }
 
-// SubnetForNodeID takes a *NodeID as an argument and returns an *Address.
-// This subnet begins with the address prefix, with the last bit set to 1 to indicate a prefix.
-// The following 8 bits are set to the number of leading 1 bits in the NodeID.
-// The NodeID, excluding the leading 1 bits and the first leading 0 bit, is truncated to the appropriate length and makes up the remainder of the subnet.
-func SubnetForNodeID(nid *crypto.NodeID) *Subnet {
+// SubnetForKey takes an ed25519.PublicKey as an argument and returns a *Subnet.
+// This function returns nil if the key length is not ed25519.PublicKeySize.
+// The subnet begins with the address prefix, with the last bit set to 1 to indicate a prefix.
+// The following 8 bits are set to the number of leading 1 bits in the bitwise inverse of the key.
+// The bitwise inverse of the key, excluding the leading 1 bits and the first leading 0 bit, is truncated to the appropriate length and makes up the remainder of the subnet.
+func SubnetForKey(publicKey ed25519.PublicKey) *Subnet {
 	// Exactly as the address version, with two exceptions:
 	//  1) The first bit after the fixed prefix is a 1 instead of a 0
 	//  2) It's truncated to a subnet prefix length instead of 128 bits
-	addr := *AddrForNodeID(nid)
+	addr := AddrForKey(publicKey)
+	if addr == nil {
+		return nil
+	}
 	var snet Subnet
 	copy(snet[:], addr[:])
 	prefix := GetPrefix()
@@ -102,75 +113,34 @@ func SubnetForNodeID(nid *crypto.NodeID) *Subnet {
 	return &snet
 }
 
-// GetNodeIDandMask returns two *NodeID.
-// The first is a NodeID with all the bits known from the Address set to their correct values.
-// The second is a bitmask with 1 bit set for each bit that was known from the Address.
-// This is used to look up NodeIDs in the DHT and tell if they match an Address.
-func (a *Address) GetNodeIDandMask() (*crypto.NodeID, *crypto.NodeID) {
-	// Mask is a bitmask to mark the bits visible from the address
-	// This means truncated leading 1s, first leading 0, and visible part of addr
-	var nid crypto.NodeID
-	var mask crypto.NodeID
+// GetKet returns the partial ed25519.PublicKey for the Address.
+// This is used for key lookup.
+func (a *Address) GetKey() ed25519.PublicKey {
+	var key [ed25519.PublicKeySize]byte
 	prefix := GetPrefix()
 	ones := int(a[len(prefix)])
 	for idx := 0; idx < ones; idx++ {
-		nid[idx/8] |= 0x80 >> byte(idx%8)
+		key[idx/8] |= 0x80 >> byte(idx%8)
 	}
-	nidOffset := ones + 1
+	keyOffset := ones + 1
 	addrOffset := 8*len(prefix) + 8
 	for idx := addrOffset; idx < 8*len(a); idx++ {
 		bits := a[idx/8] & (0x80 >> byte(idx%8))
 		bits <<= byte(idx % 8)
-		nidIdx := nidOffset + (idx - addrOffset)
-		bits >>= byte(nidIdx % 8)
-		nid[nidIdx/8] |= bits
+		keyIdx := keyOffset + (idx - addrOffset)
+		bits >>= byte(keyIdx % 8)
+		key[keyIdx/8] |= bits
 	}
-	maxMask := 8*(len(a)-len(prefix)-1) + ones + 1
-	for idx := 0; idx < maxMask; idx++ {
-		mask[idx/8] |= 0x80 >> byte(idx%8)
+	for idx := range key {
+		key[idx] = ^key[idx]
 	}
-	return &nid, &mask
+	return ed25519.PublicKey(key[:])
 }
 
-// GetNodeIDLengthString returns a string representation of the known bits of the NodeID, along with the number of known bits, for use with yggdrasil.Dialer's Dial and DialContext functions.
-func (a *Address) GetNodeIDLengthString() string {
-	nid, mask := a.GetNodeIDandMask()
-	l := mask.PrefixLength()
-	return fmt.Sprintf("%s/%d", nid.String(), l)
-}
-
-// GetNodeIDandMask returns two *NodeID.
-// The first is a NodeID with all the bits known from the Subnet set to their correct values.
-// The second is a bitmask with 1 bit set for each bit that was known from the Subnet.
-// This is used to look up NodeIDs in the DHT and tell if they match a Subnet.
-func (s *Subnet) GetNodeIDandMask() (*crypto.NodeID, *crypto.NodeID) {
-	// As with the address version, but visible parts of the subnet prefix instead
-	var nid crypto.NodeID
-	var mask crypto.NodeID
-	prefix := GetPrefix()
-	ones := int(s[len(prefix)])
-	for idx := 0; idx < ones; idx++ {
-		nid[idx/8] |= 0x80 >> byte(idx%8)
-	}
-	nidOffset := ones + 1
-	addrOffset := 8*len(prefix) + 8
-	for idx := addrOffset; idx < 8*len(s); idx++ {
-		bits := s[idx/8] & (0x80 >> byte(idx%8))
-		bits <<= byte(idx % 8)
-		nidIdx := nidOffset + (idx - addrOffset)
-		bits >>= byte(nidIdx % 8)
-		nid[nidIdx/8] |= bits
-	}
-	maxMask := 8*(len(s)-len(prefix)-1) + ones + 1
-	for idx := 0; idx < maxMask; idx++ {
-		mask[idx/8] |= 0x80 >> byte(idx%8)
-	}
-	return &nid, &mask
-}
-
-// GetNodeIDLengthString returns a string representation of the known bits of the NodeID, along with the number of known bits, for use with yggdrasil.Dialer's Dial and DialContext functions.
-func (s *Subnet) GetNodeIDLengthString() string {
-	nid, mask := s.GetNodeIDandMask()
-	l := mask.PrefixLength()
-	return fmt.Sprintf("%s/%d", nid.String(), l)
+// GetKet returns the partial ed25519.PublicKey for the Subnet.
+// This is used for key lookup.
+func (s *Subnet) GetKey() ed25519.PublicKey {
+	var addr Address
+	copy(addr[:], s[:])
+	return addr.GetKey()
 }

@@ -17,11 +17,7 @@ import (
 	"golang.org/x/net/ipv6"
 )
 
-const len_ETHER = 14
-
-type ICMPv6 struct {
-	tun *TunAdapter
-}
+type ICMPv6 struct{}
 
 // Marshal returns the binary encoding of h.
 func ipv6Header_Marshal(h *ipv6.Header) ([]byte, error) {
@@ -38,13 +34,6 @@ func ipv6Header_Marshal(h *ipv6.Header) ([]byte, error) {
 	copy(b[8:24], h.Src)
 	copy(b[24:40], h.Dst)
 	return b, nil
-}
-
-// Initialises the ICMPv6 module by assigning our link-local IPv6 address and
-// our MAC address. ICMPv6 messages will always appear to originate from these
-// addresses.
-func (i *ICMPv6) Init(t *TunAdapter) {
-	i.tun = t
 }
 
 // Creates an ICMPv6 packet based on the given icmp.MessageBody and other

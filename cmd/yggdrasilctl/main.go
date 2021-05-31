@@ -78,8 +78,8 @@ func run() int {
 
 	if *server == endpoint {
 		if config, err := ioutil.ReadFile(defaults.GetDefaults().DefaultConfigFile); err == nil {
-			if bytes.Compare(config[0:2], []byte{0xFF, 0xFE}) == 0 ||
-				bytes.Compare(config[0:2], []byte{0xFE, 0xFF}) == 0 {
+			if bytes.Equal(config[0:2], []byte{0xFF, 0xFE}) ||
+				bytes.Equal(config[0:2], []byte{0xFE, 0xFF}) {
 				utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
 				decoder := utf.NewDecoder()
 				config, err = decoder.Bytes(config)

@@ -30,9 +30,8 @@ func UnlockThread() {
 func ResizeBytes(bs []byte, length int) []byte {
 	if cap(bs) >= length {
 		return bs[:length]
-	} else {
-		return make([]byte, length)
 	}
+	return make([]byte, length)
 }
 
 // TimerStop stops a timer and makes sure the channel is drained, returns true if the timer was stopped before firing.
@@ -47,7 +46,7 @@ func TimerStop(t *time.Timer) bool {
 
 // FuncTimeout runs the provided function in a separate goroutine, and returns true if the function finishes executing before the timeout passes, or false if the timeout passes.
 // It includes no mechanism to stop the function if the timeout fires, so the user is expected to do so on their own (such as with a Cancellation or a context).
-func FuncTimeout(f func(), timeout time.Duration) bool {
+func FuncTimeout(timeout time.Duration, f func()) bool {
 	success := make(chan struct{})
 	go func() {
 		defer close(success)

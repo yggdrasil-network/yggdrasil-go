@@ -26,7 +26,7 @@ some of the below:
 - Linux
   - `.deb` and `.rpm` packages are built by CI for Debian and Red Hat-based
     distributions
-  - Void and Arch packages also available within their respective repositories
+  - Arch, Nix, Void packages also available within their respective repositories
 - macOS
   - `.pkg` packages are built by CI
 - Ubiquiti EdgeOS
@@ -48,7 +48,7 @@ You may also find other platform-specific wrappers, scripts or tools in the
 If you want to build from source, as opposed to installing one of the pre-built
 packages:
 
-1. Install [Go](https://golang.org) (requires Go 1.13 or later)
+1. Install [Go](https://golang.org) (requires Go 1.16 or later)
 2. Clone this repository
 2. Run `./build`
 

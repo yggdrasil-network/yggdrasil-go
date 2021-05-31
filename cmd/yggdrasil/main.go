@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -24,17 +25,21 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+<<<<<<< HEAD
 	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/mdns"
+=======
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/core"
+>>>>>>> future
 	"github.com/yggdrasil-network/yggdrasil-go/src/module"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
-	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 )
 
 type node struct {
-	core      yggdrasil.Core
+	core      core.Core
 	state     *config.NodeState
 	tuntap    module.Module // tuntap.TunAdapter
 	multicast module.Module // multicast.Multicast
@@ -62,8 +67,8 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *config
 	// throwing everywhere when it's converting things into UTF-16 for the hell
 	// of it - remove it and decode back down into UTF-8. This is necessary
 	// because hjson doesn't know what to do with UTF-16 and will panic
-	if bytes.Compare(conf[0:2], []byte{0xFF, 0xFE}) == 0 ||
-		bytes.Compare(conf[0:2], []byte{0xFE, 0xFF}) == 0 {
+	if bytes.Equal(conf[0:2], []byte{0xFF, 0xFE}) ||
+		bytes.Equal(conf[0:2], []byte{0xFE, 0xFF}) {
 		utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
 		decoder := utf.NewDecoder()
 		conf, err = decoder.Bytes(conf)
@@ -221,25 +226,23 @@ func main() {
 		return
 	}
 	// Have we been asked for the node address yet? If so, print it and then stop.
-	getNodeID := func() *crypto.NodeID {
-		if pubkey, err := hex.DecodeString(cfg.EncryptionPublicKey); err == nil {
-			var box crypto.BoxPubKey
-			copy(box[:], pubkey[:])
-			return crypto.GetNodeID(&box)
+	getNodeKey := func() ed25519.PublicKey {
+		if pubkey, err := hex.DecodeString(cfg.PublicKey); err == nil {
+			return ed25519.PublicKey(pubkey)
 		}
 		return nil
 	}
 	switch {
 	case *getaddr:
-		if nodeid := getNodeID(); nodeid != nil {
-			addr := *address.AddrForNodeID(nodeid)
+		if key := getNodeKey(); key != nil {
+			addr := address.AddrForKey(key)
 			ip := net.IP(addr[:])
 			fmt.Println(ip.String())
 		}
 		return
 	case *getsnet:
-		if nodeid := getNodeID(); nodeid != nil {
-			snet := *address.SubnetForNodeID(nodeid)
+		if key := getNodeKey(); key != nil {
+			snet := address.SubnetForKey(key)
 			ipnet := net.IPNet{
 				IP:   append(snet[:], 0, 0, 0, 0, 0, 0, 0, 0),
 				Mask: net.CIDRMask(len(snet)*8, 128),
@@ -281,12 +284,12 @@ func main() {
 		panic(err)
 	}
 	// Register the session firewall gatekeeper function
-	n.core.SetSessionGatekeeper(n.sessionFirewall)
 	// Allocate our modules
 	n.admin = &admin.AdminSocket{}
 	n.multicast = &multicast.Multicast{}
 	n.mdns = &mdns.MDNS{}
 	n.tuntap = &tuntap.TunAdapter{}
+	n.tuntap.(*tuntap.TunAdapter).SetSessionGatekeeper(n.sessionFirewall)
 	// Start the admin socket
 	n.admin.Init(&n.core, n.state, logger, nil)
 	if err := n.admin.Start(); err != nil {
@@ -306,19 +309,11 @@ func main() {
 	}
 	n.mdns.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 	// Start the TUN/TAP interface
-	if listener, err := n.core.ConnListen(); err == nil {
-		if dialer, err := n.core.ConnDialer(); err == nil {
-			n.tuntap.Init(&n.core, n.state, logger, tuntap.TunOptions{Listener: listener, Dialer: dialer})
-			if err := n.tuntap.Start(); err != nil {
-				logger.Errorln("An error occurred starting TUN/TAP:", err)
-			}
-			n.tuntap.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
-		} else {
-			logger.Errorln("Unable to get Dialer:", err)
-		}
-	} else {
-		logger.Errorln("Unable to get Listener:", err)
+	n.tuntap.Init(&n.core, n.state, logger, nil)
+	if err := n.tuntap.Start(); err != nil {
+		logger.Errorln("An error occurred starting TUN/TAP:", err)
 	}
+	n.tuntap.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
 	address := n.core.Address()
@@ -327,11 +322,11 @@ func main() {
 	logger.Infof("Your IPv6 subnet is %s", subnet.String())
 	// Catch interrupts from the operating system to exit gracefully.
 	c := make(chan os.Signal, 1)
-	r := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	signal.Notify(r, os.Interrupt, syscall.SIGHUP)
 	// Capture the service being stopped on Windows.
+	<-c
 	minwinsvc.SetOnExit(n.shutdown)
+<<<<<<< HEAD
 	defer n.shutdown()
 	// Wait for the terminate/interrupt signal. Once a signal is received, the
 	// deferred Stop function above will run which will shut down TUN/TAP.
@@ -353,6 +348,9 @@ func main() {
 		}
 	}
 exit:
+=======
+	n.shutdown()
+>>>>>>> future
 }
 
 func (n *node) shutdown() {
@@ -362,7 +360,7 @@ func (n *node) shutdown() {
 	n.core.Stop()
 }
 
-func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
+func (n *node) sessionFirewall(pubkey ed25519.PublicKey, initiator bool) bool {
 	n.state.Mutex.RLock()
 	defer n.state.Mutex.RUnlock()
 
@@ -371,25 +369,21 @@ func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
 		return true
 	}
 
-	// Prepare for checking whitelist/blacklist
-	var box crypto.BoxPubKey
 	// Reject blacklisted nodes
-	for _, b := range n.state.Current.SessionFirewall.BlacklistEncryptionPublicKeys {
+	for _, b := range n.state.Current.SessionFirewall.BlacklistPublicKeys {
 		key, err := hex.DecodeString(b)
 		if err == nil {
-			copy(box[:crypto.BoxPubKeyLen], key)
-			if box == *pubkey {
+			if bytes.Equal(key, pubkey) {
 				return false
 			}
 		}
 	}
 
 	// Allow whitelisted nodes
-	for _, b := range n.state.Current.SessionFirewall.WhitelistEncryptionPublicKeys {
+	for _, b := range n.state.Current.SessionFirewall.WhitelistPublicKeys {
 		key, err := hex.DecodeString(b)
 		if err == nil {
-			copy(box[:crypto.BoxPubKeyLen], key)
-			if box == *pubkey {
+			if bytes.Equal(key, pubkey) {
 				return true
 			}
 		}
@@ -405,7 +399,7 @@ func (n *node) sessionFirewall(pubkey *crypto.BoxPubKey, initiator bool) bool {
 	// Look and see if the pubkey is that of a direct peer
 	var isDirectPeer bool
 	for _, peer := range n.core.GetPeers() {
-		if peer.PublicKey == *pubkey {
+		if bytes.Equal(peer.Key[:], pubkey[:]) {
 			isDirectPeer = true
 			break
 		}

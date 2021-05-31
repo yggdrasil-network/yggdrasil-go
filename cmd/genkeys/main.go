@@ -13,119 +13,66 @@ This only matters if it's high enough to make you the root of the tree.
 package main
 
 import (
+	"crypto/ed25519"
 	"encoding/hex"
-	"flag"
 	"fmt"
 	"net"
 	"runtime"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 )
 
-var doSig = flag.Bool("sig", false, "generate new signing keys instead")
-
 type keySet struct {
-	priv []byte
-	pub  []byte
-	id   []byte
-	ip   string
+	priv ed25519.PrivateKey
+	pub  ed25519.PublicKey
 }
 
 func main() {
 	threads := runtime.GOMAXPROCS(0)
-	var threadChannels []chan []byte
-	var currentBest []byte
+	var currentBest ed25519.PublicKey
 	newKeys := make(chan keySet, threads)
-	flag.Parse()
-
 	for i := 0; i < threads; i++ {
-		threadChannels = append(threadChannels, make(chan []byte, threads))
-		switch {
-		case *doSig:
-			go doSigKeys(newKeys, threadChannels[i])
-		default:
-			go doBoxKeys(newKeys, threadChannels[i])
-		}
+		go doKeys(newKeys)
 	}
-
 	for {
 		newKey := <-newKeys
-		if isBetter(currentBest[:], newKey.id[:]) || len(currentBest) == 0 {
-			currentBest = newKey.id
-			for _, channel := range threadChannels {
-				select {
-				case channel <- newKey.id:
-				}
-			}
-			fmt.Println("--------------------------------------------------------------------------------")
-			switch {
-			case *doSig:
-				fmt.Println("sigPriv:", hex.EncodeToString(newKey.priv[:]))
-				fmt.Println("sigPub:", hex.EncodeToString(newKey.pub[:]))
-				fmt.Println("TreeID:", hex.EncodeToString(newKey.id[:]))
-			default:
-				fmt.Println("boxPriv:", hex.EncodeToString(newKey.priv[:]))
-				fmt.Println("boxPub:", hex.EncodeToString(newKey.pub[:]))
-				fmt.Println("NodeID:", hex.EncodeToString(newKey.id[:]))
-				fmt.Println("IP:", newKey.ip)
-			}
+		if isBetter(currentBest, newKey.pub) || len(currentBest) == 0 {
+			currentBest = newKey.pub
+			fmt.Println("-----")
+			fmt.Println("Priv:", hex.EncodeToString(newKey.priv))
+			fmt.Println("Pub:", hex.EncodeToString(newKey.pub))
+			addr := address.AddrForKey(newKey.pub)
+			fmt.Println("IP:", net.IP(addr[:]).String())
 		}
 	}
 }
 
-func isBetter(oldID, newID []byte) bool {
-	for idx := range oldID {
-		if newID[idx] > oldID[idx] {
+func isBetter(oldPub, newPub ed25519.PublicKey) bool {
+	for idx := range oldPub {
+		if newPub[idx] < oldPub[idx] {
 			return true
 		}
-		if newID[idx] < oldID[idx] {
-			return false
+		if newPub[idx] > oldPub[idx] {
+			break
 		}
 	}
 	return false
 }
 
-func doBoxKeys(out chan<- keySet, in <-chan []byte) {
-	var bestID crypto.NodeID
-	for {
-		select {
-		case newBestID := <-in:
-			if isBetter(bestID[:], newBestID) {
-				copy(bestID[:], newBestID)
-			}
-		default:
-			pub, priv := crypto.NewBoxKeys()
-			id := crypto.GetNodeID(pub)
-			if !isBetter(bestID[:], id[:]) {
-				continue
-			}
-			bestID = *id
-			ip := net.IP(address.AddrForNodeID(id)[:]).String()
-			out <- keySet{priv[:], pub[:], id[:], ip}
-		}
-	}
-}
-
-func doSigKeys(out chan<- keySet, in <-chan []byte) {
-	var bestID crypto.TreeID
-	for idx := range bestID {
-		bestID[idx] = 0
+func doKeys(out chan<- keySet) {
+	bestKey := make(ed25519.PublicKey, ed25519.PublicKeySize)
+	for idx := range bestKey {
+		bestKey[idx] = 0xff
 	}
 	for {
-		select {
-		case newBestID := <-in:
-			if isBetter(bestID[:], newBestID) {
-				copy(bestID[:], newBestID)
-			}
-		default:
+		pub, priv, err := ed25519.GenerateKey(nil)
+		if err != nil {
+			panic(err)
 		}
-		pub, priv := crypto.NewSigKeys()
-		id := crypto.GetTreeID(pub)
-		if !isBetter(bestID[:], id[:]) {
+		if !isBetter(bestKey, pub) {
 			continue
 		}
-		bestID = *id
-		out <- keySet{priv[:], pub[:], id[:], ""}
+		bestKey = pub
+		out <- keySet{priv, pub}
 	}
 }
