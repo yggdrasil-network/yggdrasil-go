@@ -164,7 +164,7 @@ func BenchmarkCore_Start_Transfer(b *testing.B) {
 	rand.Read(msg)
 	buf := make([]byte, msgLen)
 
-	b.SetBytes(int64(b.N * msgLen))
+	b.SetBytes(int64(msgLen))
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
