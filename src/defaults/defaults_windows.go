@@ -16,9 +16,6 @@ func GetDefaults() platformDefaultParameters {
 		DefaultMulticastInterfaces: []string{
 			".*",
 		},
-		DefaultMulticastDNSInterfaces: []string{
-			".*",
-		},
 
 		// TUN/TAP
 		MaximumIfMTU:  65535,

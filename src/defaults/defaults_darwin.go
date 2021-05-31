@@ -17,10 +17,6 @@ func GetDefaults() platformDefaultParameters {
 			"en.*",
 			"bridge.*",
 		},
-		DefaultMulticastDNSInterfaces: []string{
-			"en.*",
-			"bridge.*",
-		},
 
 		// TUN/TAP
 		MaximumIfMTU:  65535,

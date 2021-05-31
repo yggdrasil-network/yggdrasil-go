@@ -11,8 +11,7 @@ type platformDefaultParameters struct {
 	DefaultConfigFile string
 
 	// Multicast interfaces
-	DefaultMulticastInterfaces    []string
-	DefaultMulticastDNSInterfaces []string
+	DefaultMulticastInterfaces []string
 
 	// TUN/TAP
 	MaximumIfMTU  uint64
