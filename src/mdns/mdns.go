@@ -1,68 +1,76 @@
 package mdns
 
 import (
-	"bytes"
+	"context"
+	"crypto/ed25519"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
 	"net/url"
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/Arceliar/phony"
+	"github.com/brutella/dnssd"
 	"github.com/gologme/log"
-	"github.com/neilalexander/mdns"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
-)
-
-const (
-	MDNSService = "_yggdrasil._tcp"
-	MDNSDomain  = "yggdrasil.local."
+	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 )
 
 type MDNS struct {
 	phony.Inbox
-	core     *yggdrasil.Core                   //
-	config   *config.NodeState                 //
-	log      *log.Logger                       //
-	info     []string                          //
-	instance string                            //
-	_running bool                              // is mDNS running?
-	_exprs   []*regexp.Regexp                  // mDNS interfaces
-	_servers map[string]map[string]*mDNSServer // intf -> ip -> *mDNSServer
+	core      *core.Core
+	config    *config.NodeState
+	context   context.Context    // global context
+	cancel    context.CancelFunc // cancels all interfaces
+	log       *log.Logger
+	info      map[string]string
+	responder dnssd.Responder
+	_running  bool
+	_exprs    []*regexp.Regexp
+	_servers  map[string]map[string]*mDNSInterface // intf -> ip -> *mDNSServer
 }
 
-type mDNSServer struct {
+type mDNSInterface struct {
+	context  context.Context    // parent context is in the MDNS struct
+	cancel   context.CancelFunc // cancels this interface only
 	mdns     *MDNS
-	ourIP    net.IP
+	addr     *net.TCPAddr
 	intf     net.Interface
-	server   *mdns.Server
-	listener *yggdrasil.TcpListener
-	stop     chan struct{}
-	time     time.Time
+	service  dnssd.ServiceHandle
+	listener *core.TcpListener
 }
 
-func (m *MDNS) Init(core *yggdrasil.Core, state *config.NodeState, log *log.Logger, options interface{}) error {
-	m.core = core
+var protoVersion = fmt.Sprintf("%d.%d", core.ProtocolMajorVersion, core.ProtocolMinorVersion)
+
+func (m *MDNS) Init(c *core.Core, state *config.NodeState, log *log.Logger, options interface{}) error {
+	pk := c.PrivateKey().Public().(ed25519.PublicKey)
+	m.context, m.cancel = context.WithCancel(context.Background())
+	m.core = c
 	m.config = state
 	m.log = log
-	m.info = []string{
-		fmt.Sprintf("ed25519=%s", core.SigningPublicKey()),
-		fmt.Sprintf("curve25519=%s", core.EncryptionPublicKey()),
-		fmt.Sprintf("versionmajor=%d", yggdrasil.ProtocolMajorVersion),
-		fmt.Sprintf("versionminor=%d", yggdrasil.ProtocolMinorVersion),
-	}
-	if nodeid := core.NodeID(); nodeid != nil {
-		m.instance = hex.EncodeToString((*nodeid)[:])[:16]
+	m.info = map[string]string{
+		"ed25519": hex.EncodeToString(pk),
+		"proto":   protoVersion,
 	}
 
-	current := m.config.GetCurrent()
-	m._updateConfig(&current)
+	// Now get a list of interface expressions from the
+	// config. This will dictate which interfaces we are
+	// allowed to use.
+	var exprs []*regexp.Regexp
+	// Compile each regular expression
+	for _, exstr := range m.config.Current.MulticastInterfaces {
+		e, err := regexp.Compile(exstr)
+		if err != nil {
+			return err
+		}
+		exprs = append(exprs, e)
+	}
+	// Update our expression list.
+	m._exprs = exprs
 
 	return nil
 }
@@ -70,7 +78,9 @@ func (m *MDNS) Init(core *yggdrasil.Core, state *config.NodeState, log *log.Logg
 func (m *MDNS) Start() error {
 	var err error
 	phony.Block(m, func() {
-		err = m._start()
+		if err = m._start(); err == nil {
+			m._running = true
+		}
 	})
 	m.log.Infoln("Started mDNS module")
 	return err
@@ -81,8 +91,14 @@ func (m *MDNS) _start() error {
 		return errors.New("mDNS module is already running")
 	}
 
-	m._servers = make(map[string]map[string]*mDNSServer)
-	m._running = true
+	m._servers = make(map[string]map[string]*mDNSInterface)
+
+	var err error
+	m.responder, err = dnssd.NewResponder()
+	if err != nil {
+		return fmt.Errorf("dnssd.NewResponder: %w", err)
+	}
+	go m.responder.Respond(m.context) // nolint:errcheck
 
 	m.Act(m, m._updateInterfaces)
 
@@ -101,40 +117,10 @@ func (m *MDNS) Stop() error {
 func (m *MDNS) _stop() error {
 	for _, intf := range m._servers {
 		for _, ip := range intf {
-			ip.server.Shutdown()
+			m.responder.Remove(ip.service)
 			ip.listener.Stop()
 		}
 	}
-	return nil
-}
-
-func (m *MDNS) UpdateConfig(config *config.NodeConfig) {
-	var err error
-	phony.Block(m, func() {
-		err = m._updateConfig(config)
-	})
-	if err != nil {
-		m.log.Warnf("Failed to update mDNS config: %s", err)
-	} else {
-		m.log.Infof("mDNS configuration updated")
-	}
-}
-
-func (m *MDNS) _updateConfig(config *config.NodeConfig) error {
-	// Now get a list of interface expressions from the
-	// config. This will dictate which interfaces we are
-	// allowed to use.
-	var exprs []*regexp.Regexp
-	// Compile each regular expression
-	for _, exstr := range config.MulticastDNSInterfaces {
-		e, err := regexp.Compile(exstr)
-		if err != nil {
-			return err
-		}
-		exprs = append(exprs, e)
-	}
-	// Update our expression list.
-	m._exprs = exprs
 	return nil
 }
 
@@ -197,7 +183,7 @@ func (m *MDNS) _updateInterfaces() {
 	// Work out which interfaces are new.
 	for n, addrs := range interfaces {
 		if _, ok := m._servers[n]; !ok {
-			m._servers[n] = make(map[string]*mDNSServer)
+			m._servers[n] = make(map[string]*mDNSInterface)
 		}
 		for addr, intf := range addrs {
 			if _, ok := m._servers[n][addr]; !ok {
@@ -232,10 +218,6 @@ func (m *MDNS) _updateInterfaces() {
 			}
 		}
 	}
-
-	time.AfterFunc(time.Second, func() {
-		m.Act(m, m._updateInterfaces)
-	})
 }
 
 func (m *MDNS) _startInterface(intf net.Interface, addr string) error {
@@ -247,11 +229,19 @@ func (m *MDNS) _startInterface(intf net.Interface, addr string) error {
 	// Construct a listener on this address.
 	// Work out what the listen address of the new TCP listener should be.
 	ip := net.ParseIP(addr)
-	listenaddr := fmt.Sprintf("[%s%%%s]:%d", ip, intf.Name, 0) // TODO: linklocalport
-	listener, err := m.core.ListenTCP(listenaddr)
-	if err != nil {
-		return fmt.Errorf("m.core.ListenTCP: %w", err)
+	listenaddr := fmt.Sprintf("[%s]:%d", ip.String(), m.config.Current.LinkLocalTCPPort)
+	if ip.To4() != nil {
+		listenaddr = fmt.Sprintf("%s:%d", ip.String(), m.config.Current.LinkLocalTCPPort)
 	}
+	listener, err := m.core.Listen(&url.URL{
+		Scheme: "tcp",
+		Host:   listenaddr,
+	}, intf.Name)
+	if err != nil {
+		return fmt.Errorf("m.core.ListenTCP (%s): %w", listenaddr, err)
+	}
+
+	fmt.Println("Listener address is", listener.Listener.Addr().String())
 
 	// Resolve it as a TCP endpoint so that we can get the IP address and
 	// port separately.
@@ -263,40 +253,38 @@ func (m *MDNS) _startInterface(intf net.Interface, addr string) error {
 		return fmt.Errorf("net.ResolveTCPAddr: %w", err)
 	}
 
-	// Create a zone.
-	hostname := fmt.Sprintf("%s.%s", m.instance, MDNSDomain)
-	zone, err := mdns.NewMDNSService(
-		m.instance,           // instance name
-		MDNSService,          // service name
-		MDNSDomain,           // service domain
-		hostname,             // our hostname
-		tcpaddr.Port,         // TCP listener port
-		[]net.IP{tcpaddr.IP}, // our IP address
-		m.info,               // TXT record contents
-	)
-	if err != nil {
-		return fmt.Errorf("mdns.NewMDNSService: %w", err)
-	}
-
-	// Create a server.
-	server, err := mdns.NewServer(&mdns.Config{
-		Zone:  zone,
-		Iface: &intf,
+	pk := m.core.PrivateKey().Public().(ed25519.PublicKey)
+	svc, err := dnssd.NewService(dnssd.Config{
+		Name:   hex.EncodeToString(pk[:8]),
+		Type:   "_yggdrasil._tcp",
+		Domain: "local",
+		Text:   m.info,
+		Port:   tcpaddr.Port,
+		IPs:    []net.IP{ip},
+		Ifaces: []string{intf.Name},
 	})
 	if err != nil {
-		return fmt.Errorf("mdns.NewServer: %w", err)
+		return fmt.Errorf("dnssd.NewService: %w", err)
+	}
+
+	// Add the service to the responder.
+	handle, err := m.responder.Add(svc)
+	if err != nil {
+		return fmt.Errorf("m.responder.Add: %w", err)
 	}
 
 	// Now store information about our new listener and server.
 	if _, ok := m._servers[intf.Name]; !ok {
-		m._servers[intf.Name] = make(map[string]*mDNSServer)
+		m._servers[intf.Name] = make(map[string]*mDNSInterface)
 	}
-	m._servers[intf.Name][addr] = &mDNSServer{
+	ctx, cancel := context.WithCancel(m.context)
+	m._servers[intf.Name][addr] = &mDNSInterface{
+		context:  ctx,
+		cancel:   cancel,
 		mdns:     m,
 		intf:     intf,
-		ourIP:    tcpaddr.IP,
-		stop:     make(chan struct{}),
-		server:   server,
+		addr:     tcpaddr,
+		service:  handle,
 		listener: listener,
 	}
 	go m._servers[intf.Name][addr].listen()
@@ -318,8 +306,8 @@ func (m *MDNS) _stopInterface(intf net.Interface, addr string) error {
 	}
 
 	// Shut down the mDNS server and the TCP listener.
-	close(server.stop)
-	server.server.Shutdown()
+	server.cancel()
+	m.responder.Remove(server.service)
 	server.listener.Stop()
 
 	// Clean up.
@@ -331,67 +319,59 @@ func (m *MDNS) _stopInterface(intf net.Interface, addr string) error {
 	return nil
 }
 
-func (s *mDNSServer) listen() {
-	s.mdns.log.Debugln("Started listening for mDNS on", s.intf.Name)
-	incoming := make(chan *mdns.ServiceEntry)
+func (s *mDNSInterface) listen() {
+	ourpk := hex.EncodeToString(s.mdns.core.PrivateKey().Public().(ed25519.PublicKey))
 
-	go func() {
-		defer close(incoming)
-		if err := mdns.Listen(incoming, s.stop, &s.intf); err != nil {
-			s.mdns.log.Println("Failed to initialize resolver:", err.Error())
+	add := func(e dnssd.BrowseEntry) {
+		if len(e.IPs) == 0 {
+			return
 		}
-	}()
+		if version := e.Text["proto"]; version != protoVersion {
+			return
+		}
+		if pk := e.Text["ed25519"]; pk == ourpk {
+			return
+		}
+		if e.IfaceName != s.intf.Name {
+			return
+		}
+		service, err := dnssd.LookupInstance(s.context, e.ServiceInstanceName())
+		if err != nil {
+			return
+		}
+		for _, ip := range service.IPs {
+			u := &url.URL{
+				Scheme:   "tcp",
+				RawQuery: "ed25519=" + e.Text["ed25519"],
+			}
+			switch {
+			case ip.To4() == nil: // IPv6
+				u.Host = fmt.Sprintf("[%s%%%s]:%d", ip.String(), e.IfaceName, service.Port)
+			case ip.To16() == nil: // IPv4
+				u.Host = fmt.Sprintf("%s%%%s:%d", ip.String(), e.IfaceName, service.Port)
+			default:
+				continue
+			}
+			s.mdns.log.Debugln("Calling", u.String())
+			if err := s.mdns.core.CallPeer(u, e.IfaceName); err != nil {
+				continue
+			}
+			return
+		}
+	}
+
+	remove := func(e dnssd.BrowseEntry) {
+		// the service disappeared
+	}
 
 	for {
 		select {
-		case <-s.stop:
-			s.mdns.log.Debugln("Stopped listening for mDNS on", s.intf.Name)
+		case <-s.context.Done():
 			return
-		case entry := <-incoming:
-			if entry == nil {
-				return
-			}
-			suffix := fmt.Sprintf("%s.%s", MDNSService, MDNSDomain)
-			if len(entry.Name) <= len(suffix) {
-				continue
-			}
-			if entry.Name[len(entry.Name)-len(suffix):] != suffix {
-				continue
-			}
-			if bytes.Equal(entry.Addr, s.ourIP) {
-				continue
-			}
-			if entry.AddrV6.Zone == "" {
-				entry.AddrV6.Zone = s.intf.Name
-			}
-			fields := parseTXTFields(entry.InfoFields)
-			addr := fmt.Sprintf("tcp://[%s]:%d", entry.AddrV6.IP, entry.Port)
-			u, err := url.Parse(addr)
-			if err != nil {
-				continue
-			}
-			query := u.Query()
-			if curve, ok := fields["curve25519"]; ok {
-				query.Set("curve25519", curve)
-			}
-			if ed, ok := fields["ed25519"]; ok {
-				query.Set("ed25519", ed)
-			}
-			u.RawQuery = query.Encode()
-			if err := s.mdns.core.CallPeer(u.String(), entry.AddrV6.Zone); err != nil {
-				s.mdns.log.Warn("Failed to add peer from mDNS: ", err)
-			}
+		default:
+			ctx, cancel := context.WithTimeout(s.context, time.Second*5)
+			_ = dnssd.LookupType(ctx, "_yggdrasil._tcp.local.", add, remove)
+			cancel()
 		}
 	}
-}
-
-func parseTXTFields(fields []string) map[string]string {
-	result := make(map[string]string)
-	for _, field := range fields {
-		pos := strings.Index(field, "=")
-		if pos > 0 && len(field) > pos+1 {
-			result[field[:pos]] = field[pos+1:]
-		}
-	}
-	return result
 }

@@ -104,7 +104,6 @@ func GenerateConfig() *NodeConfig {
 	cfg.InterfacePeers = map[string][]string{}
 	cfg.AllowedPublicKeys = []string{}
 	cfg.MulticastInterfaces = defaults.GetDefaults().DefaultMulticastInterfaces
-	cfg.MulticastDNSInterfaces = defaults.GetDefaults().DefaultMulticastDNSInterfaces
 	cfg.IfName = defaults.GetDefaults().DefaultIfName
 	cfg.IfMTU = defaults.GetDefaults().DefaultIfMTU
 	cfg.SessionFirewall.Enable = false

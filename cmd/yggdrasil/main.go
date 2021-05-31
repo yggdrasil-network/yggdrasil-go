@@ -25,13 +25,9 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-<<<<<<< HEAD
-	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/mdns"
-=======
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
->>>>>>> future
 	"github.com/yggdrasil-network/yggdrasil-go/src/module"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
@@ -326,31 +322,7 @@ func main() {
 	// Capture the service being stopped on Windows.
 	<-c
 	minwinsvc.SetOnExit(n.shutdown)
-<<<<<<< HEAD
-	defer n.shutdown()
-	// Wait for the terminate/interrupt signal. Once a signal is received, the
-	// deferred Stop function above will run which will shut down TUN/TAP.
-	for {
-		select {
-		case _ = <-c:
-			goto exit
-		case _ = <-r:
-			if *useconffile != "" {
-				cfg = readConfig(useconf, useconffile, normaliseconf)
-				logger.Infoln("Reloading configuration from", *useconffile)
-				n.core.UpdateConfig(cfg)
-				n.tuntap.UpdateConfig(cfg)
-				n.multicast.UpdateConfig(cfg)
-				n.mdns.UpdateConfig(cfg)
-			} else {
-				logger.Errorln("Reloading config at runtime is only possible with -useconffile")
-			}
-		}
-	}
-exit:
-=======
 	n.shutdown()
->>>>>>> future
 }
 
 func (n *node) shutdown() {
