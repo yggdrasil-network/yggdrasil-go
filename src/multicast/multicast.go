@@ -91,7 +91,7 @@ func (m *Multicast) _start() error {
 		return err
 	}
 	m.sock = ipv6.NewPacketConn(conn)
-	if err = m.sock.SetControlMessage(ipv6.FlagDst, true); err != nil {
+	if err = m.sock.SetControlMessage(ipv6.FlagDst, true); err != nil { // nolint:staticcheck
 		// Windows can't set this flag, so we need to handle it in other ways
 	}
 
@@ -269,7 +269,7 @@ func (m *Multicast) _announce() {
 				continue
 			}
 			// Join the multicast group
-			m.sock.JoinGroup(&iface, groupAddr)
+			_ = m.sock.JoinGroup(&iface, groupAddr)
 			// Try and see if we already have a TCP listener for this interface
 			var info *listenerInfo
 			if nfo, ok := m.listeners[iface.Name]; !ok || nfo.listener.Listener == nil {
@@ -304,7 +304,7 @@ func (m *Multicast) _announce() {
 				a.Zone = ""
 				destAddr.Zone = iface.Name
 				msg := []byte(a.String())
-				m.sock.WriteTo(msg, nil, destAddr)
+				_, _ = m.sock.WriteTo(msg, nil, destAddr)
 			}
 			if info.interval.Seconds() < 15 {
 				info.interval += time.Second

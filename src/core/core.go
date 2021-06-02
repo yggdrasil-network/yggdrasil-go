@@ -158,7 +158,7 @@ func (c *Core) _stop() {
 		c.addPeerTimer.Stop()
 		c.addPeerTimer = nil
 	}
-	c.links.stop()
+	_ = c.links.stop()
 	/* FIXME this deadlocks, need a waitgroup or something to coordinate shutdown
 	for _, peer := range c.GetPeers() {
 		c.DisconnectPeer(peer.Port)

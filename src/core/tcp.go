@@ -67,7 +67,7 @@ type tcpOptions struct {
 }
 
 func (l *TcpListener) Stop() {
-	defer func() { recover() }()
+	defer func() { _ = recover() }()
 	close(l.stop)
 }
 
@@ -75,7 +75,7 @@ func (l *TcpListener) Stop() {
 func (t *tcp) setExtraOptions(c net.Conn) {
 	switch sock := c.(type) {
 	case *net.TCPConn:
-		sock.SetNoDelay(true)
+		_ = sock.SetNoDelay(true)
 	// TODO something for socks5
 	default:
 	}

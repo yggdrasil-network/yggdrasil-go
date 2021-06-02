@@ -50,7 +50,7 @@ func (k *keyStore) sendToAddress(addr address.Address, bs []byte) {
 	if info := k.addrToInfo[addr]; info != nil {
 		k.resetTimeout(info)
 		k.mutex.Unlock()
-		k.tun.core.WriteTo(bs, iwt.Addr(info.key[:]))
+		_, _ = k.tun.core.WriteTo(bs, iwt.Addr(info.key[:]))
 	} else {
 		var buf *buffer
 		if buf = k.addrBuffer[addr]; buf == nil {
@@ -79,7 +79,7 @@ func (k *keyStore) sendToSubnet(subnet address.Subnet, bs []byte) {
 	if info := k.subnetToInfo[subnet]; info != nil {
 		k.resetTimeout(info)
 		k.mutex.Unlock()
-		k.tun.core.WriteTo(bs, iwt.Addr(info.key[:]))
+		_, _ = k.tun.core.WriteTo(bs, iwt.Addr(info.key[:]))
 	} else {
 		var buf *buffer
 		if buf = k.subnetBuffer[subnet]; buf == nil {
@@ -132,13 +132,13 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 		k.mutex.Unlock()
 		if buf := k.addrBuffer[info.address]; buf != nil {
 			for _, bs := range buf.packets {
-				k.tun.core.WriteTo(bs, iwt.Addr(info.key[:]))
+				_, _ = k.tun.core.WriteTo(bs, iwt.Addr(info.key[:]))
 			}
 			delete(k.addrBuffer, info.address)
 		}
 		if buf := k.subnetBuffer[info.subnet]; buf != nil {
 			for _, bs := range buf.packets {
-				k.tun.core.WriteTo(bs, iwt.Addr(info.key[:]))
+				_, _ = k.tun.core.WriteTo(bs, iwt.Addr(info.key[:]))
 			}
 			delete(k.subnetBuffer, info.subnet)
 		}

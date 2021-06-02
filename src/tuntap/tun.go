@@ -221,13 +221,13 @@ func (tun *TunAdapter) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte)
 func (tun *TunAdapter) sendKeyLookup(partial ed25519.PublicKey) {
 	sig := ed25519.Sign(tun.core.PrivateKey(), partial[:])
 	bs := append([]byte{typeKeyLookup}, sig...)
-	tun.core.SendOutOfBand(partial, bs)
+	_ = tun.core.SendOutOfBand(partial, bs)
 }
 
 func (tun *TunAdapter) sendKeyResponse(dest ed25519.PublicKey) {
 	sig := ed25519.Sign(tun.core.PrivateKey(), dest[:])
 	bs := append([]byte{typeKeyResponse}, sig...)
-	tun.core.SendOutOfBand(dest, bs)
+	_ = tun.core.SendOutOfBand(dest, bs)
 }
 
 func (tun *TunAdapter) maxSessionMTU() uint64 {

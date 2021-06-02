@@ -250,15 +250,3 @@ func (intf *link) close() {
 func (intf *link) name() string {
 	return intf.lname
 }
-
-func (intf *link) local() string {
-	return intf.info.local
-}
-
-func (intf *link) remote() string {
-	return intf.info.remote
-}
-
-func (intf *link) interfaceType() string {
-	return intf.info.linkType
-}

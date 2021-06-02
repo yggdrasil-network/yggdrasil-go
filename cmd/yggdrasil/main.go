@@ -107,7 +107,9 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *config
 	if err != nil {
 		panic(err)
 	}
-	json.Unmarshal(confJson, &cfg)
+	if err := json.Unmarshal(confJson, &cfg); err != nil {
+		panic(err)
+	}
 	// Overlay our newly mapped configuration onto the autoconf node config that
 	// we generated above.
 	if err = mapstructure.Decode(dat, &cfg); err != nil {
@@ -283,20 +285,23 @@ func main() {
 	n.tuntap = &tuntap.TunAdapter{}
 	n.tuntap.(*tuntap.TunAdapter).SetSessionGatekeeper(n.sessionFirewall)
 	// Start the admin socket
-	n.admin.Init(&n.core, cfg, logger, nil)
-	if err := n.admin.Start(); err != nil {
+	if err := n.admin.Init(&n.core, cfg, logger, nil); err != nil {
+		logger.Errorln("An error occured initialising admin socket:", err)
+	} else if err := n.admin.Start(); err != nil {
 		logger.Errorln("An error occurred starting admin socket:", err)
 	}
 	n.admin.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 	// Start the multicast interface
-	n.multicast.Init(&n.core, cfg, logger, nil)
-	if err := n.multicast.Start(); err != nil {
+	if err := n.multicast.Init(&n.core, cfg, logger, nil); err != nil {
+		logger.Errorln("An error occured initialising multicast:", err)
+	} else if err := n.multicast.Start(); err != nil {
 		logger.Errorln("An error occurred starting multicast:", err)
 	}
 	n.multicast.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 	// Start the TUN/TAP interface
-	n.tuntap.Init(&n.core, cfg, logger, nil)
-	if err := n.tuntap.Start(); err != nil {
+	if err := n.tuntap.Init(&n.core, cfg, logger, nil); err != nil {
+		logger.Errorln("An error occurred initialising TUN/TAP:", err)
+	} else if err := n.tuntap.Start(); err != nil {
 		logger.Errorln("An error occurred starting TUN/TAP:", err)
 	}
 	n.tuntap.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
@@ -316,9 +321,9 @@ func main() {
 }
 
 func (n *node) shutdown() {
-	n.admin.Stop()
-	n.multicast.Stop()
-	n.tuntap.Stop()
+	_ = n.admin.Stop()
+	_ = n.multicast.Stop()
+	_ = n.tuntap.Stop()
 	n.core.Stop()
 }
 

@@ -40,26 +40,29 @@ const (
 	darwin_ND6_INFINITE_LIFETIME = 0xFFFFFFFF // netinet6/nd6.h
 )
 
+// nolint:structcheck
 type in6_addrlifetime struct {
-	ia6t_expire    float64
-	ia6t_preferred float64
+	ia6t_expire    float64 // nolint:unused
+	ia6t_preferred float64 // nolint:unused
 	ia6t_vltime    uint32
 	ia6t_pltime    uint32
 }
 
+// nolint:structcheck
 type sockaddr_in6 struct {
 	sin6_len      uint8
 	sin6_family   uint8
-	sin6_port     uint8
-	sin6_flowinfo uint32
+	sin6_port     uint8  // nolint:unused
+	sin6_flowinfo uint32 // nolint:unused
 	sin6_addr     [8]uint16
-	sin6_scope_id uint32
+	sin6_scope_id uint32 // nolint:unused
 }
 
+// nolint:structcheck
 type in6_aliasreq struct {
 	ifra_name       [16]byte
 	ifra_addr       sockaddr_in6
-	ifra_dstaddr    sockaddr_in6
+	ifra_dstaddr    sockaddr_in6 // nolint:unused
 	ifra_prefixmask sockaddr_in6
 	ifra_flags      uint32
 	ifra_lifetime   in6_addrlifetime
