@@ -104,9 +104,9 @@ func (t *tcp) init(l *links) error {
 	t.listeners = make(map[string]*TcpListener)
 	t.mutex.Unlock()
 
-	t.links.core.config.Mutex.RLock()
-	defer t.links.core.config.Mutex.RUnlock()
-	for _, listenaddr := range t.links.core.config.Current.Listen {
+	t.links.core.config.RLock()
+	defer t.links.core.config.RUnlock()
+	for _, listenaddr := range t.links.core.config.Listen {
 		u, err := url.Parse(listenaddr)
 		if err != nil {
 			t.links.core.log.Errorln("Failed to parse listener: listener", listenaddr, "is not correctly formatted, ignoring")

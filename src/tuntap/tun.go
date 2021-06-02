@@ -35,7 +35,7 @@ type MTU uint16
 type TunAdapter struct {
 	core        *core.Core
 	store       keyStore
-	config      *config.NodeState
+	config      *config.NodeConfig
 	log         *log.Logger
 	addr        address.Address
 	subnet      address.Subnet
@@ -103,13 +103,17 @@ func MaximumMTU() uint64 {
 
 // Init initialises the TUN module. You must have acquired a Listener from
 // the Yggdrasil core before this point and it must not be in use elsewhere.
-func (tun *TunAdapter) Init(core *core.Core, config *config.NodeState, log *log.Logger, options interface{}) error {
+func (tun *TunAdapter) Init(core *core.Core, config *config.NodeConfig, log *log.Logger, options interface{}) error {
 	tun.core = core
 	tun.store.init(tun)
 	tun.config = config
 	tun.log = log
 	tun.proto.init(tun)
-	tun.proto.nodeinfo.setNodeInfo(config.Current.NodeInfo, config.Current.NodeInfoPrivacy)
+	tun.config.RLock()
+	if err := tun.proto.nodeinfo.setNodeInfo(tun.config.NodeInfo, tun.config.NodeInfoPrivacy); err != nil {
+		return fmt.Errorf("tun.proto.nodeinfo.setNodeInfo: %w", err)
+	}
+	tun.config.RUnlock()
 	if err := tun.core.SetOutOfBandHandler(tun.oobHandler); err != nil {
 		return fmt.Errorf("tun.core.SetOutOfBandHander: %w", err)
 	}
@@ -130,7 +134,8 @@ func (tun *TunAdapter) _start() error {
 	if tun.isOpen {
 		return errors.New("TUN module is already started")
 	}
-	current := tun.config.GetCurrent()
+	tun.config.RLock()
+	defer tun.config.RUnlock()
 	if tun.config == nil {
 		return errors.New("no configuration available to TUN")
 	}
@@ -139,21 +144,21 @@ func (tun *TunAdapter) _start() error {
 	tun.addr = *address.AddrForKey(pk)
 	tun.subnet = *address.SubnetForKey(pk)
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
-	if current.IfName == "none" || current.IfName == "dummy" {
+	if tun.config.IfName == "none" || tun.config.IfName == "dummy" {
 		tun.log.Debugln("Not starting TUN as ifname is none or dummy")
 		tun.isEnabled = false
 		go tun.write()
 		return nil
 	}
-	mtu := current.IfMTU
+	mtu := tun.config.IfMTU
 	if tun.maxSessionMTU() < mtu {
 		mtu = tun.maxSessionMTU()
 	}
-	if err := tun.setup(current.IfName, addr, mtu); err != nil {
+	if err := tun.setup(tun.config.IfName, addr, mtu); err != nil {
 		return err
 	}
 	if tun.MTU() != mtu {
-		tun.log.Warnf("Warning: Interface MTU %d automatically adjusted to %d (supported range is 1280-%d)", current.IfMTU, tun.MTU(), MaximumMTU())
+		tun.log.Warnf("Warning: Interface MTU %d automatically adjusted to %d (supported range is 1280-%d)", tun.config.IfMTU, tun.MTU(), MaximumMTU())
 	}
 	tun.isOpen = true
 	tun.isEnabled = true

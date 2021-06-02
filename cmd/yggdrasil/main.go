@@ -35,7 +35,7 @@ import (
 
 type node struct {
 	core      core.Core
-	state     *config.NodeState
+	config    *config.NodeConfig
 	tuntap    module.Module // tuntap.TunAdapter
 	multicast module.Module // multicast.Multicast
 	admin     module.Module // admin.AdminSocket
@@ -272,8 +272,7 @@ func main() {
 	n := node{}
 	// Now start Yggdrasil - this starts the DHT, router, switch and other core
 	// components needed for Yggdrasil to operate
-	n.state, err = n.core.Start(cfg, logger)
-	if err != nil {
+	if err = n.core.Start(cfg, logger); err != nil {
 		logger.Errorln("An error occurred during startup")
 		panic(err)
 	}
@@ -284,19 +283,19 @@ func main() {
 	n.tuntap = &tuntap.TunAdapter{}
 	n.tuntap.(*tuntap.TunAdapter).SetSessionGatekeeper(n.sessionFirewall)
 	// Start the admin socket
-	n.admin.Init(&n.core, n.state, logger, nil)
+	n.admin.Init(&n.core, cfg, logger, nil)
 	if err := n.admin.Start(); err != nil {
 		logger.Errorln("An error occurred starting admin socket:", err)
 	}
 	n.admin.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 	// Start the multicast interface
-	n.multicast.Init(&n.core, n.state, logger, nil)
+	n.multicast.Init(&n.core, cfg, logger, nil)
 	if err := n.multicast.Start(); err != nil {
 		logger.Errorln("An error occurred starting multicast:", err)
 	}
 	n.multicast.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
 	// Start the TUN/TAP interface
-	n.tuntap.Init(&n.core, n.state, logger, nil)
+	n.tuntap.Init(&n.core, cfg, logger, nil)
 	if err := n.tuntap.Start(); err != nil {
 		logger.Errorln("An error occurred starting TUN/TAP:", err)
 	}
@@ -324,16 +323,16 @@ func (n *node) shutdown() {
 }
 
 func (n *node) sessionFirewall(pubkey ed25519.PublicKey, initiator bool) bool {
-	n.state.Mutex.RLock()
-	defer n.state.Mutex.RUnlock()
+	n.config.RLock()
+	defer n.config.RUnlock()
 
 	// Allow by default if the session firewall is disabled
-	if !n.state.Current.SessionFirewall.Enable {
+	if !n.config.SessionFirewall.Enable {
 		return true
 	}
 
 	// Reject blacklisted nodes
-	for _, b := range n.state.Current.SessionFirewall.BlacklistPublicKeys {
+	for _, b := range n.config.SessionFirewall.BlacklistPublicKeys {
 		key, err := hex.DecodeString(b)
 		if err == nil {
 			if bytes.Equal(key, pubkey) {
@@ -343,7 +342,7 @@ func (n *node) sessionFirewall(pubkey ed25519.PublicKey, initiator bool) bool {
 	}
 
 	// Allow whitelisted nodes
-	for _, b := range n.state.Current.SessionFirewall.WhitelistPublicKeys {
+	for _, b := range n.config.SessionFirewall.WhitelistPublicKeys {
 		key, err := hex.DecodeString(b)
 		if err == nil {
 			if bytes.Equal(key, pubkey) {
@@ -353,7 +352,7 @@ func (n *node) sessionFirewall(pubkey ed25519.PublicKey, initiator bool) bool {
 	}
 
 	// Allow outbound sessions if appropriate
-	if n.state.Current.SessionFirewall.AlwaysAllowOutbound {
+	if n.config.SessionFirewall.AlwaysAllowOutbound {
 		if initiator {
 			return true
 		}
@@ -369,12 +368,12 @@ func (n *node) sessionFirewall(pubkey ed25519.PublicKey, initiator bool) bool {
 	}
 
 	// Allow direct peers if appropriate
-	if n.state.Current.SessionFirewall.AllowFromDirect && isDirectPeer {
+	if n.config.SessionFirewall.AllowFromDirect && isDirectPeer {
 		return true
 	}
 
 	// Allow remote nodes if appropriate
-	if n.state.Current.SessionFirewall.AllowFromRemote && !isDirectPeer {
+	if n.config.SessionFirewall.AllowFromRemote && !isDirectPeer {
 		return true
 	}
 

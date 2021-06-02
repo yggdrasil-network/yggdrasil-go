@@ -23,7 +23,7 @@ import (
 type Multicast struct {
 	phony.Inbox
 	core        *core.Core
-	config      *config.NodeState
+	config      *config.NodeConfig
 	log         *log.Logger
 	sock        *ipv6.PacketConn
 	groupAddr   string
@@ -45,14 +45,13 @@ type listenerInfo struct {
 }
 
 // Init prepares the multicast interface for use.
-func (m *Multicast) Init(core *core.Core, state *config.NodeState, log *log.Logger, options interface{}) error {
+func (m *Multicast) Init(core *core.Core, nc *config.NodeConfig, log *log.Logger, options interface{}) error {
 	m.core = core
-	m.config = state
+	m.config = nc
 	m.log = log
 	m.listeners = make(map[string]*listenerInfo)
 	m._interfaces = make(map[string]interfaceInfo)
-	current := m.config.GetCurrent()
-	m.listenPort = current.LinkLocalTCPPort
+	m.listenPort = m.config.LinkLocalTCPPort
 	m.groupAddr = "[ff02::114]:9001"
 	return nil
 }
@@ -73,7 +72,9 @@ func (m *Multicast) _start() error {
 	if m.isOpen {
 		return fmt.Errorf("multicast module is already started")
 	}
-	if len(m.config.GetCurrent().MulticastInterfaces) == 0 {
+	m.config.RLock()
+	defer m.config.RUnlock()
+	if len(m.config.MulticastInterfaces) == 0 {
 		return nil
 	}
 	m.log.Infoln("Starting multicast module")
@@ -161,8 +162,7 @@ func (m *Multicast) Interfaces() map[string]net.Interface {
 func (m *Multicast) getAllowedInterfaces() map[string]net.Interface {
 	interfaces := make(map[string]net.Interface)
 	// Get interface expressions from config
-	current := m.config.GetCurrent()
-	exprs := current.MulticastInterfaces
+	exprs := m.config.MulticastInterfaces
 	// Ask the system for network interfaces
 	allifaces, err := net.Interfaces()
 	if err != nil {
