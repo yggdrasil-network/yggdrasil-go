@@ -36,7 +36,7 @@ func (t *tcp) getControl(sintf string) func(string, string, syscall.RawConn) err
 		btd := func(fd uintptr) {
 			err = unix.BindToDevice(int(fd), sintf)
 		}
-		c.Control(btd)
+		_ = c.Control(btd)
 		if err != nil {
 			t.links.core.log.Debugln("Failed to set SO_BINDTODEVICE:", sintf)
 		}
