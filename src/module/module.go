@@ -11,7 +11,7 @@ import (
 // Module is an interface that defines which functions must be supported by a
 // given Yggdrasil module.
 type Module interface {
-	Init(core *core.Core, state *config.NodeState, log *log.Logger, options interface{}) error
+	Init(core *core.Core, state *config.NodeConfig, log *log.Logger, options interface{}) error
 	Start() error
 	Stop() error
 	SetupAdminHandlers(a *admin.AdminSocket)

@@ -40,14 +40,12 @@ func GetLoggerWithPrefix(prefix string, verbose bool) *log.Logger {
 // Verbosity flag is passed to logger.
 func CreateAndConnectTwo(t testing.TB, verbose bool) (nodeA *Core, nodeB *Core) {
 	nodeA = new(Core)
-	_, err := nodeA.Start(GenerateConfig(), GetLoggerWithPrefix("A: ", verbose))
-	if err != nil {
+	if err := nodeA.Start(GenerateConfig(), GetLoggerWithPrefix("A: ", verbose)); err != nil {
 		t.Fatal(err)
 	}
 
 	nodeB = new(Core)
-	_, err = nodeB.Start(GenerateConfig(), GetLoggerWithPrefix("B: ", verbose))
-	if err != nil {
+	if err := nodeB.Start(GenerateConfig(), GetLoggerWithPrefix("B: ", verbose)); err != nil {
 		t.Fatal(err)
 	}
 

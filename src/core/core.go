@@ -25,7 +25,7 @@ type Core struct {
 	// guarantee that it will be covered by the mutex
 	phony.Inbox
 	*iw.PacketConn
-	config       config.NodeState // Config
+	config       *config.NodeConfig // Config
 	secret       ed25519.PrivateKey
 	public       ed25519.PublicKey
 	links        links
@@ -42,9 +42,9 @@ func (c *Core) _init() error {
 		c.log = log.New(ioutil.Discard, "", 0)
 	}
 
-	current := c.config.GetCurrent()
-
-	sigPriv, err := hex.DecodeString(current.PrivateKey)
+	c.config.RLock()
+	sigPriv, err := hex.DecodeString(c.config.PrivateKey)
+	c.config.RUnlock()
 	if err != nil {
 		return err
 	}
@@ -64,11 +64,11 @@ func (c *Core) _init() error {
 // configure them. The loop ensures that disconnected peers will eventually
 // be reconnected with.
 func (c *Core) _addPeerLoop() {
-	// Get the peers from the config - these could change!
-	current := c.config.GetCurrent()
+	c.config.RLock()
+	defer c.config.RUnlock()
 
 	// Add peers from the Peers section
-	for _, peer := range current.Peers {
+	for _, peer := range c.config.Peers {
 		go func(peer string, intf string) {
 			u, err := url.Parse(peer)
 			if err != nil {
@@ -81,7 +81,7 @@ func (c *Core) _addPeerLoop() {
 	}
 
 	// Add peers from the InterfacePeers section
-	for intf, intfpeers := range current.InterfacePeers {
+	for intf, intfpeers := range c.config.InterfacePeers {
 		for _, peer := range intfpeers {
 			go func(peer string, intf string) {
 				u, err := url.Parse(peer)
@@ -107,21 +107,17 @@ func (c *Core) _addPeerLoop() {
 // TCP and UDP sockets, a multicast discovery socket, an admin socket, router,
 // switch and DHT node. A config.NodeState is returned which contains both the
 // current and previous configurations (from reconfigures).
-func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (conf *config.NodeState, err error) {
+func (c *Core) Start(nc *config.NodeConfig, log *log.Logger) (err error) {
 	phony.Block(c, func() {
-		conf, err = c._start(nc, log)
+		err = c._start(nc, log)
 	})
 	return
 }
 
 // This function is unsafe and should only be ran by the core actor.
-func (c *Core) _start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState, error) {
+func (c *Core) _start(nc *config.NodeConfig, log *log.Logger) error {
 	c.log = log
-
-	c.config = config.NodeState{
-		Current:  *nc,
-		Previous: *nc,
-	}
+	c.config = nc
 
 	if name := version.BuildName(); name != "unknown" {
 		c.log.Infoln("Build name:", name)
@@ -133,30 +129,20 @@ func (c *Core) _start(nc *config.NodeConfig, log *log.Logger) (*config.NodeState
 	c.log.Infoln("Starting up...")
 	if err := c._init(); err != nil {
 		c.log.Errorln("Failed to initialize core")
-		return nil, err
+		return err
 	}
 
 	if err := c.links.init(c); err != nil {
 		c.log.Errorln("Failed to start link interfaces")
-		return nil, err
+		return err
 	}
-
-	//if err := c.switchTable.start(); err != nil {
-	//	c.log.Errorln("Failed to start switch")
-	//	return nil, err
-	//}
-
-	//if err := c.router.start(); err != nil {
-	//	c.log.Errorln("Failed to start router")
-	//	return nil, err
-	//}
 
 	c.addPeerTimer = time.AfterFunc(0, func() {
 		c.Act(nil, c._addPeerLoop)
 	})
 
 	c.log.Infoln("Startup complete")
-	return &c.config, nil
+	return nil
 }
 
 // Stop shuts down the Yggdrasil node.
@@ -172,7 +158,7 @@ func (c *Core) _stop() {
 		c.addPeerTimer.Stop()
 		c.addPeerTimer = nil
 	}
-	c.links.stop()
+	_ = c.links.stop()
 	/* FIXME this deadlocks, need a waitgroup or something to coordinate shutdown
 	for _, peer := range c.GetPeers() {
 		c.DisconnectPeer(peer.Port)

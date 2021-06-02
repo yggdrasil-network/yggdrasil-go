@@ -188,7 +188,9 @@ func (intf *link) handler() (chan struct{}, error) {
 		}
 	}
 	// Check if we're authorized to connect to this key / IP
-	allowed := intf.links.core.config.GetCurrent().AllowedPublicKeys
+	intf.links.core.config.RLock()
+	allowed := intf.links.core.config.AllowedPublicKeys
+	intf.links.core.config.RUnlock()
 	isallowed := len(allowed) == 0
 	for _, k := range allowed {
 		if k == hex.EncodeToString(meta.key) { // TODO: this is yuck
@@ -247,16 +249,4 @@ func (intf *link) close() {
 
 func (intf *link) name() string {
 	return intf.lname
-}
-
-func (intf *link) local() string {
-	return intf.info.local
-}
-
-func (intf *link) remote() string {
-	return intf.info.remote
-}
-
-func (intf *link) interfaceType() string {
-	return intf.info.linkType
 }

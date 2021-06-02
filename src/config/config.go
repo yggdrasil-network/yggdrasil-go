@@ -24,41 +24,11 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 
-// NodeState represents the active and previous configuration of an Yggdrasil
-// node. A NodeState object is returned when starting an Yggdrasil node. Note
-// that this structure and related functions are likely to disappear soon.
-type NodeState struct {
-	Current  NodeConfig
-	Previous NodeConfig
-	Mutex    sync.RWMutex
-}
-
-// Current returns the active node configuration.
-func (s *NodeState) GetCurrent() NodeConfig {
-	s.Mutex.RLock()
-	defer s.Mutex.RUnlock()
-	return s.Current
-}
-
-// Previous returns the previous node configuration.
-func (s *NodeState) GetPrevious() NodeConfig {
-	s.Mutex.RLock()
-	defer s.Mutex.RUnlock()
-	return s.Previous
-}
-
-// Replace the node configuration with new configuration.
-func (s *NodeState) Replace(n NodeConfig) {
-	s.Mutex.Lock()
-	defer s.Mutex.Unlock()
-	s.Previous = s.Current
-	s.Current = n
-}
-
 // NodeConfig is the main configuration structure, containing configuration
 // options that are necessary for an Yggdrasil node to run. You will need to
 // supply one of these structs to the Yggdrasil core when starting a node.
 type NodeConfig struct {
+	sync.RWMutex
 	Peers               []string               `comment:"List of connection strings for outbound peer connections in URI format,\ne.g. tcp://a.b.c.d:e or socks://a.b.c.d:e/f.g.h.i:j. These connections\nwill obey the operating system routing table, therefore you should\nuse this section when you may connect via different interfaces."`
 	InterfacePeers      map[string][]string    `comment:"List of connection strings for outbound peer connections in URI format,\narranged by source interface, e.g. { \"eth0\": [ tcp://a.b.c.d:e ] }.\nNote that SOCKS peerings will NOT be affected by this option and should\ngo in the \"Peers\" section instead."`
 	Listen              []string               `comment:"Listen addresses for incoming connections. You will need to add\nlisteners in order to accept incoming peerings from non-local nodes.\nMulticast peer discovery will work regardless of any listeners set\nhere. Each listener should be specified in URI format as above, e.g.\ntcp://0.0.0.0:0 or tcp://[::]:0 to listen on all interfaces."`

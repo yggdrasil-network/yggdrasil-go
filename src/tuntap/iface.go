@@ -123,16 +123,12 @@ func (tun *TunAdapter) write() {
 			continue // bad remote address/subnet
 		}
 		bs = buf[:TUN_OFFSET_BYTES+len(bs)]
-		n, err = tun.iface.Write(bs, TUN_OFFSET_BYTES)
-		if err != nil {
+		if _, err = tun.iface.Write(bs, TUN_OFFSET_BYTES); err != nil {
 			tun.Act(nil, func() {
 				if !tun.isOpen {
 					tun.log.Errorln("TUN iface write error:", err)
 				}
 			})
-		}
-		if n != len(bs) {
-			// TODO some kind of error reporting for a partial write
 		}
 	}
 }

@@ -63,12 +63,13 @@ func (a *AdminSocket) AddHandler(name string, args []string, handlerfunc func(js
 }
 
 // Init runs the initial admin setup.
-func (a *AdminSocket) Init(c *core.Core, state *config.NodeState, log *log.Logger, options interface{}) error {
+func (a *AdminSocket) Init(c *core.Core, nc *config.NodeConfig, log *log.Logger, options interface{}) error {
 	a.core = c
 	a.log = log
 	a.handlers = make(map[string]handler)
-	current := state.GetCurrent()
-	a.listenaddr = current.AdminListen
+	nc.RLock()
+	a.listenaddr = nc.AdminListen
+	nc.RUnlock()
 	a.done = make(chan struct{})
 	close(a.done) // Start in a done / not-started state
 	_ = a.AddHandler("list", []string{}, func(_ json.RawMessage) (interface{}, error) {
