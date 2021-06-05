@@ -27,7 +27,6 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
-	"github.com/yggdrasil-network/yggdrasil-go/src/module"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
@@ -36,9 +35,9 @@ import (
 type node struct {
 	core      core.Core
 	config    *config.NodeConfig
-	tuntap    module.Module // tuntap.TunAdapter
-	multicast module.Module // multicast.Multicast
-	admin     module.Module // admin.AdminSocket
+	tuntap    *tuntap.TunAdapter
+	multicast *multicast.Multicast
+	admin     *admin.AdminSocket
 }
 
 func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *config.NodeConfig {
@@ -283,28 +282,28 @@ func main() {
 	n.admin = &admin.AdminSocket{}
 	n.multicast = &multicast.Multicast{}
 	n.tuntap = &tuntap.TunAdapter{}
-	n.tuntap.(*tuntap.TunAdapter).SetSessionGatekeeper(n.sessionFirewall)
+	n.tuntap.SetSessionGatekeeper(n.sessionFirewall)
 	// Start the admin socket
 	if err := n.admin.Init(&n.core, cfg, logger, nil); err != nil {
 		logger.Errorln("An error occured initialising admin socket:", err)
 	} else if err := n.admin.Start(); err != nil {
 		logger.Errorln("An error occurred starting admin socket:", err)
 	}
-	n.admin.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
+	n.admin.SetupAdminHandlers(n.admin)
 	// Start the multicast interface
 	if err := n.multicast.Init(&n.core, cfg, logger, nil); err != nil {
 		logger.Errorln("An error occured initialising multicast:", err)
 	} else if err := n.multicast.Start(); err != nil {
 		logger.Errorln("An error occurred starting multicast:", err)
 	}
-	n.multicast.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
+	n.multicast.SetupAdminHandlers(n.admin)
 	// Start the TUN/TAP interface
 	if err := n.tuntap.Init(&n.core, cfg, logger, nil); err != nil {
 		logger.Errorln("An error occurred initialising TUN/TAP:", err)
 	} else if err := n.tuntap.Start(); err != nil {
 		logger.Errorln("An error occurred starting TUN/TAP:", err)
 	}
-	n.tuntap.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
+	n.tuntap.SetupAdminHandlers(n.admin)
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
 	address := n.core.Address()
