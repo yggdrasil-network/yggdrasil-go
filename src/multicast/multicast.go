@@ -305,11 +305,7 @@ func (m *Multicast) _announce() {
 			if a, err := net.ResolveTCPAddr("tcp6", lladdr); err == nil {
 				a.Zone = ""
 				destAddr.Zone = iface.Name
-				key, err := hex.DecodeString(m.config.PublicKey)
-				if err != nil {
-					panic(err)
-				}
-				msg := append([]byte(nil), key...)
+				msg := append([]byte(nil), m.core.GetSelf().Key...)
 				msg = append(msg, a.String()...)
 				_, _ = m.sock.WriteTo(msg, nil, destAddr)
 			}

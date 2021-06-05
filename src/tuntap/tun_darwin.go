@@ -90,7 +90,7 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	ar.ifra_prefixmask.sin6_len = uint8(unsafe.Sizeof(ar.ifra_prefixmask))
 	b := make([]byte, 16)
 	binary.LittleEndian.PutUint16(b, uint16(0xFE00))
-	ar.ifra_prefixmask.sin6_addr[0] = uint16(binary.BigEndian.Uint16(b))
+	ar.ifra_prefixmask.sin6_addr[0] = binary.BigEndian.Uint16(b)
 
 	ar.ifra_addr.sin6_len = uint8(unsafe.Sizeof(ar.ifra_addr))
 	ar.ifra_addr.sin6_family = unix.AF_INET6
@@ -99,7 +99,7 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 		addr, _ := strconv.ParseUint(parts[i], 16, 16)
 		b := make([]byte, 16)
 		binary.LittleEndian.PutUint16(b, uint16(addr))
-		ar.ifra_addr.sin6_addr[i] = uint16(binary.BigEndian.Uint16(b))
+		ar.ifra_addr.sin6_addr[i] = binary.BigEndian.Uint16(b)
 	}
 
 	ar.ifra_flags |= darwin_IN6_IFF_NODAD
