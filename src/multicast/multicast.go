@@ -2,6 +2,8 @@ package multicast
 
 import (
 	"context"
+	"crypto/ed25519"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"net/url"
@@ -303,7 +305,12 @@ func (m *Multicast) _announce() {
 			if a, err := net.ResolveTCPAddr("tcp6", lladdr); err == nil {
 				a.Zone = ""
 				destAddr.Zone = iface.Name
-				msg := []byte(a.String())
+				key, err := hex.DecodeString(m.config.PublicKey)
+				if err != nil {
+					panic(err)
+				}
+				msg := append([]byte(nil), key...)
+				msg = append(msg, a.String()...)
 				_, _ = m.sock.WriteTo(msg, nil, destAddr)
 			}
 			if info.interval.Seconds() < 15 {
@@ -342,7 +349,12 @@ func (m *Multicast) listen() {
 				continue
 			}
 		}
-		anAddr := string(bs[:nBytes])
+		if len(bs) < ed25519.PublicKeySize {
+			continue
+		}
+		var key ed25519.PublicKey
+		key = append(key, bs[:ed25519.PublicKeySize]...)
+		anAddr := string(bs[ed25519.PublicKeySize:nBytes])
 		addr, err := net.ResolveTCPAddr("tcp6", anAddr)
 		if err != nil {
 			continue
@@ -357,7 +369,8 @@ func (m *Multicast) listen() {
 		})
 		if _, ok := interfaces[from.Zone]; ok {
 			addr.Zone = ""
-			u, err := url.Parse("tcp://" + addr.String())
+			pin := fmt.Sprintf("/?ed25519=%s", hex.EncodeToString(key))
+			u, err := url.Parse("tcp://" + addr.String() + pin)
 			if err != nil {
 				m.log.Debugln("Call from multicast failed, parse error:", addr.String(), err)
 			}
