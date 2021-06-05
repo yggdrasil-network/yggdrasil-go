@@ -90,6 +90,8 @@ func readConfig(log *log.Logger, useconf *bool, useconffile *string, normaliseco
 				pub := priv.Public().(ed25519.PublicKey)
 				dat["PrivateKey"] = hex.EncodeToString(priv[:])
 				dat["PublicKey"] = hex.EncodeToString(pub[:])
+			} else {
+				log.Warnln("WARNING: The \"SigningPrivateKey\" configuration option contains an invalid value and will be ignored")
 			}
 		}
 	}
@@ -187,7 +189,11 @@ func main() {
 		logger.Warnln("Logging defaulting to stdout")
 	}
 
-	setLogLevel(*loglevel, logger)
+	if *normaliseconf {
+		setLogLevel("error", logger)
+	} else {
+		setLogLevel(*loglevel, logger)
+	}
 
 	var cfg *config.NodeConfig
 	var err error
