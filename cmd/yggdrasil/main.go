@@ -82,17 +82,15 @@ func readConfig(log *log.Logger, useconf *bool, useconffile *string, normaliseco
 	if _, ok := dat["TunnelRouting"]; ok {
 		log.Warnln("WARNING: Tunnel routing is no longer supported")
 	}
-	if _, ok := dat["SigningPrivateKey"]; ok {
-		log.Warnln("WARNING: The configuration file is out of date, please take a backup and then use -normaliseconf")
+	if old, ok := dat["SigningPrivateKey"]; ok {
 		log.Warnln("WARNING: The \"SigningPrivateKey\" configuration option has been renamed to \"PrivateKey\"")
 		if _, ok := dat["PrivateKey"]; !ok {
-			dat["PrivateKey"] = dat["SigningPrivateKey"]
-		}
-	}
-	if _, ok := dat["SigningPublicKey"]; ok {
-		log.Warnln("WARNING: The \"SigningPrivateKey\" configuration option has been renamed to \"PrivateKey\"")
-		if _, ok := dat["PublicKey"]; !ok {
-			dat["PublicKey"] = dat["SigningPublicKey"]
+			if privstr, err := hex.DecodeString(old.(string)); err == nil {
+				priv := ed25519.PrivateKey(privstr)
+				pub := priv.Public().(ed25519.PublicKey)
+				dat["PrivateKey"] = hex.EncodeToString(priv[:])
+				dat["PublicKey"] = hex.EncodeToString(pub[:])
+			}
 		}
 	}
 	// Sanitise the config
