@@ -291,6 +291,9 @@ func run() int {
 				if subnet, ok := v.(map[string]interface{})["subnet"].(string); ok {
 					fmt.Println("IPv6 subnet:", subnet)
 				}
+				if boxSigKey, ok := v.(map[string]interface{})["key"].(string); ok {
+					fmt.Println("Public key:", boxSigKey)
+				}
 				if coords, ok := v.(map[string]interface{})["coords"].(string); ok {
 					fmt.Println("Coords:", coords)
 				}
