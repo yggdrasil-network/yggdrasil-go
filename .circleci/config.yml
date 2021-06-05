@@ -16,6 +16,11 @@ jobs:
               go get github.com/golangci/golangci-lint/cmd/golangci-lint@v1.31.0
               golangci-lint run
 
+      - run:
+          name: Run Go tests
+          command: |
+              go test ./...
+
   build-linux:
     docker:
       - image: circleci/golang:1.16
