@@ -271,7 +271,7 @@ func main() {
 
 	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
 	// don't need to create this manually.
-	n := node{}
+	n := node{config: cfg}
 	// Now start Yggdrasil - this starts the DHT, router, switch and other core
 	// components needed for Yggdrasil to operate
 	if err = n.core.Start(cfg, logger); err != nil {
