@@ -3,6 +3,7 @@
 # This is a lazy script to create a .deb for Debian/Ubuntu. It installs
 # yggdrasil and enables it in systemd. You can give it the PKGARCH= argument
 # i.e. PKGARCH=i386 sh contrib/deb/generate.sh
+# all builds are generated in app.circleci.com.
 
 if [ `pwd` != `git rev-parse --show-toplevel` ]
 then
