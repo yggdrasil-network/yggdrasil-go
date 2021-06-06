@@ -1,4 +1,4 @@
-module github.com/vikulin/yggdrasil-go
+module github.com/yggdrasil-network/yggdrasil-go
 
 go 1.16
 
