@@ -281,7 +281,6 @@ func main() {
 	n.admin = &admin.AdminSocket{}
 	n.multicast = &multicast.Multicast{}
 	n.tuntap = &tuntap.TunAdapter{}
-	n.tuntap.SetSessionGatekeeper(n.sessionFirewall)
 	// Start the admin socket
 	if err := n.admin.Init(&n.core, cfg, logger, nil); err != nil {
 		logger.Errorln("An error occurred initialising admin socket:", err)
@@ -325,63 +324,4 @@ func (n *node) shutdown() {
 	_ = n.multicast.Stop()
 	_ = n.tuntap.Stop()
 	n.core.Stop()
-}
-
-func (n *node) sessionFirewall(pubkey ed25519.PublicKey, initiator bool) bool {
-	n.config.RLock()
-	defer n.config.RUnlock()
-
-	// Allow by default if the session firewall is disabled
-	if !n.config.SessionFirewall.Enable {
-		return true
-	}
-
-	// Reject blacklisted nodes
-	for _, b := range n.config.SessionFirewall.BlacklistPublicKeys {
-		key, err := hex.DecodeString(b)
-		if err == nil {
-			if bytes.Equal(key, pubkey) {
-				return false
-			}
-		}
-	}
-
-	// Allow whitelisted nodes
-	for _, b := range n.config.SessionFirewall.WhitelistPublicKeys {
-		key, err := hex.DecodeString(b)
-		if err == nil {
-			if bytes.Equal(key, pubkey) {
-				return true
-			}
-		}
-	}
-
-	// Allow outbound sessions if appropriate
-	if n.config.SessionFirewall.AlwaysAllowOutbound {
-		if initiator {
-			return true
-		}
-	}
-
-	// Look and see if the pubkey is that of a direct peer
-	var isDirectPeer bool
-	for _, peer := range n.core.GetPeers() {
-		if bytes.Equal(peer.Key[:], pubkey[:]) {
-			isDirectPeer = true
-			break
-		}
-	}
-
-	// Allow direct peers if appropriate
-	if n.config.SessionFirewall.AllowFromDirect && isDirectPeer {
-		return true
-	}
-
-	// Allow remote nodes if appropriate
-	if n.config.SessionFirewall.AllowFromRemote && !isDirectPeer {
-		return true
-	}
-
-	// Finally, default-deny if not matching any of the above rules
-	return false
 }
