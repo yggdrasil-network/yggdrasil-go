@@ -43,16 +43,9 @@ type TunAdapter struct {
 	iface       tun.Device
 	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
 	//mutex        sync.RWMutex // Protects the below
-	isOpen     bool
-	isEnabled  bool // Used by the writer to drop sessionTraffic if not enabled
-	gatekeeper func(pubkey ed25519.PublicKey, initiator bool) bool
-	proto      protoHandler
-}
-
-func (tun *TunAdapter) SetSessionGatekeeper(gatekeeper func(pubkey ed25519.PublicKey, initiator bool) bool) {
-	phony.Block(tun, func() {
-		tun.gatekeeper = gatekeeper
-	})
+	isOpen    bool
+	isEnabled bool // Used by the writer to drop sessionTraffic if not enabled
+	proto     protoHandler
 }
 
 // Gets the maximum supported MTU for the platform based on the defaults in

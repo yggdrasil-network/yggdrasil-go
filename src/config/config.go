@@ -40,19 +40,8 @@ type NodeConfig struct {
 	LinkLocalTCPPort    uint16                 `comment:"The port number to be used for the link-local TCP listeners for the\nconfigured MulticastInterfaces. This option does not affect listeners\nspecified in the Listen option. Unless you plan to firewall link-local\ntraffic, it is best to leave this as the default value of 0. This\noption cannot currently be changed by reloading config during runtime."`
 	IfName              string                 `comment:"Local network interface name for TUN adapter, or \"auto\" to select\nan interface automatically, or \"none\" to run without TUN."`
 	IfMTU               uint64                 `comment:"Maximum Transmission Unit (MTU) size for your local TUN interface.\nDefault is the largest supported size for your platform. The lowest\npossible value is 1280."`
-	SessionFirewall     SessionFirewall        `comment:"The session firewall controls who can send/receive network traffic\nto/from. This is useful if you want to protect this node without\nresorting to using a real firewall. This does not affect traffic\nbeing routed via this node to somewhere else. Rules are prioritised as\nfollows: blacklist, whitelist, always allow outgoing, direct, remote."`
 	NodeInfoPrivacy     bool                   `comment:"By default, nodeinfo contains some defaults including the platform,\narchitecture and Yggdrasil version. These can help when surveying\nthe network and diagnosing network routing problems. Enabling\nnodeinfo privacy prevents this, so that only items specified in\n\"NodeInfo\" are sent back if specified."`
 	NodeInfo            map[string]interface{} `comment:"Optional node info. This must be a { \"key\": \"value\", ... } map\nor set as null. This is entirely optional but, if set, is visible\nto the whole network on request."`
-}
-
-// SessionFirewall controls the session firewall configuration.
-type SessionFirewall struct {
-	Enable              bool     `comment:"Enable or disable the session firewall. If disabled, network traffic\nfrom any node will be allowed. If enabled, the below rules apply."`
-	AllowFromDirect     bool     `comment:"Allow network traffic from directly connected peers."`
-	AllowFromRemote     bool     `comment:"Allow network traffic from remote nodes on the network that you are\nnot directly peered with."`
-	AlwaysAllowOutbound bool     `comment:"Allow outbound network traffic regardless of AllowFromDirect or\nAllowFromRemote. This does allow a remote node to send unsolicited\ntraffic back to you for the length of the session."`
-	WhitelistPublicKeys []string `comment:"List of public keys from which network traffic is always accepted,\nregardless of AllowFromDirect or AllowFromRemote."`
-	BlacklistPublicKeys []string `comment:"List of public keys from which network traffic is always rejected,\nregardless of the whitelist, AllowFromDirect or AllowFromRemote."`
 }
 
 // Generates default configuration and returns a pointer to the resulting
@@ -76,10 +65,6 @@ func GenerateConfig() *NodeConfig {
 	cfg.MulticastInterfaces = defaults.GetDefaults().DefaultMulticastInterfaces
 	cfg.IfName = defaults.GetDefaults().DefaultIfName
 	cfg.IfMTU = defaults.GetDefaults().DefaultIfMTU
-	cfg.SessionFirewall.Enable = false
-	cfg.SessionFirewall.AllowFromDirect = true
-	cfg.SessionFirewall.AllowFromRemote = true
-	cfg.SessionFirewall.AlwaysAllowOutbound = true
 	cfg.NodeInfoPrivacy = false
 
 	return &cfg

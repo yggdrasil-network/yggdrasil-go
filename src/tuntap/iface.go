@@ -116,9 +116,6 @@ func (tun *TunAdapter) write() {
 			continue // bad local address/subnet
 		}
 		info := tun.store.update(ed25519.PublicKey(from.(iwt.Addr)))
-		if info == nil {
-			continue // Blocked by the gatekeeper
-		}
 		if srcAddr != info.address && srcSubnet != info.subnet {
 			continue // bad remote address/subnet
 		}
