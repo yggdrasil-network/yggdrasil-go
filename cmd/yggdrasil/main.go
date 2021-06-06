@@ -27,7 +27,6 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
-	"github.com/yggdrasil-network/yggdrasil-go/src/module"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
@@ -36,12 +35,12 @@ import (
 type node struct {
 	core      core.Core
 	config    *config.NodeConfig
-	tuntap    module.Module // tuntap.TunAdapter
-	multicast module.Module // multicast.Multicast
-	admin     module.Module // admin.AdminSocket
+	tuntap    *tuntap.TunAdapter
+	multicast *multicast.Multicast
+	admin     *admin.AdminSocket
 }
 
-func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *config.NodeConfig {
+func readConfig(log *log.Logger, useconf *bool, useconffile *string, normaliseconf *bool) *config.NodeConfig {
 	// Use a configuration file. If -useconf, the configuration will be read
 	// from stdin. If -useconffile, the configuration will be read from the
 	// filesystem.
@@ -79,27 +78,21 @@ func readConfig(useconf *bool, useconffile *string, normaliseconf *bool) *config
 	if err := hjson.Unmarshal(conf, &dat); err != nil {
 		panic(err)
 	}
-	// Check for fields that have changed type recently, e.g. the Listen config
-	// option is now a []string rather than a string
-	if listen, ok := dat["Listen"].(string); ok {
-		dat["Listen"] = []string{listen}
+	// Check if we have old field names
+	if _, ok := dat["TunnelRouting"]; ok {
+		log.Warnln("WARNING: Tunnel routing is no longer supported")
 	}
-	if tunnelrouting, ok := dat["TunnelRouting"].(map[string]interface{}); ok {
-		if c, ok := tunnelrouting["IPv4Sources"]; ok {
-			delete(tunnelrouting, "IPv4Sources")
-			tunnelrouting["IPv4LocalSubnets"] = c
-		}
-		if c, ok := tunnelrouting["IPv6Sources"]; ok {
-			delete(tunnelrouting, "IPv6Sources")
-			tunnelrouting["IPv6LocalSubnets"] = c
-		}
-		if c, ok := tunnelrouting["IPv4Destinations"]; ok {
-			delete(tunnelrouting, "IPv4Destinations")
-			tunnelrouting["IPv4RemoteSubnets"] = c
-		}
-		if c, ok := tunnelrouting["IPv6Destinations"]; ok {
-			delete(tunnelrouting, "IPv6Destinations")
-			tunnelrouting["IPv6RemoteSubnets"] = c
+	if old, ok := dat["SigningPrivateKey"]; ok {
+		log.Warnln("WARNING: The \"SigningPrivateKey\" configuration option has been renamed to \"PrivateKey\"")
+		if _, ok := dat["PrivateKey"]; !ok {
+			if privstr, err := hex.DecodeString(old.(string)); err == nil {
+				priv := ed25519.PrivateKey(privstr)
+				pub := priv.Public().(ed25519.PublicKey)
+				dat["PrivateKey"] = hex.EncodeToString(priv[:])
+				dat["PublicKey"] = hex.EncodeToString(pub[:])
+			} else {
+				log.Warnln("WARNING: The \"SigningPrivateKey\" configuration option contains an invalid value and will be ignored")
+			}
 		}
 	}
 	// Sanitise the config
@@ -177,6 +170,31 @@ func main() {
 	loglevel := flag.String("loglevel", "info", "loglevel to enable")
 	flag.Parse()
 
+	// Create a new logger that logs output to stdout.
+	var logger *log.Logger
+	switch *logto {
+	case "stdout":
+		logger = log.New(os.Stdout, "", log.Flags())
+	case "syslog":
+		if syslogger, err := gsyslog.NewLogger(gsyslog.LOG_NOTICE, "DAEMON", version.BuildName()); err == nil {
+			logger = log.New(syslogger, "", log.Flags())
+		}
+	default:
+		if logfd, err := os.OpenFile(*logto, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+			logger = log.New(logfd, "", log.Flags())
+		}
+	}
+	if logger == nil {
+		logger = log.New(os.Stdout, "", log.Flags())
+		logger.Warnln("Logging defaulting to stdout")
+	}
+
+	if *normaliseconf {
+		setLogLevel("error", logger)
+	} else {
+		setLogLevel(*loglevel, logger)
+	}
+
 	var cfg *config.NodeConfig
 	var err error
 	switch {
@@ -190,7 +208,7 @@ func main() {
 		cfg = config.GenerateConfig()
 	case *useconffile != "" || *useconf:
 		// Read the configuration from either stdin or from the filesystem
-		cfg = readConfig(useconf, useconffile, normaliseconf)
+		cfg = readConfig(logger, useconf, useconffile, normaliseconf)
 		// If the -normaliseconf option was specified then remarshal the above
 		// configuration and print it back to stdout. This lets the user update
 		// their configuration file with newly mapped names (like above) or to
@@ -223,8 +241,8 @@ func main() {
 	}
 	// Have we been asked for the node address yet? If so, print it and then stop.
 	getNodeKey := func() ed25519.PublicKey {
-		if pubkey, err := hex.DecodeString(cfg.PublicKey); err == nil {
-			return ed25519.PublicKey(pubkey)
+		if pubkey, err := hex.DecodeString(cfg.PrivateKey); err == nil {
+			return ed25519.PrivateKey(pubkey).Public().(ed25519.PublicKey)
 		}
 		return nil
 	}
@@ -248,30 +266,10 @@ func main() {
 		return
 	default:
 	}
-	// Create a new logger that logs output to stdout.
-	var logger *log.Logger
-	switch *logto {
-	case "stdout":
-		logger = log.New(os.Stdout, "", log.Flags())
-	case "syslog":
-		if syslogger, err := gsyslog.NewLogger(gsyslog.LOG_NOTICE, "DAEMON", version.BuildName()); err == nil {
-			logger = log.New(syslogger, "", log.Flags())
-		}
-	default:
-		if logfd, err := os.OpenFile(*logto, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
-			logger = log.New(logfd, "", log.Flags())
-		}
-	}
-	if logger == nil {
-		logger = log.New(os.Stdout, "", log.Flags())
-		logger.Warnln("Logging defaulting to stdout")
-	}
-
-	setLogLevel(*loglevel, logger)
 
 	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
 	// don't need to create this manually.
-	n := node{}
+	n := node{config: cfg}
 	// Now start Yggdrasil - this starts the DHT, router, switch and other core
 	// components needed for Yggdrasil to operate
 	if err = n.core.Start(cfg, logger); err != nil {
@@ -283,32 +281,34 @@ func main() {
 	n.admin = &admin.AdminSocket{}
 	n.multicast = &multicast.Multicast{}
 	n.tuntap = &tuntap.TunAdapter{}
-	n.tuntap.(*tuntap.TunAdapter).SetSessionGatekeeper(n.sessionFirewall)
+	n.tuntap.SetSessionGatekeeper(n.sessionFirewall)
 	// Start the admin socket
 	if err := n.admin.Init(&n.core, cfg, logger, nil); err != nil {
-		logger.Errorln("An error occured initialising admin socket:", err)
+		logger.Errorln("An error occurred initialising admin socket:", err)
 	} else if err := n.admin.Start(); err != nil {
 		logger.Errorln("An error occurred starting admin socket:", err)
 	}
-	n.admin.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
+	n.admin.SetupAdminHandlers(n.admin)
 	// Start the multicast interface
 	if err := n.multicast.Init(&n.core, cfg, logger, nil); err != nil {
-		logger.Errorln("An error occured initialising multicast:", err)
+		logger.Errorln("An error occurred initialising multicast:", err)
 	} else if err := n.multicast.Start(); err != nil {
 		logger.Errorln("An error occurred starting multicast:", err)
 	}
-	n.multicast.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
+	n.multicast.SetupAdminHandlers(n.admin)
 	// Start the TUN/TAP interface
 	if err := n.tuntap.Init(&n.core, cfg, logger, nil); err != nil {
 		logger.Errorln("An error occurred initialising TUN/TAP:", err)
 	} else if err := n.tuntap.Start(); err != nil {
 		logger.Errorln("An error occurred starting TUN/TAP:", err)
 	}
-	n.tuntap.SetupAdminHandlers(n.admin.(*admin.AdminSocket))
+	n.tuntap.SetupAdminHandlers(n.admin)
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
 	address := n.core.Address()
 	subnet := n.core.Subnet()
+	public := n.core.GetSelf().Key
+	logger.Infof("Your public key is %s", hex.EncodeToString(public[:]))
 	logger.Infof("Your IPv6 address is %s", address.String())
 	logger.Infof("Your IPv6 subnet is %s", subnet.String())
 	// Catch interrupts from the operating system to exit gracefully.

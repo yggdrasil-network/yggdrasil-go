@@ -48,7 +48,7 @@ func (tun *TunAdapter) read() {
 		copy(srcSubnet[:], bs[8:])
 		copy(dstSubnet[:], bs[24:])
 		if srcAddr != tun.addr && srcSubnet != tun.subnet {
-			continue // Wrong soruce address
+			continue // Wrong source address
 		}
 		bs = buf[begin-1 : end]
 		bs[0] = typeSessionTraffic
