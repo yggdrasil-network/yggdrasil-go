@@ -345,7 +345,7 @@ func (m *Multicast) listen() {
 				continue
 			}
 		}
-		if len(bs) < ed25519.PublicKeySize {
+		if nBytes < ed25519.PublicKeySize {
 			continue
 		}
 		var key ed25519.PublicKey
