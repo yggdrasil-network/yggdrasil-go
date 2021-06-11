@@ -75,7 +75,7 @@ func (l *links) call(u *url.URL, sintf string) error {
 	//	return fmt.Errorf("peer %s is not correctly formatted (%s)", uri, err)
 	//}
 	tcpOpts := tcpOptions{}
-	if pubkeys, ok := u.Query()["ed25519"]; ok && len(pubkeys) > 0 {
+	if pubkeys, ok := u.Query()["key"]; ok && len(pubkeys) > 0 {
 		tcpOpts.pinnedEd25519Keys = make(map[keyArray]struct{})
 		for _, pubkey := range pubkeys {
 			if sigPub, err := hex.DecodeString(pubkey); err == nil {

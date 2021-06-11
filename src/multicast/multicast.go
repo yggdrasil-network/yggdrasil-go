@@ -365,7 +365,7 @@ func (m *Multicast) listen() {
 		})
 		if _, ok := interfaces[from.Zone]; ok {
 			addr.Zone = ""
-			pin := fmt.Sprintf("/?ed25519=%s", hex.EncodeToString(key))
+			pin := fmt.Sprintf("/?key=%s", hex.EncodeToString(key))
 			u, err := url.Parse("tcp://" + addr.String() + pin)
 			if err != nil {
 				m.log.Debugln("Call from multicast failed, parse error:", addr.String(), err)
