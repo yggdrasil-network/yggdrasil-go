@@ -158,9 +158,9 @@ func (c *Core) Stop() {
 
 // This function is unsafe and should only be ran by the core actor.
 func (c *Core) _stop() {
+	c.log.Infoln("Stopping...")
 	c.ctxCancel()
 	c.PacketConn.Close()
-	c.log.Infoln("Stopping...")
 	if c.addPeerTimer != nil {
 		c.addPeerTimer.Stop()
 		c.addPeerTimer = nil
