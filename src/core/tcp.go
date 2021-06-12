@@ -153,7 +153,7 @@ func (t *tcp) listenURL(u *url.URL, sintf string) (*TcpListener, error) {
 func (t *tcp) listen(listenaddr string, upgrade *TcpUpgrade) (*TcpListener, error) {
 	var err error
 
-	ctx := context.Background()
+	ctx := t.links.core.ctx
 	lc := net.ListenConfig{
 		Control: t.tcpContext,
 	}
@@ -270,7 +270,7 @@ func (t *tcp) call(saddr string, options tcpOptions, sintf string) {
 			if err != nil {
 				return
 			}
-			ctx, done := context.WithTimeout(context.Background(), default_timeout)
+			ctx, done := context.WithTimeout(t.links.core.ctx, default_timeout)
 			conn, err = dialer.(proxy.ContextDialer).DialContext(ctx, "tcp", saddr)
 			done()
 			if err != nil {
@@ -339,7 +339,7 @@ func (t *tcp) call(saddr string, options tcpOptions, sintf string) {
 					}
 				}
 			}
-			ctx, done := context.WithTimeout(context.Background(), default_timeout)
+			ctx, done := context.WithTimeout(t.links.core.ctx, default_timeout)
 			conn, err = dialer.DialContext(ctx, "tcp", dst.String())
 			done()
 			if err != nil {

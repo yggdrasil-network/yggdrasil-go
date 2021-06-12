@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"crypto/ed25519"
 	"encoding/hex"
 	"errors"
@@ -31,6 +32,8 @@ type Core struct {
 	links        links
 	log          *log.Logger
 	addPeerTimer *time.Timer
+	ctx          context.Context
+	ctxCancel    context.CancelFunc
 }
 
 func (c *Core) _init() error {
@@ -57,6 +60,7 @@ func (c *Core) _init() error {
 	// TODO check public against current.PublicKey, error if they don't match
 
 	c.PacketConn, err = iw.NewPacketConn(c.secret)
+	c.ctx, c.ctxCancel = context.WithCancel(context.Background())
 	return err
 }
 
@@ -66,6 +70,10 @@ func (c *Core) _init() error {
 func (c *Core) _addPeerLoop() {
 	c.config.RLock()
 	defer c.config.RUnlock()
+
+	if c.addPeerTimer == nil {
+		return
+	}
 
 	// Add peers from the Peers section
 	for _, peer := range c.config.Peers {
@@ -95,11 +103,9 @@ func (c *Core) _addPeerLoop() {
 		}
 	}
 
-	if c.addPeerTimer != nil {
-		c.addPeerTimer = time.AfterFunc(time.Minute, func() {
-			c.Act(nil, c._addPeerLoop)
-		})
-	}
+	c.addPeerTimer = time.AfterFunc(time.Minute, func() {
+		c.Act(nil, c._addPeerLoop)
+	})
 }
 
 // Start starts up Yggdrasil using the provided config.NodeConfig, and outputs
@@ -152,6 +158,7 @@ func (c *Core) Stop() {
 
 // This function is unsafe and should only be ran by the core actor.
 func (c *Core) _stop() {
+	c.ctxCancel()
 	c.PacketConn.Close()
 	c.log.Infoln("Stopping...")
 	if c.addPeerTimer != nil {
