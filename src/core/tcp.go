@@ -270,7 +270,9 @@ func (t *tcp) call(saddr string, options tcpOptions, sintf string) {
 			if err != nil {
 				return
 			}
-			conn, err = dialer.Dial("tcp", saddr)
+			ctx, done := context.WithTimeout(context.Background(), default_timeout)
+			conn, err = dialer.(proxy.ContextDialer).DialContext(ctx, "tcp", saddr)
+			done()
 			if err != nil {
 				return
 			}
@@ -292,7 +294,6 @@ func (t *tcp) call(saddr string, options tcpOptions, sintf string) {
 			}
 			dialer := net.Dialer{
 				Control: t.tcpContext,
-				Timeout: time.Second * 5,
 			}
 			if sintf != "" {
 				dialer.Control = t.getControl(sintf)
@@ -338,7 +339,9 @@ func (t *tcp) call(saddr string, options tcpOptions, sintf string) {
 					}
 				}
 			}
-			conn, err = dialer.Dial("tcp", dst.String())
+			ctx, done := context.WithTimeout(context.Background(), default_timeout)
+			conn, err = dialer.DialContext(ctx, "tcp", dst.String())
+			done()
 			if err != nil {
 				t.links.core.log.Debugf("Failed to dial %s: %s", callproto, err)
 				return
