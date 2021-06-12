@@ -277,7 +277,7 @@ func (t *tcp) call(saddr string, options tcpOptions, sintf string) {
 				return
 			}
 			t.waitgroup.Add(1)
-			options.socksPeerAddr = conn.RemoteAddr().String()
+			options.socksPeerAddr = saddr
 			if ch := t.handler(conn, false, options); ch != nil {
 				<-ch
 			}
