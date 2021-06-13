@@ -28,6 +28,7 @@ type Peer struct {
 	Root   ed25519.PublicKey
 	Coords []uint64
 	Port   uint64
+	Remote string
 }
 
 type DHTEntry struct {
@@ -56,6 +57,12 @@ func (c *Core) GetSelf() Self {
 
 func (c *Core) GetPeers() []Peer {
 	var peers []Peer
+	names := make(map[net.Conn]string)
+	c.links.mutex.Lock()
+	for _, info := range c.links.links {
+		names[info.conn] = info.lname
+	}
+	c.links.mutex.Unlock()
 	ps := c.pc.PacketConn.Debug.GetPeers()
 	for _, p := range ps {
 		var info Peer
@@ -63,6 +70,10 @@ func (c *Core) GetPeers() []Peer {
 		info.Root = p.Root
 		info.Coords = p.Coords
 		info.Port = p.Port
+		info.Remote = p.Conn.RemoteAddr().String()
+		if name := names[p.Conn]; name != "" {
+			info.Remote = name
+		}
 		peers = append(peers, info)
 	}
 	return peers

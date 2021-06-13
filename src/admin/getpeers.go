@@ -18,6 +18,7 @@ type PeerEntry struct {
 	PublicKey string   `json:"key"`
 	Port      uint64   `json:"port"`
 	Coords    []uint64 `json:"coords"`
+	Remote    string   `json:"remote"`
 }
 
 func (a *AdminSocket) getPeersHandler(req *GetPeersRequest, res *GetPeersResponse) error {
@@ -29,6 +30,7 @@ func (a *AdminSocket) getPeersHandler(req *GetPeersRequest, res *GetPeersRespons
 			PublicKey: hex.EncodeToString(p.Key),
 			Port:      p.Port,
 			Coords:    p.Coords,
+			Remote:    p.Remote,
 		}
 	}
 	return nil
