@@ -74,19 +74,22 @@ PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
   PKGGUID="54a3294e-a441-4322-aefb-3bb40dd022bb" PKGINSTFOLDER="ProgramFilesFolder"
 
 # Download the Wintun driver
-curl -o wintun.zip https://www.wintun.net/builds/wintun-0.11.zip
-unzip wintun.zip
-if [ $PKGARCH = "x64" ]; then
-  PKGWINTUNDLL=wintun/bin/amd64/wintun.dll
-elif [ $PKGARCH = "x86" ]; then
-  PKGWINTUNDLL=wintun/bin/x86/wintun.dll
-elif [ $PKGARCH = "arm" ]; then
-  PKGWINTUNDLL=wintun/bin/arm/wintun.dll
-#elif [ $PKGARCH = "arm64" ]; then
-#  PKGWINTUNDLL=wintun/bin/arm64/wintun.dll
-else
-  echo "wasn't sure which architecture to get wintun for"
-  exit 1
+if [ ! -d wintun ];
+then
+  curl -o wintun.zip https://www.wintun.net/builds/wintun-0.11.zip
+  unzip wintun.zip
+  if [ $PKGARCH = "x64" ]; then
+    PKGWINTUNDLL=wintun/bin/amd64/wintun.dll
+  elif [ $PKGARCH = "x86" ]; then
+    PKGWINTUNDLL=wintun/bin/x86/wintun.dll
+  elif [ $PKGARCH = "arm" ]; then
+    PKGWINTUNDLL=wintun/bin/arm/wintun.dll
+  #elif [ $PKGARCH = "arm64" ]; then
+  #  PKGWINTUNDLL=wintun/bin/arm64/wintun.dll
+  else
+    echo "wasn't sure which architecture to get wintun for"
+    exit 1
+  fi
 fi
 
 if [ $PKGNAME != "master" ]; then
