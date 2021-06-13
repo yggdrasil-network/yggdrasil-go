@@ -7,6 +7,9 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/net/icmp"
+	"golang.org/x/net/ipv6"
+
 	iwt "github.com/Arceliar/ironwood/types"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
@@ -26,6 +29,7 @@ type keyStore struct {
 	addrBuffer   map[address.Address]*buffer
 	subnetToInfo map[address.Subnet]*keyInfo
 	subnetBuffer map[address.Subnet]*buffer
+	mtu          uint64
 }
 
 type keyInfo struct {
@@ -53,6 +57,7 @@ func (k *keyStore) init(core *Core) {
 	k.addrBuffer = make(map[address.Address]*buffer)
 	k.subnetToInfo = make(map[address.Subnet]*keyInfo)
 	k.subnetBuffer = make(map[address.Subnet]*buffer)
+	k.mtu = 1280 // Default to something safe, expect user to set this
 }
 
 func (k *keyStore) sendToAddress(addr address.Address, bs []byte) {
@@ -238,18 +243,19 @@ func (k *keyStore) readPC(p []byte) (int, error) {
 		if len(bs) < 40 {
 			continue
 		}
-		/* TODO? ICMP packet too big, for now tuntap sends this when needed
-		  if len(bs) > int(tun.MTU()) {
-			  ptb := &icmp.PacketTooBig{
-				  MTU:  int(tun.mtu),
-				  Data: bs[:40],
-			  }
-			  if packet, err := CreateICMPv6(bs[8:24], bs[24:40], ipv6.ICMPTypePacketTooBig, 0, ptb); err == nil {
-				  _, _ = tun.core.WriteTo(packet, from)
-			  }
-			  continue
-		  }
-		*/
+		if len(bs) > int(k.mtu) {
+			// Using bs would make it leak off the stack, so copy to buf
+			buf := make([]byte, 40)
+			copy(buf, bs)
+			ptb := &icmp.PacketTooBig{
+				MTU:  int(k.mtu),
+				Data: buf[:40],
+			}
+			if packet, err := CreateICMPv6(buf[8:24], buf[24:40], ipv6.ICMPTypePacketTooBig, 0, ptb); err == nil {
+				_, _ = k.writePC(packet)
+			}
+			continue
+		}
 		var srcAddr, dstAddr address.Address
 		var srcSubnet, dstSubnet address.Subnet
 		copy(srcAddr[:], bs[8:])

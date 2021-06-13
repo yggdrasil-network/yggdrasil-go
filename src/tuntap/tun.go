@@ -139,6 +139,7 @@ func (tun *TunAdapter) _start() error {
 	if tun.MTU() != mtu {
 		tun.log.Warnf("Warning: Interface MTU %d automatically adjusted to %d (supported range is 1280-%d)", tun.config.IfMTU, tun.MTU(), MaximumMTU())
 	}
+	tun.core.SetMTU(tun.MTU())
 	tun.isOpen = true
 	tun.isEnabled = true
 	go tun.read()

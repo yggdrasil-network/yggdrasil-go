@@ -231,6 +231,18 @@ func (c *Core) MaxMTU() uint64 {
 	return c.store.maxSessionMTU()
 }
 
+// SetMTU can only safely be called after Init and before Start.
+func (c *Core) SetMTU(mtu uint64) {
+	if mtu < 1280 {
+		mtu = 1280
+	}
+	c.store.mtu = mtu
+}
+
+func (c *Core) MTU() uint64 {
+	return c.store.mtu
+}
+
 // Implement io.ReadWriteCloser
 
 func (c *Core) Read(p []byte) (n int, err error) {
