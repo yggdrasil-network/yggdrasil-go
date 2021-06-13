@@ -20,7 +20,7 @@ fi
 # Split out into major, minor and patch numbers
 MAJOR=$(echo $TAG | cut -c 2- | cut -d "." -f 1)
 MINOR=$(echo $TAG | cut -c 2- | cut -d "." -f 2)
-PATCH=$(echo $TAG | cut -c 2- | cut -d "." -f 3)
+PATCH=$(echo $TAG | cut -c 2- | cut -d "." -f 3 | awk -F"rc" '{print $1}')
 
 # Output in the desired format
 if [ $((PATCH)) -eq 0 ]; then

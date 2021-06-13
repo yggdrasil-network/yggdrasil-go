@@ -106,7 +106,6 @@ cat > wix.xml << EOF
     Language="1033"
     Codepage="1252"
     Version="${PKGVERSIONMS}"
-    Platform="${PKGARCH}"
     Manufacturer="github.com/yggdrasil-network">
 
     <Package
