@@ -1,4 +1,4 @@
-package tuntap
+package core
 
 // Out-of-band packet types
 const (

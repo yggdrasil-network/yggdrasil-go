@@ -1,4 +1,4 @@
-package tuntap
+package core
 
 import (
 	"encoding/hex"
@@ -129,7 +129,7 @@ func (m *nodeinfo) _sendReq(key keyArray, callback func(nodeinfo NodeInfoPayload
 	if callback != nil {
 		m._addCallback(key, callback)
 	}
-	_, _ = m.proto.tun.core.WriteTo([]byte{typeSessionProto, typeProtoNodeInfoRequest}, iwt.Addr(key[:]))
+	_, _ = m.proto.core.pc.WriteTo([]byte{typeSessionProto, typeProtoNodeInfoRequest}, iwt.Addr(key[:]))
 }
 
 func (m *nodeinfo) handleReq(from phony.Actor, key keyArray) {
@@ -146,7 +146,7 @@ func (m *nodeinfo) handleRes(from phony.Actor, key keyArray, info NodeInfoPayloa
 
 func (m *nodeinfo) _sendRes(key keyArray) {
 	bs := append([]byte{typeSessionProto, typeProtoNodeInfoResponse}, m._getNodeInfo()...)
-	_, _ = m.proto.tun.core.WriteTo(bs, iwt.Addr(key[:]))
+	_, _ = m.proto.core.pc.WriteTo(bs, iwt.Addr(key[:]))
 }
 
 // Admin socket stuff

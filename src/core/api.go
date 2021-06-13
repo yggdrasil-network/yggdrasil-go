@@ -46,7 +46,7 @@ type Session struct {
 
 func (c *Core) GetSelf() Self {
 	var self Self
-	s := c.PacketConn.PacketConn.Debug.GetSelf()
+	s := c.pc.PacketConn.Debug.GetSelf()
 	self.Key = s.Key
 	self.Root = s.Root
 	self.Coords = s.Coords
@@ -55,7 +55,7 @@ func (c *Core) GetSelf() Self {
 
 func (c *Core) GetPeers() []Peer {
 	var peers []Peer
-	ps := c.PacketConn.PacketConn.Debug.GetPeers()
+	ps := c.pc.PacketConn.Debug.GetPeers()
 	for _, p := range ps {
 		var info Peer
 		info.Key = p.Key
@@ -69,7 +69,7 @@ func (c *Core) GetPeers() []Peer {
 
 func (c *Core) GetDHT() []DHTEntry {
 	var dhts []DHTEntry
-	ds := c.PacketConn.PacketConn.Debug.GetDHT()
+	ds := c.pc.PacketConn.Debug.GetDHT()
 	for _, d := range ds {
 		var info DHTEntry
 		info.Key = d.Key
@@ -82,7 +82,7 @@ func (c *Core) GetDHT() []DHTEntry {
 
 func (c *Core) GetPaths() []PathEntry {
 	var paths []PathEntry
-	ps := c.PacketConn.PacketConn.Debug.GetPaths()
+	ps := c.pc.PacketConn.Debug.GetPaths()
 	for _, p := range ps {
 		var info PathEntry
 		info.Key = p.Key
@@ -94,7 +94,7 @@ func (c *Core) GetPaths() []PathEntry {
 
 func (c *Core) GetSessions() []Session {
 	var sessions []Session
-	ss := c.PacketConn.Debug.GetSessions()
+	ss := c.pc.Debug.GetSessions()
 	for _, s := range ss {
 		var info Session
 		info.Key = s.Key

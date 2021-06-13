@@ -1,4 +1,4 @@
-package tuntap
+package core
 
 import (
 	"encoding/hex"
@@ -31,15 +31,15 @@ type reqInfo struct {
 
 type protoHandler struct {
 	phony.Inbox
-	tun      *TunAdapter
+	core    *Core
 	nodeinfo nodeinfo
 	sreqs    map[keyArray]*reqInfo
 	preqs    map[keyArray]*reqInfo
 	dreqs    map[keyArray]*reqInfo
 }
 
-func (p *protoHandler) init(tun *TunAdapter) {
-	p.tun = tun
+func (p *protoHandler) init(core *Core) {
+	p.core = core
 	p.nodeinfo.init(p)
 	p.sreqs = make(map[keyArray]*reqInfo)
 	p.preqs = make(map[keyArray]*reqInfo)
@@ -103,7 +103,7 @@ func (p *protoHandler) sendGetSelfRequest(key keyArray, callback func([]byte)) {
 }
 
 func (p *protoHandler) _handleGetSelfRequest(key keyArray) {
-	self := p.tun.core.GetSelf()
+	self := p.core.GetSelf()
 	res := map[string]string{
 		"key":    hex.EncodeToString(self.Key[:]),
 		"coords": fmt.Sprintf("%v", self.Coords),
@@ -144,12 +144,12 @@ func (p *protoHandler) sendGetPeersRequest(key keyArray, callback func([]byte)) 
 }
 
 func (p *protoHandler) _handleGetPeersRequest(key keyArray) {
-	peers := p.tun.core.GetPeers()
+	peers := p.core.GetPeers()
 	var bs []byte
 	for _, pinfo := range peers {
 		tmp := append(bs, pinfo.Key[:]...)
 		const responseOverhead = 2 // 1 debug type, 1 getpeers type
-		if uint64(len(tmp))+responseOverhead > p.tun.maxSessionMTU() {
+		if uint64(len(tmp))+responseOverhead > p.core.store.maxSessionMTU() {
 			break
 		}
 		bs = tmp
@@ -186,12 +186,12 @@ func (p *protoHandler) sendGetDHTRequest(key keyArray, callback func([]byte)) {
 }
 
 func (p *protoHandler) _handleGetDHTRequest(key keyArray) {
-	dinfos := p.tun.core.GetDHT()
+	dinfos := p.core.GetDHT()
 	var bs []byte
 	for _, dinfo := range dinfos {
 		tmp := append(bs, dinfo.Key[:]...)
 		const responseOverhead = 2 // 1 debug type, 1 getdht type
-		if uint64(len(tmp))+responseOverhead > p.tun.maxSessionMTU() {
+		if uint64(len(tmp))+responseOverhead > p.core.store.maxSessionMTU() {
 			break
 		}
 		bs = tmp
@@ -209,7 +209,7 @@ func (p *protoHandler) _handleGetDHTResponse(key keyArray, bs []byte) {
 
 func (p *protoHandler) _sendDebug(key keyArray, dType uint8, data []byte) {
 	bs := append([]byte{typeSessionProto, typeProtoDebug, dType}, data...)
-	_, _ = p.tun.core.WriteTo(bs, iwt.Addr(key[:]))
+	_, _ = p.core.pc.WriteTo(bs, iwt.Addr(key[:]))
 }
 
 // Admin socket stuff

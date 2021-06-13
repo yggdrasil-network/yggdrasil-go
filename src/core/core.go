@@ -25,11 +25,13 @@ type Core struct {
 	// We're going to keep our own copy of the provided config - that way we can
 	// guarantee that it will be covered by the mutex
 	phony.Inbox
-	*iw.PacketConn
+	pc *iw.PacketConn
 	config       *config.NodeConfig // Config
 	secret       ed25519.PrivateKey
 	public       ed25519.PublicKey
 	links        links
+	proto     protoHandler
+	store       keyStore
 	log          *log.Logger
 	addPeerTimer *time.Timer
 	ctx          context.Context
@@ -59,8 +61,10 @@ func (c *Core) _init() error {
 	c.public = c.secret.Public().(ed25519.PublicKey)
 	// TODO check public against current.PublicKey, error if they don't match
 
-	c.PacketConn, err = iw.NewPacketConn(c.secret)
+	c.pc, err = iw.NewPacketConn(c.secret)
 	c.ctx, c.ctxCancel = context.WithCancel(context.Background())
+	c.store.init(c)
+	c.proto.init(c)
 	return err
 }
 
@@ -160,7 +164,7 @@ func (c *Core) Stop() {
 func (c *Core) _stop() {
 	c.log.Infoln("Stopping...")
 	c.ctxCancel()
-	c.PacketConn.Close()
+	c.pc.Close()
 	if c.addPeerTimer != nil {
 		c.addPeerTimer.Stop()
 		c.addPeerTimer = nil
@@ -172,4 +176,21 @@ func (c *Core) _stop() {
 	}
 	*/
 	c.log.Infoln("Stopped")
+}
+
+// Implement io.ReadWriteCloser
+
+func (c *Core) Read(p []byte) (n int, err error) {
+  n, err = c.store.readPC(p)
+  return
+}
+
+func (c *Core) Write(p []byte) (n int, err error) {
+  n, err = c.store.writePC(p)
+  return
+}
+
+func (c *Core) Close() error {
+  c.Stop()
+  return nil
 }
