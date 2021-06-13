@@ -289,7 +289,9 @@ func (k *keyStore) writePC(bs []byte) (int, error) {
 	copy(srcSubnet[:], bs[8:])
 	copy(dstSubnet[:], bs[24:])
 	if srcAddr != k.address && srcSubnet != k.subnet {
-		return 0, errors.New("wrong source address")
+		// This happens all the time due to link-local traffic
+		// Don't send back an error, just drop it
+		return 0, nil
 	}
 	buf := make([]byte, 1+len(bs), 65535)
 	buf[0] = typeSessionTraffic
