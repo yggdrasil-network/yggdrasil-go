@@ -1,10 +1,5 @@
 package tuntap
 
-import (
-	"golang.org/x/net/icmp"
-	"golang.org/x/net/ipv6"
-)
-
 const TUN_OFFSET_BYTES = 4
 
 func (tun *TunAdapter) read() {
@@ -37,15 +32,8 @@ func (tun *TunAdapter) write() {
 			tun.log.Errorln("Exiting tun writer due to core read error:", err)
 			return
 		}
-		if n > int(tun.MTU()) {
-			ptb := &icmp.PacketTooBig{
-				MTU:  int(tun.mtu),
-				Data: bs[:40],
-			}
-			if packet, err := CreateICMPv6(bs[8:24], bs[24:40], ipv6.ICMPTypePacketTooBig, 0, ptb); err == nil {
-				_, _ = tun.core.Write(packet)
-			}
-			continue
+		if !tun.isEnabled {
+			continue // Nothing to do, the tun isn't enabled
 		}
 		bs = buf[:TUN_OFFSET_BYTES+n]
 		if _, err = tun.iface.Write(bs, TUN_OFFSET_BYTES); err != nil {
