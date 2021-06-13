@@ -43,11 +43,13 @@ func CreateAndConnectTwo(t testing.TB, verbose bool) (nodeA *Core, nodeB *Core) 
 	if err := nodeA.Start(GenerateConfig(), GetLoggerWithPrefix("A: ", verbose)); err != nil {
 		t.Fatal(err)
 	}
+	nodeA.SetMTU(1500)
 
 	nodeB = new(Core)
 	if err := nodeB.Start(GenerateConfig(), GetLoggerWithPrefix("B: ", verbose)); err != nil {
 		t.Fatal(err)
 	}
+	nodeB.SetMTU(1500)
 
 	u, err := url.Parse("tcp://" + nodeA.links.tcp.getAddr().String())
 	if err != nil {
@@ -89,8 +91,9 @@ func CreateEchoListener(t testing.TB, nodeA *Core, bufLen int, repeats int) chan
 	done := make(chan struct{})
 	go func() {
 		buf := make([]byte, bufLen)
+		res := make([]byte, bufLen)
 		for i := 0; i < repeats; i++ {
-			n, from, err := nodeA.ReadFrom(buf)
+			n, err := nodeA.Read(buf)
 			if err != nil {
 				t.Error(err)
 				return
@@ -99,7 +102,10 @@ func CreateEchoListener(t testing.TB, nodeA *Core, bufLen int, repeats int) chan
 				t.Error("missing data")
 				return
 			}
-			_, err = nodeA.WriteTo(buf, from)
+			copy(res, buf)
+			copy(res[8:24], buf[24:40])
+			copy(res[24:40], buf[8:24])
+			_, err = nodeA.Write(res)
 			if err != nil {
 				t.Error(err)
 			}
@@ -130,17 +136,20 @@ func TestCore_Start_Transfer(t *testing.T) {
 
 	// Send
 	msg := make([]byte, msgLen)
-	rand.Read(msg)
-	_, err := nodeB.WriteTo(msg, nodeA.LocalAddr())
+	rand.Read(msg[40:])
+	msg[0] = 0x60
+	copy(msg[8:24], nodeB.Address())
+	copy(msg[24:40], nodeA.Address())
+	_, err := nodeB.Write(msg)
 	if err != nil {
 		t.Fatal(err)
 	}
 	buf := make([]byte, msgLen)
-	_, _, err = nodeB.ReadFrom(buf)
+	_, err = nodeB.Read(buf)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(msg, buf) {
+	if !bytes.Equal(msg[40:], buf[40:]) {
 		t.Fatal("expected echo")
 	}
 	<-done
@@ -159,18 +168,22 @@ func BenchmarkCore_Start_Transfer(b *testing.B) {
 
 	// Send
 	msg := make([]byte, msgLen)
-	rand.Read(msg)
+	rand.Read(msg[40:])
+	msg[0] = 0x60
+	copy(msg[8:24], nodeB.Address())
+	copy(msg[24:40], nodeA.Address())
+
 	buf := make([]byte, msgLen)
 
 	b.SetBytes(int64(msgLen))
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, err := nodeB.WriteTo(msg, nodeA.LocalAddr())
+		_, err := nodeB.Write(msg)
 		if err != nil {
 			b.Fatal(err)
 		}
-		_, _, err = nodeB.ReadFrom(buf)
+		_, err = nodeB.Read(buf)
 		if err != nil {
 			b.Fatal(err)
 		}
