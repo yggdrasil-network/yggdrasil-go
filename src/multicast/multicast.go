@@ -1,6 +1,7 @@
 package multicast
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"encoding/hex"
@@ -350,6 +351,9 @@ func (m *Multicast) listen() {
 		}
 		var key ed25519.PublicKey
 		key = append(key, bs[:ed25519.PublicKeySize]...)
+		if bytes.Equal(key, m.core.GetSelf().Key) {
+			continue // don't bother trying to peer with self
+		}
 		anAddr := string(bs[ed25519.PublicKeySize:nBytes])
 		addr, err := net.ResolveTCPAddr("tcp6", anAddr)
 		if err != nil {
