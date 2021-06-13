@@ -11,7 +11,7 @@
 PKGARCH=$1
 if [ "${PKGARCH}" == "" ];
 then
-  echo "tell me the architecture: x86 or x64"
+  echo "tell me the architecture: x86, x64 or arm"
   exit 1
 fi
 
@@ -48,8 +48,10 @@ then
 fi
 
 # Build Yggdrasil!
-[ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 ./build
-[ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=0 ./build
+[ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 ./build -p -l "-aslr"
+[ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=0 ./build -p -l "-aslr"
+[ "${PKGARCH}" == "arm" ] && GOOS=windows GOARCH=arm CGO_ENABLED=0 ./build -p -l "-aslr"
+#[ "${PKGARCH}" == "arm64" ] && GOOS=windows GOARCH=arm64 CGO_ENABLED=0 ./build
 
 # Create the postinstall script
 cat > updateconfig.bat << EOF
@@ -72,12 +74,16 @@ PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
   PKGGUID="54a3294e-a441-4322-aefb-3bb40dd022bb" PKGINSTFOLDER="ProgramFilesFolder"
 
 # Download the Wintun driver
+curl -o wintun.zip https://www.wintun.net/builds/wintun-0.11.zip
+unzip wintun.zip
 if [ $PKGARCH = "x64" ]; then
-  PKGMSMNAME=wintun-x64.msm
-  curl -o ${PKGMSMNAME} https://www.wintun.net/builds/wintun-amd64-0.7.msm || (echo "couldn't get wintun"; exit 1)
+  PKGWINTUNDLL=wintun/bin/amd64/wintun.dll
 elif [ $PKGARCH = "x86" ]; then
-  PKGMSMNAME=wintun-x86.msm
-  curl -o ${PKGMSMNAME} https://www.wintun.net/builds/wintun-x86-0.7.msm || (echo "couldn't get wintun"; exit 1)
+  PKGWINTUNDLL=wintun/bin/x86/wintun.dll
+elif [ $PKGARCH = "arm" ]; then
+  PKGWINTUNDLL=wintun/bin/arm/wintun.dll
+#elif [ $PKGARCH = "arm64" ]; then
+#  PKGWINTUNDLL=wintun/bin/arm64/wintun.dll
 else
   echo "wasn't sure which architecture to get wintun for"
   exit 1
@@ -100,6 +106,7 @@ cat > wix.xml << EOF
     Language="1033"
     Codepage="1252"
     Version="${PKGVERSIONMS}"
+    Platform="${PKGARCH}"
     Manufacturer="github.com/yggdrasil-network">
 
     <Package
@@ -135,6 +142,12 @@ cat > wix.xml << EOF
               DiskId="1"
               Source="yggdrasil.exe"
               KeyPath="yes" />
+
+            <File
+              Id="Wintun"
+              Name="wintun.dll"
+              DiskId="1"
+              Source="${PKGWINTUNDLL}" />
 
             <ServiceInstall
               Id="ServiceInstaller"
@@ -176,25 +189,12 @@ cat > wix.xml << EOF
           </Component>
         </Directory>
       </Directory>
-
-      <Merge
-        Id="Wintun"
-        Language="0"
-        DiskId="1"
-        SourceFile="${PKGMSMNAME}" />
     </Directory>
 
     <Feature Id="YggdrasilFeature" Title="Yggdrasil" Level="1">
       <ComponentRef Id="MainExecutable" />
       <ComponentRef Id="CtrlExecutable" />
       <ComponentRef Id="ConfigScript" />
-    </Feature>
-
-    <Feature Id="WintunFeature" Title="Wintun" Level="1">
-      <Condition Level="0">
-        UPGRADINGPRODUCTCODE
-      </Condition>
-      <MergeRef Id="Wintun" />
     </Feature>
 
     <CustomAction
