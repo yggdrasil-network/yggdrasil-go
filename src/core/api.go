@@ -3,6 +3,7 @@ package core
 import (
 	"crypto/ed25519"
 	//"encoding/hex"
+	"encoding/json"
 	//"errors"
 	//"fmt"
 	"net"
@@ -257,5 +258,29 @@ func (c *Core) Write(p []byte) (n int, err error) {
 
 func (c *Core) Close() error {
 	c.Stop()
+	return nil
+}
+
+// Hack to get the admin stuff working, TODO something cleaner
+
+type AddHandler interface {
+	AddHandler(name string, args []string, handlerfunc func(json.RawMessage) (interface{}, error)) error
+}
+
+// SetAdmin must be called after Init and before Start.
+// It sets the admin handler for NodeInfo and the Debug admin functions.
+func (c *Core) SetAdmin(a AddHandler) error {
+	if err := a.AddHandler("getNodeInfo", []string{"key"}, c.proto.nodeinfo.nodeInfoAdminHandler); err != nil {
+		return err
+	}
+	if err := a.AddHandler("debug_remoteGetSelf", []string{"key"}, c.proto.getSelfHandler); err != nil {
+		return err
+	}
+	if err := a.AddHandler("debug_remoteGetPeers", []string{"key"}, c.proto.getPeersHandler); err != nil {
+		return err
+	}
+	if err := a.AddHandler("debug_remoteGetDHT", []string{"key"}, c.proto.getDHTHandler); err != nil {
+		return err
+	}
 	return nil
 }

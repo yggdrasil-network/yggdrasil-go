@@ -83,6 +83,7 @@ func (a *AdminSocket) Init(c *core.Core, nc *config.NodeConfig, log *log.Logger,
 		}
 		return res, nil
 	})
+	a.core.SetAdmin(a)
 	return nil
 }
 
@@ -142,6 +143,10 @@ func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
 		}
 		return res, nil
 	})
+	//_ = a.AddHandler("getNodeInfo", []string{"key"}, t.proto.nodeinfo.nodeInfoAdminHandler)
+	//_ = a.AddHandler("debug_remoteGetSelf", []string{"key"}, t.proto.getSelfHandler)
+	//_ = a.AddHandler("debug_remoteGetPeers", []string{"key"}, t.proto.getPeersHandler)
+	//_ = a.AddHandler("debug_remoteGetDHT", []string{"key"}, t.proto.getDHTHandler)
 }
 
 // Start runs the admin API socket to listen for / respond to admin API calls.
