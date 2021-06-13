@@ -48,9 +48,9 @@ then
 fi
 
 # Build Yggdrasil!
-[ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 ./build -p -l "-aslr"
-[ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=0 ./build -p -l "-aslr"
-[ "${PKGARCH}" == "arm" ] && GOOS=windows GOARCH=arm CGO_ENABLED=0 ./build -p -l "-aslr"
+[ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 ./build -l "-aslr"
+[ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=0 ./build -l "-aslr"
+[ "${PKGARCH}" == "arm" ] && GOOS=windows GOARCH=arm CGO_ENABLED=0 ./build -l "-aslr"
 #[ "${PKGARCH}" == "arm64" ] && GOOS=windows GOARCH=arm64 CGO_ENABLED=0 ./build
 
 # Create the postinstall script
@@ -67,7 +67,7 @@ EOF
 
 # Work out metadata for the package info
 PKGNAME=$(sh contrib/semver/name.sh)
-PKGVERSION=$(sh contrib/semver/version.sh --bare)
+PKGVERSION=$(sh contrib/msi/msversion.sh --bare)
 PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
 [ "${PKGARCH}" == "x64" ] && \
   PKGGUID="77757838-1a23-40a5-a720-c3b43e0260cc" PKGINSTFOLDER="ProgramFiles64Folder" || \
@@ -119,7 +119,6 @@ cat > wix.xml << EOF
       InstallScope="perMachine"
       Languages="1033"
       Compressed="yes"
-      Platform="${PKGARCH}"
       SummaryCodepage="1252" />
 
     <MajorUpgrade
