@@ -31,7 +31,7 @@ type reqInfo struct {
 
 type protoHandler struct {
 	phony.Inbox
-	core    *Core
+	core     *Core
 	nodeinfo nodeinfo
 	sreqs    map[keyArray]*reqInfo
 	preqs    map[keyArray]*reqInfo

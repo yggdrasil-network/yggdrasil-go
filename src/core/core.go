@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/url"
 	"time"
@@ -25,13 +26,13 @@ type Core struct {
 	// We're going to keep our own copy of the provided config - that way we can
 	// guarantee that it will be covered by the mutex
 	phony.Inbox
-	pc *iw.PacketConn
+	pc           *iw.PacketConn
 	config       *config.NodeConfig // Config
 	secret       ed25519.PrivateKey
 	public       ed25519.PublicKey
 	links        links
-	proto     protoHandler
-	store       keyStore
+	proto        protoHandler
+	store        keyStore
 	log          *log.Logger
 	addPeerTimer *time.Timer
 	ctx          context.Context
@@ -43,13 +44,13 @@ func (c *Core) _init() error {
 	//  Init sets up structs
 	//  Start launches goroutines that depend on structs being set up
 	// This is pretty much required to completely avoid race conditions
+	c.config.RLock()
+	defer c.config.RUnlock()
 	if c.log == nil {
 		c.log = log.New(ioutil.Discard, "", 0)
 	}
 
-	c.config.RLock()
 	sigPriv, err := hex.DecodeString(c.config.PrivateKey)
-	c.config.RUnlock()
 	if err != nil {
 		return err
 	}
@@ -65,6 +66,9 @@ func (c *Core) _init() error {
 	c.ctx, c.ctxCancel = context.WithCancel(context.Background())
 	c.store.init(c)
 	c.proto.init(c)
+	if err := c.proto.nodeinfo.setNodeInfo(c.config.NodeInfo, c.config.NodeInfoPrivacy); err != nil {
+		return fmt.Errorf("setNodeInfo: %w", err)
+	}
 	return err
 }
 
@@ -176,21 +180,4 @@ func (c *Core) _stop() {
 	}
 	*/
 	c.log.Infoln("Stopped")
-}
-
-// Implement io.ReadWriteCloser
-
-func (c *Core) Read(p []byte) (n int, err error) {
-  n, err = c.store.readPC(p)
-  return
-}
-
-func (c *Core) Write(p []byte) (n int, err error) {
-  n, err = c.store.writePC(p)
-  return
-}
-
-func (c *Core) Close() error {
-  c.Stop()
-  return nil
 }

@@ -9,7 +9,6 @@ package tuntap
 // TODO: Don't block in reader on writes that are pending searches
 
 import (
-	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"net"
@@ -34,7 +33,6 @@ type MTU uint16
 // calling yggdrasil.Start().
 type TunAdapter struct {
 	core        *core.Core
-	store       keyStore
 	config      *config.NodeConfig
 	log         *log.Logger
 	addr        address.Address
@@ -45,7 +43,6 @@ type TunAdapter struct {
 	//mutex        sync.RWMutex // Protects the below
 	isOpen    bool
 	isEnabled bool // Used by the writer to drop sessionTraffic if not enabled
-	proto     protoHandler
 }
 
 // Gets the maximum supported MTU for the platform based on the defaults in
@@ -98,18 +95,8 @@ func MaximumMTU() uint64 {
 // the Yggdrasil core before this point and it must not be in use elsewhere.
 func (tun *TunAdapter) Init(core *core.Core, config *config.NodeConfig, log *log.Logger, options interface{}) error {
 	tun.core = core
-	tun.store.init(tun)
 	tun.config = config
 	tun.log = log
-	tun.proto.init(tun)
-	tun.config.RLock()
-	if err := tun.proto.nodeinfo.setNodeInfo(tun.config.NodeInfo, tun.config.NodeInfoPrivacy); err != nil {
-		return fmt.Errorf("tun.proto.nodeinfo.setNodeInfo: %w", err)
-	}
-	tun.config.RUnlock()
-	if err := tun.core.SetOutOfBandHandler(tun.oobHandler); err != nil {
-		return fmt.Errorf("tun.core.SetOutOfBandHander: %w", err)
-	}
 	return nil
 }
 
@@ -132,8 +119,7 @@ func (tun *TunAdapter) _start() error {
 	if tun.config == nil {
 		return errors.New("no configuration available to TUN")
 	}
-	sk := tun.core.PrivateKey()
-	pk := sk.Public().(ed25519.PublicKey)
+	pk := tun.core.PublicKey()
 	tun.addr = *address.AddrForKey(pk)
 	tun.subnet = *address.SubnetForKey(pk)
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
@@ -144,8 +130,8 @@ func (tun *TunAdapter) _start() error {
 		return nil
 	}
 	mtu := tun.config.IfMTU
-	if tun.maxSessionMTU() < mtu {
-		mtu = tun.maxSessionMTU()
+	if tun.core.MaxMTU() < mtu {
+		mtu = tun.core.MaxMTU()
 	}
 	if err := tun.setup(tun.config.IfName, addr, mtu); err != nil {
 		return err
@@ -188,4 +174,3 @@ func (tun *TunAdapter) _stop() error {
 	}
 	return nil
 }
-

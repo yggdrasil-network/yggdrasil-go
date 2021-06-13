@@ -222,3 +222,28 @@ func (c *Core) RemovePeer(addr string, sintf string) error {
 func (c *Core) CallPeer(u *url.URL, sintf string) error {
 	return c.links.call(u, sintf)
 }
+
+func (c *Core) PublicKey() ed25519.PublicKey {
+	return c.public
+}
+
+func (c *Core) MaxMTU() uint64 {
+	return c.store.maxSessionMTU()
+}
+
+// Implement io.ReadWriteCloser
+
+func (c *Core) Read(p []byte) (n int, err error) {
+	n, err = c.store.readPC(p)
+	return
+}
+
+func (c *Core) Write(p []byte) (n int, err error) {
+	n, err = c.store.writePC(p)
+	return
+}
+
+func (c *Core) Close() error {
+	c.Stop()
+	return nil
+}

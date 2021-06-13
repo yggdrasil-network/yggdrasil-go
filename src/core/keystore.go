@@ -17,7 +17,7 @@ const keyStoreTimeout = 2 * time.Minute
 type keyArray [ed25519.PublicKeySize]byte
 
 type keyStore struct {
-	core    *Core
+	core         *Core
 	address      address.Address
 	subnet       address.Subnet
 	mutex        sync.Mutex
@@ -26,7 +26,6 @@ type keyStore struct {
 	addrBuffer   map[address.Address]*buffer
 	subnetToInfo map[address.Subnet]*keyInfo
 	subnetBuffer map[address.Subnet]*buffer
-	buf []byte // scratch space to prefix with typeSessionTraffic before sending
 }
 
 type keyInfo struct {
@@ -45,7 +44,10 @@ func (k *keyStore) init(core *Core) {
 	k.core = core
 	k.address = *address.AddrForKey(k.core.public)
 	k.subnet = *address.SubnetForKey(k.core.public)
-	k.core.pc.SetOutOfBandHandler(k.oobHandler)
+	if err := k.core.pc.SetOutOfBandHandler(k.oobHandler); err != nil {
+		err = fmt.Errorf("tun.core.SetOutOfBandHander: %w", err)
+		panic(err)
+	}
 	k.keyToInfo = make(map[keyArray]*keyInfo)
 	k.addrToInfo = make(map[address.Address]*keyInfo)
 	k.addrBuffer = make(map[address.Address]*buffer)
@@ -204,38 +206,39 @@ func (k *keyStore) maxSessionMTU() uint64 {
 }
 
 func (k *keyStore) readPC(p []byte) (int, error) {
-    for {
-      bs := p
-      n, from, err := k.core.pc.ReadFrom(bs)
-		  if err != nil {
-			  return n, err
-		  }
-		  if n == 0 {
-			  continue
-		  }
-		  switch bs[0] {
-		  case typeSessionTraffic:
-			  // This is what we want to handle here
-		  case typeSessionProto:
-			  var key keyArray
-			  copy(key[:], from.(iwt.Addr))
-			  data := append([]byte(nil), bs[1:n]...)
-			  k.core.proto.handleProto(nil, key, data)
-			  continue
-		  default:
-			  continue
-		  }
-		  bs = bs[1:n]
-		  if len(bs) == 0 {
-			  continue
-		  }
-		  if bs[0]&0xf0 != 0x60 {
-			  continue // not IPv6
-		  }
-		  if len(bs) < 40 {
-			  continue
-		  }
-		  /* TODO ICMP packet too big
+	buf := make([]byte, k.core.pc.MTU(), 65535)
+	for {
+		bs := buf
+		n, from, err := k.core.pc.ReadFrom(bs)
+		if err != nil {
+			return n, err
+		}
+		if n == 0 {
+			continue
+		}
+		switch bs[0] {
+		case typeSessionTraffic:
+			// This is what we want to handle here
+		case typeSessionProto:
+			var key keyArray
+			copy(key[:], from.(iwt.Addr))
+			data := append([]byte(nil), bs[1:n]...)
+			k.core.proto.handleProto(nil, key, data)
+			continue
+		default:
+			continue
+		}
+		bs = bs[1:n]
+		if len(bs) == 0 {
+			continue
+		}
+		if bs[0]&0xf0 != 0x60 {
+			continue // not IPv6
+		}
+		if len(bs) < 40 {
+			continue
+		}
+		/* TODO? ICMP packet too big, for now tuntap sends this when needed
 		  if len(bs) > int(tun.MTU()) {
 			  ptb := &icmp.PacketTooBig{
 				  MTU:  int(tun.mtu),
@@ -246,32 +249,32 @@ func (k *keyStore) readPC(p []byte) (int, error) {
 			  }
 			  continue
 		  }
-		  */
-		  var srcAddr, dstAddr address.Address
-		  var srcSubnet, dstSubnet address.Subnet
-		  copy(srcAddr[:], bs[8:])
-		  copy(dstAddr[:], bs[24:])
-		  copy(srcSubnet[:], bs[8:])
-		  copy(dstSubnet[:], bs[24:])
-		  if dstAddr != k.address && dstSubnet != k.subnet {
-			  continue // bad local address/subnet
-		  }
-		  info := k.update(ed25519.PublicKey(from.(iwt.Addr)))
-		  if srcAddr != info.address && srcSubnet != info.subnet {
-			  continue // bad remote address/subnet
-		  }
-		  n = copy(p, bs)
-		  return n, nil
+		*/
+		var srcAddr, dstAddr address.Address
+		var srcSubnet, dstSubnet address.Subnet
+		copy(srcAddr[:], bs[8:])
+		copy(dstAddr[:], bs[24:])
+		copy(srcSubnet[:], bs[8:])
+		copy(dstSubnet[:], bs[24:])
+		if dstAddr != k.address && dstSubnet != k.subnet {
+			continue // bad local address/subnet
 		}
+		info := k.update(ed25519.PublicKey(from.(iwt.Addr)))
+		if srcAddr != info.address && srcSubnet != info.subnet {
+			continue // bad remote address/subnet
+		}
+		n = copy(p, bs)
+		return n, nil
+	}
 }
 
 func (k *keyStore) writePC(bs []byte) (int, error) {
-  if bs[0]&0xf0 != 0x60 {
+	if bs[0]&0xf0 != 0x60 {
 		return 0, errors.New("not an IPv6 packet") // not IPv6
 	}
 	if len(bs) < 40 {
-	  strErr := fmt.Sprint("undersized IPv6 packet, length:", len(bs))
-	  return 0, errors.New(strErr)
+		strErr := fmt.Sprint("undersized IPv6 packet, length:", len(bs))
+		return 0, errors.New(strErr)
 	}
 	var srcAddr, dstAddr address.Address
 	var srcSubnet, dstSubnet address.Subnet
@@ -280,16 +283,17 @@ func (k *keyStore) writePC(bs []byte) (int, error) {
 	copy(srcSubnet[:], bs[8:])
 	copy(dstSubnet[:], bs[24:])
 	if srcAddr != k.address && srcSubnet != k.subnet {
-    return 0, errors.New("wrong source address")
+		return 0, errors.New("wrong source address")
 	}
-	k.buf = append(k.buf[:0], typeSessionTraffic)
-	k.buf = append(k.buf, bs...)
+	buf := make([]byte, 1+len(bs), 65535)
+	buf[0] = typeSessionTraffic
+	copy(buf[1:], bs)
 	if dstAddr.IsValid() {
-		k.sendToAddress(dstAddr, k.buf)
+		k.sendToAddress(dstAddr, buf)
 	} else if dstSubnet.IsValid() {
-		k.sendToSubnet(dstSubnet, k.buf)
+		k.sendToSubnet(dstSubnet, buf)
 	} else {
-    return 0, errors.New("invalid destination address")
+		return 0, errors.New("invalid destination address")
 	}
 	return len(bs), nil
 }
