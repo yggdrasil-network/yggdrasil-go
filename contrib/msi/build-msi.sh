@@ -1,7 +1,9 @@
-#!/bin/bash
+#!/bin/sh
 
 # This script generates an MSI file for Yggdrasil for a given architecture. It
-# needs to run on Linux or macOS with Go 1.16, wixl and msitools installed.
+# needs to run on Windows within MSYS2 and Go 1.13 or later must be installed on
+# the system and within the PATH. This is ran currently by Appveyor (see
+# appveyor.yml in the repository root) for both x86 and x64.
 #
 # Author: Neil Alexander <neilalexander@users.noreply.github.com>
 
@@ -26,6 +28,25 @@ then
   git checkout ${APPVEYOR_REPO_BRANCH}
 fi
 
+# Install prerequisites within MSYS2
+pacman -S --needed --noconfirm unzip git curl
+
+# Download the wix tools!
+if [ ! -d wixbin ];
+then
+  curl -LO https://github.com/wixtoolset/wix3/releases/download/wix3112rtm/wix311-binaries.zip
+  if [ `md5sum wix311-binaries.zip | cut -f 1 -d " "` != "47a506f8ab6666ee3cc502fb07d0ee2a" ];
+  then
+    echo "wix package didn't match expected checksum"
+    exit 1
+  fi
+  mkdir -p wixbin
+  unzip -o wix311-binaries.zip -d wixbin || (
+    echo "failed to unzip WiX"
+    exit 1
+  )
+fi
+
 # Build Yggdrasil!
 [ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 ./build -p -l "-aslr"
 [ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=0 ./build -p -l "-aslr"
@@ -39,9 +60,7 @@ if not exist %ALLUSERSPROFILE%\\Yggdrasil (
 )
 if not exist %ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf (
   if exist yggdrasil.exe (
-    if not exist %ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf (
-      yggdrasil.exe -genconf > %ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf
-    )
+    yggdrasil.exe -genconf > %ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf
   )
 )
 EOF
@@ -55,7 +74,7 @@ PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
   PKGGUID="54a3294e-a441-4322-aefb-3bb40dd022bb" PKGINSTFOLDER="ProgramFilesFolder"
 
 # Download the Wintun driver
-curl -o wintun.zip https://www.wintun.net/builds/wintun-0.10.2.zip
+curl -o wintun.zip https://www.wintun.net/builds/wintun-0.11.zip
 unzip wintun.zip
 if [ $PKGARCH = "x64" ]; then
   PKGWINTUNDLL=wintun/bin/amd64/wintun.dll
@@ -189,7 +208,9 @@ cat > wix.xml << EOF
     <InstallExecuteSequence>
       <Custom
         Action="UpdateGenerateConfig"
-        Before="StartServices" />
+        Before="StartServices">
+          NOT Installed AND NOT REMOVE
+      </Custom>
     </InstallExecuteSequence>
 
   </Product>
@@ -197,4 +218,7 @@ cat > wix.xml << EOF
 EOF
 
 # Generate the MSI
-wixl -v wix.xml -a ${PKGARCH} -o ${PKGNAME}-${PKGVERSION}-${PKGARCH}.msi
+CANDLEFLAGS="-nologo"
+LIGHTFLAGS="-nologo -spdb -sice:ICE71 -sice:ICE61"
+wixbin/candle $CANDLEFLAGS -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj -arch ${PKGARCH} wix.xml && \
+wixbin/light $LIGHTFLAGS -ext WixUtilExtension.dll -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.msi ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj
