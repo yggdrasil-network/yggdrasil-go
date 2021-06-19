@@ -277,7 +277,7 @@ func (m *Multicast) _announce() {
 			var info *listenerInfo
 			if nfo, ok := m.listeners[iface.Name]; !ok || nfo.listener.Listener == nil {
 				// No listener was found - let's create one
-				urlString := fmt.Sprintf("tcp://[%s]:%d", addrIP, m.listenPort)
+				urlString := fmt.Sprintf("tls://[%s]:%d", addrIP, m.listenPort)
 				u, err := url.Parse(urlString)
 				if err != nil {
 					panic(err)
@@ -370,7 +370,7 @@ func (m *Multicast) listen() {
 		if _, ok := interfaces[from.Zone]; ok {
 			addr.Zone = ""
 			pin := fmt.Sprintf("/?key=%s", hex.EncodeToString(key))
-			u, err := url.Parse("tcp://" + addr.String() + pin)
+			u, err := url.Parse("tls://" + addr.String() + pin)
 			if err != nil {
 				m.log.Debugln("Call from multicast failed, parse error:", addr.String(), err)
 			}

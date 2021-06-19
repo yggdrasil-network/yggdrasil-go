@@ -185,17 +185,21 @@ func (t *tcp) listener(l *TcpListener, listenaddr string) {
 		l.Listener.Close()
 		return
 	}
+	callproto := "TCP"
+	if l.opts.upgrade != nil {
+		callproto = strings.ToUpper(l.opts.upgrade.name)
+	}
 	t.listeners[listenaddr] = l
 	t.mutex.Unlock()
 	// And here we go!
 	defer func() {
-		t.links.core.log.Infoln("Stopping TCP listener on:", l.Listener.Addr().String())
+		t.links.core.log.Infoln("Stopping", callproto, "listener on:", l.Listener.Addr().String())
 		l.Listener.Close()
 		t.mutex.Lock()
 		delete(t.listeners, listenaddr)
 		t.mutex.Unlock()
 	}()
-	t.links.core.log.Infoln("Listening for TCP on:", l.Listener.Addr().String())
+	t.links.core.log.Infoln("Listening for", callproto, "on:", l.Listener.Addr().String())
 	go func() {
 		<-l.stop
 		l.Listener.Close()
