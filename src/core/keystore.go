@@ -40,7 +40,7 @@ type keyInfo struct {
 }
 
 type buffer struct {
-	packets [][]byte
+	packet  []byte
 	timeout *time.Timer
 }
 
@@ -73,7 +73,7 @@ func (k *keyStore) sendToAddress(addr address.Address, bs []byte) {
 			k.addrBuffer[addr] = buf
 		}
 		msg := append([]byte(nil), bs...)
-		buf.packets = append(buf.packets, msg)
+		buf.packet = msg
 		if buf.timeout != nil {
 			buf.timeout.Stop()
 		}
@@ -102,7 +102,7 @@ func (k *keyStore) sendToSubnet(subnet address.Subnet, bs []byte) {
 			k.subnetBuffer[subnet] = buf
 		}
 		msg := append([]byte(nil), bs...)
-		buf.packets = append(buf.packets, msg)
+		buf.packet = msg
 		if buf.timeout != nil {
 			buf.timeout.Stop()
 		}
@@ -134,15 +134,11 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 		k.resetTimeout(info)
 		k.mutex.Unlock()
 		if buf := k.addrBuffer[info.address]; buf != nil {
-			for _, bs := range buf.packets {
-				_, _ = k.core.pc.WriteTo(bs, iwt.Addr(info.key[:]))
-			}
+			k.core.pc.WriteTo(buf.packet, iwt.Addr(info.key[:]))
 			delete(k.addrBuffer, info.address)
 		}
 		if buf := k.subnetBuffer[info.subnet]; buf != nil {
-			for _, bs := range buf.packets {
-				_, _ = k.core.pc.WriteTo(bs, iwt.Addr(info.key[:]))
-			}
+			k.core.pc.WriteTo(buf.packet, iwt.Addr(info.key[:]))
 			delete(k.subnetBuffer, info.subnet)
 		}
 	} else {
