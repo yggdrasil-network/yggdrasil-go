@@ -54,7 +54,7 @@ type TcpListener struct {
 }
 
 type TcpUpgrade struct {
-	upgrade func(c net.Conn) (net.Conn, error)
+	upgrade func(c net.Conn, o *tcpOptions) (net.Conn, error)
 	name    string
 }
 
@@ -361,7 +361,7 @@ func (t *tcp) handler(sock net.Conn, incoming bool, options tcpOptions) chan str
 	var upgraded bool
 	if options.upgrade != nil {
 		var err error
-		if sock, err = options.upgrade.upgrade(sock); err != nil {
+		if sock, err = options.upgrade.upgrade(sock, &options); err != nil {
 			t.links.core.log.Errorln("TCP handler upgrade failed:", err)
 			return nil
 		}
