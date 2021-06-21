@@ -86,7 +86,7 @@ These signatures prevent nodes from forging arbitrary routing advertisements.
 
 The first hop, from the root, also includes a sequence number, which must be updated periodically.
 A node will blacklist the current root (keeping a record of the last sequence number observed) if the root fails to update for longer than some timeout (currently hard coded at 1 minute).
-Normally, a root node will update their sequence number for frequently than this (once every 30 seconds).
+Normally, a root node will update their sequence number more frequently than this (once every 30 seconds).
 Nodes are throttled to ignore updates with a new sequence number for some period after updating their most recently seen sequence number (currently this cooldown is 15 seconds).
 The implementation chooses to set the sequence number equal to the unix time on the root's clock, so that a new (higher) sequence number will be selected if the root is restarted and the clock is not set back.
 
