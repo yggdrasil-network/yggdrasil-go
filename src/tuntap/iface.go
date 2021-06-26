@@ -18,7 +18,7 @@ func (tun *TunAdapter) read() {
 		end := begin + n
 		bs := buf[begin:end]
 		if _, err := tun.core.Write(bs); err != nil {
-			tun.log.Errorln("Unable to send packet:", err)
+			tun.log.Debugln("Unable to send packet:", err)
 		}
 	}
 }

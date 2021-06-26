@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
+	"net"
 	"sync"
 	"time"
 
@@ -278,7 +279,7 @@ func (k *keyStore) writePC(bs []byte) (int, error) {
 		return 0, errors.New("not an IPv6 packet") // not IPv6
 	}
 	if len(bs) < 40 {
-		strErr := fmt.Sprint("undersized IPv6 packet, length:", len(bs))
+		strErr := fmt.Sprint("undersized IPv6 packet, length: ", len(bs))
 		return 0, errors.New(strErr)
 	}
 	var srcAddr, dstAddr address.Address
@@ -290,7 +291,8 @@ func (k *keyStore) writePC(bs []byte) (int, error) {
 	if srcAddr != k.address && srcSubnet != k.subnet {
 		// This happens all the time due to link-local traffic
 		// Don't send back an error, just drop it
-		return 0, nil
+		strErr := fmt.Sprint("incorrect source address: ", net.IP(srcAddr[:]).String())
+		return 0, errors.New(strErr)
 	}
 	buf := make([]byte, 1+len(bs), 65535)
 	buf[0] = typeSessionTraffic
