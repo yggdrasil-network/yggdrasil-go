@@ -93,6 +93,7 @@ func (l *links) call(u *url.URL, sintf string) error {
 			tcpOpts.socksProxyAuth.User = u.User.Username()
 			tcpOpts.socksProxyAuth.Password, _ = u.User.Password()
 		}
+		tcpOpts.upgrade = l.tcp.tls.forDialer // TODO make this configurable
 		pathtokens := strings.Split(strings.Trim(u.Path, "/"), "/")
 		l.tcp.call(pathtokens[0], tcpOpts, sintf)
 	case "tls":
