@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"net"
@@ -307,7 +308,10 @@ func (m *Multicast) _announce() {
 				a.Zone = ""
 				destAddr.Zone = iface.Name
 				msg := append([]byte(nil), m.core.GetSelf().Key...)
-				msg = append(msg, a.String()...)
+				msg = append(msg, a.IP...)
+				pbs := make([]byte, 2)
+				binary.BigEndian.PutUint16(pbs, uint16(a.Port))
+				msg = append(msg, pbs...)
 				_, _ = m.sock.WriteTo(msg, nil, destAddr)
 			}
 			if info.interval.Seconds() < 15 {
@@ -354,13 +358,20 @@ func (m *Multicast) listen() {
 		if bytes.Equal(key, m.core.GetSelf().Key) {
 			continue // don't bother trying to peer with self
 		}
-		anAddr := string(bs[ed25519.PublicKeySize:nBytes])
-		addr, err := net.ResolveTCPAddr("tcp6", anAddr)
+		begin := ed25519.PublicKeySize
+		end := nBytes - 2
+		if end <= begin {
+			continue // malformed address
+		}
+		ip := bs[begin:end]
+		port := binary.BigEndian.Uint16(bs[end:nBytes])
+		anAddr := net.TCPAddr{IP: ip, Port: int(port)}
+		addr, err := net.ResolveTCPAddr("tcp6", anAddr.String())
 		if err != nil {
 			continue
 		}
 		from := fromAddr.(*net.UDPAddr)
-		if addr.IP.String() != from.IP.String() {
+		if !from.IP.Equal(addr.IP) {
 			continue
 		}
 		var interfaces map[string]interfaceInfo
