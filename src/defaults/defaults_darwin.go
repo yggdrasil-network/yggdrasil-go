@@ -14,8 +14,8 @@ func GetDefaults() platformDefaultParameters {
 
 		// Multicast interfaces
 		DefaultMulticastInterfaces: []MulticastInterfaceConfig{
-			{Regex: "en.*", Incoming: true, Outgoing: true},
-			{Regex: "bridge.*", Incoming: true, Outgoing: true},
+			{Regex: "en.*", Beacon: true, Listen: true},
+			{Regex: "bridge.*", Beacon: true, Listen: true},
 		},
 
 		// TUN/TAP

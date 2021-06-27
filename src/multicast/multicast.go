@@ -32,22 +32,23 @@ type Multicast struct {
 	sock        *ipv6.PacketConn
 	groupAddr   string
 	listeners   map[string]*listenerInfo
-	listenPort  uint16
 	isOpen      bool
 	_interfaces map[string]interfaceInfo
 }
 
 type interfaceInfo struct {
-	iface    net.Interface
-	addrs    []net.Addr
-	incoming bool
-	outgoing bool
+	iface  net.Interface
+	addrs  []net.Addr
+	beacon bool
+	listen bool
+	port   uint16
 }
 
 type listenerInfo struct {
 	listener *core.TcpListener
 	time     time.Time
 	interval time.Duration
+	port     uint16
 }
 
 // Init prepares the multicast interface for use.
@@ -57,7 +58,6 @@ func (m *Multicast) Init(core *core.Core, nc *config.NodeConfig, log *log.Logger
 	m.log = log
 	m.listeners = make(map[string]*listenerInfo)
 	m._interfaces = make(map[string]interfaceInfo)
-	m.listenPort = m.config.LinkLocalTCPPort
 	m.groupAddr = "[ff02::114]:9001"
 	return nil
 }
@@ -196,11 +196,12 @@ func (m *Multicast) getAllowedInterfaces() map[string]interfaceInfo {
 			}
 			// Does the interface match the regular expression? Store it if so
 			if e.MatchString(iface.Name) {
-				if ifcfg.Incoming || ifcfg.Outgoing {
+				if ifcfg.Beacon || ifcfg.Listen {
 					info := interfaceInfo{
-						iface:    iface,
-						incoming: ifcfg.Incoming,
-						outgoing: ifcfg.Outgoing,
+						iface:  iface,
+						beacon: ifcfg.Beacon,
+						listen: ifcfg.Listen,
+						port:   ifcfg.Port,
 					}
 					interfaces[iface.Name] = info
 				}
@@ -280,18 +281,18 @@ func (m *Multicast) _announce() {
 			if !addrIP.IsLinkLocalUnicast() {
 				continue
 			}
-			if info.outgoing {
-				// Join the multicast group, so we can listen for advertisements to open outgoing connections
+			if info.listen {
+				// Join the multicast group, so we can listen for beacons
 				_ = m.sock.JoinGroup(&iface, groupAddr)
 			}
-			if !info.incoming {
-				break // Don't send multicast advertisements if we don't accept incoming connections
+			if !info.beacon {
+				break // Don't send multicast beacons or accept incoming connections
 			}
 			// Try and see if we already have a TCP listener for this interface
-			var info *listenerInfo
+			var linfo *listenerInfo
 			if nfo, ok := m.listeners[iface.Name]; !ok || nfo.listener.Listener == nil {
 				// No listener was found - let's create one
-				urlString := fmt.Sprintf("tls://[%s]:%d", addrIP, m.listenPort)
+				urlString := fmt.Sprintf("tls://[%s]:%d", addrIP, info.port)
 				u, err := url.Parse(urlString)
 				if err != nil {
 					panic(err)
@@ -299,24 +300,24 @@ func (m *Multicast) _announce() {
 				if li, err := m.core.Listen(u, iface.Name); err == nil {
 					m.log.Debugln("Started multicasting on", iface.Name)
 					// Store the listener so that we can stop it later if needed
-					info = &listenerInfo{listener: li, time: time.Now()}
-					m.listeners[iface.Name] = info
+					linfo = &listenerInfo{listener: li, time: time.Now()}
+					m.listeners[iface.Name] = linfo
 				} else {
 					m.log.Warnln("Not multicasting on", iface.Name, "due to error:", err)
 				}
 			} else {
 				// An existing listener was found
-				info = m.listeners[iface.Name]
+				linfo = m.listeners[iface.Name]
 			}
 			// Make sure nothing above failed for some reason
-			if info == nil {
+			if linfo == nil {
 				continue
 			}
-			if time.Since(info.time) < info.interval {
+			if time.Since(linfo.time) < linfo.interval {
 				continue
 			}
 			// Get the listener details and construct the multicast beacon
-			lladdr := info.listener.Listener.Addr().String()
+			lladdr := linfo.listener.Listener.Addr().String()
 			if a, err := net.ResolveTCPAddr("tcp6", lladdr); err == nil {
 				a.Zone = ""
 				destAddr.Zone = iface.Name
@@ -327,8 +328,8 @@ func (m *Multicast) _announce() {
 				msg = append(msg, pbs...)
 				_, _ = m.sock.WriteTo(msg, nil, destAddr)
 			}
-			if info.interval.Seconds() < 15 {
-				info.interval += time.Second
+			if linfo.interval.Seconds() < 15 {
+				linfo.interval += time.Second
 			}
 			break
 		}
@@ -391,7 +392,7 @@ func (m *Multicast) listen() {
 		phony.Block(m, func() {
 			interfaces = m._interfaces
 		})
-		if info, ok := interfaces[from.Zone]; ok && info.outgoing {
+		if info, ok := interfaces[from.Zone]; ok && info.listen {
 			addr.Zone = ""
 			pin := fmt.Sprintf("/?key=%s", hex.EncodeToString(key))
 			u, err := url.Parse("tls://" + addr.String() + pin)

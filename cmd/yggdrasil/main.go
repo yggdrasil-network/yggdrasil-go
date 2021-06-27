@@ -102,13 +102,21 @@ func readConfig(log *log.Logger, useconf *bool, useconffile *string, normaliseco
 			for _, oldmcval := range oldmcvals {
 				if str, ok := oldmcval.(string); ok {
 					newmc = append(newmc, config.MulticastInterfaceConfig{
-						Regex:    str,
-						Incoming: true,
-						Outgoing: true,
+						Regex:  str,
+						Beacon: true,
+						Listen: true,
 					})
 				}
 			}
 			if newmc != nil {
+				if oldport, ok := dat["LinkLocalTCPPort"]; ok {
+					// numbers parse to float64 by default
+					if port, ok := oldport.(float64); ok {
+						for idx := range newmc {
+							newmc[idx].Port = uint16(port)
+						}
+					}
+				}
 				dat["MulticastInterfaces"] = newmc
 			}
 		}
