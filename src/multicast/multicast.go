@@ -38,8 +38,10 @@ type Multicast struct {
 }
 
 type interfaceInfo struct {
-	iface net.Interface
-	addrs []net.Addr
+	iface    net.Interface
+	addrs    []net.Addr
+	incoming bool
+	outgoing bool
 }
 
 type listenerInfo struct {
@@ -136,18 +138,16 @@ func (m *Multicast) _stop() error {
 }
 
 func (m *Multicast) _updateInterfaces() {
-	interfaces := make(map[string]interfaceInfo)
-	intfs := m.getAllowedInterfaces()
-	for _, intf := range intfs {
-		addrs, err := intf.Addrs()
+	interfaces := m.getAllowedInterfaces()
+	for name, info := range interfaces {
+		addrs, err := info.iface.Addrs()
 		if err != nil {
-			m.log.Warnf("Failed up get addresses for interface %s: %s", intf.Name, err)
+			m.log.Warnf("Failed up get addresses for interface %s: %s", name, err)
+			delete(interfaces, name)
 			continue
 		}
-		interfaces[intf.Name] = interfaceInfo{
-			iface: intf,
-			addrs: addrs,
-		}
+		info.addrs = addrs
+		interfaces[name] = info
 	}
 	m._interfaces = interfaces
 }
@@ -163,10 +163,10 @@ func (m *Multicast) Interfaces() map[string]net.Interface {
 }
 
 // getAllowedInterfaces returns the currently known/enabled multicast interfaces.
-func (m *Multicast) getAllowedInterfaces() map[string]net.Interface {
-	interfaces := make(map[string]net.Interface)
+func (m *Multicast) getAllowedInterfaces() map[string]interfaceInfo {
+	interfaces := make(map[string]interfaceInfo)
 	// Get interface expressions from config
-	exprs := m.config.MulticastInterfaces
+	ifcfgs := m.config.MulticastInterfaces
 	// Ask the system for network interfaces
 	allifaces, err := net.Interfaces()
 	if err != nil {
@@ -188,15 +188,23 @@ func (m *Multicast) getAllowedInterfaces() map[string]net.Interface {
 			// Ignore point-to-point interfaces
 			continue
 		}
-		for _, expr := range exprs {
+		for _, ifcfg := range ifcfgs {
 			// Compile each regular expression
-			e, err := regexp.Compile(expr)
+			e, err := regexp.Compile(ifcfg.Regex)
 			if err != nil {
 				panic(err)
 			}
 			// Does the interface match the regular expression? Store it if so
 			if e.MatchString(iface.Name) {
-				interfaces[iface.Name] = iface
+				if ifcfg.Incoming || ifcfg.Outgoing {
+					info := interfaceInfo{
+						iface:    iface,
+						incoming: ifcfg.Incoming,
+						outgoing: ifcfg.Outgoing,
+					}
+					interfaces[iface.Name] = info
+				}
+				break
 			}
 		}
 	}
@@ -272,8 +280,13 @@ func (m *Multicast) _announce() {
 			if !addrIP.IsLinkLocalUnicast() {
 				continue
 			}
-			// Join the multicast group
-			_ = m.sock.JoinGroup(&iface, groupAddr)
+			if info.outgoing {
+				// Join the multicast group, so we can listen for advertisements to open outgoing connections
+				_ = m.sock.JoinGroup(&iface, groupAddr)
+			}
+			if !info.incoming {
+				break // Don't send multicast advertisements if we don't accept incoming connections
+			}
 			// Try and see if we already have a TCP listener for this interface
 			var info *listenerInfo
 			if nfo, ok := m.listeners[iface.Name]; !ok || nfo.listener.Listener == nil {
@@ -378,7 +391,7 @@ func (m *Multicast) listen() {
 		phony.Block(m, func() {
 			interfaces = m._interfaces
 		})
-		if _, ok := interfaces[from.Zone]; ok {
+		if info, ok := interfaces[from.Zone]; ok && info.outgoing {
 			addr.Zone = ""
 			pin := fmt.Sprintf("/?key=%s", hex.EncodeToString(key))
 			u, err := url.Parse("tls://" + addr.String() + pin)
