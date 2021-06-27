@@ -20,8 +20,6 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"sync"
-
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 
 // NodeConfig is the main configuration structure, containing configuration
@@ -42,32 +40,6 @@ type NodeConfig struct {
 	IfMTU               uint64                 `comment:"Maximum Transmission Unit (MTU) size for your local TUN interface.\nDefault is the largest supported size for your platform. The lowest\npossible value is 1280."`
 	NodeInfoPrivacy     bool                   `comment:"By default, nodeinfo contains some defaults including the platform,\narchitecture and Yggdrasil version. These can help when surveying\nthe network and diagnosing network routing problems. Enabling\nnodeinfo privacy prevents this, so that only items specified in\n\"NodeInfo\" are sent back if specified."`
 	NodeInfo            map[string]interface{} `comment:"Optional node info. This must be a { \"key\": \"value\", ... } map\nor set as null. This is entirely optional but, if set, is visible\nto the whole network on request."`
-}
-
-// Generates default configuration and returns a pointer to the resulting
-// NodeConfig. This is used when outputting the -genconf parameter and also when
-// using -autoconf.
-func GenerateConfig() *NodeConfig {
-	// Generate encryption keys.
-	spub, spriv, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		panic(err)
-	}
-	// Create a node configuration and populate it.
-	cfg := NodeConfig{}
-	cfg.Listen = []string{}
-	cfg.AdminListen = defaults.GetDefaults().DefaultAdminListen
-	cfg.PublicKey = hex.EncodeToString(spub[:])
-	cfg.PrivateKey = hex.EncodeToString(spriv[:])
-	cfg.Peers = []string{}
-	cfg.InterfacePeers = map[string][]string{}
-	cfg.AllowedPublicKeys = []string{}
-	cfg.MulticastInterfaces = defaults.GetDefaults().DefaultMulticastInterfaces
-	cfg.IfName = defaults.GetDefaults().DefaultIfName
-	cfg.IfMTU = defaults.GetDefaults().DefaultIfMTU
-	cfg.NodeInfoPrivacy = false
-
-	return &cfg
 }
 
 // NewSigningKeys replaces the signing keypair in the NodeConfig with a new

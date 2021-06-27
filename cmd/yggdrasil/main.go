@@ -25,6 +25,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
@@ -73,7 +74,7 @@ func readConfig(log *log.Logger, useconf *bool, useconffile *string, normaliseco
 	// then parse the configuration we loaded above on top of it. The effect
 	// of this is that any configuration item that is missing from the provided
 	// configuration will use a sane default.
-	cfg := config.GenerateConfig()
+	cfg := defaults.GenerateConfig()
 	var dat map[string]interface{}
 	if err := hjson.Unmarshal(conf, &dat); err != nil {
 		panic(err)
@@ -114,7 +115,7 @@ func readConfig(log *log.Logger, useconf *bool, useconffile *string, normaliseco
 // Generates a new configuration and returns it in HJSON format. This is used
 // with -genconf.
 func doGenconf(isjson bool) string {
-	cfg := config.GenerateConfig()
+	cfg := defaults.GenerateConfig()
 	var bs []byte
 	var err error
 	if isjson {
@@ -205,7 +206,7 @@ func main() {
 	case *autoconf:
 		// Use an autoconf-generated config, this will give us random keys and
 		// port numbers, and will use an automatically selected TUN/TAP interface.
-		cfg = config.GenerateConfig()
+		cfg = defaults.GenerateConfig()
 	case *useconffile != "" || *useconf:
 		// Read the configuration from either stdin or from the filesystem
 		cfg = readConfig(logger, useconf, useconffile, normaliseconf)
