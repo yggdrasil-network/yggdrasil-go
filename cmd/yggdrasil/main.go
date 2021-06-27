@@ -96,6 +96,24 @@ func readConfig(log *log.Logger, useconf *bool, useconffile *string, normaliseco
 			}
 		}
 	}
+	if oldmc, ok := dat["MulticastInterfaces"]; ok {
+		fmt.Println("DEBUG:", oldmc)
+		if oldmcvals, ok := oldmc.([]interface{}); ok {
+			var newmc []config.MulticastInterfaceConfig
+			for _, oldmcval := range oldmcvals {
+				if str, ok := oldmcval.(string); ok {
+					newmc = append(newmc, config.MulticastInterfaceConfig{
+						Regex:    str,
+						Incoming: true,
+						Outgoing: true,
+					})
+				}
+			}
+			if newmc != nil {
+				dat["MulticastInterfaces"] = newmc
+			}
+		}
+	}
 	// Sanitise the config
 	confJson, err := json.Marshal(dat)
 	if err != nil {
