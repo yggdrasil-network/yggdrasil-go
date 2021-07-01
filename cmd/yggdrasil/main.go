@@ -399,7 +399,7 @@ func (n *node) shutdown() {
 func main() {
 	args := getArgs()
 	hup := make(chan os.Signal, 1)
-	signal.Notify(hup, os.Interrupt, syscall.SIGHUP)
+	//signal.Notify(hup, os.Interrupt, syscall.SIGHUP)
 	term := make(chan os.Signal, 1)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 	for {
