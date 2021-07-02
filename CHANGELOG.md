@@ -55,6 +55,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
     - The new DHT design is no longer RPC-based, does not support crawling and does not inherently allow nodes to look up the owner of an arbitrary key. Responding to lookups is now implemented at the application level and a response is only sent if the destination key matches the node's `/128` IP or `/64` prefix
     - The greedy routing scheme, used to forward all traffic in previous releases, is now only used for protocol traffic (i.e. DHT setup and source route discovery)
     - The routing logic now lives in a [standalone library](https://github.com/Arceliar/ironwood). You are encouraged **not** to use it, as it's still considered pre-alpha, but it's available for those who want to experiment with the new routing algorithm in other contexts
+    - Session MTUs may be slightly lower now, in order to accommodate large packet headers if required
 - Many of the admin functions available over `yggdrasilctl` have been changed or removed as part of rewrites to the code
     - Several remote `debug` functions have been added temporarily, to allow for crawling and census gathering during the transition to the new version, but we intend to remove this at some point in the (possibly distant) future
     - The list of available functions will likely be expanded in future releases
@@ -63,7 +64,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Removed
 - Tunnel routing (a.k.a. crypto-key routing or "CKR") has been removed
     - It was far too easy to accidentally break routing altogether by capturing the route to peers with the TUN adapter
-    - We recommend tunnelling an existing standard over Yggdrasil instead (e.g. `ip6gre`, `ip6gretap` or other encapsulations)
+    - We recommend tunnelling an existing standard over Yggdrasil instead (e.g. `ip6gre`, `ip6gretap` or other similar encapsulations, using Yggdrasil IPv6 addresses as the tunnel endpoints)
     - All `TunnelRouting` configuration options will no longer take effect
 - Session firewall has been removed
     - This was never a true firewall — it didn't behave like a stateful IP firewall, often allowed return traffic unexpectedly and was simply a way to prevent a node from being flooded with unwanted sessions, so the name could be misleading and usually lead to a false sense of security
