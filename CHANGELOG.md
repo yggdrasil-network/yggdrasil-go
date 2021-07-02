@@ -25,6 +25,32 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.4.0] - 2021-07-04
+### Added
+- Connections to TLS peers will now pin the public ed25519 key used in the TLS handshake, or check that the handshake key matches the existing pinned key for that peer (if a key was pinned)
+
+### Changed
+- This version is backwards incompatible with previous versions of Yggdrasil. The wire protocol version number, exchanged as part of the peer setup handshake, has been increased to 0.4. Nodes running this version will **not** be able to peer with earlier versions of Yggdrasil. Please note that **the network may be temporarily unstable** while infrastructure is being upgraded to the new release. Please also note that nodes may be removed from the public peers repository if they do not upgrade within some reasonable amount of time (think days or weeks, not months), and a large fraction of nodes on the public peers list may be unusable (offline or running an old and incompatible version) until that cleanup happens
+- IP addresses are derived from ed25519 public (signing) keys. Previously, addresses were derived from a hash of X25519 (Diffie-Hellman) keys. Note that this means **all node addresses have changed with respect to previous releases**, so any existing services will be hosted at new addresses. The services page of the main repo has been updated to only list services in the new v0.4 network. Service operators are encouraged to submit a PR if they wish to be (re-)added to the list
+- Link-local peers from multicast peer discovery will now connect over TLS. This is part of a general effort to encourage peering over TLS by default. Note that traffic is encrypted end-to-end regardless of how peer connections are established
+- Multicast peer discovery is now more configurable. There are separate configuration options to control if beacons are sent, what port to listen on for incoming connections (if sending beacons), and whether or not to listen for beacons from other nodes (and open connections when receiving a beacon). Each configuration entry in the list specifies a regular expression to match against interface names. If an interface matches multiple regex in the list, it will use the settings for the first entry in the list that it matches with
+- `socks://` peers now expect the destination endpoint to be a `tls://` listener
+- The configuration file format has been updated. Among other things, there is now a single `PublicKey` and `PrivateKey` pair, both corresponding to ed25519 keys (since nodes no longer have a permanent X25519 key pair)
+- Many of the admin functions available over `yggdrasilctl` have been changed or removed as part of rewrites to the code. The list of available functions will likely be expanded in future releases
+- The session and routing code has been redesigned and rewritten as a [standalone library](https://github.com/Arceliar/ironwood). We expect to see reduced bandwidth use and improved reliability with the new design, especially in mobile networks. This is still an early work-in-progress, so the code hasn't been as well tested or optimized as the old code base. Please bear with us for these next few releases as we work through any bugs or issues
+- Cryptographic sessions no longer use a single shared (ephemeral) secret for the entire life of the session. Keys are now rotated regularly for ongoing sessions (both nodes will rotate keys at least once per round trip exchange of traffic, which is arguably *too* aggressive, we may throttle this somehow in a future release)
+- Source routing has been added. Under normal circumstances, this is what is used to forward session traffic (e.g. the user's IPv6 traffic)
+- DHT-based routing has been added. This is used when the sender does not know a source route to the destination. Forwarding through the DHT is less efficient, but the only information that it requires the sender to know is the destination node's (static) key. This is primarily used during the key exchange at session setup, or as a temporary fallback when a source route fails due to changes in the network
+- The greedy routing scheme, used to forward all traffic in previous releases, is now only used for protocol traffic (i.e. DHT setup and source route discovery)
+
+### Removed
+- TunnelRouting (aka cryptokey routing) has been removed. We recommend tunneling an existing standard over Yggdrasil instead (e.g. `ip6gre` and `ip6gretap`)
+- SessionFirewall has been removed. This was never a true firewall, it was simply a way to prevent a node from being flooded with unwanted sessions. The new code base needs to address that problem in other ways. Users who want a firewall or other packet filter should configure something supported by their OS (e.g. `ip6tables`)
+- SIGHUP handling has been removed. SIGHUP will be handled normally (by exiting) instead of attempting to reload (parts of) the config file
+- The whitepaper (and the rest of the doc folder) has been removed. This documentation was outdated since the routing code as been rewritten. New documentation will likely appear in a future release
+- `cmd/yggrasilsim` has been removed. Since the routing code is now a separate library, it probably makes more sense to rewrite this as part of the library test code (or otherwise keep it separate from this repo)
+- DHT lookups have been removed. This means there's nothing in the protocol that inherently makes it possible to crawl through the network. That said, `yggdrasilctl` exposes several remote `debug` functions, which make it possible to continue crawling the network. These will also be removed in a future release, if/when we're reasonably confident that things are working as intended
+
 ## [0.3.16] - 2021-03-18
 ### Added
 - New simulation code under `cmd/yggdrasilsim` (work-in-progress)
