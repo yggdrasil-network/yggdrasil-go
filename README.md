@@ -20,25 +20,11 @@ internet-like topologies.
 
 ## Supported Platforms
 
-We actively support the following platforms, and packages are available for
-some of the below:
+Yggdrasil works on a number of platforms, including Linux, macOS, Ubiquiti
+EdgeRouter, VyOS, Windows, FreeBSD, OpenBSD and OpenWrt.
 
-- Linux
-  - `.deb` and `.rpm` packages are built by CI for Debian and Red Hat-based
-    distributions
-  - Arch, Nix, Void packages also available within their respective repositories
-- macOS
-  - `.pkg` packages are built by CI
-- Ubiquiti EdgeOS
-  - `.deb` Vyatta packages are built by CI
-- Windows
-- FreeBSD
-- OpenBSD
-- OpenWrt
-
-Please see our [Platforms](https://yggdrasil-network.github.io/platforms.html) pages for more
-specific information about each of our supported platforms, including
-installation steps and caveats.
+Please see our [Installation](https://yggdrasil-network.github.io/installation.html) 
+page for more information.
 
 You may also find other platform-specific wrappers, scripts or tools in the
 `contrib` folder.
@@ -97,21 +83,18 @@ by giving the Yggdrasil binary the `CAP_NET_ADMIN` capability.
 
 ## Documentation
 
-Documentation is available on our [GitHub
-Pages](https://yggdrasil-network.github.io) site, or in the base submodule
-repository within `doc/yggdrasil-network.github.io`.
+Documentation is available on our [GitHub Pages](https://yggdrasil-network.github.io)
+site.
 
-- [Configuration file options](https://yggdrasil-network.github.io/configuration.html)
-- [Platform-specific documentation](https://yggdrasil-network.github.io/platforms.html)
+- [Configuration file](https://yggdrasil-network.github.io/configuration.html)
 - [Frequently asked questions](https://yggdrasil-network.github.io/faq.html)
-- [Admin API documentation](https://yggdrasil-network.github.io/admin.html)
 - [Version changelog](CHANGELOG.md)
 
 ## Community
 
 Feel free to join us on our [Matrix
 channel](https://matrix.to/#/#yggdrasil:matrix.org) at `#yggdrasil:matrix.org`
-or in the `#yggdrasil` IRC channel on Freenode.
+or in the `#yggdrasil` IRC channel on [libera.chat](https://libera.chat).
 
 ## License
 
