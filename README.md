@@ -11,23 +11,14 @@ allows pretty much any IPv6-capable application to communicate securely with
 other Yggdrasil nodes. Yggdrasil does not require you to have IPv6 Internet
 connectivity - it also works over IPv4.
 
-Although Yggdrasil shares many similarities with
-[cjdns](https://github.com/cjdelisle/cjdns), it employs a different routing
-algorithm based on a globally-agreed spanning tree and greedy routing in a
-metric space, and aims to implement some novel local backpressure routing
-techniques. In theory, Yggdrasil should scale well on networks with
-internet-like topologies.
-
 ## Supported Platforms
 
 Yggdrasil works on a number of platforms, including Linux, macOS, Ubiquiti
 EdgeRouter, VyOS, Windows, FreeBSD, OpenBSD and OpenWrt.
 
 Please see our [Installation](https://yggdrasil-network.github.io/installation.html) 
-page for more information.
-
-You may also find other platform-specific wrappers, scripts or tools in the
-`contrib` folder.
+page for more information. You may also find other platform-specific wrappers, scripts
+or tools in the `contrib` folder.
 
 ## Building
 
@@ -83,10 +74,10 @@ by giving the Yggdrasil binary the `CAP_NET_ADMIN` capability.
 
 ## Documentation
 
-Documentation is available on our [GitHub Pages](https://yggdrasil-network.github.io)
-site.
+Documentation is available [on our website](https://yggdrasil-network.github.io).
 
-- [Configuration file](https://yggdrasil-network.github.io/configuration.html)
+- [Installing Yggdrasil](https://yggdrasil-network.github.io/installation.html)
+- [Configuring Yggdrasil](https://yggdrasil-network.github.io/configuration.html)
 - [Frequently asked questions](https://yggdrasil-network.github.io/faq.html)
 - [Version changelog](CHANGELOG.md)
 
