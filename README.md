@@ -11,37 +11,14 @@ allows pretty much any IPv6-capable application to communicate securely with
 other Yggdrasil nodes. Yggdrasil does not require you to have IPv6 Internet
 connectivity - it also works over IPv4.
 
-Although Yggdrasil shares many similarities with
-[cjdns](https://github.com/cjdelisle/cjdns), it employs a different routing
-algorithm based on a globally-agreed spanning tree and greedy routing in a
-metric space, and aims to implement some novel local backpressure routing
-techniques. In theory, Yggdrasil should scale well on networks with
-internet-like topologies.
-
 ## Supported Platforms
 
-We actively support the following platforms, and packages are available for
-some of the below:
+Yggdrasil works on a number of platforms, including Linux, macOS, Ubiquiti
+EdgeRouter, VyOS, Windows, FreeBSD, OpenBSD and OpenWrt.
 
-- Linux
-  - `.deb` and `.rpm` packages are built by CI for Debian and Red Hat-based
-    distributions
-  - Arch, Nix, Void packages also available within their respective repositories
-- macOS
-  - `.pkg` packages are built by CI
-- Ubiquiti EdgeOS
-  - `.deb` Vyatta packages are built by CI
-- Windows
-- FreeBSD
-- OpenBSD
-- OpenWrt
-
-Please see our [Platforms](https://yggdrasil-network.github.io/platforms.html) pages for more
-specific information about each of our supported platforms, including
-installation steps and caveats.
-
-You may also find other platform-specific wrappers, scripts or tools in the
-`contrib` folder.
+Please see our [Installation](https://yggdrasil-network.github.io/installation.html) 
+page for more information. You may also find other platform-specific wrappers, scripts
+or tools in the `contrib` folder.
 
 ## Building
 
@@ -97,21 +74,18 @@ by giving the Yggdrasil binary the `CAP_NET_ADMIN` capability.
 
 ## Documentation
 
-Documentation is available on our [GitHub
-Pages](https://yggdrasil-network.github.io) site, or in the base submodule
-repository within `doc/yggdrasil-network.github.io`.
+Documentation is available [on our website](https://yggdrasil-network.github.io).
 
-- [Configuration file options](https://yggdrasil-network.github.io/configuration.html)
-- [Platform-specific documentation](https://yggdrasil-network.github.io/platforms.html)
+- [Installing Yggdrasil](https://yggdrasil-network.github.io/installation.html)
+- [Configuring Yggdrasil](https://yggdrasil-network.github.io/configuration.html)
 - [Frequently asked questions](https://yggdrasil-network.github.io/faq.html)
-- [Admin API documentation](https://yggdrasil-network.github.io/admin.html)
 - [Version changelog](CHANGELOG.md)
 
 ## Community
 
 Feel free to join us on our [Matrix
 channel](https://matrix.to/#/#yggdrasil:matrix.org) at `#yggdrasil:matrix.org`
-or in the `#yggdrasil` IRC channel on Freenode.
+or in the `#yggdrasil` IRC channel on [libera.chat](https://libera.chat).
 
 ## License
 
