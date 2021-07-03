@@ -226,22 +226,6 @@ func getArgs() yggArgs {
 // The main function is responsible for configuring and starting Yggdrasil.
 func run(args yggArgs, ctx context.Context, done chan struct{}) {
 	defer close(done)
-	// Configure the command line parameters.
-	/*
-		genconf := flag.Bool("genconf", false, "print a new config to stdout")
-		useconf := flag.Bool("useconf", false, "read HJSON/JSON config from stdin")
-		useconffile := flag.String("useconffile", "", "read HJSON/JSON config from specified file path")
-		normaliseconf := flag.Bool("normaliseconf", false, "use in combination with either -useconf or -useconffile, outputs your configuration normalised")
-		confjson := flag.Bool("json", false, "print configuration from -genconf or -normaliseconf as JSON instead of HJSON")
-		autoconf := flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
-		ver := flag.Bool("version", false, "prints the version of this build")
-		logto := flag.String("logto", "stdout", "file path to log to, \"syslog\" or \"stdout\"")
-		getaddr := flag.Bool("address", false, "returns the IPv6 address as derived from the supplied configuration")
-		getsnet := flag.Bool("subnet", false, "returns the IPv6 subnet as derived from the supplied configuration")
-		loglevel := flag.String("loglevel", "info", "loglevel to enable")
-		flag.Parse()
-	*/
-
 	// Create a new logger that logs output to stdout.
 	var logger *log.Logger
 	switch args.logto {
@@ -301,6 +285,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 	case args.genconf:
 		// Generate a new configuration and print it to stdout.
 		fmt.Println(doGenconf(args.confjson))
+		return
 	default:
 		// No flags were provided, therefore print the list of flags to stdout.
 		flag.PrintDefaults()
@@ -413,6 +398,8 @@ func main() {
 		case <-term:
 			cancel()
 			<-done
+			return
+		case <-done:
 			return
 		}
 	}
