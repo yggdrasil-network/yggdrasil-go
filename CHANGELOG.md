@@ -25,6 +25,58 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.4.0] - 2021-07-04
+### Added
+- New routing scheme, which is backwards incompatible with previous versions of Yggdrasil
+    - The wire protocol version number, exchanged as part of the peer setup handshake, has been increased to 0.4
+    - Nodes running this new version **will not** be able to peer with earlier versions of Yggdrasil
+    - Please note that **the network may be temporarily unstable** while infrastructure is being upgraded to the new release
+- TLS connections now use public key pinning
+    - If no public key was already pinned, then the public key received as part of the TLS handshake is pinned to the connection
+    - The public key received as part of the handshake is checked against the pinned keys, and if no match is found, the connection is rejected
+
+### Changed
+- IP addresses are now derived from ed25519 public (signing) keys
+    - Previously, addresses were derived from a hash of X25519 (Diffie-Hellman) keys
+    - Importantly, this means that **all internal IPv6 addresses will change with this release** — this will affect anyone running public services or relying on Yggdrasil for remote access
+- It is now recommended to peer over TLS
+    - Link-local peers from multicast peer discovery will now connect over TLS, with the key from the multicast beacon pinned to the connection
+    - `socks://` peers now expect the destination endpoint to be a `tls://` listener, instead of a `tcp://` listener
+- Multicast peer discovery is now more configurable
+    - There are separate configuration options to control if beacons are sent, what port to listen on for incoming connections (if sending beacons), and whether or not to listen for beacons from other nodes (and open connections when receiving a beacon)
+    - Each configuration entry in the list specifies a regular expression to match against interface names
+    - If an interface matches multiple regex in the list, it will use the settings for the first entry in the list that it matches with
+- The session and routing code has been entirely redesigned and rewritten
+    - This is still an early work-in-progress, so the code hasn't been as well tested or optimized as the old code base — please bear with us for these next few releases as we work through any bugs or issues
+    - Generally speaking, we expect to see reduced bandwidth use and improved reliability with the new design, especially in cases where nodes move around or change peerings frequently
+    - Cryptographic sessions no longer use a single shared (ephemeral) secret for the entire life of the session. Keys are now rotated regularly for ongoing sessions (currently rotated at least once per round trip exchange of traffic, subject to change in future releases)
+    - Source routing has been added. Under normal circumstances, this is what is used to forward session traffic (e.g. the user's IPv6 traffic)
+    - DHT-based routing has been added. This is used when the sender does not know a source route to the destination. Forwarding through the DHT is less efficient, but the only information that it requires the sender to know is the destination node's (static) key. This is primarily used during the key exchange at session setup, or as a temporary fallback when a source route fails due to changes in the network
+    - The new DHT design is no longer RPC-based, does not support crawling and does not inherently allow nodes to look up the owner of an arbitrary key. Responding to lookups is now implemented at the application level and a response is only sent if the destination key matches the node's `/128` IP or `/64` prefix
+    - The greedy routing scheme, used to forward all traffic in previous releases, is now only used for protocol traffic (i.e. DHT setup and source route discovery)
+    - The routing logic now lives in a [standalone library](https://github.com/Arceliar/ironwood). You are encouraged **not** to use it, as it's still considered pre-alpha, but it's available for those who want to experiment with the new routing algorithm in other contexts
+    - Session MTUs may be slightly lower now, in order to accommodate large packet headers if required
+- Many of the admin functions available over `yggdrasilctl` have been changed or removed as part of rewrites to the code
+    - Several remote `debug` functions have been added temporarily, to allow for crawling and census gathering during the transition to the new version, but we intend to remove this at some point in the (possibly distant) future
+    - The list of available functions will likely be expanded in future releases
+- The configuration file format has been updated in response to the changed/removed features
+
+### Removed
+- Tunnel routing (a.k.a. crypto-key routing or "CKR") has been removed
+    - It was far too easy to accidentally break routing altogether by capturing the route to peers with the TUN adapter
+    - We recommend tunnelling an existing standard over Yggdrasil instead (e.g. `ip6gre`, `ip6gretap` or other similar encapsulations, using Yggdrasil IPv6 addresses as the tunnel endpoints)
+    - All `TunnelRouting` configuration options will no longer take effect
+- Session firewall has been removed
+    - This was never a true firewall — it didn't behave like a stateful IP firewall, often allowed return traffic unexpectedly and was simply a way to prevent a node from being flooded with unwanted sessions, so the name could be misleading and usually lead to a false sense of security
+    - Due to design changes, the new code needs to address the possible memory exhaustion attacks in other ways and a single configurable list no longer makes sense
+    - Users who want a firewall or other packet filter mechansim should configure something supported by their OS instead (e.g. `ip6tables`)
+    - All `SessionFirewall` configuration options will no longer take effect
+- `SIGHUP` handling to reload the configuration at runtime has been removed
+    - It was not obvious which parts of the configuration could be reloaded at runtime, and which required the application to be killed and restarted to take effect
+    - Reloading the config without restarting was also a delicate and bug-prone process, and was distracting from more important developments
+    - `SIGHUP` will be handled normally (i.e. by exiting)
+- `cmd/yggrasilsim` has been removed, and is unlikely to return to this repository
+
 ## [0.3.16] - 2021-03-18
 ### Added
 - New simulation code under `cmd/yggdrasilsim` (work-in-progress)

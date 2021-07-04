@@ -1,7 +1,9 @@
-#!/bin/bash
+#!/bin/sh
 
 # This script generates an MSI file for Yggdrasil for a given architecture. It
-# needs to run on Linux or macOS with Go 1.16, wixl and msitools installed.
+# needs to run on Windows within MSYS2 and Go 1.13 or later must be installed on
+# the system and within the PATH. This is ran currently by Appveyor (see
+# appveyor.yml in the repository root) for both x86 and x64.
 #
 # Author: Neil Alexander <neilalexander@users.noreply.github.com>
 
@@ -26,10 +28,29 @@ then
   git checkout ${APPVEYOR_REPO_BRANCH}
 fi
 
+# Install prerequisites within MSYS2
+pacman -S --needed --noconfirm unzip git curl
+
+# Download the wix tools!
+if [ ! -d wixbin ];
+then
+  curl -LO https://github.com/wixtoolset/wix3/releases/download/wix3112rtm/wix311-binaries.zip
+  if [ `md5sum wix311-binaries.zip | cut -f 1 -d " "` != "47a506f8ab6666ee3cc502fb07d0ee2a" ];
+  then
+    echo "wix package didn't match expected checksum"
+    exit 1
+  fi
+  mkdir -p wixbin
+  unzip -o wix311-binaries.zip -d wixbin || (
+    echo "failed to unzip WiX"
+    exit 1
+  )
+fi
+
 # Build Yggdrasil!
-[ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 ./build -p -l "-aslr"
-[ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=0 ./build -p -l "-aslr"
-[ "${PKGARCH}" == "arm" ] && GOOS=windows GOARCH=arm CGO_ENABLED=0 ./build -p -l "-aslr"
+[ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 ./build
+[ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=0 ./build
+[ "${PKGARCH}" == "arm" ] && GOOS=windows GOARCH=arm CGO_ENABLED=0 ./build
 #[ "${PKGARCH}" == "arm64" ] && GOOS=windows GOARCH=arm64 CGO_ENABLED=0 ./build
 
 # Create the postinstall script
@@ -39,24 +60,25 @@ if not exist %ALLUSERSPROFILE%\\Yggdrasil (
 )
 if not exist %ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf (
   if exist yggdrasil.exe (
-    if not exist %ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf (
-      yggdrasil.exe -genconf > %ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf
-    )
+    yggdrasil.exe -genconf > %ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf
   )
 )
 EOF
 
 # Work out metadata for the package info
 PKGNAME=$(sh contrib/semver/name.sh)
-PKGVERSION=$(sh contrib/semver/version.sh --bare)
+PKGVERSION=$(sh contrib/msi/msversion.sh --bare)
 PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
 [ "${PKGARCH}" == "x64" ] && \
   PKGGUID="77757838-1a23-40a5-a720-c3b43e0260cc" PKGINSTFOLDER="ProgramFiles64Folder" || \
   PKGGUID="54a3294e-a441-4322-aefb-3bb40dd022bb" PKGINSTFOLDER="ProgramFilesFolder"
 
 # Download the Wintun driver
-curl -o wintun.zip https://www.wintun.net/builds/wintun-0.10.2.zip
-unzip wintun.zip
+if [ ! -d wintun ];
+then
+  curl -o wintun.zip https://www.wintun.net/builds/wintun-0.11.zip
+  unzip wintun.zip
+fi
 if [ $PKGARCH = "x64" ]; then
   PKGWINTUNDLL=wintun/bin/amd64/wintun.dll
 elif [ $PKGARCH = "x86" ]; then
@@ -87,7 +109,6 @@ cat > wix.xml << EOF
     Language="1033"
     Codepage="1252"
     Version="${PKGVERSIONMS}"
-    Platform="${PKGARCH}"
     Manufacturer="github.com/yggdrasil-network">
 
     <Package
@@ -100,7 +121,6 @@ cat > wix.xml << EOF
       InstallScope="perMachine"
       Languages="1033"
       Compressed="yes"
-      Platform="${PKGARCH}"
       SummaryCodepage="1252" />
 
     <MajorUpgrade
@@ -189,7 +209,9 @@ cat > wix.xml << EOF
     <InstallExecuteSequence>
       <Custom
         Action="UpdateGenerateConfig"
-        Before="StartServices" />
+        Before="StartServices">
+          NOT Installed AND NOT REMOVE
+      </Custom>
     </InstallExecuteSequence>
 
   </Product>
@@ -197,4 +219,7 @@ cat > wix.xml << EOF
 EOF
 
 # Generate the MSI
-wixl -v wix.xml -a ${PKGARCH} -o ${PKGNAME}-${PKGVERSION}-${PKGARCH}.msi
+CANDLEFLAGS="-nologo"
+LIGHTFLAGS="-nologo -spdb -sice:ICE71 -sice:ICE61"
+wixbin/candle $CANDLEFLAGS -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj -arch ${PKGARCH} wix.xml && \
+wixbin/light $LIGHTFLAGS -ext WixUtilExtension.dll -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.msi ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj

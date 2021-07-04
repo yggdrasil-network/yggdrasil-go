@@ -32,18 +32,16 @@ fi
 
 if [ $IOS ]; then
   echo "Building framework for iOS"
-  gomobile bind -target ios -tags mobile -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
-    github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil \
-    github.com/yggdrasil-network/yggdrasil-go/src/config \
+  go get golang.org/x/mobile/bind
+  gomobile bind -target ios -tags mobile -o Yggdrasil.framework -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
     github.com/yggdrasil-network/yggdrasil-extras/src/mobile \
-    github.com/yggdrasil-network/yggdrasil-extras/src/dummy
+    github.com/yggdrasil-network/yggdrasil-go/src/config
 elif [ $ANDROID ]; then
   echo "Building aar for Android"
-  gomobile bind -target android -tags mobile -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
-    github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil \
-    github.com/yggdrasil-network/yggdrasil-go/src/config \
+  go get golang.org/x/mobile/bind
+  gomobile bind -target android -tags mobile -o yggdrasil.aar -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
     github.com/yggdrasil-network/yggdrasil-extras/src/mobile \
-    github.com/yggdrasil-network/yggdrasil-extras/src/dummy
+    github.com/yggdrasil-network/yggdrasil-go/src/config
 else
   for CMD in yggdrasil yggdrasilctl ; do
     echo "Building: $CMD"

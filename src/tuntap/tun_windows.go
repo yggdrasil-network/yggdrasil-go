@@ -19,7 +19,7 @@ import (
 // This is to catch Windows platforms
 
 // Configures the TUN adapter with the correct IPv6 address and MTU.
-func (tun *TunAdapter) setup(ifname string, addr string, mtu MTU) error {
+func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 	if ifname == "auto" {
 		ifname = defaults.GetDefaults().DefaultIfName
 	}
@@ -43,14 +43,14 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu MTU) error {
 			return err
 		}
 		if mtu, err := iface.MTU(); err == nil {
-			tun.mtu = MTU(mtu)
+			tun.mtu = uint64(mtu)
 		}
 		return nil
 	})
 }
 
 // Sets the MTU of the TAP adapter.
-func (tun *TunAdapter) setupMTU(mtu MTU) error {
+func (tun *TunAdapter) setupMTU(mtu uint64) error {
 	if tun.iface == nil || tun.Name() == "" {
 		return errors.New("Can't configure MTU as TUN adapter is not present")
 	}

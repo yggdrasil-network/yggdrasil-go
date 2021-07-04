@@ -16,7 +16,7 @@ import (
 )
 
 // Configures the "utun" adapter with the correct IPv6 address and MTU.
-func (tun *TunAdapter) setup(ifname string, addr string, mtu MTU) error {
+func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 	if ifname == "auto" {
 		ifname = "utun"
 	}
@@ -25,8 +25,8 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu MTU) error {
 		panic(err)
 	}
 	tun.iface = iface
-	if mtu, err := iface.MTU(); err == nil {
-		tun.mtu = getSupportedMTU(MTU(mtu))
+	if m, err := iface.MTU(); err == nil {
+		tun.mtu = getSupportedMTU(uint64(m))
 	} else {
 		tun.mtu = 0
 	}
@@ -40,26 +40,29 @@ const (
 	darwin_ND6_INFINITE_LIFETIME = 0xFFFFFFFF // netinet6/nd6.h
 )
 
+// nolint:structcheck
 type in6_addrlifetime struct {
-	ia6t_expire    float64
-	ia6t_preferred float64
+	ia6t_expire    float64 // nolint:unused
+	ia6t_preferred float64 // nolint:unused
 	ia6t_vltime    uint32
 	ia6t_pltime    uint32
 }
 
+// nolint:structcheck
 type sockaddr_in6 struct {
 	sin6_len      uint8
 	sin6_family   uint8
-	sin6_port     uint8
-	sin6_flowinfo uint32
+	sin6_port     uint8  // nolint:unused
+	sin6_flowinfo uint32 // nolint:unused
 	sin6_addr     [8]uint16
-	sin6_scope_id uint32
+	sin6_scope_id uint32 // nolint:unused
 }
 
+// nolint:structcheck
 type in6_aliasreq struct {
 	ifra_name       [16]byte
 	ifra_addr       sockaddr_in6
-	ifra_dstaddr    sockaddr_in6
+	ifra_dstaddr    sockaddr_in6 // nolint:unused
 	ifra_prefixmask sockaddr_in6
 	ifra_flags      uint32
 	ifra_lifetime   in6_addrlifetime
@@ -87,7 +90,7 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	ar.ifra_prefixmask.sin6_len = uint8(unsafe.Sizeof(ar.ifra_prefixmask))
 	b := make([]byte, 16)
 	binary.LittleEndian.PutUint16(b, uint16(0xFE00))
-	ar.ifra_prefixmask.sin6_addr[0] = uint16(binary.BigEndian.Uint16(b))
+	ar.ifra_prefixmask.sin6_addr[0] = binary.BigEndian.Uint16(b)
 
 	ar.ifra_addr.sin6_len = uint8(unsafe.Sizeof(ar.ifra_addr))
 	ar.ifra_addr.sin6_family = unix.AF_INET6
@@ -96,7 +99,7 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 		addr, _ := strconv.ParseUint(parts[i], 16, 16)
 		b := make([]byte, 16)
 		binary.LittleEndian.PutUint16(b, uint16(addr))
-		ar.ifra_addr.sin6_addr[i] = uint16(binary.BigEndian.Uint16(b))
+		ar.ifra_addr.sin6_addr[i] = binary.BigEndian.Uint16(b)
 	}
 
 	ar.ifra_flags |= darwin_IN6_IFF_NODAD
