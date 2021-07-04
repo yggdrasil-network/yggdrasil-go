@@ -47,8 +47,11 @@ func run() int {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n\n", os.Args[0])
 		fmt.Println("Options:")
 		flag.PrintDefaults()
-		fmt.Println("\nPlease note that options must always specified BEFORE the command\non the command line or they will be ignored.\n")
-		fmt.Println("Commands:\n  - Use \"list\" for a list of available commands\n")
+		fmt.Println()
+		fmt.Println("Please note that options must always specified BEFORE the command\non the command line or they will be ignored.")
+		fmt.Println()
+		fmt.Println("Commands:\n  - Use \"list\" for a list of available commands")
+		fmt.Println()
 		fmt.Println("Examples:")
 		fmt.Println("  - ", os.Args[0], "list")
 		fmt.Println("  - ", os.Args[0], "getPeers")
@@ -287,6 +290,9 @@ func run() int {
 				fmt.Println("IPv6 address:", k)
 				if subnet, ok := v.(map[string]interface{})["subnet"].(string); ok {
 					fmt.Println("IPv6 subnet:", subnet)
+				}
+				if boxSigKey, ok := v.(map[string]interface{})["key"].(string); ok {
+					fmt.Println("Public key:", boxSigKey)
 				}
 				if coords, ok := v.(map[string]interface{})["coords"].(string); ok {
 					fmt.Println("Coords:", coords)

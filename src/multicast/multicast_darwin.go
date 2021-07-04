@@ -29,8 +29,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-var awdlGoroutineStarted bool
-
 func (m *Multicast) _multicastStarted() {
 	if !m.isOpen {
 		return

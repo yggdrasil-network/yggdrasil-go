@@ -13,8 +13,8 @@ func GetDefaults() platformDefaultParameters {
 		DefaultConfigFile: "/etc/yggdrasil.conf",
 
 		// Multicast interfaces
-		DefaultMulticastInterfaces: []string{
-			".*",
+		DefaultMulticastInterfaces: []MulticastInterfaceConfig{
+			{Regex: ".*", Beacon: true, Listen: true},
 		},
 
 		// TUN/TAP

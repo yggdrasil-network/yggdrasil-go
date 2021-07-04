@@ -10,7 +10,7 @@ import (
 )
 
 // Configures the TUN adapter with the correct IPv6 address and MTU.
-func (tun *TunAdapter) setup(ifname string, addr string, mtu MTU) error {
+func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 	if ifname == "auto" {
 		ifname = "\000"
 	}
@@ -20,7 +20,7 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu MTU) error {
 	}
 	tun.iface = iface
 	if mtu, err := iface.MTU(); err == nil {
-		tun.mtu = getSupportedMTU(MTU(mtu))
+		tun.mtu = getSupportedMTU(uint64(mtu))
 	} else {
 		tun.mtu = 0
 	}

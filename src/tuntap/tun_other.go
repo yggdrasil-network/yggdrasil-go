@@ -10,14 +10,14 @@ import (
 )
 
 // Configures the TUN adapter with the correct IPv6 address and MTU.
-func (tun *TunAdapter) setup(ifname string, addr string, mtu int) error {
+func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 	iface, err := wgtun.CreateTUN(ifname, mtu)
 	if err != nil {
 		panic(err)
 	}
 	tun.iface = iface
 	if mtu, err := iface.MTU(); err == nil {
-		tun.mtu = getSupportedMTU(mtu)
+		tun.mtu = getSupportedMTU(uint64(mtu))
 	} else {
 		tun.mtu = 0
 	}
