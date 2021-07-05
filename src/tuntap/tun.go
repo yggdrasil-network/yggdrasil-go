@@ -21,8 +21,8 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 )
 
 type MTU uint16
@@ -32,7 +32,7 @@ type MTU uint16
 // should pass this object to the yggdrasil.SetRouterAdapter() function before
 // calling yggdrasil.Start().
 type TunAdapter struct {
-	core        *core.Core
+	rwc         *ipv6rwc.ReadWriteCloser
 	config      *config.NodeConfig
 	log         *log.Logger
 	addr        address.Address
@@ -93,8 +93,8 @@ func MaximumMTU() uint64 {
 
 // Init initialises the TUN module. You must have acquired a Listener from
 // the Yggdrasil core before this point and it must not be in use elsewhere.
-func (tun *TunAdapter) Init(core *core.Core, config *config.NodeConfig, log *log.Logger, options interface{}) error {
-	tun.core = core
+func (tun *TunAdapter) Init(rwc *ipv6rwc.ReadWriteCloser, config *config.NodeConfig, log *log.Logger, options interface{}) error {
+	tun.rwc = rwc
 	tun.config = config
 	tun.log = log
 	return nil
@@ -119,9 +119,8 @@ func (tun *TunAdapter) _start() error {
 	if tun.config == nil {
 		return errors.New("no configuration available to TUN")
 	}
-	pk := tun.core.PublicKey()
-	tun.addr = *address.AddrForKey(pk)
-	tun.subnet = *address.SubnetForKey(pk)
+	tun.addr = tun.rwc.Address()
+	tun.subnet = tun.rwc.Subnet()
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
 	if tun.config.IfName == "none" || tun.config.IfName == "dummy" {
 		tun.log.Debugln("Not starting TUN as ifname is none or dummy")
@@ -130,8 +129,8 @@ func (tun *TunAdapter) _start() error {
 		return nil
 	}
 	mtu := tun.config.IfMTU
-	if tun.core.MaxMTU() < mtu {
-		mtu = tun.core.MaxMTU()
+	if tun.rwc.MaxMTU() < mtu {
+		mtu = tun.rwc.MaxMTU()
 	}
 	if err := tun.setup(tun.config.IfName, addr, mtu); err != nil {
 		return err
@@ -139,7 +138,7 @@ func (tun *TunAdapter) _start() error {
 	if tun.MTU() != mtu {
 		tun.log.Warnf("Warning: Interface MTU %d automatically adjusted to %d (supported range is 1280-%d)", tun.config.IfMTU, tun.MTU(), MaximumMTU())
 	}
-	tun.core.SetMTU(tun.MTU())
+	tun.rwc.SetMTU(tun.MTU())
 	tun.isOpen = true
 	tun.isEnabled = true
 	go tun.read()

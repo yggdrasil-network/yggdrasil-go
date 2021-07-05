@@ -48,7 +48,7 @@ type Session struct {
 
 func (c *Core) GetSelf() Self {
 	var self Self
-	s := c.pc.PacketConn.Debug.GetSelf()
+	s := c.PacketConn.PacketConn.Debug.GetSelf()
 	self.Key = s.Key
 	self.Root = s.Root
 	self.Coords = s.Coords
@@ -63,7 +63,7 @@ func (c *Core) GetPeers() []Peer {
 		names[info.conn] = info.lname
 	}
 	c.links.mutex.Unlock()
-	ps := c.pc.PacketConn.Debug.GetPeers()
+	ps := c.PacketConn.PacketConn.Debug.GetPeers()
 	for _, p := range ps {
 		var info Peer
 		info.Key = p.Key
@@ -81,7 +81,7 @@ func (c *Core) GetPeers() []Peer {
 
 func (c *Core) GetDHT() []DHTEntry {
 	var dhts []DHTEntry
-	ds := c.pc.PacketConn.Debug.GetDHT()
+	ds := c.PacketConn.PacketConn.Debug.GetDHT()
 	for _, d := range ds {
 		var info DHTEntry
 		info.Key = d.Key
@@ -94,7 +94,7 @@ func (c *Core) GetDHT() []DHTEntry {
 
 func (c *Core) GetPaths() []PathEntry {
 	var paths []PathEntry
-	ps := c.pc.PacketConn.Debug.GetPaths()
+	ps := c.PacketConn.PacketConn.Debug.GetPaths()
 	for _, p := range ps {
 		var info PathEntry
 		info.Key = p.Key
@@ -106,7 +106,7 @@ func (c *Core) GetPaths() []PathEntry {
 
 func (c *Core) GetSessions() []Session {
 	var sessions []Session
-	ss := c.pc.Debug.GetSessions()
+	ss := c.PacketConn.Debug.GetSessions()
 	for _, s := range ss {
 		var info Session
 		info.Key = s.Key
@@ -237,38 +237,6 @@ func (c *Core) CallPeer(u *url.URL, sintf string) error {
 
 func (c *Core) PublicKey() ed25519.PublicKey {
 	return c.public
-}
-
-func (c *Core) MaxMTU() uint64 {
-	return c.store.maxSessionMTU()
-}
-
-func (c *Core) SetMTU(mtu uint64) {
-	if mtu < 1280 {
-		mtu = 1280
-	}
-	c.store.mutex.Lock()
-	c.store.mtu = mtu
-	c.store.mutex.Unlock()
-}
-
-func (c *Core) MTU() uint64 {
-	c.store.mutex.Lock()
-	mtu := c.store.mtu
-	c.store.mutex.Unlock()
-	return mtu
-}
-
-// Implement io.ReadWriteCloser
-
-func (c *Core) Read(p []byte) (n int, err error) {
-	n, err = c.store.readPC(p)
-	return
-}
-
-func (c *Core) Write(p []byte) (n int, err error) {
-	n, err = c.store.writePC(p)
-	return
 }
 
 func (c *Core) Close() error {
