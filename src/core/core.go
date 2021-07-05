@@ -231,7 +231,3 @@ func (c *Core) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	}
 	return
 }
-
-func (c *Core) LocalAddr() net.Addr {
-	return iwt.Addr(c.public)
-}
