@@ -42,16 +42,22 @@ cp contrib/macos/yggdrasil.plist pkgbuild/root/Library/LaunchDaemons
 cat > pkgbuild/scripts/postinstall << EOF
 #!/bin/sh
 
+mkdir -p /usr/local/etc
+conf_file=/usr/local/etc/yggdrasil.conf
+
+# Handle old path
+[ -f /etc/yggdrasil.conf ] && mv /etc/yggdrasil.conf $conf_file
+
 # Normalise the config if it exists, generate it if it doesn't
-if [ -f /etc/yggdrasil.conf ];
+if [ -f $conf_file ];
 then
   mkdir -p /Library/Preferences/Yggdrasil
   echo "Backing up configuration file to /Library/Preferences/Yggdrasil/yggdrasil.conf.`date +%Y%m%d`"
-  cp /etc/yggdrasil.conf /Library/Preferences/Yggdrasil/yggdrasil.conf.`date +%Y%m%d`
-  echo "Normalising /etc/yggdrasil.conf"
-  /usr/local/bin/yggdrasil -useconffile /Library/Preferences/Yggdrasil/yggdrasil.conf.`date +%Y%m%d` -normaliseconf > /etc/yggdrasil.conf
+  cp $conf_file /Library/Preferences/Yggdrasil/yggdrasil.conf.`date +%Y%m%d`
+  echo "Normalising $conf_file"
+  /usr/local/bin/yggdrasil -useconffile /Library/Preferences/Yggdrasil/yggdrasil.conf.`date +%Y%m%d` -normaliseconf > $conf_file
 else
-  /usr/local/bin/yggdrasil -genconf > /etc/yggdrasil.conf
+  /usr/local/bin/yggdrasil -genconf > $conf_file
 fi
 
 # Unload existing Yggdrasil launchd service, if possible
