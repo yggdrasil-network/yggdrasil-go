@@ -193,6 +193,8 @@ type yggArgs struct {
 	getaddr       bool
 	getsnet       bool
 	loglevel      string
+	runuid        int
+	rungid        int
 }
 
 func getArgs() yggArgs {
@@ -207,7 +209,10 @@ func getArgs() yggArgs {
 	getaddr := flag.Bool("address", false, "returns the IPv6 address as derived from the supplied configuration")
 	getsnet := flag.Bool("subnet", false, "returns the IPv6 subnet as derived from the supplied configuration")
 	loglevel := flag.String("loglevel", "info", "loglevel to enable")
+	runuid := flag.Int("uid", -1, "drop privileges to this user id")
+	rungid := flag.Int("gid", -1, "drop privileges to this group id")
 	flag.Parse()
+
 	return yggArgs{
 		genconf:       *genconf,
 		useconf:       *useconf,
@@ -220,6 +225,8 @@ func getArgs() yggArgs {
 		getaddr:       *getaddr,
 		getsnet:       *getsnet,
 		loglevel:      *loglevel,
+		runuid:        *runuid,
+		rungid:        *rungid,
 	}
 }
 
@@ -364,6 +371,17 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 	address := n.core.Address()
 	subnet := n.core.Subnet()
 	public := n.core.GetSelf().Key
+	// Lower permissions from root to something else, if the user wants to
+	if syscall.Getuid() == 0 {
+		if args.rungid > 0 {
+			fmt.Println("Dropping gid to ", args.rungid)
+			syscall.Setgid(args.rungid)
+		}
+		if args.runuid > 0 {
+			fmt.Println("Dropping uid to ", args.rungid)
+			syscall.Setuid(args.runuid)
+		}
+	}
 	logger.Infof("Your public key is %s", hex.EncodeToString(public[:]))
 	logger.Infof("Your IPv6 address is %s", address.String())
 	logger.Infof("Your IPv6 subnet is %s", subnet.String())
