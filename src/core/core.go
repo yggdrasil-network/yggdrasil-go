@@ -161,25 +161,31 @@ func (c *Core) _start(nc *config.NodeConfig, log *log.Logger) error {
 
 // Stop shuts down the Yggdrasil node.
 func (c *Core) Stop() {
-	phony.Block(c, c._stop)
+	phony.Block(c, func() {
+		c.log.Infoln("Stopping...")
+		c._close()
+		c.log.Infoln("Stopped")
+	})
+}
+
+func (c *Core) Close() error {
+	var err error
+	phony.Block(c, func() {
+		err = c._close()
+	})
+	return err
 }
 
 // This function is unsafe and should only be ran by the core actor.
-func (c *Core) _stop() {
-	c.log.Infoln("Stopping...")
+func (c *Core) _close() error {
 	c.ctxCancel()
-	c.PacketConn.Close() // TODO make c.Close() do the right thing (act like c.Stop())
+	err := c.PacketConn.Close()
 	if c.addPeerTimer != nil {
 		c.addPeerTimer.Stop()
 		c.addPeerTimer = nil
 	}
 	_ = c.links.stop()
-	/* FIXME this deadlocks, need a waitgroup or something to coordinate shutdown
-	for _, peer := range c.GetPeers() {
-		c.DisconnectPeer(peer.Port)
-	}
-	*/
-	c.log.Infoln("Stopped")
+	return err
 }
 
 func (c *Core) MTU() uint64 {

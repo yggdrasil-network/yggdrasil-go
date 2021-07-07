@@ -212,7 +212,7 @@ func (p *protoHandler) _handleGetDHTResponse(key keyArray, bs []byte) {
 
 func (p *protoHandler) _sendDebug(key keyArray, dType uint8, data []byte) {
 	bs := append([]byte{typeSessionProto, typeProtoDebug, dType}, data...)
-	_, _ = p.core.WriteTo(bs, iwt.Addr(key[:]))
+	_, _ = p.core.PacketConn.WriteTo(bs, iwt.Addr(key[:]))
 }
 
 // Admin socket stuff

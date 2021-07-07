@@ -239,11 +239,6 @@ func (c *Core) PublicKey() ed25519.PublicKey {
 	return c.public
 }
 
-func (c *Core) Close() error {
-	c.Stop()
-	return nil
-}
-
 // Hack to get the admin stuff working, TODO something cleaner
 
 type AddHandler interface {
