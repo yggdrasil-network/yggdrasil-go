@@ -44,10 +44,10 @@ func (c *cryptokey) init(tun *TunAdapter) {
 
 // Configure the CKR routes. This should only ever be ran by the TUN/TAP actor.
 func (c *cryptokey) configure() {
-	current := c.tun.config.GetCurrent()
+	//current := c.tun.config.GetCurrent()
 
 	// Set enabled/disabled state
-	c.setEnabled(current.TunnelRouting.Enable)
+	c.setEnabled(c.tun.config.TunnelRouting.Enable)
 
 	// Clear out existing routes
 	c.mutexremotes.Lock()
@@ -56,14 +56,14 @@ func (c *cryptokey) configure() {
 	c.mutexremotes.Unlock()
 
 	// Add IPv6 routes
-	for ipv6, pubkey := range current.TunnelRouting.IPv6RemoteSubnets {
+	for ipv6, pubkey := range c.tun.config.TunnelRouting.IPv6RemoteSubnets {
 		if err := c.addRemoteSubnet(ipv6, pubkey); err != nil {
 			c.tun.log.Errorln("Error adding CKR IPv6 remote subnet:", err)
 		}
 	}
 
 	// Add IPv4 routes
-	for ipv4, pubkey := range current.TunnelRouting.IPv4RemoteSubnets {
+	for ipv4, pubkey := range c.tun.config.TunnelRouting.IPv4RemoteSubnets {
 		if err := c.addRemoteSubnet(ipv4, pubkey); err != nil {
 			c.tun.log.Errorln("Error adding CKR IPv4 remote subnet:", err)
 		}
@@ -77,7 +77,7 @@ func (c *cryptokey) configure() {
 
 	// Add IPv6 sources
 	c.ipv6locals = make([]net.IPNet, 0)
-	for _, source := range current.TunnelRouting.IPv6LocalSubnets {
+	for _, source := range c.tun.config.TunnelRouting.IPv6LocalSubnets {
 		if err := c.addLocalSubnet(source); err != nil {
 			c.tun.log.Errorln("Error adding CKR IPv6 local subnet:", err)
 		}
@@ -85,7 +85,7 @@ func (c *cryptokey) configure() {
 
 	// Add IPv4 sources
 	c.ipv4locals = make([]net.IPNet, 0)
-	for _, source := range current.TunnelRouting.IPv4LocalSubnets {
+	for _, source := range c.tun.config.TunnelRouting.IPv4LocalSubnets {
 		if err := c.addLocalSubnet(source); err != nil {
 			c.tun.log.Errorln("Error adding CKR IPv4 local subnet:", err)
 		}
