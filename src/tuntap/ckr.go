@@ -2,6 +2,7 @@ package tuntap
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -11,7 +12,6 @@ import (
 	"sync/atomic"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 )
 
 // This module implements crypto-key routing, similar to Wireguard, where we
@@ -33,7 +33,7 @@ type cryptokey struct {
 
 type cryptokey_route struct {
 	subnet      net.IPNet
-	destination crypto.BoxPubKey
+	destination ed25519.PublicKey
 }
 
 // Initialise crypto-key routing. This must be done before any other CKR calls.
@@ -230,11 +230,11 @@ func (c *cryptokey) addRemoteSubnet(cidr string, dest string) error {
 	// Decode the public key
 	if bpk, err := hex.DecodeString(dest); err != nil {
 		return err
-	} else if len(bpk) != crypto.BoxPubKeyLen {
+	} else if len(bpk) != ed25519.PrivateKeySize {
 		return fmt.Errorf("incorrect key length for %s", dest)
 	} else {
 		// Add the new crypto-key route
-		var key crypto.BoxPubKey
+		var key ed25519.PublicKey
 		copy(key[:], bpk)
 		*routingtable = append(*routingtable, cryptokey_route{
 			subnet:      *ipnet,
@@ -262,12 +262,12 @@ func (c *cryptokey) addRemoteSubnet(cidr string, dest string) error {
 // Looks up the most specific route for the given address (with the address
 // length specified in bytes) from the crypto-key routing table. An error is
 // returned if the address is not suitable or no route was found.
-func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (crypto.BoxPubKey, error) {
+func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (ed25519.PublicKey, error) {
 
 	// Check if the address is a valid Yggdrasil address - if so it
 	// is exempt from all CKR checking
 	if addr.IsValid() {
-		return crypto.BoxPubKey{}, errors.New("cannot look up CKR for Yggdrasil addresses")
+		return ed25519.PublicKey{}, errors.New("cannot look up CKR for Yggdrasil addresses")
 	}
 
 	// Build our references to the routing table and cache
@@ -280,7 +280,7 @@ func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (c
 	} else if addrlen == net.IPv4len {
 		routingcache = &c.ipv4cache
 	} else {
-		return crypto.BoxPubKey{}, errors.New("unexpected prefix size")
+		return ed25519.PublicKey{}, errors.New("unexpected prefix size")
 	}
 
 	// Check if there's a cache entry for this addr
@@ -300,7 +300,7 @@ func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (c
 	} else if addrlen == net.IPv4len {
 		routingtable = &c.ipv4remotes
 	} else {
-		return crypto.BoxPubKey{}, errors.New("unexpected prefix size")
+		return ed25519.PublicKey{}, errors.New("unexpected prefix size")
 	}
 
 	// No cache was found - start by converting the address into a net.IP
@@ -334,7 +334,7 @@ func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (c
 	}
 
 	// No route was found if we got to this point
-	return crypto.BoxPubKey{}, fmt.Errorf("no route to %s", ip.String())
+	return ed25519.PublicKey{}, fmt.Errorf("no route to %s", ip.String())
 }
 
 // Removes a source subnet, which allows traffic with these source addresses to
@@ -411,7 +411,7 @@ func (c *cryptokey) removeRemoteSubnet(cidr string, dest string) error {
 	bpk, err := hex.DecodeString(dest)
 	if err != nil {
 		return err
-	} else if len(bpk) != crypto.BoxPubKeyLen {
+	} else if len(bpk) != ed25519.PrivateKeySize {
 		return fmt.Errorf("incorrect key length for %s", dest)
 	}
 	netStr := ipnet.String()
