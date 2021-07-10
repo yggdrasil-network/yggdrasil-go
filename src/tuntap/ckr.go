@@ -230,7 +230,7 @@ func (c *cryptokey) addRemoteSubnet(cidr string, dest string) error {
 	// Decode the public key
 	if bpk, err := hex.DecodeString(dest); err != nil {
 		return err
-	} else if len(bpk) != ed25519.PrivateKeySize {
+	} else if len(bpk) != ed25519.PublicKeySize {
 		return fmt.Errorf("incorrect key length for %s", dest)
 	} else {
 		// Add the new crypto-key route
