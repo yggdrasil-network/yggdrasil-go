@@ -2,12 +2,12 @@ package tuntap
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"errors"
 	"time"
 
 	"github.com/Arceliar/phony"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
 	"golang.org/x/net/icmp"
@@ -90,7 +90,7 @@ func (s *tunConn) _read(bs []byte) (err error) {
 			// The destination address isn't in our CKR allowed range
 			skip = true
 		} else if key, err := s.tun.ckr.getPublicKeyForAddress(srcAddr, addrlen); err == nil {
-			if *s.conn.RemoteAddr().(*crypto.BoxPubKey) == key {
+			if *s.conn.RemoteAddr().(*ed25519.PublicKey) == key {
 				// This is the one allowed CKR case, where source and destination addresses are both good
 			} else {
 				// The CKR key associated with this address doesn't match the sender's NodeID
