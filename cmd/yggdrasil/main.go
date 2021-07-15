@@ -29,6 +29,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
+	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
@@ -353,7 +354,8 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 	}
 	n.multicast.SetupAdminHandlers(n.admin)
 	// Start the TUN/TAP interface
-	if err := n.tuntap.Init(&n.core, cfg, logger, nil); err != nil {
+	rwc := ipv6rwc.NewReadWriteCloser(&n.core)
+	if err := n.tuntap.Init(rwc, cfg, logger, nil); err != nil {
 		logger.Errorln("An error occurred initialising TUN/TAP:", err)
 	} else if err := n.tuntap.Start(); err != nil {
 		logger.Errorln("An error occurred starting TUN/TAP:", err)

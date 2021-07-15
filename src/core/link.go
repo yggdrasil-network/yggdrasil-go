@@ -230,7 +230,7 @@ func (intf *link) handler() (chan struct{}, error) {
 	intf.links.core.log.Infof("Connected %s: %s, source %s",
 		strings.ToUpper(intf.info.linkType), themString, intf.info.local)
 	// Run the handler
-	err = intf.links.core.pc.HandleConn(ed25519.PublicKey(intf.info.key[:]), intf.conn)
+	err = intf.links.core.HandleConn(ed25519.PublicKey(intf.info.key[:]), intf.conn)
 	// TODO don't report an error if it's just a 'use of closed network connection'
 	if err != nil {
 		intf.links.core.log.Infof("Disconnected %s: %s, source %s; error: %s",
