@@ -37,6 +37,7 @@ type TunAdapter struct {
 	log         *log.Logger
 	addr        address.Address
 	subnet      address.Subnet
+	ckr         cryptokey
 	mtu         uint64
 	iface       tun.Device
 	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
@@ -140,6 +141,7 @@ func (tun *TunAdapter) _start() error {
 	}
 	tun.rwc.SetMTU(tun.MTU())
 	tun.isOpen = true
+	tun.ckr.init(tun)
 	tun.isEnabled = true
 	go tun.read()
 	go tun.write()
