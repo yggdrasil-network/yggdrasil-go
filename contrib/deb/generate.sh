@@ -39,6 +39,7 @@ mkdir -p /tmp/$PKGNAME/
 mkdir -p /tmp/$PKGNAME/debian/
 mkdir -p /tmp/$PKGNAME/usr/bin/
 mkdir -p /tmp/$PKGNAME/etc/systemd/system/
+mkdir -p /tmp/$PKGNAME/etc/apparmor.d/
 
 cat > /tmp/$PKGNAME/debian/changelog << EOF
 Please see https://github.com/yggdrasil-network/yggdrasil-go/
@@ -69,12 +70,18 @@ cat > /tmp/$PKGNAME/debian/install << EOF
 usr/bin/yggdrasil usr/bin
 usr/bin/yggdrasilctl usr/bin
 etc/systemd/system/*.service etc/systemd/system
+etc/apparmor.d/* etc/apparmor.d
 EOF
 cat > /tmp/$PKGNAME/debian/postinst << EOF
 #!/bin/sh
-
 if ! getent group yggdrasil 2>&1 > /dev/null; then
   groupadd --system --force yggdrasil || echo "Failed to create group 'yggdrasil' - please create it manually and reinstall"
+fi
+
+if command -v systemctl >/dev/null; then
+  if command -v aa-status >/dev/null; then
+    systemctl restart apparmor || true
+  fi
 fi
 
 if [ -f /etc/yggdrasil.conf ];
@@ -85,6 +92,7 @@ then
   echo "Normalising and updating /etc/yggdrasil.conf"
   /usr/bin/yggdrasil -useconf -normaliseconf < /var/backups/yggdrasil.conf.`date +%Y%m%d` > /etc/yggdrasil.conf
   chgrp yggdrasil /etc/yggdrasil.conf
+  chmod u=rw,g=r,o= /etc/yggdrasil.conf
 
   if command -v systemctl >/dev/null; then
     systemctl daemon-reload >/dev/null || true
@@ -96,6 +104,7 @@ else
   echo "Please familiarise yourself with this file before starting Yggdrasil"
   sh -c 'umask 0027 && /usr/bin/yggdrasil -genconf > /etc/yggdrasil.conf'
   chgrp yggdrasil /etc/yggdrasil.conf
+  chmod u=rw,g=r,o= /etc/yggdrasil.conf
 fi
 EOF
 cat > /tmp/$PKGNAME/debian/prerm << EOF
@@ -111,11 +120,13 @@ EOF
 cp yggdrasil /tmp/$PKGNAME/usr/bin/
 cp yggdrasilctl /tmp/$PKGNAME/usr/bin/
 cp contrib/systemd/*.service /tmp/$PKGNAME/etc/systemd/system/
+cp contrib/apparmor/usr.bin.yggdrasil /tmp/$PKGNAME/etc/apparmor.d/
 
 tar -czvf /tmp/$PKGNAME/data.tar.gz -C /tmp/$PKGNAME/ \
   usr/bin/yggdrasil usr/bin/yggdrasilctl \
   etc/systemd/system/yggdrasil.service \
-  etc/systemd/system/yggdrasil-default-config.service
+  etc/systemd/system/yggdrasil-default-config.service \
+  etc/apparmor.d/usr.bin.yggdrasil
 tar -czvf /tmp/$PKGNAME/control.tar.gz -C /tmp/$PKGNAME/debian .
 echo 2.0 > /tmp/$PKGNAME/debian-binary
 
