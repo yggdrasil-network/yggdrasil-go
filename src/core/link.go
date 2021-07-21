@@ -169,7 +169,14 @@ func (intf *link) handler() (chan struct{}, error) {
 		return nil, errors.New("failed to decode metadata")
 	}
 	if !meta.check() {
-		intf.links.core.log.Debugf("Rejected incoming connection: %s is incompatible version (local %s, remote %s)",
+		var connectError string
+		if intf.incoming {
+			connectError = "Rejected incoming connection"
+		} else {
+			connectError = "Failed to connect"
+		}
+		intf.links.core.log.Debugf("%s: %s is incompatible version (local %s, remote %s)",
+			connectError,
 			intf.lname,
 			fmt.Sprintf("%d.%d", base.ver, base.minorVer),
 			fmt.Sprintf("%d.%d", meta.ver, meta.minorVer),
