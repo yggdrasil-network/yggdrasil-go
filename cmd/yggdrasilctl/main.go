@@ -195,7 +195,6 @@ func run() int {
 			fmt.Println("Missing response body (malformed response?)")
 			return 1
 		}
-		req := recv["request"].(map[string]interface{})
 		res := recv["response"].(map[string]interface{})
 
 		if *injson {
@@ -205,36 +204,7 @@ func run() int {
 			return 0
 		}
 
-		switch strings.ToLower(req["request"].(string)) {
-		case "dot":
-			runDot(res)
-		case "list", "getpeers", "getswitchpeers", "getdht", "getsessions", "dhtping":
-			runVariousInfo(res, verbose)
-		case "gettuntap", "settuntap":
-			runGetAndSetTunTap(res)
-		case "getself":
-			runGetSelf(res, verbose)
-		case "getswitchqueues":
-			runGetSwitchQueues(res)
-		case "addpeer", "removepeer", "addallowedencryptionpublickey", "removeallowedencryptionpublickey", "addsourcesubnet", "addroute", "removesourcesubnet", "removeroute":
-			runAddsAndRemoves(res)
-		case "getallowedencryptionpublickeys":
-			runGetAllowedEncryptionPublicKeys(res)
-		case "getmulticastinterfaces":
-			runGetMulticastInterfaces(res)
-		case "getsourcesubnets":
-			runGetSourceSubnets(res)
-		case "getroutes":
-			runGetRoutes(res)
-		case "settunnelrouting":
-			fallthrough
-		case "gettunnelrouting":
-			runGetTunnelRouting(res)
-		default:
-			if json, err := json.MarshalIndent(recv["response"], "", "  "); err == nil {
-				fmt.Println(string(json))
-			}
-		}
+		runAll(recv, verbose)
 	} else {
 		logger.Println("Error receiving response:", err)
 	}
@@ -243,6 +213,42 @@ func run() int {
 		return 1
 	}
 	return 0
+}
+
+func runAll(recv map[string]interface{}, verbose *bool) {
+	req := recv["request"].(map[string]interface{})
+	res := recv["response"].(map[string]interface{})
+
+	switch strings.ToLower(req["request"].(string)) {
+	case "dot":
+		runDot(res)
+	case "list", "getpeers", "getswitchpeers", "getdht", "getsessions", "dhtping":
+		runVariousInfo(res, verbose)
+	case "gettuntap", "settuntap":
+		runGetAndSetTunTap(res)
+	case "getself":
+		runGetSelf(res, verbose)
+	case "getswitchqueues":
+		runGetSwitchQueues(res)
+	case "addpeer", "removepeer", "addallowedencryptionpublickey", "removeallowedencryptionpublickey", "addsourcesubnet", "addroute", "removesourcesubnet", "removeroute":
+		runAddsAndRemoves(res)
+	case "getallowedencryptionpublickeys":
+		runGetAllowedEncryptionPublicKeys(res)
+	case "getmulticastinterfaces":
+		runGetMulticastInterfaces(res)
+	case "getsourcesubnets":
+		runGetSourceSubnets(res)
+	case "getroutes":
+		runGetRoutes(res)
+	case "settunnelrouting":
+		fallthrough
+	case "gettunnelrouting":
+		runGetTunnelRouting(res)
+	default:
+		if json, err := json.MarshalIndent(recv["response"], "", "  "); err == nil {
+			fmt.Println(string(json))
+		}
+	}
 }
 
 func runDot(res map[string]interface{}) {
