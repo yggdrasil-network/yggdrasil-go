@@ -32,6 +32,7 @@ func main() {
 func run() int {
 	logbuffer := &bytes.Buffer{}
 	logger := log.New(logbuffer, "", log.Flags())
+
 	defer func() int {
 		if r := recover(); r != nil {
 			logger.Println("Fatal error:", r)
@@ -60,6 +61,7 @@ func run() int {
 		fmt.Println("  - ", os.Args[0], "-endpoint=tcp://localhost:9001 getDHT")
 		fmt.Println("  - ", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getDHT")
 	}
+
 	server := flag.String("endpoint", endpoint, "Admin socket endpoint")
 	injson := flag.Bool("json", false, "Output in JSON format (as opposed to pretty-print)")
 	verbose := flag.Bool("v", false, "Verbose output (includes public keys)")
@@ -113,6 +115,7 @@ func run() int {
 
 	var conn net.Conn
 	u, err := url.Parse(endpoint)
+
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "unix":
@@ -129,9 +132,11 @@ func run() int {
 		logger.Println("Connecting to TCP socket", u.Host)
 		conn, err = net.Dial("tcp", endpoint)
 	}
+
 	if err != nil {
 		panic(err)
 	}
+
 	logger.Println("Connected")
 	defer conn.Close()
 
@@ -176,7 +181,9 @@ func run() int {
 	if err := encoder.Encode(&send); err != nil {
 		panic(err)
 	}
+
 	logger.Printf("Request sent")
+
 	if err := decoder.Decode(&recv); err == nil {
 		logger.Printf("Response received")
 		if recv["status"] == "error" {
@@ -212,6 +219,7 @@ func run() int {
 	if v, ok := recv["status"]; ok && v != "success" {
 		return 1
 	}
+
 	return 0
 }
 
