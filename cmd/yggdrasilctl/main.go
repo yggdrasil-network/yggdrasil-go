@@ -37,21 +37,7 @@ func main() {
 	os.Exit(run())
 }
 
-func run() int {
-	logbuffer := &bytes.Buffer{}
-	logger := log.New(logbuffer, "", log.Flags())
-
-	defer func() int {
-		if r := recover(); r != nil {
-			logger.Println("Fatal error:", r)
-			fmt.Print(logbuffer)
-			return 1
-		}
-		return 0
-	}()
-
-	endpoint := defaults.GetDefaults().DefaultAdminListen
-
+func createCmdLine(endpoint string) CmdLine {
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n\n", os.Args[0])
 		fmt.Println("Options:")
@@ -77,6 +63,25 @@ func run() int {
 	cmdline.ver = flag.Bool("version", false, "Prints the version of this build")
 	flag.Parse()
 	cmdline.args = flag.Args()
+	return cmdline
+}
+
+func run() int {
+	logbuffer := &bytes.Buffer{}
+	logger := log.New(logbuffer, "", log.Flags())
+
+	defer func() int {
+		if r := recover(); r != nil {
+			logger.Println("Fatal error:", r)
+			fmt.Print(logbuffer)
+			return 1
+		}
+		return 0
+	}()
+
+	endpoint := defaults.GetDefaults().DefaultAdminListen
+
+	cmdline := createCmdLine(endpoint)
 
 	if *cmdline.ver {
 		fmt.Println("Build name:", version.BuildName())
