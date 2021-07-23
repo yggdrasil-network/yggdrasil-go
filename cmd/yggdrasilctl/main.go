@@ -141,7 +141,7 @@ func run() int {
 			return 0
 		}
 
-		runAll(recv, cmdLineEnv.verbose)
+		handleAll(recv, cmdLineEnv.verbose)
 	} else {
 		logger.Println("Error receiving response:", err)
 	}
@@ -255,35 +255,35 @@ func connect(endpoint string, logger *log.Logger) net.Conn {
 	return conn
 }
 
-func runAll(recv map[string]interface{}, verbose bool) {
+func handleAll(recv map[string]interface{}, verbose bool) {
 	req := recv["request"].(map[string]interface{})
 	res := recv["response"].(map[string]interface{})
 
 	switch strings.ToLower(req["request"].(string)) {
 	case "dot":
-		runDot(res)
+		handleDot(res)
 	case "list", "getpeers", "getswitchpeers", "getdht", "getsessions", "dhtping":
-		runVariousInfo(res, verbose)
+		handleVariousInfo(res, verbose)
 	case "gettuntap", "settuntap":
-		runGetAndSetTunTap(res)
+		handleGetAndSetTunTap(res)
 	case "getself":
-		runGetSelf(res, verbose)
+		handleGetSelf(res, verbose)
 	case "getswitchqueues":
-		runGetSwitchQueues(res)
+		handleGetSwitchQueues(res)
 	case "addpeer", "removepeer", "addallowedencryptionpublickey", "removeallowedencryptionpublickey", "addsourcesubnet", "addroute", "removesourcesubnet", "removeroute":
-		runAddsAndRemoves(res)
+		handleAddsAndRemoves(res)
 	case "getallowedencryptionpublickeys":
-		runGetAllowedEncryptionPublicKeys(res)
+		handleGetAllowedEncryptionPublicKeys(res)
 	case "getmulticastinterfaces":
-		runGetMulticastInterfaces(res)
+		handleGetMulticastInterfaces(res)
 	case "getsourcesubnets":
-		runGetSourceSubnets(res)
+		handleGetSourceSubnets(res)
 	case "getroutes":
-		runGetRoutes(res)
+		handleGetRoutes(res)
 	case "settunnelrouting":
 		fallthrough
 	case "gettunnelrouting":
-		runGetTunnelRouting(res)
+		handleGetTunnelRouting(res)
 	default:
 		if json, err := json.MarshalIndent(recv["response"], "", "  "); err == nil {
 			fmt.Println(string(json))
@@ -291,11 +291,11 @@ func runAll(recv map[string]interface{}, verbose bool) {
 	}
 }
 
-func runDot(res map[string]interface{}) {
+func handleDot(res map[string]interface{}) {
 	fmt.Println(res["dot"])
 }
 
-func runVariousInfo(res map[string]interface{}, verbose bool) {
+func handleVariousInfo(res map[string]interface{}, verbose bool) {
 	maxWidths := make(map[string]int)
 	var keyOrder []string
 	keysOrdered := false
@@ -358,7 +358,7 @@ func runVariousInfo(res map[string]interface{}, verbose bool) {
 	}
 }
 
-func runGetAndSetTunTap(res map[string]interface{}) {
+func handleGetAndSetTunTap(res map[string]interface{}) {
 	for k, v := range res {
 		fmt.Println("Interface name:", k)
 		if mtu, ok := v.(map[string]interface{})["mtu"].(float64); ok {
@@ -370,7 +370,7 @@ func runGetAndSetTunTap(res map[string]interface{}) {
 	}
 }
 
-func runGetSelf(res map[string]interface{}, verbose bool) {
+func handleGetSelf(res map[string]interface{}, verbose bool) {
 	for k, v := range res["self"].(map[string]interface{}) {
 		if buildname, ok := v.(map[string]interface{})["build_name"].(string); ok && buildname != "unknown" {
 			fmt.Println("Build name:", buildname)
@@ -402,7 +402,7 @@ func runGetSelf(res map[string]interface{}, verbose bool) {
 	}
 }
 
-func runGetSwitchQueues(res map[string]interface{}) {
+func handleGetSwitchQueues(res map[string]interface{}) {
 	maximumqueuesize := float64(4194304)
 	portqueues := make(map[float64]float64)
 	portqueuesize := make(map[float64]float64)
@@ -452,7 +452,7 @@ func runGetSwitchQueues(res map[string]interface{}) {
 	}
 }
 
-func runAddsAndRemoves(res map[string]interface{}) {
+func handleAddsAndRemoves(res map[string]interface{}) {
 	if _, ok := res["added"]; ok {
 		for _, v := range res["added"].([]interface{}) {
 			fmt.Println("Added:", fmt.Sprint(v))
@@ -475,7 +475,7 @@ func runAddsAndRemoves(res map[string]interface{}) {
 	}
 }
 
-func runGetAllowedEncryptionPublicKeys(res map[string]interface{}) {
+func handleGetAllowedEncryptionPublicKeys(res map[string]interface{}) {
 	if _, ok := res["allowed_box_pubs"]; !ok {
 		fmt.Println("All connections are allowed")
 	} else if res["allowed_box_pubs"] == nil {
@@ -488,7 +488,7 @@ func runGetAllowedEncryptionPublicKeys(res map[string]interface{}) {
 	}
 }
 
-func runGetMulticastInterfaces(res map[string]interface{}) {
+func handleGetMulticastInterfaces(res map[string]interface{}) {
 	if _, ok := res["multicast_interfaces"]; !ok {
 		fmt.Println("No multicast interfaces found")
 	} else if res["multicast_interfaces"] == nil {
@@ -501,7 +501,7 @@ func runGetMulticastInterfaces(res map[string]interface{}) {
 	}
 }
 
-func runGetSourceSubnets(res map[string]interface{}) {
+func handleGetSourceSubnets(res map[string]interface{}) {
 	if _, ok := res["source_subnets"]; !ok {
 		fmt.Println("No source subnets found")
 	} else if res["source_subnets"] == nil {
@@ -514,7 +514,7 @@ func runGetSourceSubnets(res map[string]interface{}) {
 	}
 }
 
-func runGetRoutes(res map[string]interface{}) {
+func handleGetRoutes(res map[string]interface{}) {
 	if routes, ok := res["routes"].(map[string]interface{}); !ok {
 		fmt.Println("No routes found")
 	} else {
@@ -531,7 +531,7 @@ func runGetRoutes(res map[string]interface{}) {
 	}
 }
 
-func runGetTunnelRouting(res map[string]interface{}) {
+func handleGetTunnelRouting(res map[string]interface{}) {
 	if enabled, ok := res["enabled"].(bool); !ok {
 		fmt.Println("Tunnel routing is disabled")
 	} else if !enabled {
