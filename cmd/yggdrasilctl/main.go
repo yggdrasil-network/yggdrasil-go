@@ -50,7 +50,7 @@ func run() int {
 
 	cmdLineEnv := createCmdLineEnv()
 
-	parseFlagsAndArgs(&cmdLineEnv)
+	cmdLineEnv.parseFlagsAndArgs()
 
 	if cmdLineEnv.ver {
 		fmt.Println("Build name:", version.BuildName())
@@ -64,7 +64,7 @@ func run() int {
 		return 0
 	}
 
-	setEndpoint(&cmdLineEnv, logger)
+	cmdLineEnv.setEndpoint(logger)
 
 	var conn net.Conn
 	u, err := url.Parse(cmdLineEnv.endpoint)
@@ -182,7 +182,7 @@ func createCmdLineEnv() CmdLineEnv {
 	return cmdLineEnv
 }
 
-func parseFlagsAndArgs(cmdLineEnv *CmdLineEnv) {
+func (cmdLineEnv *CmdLineEnv)parseFlagsAndArgs() {
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n\n", os.Args[0])
 		fmt.Println("Options:")
@@ -215,7 +215,7 @@ func parseFlagsAndArgs(cmdLineEnv *CmdLineEnv) {
 	cmdLineEnv.ver = *ver
 }
 
-func setEndpoint(cmdLineEnv *CmdLineEnv, logger *log.Logger) {
+func (cmdLineEnv *CmdLineEnv)setEndpoint(logger *log.Logger) {
 	if cmdLineEnv.server == cmdLineEnv.endpoint {
 		if config, err := ioutil.ReadFile(defaults.GetDefaults().DefaultConfigFile); err == nil {
 			if bytes.Equal(config[0:2], []byte{0xFF, 0xFE}) ||
