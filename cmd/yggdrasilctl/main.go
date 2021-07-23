@@ -24,12 +24,13 @@ import (
 
 type admin_info map[string]interface{}
 
-type CmdLine struct {
+type CmdLineEnv struct {
 	args []string
-	server *string
-	injson *bool
-	verbose *bool
-	ver *bool
+	endpoint string
+	server string
+	injson bool
+	verbose bool
+	ver bool
 }
 
 func main() {
@@ -37,7 +38,7 @@ func main() {
 	os.Exit(run())
 }
 
-func createCmdLine(endpoint string) CmdLine {
+func parseCmdLine(cmdLineEnv *CmdLineEnv) {
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n\n", os.Args[0])
 		fmt.Println("Options:")
@@ -56,14 +57,18 @@ func createCmdLine(endpoint string) CmdLine {
 		fmt.Println("  - ", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getDHT")
 	}
 
-	var cmdline CmdLine
-	cmdline.server = flag.String("endpoint", endpoint, "Admin socket endpoint")
-	cmdline.injson = flag.Bool("json", false, "Output in JSON format (as opposed to pretty-print)")
-	cmdline.verbose = flag.Bool("v", false, "Verbose output (includes public keys)")
-	cmdline.ver = flag.Bool("version", false, "Prints the version of this build")
+	server := flag.String("endpoint", cmdLineEnv.endpoint, "Admin socket endpoint")
+	injson := flag.Bool("json", false, "Output in JSON format (as opposed to pretty-print)")
+	verbose := flag.Bool("v", false, "Verbose output (includes public keys)")
+	ver := flag.Bool("version", false, "Prints the version of this build")
+
 	flag.Parse()
-	cmdline.args = flag.Args()
-	return cmdline
+
+	cmdLineEnv.args = flag.Args()
+	cmdLineEnv.server = *server
+	cmdLineEnv.injson = *injson
+	cmdLineEnv.verbose = *verbose
+	cmdLineEnv.ver = *ver
 }
 
 func run() int {
@@ -79,23 +84,23 @@ func run() int {
 		return 0
 	}()
 
-	endpoint := defaults.GetDefaults().DefaultAdminListen
+	var cmdLineEnv CmdLineEnv
+	cmdLineEnv.endpoint = defaults.GetDefaults().DefaultAdminListen
+	parseCmdLine(&cmdLineEnv)
 
-	cmdline := createCmdLine(endpoint)
-
-	if *cmdline.ver {
+	if cmdLineEnv.ver {
 		fmt.Println("Build name:", version.BuildName())
 		fmt.Println("Build version:", version.BuildVersion())
 		fmt.Println("To get the version number of the running Yggdrasil node, run", os.Args[0], "getSelf")
 		return 0
 	}
 
-	if len(cmdline.args) == 0 {
+	if len(cmdLineEnv.args) == 0 {
 		flag.Usage()
 		return 0
 	}
 
-	if *cmdline.server == endpoint {
+	if cmdLineEnv.server == cmdLineEnv.endpoint {
 		if config, err := ioutil.ReadFile(defaults.GetDefaults().DefaultConfigFile); err == nil {
 			if bytes.Equal(config[0:2], []byte{0xFF, 0xFE}) ||
 				bytes.Equal(config[0:2], []byte{0xFE, 0xFF}) {
@@ -111,9 +116,9 @@ func run() int {
 				panic(err)
 			}
 			if ep, ok := dat["AdminListen"].(string); ok && (ep != "none" && ep != "") {
-				endpoint = ep
+				cmdLineEnv.endpoint = ep
 				logger.Println("Found platform default config file", defaults.GetDefaults().DefaultConfigFile)
-				logger.Println("Using endpoint", endpoint, "from AdminListen")
+				logger.Println("Using endpoint", cmdLineEnv.endpoint, "from AdminListen")
 			} else {
 				logger.Println("Configuration file doesn't contain appropriate AdminListen option")
 				logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
@@ -123,18 +128,18 @@ func run() int {
 			logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
 		}
 	} else {
-		endpoint = *cmdline.server
-		logger.Println("Using endpoint", endpoint, "from command line")
+		cmdLineEnv.endpoint = cmdLineEnv.server
+		logger.Println("Using endpoint", cmdLineEnv.endpoint, "from command line")
 	}
 
 	var conn net.Conn
-	u, err := url.Parse(endpoint)
+	u, err := url.Parse(cmdLineEnv.endpoint)
 
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "unix":
-			logger.Println("Connecting to UNIX socket", endpoint[7:])
-			conn, err = net.Dial("unix", endpoint[7:])
+			logger.Println("Connecting to UNIX socket", cmdLineEnv.endpoint[7:])
+			conn, err = net.Dial("unix", cmdLineEnv.endpoint[7:])
 		case "tcp":
 			logger.Println("Connecting to TCP socket", u.Host)
 			conn, err = net.Dial("tcp", u.Host)
@@ -144,7 +149,7 @@ func run() int {
 		}
 	} else {
 		logger.Println("Connecting to TCP socket", u.Host)
-		conn, err = net.Dial("tcp", endpoint)
+		conn, err = net.Dial("tcp", cmdLineEnv.endpoint)
 	}
 
 	if err != nil {
@@ -159,7 +164,7 @@ func run() int {
 	send := make(admin_info)
 	recv := make(admin_info)
 
-	for c, a := range cmdline.args {
+	for c, a := range cmdLineEnv.args {
 		if c == 0 {
 			if strings.HasPrefix(a, "-") {
 				logger.Printf("Ignoring flag %s as it should be specified before other parameters\n", a)
@@ -218,14 +223,14 @@ func run() int {
 		}
 		res := recv["response"].(map[string]interface{})
 
-		if *cmdline.injson {
+		if cmdLineEnv.injson {
 			if json, err := json.MarshalIndent(res, "", "  "); err == nil {
 				fmt.Println(string(json))
 			}
 			return 0
 		}
 
-		runAll(recv, cmdline.verbose)
+		runAll(recv, cmdLineEnv.verbose)
 	} else {
 		logger.Println("Error receiving response:", err)
 	}
@@ -237,7 +242,7 @@ func run() int {
 	return 0
 }
 
-func runAll(recv map[string]interface{}, verbose *bool) {
+func runAll(recv map[string]interface{}, verbose bool) {
 	req := recv["request"].(map[string]interface{})
 	res := recv["response"].(map[string]interface{})
 
@@ -277,7 +282,7 @@ func runDot(res map[string]interface{}) {
 	fmt.Println(res["dot"])
 }
 
-func runVariousInfo(res map[string]interface{}, verbose *bool) {
+func runVariousInfo(res map[string]interface{}, verbose bool) {
 	maxWidths := make(map[string]int)
 	var keyOrder []string
 	keysOrdered := false
@@ -286,7 +291,7 @@ func runVariousInfo(res map[string]interface{}, verbose *bool) {
 		for slk, slv := range tlv.(map[string]interface{}) {
 			if !keysOrdered {
 				for k := range slv.(map[string]interface{}) {
-					if !*verbose {
+					if !verbose {
 						if k == "box_pub_key" || k == "box_sig_key" || k == "nodeinfo" || k == "was_mtu_fixed" {
 							continue
 						}
@@ -352,7 +357,7 @@ func runGetAndSetTunTap(res map[string]interface{}) {
 	}
 }
 
-func runGetSelf(res map[string]interface{}, verbose *bool) {
+func runGetSelf(res map[string]interface{}, verbose bool) {
 	for k, v := range res["self"].(map[string]interface{}) {
 		if buildname, ok := v.(map[string]interface{})["build_name"].(string); ok && buildname != "unknown" {
 			fmt.Println("Build name:", buildname)
@@ -370,7 +375,7 @@ func runGetSelf(res map[string]interface{}, verbose *bool) {
 		if coords, ok := v.(map[string]interface{})["coords"].(string); ok {
 			fmt.Println("Coords:", coords)
 		}
-		if *verbose {
+		if verbose {
 			if nodeID, ok := v.(map[string]interface{})["node_id"].(string); ok {
 				fmt.Println("Node ID:", nodeID)
 			}
