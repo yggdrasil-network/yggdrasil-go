@@ -66,30 +66,7 @@ func run() int {
 
 	cmdLineEnv.setEndpoint(logger)
 
-	var conn net.Conn
-	u, err := url.Parse(cmdLineEnv.endpoint)
-
-	if err == nil {
-		switch strings.ToLower(u.Scheme) {
-		case "unix":
-			logger.Println("Connecting to UNIX socket", cmdLineEnv.endpoint[7:])
-			conn, err = net.Dial("unix", cmdLineEnv.endpoint[7:])
-		case "tcp":
-			logger.Println("Connecting to TCP socket", u.Host)
-			conn, err = net.Dial("tcp", u.Host)
-		default:
-			logger.Println("Unknown protocol or malformed address - check your endpoint")
-			err = errors.New("protocol not supported")
-		}
-	} else {
-		logger.Println("Connecting to TCP socket", u.Host)
-		conn, err = net.Dial("tcp", cmdLineEnv.endpoint)
-	}
-
-	if err != nil {
-		panic(err)
-	}
-
+	conn := connect(cmdLineEnv.endpoint, logger)
 	logger.Println("Connected")
 	defer conn.Close()
 
@@ -247,6 +224,35 @@ func (cmdLineEnv *CmdLineEnv)setEndpoint(logger *log.Logger) {
 		cmdLineEnv.endpoint = cmdLineEnv.server
 		logger.Println("Using endpoint", cmdLineEnv.endpoint, "from command line")
 	}
+}
+
+func connect(endpoint string, logger *log.Logger) net.Conn {
+	var conn net.Conn
+
+	u, err := url.Parse(endpoint)
+
+	if err == nil {
+		switch strings.ToLower(u.Scheme) {
+		case "unix":
+			logger.Println("Connecting to UNIX socket", endpoint[7:])
+			conn, err = net.Dial("unix", endpoint[7:])
+		case "tcp":
+			logger.Println("Connecting to TCP socket", u.Host)
+			conn, err = net.Dial("tcp", u.Host)
+		default:
+			logger.Println("Unknown protocol or malformed address - check your endpoint")
+			err = errors.New("protocol not supported")
+		}
+	} else {
+		logger.Println("Connecting to TCP socket", u.Host)
+		conn, err = net.Dial("tcp", endpoint)
+	}
+
+	if err != nil {
+		panic(err)
+	}
+
+	return conn
 }
 
 func runAll(recv map[string]interface{}, verbose bool) {
