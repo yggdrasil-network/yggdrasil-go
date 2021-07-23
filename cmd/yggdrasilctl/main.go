@@ -38,6 +38,12 @@ func main() {
 	os.Exit(run())
 }
 
+func createCmdLineEnv() CmdLineEnv {
+	var cmdLineEnv CmdLineEnv
+	cmdLineEnv.endpoint = defaults.GetDefaults().DefaultAdminListen
+	return cmdLineEnv
+}
+
 func parseFlagsAndArgs(cmdLineEnv *CmdLineEnv) {
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n\n", os.Args[0])
@@ -118,8 +124,8 @@ func run() int {
 		return 0
 	}()
 
-	var cmdLineEnv CmdLineEnv
-	cmdLineEnv.endpoint = defaults.GetDefaults().DefaultAdminListen
+	cmdLineEnv := createCmdLineEnv()
+
 	parseFlagsAndArgs(&cmdLineEnv)
 
 	if cmdLineEnv.ver {
