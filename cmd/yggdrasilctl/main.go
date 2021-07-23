@@ -24,6 +24,14 @@ import (
 
 type admin_info map[string]interface{}
 
+type CmdLine struct {
+	args []string
+	server *string
+	injson *bool
+	verbose *bool
+	ver *bool
+}
+
 func main() {
 	// makes sure we can use defer and still return an error code to the OS
 	os.Exit(run())
@@ -62,26 +70,27 @@ func run() int {
 		fmt.Println("  - ", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getDHT")
 	}
 
-	server := flag.String("endpoint", endpoint, "Admin socket endpoint")
-	injson := flag.Bool("json", false, "Output in JSON format (as opposed to pretty-print)")
-	verbose := flag.Bool("v", false, "Verbose output (includes public keys)")
-	ver := flag.Bool("version", false, "Prints the version of this build")
+	var cmdline CmdLine
+	cmdline.server = flag.String("endpoint", endpoint, "Admin socket endpoint")
+	cmdline.injson = flag.Bool("json", false, "Output in JSON format (as opposed to pretty-print)")
+	cmdline.verbose = flag.Bool("v", false, "Verbose output (includes public keys)")
+	cmdline.ver = flag.Bool("version", false, "Prints the version of this build")
 	flag.Parse()
-	args := flag.Args()
+	cmdline.args = flag.Args()
 
-	if *ver {
+	if *cmdline.ver {
 		fmt.Println("Build name:", version.BuildName())
 		fmt.Println("Build version:", version.BuildVersion())
 		fmt.Println("To get the version number of the running Yggdrasil node, run", os.Args[0], "getSelf")
 		return 0
 	}
 
-	if len(args) == 0 {
+	if len(cmdline.args) == 0 {
 		flag.Usage()
 		return 0
 	}
 
-	if *server == endpoint {
+	if *cmdline.server == endpoint {
 		if config, err := ioutil.ReadFile(defaults.GetDefaults().DefaultConfigFile); err == nil {
 			if bytes.Equal(config[0:2], []byte{0xFF, 0xFE}) ||
 				bytes.Equal(config[0:2], []byte{0xFE, 0xFF}) {
@@ -109,7 +118,7 @@ func run() int {
 			logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
 		}
 	} else {
-		endpoint = *server
+		endpoint = *cmdline.server
 		logger.Println("Using endpoint", endpoint, "from command line")
 	}
 
@@ -145,7 +154,7 @@ func run() int {
 	send := make(admin_info)
 	recv := make(admin_info)
 
-	for c, a := range args {
+	for c, a := range cmdline.args {
 		if c == 0 {
 			if strings.HasPrefix(a, "-") {
 				logger.Printf("Ignoring flag %s as it should be specified before other parameters\n", a)
@@ -204,14 +213,14 @@ func run() int {
 		}
 		res := recv["response"].(map[string]interface{})
 
-		if *injson {
+		if *cmdline.injson {
 			if json, err := json.MarshalIndent(res, "", "  "); err == nil {
 				fmt.Println(string(json))
 			}
 			return 0
 		}
 
-		runAll(recv, verbose)
+		runAll(recv, cmdline.verbose)
 	} else {
 		logger.Println("Error receiving response:", err)
 	}
