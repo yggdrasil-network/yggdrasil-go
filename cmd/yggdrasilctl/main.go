@@ -26,11 +26,8 @@ type admin_info map[string]interface{}
 
 type CmdLineEnv struct {
 	args []string
-	endpoint string
-	server string
-	injson bool
-	verbose bool
-	ver bool
+	endpoint, server string
+	injson, verbose, ver bool
 }
 
 func main() {
