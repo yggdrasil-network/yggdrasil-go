@@ -38,7 +38,7 @@ func main() {
 	os.Exit(run())
 }
 
-func parseCmdLine(cmdLineEnv *CmdLineEnv) {
+func parseFlagsAndArgs(cmdLineEnv *CmdLineEnv) {
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n\n", os.Args[0])
 		fmt.Println("Options:")
@@ -86,7 +86,7 @@ func run() int {
 
 	var cmdLineEnv CmdLineEnv
 	cmdLineEnv.endpoint = defaults.GetDefaults().DefaultAdminListen
-	parseCmdLine(&cmdLineEnv)
+	parseFlagsAndArgs(&cmdLineEnv)
 
 	if cmdLineEnv.ver {
 		fmt.Println("Build name:", version.BuildName())
