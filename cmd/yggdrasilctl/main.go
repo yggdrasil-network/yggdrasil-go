@@ -6,7 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/url"
@@ -15,20 +14,11 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/text/encoding/unicode"
-
-	"github.com/hjson/hjson-go"
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/cmd/yggdrasilctl/cmd_line_env"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 )
 
 type admin_info map[string]interface{}
-
-type CmdLineEnv struct {
-	args []string
-	endpoint, server string
-	injson, verbose, ver bool
-}
 
 func main() {
 	// makes sure we can use defer and still return an error code to the OS
@@ -48,25 +38,25 @@ func run() int {
 		return 0
 	}()
 
-	cmdLineEnv := createCmdLineEnv()
+	cmdLineEnv := cmd_line_env.New()
 
-	cmdLineEnv.parseFlagsAndArgs()
+	cmdLineEnv.ParseFlagsAndArgs()
 
-	if cmdLineEnv.ver {
+	if cmdLineEnv.Ver {
 		fmt.Println("Build name:", version.BuildName())
 		fmt.Println("Build version:", version.BuildVersion())
 		fmt.Println("To get the version number of the running Yggdrasil node, run", os.Args[0], "getSelf")
 		return 0
 	}
 
-	if len(cmdLineEnv.args) == 0 {
+	if len(cmdLineEnv.Args) == 0 {
 		flag.Usage()
 		return 0
 	}
 
-	cmdLineEnv.setEndpoint(logger)
+	cmdLineEnv.SetEndpoint(logger)
 
-	conn := connect(cmdLineEnv.endpoint, logger)
+	conn := connect(cmdLineEnv.Endpoint, logger)
 	logger.Println("Connected")
 	defer conn.Close()
 
@@ -75,7 +65,7 @@ func run() int {
 	send := make(admin_info)
 	recv := make(admin_info)
 
-	for c, a := range cmdLineEnv.args {
+	for c, a := range cmdLineEnv.Args {
 		if c == 0 {
 			if strings.HasPrefix(a, "-") {
 				logger.Printf("Ignoring flag %s as it should be specified before other parameters\n", a)
@@ -134,14 +124,14 @@ func run() int {
 		}
 		res := recv["response"].(map[string]interface{})
 
-		if cmdLineEnv.injson {
+		if cmdLineEnv.Injson {
 			if json, err := json.MarshalIndent(res, "", "  "); err == nil {
 				fmt.Println(string(json))
 			}
 			return 0
 		}
 
-		handleAll(recv, cmdLineEnv.verbose)
+		handleAll(recv, cmdLineEnv.Verbose)
 	} else {
 		logger.Println("Error receiving response:", err)
 	}
@@ -151,79 +141,6 @@ func run() int {
 	}
 
 	return 0
-}
-
-func createCmdLineEnv() CmdLineEnv {
-	var cmdLineEnv CmdLineEnv
-	cmdLineEnv.endpoint = defaults.GetDefaults().DefaultAdminListen
-	return cmdLineEnv
-}
-
-func (cmdLineEnv *CmdLineEnv)parseFlagsAndArgs() {
-	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n\n", os.Args[0])
-		fmt.Println("Options:")
-		flag.PrintDefaults()
-		fmt.Println()
-		fmt.Println("Please note that options must always specified BEFORE the command\non the command line or they will be ignored.")
-		fmt.Println()
-		fmt.Println("Commands:\n  - Use \"list\" for a list of available commands")
-		fmt.Println()
-		fmt.Println("Examples:")
-		fmt.Println("  - ", os.Args[0], "list")
-		fmt.Println("  - ", os.Args[0], "getPeers")
-		fmt.Println("  - ", os.Args[0], "-v getSelf")
-		fmt.Println("  - ", os.Args[0], "setTunTap name=auto mtu=1500 tap_mode=false")
-		fmt.Println("  - ", os.Args[0], "-endpoint=tcp://localhost:9001 getDHT")
-		fmt.Println("  - ", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getDHT")
-	}
-
-	server := flag.String("endpoint", cmdLineEnv.endpoint, "Admin socket endpoint")
-	injson := flag.Bool("json", false, "Output in JSON format (as opposed to pretty-print)")
-	verbose := flag.Bool("v", false, "Verbose output (includes public keys)")
-	ver := flag.Bool("version", false, "Prints the version of this build")
-
-	flag.Parse()
-
-	cmdLineEnv.args = flag.Args()
-	cmdLineEnv.server = *server
-	cmdLineEnv.injson = *injson
-	cmdLineEnv.verbose = *verbose
-	cmdLineEnv.ver = *ver
-}
-
-func (cmdLineEnv *CmdLineEnv)setEndpoint(logger *log.Logger) {
-	if cmdLineEnv.server == cmdLineEnv.endpoint {
-		if config, err := ioutil.ReadFile(defaults.GetDefaults().DefaultConfigFile); err == nil {
-			if bytes.Equal(config[0:2], []byte{0xFF, 0xFE}) ||
-				bytes.Equal(config[0:2], []byte{0xFE, 0xFF}) {
-				utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
-				decoder := utf.NewDecoder()
-				config, err = decoder.Bytes(config)
-				if err != nil {
-					panic(err)
-				}
-			}
-			var dat map[string]interface{}
-			if err := hjson.Unmarshal(config, &dat); err != nil {
-				panic(err)
-			}
-			if ep, ok := dat["AdminListen"].(string); ok && (ep != "none" && ep != "") {
-				cmdLineEnv.endpoint = ep
-				logger.Println("Found platform default config file", defaults.GetDefaults().DefaultConfigFile)
-				logger.Println("Using endpoint", cmdLineEnv.endpoint, "from AdminListen")
-			} else {
-				logger.Println("Configuration file doesn't contain appropriate AdminListen option")
-				logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
-			}
-		} else {
-			logger.Println("Can't open config file from default location", defaults.GetDefaults().DefaultConfigFile)
-			logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
-		}
-	} else {
-		cmdLineEnv.endpoint = cmdLineEnv.server
-		logger.Println("Using endpoint", cmdLineEnv.endpoint, "from command line")
-	}
 }
 
 func connect(endpoint string, logger *log.Logger) net.Conn {
