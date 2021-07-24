@@ -376,12 +376,18 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 	// Lower permissions from root to something else, if the user wants to
 	if syscall.Getuid() == 0 {
 		if args.rungid > 0 {
-			fmt.Println("Dropping gid to ", args.rungid)
-			syscall.Setgid(args.rungid)
+			logger.Infoln("Setting gid to:", args.rungid)
+			if err := setgid(args.rungid); err != nil {
+				logger.Errorln("Failed to set gid:", err)
+				return
+			}
 		}
 		if args.runuid > 0 {
-			fmt.Println("Dropping uid to ", args.rungid)
-			syscall.Setuid(args.runuid)
+			logger.Infoln("Setting uid to:", args.runuid)
+			if err := setuid(args.runuid); err != nil {
+				logger.Errorln("Failed to set uid:", err)
+				return
+			}
 		}
 	}
 	logger.Infof("Your public key is %s", hex.EncodeToString(public[:]))
