@@ -2,6 +2,8 @@ package defaults
 
 import "github.com/yggdrasil-network/yggdrasil-go/src/config"
 
+var adminListen string
+
 type MulticastInterfaceConfig = config.MulticastInterfaceConfig
 
 // Defines which parameters are expected by default for configuration on a
@@ -31,7 +33,12 @@ func GenerateConfig() *config.NodeConfig {
 	cfg := new(config.NodeConfig)
 	cfg.NewKeys()
 	cfg.Listen = []string{}
-	cfg.AdminListen = GetDefaults().DefaultAdminListen
+	if adminListen == "" {
+		// TODO? "none" for all platforms?
+		cfg.AdminListen = GetDefaults().DefaultAdminListen
+	} else {
+		cfg.AdminListen = adminListen
+	}
 	cfg.Peers = []string{}
 	cfg.InterfacePeers = map[string][]string{}
 	cfg.AllowedPublicKeys = []string{}
