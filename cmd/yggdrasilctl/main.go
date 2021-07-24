@@ -14,7 +14,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yggdrasil-network/yggdrasil-go/cmd/yggdrasilctl/cmd_line_env"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 )
 
@@ -38,25 +37,25 @@ func run() int {
 		return 0
 	}()
 
-	cmdLineEnv := cmd_line_env.New()
+	cmdLineEnv := newCmdLineEnv()
 
-	cmdLineEnv.ParseFlagsAndArgs()
+	cmdLineEnv.parseFlagsAndArgs()
 
-	if cmdLineEnv.Ver {
+	if cmdLineEnv.ver {
 		fmt.Println("Build name:", version.BuildName())
 		fmt.Println("Build version:", version.BuildVersion())
 		fmt.Println("To get the version number of the running Yggdrasil node, run", os.Args[0], "getSelf")
 		return 0
 	}
 
-	if len(cmdLineEnv.Args) == 0 {
+	if len(cmdLineEnv.args) == 0 {
 		flag.Usage()
 		return 0
 	}
 
-	cmdLineEnv.SetEndpoint(logger)
+	cmdLineEnv.setEndpoint(logger)
 
-	conn := connect(cmdLineEnv.Endpoint, logger)
+	conn := connect(cmdLineEnv.endpoint, logger)
 	logger.Println("Connected")
 	defer conn.Close()
 
@@ -65,7 +64,7 @@ func run() int {
 	send := make(admin_info)
 	recv := make(admin_info)
 
-	for c, a := range cmdLineEnv.Args {
+	for c, a := range cmdLineEnv.args {
 		if c == 0 {
 			if strings.HasPrefix(a, "-") {
 				logger.Printf("Ignoring flag %s as it should be specified before other parameters\n", a)
@@ -124,14 +123,14 @@ func run() int {
 		}
 		res := recv["response"].(map[string]interface{})
 
-		if cmdLineEnv.Injson {
+		if cmdLineEnv.injson {
 			if json, err := json.MarshalIndent(res, "", "  "); err == nil {
 				fmt.Println(string(json))
 			}
 			return 0
 		}
 
-		handleAll(recv, cmdLineEnv.Verbose)
+		handleAll(recv, cmdLineEnv.verbose)
 	} else {
 		logger.Println("Error receiving response:", err)
 	}

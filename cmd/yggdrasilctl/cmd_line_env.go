@@ -1,4 +1,4 @@
-package cmd_line_env
+package main
 
 import (
 	"bytes"
@@ -15,18 +15,18 @@ import (
 )
 
 type CmdLineEnv struct {
-	Args []string
-	Endpoint, Server string
-	Injson, Verbose, Ver bool
+	args []string
+	endpoint, server string
+	injson, verbose, ver bool
 }
 
-func New() CmdLineEnv {
+func newCmdLineEnv() CmdLineEnv {
 	var cmdLineEnv CmdLineEnv
-	cmdLineEnv.Endpoint = defaults.GetDefaults().DefaultAdminListen
+	cmdLineEnv.endpoint = defaults.GetDefaults().DefaultAdminListen
 	return cmdLineEnv
 }
 
-func (cmdLineEnv *CmdLineEnv)ParseFlagsAndArgs() {
+func (cmdLineEnv *CmdLineEnv)parseFlagsAndArgs() {
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n\n", os.Args[0])
 		fmt.Println("Options:")
@@ -45,22 +45,22 @@ func (cmdLineEnv *CmdLineEnv)ParseFlagsAndArgs() {
 		fmt.Println("  - ", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getDHT")
 	}
 
-	server := flag.String("endpoint", cmdLineEnv.Endpoint, "Admin socket endpoint")
+	server := flag.String("endpoint", cmdLineEnv.endpoint, "Admin socket endpoint")
 	injson := flag.Bool("json", false, "Output in JSON format (as opposed to pretty-print)")
 	verbose := flag.Bool("v", false, "Verbose output (includes public keys)")
 	ver := flag.Bool("version", false, "Prints the version of this build")
 
 	flag.Parse()
 
-	cmdLineEnv.Args = flag.Args()
-	cmdLineEnv.Server = *server
-	cmdLineEnv.Injson = *injson
-	cmdLineEnv.Verbose = *verbose
-	cmdLineEnv.Ver = *ver
+	cmdLineEnv.args = flag.Args()
+	cmdLineEnv.server = *server
+	cmdLineEnv.injson = *injson
+	cmdLineEnv.verbose = *verbose
+	cmdLineEnv.ver = *ver
 }
 
-func (cmdLineEnv *CmdLineEnv)SetEndpoint(logger *log.Logger) {
-	if cmdLineEnv.Server == cmdLineEnv.Endpoint {
+func (cmdLineEnv *CmdLineEnv)setEndpoint(logger *log.Logger) {
+	if cmdLineEnv.server == cmdLineEnv.endpoint {
 		if config, err := ioutil.ReadFile(defaults.GetDefaults().DefaultConfigFile); err == nil {
 			if bytes.Equal(config[0:2], []byte{0xFF, 0xFE}) ||
 				bytes.Equal(config[0:2], []byte{0xFE, 0xFF}) {
@@ -76,9 +76,9 @@ func (cmdLineEnv *CmdLineEnv)SetEndpoint(logger *log.Logger) {
 				panic(err)
 			}
 			if ep, ok := dat["AdminListen"].(string); ok && (ep != "none" && ep != "") {
-				cmdLineEnv.Endpoint = ep
+				cmdLineEnv.endpoint = ep
 				logger.Println("Found platform default config file", defaults.GetDefaults().DefaultConfigFile)
-				logger.Println("Using endpoint", cmdLineEnv.Endpoint, "from AdminListen")
+				logger.Println("Using endpoint", cmdLineEnv.endpoint, "from AdminListen")
 			} else {
 				logger.Println("Configuration file doesn't contain appropriate AdminListen option")
 				logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
@@ -88,7 +88,7 @@ func (cmdLineEnv *CmdLineEnv)SetEndpoint(logger *log.Logger) {
 			logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
 		}
 	} else {
-		cmdLineEnv.Endpoint = cmdLineEnv.Server
-		logger.Println("Using endpoint", cmdLineEnv.Endpoint, "from command line")
+		cmdLineEnv.endpoint = cmdLineEnv.server
+		logger.Println("Using endpoint", cmdLineEnv.endpoint, "from command line")
 	}
 }
