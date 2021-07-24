@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [future]
+
+### Changed
+- The `AdminListen` option and `yggdrasilctl` now default to `unix:///var/run/yggdrasil/yggdrasil.sock` on Linux
+
+
 ## [0.4.2] - 2021-11-03
 ### Fixed
 - Reverted a dependency update which resulted in problems building with Go 1.16 and running on Windows
