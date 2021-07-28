@@ -98,6 +98,7 @@ func (l *links) call(u *url.URL, sintf string) error {
 		l.tcp.call(pathtokens[0], tcpOpts, sintf)
 	case "tls":
 		tcpOpts.upgrade = l.tcp.tls.forDialer
+		tcpOpts.tlsSNI = u.Query().Get("sni")
 		l.tcp.call(u.Host, tcpOpts, sintf)
 	default:
 		return errors.New("unknown call scheme: " + u.Scheme)
