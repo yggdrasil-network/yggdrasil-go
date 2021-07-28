@@ -99,6 +99,13 @@ func (l *links) call(u *url.URL, sintf string) error {
 	case "tls":
 		tcpOpts.upgrade = l.tcp.tls.forDialer
 		tcpOpts.tlsSNI = u.Query().Get("sni")
+		if tcpOpts.tlsSNI == "" {
+			// SNI headers must contain hostnames and not IP addresses, so we must make sure
+			// that we do not populate the SNI with an IP literal.
+			if host, _, err := net.SplitHostPort(u.Host); err == nil && net.ParseIP(host) == nil {
+				tcpOpts.tlsSNI = host
+			}
+		}
 		l.tcp.call(u.Host, tcpOpts, sintf)
 	default:
 		return errors.New("unknown call scheme: " + u.Scheme)
