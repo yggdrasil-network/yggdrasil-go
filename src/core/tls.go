@@ -77,7 +77,7 @@ func (t *tcptls) init(tcp *tcp) {
 	}
 }
 
-func (t *tcptls) configForOptions(options *tcpOptions, serverName string) *tls.Config {
+func (t *tcptls) configForOptions(options *tcpOptions) *tls.Config {
 	config := t.config.Clone()
 	config.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
 		if len(rawCerts) != 1 {
@@ -103,14 +103,11 @@ func (t *tcptls) configForOptions(options *tcpOptions, serverName string) *tls.C
 		}
 		return nil
 	}
-	if serverName != "" {
-		config.ServerName = serverName
-	}
 	return config
 }
 
 func (t *tcptls) upgradeListener(c net.Conn, options *tcpOptions) (net.Conn, error) {
-	config := t.configForOptions(options, "")
+	config := t.configForOptions(options)
 	conn := tls.Server(c, config)
 	if err := conn.Handshake(); err != nil {
 		return c, err
@@ -119,7 +116,8 @@ func (t *tcptls) upgradeListener(c net.Conn, options *tcpOptions) (net.Conn, err
 }
 
 func (t *tcptls) upgradeDialer(c net.Conn, options *tcpOptions) (net.Conn, error) {
-	config := t.configForOptions(options, options.tlsSNI)
+	config := t.configForOptions(options)
+	config.ServerName = options.tlsSNI
 	conn := tls.Client(c, config)
 	if err := conn.Handshake(); err != nil {
 		return c, err
