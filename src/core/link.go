@@ -103,8 +103,8 @@ func (l *links) call(u *url.URL, sintf string) error {
 		// the host-port combo from the query option and then seeing if it parses to an
 		// IP address successfully or not.
 		if sni := u.Query().Get("sni"); sni != "" {
-			if host, _, err := net.SplitHostPort(sni); err == nil && net.ParseIP(host) == nil {
-				tcpOpts.tlsSNI = host
+			if net.ParseIP(sni) == nil {
+				tcpOpts.tlsSNI = sni
 			}
 		}
 		// If the SNI is not configured still because the above failed then we'll try
