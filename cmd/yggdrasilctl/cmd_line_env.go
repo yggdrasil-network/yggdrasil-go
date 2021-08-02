@@ -15,8 +15,8 @@ import (
 )
 
 type CmdLineEnv struct {
-	args []string
-	endpoint, server string
+	args                 []string
+	endpoint, server     string
 	injson, verbose, ver bool
 }
 
@@ -26,7 +26,7 @@ func newCmdLineEnv() CmdLineEnv {
 	return cmdLineEnv
 }
 
-func (cmdLineEnv *CmdLineEnv)parseFlagsAndArgs() {
+func (cmdLineEnv *CmdLineEnv) parseFlagsAndArgs() {
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s [options] command [key=value] [key=value] ...\n\n", os.Args[0])
 		fmt.Println("Options:")
@@ -59,7 +59,7 @@ func (cmdLineEnv *CmdLineEnv)parseFlagsAndArgs() {
 	cmdLineEnv.ver = *ver
 }
 
-func (cmdLineEnv *CmdLineEnv)setEndpoint(logger *log.Logger) {
+func (cmdLineEnv *CmdLineEnv) setEndpoint(logger *log.Logger) {
 	if cmdLineEnv.server == cmdLineEnv.endpoint {
 		if config, err := ioutil.ReadFile(defaults.GetDefaults().DefaultConfigFile); err == nil {
 			if bytes.Equal(config[0:2], []byte{0xFF, 0xFE}) ||

@@ -38,7 +38,6 @@ func run() int {
 	}()
 
 	cmdLineEnv := newCmdLineEnv()
-
 	cmdLineEnv.parseFlagsAndArgs()
 
 	if cmdLineEnv.ver {
