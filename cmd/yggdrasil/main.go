@@ -182,54 +182,12 @@ func setLogLevel(loglevel string, logger *log.Logger) {
 	}
 }
 
-type yggArgs struct {
-	genconf       bool
-	useconf       bool
-	useconffile   string
-	normaliseconf bool
-	confjson      bool
-	autoconf      bool
-	ver           bool
-	logto         string
-	getaddr       bool
-	getsnet       bool
-	loglevel      string
-}
-
-func getArgs() yggArgs {
-	genconf := flag.Bool("genconf", false, "print a new config to stdout")
-	useconf := flag.Bool("useconf", false, "read HJSON/JSON config from stdin")
-	useconffile := flag.String("useconffile", "", "read HJSON/JSON config from specified file path")
-	normaliseconf := flag.Bool("normaliseconf", false, "use in combination with either -useconf or -useconffile, outputs your configuration normalised")
-	confjson := flag.Bool("json", false, "print configuration from -genconf or -normaliseconf as JSON instead of HJSON")
-	autoconf := flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
-	ver := flag.Bool("version", false, "prints the version of this build")
-	logto := flag.String("logto", "stdout", "file path to log to, \"syslog\" or \"stdout\"")
-	getaddr := flag.Bool("address", false, "returns the IPv6 address as derived from the supplied configuration")
-	getsnet := flag.Bool("subnet", false, "returns the IPv6 subnet as derived from the supplied configuration")
-	loglevel := flag.String("loglevel", "info", "loglevel to enable")
-	flag.Parse()
-	return yggArgs{
-		genconf:       *genconf,
-		useconf:       *useconf,
-		useconffile:   *useconffile,
-		normaliseconf: *normaliseconf,
-		confjson:      *confjson,
-		autoconf:      *autoconf,
-		ver:           *ver,
-		logto:         *logto,
-		getaddr:       *getaddr,
-		getsnet:       *getsnet,
-		loglevel:      *loglevel,
-	}
-}
-
 // The main function is responsible for configuring and starting Yggdrasil.
-func run(args yggArgs, ctx context.Context, done chan struct{}) {
+func run(cmdLineEnv CmdLineEnv, ctx context.Context, done chan struct{}) {
 	defer close(done)
 	// Create a new logger that logs output to stdout.
 	var logger *log.Logger
-	switch args.logto {
+	switch cmdLineEnv.logto {
 	case "stdout":
 		logger = log.New(os.Stdout, "", log.Flags())
 	case "syslog":
@@ -237,7 +195,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 			logger = log.New(syslogger, "", log.Flags())
 		}
 	default:
-		if logfd, err := os.OpenFile(args.logto, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+		if logfd, err := os.OpenFile(cmdLineEnv.logto, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
 			logger = log.New(logfd, "", log.Flags())
 		}
 	}
@@ -246,33 +204,33 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		logger.Warnln("Logging defaulting to stdout")
 	}
 
-	if args.normaliseconf {
+	if cmdLineEnv.normaliseconf {
 		setLogLevel("error", logger)
 	} else {
-		setLogLevel(args.loglevel, logger)
+		setLogLevel(cmdLineEnv.loglevel, logger)
 	}
 
 	var cfg *config.NodeConfig
 	var err error
 	switch {
-	case args.ver:
+	case cmdLineEnv.ver:
 		fmt.Println("Build name:", version.BuildName())
 		fmt.Println("Build version:", version.BuildVersion())
 		return
-	case args.autoconf:
+	case cmdLineEnv.autoconf:
 		// Use an autoconf-generated config, this will give us random keys and
 		// port numbers, and will use an automatically selected TUN/TAP interface.
 		cfg = defaults.GenerateConfig()
-	case args.useconffile != "" || args.useconf:
+	case cmdLineEnv.useconffile != "" || cmdLineEnv.useconf:
 		// Read the configuration from either stdin or from the filesystem
-		cfg = readConfig(logger, args.useconf, args.useconffile, args.normaliseconf)
+		cfg = readConfig(logger, cmdLineEnv.useconf, cmdLineEnv.useconffile, cmdLineEnv.normaliseconf)
 		// If the -normaliseconf option was specified then remarshal the above
 		// configuration and print it back to stdout. This lets the user update
 		// their configuration file with newly mapped names (like above) or to
 		// convert from plain JSON to commented HJSON.
-		if args.normaliseconf {
+		if cmdLineEnv.normaliseconf {
 			var bs []byte
-			if args.confjson {
+			if cmdLineEnv.confjson {
 				bs, err = json.MarshalIndent(cfg, "", "  ")
 			} else {
 				bs, err = hjson.Marshal(cfg)
@@ -283,9 +241,9 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 			fmt.Println(string(bs))
 			return
 		}
-	case args.genconf:
+	case cmdLineEnv.genconf:
 		// Generate a new configuration and print it to stdout.
-		fmt.Println(doGenconf(args.confjson))
+		fmt.Println(doGenconf(cmdLineEnv.confjson))
 		return
 	default:
 		// No flags were provided, therefore print the list of flags to stdout.
@@ -305,14 +263,14 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		return nil
 	}
 	switch {
-	case args.getaddr:
+	case cmdLineEnv.getaddr:
 		if key := getNodeKey(); key != nil {
 			addr := address.AddrForKey(key)
 			ip := net.IP(addr[:])
 			fmt.Println(ip.String())
 		}
 		return
-	case args.getsnet:
+	case cmdLineEnv.getsnet:
 		if key := getNodeKey(); key != nil {
 			snet := address.SubnetForKey(key)
 			ipnet := net.IPNet{
@@ -384,7 +342,9 @@ func (n *node) shutdown() {
 }
 
 func main() {
-	args := getArgs()
+	var cmdLineEnv CmdLineEnv
+	cmdLineEnv.parseFlagsAndArgs()
+
 	hup := make(chan os.Signal, 1)
 	//signal.Notify(hup, os.Interrupt, syscall.SIGHUP)
 	term := make(chan os.Signal, 1)
@@ -392,7 +352,7 @@ func main() {
 	for {
 		done := make(chan struct{})
 		ctx, cancel := context.WithCancel(context.Background())
-		go run(args, ctx, done)
+		go run(cmdLineEnv, ctx, done)
 		select {
 		case <-hup:
 			cancel()

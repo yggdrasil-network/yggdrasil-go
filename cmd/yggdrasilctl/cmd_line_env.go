@@ -52,11 +52,11 @@ func (cmdLineEnv *CmdLineEnv) parseFlagsAndArgs() {
 
 	flag.Parse()
 
-	cmdLineEnv.args = flag.Args()
-	cmdLineEnv.server = *server
-	cmdLineEnv.injson = *injson
+	cmdLineEnv.args    = flag.Args()
+	cmdLineEnv.server  = *server
+	cmdLineEnv.injson  = *injson
 	cmdLineEnv.verbose = *verbose
-	cmdLineEnv.ver = *ver
+	cmdLineEnv.ver     = *ver
 }
 
 func (cmdLineEnv *CmdLineEnv) setEndpoint(logger *log.Logger) {
