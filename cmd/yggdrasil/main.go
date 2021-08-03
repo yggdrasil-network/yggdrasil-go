@@ -43,6 +43,32 @@ type node struct {
 	admin     *admin.AdminSocket
 }
 
+func main() {
+	var cmdLineEnv CmdLineEnv
+	cmdLineEnv.parseFlagsAndArgs()
+
+	hup := make(chan os.Signal, 1)
+	//signal.Notify(hup, os.Interrupt, syscall.SIGHUP)
+	term := make(chan os.Signal, 1)
+	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+	for {
+		done := make(chan struct{})
+		ctx, cancel := context.WithCancel(context.Background())
+		go run(cmdLineEnv, ctx, done)
+		select {
+		case <-hup:
+			cancel()
+			<-done
+		case <-term:
+			cancel()
+			<-done
+			return
+		case <-done:
+			return
+		}
+	}
+}
+
 func readConfig(log *log.Logger, useconf bool, useconffile string, normaliseconf bool) *config.NodeConfig {
 	// Use a configuration file. If -useconf, the configuration will be read
 	// from stdin. If -useconffile, the configuration will be read from the
@@ -339,30 +365,4 @@ func (n *node) shutdown() {
 	_ = n.multicast.Stop()
 	_ = n.tuntap.Stop()
 	n.core.Stop()
-}
-
-func main() {
-	var cmdLineEnv CmdLineEnv
-	cmdLineEnv.parseFlagsAndArgs()
-
-	hup := make(chan os.Signal, 1)
-	//signal.Notify(hup, os.Interrupt, syscall.SIGHUP)
-	term := make(chan os.Signal, 1)
-	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
-	for {
-		done := make(chan struct{})
-		ctx, cancel := context.WithCancel(context.Background())
-		go run(cmdLineEnv, ctx, done)
-		select {
-		case <-hup:
-			cancel()
-			<-done
-		case <-term:
-			cancel()
-			<-done
-			return
-		case <-done:
-			return
-		}
-	}
 }
