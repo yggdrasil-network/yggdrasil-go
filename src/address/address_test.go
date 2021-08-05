@@ -1,6 +1,7 @@
 package address
 
 import (
+	"crypto/ed25519"
 	"math/rand"
 	"testing"
 )
@@ -48,5 +49,22 @@ func TestAddress_Subnet_IsValid(t *testing.T) {
 
 	if !subnet.IsValid() {
 		t.Fatal("valid subnet marked as invalid")
+	}
+}
+
+func TestAddress_AddrForKey(t *testing.T) {
+	publicKey := ed25519.PublicKey{
+		189, 186, 207, 216, 34, 64, 222, 61, 205, 18, 57, 36, 203, 181, 82, 86,
+		251, 141, 171, 8, 170, 152, 227, 5, 82, 138, 184, 79, 65, 158, 110, 251,
+	}
+
+	gotAddress := AddrForKey(publicKey)
+
+	expectedAddress := Address{
+		2, 0, 132, 138, 96, 79, 187, 126, 67, 132, 101, 219, 141, 182, 104, 149,
+	}
+
+	if *gotAddress != expectedAddress {
+		t.Fatal("invalid address returned")
 	}
 }
