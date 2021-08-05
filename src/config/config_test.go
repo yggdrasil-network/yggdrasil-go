@@ -1,63 +1,63 @@
 package config
 
 import (
-  "bytes"
-  "encoding/hex"
-  "testing"
+	"bytes"
+	"encoding/hex"
+	"testing"
 )
 
 func TestConfig_Keys(t *testing.T) {
-  var nodeConfig NodeConfig
+	var nodeConfig NodeConfig
 
-  if nodeConfig.PublicKey != "" {
-    t.Fatal("public key is not empty by default")
-  }
+	if nodeConfig.PublicKey != "" {
+		t.Fatal("public key is not empty by default")
+	}
 
-  if nodeConfig.PrivateKey != "" {
-    t.Fatal("private key is not empty by default")
-  }
+	if nodeConfig.PrivateKey != "" {
+		t.Fatal("private key is not empty by default")
+	}
 
-  nodeConfig.NewKeys()
+	nodeConfig.NewKeys()
 
-  publicKey1, err := hex.DecodeString(nodeConfig.PublicKey)
+	publicKey1, err := hex.DecodeString(nodeConfig.PublicKey)
 
-  if err != nil {
-    t.Fatal("can not decode generated public key")
-  }
+	if err != nil {
+		t.Fatal("can not decode generated public key")
+	}
 
-  if len(publicKey1) == 0 {
-    t.Fatal("empty public key generated")
-  }
+	if len(publicKey1) == 0 {
+		t.Fatal("empty public key generated")
+	}
 
-  privateKey1, err := hex.DecodeString(nodeConfig.PrivateKey)
+	privateKey1, err := hex.DecodeString(nodeConfig.PrivateKey)
 
-  if err != nil {
-    t.Fatal("can not decode generated private key")
-  }
+	if err != nil {
+		t.Fatal("can not decode generated private key")
+	}
 
-  if len(privateKey1) == 0 {
-    t.Fatal("empty private key generated")
-  }
+	if len(privateKey1) == 0 {
+		t.Fatal("empty private key generated")
+	}
 
-  nodeConfig.NewKeys()
+	nodeConfig.NewKeys()
 
-  publicKey2, err := hex.DecodeString(nodeConfig.PublicKey)
+	publicKey2, err := hex.DecodeString(nodeConfig.PublicKey)
 
-  if err != nil {
-    t.Fatal("can not decode generated public key")
-  }
+	if err != nil {
+		t.Fatal("can not decode generated public key")
+	}
 
-  if bytes.Equal(publicKey2, publicKey1) {
-    t.Fatal("same public key generated")
-  }
+	if bytes.Equal(publicKey2, publicKey1) {
+		t.Fatal("same public key generated")
+	}
 
-  privateKey2, err := hex.DecodeString(nodeConfig.PrivateKey)
+	privateKey2, err := hex.DecodeString(nodeConfig.PrivateKey)
 
-  if err != nil {
-    t.Fatal("can not decode generated private key")
-  }
+	if err != nil {
+		t.Fatal("can not decode generated private key")
+	}
 
-  if bytes.Equal(privateKey2, privateKey1) {
-    t.Fatal("same private key generated")
-  }
+	if bytes.Equal(privateKey2, privateKey1) {
+		t.Fatal("same private key generated")
+	}
 }
