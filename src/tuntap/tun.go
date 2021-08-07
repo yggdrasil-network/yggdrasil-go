@@ -11,7 +11,6 @@ package tuntap
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net"
 
 	//"sync"
@@ -23,23 +22,17 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 )
 
-type IPReadWriteCloser interface {
-	io.ReadWriteCloser
-	MaxMTU() uint64
-	SetMTU(mtu uint64)
-	MTU() uint64
-	Address() address.Address
-	Subnet() address.Subnet
-}
+type MTU uint16
 
 // TunAdapter represents a running TUN interface and extends the
 // yggdrasil.Adapter type. In order to use the TUN adapter with Yggdrasil, you
 // should pass this object to the yggdrasil.SetRouterAdapter() function before
 // calling yggdrasil.Start().
 type TunAdapter struct {
-	rwc         IPReadWriteCloser
+	rwc         *ipv6rwc.ReadWriteCloser
 	config      *config.NodeConfig
 	log         *log.Logger
 	addr        address.Address
@@ -100,7 +93,7 @@ func MaximumMTU() uint64 {
 
 // Init initialises the TUN module. You must have acquired a Listener from
 // the Yggdrasil core before this point and it must not be in use elsewhere.
-func (tun *TunAdapter) Init(rwc IPReadWriteCloser, config *config.NodeConfig, log *log.Logger, options interface{}) error {
+func (tun *TunAdapter) Init(rwc *ipv6rwc.ReadWriteCloser, config *config.NodeConfig, log *log.Logger, options interface{}) error {
 	tun.rwc = rwc
 	tun.config = config
 	tun.log = log
