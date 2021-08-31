@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/url"
 	"time"
 
-	iw "github.com/Arceliar/ironwood/encrypted"
+	iwe "github.com/Arceliar/ironwood/encrypted"
+	iwt "github.com/Arceliar/ironwood/types"
 	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
 
@@ -26,13 +28,12 @@ type Core struct {
 	// We're going to keep our own copy of the provided config - that way we can
 	// guarantee that it will be covered by the mutex
 	phony.Inbox
-	pc           *iw.PacketConn
+	*iwe.PacketConn
 	config       *config.NodeConfig // Config
 	secret       ed25519.PrivateKey
 	public       ed25519.PublicKey
 	links        links
 	proto        protoHandler
-	store        keyStore
 	log          *log.Logger
 	addPeerTimer *time.Timer
 	ctx          context.Context
@@ -62,9 +63,8 @@ func (c *Core) _init() error {
 	c.public = c.secret.Public().(ed25519.PublicKey)
 	// TODO check public against current.PublicKey, error if they don't match
 
-	c.pc, err = iw.NewPacketConn(c.secret)
+	c.PacketConn, err = iwe.NewPacketConn(c.secret)
 	c.ctx, c.ctxCancel = context.WithCancel(context.Background())
-	c.store.init(c)
 	c.proto.init(c)
 	if err := c.proto.nodeinfo.setNodeInfo(c.config.NodeInfo, c.config.NodeInfoPrivacy); err != nil {
 		return fmt.Errorf("setNodeInfo: %w", err)
@@ -161,23 +161,79 @@ func (c *Core) _start(nc *config.NodeConfig, log *log.Logger) error {
 
 // Stop shuts down the Yggdrasil node.
 func (c *Core) Stop() {
-	phony.Block(c, c._stop)
+	phony.Block(c, func() {
+		c.log.Infoln("Stopping...")
+		c._close()
+		c.log.Infoln("Stopped")
+	})
+}
+
+func (c *Core) Close() error {
+	var err error
+	phony.Block(c, func() {
+		err = c._close()
+	})
+	return err
 }
 
 // This function is unsafe and should only be ran by the core actor.
-func (c *Core) _stop() {
-	c.log.Infoln("Stopping...")
+func (c *Core) _close() error {
 	c.ctxCancel()
-	c.pc.Close()
+	err := c.PacketConn.Close()
 	if c.addPeerTimer != nil {
 		c.addPeerTimer.Stop()
 		c.addPeerTimer = nil
 	}
 	_ = c.links.stop()
-	/* FIXME this deadlocks, need a waitgroup or something to coordinate shutdown
-	for _, peer := range c.GetPeers() {
-		c.DisconnectPeer(peer.Port)
+	return err
+}
+
+func (c *Core) MTU() uint64 {
+	const sessionTypeOverhead = 1
+	return c.PacketConn.MTU() - sessionTypeOverhead
+}
+
+func (c *Core) ReadFrom(p []byte) (n int, from net.Addr, err error) {
+	buf := make([]byte, c.PacketConn.MTU(), 65535)
+	for {
+		bs := buf
+		n, from, err = c.PacketConn.ReadFrom(bs)
+		if err != nil {
+			return 0, from, err
+		}
+		if n == 0 {
+			continue
+		}
+		switch bs[0] {
+		case typeSessionTraffic:
+			// This is what we want to handle here
+		case typeSessionProto:
+			var key keyArray
+			copy(key[:], from.(iwt.Addr))
+			data := append([]byte(nil), bs[1:n]...)
+			c.proto.handleProto(nil, key, data)
+			continue
+		default:
+			continue
+		}
+		bs = bs[1:n]
+		copy(p, bs)
+		if len(p) < len(bs) {
+			n = len(p)
+		} else {
+			n = len(bs)
+		}
+		return
 	}
-	*/
-	c.log.Infoln("Stopped")
+}
+
+func (c *Core) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+	buf := make([]byte, 0, 65535)
+	buf = append(buf, typeSessionTraffic)
+	buf = append(buf, p...)
+	n, err = c.PacketConn.WriteTo(buf, addr)
+	if n > 0 {
+		n -= 1
+	}
+	return
 }

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -28,6 +29,8 @@ type reqInfo struct {
 	callback func([]byte)
 	timer    *time.Timer // time.AfterFunc cleanup
 }
+
+type keyArray [ed25519.PublicKeySize]byte
 
 type protoHandler struct {
 	phony.Inbox
@@ -149,7 +152,7 @@ func (p *protoHandler) _handleGetPeersRequest(key keyArray) {
 	for _, pinfo := range peers {
 		tmp := append(bs, pinfo.Key[:]...)
 		const responseOverhead = 2 // 1 debug type, 1 getpeers type
-		if uint64(len(tmp))+responseOverhead > p.core.store.maxSessionMTU() {
+		if uint64(len(tmp))+responseOverhead > p.core.MTU() {
 			break
 		}
 		bs = tmp
@@ -191,7 +194,7 @@ func (p *protoHandler) _handleGetDHTRequest(key keyArray) {
 	for _, dinfo := range dinfos {
 		tmp := append(bs, dinfo.Key[:]...)
 		const responseOverhead = 2 // 1 debug type, 1 getdht type
-		if uint64(len(tmp))+responseOverhead > p.core.store.maxSessionMTU() {
+		if uint64(len(tmp))+responseOverhead > p.core.MTU() {
 			break
 		}
 		bs = tmp
@@ -209,7 +212,7 @@ func (p *protoHandler) _handleGetDHTResponse(key keyArray, bs []byte) {
 
 func (p *protoHandler) _sendDebug(key keyArray, dType uint8, data []byte) {
 	bs := append([]byte{typeSessionProto, typeProtoDebug, dType}, data...)
-	_, _ = p.core.pc.WriteTo(bs, iwt.Addr(key[:]))
+	_, _ = p.core.PacketConn.WriteTo(bs, iwt.Addr(key[:]))
 }
 
 // Admin socket stuff

@@ -1,12 +1,5 @@
 package core
 
-// Out-of-band packet types
-const (
-	typeKeyDummy = iota // nolint:deadcode,varcheck
-	typeKeyLookup
-	typeKeyResponse
-)
-
 // In-band packet types
 const (
 	typeSessionDummy = iota // nolint:deadcode,varcheck

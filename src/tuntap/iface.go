@@ -17,7 +17,7 @@ func (tun *TunAdapter) read() {
 		begin := TUN_OFFSET_BYTES
 		end := begin + n
 		bs := buf[begin:end]
-		if _, err := tun.core.Write(bs); err != nil {
+		if _, err := tun.rwc.Write(bs); err != nil {
 			tun.log.Debugln("Unable to send packet:", err)
 		}
 	}
@@ -27,7 +27,7 @@ func (tun *TunAdapter) write() {
 	var buf [TUN_OFFSET_BYTES + 65535]byte
 	for {
 		bs := buf[TUN_OFFSET_BYTES:]
-		n, err := tun.core.Read(bs)
+		n, err := tun.rwc.Read(bs)
 		if err != nil {
 			tun.log.Errorln("Exiting tun writer due to core read error:", err)
 			return
