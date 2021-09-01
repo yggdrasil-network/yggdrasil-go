@@ -34,20 +34,25 @@ type keyArray [ed25519.PublicKeySize]byte
 
 type protoHandler struct {
 	phony.Inbox
-	core     *Core
+
 	nodeinfo nodeinfo
-	sreqs    map[keyArray]*reqInfo
-	preqs    map[keyArray]*reqInfo
-	dreqs    map[keyArray]*reqInfo
+	core *Core
+
+	getSelfRequests  map[keyArray]*reqInfo
+	getPeersRequests map[keyArray]*reqInfo
+	getDHTRequests   map[keyArray]*reqInfo
 }
 
 func (p *protoHandler) init(core *Core) {
 	p.core = core
 	p.nodeinfo.init(p)
-	p.sreqs = make(map[keyArray]*reqInfo)
-	p.preqs = make(map[keyArray]*reqInfo)
-	p.dreqs = make(map[keyArray]*reqInfo)
+
+	p.getSelfRequests  = make(map[keyArray]*reqInfo)
+	p.getPeersRequests = make(map[keyArray]*reqInfo)
+	p.getDHTRequests   = make(map[keyArray]*reqInfo)
 }
+
+// Common functions
 
 func (p *protoHandler) handleProto(from phony.Actor, key keyArray, bs []byte) {
 	if len(bs) == 0 {
@@ -85,22 +90,29 @@ func (p *protoHandler) _handleDebug(key keyArray, bs []byte) {
 	}
 }
 
+func (p *protoHandler) _sendDebug(key keyArray, dType uint8, data []byte) {
+	bs := append([]byte{typeSessionProto, typeProtoDebug, dType}, data...)
+	_, _ = p.core.PacketConn.WriteTo(bs, iwt.Addr(key[:]))
+}
+
+// Get self
+
 func (p *protoHandler) sendGetSelfRequest(key keyArray, callback func([]byte)) {
 	p.Act(nil, func() {
-		if info := p.sreqs[key]; info != nil {
+		if info := p.getSelfRequests[key]; info != nil {
 			info.timer.Stop()
-			delete(p.sreqs, key)
+			delete(p.getSelfRequests, key)
 		}
 		info := new(reqInfo)
 		info.callback = callback
 		info.timer = time.AfterFunc(time.Minute, func() {
 			p.Act(nil, func() {
-				if p.sreqs[key] == info {
-					delete(p.sreqs, key)
+				if p.getSelfRequests[key] == info {
+					delete(p.getSelfRequests, key)
 				}
 			})
 		})
-		p.sreqs[key] = info
+		p.getSelfRequests[key] = info
 		p._sendDebug(key, typeDebugGetSelfRequest, nil)
 	})
 }
@@ -119,29 +131,31 @@ func (p *protoHandler) _handleGetSelfRequest(key keyArray) {
 }
 
 func (p *protoHandler) _handleGetSelfResponse(key keyArray, bs []byte) {
-	if info := p.sreqs[key]; info != nil {
+	if info := p.getSelfRequests[key]; info != nil {
 		info.timer.Stop()
 		info.callback(bs)
-		delete(p.sreqs, key)
+		delete(p.getSelfRequests, key)
 	}
 }
 
+// Get peers
+
 func (p *protoHandler) sendGetPeersRequest(key keyArray, callback func([]byte)) {
 	p.Act(nil, func() {
-		if info := p.preqs[key]; info != nil {
+		if info := p.getPeersRequests[key]; info != nil {
 			info.timer.Stop()
-			delete(p.preqs, key)
+			delete(p.getPeersRequests, key)
 		}
 		info := new(reqInfo)
 		info.callback = callback
 		info.timer = time.AfterFunc(time.Minute, func() {
 			p.Act(nil, func() {
-				if p.preqs[key] == info {
-					delete(p.preqs, key)
+				if p.getPeersRequests[key] == info {
+					delete(p.getPeersRequests, key)
 				}
 			})
 		})
-		p.preqs[key] = info
+		p.getPeersRequests[key] = info
 		p._sendDebug(key, typeDebugGetPeersRequest, nil)
 	})
 }
@@ -161,29 +175,31 @@ func (p *protoHandler) _handleGetPeersRequest(key keyArray) {
 }
 
 func (p *protoHandler) _handleGetPeersResponse(key keyArray, bs []byte) {
-	if info := p.preqs[key]; info != nil {
+	if info := p.getPeersRequests[key]; info != nil {
 		info.timer.Stop()
 		info.callback(bs)
-		delete(p.preqs, key)
+		delete(p.getPeersRequests, key)
 	}
 }
 
+// Get DHT
+
 func (p *protoHandler) sendGetDHTRequest(key keyArray, callback func([]byte)) {
 	p.Act(nil, func() {
-		if info := p.dreqs[key]; info != nil {
+		if info := p.getDHTRequests[key]; info != nil {
 			info.timer.Stop()
-			delete(p.dreqs, key)
+			delete(p.getDHTRequests, key)
 		}
 		info := new(reqInfo)
 		info.callback = callback
 		info.timer = time.AfterFunc(time.Minute, func() {
 			p.Act(nil, func() {
-				if p.dreqs[key] == info {
-					delete(p.dreqs, key)
+				if p.getDHTRequests[key] == info {
+					delete(p.getDHTRequests, key)
 				}
 			})
 		})
-		p.dreqs[key] = info
+		p.getDHTRequests[key] = info
 		p._sendDebug(key, typeDebugGetDHTRequest, nil)
 	})
 }
@@ -203,19 +219,14 @@ func (p *protoHandler) _handleGetDHTRequest(key keyArray) {
 }
 
 func (p *protoHandler) _handleGetDHTResponse(key keyArray, bs []byte) {
-	if info := p.dreqs[key]; info != nil {
+	if info := p.getDHTRequests[key]; info != nil {
 		info.timer.Stop()
 		info.callback(bs)
-		delete(p.dreqs, key)
+		delete(p.getDHTRequests, key)
 	}
 }
 
-func (p *protoHandler) _sendDebug(key keyArray, dType uint8, data []byte) {
-	bs := append([]byte{typeSessionProto, typeProtoDebug, dType}, data...)
-	_, _ = p.core.PacketConn.WriteTo(bs, iwt.Addr(key[:]))
-}
-
-// Admin socket stuff
+// Admin socket stuff for "Get self"
 
 type DebugGetSelfRequest struct {
 	Key string `json:"key"`
@@ -254,6 +265,8 @@ func (p *protoHandler) getSelfHandler(in json.RawMessage) (interface{}, error) {
 		return res, nil
 	}
 }
+
+// Admin socket stuff for "Get peers"
 
 type DebugGetPeersRequest struct {
 	Key string `json:"key"`
@@ -302,6 +315,8 @@ func (p *protoHandler) getPeersHandler(in json.RawMessage) (interface{}, error) 
 		return res, nil
 	}
 }
+
+// Admin socket stuff for "Get DHT"
 
 type DebugGetDHTRequest struct {
 	Key string `json:"key"`
