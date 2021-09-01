@@ -35,8 +35,8 @@ type keyArray [ed25519.PublicKeySize]byte
 type protoHandler struct {
 	phony.Inbox
 
+	core     *Core
 	nodeinfo nodeinfo
-	core *Core
 
 	getSelfRequests  map[keyArray]*reqInfo
 	getPeersRequests map[keyArray]*reqInfo
