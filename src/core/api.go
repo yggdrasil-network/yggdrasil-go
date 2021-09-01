@@ -242,8 +242,10 @@ func (c *Core) PublicKey() ed25519.PublicKey {
 // Hack to get the admin stuff working, TODO something cleaner
 
 type AddHandler interface {
-	AddHandler(name string, args []string, handlerfunc func(json.RawMessage) (interface{}, error)) error
+	AddHandler(name string, args []string, handlerfunc AddHandlerFunc) error
 }
+
+type AddHandlerFunc func(json.RawMessage) (interface{}, error)
 
 // SetAdmin must be called after Init and before Start.
 // It sets the admin handler for NodeInfo and the Debug admin functions.
