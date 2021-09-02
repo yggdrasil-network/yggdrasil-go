@@ -38,18 +38,18 @@ type protoHandler struct {
 	core     *Core
 	nodeinfo nodeinfo
 
-	getSelfRequests  map[keyArray]*reqInfo
-	getPeersRequests map[keyArray]*reqInfo
-	getDHTRequests   map[keyArray]*reqInfo
+	selfRequests  map[keyArray]*reqInfo
+	peersRequests map[keyArray]*reqInfo
+	dhtRequests   map[keyArray]*reqInfo
 }
 
 func (p *protoHandler) init(core *Core) {
 	p.core = core
 	p.nodeinfo.init(p)
 
-	p.getSelfRequests  = make(map[keyArray]*reqInfo)
-	p.getPeersRequests = make(map[keyArray]*reqInfo)
-	p.getDHTRequests   = make(map[keyArray]*reqInfo)
+	p.selfRequests  = make(map[keyArray]*reqInfo)
+	p.peersRequests = make(map[keyArray]*reqInfo)
+	p.dhtRequests   = make(map[keyArray]*reqInfo)
 }
 
 // Common functions
@@ -99,20 +99,20 @@ func (p *protoHandler) _sendDebug(key keyArray, dType uint8, data []byte) {
 
 func (p *protoHandler) sendGetSelfRequest(key keyArray, callback func([]byte)) {
 	p.Act(nil, func() {
-		if info := p.getSelfRequests[key]; info != nil {
+		if info := p.selfRequests[key]; info != nil {
 			info.timer.Stop()
-			delete(p.getSelfRequests, key)
+			delete(p.selfRequests, key)
 		}
 		info := new(reqInfo)
 		info.callback = callback
 		info.timer = time.AfterFunc(time.Minute, func() {
 			p.Act(nil, func() {
-				if p.getSelfRequests[key] == info {
-					delete(p.getSelfRequests, key)
+				if p.selfRequests[key] == info {
+					delete(p.selfRequests, key)
 				}
 			})
 		})
-		p.getSelfRequests[key] = info
+		p.selfRequests[key] = info
 		p._sendDebug(key, typeDebugGetSelfRequest, nil)
 	})
 }
@@ -131,10 +131,10 @@ func (p *protoHandler) _handleGetSelfRequest(key keyArray) {
 }
 
 func (p *protoHandler) _handleGetSelfResponse(key keyArray, bs []byte) {
-	if info := p.getSelfRequests[key]; info != nil {
+	if info := p.selfRequests[key]; info != nil {
 		info.timer.Stop()
 		info.callback(bs)
-		delete(p.getSelfRequests, key)
+		delete(p.selfRequests, key)
 	}
 }
 
@@ -142,20 +142,20 @@ func (p *protoHandler) _handleGetSelfResponse(key keyArray, bs []byte) {
 
 func (p *protoHandler) sendGetPeersRequest(key keyArray, callback func([]byte)) {
 	p.Act(nil, func() {
-		if info := p.getPeersRequests[key]; info != nil {
+		if info := p.peersRequests[key]; info != nil {
 			info.timer.Stop()
-			delete(p.getPeersRequests, key)
+			delete(p.peersRequests, key)
 		}
 		info := new(reqInfo)
 		info.callback = callback
 		info.timer = time.AfterFunc(time.Minute, func() {
 			p.Act(nil, func() {
-				if p.getPeersRequests[key] == info {
-					delete(p.getPeersRequests, key)
+				if p.peersRequests[key] == info {
+					delete(p.peersRequests, key)
 				}
 			})
 		})
-		p.getPeersRequests[key] = info
+		p.peersRequests[key] = info
 		p._sendDebug(key, typeDebugGetPeersRequest, nil)
 	})
 }
@@ -175,10 +175,10 @@ func (p *protoHandler) _handleGetPeersRequest(key keyArray) {
 }
 
 func (p *protoHandler) _handleGetPeersResponse(key keyArray, bs []byte) {
-	if info := p.getPeersRequests[key]; info != nil {
+	if info := p.peersRequests[key]; info != nil {
 		info.timer.Stop()
 		info.callback(bs)
-		delete(p.getPeersRequests, key)
+		delete(p.peersRequests, key)
 	}
 }
 
@@ -186,20 +186,20 @@ func (p *protoHandler) _handleGetPeersResponse(key keyArray, bs []byte) {
 
 func (p *protoHandler) sendGetDHTRequest(key keyArray, callback func([]byte)) {
 	p.Act(nil, func() {
-		if info := p.getDHTRequests[key]; info != nil {
+		if info := p.dhtRequests[key]; info != nil {
 			info.timer.Stop()
-			delete(p.getDHTRequests, key)
+			delete(p.dhtRequests, key)
 		}
 		info := new(reqInfo)
 		info.callback = callback
 		info.timer = time.AfterFunc(time.Minute, func() {
 			p.Act(nil, func() {
-				if p.getDHTRequests[key] == info {
-					delete(p.getDHTRequests, key)
+				if p.dhtRequests[key] == info {
+					delete(p.dhtRequests, key)
 				}
 			})
 		})
-		p.getDHTRequests[key] = info
+		p.dhtRequests[key] = info
 		p._sendDebug(key, typeDebugGetDHTRequest, nil)
 	})
 }
@@ -219,10 +219,10 @@ func (p *protoHandler) _handleGetDHTRequest(key keyArray) {
 }
 
 func (p *protoHandler) _handleGetDHTResponse(key keyArray, bs []byte) {
-	if info := p.getDHTRequests[key]; info != nil {
+	if info := p.dhtRequests[key]; info != nil {
 		info.timer.Stop()
 		info.callback(bs)
-		delete(p.getDHTRequests, key)
+		delete(p.dhtRequests, key)
 	}
 }
 
