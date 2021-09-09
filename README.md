@@ -1,19 +1,22 @@
-# Mesh
+# RiV-mesh
 
 [![CircleCI](https://circleci.com/gh/RiV-chain/RiV-mesh.svg?style=shield&circle-token=:circle-token
 )](https://circleci.com/gh/RiV-chain/RiV-mesh)
 
 ## Introduction
 
-Mesh is an early-stage implementation of a fully end-to-end encrypted IPv6
-network. It is lightweight, self-arranging, supported on multiple platforms and
-allows pretty much any IPv6-capable application to communicate securely with
-other Mesh nodes. Mesh does not require you to have IPv6 Internet
-connectivity - it also works over IPv4.
+RiV-mesh is an implementation of a fully end-to-end encrypted IPv6
+network, created in the scope to produce the Transport Layer for RiV Chain Blockchain,
+also to facilitate secure conectivity between a wide spectrum of endpoint devices like IoT devices,
+desktop computers or even routers.
+It is lightweight, self-arranging, supported on multiple
+platforms and allows pretty much any IPv6-capable application
+to communicate securely with other RiV-mesh nodes.
+RiV-mesh does not require you to have IPv6 Internet connectivity - it also works over IPv4.
 
 ## Supported Platforms
 
-Mesh works on a number of platforms, including Linux, macOS, Ubiquiti
+RiV-mesh works on a number of platforms, including Linux, macOS, Ubiquiti
 EdgeRouter, VyOS, Windows, FreeBSD, OpenBSD and OpenWrt.
 
 Please see our [Installation](https://RiV-chain.github.io/installation.html) 
@@ -54,7 +57,7 @@ programmatically):
 You will need to edit the `mesh.conf` file to add or remove peers, modify
 other configuration such as listen addresses or multicast addresses, etc.
 
-### Run Mesh
+### Run RiV-mesh
 
 To run with the generated static configuration:
 ```
@@ -68,24 +71,23 @@ at each startup, instead of using a static configuration file):
 ./mesh -autoconf
 ```
 
-You will likely need to run Mesh as a privileged user or under `sudo`,
+You will likely need to run RiV-mesh as a privileged user or under `sudo`,
 unless you have permission to create TUN/TAP adapters. On Linux this can be done
-by giving the Mesh binary the `CAP_NET_ADMIN` capability.
+by giving the RiV-mesh binary the `CAP_NET_ADMIN` capability.
 
 ## Documentation
 
 Documentation is available [on our website](https://RiV-chain.github.io).
 
-- [Installing Mesh](https://RiV-chain.github.io/installation.html)
-- [Configuring Mesh](https://RiV-chain.github.io/configuration.html)
+- [Installing RiV-mesh](https://RiV-chain.github.io/installation.html)
+- [Configuring RiV-mesh](https://RiV-chain.github.io/configuration.html)
 - [Frequently asked questions](https://RiV-chain.github.io/faq.html)
 - [Version changelog](CHANGELOG.md)
 
 ## Community
 
-Feel free to join us on our [Matrix
-channel](https://matrix.to/#/#mesh:matrix.org) at `#mesh:matrix.org`
-or in the `#mesh` IRC channel on [libera.chat](https://libera.chat).
+Feel free to join us on our [Telegram
+channel](https://t.me/rivchain).
 
 ## License
 
