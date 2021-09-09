@@ -10,7 +10,7 @@ func GetDefaults() platformDefaultParameters {
 		DefaultAdminListen: "tcp://localhost:9001",
 
 		// Configuration (used for meshctl)
-		DefaultConfigFile: "C:\\Program Files\\Yggdrasil\\mesh.conf",
+		DefaultConfigFile: "C:\\Program Files\\Mesh\\mesh.conf",
 
 		// Multicast interfaces
 		DefaultMulticastInterfaces: []MulticastInterfaceConfig{
@@ -20,6 +20,6 @@ func GetDefaults() platformDefaultParameters {
 		// TUN/TAP
 		MaximumIfMTU:  65535,
 		DefaultIfMTU:  65535,
-		DefaultIfName: "Yggdrasil",
+		DefaultIfName: "Mesh",
 	}
 }

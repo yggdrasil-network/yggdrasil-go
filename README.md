@@ -1,19 +1,19 @@
-# Yggdrasil
+# Mesh
 
 [![CircleCI](https://circleci.com/gh/RiV-chain/RiV-mesh.svg?style=shield&circle-token=:circle-token
 )](https://circleci.com/gh/RiV-chain/RiV-mesh)
 
 ## Introduction
 
-Yggdrasil is an early-stage implementation of a fully end-to-end encrypted IPv6
+Mesh is an early-stage implementation of a fully end-to-end encrypted IPv6
 network. It is lightweight, self-arranging, supported on multiple platforms and
 allows pretty much any IPv6-capable application to communicate securely with
-other Yggdrasil nodes. Yggdrasil does not require you to have IPv6 Internet
+other Mesh nodes. Mesh does not require you to have IPv6 Internet
 connectivity - it also works over IPv4.
 
 ## Supported Platforms
 
-Yggdrasil works on a number of platforms, including Linux, macOS, Ubiquiti
+Mesh works on a number of platforms, including Linux, macOS, Ubiquiti
 EdgeRouter, VyOS, Windows, FreeBSD, OpenBSD and OpenWrt.
 
 Please see our [Installation](https://RiV-chain.github.io/installation.html) 
@@ -54,7 +54,7 @@ programmatically):
 You will need to edit the `mesh.conf` file to add or remove peers, modify
 other configuration such as listen addresses or multicast addresses, etc.
 
-### Run Yggdrasil
+### Run Mesh
 
 To run with the generated static configuration:
 ```
@@ -68,16 +68,16 @@ at each startup, instead of using a static configuration file):
 ./mesh -autoconf
 ```
 
-You will likely need to run Yggdrasil as a privileged user or under `sudo`,
+You will likely need to run Mesh as a privileged user or under `sudo`,
 unless you have permission to create TUN/TAP adapters. On Linux this can be done
-by giving the Yggdrasil binary the `CAP_NET_ADMIN` capability.
+by giving the Mesh binary the `CAP_NET_ADMIN` capability.
 
 ## Documentation
 
 Documentation is available [on our website](https://RiV-chain.github.io).
 
-- [Installing Yggdrasil](https://RiV-chain.github.io/installation.html)
-- [Configuring Yggdrasil](https://RiV-chain.github.io/configuration.html)
+- [Installing Mesh](https://RiV-chain.github.io/installation.html)
+- [Configuring Mesh](https://RiV-chain.github.io/configuration.html)
 - [Frequently asked questions](https://RiV-chain.github.io/faq.html)
 - [Version changelog](CHANGELOG.md)
 
