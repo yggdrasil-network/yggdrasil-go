@@ -28,7 +28,7 @@ import (
 type MTU uint16
 
 // TunAdapter represents a running TUN interface and extends the
-// mesh.Adapter type. In order to use the TUN adapter with Mesh, you
+// mesh.Adapter type. In order to use the TUN adapter with Yggdrasil, you
 // should pass this object to the mesh.SetRouterAdapter() function before
 // calling mesh.Start().
 type TunAdapter struct {
@@ -37,7 +37,6 @@ type TunAdapter struct {
 	log         *log.Logger
 	addr        address.Address
 	subnet      address.Subnet
-	ckr         cryptokey
 	mtu         uint64
 	iface       tun.Device
 	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
@@ -93,7 +92,7 @@ func MaximumMTU() uint64 {
 }
 
 // Init initialises the TUN module. You must have acquired a Listener from
-// the Mesh core before this point and it must not be in use elsewhere.
+// the Yggdrasil core before this point and it must not be in use elsewhere.
 func (tun *TunAdapter) Init(rwc *ipv6rwc.ReadWriteCloser, config *config.NodeConfig, log *log.Logger, options interface{}) error {
 	tun.rwc = rwc
 	tun.config = config
@@ -141,7 +140,6 @@ func (tun *TunAdapter) _start() error {
 	}
 	tun.rwc.SetMTU(tun.MTU())
 	tun.isOpen = true
-	tun.ckr.init(tun)
 	tun.isEnabled = true
 	go tun.read()
 	go tun.write()

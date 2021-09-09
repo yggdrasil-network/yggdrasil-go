@@ -1,6 +1,6 @@
 /*
 The config package contains structures related to the configuration of an
-Mesh node.
+Yggdrasil node.
 
 The configuration contains, amongst other things, encryption keys which are used
 to derive a node's identity, information about peerings and node information
@@ -11,7 +11,7 @@ In order for a node to maintain the same identity across restarts, you should
 persist the configuration onto the filesystem or into some configuration storage
 so that the encryption keys (and therefore the node ID) do not change.
 
-Note that Mesh will automatically populate sane defaults for any
+Note that Yggdrasil will automatically populate sane defaults for any
 configuration option that is not provided.
 */
 package config
@@ -23,8 +23,8 @@ import (
 )
 
 // NodeConfig is the main configuration structure, containing configuration
-// options that are necessary for an Mesh node to run. You will need to
-// supply one of these structs to the Mesh core when starting a node.
+// options that are necessary for an Yggdrasil node to run. You will need to
+// supply one of these structs to the Yggdrasil core when starting a node.
 type NodeConfig struct {
 	sync.RWMutex        `json:"-"`
 	Peers               []string                   `comment:"List of connection strings for outbound peer connections in URI format,\ne.g. tls://a.b.c.d:e or socks://a.b.c.d:e/f.g.h.i:j. These connections\nwill obey the operating system routing table, therefore you should\nuse this section when you may connect via different interfaces."`
@@ -37,19 +37,8 @@ type NodeConfig struct {
 	PrivateKey          string                     `comment:"Your private key. DO NOT share this with anyone!"`
 	IfName              string                     `comment:"Local network interface name for TUN adapter, or \"auto\" to select\nan interface automatically, or \"none\" to run without TUN."`
 	IfMTU               uint64                     `comment:"Maximum Transmission Unit (MTU) size for your local TUN interface.\nDefault is the largest supported size for your platform. The lowest\npossible value is 1280."`
-	TunnelRouting       TunnelRouting              `comment:"Allow tunneling non-Mesh traffic over Mesh. This effectively\nallows you to use Mesh to route to, or to bridge other networks,\nsimilar to a VPN tunnel. Tunnelling works between any two nodes and\ndoes not require them to be directly peered."`
-	NodeInfoPrivacy     bool                       `comment:"By default, nodeinfo contains some defaults including the platform,\narchitecture and Mesh version. These can help when surveying\nthe network and diagnosing network routing problems. Enabling\nnodeinfo privacy prevents this, so that only items specified in\n\"NodeInfo\" are sent back if specified."`
+	NodeInfoPrivacy     bool                       `comment:"By default, nodeinfo contains some defaults including the platform,\narchitecture and Yggdrasil version. These can help when surveying\nthe network and diagnosing network routing problems. Enabling\nnodeinfo privacy prevents this, so that only items specified in\n\"NodeInfo\" are sent back if specified."`
 	NodeInfo            map[string]interface{}     `comment:"Optional node info. This must be a { \"key\": \"value\", ... } map\nor set as null. This is entirely optional but, if set, is visible\nto the whole network on request."`
-}
-
-// TunnelRouting contains the crypto-key routing tables for tunneling regular
-// IPv4 or IPv6 subnets across the Mesh network.
-type TunnelRouting struct {
-	Enable            bool              `comment:"Enable or disable tunnel routing."`
-	IPv6RemoteSubnets map[string]string `comment:"IPv6 subnets belonging to remote nodes, mapped to the node's public\nkey, e.g. { \"aaaa:bbbb:cccc::/e\": \"boxpubkey\", ... }"`
-	IPv6LocalSubnets  []string          `comment:"IPv6 subnets belonging to this node's end of the tunnels. Only traffic\nfrom these ranges (or the Mesh node's IPv6 address/subnet)\nwill be tunnelled."`
-	IPv4RemoteSubnets map[string]string `comment:"IPv4 subnets belonging to remote nodes, mapped to the node's public\nkey, e.g. { \"a.b.c.d/e\": \"boxpubkey\", ... }"`
-	IPv4LocalSubnets  []string          `comment:"IPv4 subnets belonging to this node's end of the tunnels. Only traffic\nfrom these ranges will be tunnelled."`
 }
 
 type MulticastInterfaceConfig struct {

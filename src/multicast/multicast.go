@@ -21,8 +21,8 @@ import (
 )
 
 // Multicast represents the multicast advertisement and discovery mechanism used
-// by Mesh to find peers on the same subnet. When a beacon is received on a
-// configured multicast interface, Mesh will attempt to peer with that node
+// by Yggdrasil to find peers on the same subnet. When a beacon is received on a
+// configured multicast interface, Yggdrasil will attempt to peer with that node
 // automatically.
 type Multicast struct {
 	phony.Inbox

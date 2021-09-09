@@ -45,19 +45,19 @@ cat > pkgbuild/scripts/postinstall << EOF
 # Normalise the config if it exists, generate it if it doesn't
 if [ -f /etc/mesh.conf ];
 then
-  mkdir -p /Library/Preferences/Mesh
-  echo "Backing up configuration file to /Library/Preferences/Mesh/mesh.conf.`date +%Y%m%d`"
-  cp /etc/mesh.conf /Library/Preferences/Mesh/mesh.conf.`date +%Y%m%d`
+  mkdir -p /Library/Preferences/Yggdrasil
+  echo "Backing up configuration file to /Library/Preferences/Yggdrasil/mesh.conf.`date +%Y%m%d`"
+  cp /etc/mesh.conf /Library/Preferences/Yggdrasil/mesh.conf.`date +%Y%m%d`
   echo "Normalising /etc/mesh.conf"
-  /usr/local/bin/mesh -useconffile /Library/Preferences/Mesh/mesh.conf.`date +%Y%m%d` -normaliseconf > /etc/mesh.conf
+  /usr/local/bin/mesh -useconffile /Library/Preferences/Yggdrasil/mesh.conf.`date +%Y%m%d` -normaliseconf > /etc/mesh.conf
 else
   /usr/local/bin/mesh -genconf > /etc/mesh.conf
 fi
 
-# Unload existing Mesh launchd service, if possible
+# Unload existing Yggdrasil launchd service, if possible
 test -f /Library/LaunchDaemons/mesh.plist && (launchctl unload /Library/LaunchDaemons/mesh.plist || true)
 
-# Load Mesh launchd service and start Mesh
+# Load Yggdrasil launchd service and start Yggdrasil
 launchctl load /Library/LaunchDaemons/mesh.plist
 EOF
 
@@ -93,7 +93,7 @@ EOF
 cat > pkgbuild/flat/Distribution << EOF
 <?xml version="1.0" encoding="utf-8"?>
 <installer-script minSpecVersion="1.000000" authoringTool="com.apple.PackageMaker" authoringToolVersion="3.0.3" authoringToolBuild="174">
-    <title>Mesh (${PKGNAME}-${PKGVERSION})</title>
+    <title>Yggdrasil (${PKGNAME}-${PKGVERSION})</title>
     <options customize="never" allow-external-scripts="no"/>
     <domains enable_anywhere="true"/>
     <installation-check script="pm_install_check();"/>
@@ -101,7 +101,7 @@ cat > pkgbuild/flat/Distribution << EOF
     function pm_install_check() {
       if(!(system.compareVersions(system.version.ProductVersion,'10.10') >= 0)) {
         my.result.title = 'Failure';
-        my.result.message = 'You need at least Mac OS X 10.10 to install Mesh.';
+        my.result.message = 'You need at least Mac OS X 10.10 to install Yggdrasil.';
         my.result.type = 'Fatal';
         return false;
       }

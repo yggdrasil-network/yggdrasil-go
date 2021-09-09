@@ -53,11 +53,11 @@ Architecture: $PKGARCH
 Replaces: $PKGREPLACES
 Conflicts: $PKGREPLACES
 Maintainer: Neil Alexander <neilalexander@users.noreply.github.com>
-Description: Mesh Network
- Mesh is an early-stage implementation of a fully end-to-end encrypted IPv6
+Description: Yggdrasil Network
+ Yggdrasil is an early-stage implementation of a fully end-to-end encrypted IPv6
  network. It is lightweight, self-arranging, supported on multiple platforms and
  allows pretty much any IPv6-capable application to communicate securely with
- other Mesh nodes.
+ other Yggdrasil nodes.
 EOF
 cat > /tmp/$PKGNAME/debian/copyright << EOF
 Please see https://github.com/RiV-chain/RiV-mesh/
@@ -93,7 +93,7 @@ then
   fi
 else
   echo "Generating initial configuration file /etc/mesh.conf"
-  echo "Please familiarise yourself with this file before starting Mesh"
+  echo "Please familiarise yourself with this file before starting Yggdrasil"
   sh -c 'umask 0027 && /usr/bin/mesh -genconf > /etc/mesh.conf'
   chgrp mesh /etc/mesh.conf
 fi
