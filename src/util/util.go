@@ -44,7 +44,7 @@ func FuncTimeout(timeout time.Duration, f func()) bool {
 // GetFlowKey takes an IP packet as an argument and returns some information about the traffic flow.
 // For IPv4 packets, this is derived from the source and destination protocol and port numbers.
 // For IPv6 packets, this is derived from the FlowLabel field of the packet if this was set, otherwise it's handled like IPv4.
-// The FlowKey is then used internally by Yggdrasil for congestion control.
+// The FlowKey is then used internally by Mesh for congestion control.
 func GetFlowKey(bs []byte) uint64 {
 	// Work out the flowkey - this is used to determine which switch queue
 	// traffic will be pushed to in the event of congestion

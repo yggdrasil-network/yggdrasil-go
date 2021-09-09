@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/Arceliar/phony"
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
-	"github.com/yggdrasil-network/yggdrasil-go/src/yggdrasil"
+	"github.com/RiV-chain/RiV-mesh/src/address"
+	"github.com/RiV-chain/RiV-mesh/src/util"
+	"github.com/RiV-chain/RiV-mesh/src/yggdrasil"
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv6"
 )

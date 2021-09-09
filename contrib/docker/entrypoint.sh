@@ -2,7 +2,7 @@
 
 set -e
 
-CONF_DIR="/etc/yggdrasil-network"
+CONF_DIR="/etc/RiV-chain"
 
 if [ ! -f "$CONF_DIR/config.conf" ]; then
   echo "generate $CONF_DIR/config.conf"

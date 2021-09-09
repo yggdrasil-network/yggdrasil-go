@@ -41,7 +41,7 @@ mkdir -p /tmp/$PKGNAME/usr/bin/
 mkdir -p /tmp/$PKGNAME/etc/systemd/system/
 
 cat > /tmp/$PKGNAME/debian/changelog << EOF
-Please see https://github.com/yggdrasil-network/yggdrasil-go/
+Please see https://github.com/RiV-chain/RiV-mesh/
 EOF
 echo 9 > /tmp/$PKGNAME/debian/compat
 cat > /tmp/$PKGNAME/debian/control << EOF
@@ -53,17 +53,17 @@ Architecture: $PKGARCH
 Replaces: $PKGREPLACES
 Conflicts: $PKGREPLACES
 Maintainer: Neil Alexander <neilalexander@users.noreply.github.com>
-Description: Yggdrasil Network
- Yggdrasil is an early-stage implementation of a fully end-to-end encrypted IPv6
+Description: Mesh Network
+ Mesh is an early-stage implementation of a fully end-to-end encrypted IPv6
  network. It is lightweight, self-arranging, supported on multiple platforms and
  allows pretty much any IPv6-capable application to communicate securely with
- other Yggdrasil nodes.
+ other Mesh nodes.
 EOF
 cat > /tmp/$PKGNAME/debian/copyright << EOF
-Please see https://github.com/yggdrasil-network/yggdrasil-go/
+Please see https://github.com/RiV-chain/RiV-mesh/
 EOF
 cat > /tmp/$PKGNAME/debian/docs << EOF
-Please see https://github.com/yggdrasil-network/yggdrasil-go/
+Please see https://github.com/RiV-chain/RiV-mesh/
 EOF
 cat > /tmp/$PKGNAME/debian/install << EOF
 usr/bin/yggdrasil usr/bin
@@ -93,7 +93,7 @@ then
   fi
 else
   echo "Generating initial configuration file /etc/yggdrasil.conf"
-  echo "Please familiarise yourself with this file before starting Yggdrasil"
+  echo "Please familiarise yourself with this file before starting Mesh"
   sh -c 'umask 0027 && /usr/bin/yggdrasil -genconf > /etc/yggdrasil.conf'
   chgrp yggdrasil /etc/yggdrasil.conf
 fi

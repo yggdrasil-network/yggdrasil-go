@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# This script generates an MSI file for Yggdrasil for a given architecture. It
+# This script generates an MSI file for Mesh for a given architecture. It
 # needs to run on Windows within MSYS2 and Go 1.13 or later must be installed on
 # the system and within the PATH. This is ran currently by Appveyor (see
 # appveyor.yml in the repository root) for both x86 and x64.
@@ -47,7 +47,7 @@ then
   )
 fi
 
-# Build Yggdrasil!
+# Build Mesh!
 [ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 ./build
 [ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=0 ./build
 [ "${PKGARCH}" == "arm" ] && GOOS=windows GOARCH=arm CGO_ENABLED=0 ./build
@@ -55,12 +55,12 @@ fi
 
 # Create the postinstall script
 cat > updateconfig.bat << EOF
-if not exist %ALLUSERSPROFILE%\\Yggdrasil (
-  mkdir %ALLUSERSPROFILE%\\Yggdrasil
+if not exist %ALLUSERSPROFILE%\\Mesh (
+  mkdir %ALLUSERSPROFILE%\\Mesh
 )
-if not exist %ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf (
+if not exist %ALLUSERSPROFILE%\\Mesh\\yggdrasil.conf (
   if exist yggdrasil.exe (
-    yggdrasil.exe -genconf > %ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf
+    yggdrasil.exe -genconf > %ALLUSERSPROFILE%\\Mesh\\yggdrasil.conf
   )
 )
 EOF
@@ -93,9 +93,9 @@ else
 fi
 
 if [ $PKGNAME != "master" ]; then
-  PKGDISPLAYNAME="Yggdrasil Network (${PKGNAME} branch)"
+  PKGDISPLAYNAME="Mesh Network (${PKGNAME} branch)"
 else
-  PKGDISPLAYNAME="Yggdrasil Network"
+  PKGDISPLAYNAME="Mesh Network"
 fi
 
 # Generate the wix.xml file
@@ -109,14 +109,14 @@ cat > wix.xml << EOF
     Language="1033"
     Codepage="1252"
     Version="${PKGVERSIONMS}"
-    Manufacturer="github.com/yggdrasil-network">
+    Manufacturer="github.com/RiV-chain">
 
     <Package
       Id="*"
       Keywords="Installer"
-      Description="Yggdrasil Network Installer"
-      Comments="Yggdrasil Network standalone router for Windows."
-      Manufacturer="github.com/yggdrasil-network"
+      Description="Mesh Network Installer"
+      Comments="Mesh Network standalone router for Windows."
+      Manufacturer="github.com/RiV-chain"
       InstallerVersion="200"
       InstallScope="perMachine"
       Languages="1033"
@@ -134,11 +134,11 @@ cat > wix.xml << EOF
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
-        <Directory Id="YggdrasilInstallFolder" Name="Yggdrasil">
+        <Directory Id="MeshInstallFolder" Name="Mesh">
 
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
             <File
-              Id="Yggdrasil"
+              Id="Mesh"
               Name="yggdrasil.exe"
               DiskId="1"
               Source="yggdrasil.exe"
@@ -153,14 +153,14 @@ cat > wix.xml << EOF
             <ServiceInstall
               Id="ServiceInstaller"
               Account="LocalSystem"
-              Description="Yggdrasil Network router process"
-              DisplayName="Yggdrasil Service"
+              Description="Mesh Network router process"
+              DisplayName="Mesh Service"
               ErrorControl="normal"
               LoadOrderGroup="NetworkProvider"
-              Name="Yggdrasil"
+              Name="Mesh"
               Start="auto"
               Type="ownProcess"
-              Arguments='-useconffile "%ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf" -logto "%ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.log"'
+              Arguments='-useconffile "%ALLUSERSPROFILE%\\Mesh\\yggdrasil.conf" -logto "%ALLUSERSPROFILE%\\Mesh\\yggdrasil.log"'
               Vital="yes" />
 
             <ServiceControl
@@ -173,7 +173,7 @@ cat > wix.xml << EOF
 
           <Component Id="CtrlExecutable" Guid="a916b730-974d-42a1-b687-d9d504cbb86a">
             <File
-              Id="Yggdrasilctl"
+              Id="Meshctl"
               Name="yggdrasilctl.exe"
               DiskId="1"
               Source="yggdrasilctl.exe"
@@ -192,7 +192,7 @@ cat > wix.xml << EOF
       </Directory>
     </Directory>
 
-    <Feature Id="YggdrasilFeature" Title="Yggdrasil" Level="1">
+    <Feature Id="MeshFeature" Title="Mesh" Level="1">
       <ComponentRef Id="MainExecutable" />
       <ComponentRef Id="CtrlExecutable" />
       <ComponentRef Id="ConfigScript" />
@@ -200,7 +200,7 @@ cat > wix.xml << EOF
 
     <CustomAction
       Id="UpdateGenerateConfig"
-      Directory="YggdrasilInstallFolder"
+      Directory="MeshInstallFolder"
       ExeCommand="cmd.exe /c updateconfig.bat"
       Execute="deferred"
       Return="check"

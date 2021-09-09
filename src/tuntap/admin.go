@@ -3,7 +3,7 @@ package tuntap
 import (
 	"encoding/json"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
+	"github.com/RiV-chain/RiV-mesh/src/admin"
 )
 
 type GetTUNRequest struct{}

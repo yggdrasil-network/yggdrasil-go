@@ -1,4 +1,4 @@
-module github.com/yggdrasil-network/yggdrasil-go
+module github.com/RiV-chain/RiV-mesh
 
 go 1.16
 

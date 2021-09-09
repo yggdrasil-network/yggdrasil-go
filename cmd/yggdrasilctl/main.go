@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/version"
+	"github.com/RiV-chain/RiV-mesh/src/version"
 )
 
 type admin_info map[string]interface{}
@@ -43,7 +43,7 @@ func run() int {
 	if cmdLineEnv.ver {
 		fmt.Println("Build name:", version.BuildName())
 		fmt.Println("Build version:", version.BuildVersion())
-		fmt.Println("To get the version number of the running Yggdrasil node, run", os.Args[0], "getSelf")
+		fmt.Println("To get the version number of the running Mesh node, run", os.Args[0], "getSelf")
 		return 0
 	}
 

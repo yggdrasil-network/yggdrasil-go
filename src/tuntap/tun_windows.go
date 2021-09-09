@@ -8,7 +8,7 @@ import (
 	"log"
 	"net"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/RiV-chain/RiV-mesh/src/defaults"
 	"golang.org/x/sys/windows"
 
 	wgtun "golang.zx2c4.com/wireguard/tun"

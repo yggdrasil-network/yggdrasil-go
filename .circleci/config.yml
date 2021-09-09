@@ -73,9 +73,9 @@ jobs:
       - run:
           name: Build for Linux (RPM packages)
           command: |
-              git clone https://github.com/yggdrasil-network/yggdrasil-package-rpm ~/rpmbuild/SPECS
-              cd ../ && tar -czvf ~/rpmbuild/SOURCES/v$CIVERSIONRPM --transform "s/project/yggdrasil-go-$CIBRANCH-$CIVERSIONRPM/" project
-              sed -i "s/yggdrasil-go/yggdrasil-go-$CIBRANCH/" ~/rpmbuild/SPECS/yggdrasil.spec
+              git clone https://github.com/RiV-chain/yggdrasil-package-rpm ~/rpmbuild/SPECS
+              cd ../ && tar -czvf ~/rpmbuild/SOURCES/v$CIVERSIONRPM --transform "s/project/RiV-mesh-$CIBRANCH-$CIVERSIONRPM/" project
+              sed -i "s/RiV-mesh/RiV-mesh-$CIBRANCH/" ~/rpmbuild/SPECS/yggdrasil.spec
               sed -i "s/^PKGNAME=yggdrasil/PKGNAME=yggdrasil-$CIBRANCH/" ~/rpmbuild/SPECS/yggdrasil.spec
               sed -i "s/^Name\:.*/Name\:           $CINAME/" ~/rpmbuild/SPECS/yggdrasil.spec
               sed -i "s/^Version\:.*/Version\:        $CIVERSIONRPM/" ~/rpmbuild/SPECS/yggdrasil.spec
@@ -107,7 +107,7 @@ jobs:
     macos:
       xcode: "10.0.0"
 
-    working_directory: ~/go/src/github.com/yggdrasil-network/yggdrasil-go
+    working_directory: ~/go/src/github.com/RiV-chain/RiV-mesh
 
     steps:
       - checkout
@@ -152,8 +152,8 @@ jobs:
       #- run:
       #    name: Build framework for iOS (.framework format)
       #    command: |
-      #        sudo GO111MODULE=off go get -v github.com/yggdrasil-network/yggdrasil-go/cmd/...
-      #        sudo GO111MODULE=off go get -v github.com/yggdrasil-network/yggdrasil-go/src/...
+      #        sudo GO111MODULE=off go get -v github.com/RiV-chain/RiV-mesh/cmd/...
+      #        sudo GO111MODULE=off go get -v github.com/RiV-chain/RiV-mesh/src/...
       #        GO111MODULE=off ./build -i
       #        mv *.framework /tmp/upload
 

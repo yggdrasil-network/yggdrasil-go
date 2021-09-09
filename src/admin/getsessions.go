@@ -4,7 +4,7 @@ import (
 	"encoding/hex"
 	"net"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/RiV-chain/RiV-mesh/src/address"
 )
 
 type GetSessionsRequest struct{}

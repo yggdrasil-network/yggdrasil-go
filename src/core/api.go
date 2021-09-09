@@ -12,8 +12,8 @@ import (
 	//"time"
 
 	"github.com/gologme/log"
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	//"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
+	"github.com/RiV-chain/RiV-mesh/src/address"
+	//"github.com/RiV-chain/RiV-mesh/src/crypto"
 	//"github.com/Arceliar/phony"
 )
 
@@ -122,7 +122,7 @@ func (c *Core) Listen(u *url.URL, sintf string) (*TcpListener, error) {
 	return c.links.tcp.listenURL(u, sintf)
 }
 
-// Address gets the IPv6 address of the Yggdrasil node. This is always a /128
+// Address gets the IPv6 address of the Mesh node. This is always a /128
 // address. The IPv6 address is only relevant when the node is operating as an
 // IP router and often is meaningless when embedded into an application, unless
 // that application also implements either VPN functionality or deals with IP
@@ -132,7 +132,7 @@ func (c *Core) Address() net.IP {
 	return addr
 }
 
-// Subnet gets the routed IPv6 subnet of the Yggdrasil node. This is always a
+// Subnet gets the routed IPv6 subnet of the Mesh node. This is always a
 // /64 subnet. The IPv6 subnet is only relevant when the node is operating as an
 // IP router and often is meaningless when embedded into an application, unless
 // that application also implements either VPN functionality or deals with IP
@@ -143,7 +143,7 @@ func (c *Core) Subnet() net.IPNet {
 	return net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
 }
 
-// SetLogger sets the output logger of the Yggdrasil node after startup. This
+// SetLogger sets the output logger of the Mesh node after startup. This
 // may be useful if you want to redirect the output later. Note that this
 // expects a Logger from the github.com/gologme/log package and not from Go's
 // built-in log package.

@@ -16,13 +16,13 @@ import (
 	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	//"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/version"
+	"github.com/RiV-chain/RiV-mesh/src/config"
+	//"github.com/RiV-chain/RiV-mesh/src/crypto"
+	"github.com/RiV-chain/RiV-mesh/src/version"
 )
 
-// The Core object represents the Yggdrasil node. You should create a Core
-// object for each Yggdrasil node you plan to run.
+// The Core object represents the Mesh node. You should create a Core
+// object for each Mesh node you plan to run.
 type Core struct {
 	// This is the main data structure that holds everything else for a node
 	// We're going to keep our own copy of the provided config - that way we can
@@ -116,7 +116,7 @@ func (c *Core) _addPeerLoop() {
 	})
 }
 
-// Start starts up Yggdrasil using the provided config.NodeConfig, and outputs
+// Start starts up Mesh using the provided config.NodeConfig, and outputs
 // debug logging through the provided log.Logger. The started stack will include
 // TCP and UDP sockets, a multicast discovery socket, an admin socket, router,
 // switch and DHT node. A config.NodeState is returned which contains both the
@@ -159,7 +159,7 @@ func (c *Core) _start(nc *config.NodeConfig, log *log.Logger) error {
 	return nil
 }
 
-// Stop shuts down the Yggdrasil node.
+// Stop shuts down the Mesh node.
 func (c *Core) Stop() {
 	phony.Block(c, func() {
 		c.log.Infoln("Stopping...")

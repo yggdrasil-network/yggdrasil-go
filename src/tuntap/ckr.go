@@ -11,11 +11,11 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/RiV-chain/RiV-mesh/src/address"
 )
 
 // This module implements crypto-key routing, similar to Wireguard, where we
-// allow traffic for non-Yggdrasil ranges to be routed over Yggdrasil.
+// allow traffic for non-Mesh ranges to be routed over Mesh.
 
 type cryptokey struct {
 	tun          *TunAdapter
@@ -213,13 +213,13 @@ func (c *cryptokey) addRemoteSubnet(cidr string, dest string) error {
 		return errors.New("unexpected prefix size")
 	}
 
-	// Is the route an Yggdrasil destination?
+	// Is the route an Mesh destination?
 	var addr address.Address
 	var snet address.Subnet
 	copy(addr[:], ipaddr)
 	copy(snet[:], ipnet.IP)
 	if addr.IsValid() || snet.IsValid() {
-		return errors.New("can't specify Yggdrasil destination as crypto-key route")
+		return errors.New("can't specify Mesh destination as crypto-key route")
 	}
 	// Do we already have a route for this subnet?
 	for _, route := range *routingtable {
@@ -264,10 +264,10 @@ func (c *cryptokey) addRemoteSubnet(cidr string, dest string) error {
 // returned if the address is not suitable or no route was found.
 func (c *cryptokey) getPublicKeyForAddress(addr address.Address, addrlen int) (ed25519.PublicKey, error) {
 
-	// Check if the address is a valid Yggdrasil address - if so it
+	// Check if the address is a valid Mesh address - if so it
 	// is exempt from all CKR checking
 	if addr.IsValid() {
-		return ed25519.PublicKey{}, errors.New("cannot look up CKR for Yggdrasil addresses")
+		return ed25519.PublicKey{}, errors.New("cannot look up CKR for Mesh addresses")
 	}
 
 	// Build our references to the routing table and cache
