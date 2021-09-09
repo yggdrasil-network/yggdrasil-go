@@ -2,10 +2,10 @@
 
 description="An experiment in scalable routing as an encrypted IPv6 overlay network."
 
-CONFFILE="/etc/yggdrasil.conf"
+CONFFILE="/etc/mesh.conf"
 pidfile="/run/${RC_SVCNAME}.pid"
 
-command="/usr/bin/yggdrasil"
+command="/usr/bin/mesh"
 extra_started_commands="reload"
 
 depend() {
@@ -36,8 +36,8 @@ start() {
 		--pidfile "${pidfile}" \
 		--make-pidfile \
 		--background \
-		--stdout /var/log/yggdrasil.stdout.log \
-		--stderr /var/log/yggdrasil.stderr.log \
+		--stdout /var/log/mesh.stdout.log \
+		--stderr /var/log/mesh.stderr.log \
 		--exec "${command}" -- -useconffile "${CONFFILE}"
 	eend $?
 }

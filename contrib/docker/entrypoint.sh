@@ -6,8 +6,8 @@ CONF_DIR="/etc/RiV-chain"
 
 if [ ! -f "$CONF_DIR/config.conf" ]; then
   echo "generate $CONF_DIR/config.conf"
-  yggdrasil --genconf > "$CONF_DIR/config.conf"
+  mesh --genconf > "$CONF_DIR/config.conf"
 fi
 
-yggdrasil --useconf < "$CONF_DIR/config.conf"
+mesh --useconf < "$CONF_DIR/config.conf"
 exit $?

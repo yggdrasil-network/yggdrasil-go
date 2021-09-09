@@ -1,7 +1,7 @@
 # Last Modified: Fri Oct 30 11:33:31 2020
 #include <tunables/global>
 
-/usr/bin/yggdrasil {
+/usr/bin/mesh {
   #include <abstractions/base>
   #include <abstractions/nameservice>
 
@@ -12,6 +12,6 @@
   /proc/sys/net/core/somaxconn r,
   /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
 
-  /etc/yggdrasil.conf rw,
-  /run/yggdrasil.sock rw,
+  /etc/mesh.conf rw,
+  /run/mesh.sock rw,
 }

@@ -1,4 +1,4 @@
-# yggdrasil-brute-simple
+# mesh-brute-simple
 
 Simple program for finding curve25519 and ed25519 public keys whose sha512 hash has many leading ones.
 Because ed25519 private keys consist of a seed that is hashed to find the secret part of the keypair,

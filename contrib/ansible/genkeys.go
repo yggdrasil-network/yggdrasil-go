@@ -1,6 +1,6 @@
 /*
 
-This file generates crypto keys for [ansible-yggdrasil](https://github.com/jcgruenhage/ansible-yggdrasil/)
+This file generates crypto keys for [ansible-mesh](https://github.com/jcgruenhage/ansible-mesh/)
 
 */
 package main
@@ -57,8 +57,8 @@ func main() {
 			return
 		}
 		defer file.Close()
-		file.WriteString(fmt.Sprintf("yggdrasil_public_key: %v\n", hex.EncodeToString(keys[i].pub)))
-		file.WriteString("yggdrasil_private_key: \"{{ vault_yggdrasil_private_key }}\"\n")
+		file.WriteString(fmt.Sprintf("mesh_public_key: %v\n", hex.EncodeToString(keys[i].pub)))
+		file.WriteString("mesh_private_key: \"{{ vault_mesh_private_key }}\"\n")
 		file.WriteString(fmt.Sprintf("ansible_host: %v\n", keys[i].ip))
 
 		file, err = os.Create(fmt.Sprintf("host_vars/%x/vault", i))
@@ -66,7 +66,7 @@ func main() {
 			return
 		}
 		defer file.Close()
-		file.WriteString(fmt.Sprintf("vault_yggdrasil_private_key: %v\n", hex.EncodeToString(keys[i].priv)))
+		file.WriteString(fmt.Sprintf("vault_mesh_private_key: %v\n", hex.EncodeToString(keys[i].priv)))
 		bar.Increment()
 	}
 	bar.Finish()

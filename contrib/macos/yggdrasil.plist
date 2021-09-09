@@ -3,12 +3,12 @@
 <plist version="1.0">
   <dict>
     <key>Label</key>
-    <string>yggdrasil</string>
+    <string>mesh</string>
     <key>ProgramArguments</key>
     <array>
       <string>sh</string>
       <string>-c</string>
-      <string>/usr/local/bin/yggdrasil -useconffile /etc/yggdrasil.conf</string>
+      <string>/usr/local/bin/mesh -useconffile /etc/mesh.conf</string>
     </array>
     <key>KeepAlive</key>
     <true/>
@@ -17,8 +17,8 @@
     <key>ProcessType</key>
     <string>Interactive</string>
     <key>StandardOutPath</key>
-    <string>/tmp/yggdrasil.stdout.log</string>
+    <string>/tmp/mesh.stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/yggdrasil.stderr.log</string>
+    <string>/tmp/mesh.stderr.log</string>
   </dict>
 </plist>

@@ -37,9 +37,9 @@ jobs:
               echo 'export CIVERSIONRPM=$(sh contrib/semver/version.sh --bare | tr "-" ".")' >> $BASH_ENV
               echo 'export CIBRANCH=$(echo $CIRCLE_BRANCH | tr -d "/")' >> $BASH_ENV
               case "$CINAME" in \
-                "yggdrasil") (echo 'export CICONFLICTS=yggdrasil-develop' >> $BASH_ENV) ;; \
-                "yggdrasil-develop") (echo 'export CICONFLICTS=yggdrasil' >> $BASH_ENV) ;; \
-                *) (echo 'export CICONFLICTS="yggdrasil yggdrasil-develop"' >> $BASH_ENV) ;; \
+                "mesh") (echo 'export CICONFLICTS=mesh-develop' >> $BASH_ENV) ;; \
+                "mesh-develop") (echo 'export CICONFLICTS=mesh' >> $BASH_ENV) ;; \
+                *) (echo 'export CICONFLICTS="mesh mesh-develop"' >> $BASH_ENV) ;; \
               esac
               git config --global user.email "$(git log --format='%ae' HEAD -1)";
               git config --global user.name "$(git log --format='%an' HEAD -1)";
@@ -55,43 +55,43 @@ jobs:
           name: Test debug builds
           command: |
               ./build -d
-              test -f yggdrasil && test -f yggdrasilctl
+              test -f mesh && test -f meshctl
 
       - run:
           name: Build for Linux (including Debian packages)
           command: |
-              rm -f {yggdrasil,yggdrasilctl}
-              PKGARCH=amd64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-amd64;
-              PKGARCH=i386 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-i386;
-              PKGARCH=mipsel sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-mipsel && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-mipsel;
-              PKGARCH=mips sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-mips && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-mips;
-              PKGARCH=armhf sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-armhf && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-armhf;
-              PKGARCH=armel sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-armel && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-armel;
-              PKGARCH=arm64 sh contrib/deb/generate.sh && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-linux-arm64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-linux-arm64;
+              rm -f {mesh,meshctl}
+              PKGARCH=amd64 sh contrib/deb/generate.sh && mv mesh /tmp/upload/$CINAME-$CIVERSION-linux-amd64 && mv meshctl /tmp/upload/$CINAME-$CIVERSION-meshctl-linux-amd64;
+              PKGARCH=i386 sh contrib/deb/generate.sh && mv mesh /tmp/upload/$CINAME-$CIVERSION-linux-i386 && mv meshctl /tmp/upload/$CINAME-$CIVERSION-meshctl-linux-i386;
+              PKGARCH=mipsel sh contrib/deb/generate.sh && mv mesh /tmp/upload/$CINAME-$CIVERSION-linux-mipsel && mv meshctl /tmp/upload/$CINAME-$CIVERSION-meshctl-linux-mipsel;
+              PKGARCH=mips sh contrib/deb/generate.sh && mv mesh /tmp/upload/$CINAME-$CIVERSION-linux-mips && mv meshctl /tmp/upload/$CINAME-$CIVERSION-meshctl-linux-mips;
+              PKGARCH=armhf sh contrib/deb/generate.sh && mv mesh /tmp/upload/$CINAME-$CIVERSION-linux-armhf && mv meshctl /tmp/upload/$CINAME-$CIVERSION-meshctl-linux-armhf;
+              PKGARCH=armel sh contrib/deb/generate.sh && mv mesh /tmp/upload/$CINAME-$CIVERSION-linux-armel && mv meshctl /tmp/upload/$CINAME-$CIVERSION-meshctl-linux-armel;
+              PKGARCH=arm64 sh contrib/deb/generate.sh && mv mesh /tmp/upload/$CINAME-$CIVERSION-linux-arm64 && mv meshctl /tmp/upload/$CINAME-$CIVERSION-meshctl-linux-arm64;
               mv *.deb /tmp/upload/
 
       - run:
           name: Build for Linux (RPM packages)
           command: |
-              git clone https://github.com/RiV-chain/yggdrasil-package-rpm ~/rpmbuild/SPECS
+              git clone https://github.com/RiV-chain/mesh-package-rpm ~/rpmbuild/SPECS
               cd ../ && tar -czvf ~/rpmbuild/SOURCES/v$CIVERSIONRPM --transform "s/project/RiV-mesh-$CIBRANCH-$CIVERSIONRPM/" project
-              sed -i "s/RiV-mesh/RiV-mesh-$CIBRANCH/" ~/rpmbuild/SPECS/yggdrasil.spec
-              sed -i "s/^PKGNAME=yggdrasil/PKGNAME=yggdrasil-$CIBRANCH/" ~/rpmbuild/SPECS/yggdrasil.spec
-              sed -i "s/^Name\:.*/Name\:           $CINAME/" ~/rpmbuild/SPECS/yggdrasil.spec
-              sed -i "s/^Version\:.*/Version\:        $CIVERSIONRPM/" ~/rpmbuild/SPECS/yggdrasil.spec
-              sed -i "s/^Conflicts\:.*/Conflicts\:      $CICONFLICTS/" ~/rpmbuild/SPECS/yggdrasil.spec
-              cat ~/rpmbuild/SPECS/yggdrasil.spec
-              GOARCH=amd64 rpmbuild -v --nodeps --target=x86_64 -ba ~/rpmbuild/SPECS/yggdrasil.spec
-              #GOARCH=386 rpmbuild -v --nodeps --target=i386 -bb ~/rpmbuild/SPECS/yggdrasil.spec
+              sed -i "s/RiV-mesh/RiV-mesh-$CIBRANCH/" ~/rpmbuild/SPECS/mesh.spec
+              sed -i "s/^PKGNAME=mesh/PKGNAME=mesh-$CIBRANCH/" ~/rpmbuild/SPECS/mesh.spec
+              sed -i "s/^Name\:.*/Name\:           $CINAME/" ~/rpmbuild/SPECS/mesh.spec
+              sed -i "s/^Version\:.*/Version\:        $CIVERSIONRPM/" ~/rpmbuild/SPECS/mesh.spec
+              sed -i "s/^Conflicts\:.*/Conflicts\:      $CICONFLICTS/" ~/rpmbuild/SPECS/mesh.spec
+              cat ~/rpmbuild/SPECS/mesh.spec
+              GOARCH=amd64 rpmbuild -v --nodeps --target=x86_64 -ba ~/rpmbuild/SPECS/mesh.spec
+              #GOARCH=386 rpmbuild -v --nodeps --target=i386 -bb ~/rpmbuild/SPECS/mesh.spec
               find ~/rpmbuild/RPMS/ -name '*.rpm' -exec mv {} /tmp/upload \;
               find ~/rpmbuild/SRPMS/ -name '*.rpm' -exec mv {} /tmp/upload \;
 
       - run:
           name: Build for EdgeRouter and VyOS
           command: |
-              rm -f {yggdrasil,yggdrasilctl}
-              git clone https://github.com/neilalexander/vyatta-yggdrasil /tmp/vyatta-yggdrasil;
-              cd /tmp/vyatta-yggdrasil;
+              rm -f {mesh,meshctl}
+              git clone https://github.com/neilalexander/vyatta-mesh /tmp/vyatta-mesh;
+              cd /tmp/vyatta-mesh;
               BUILDDIR_YGG=$CIRCLE_WORKING_DIRECTORY ./build-edgerouter-x $CIRCLE_BRANCH;
               BUILDDIR_YGG=$CIRCLE_WORKING_DIRECTORY ./build-edgerouter-lite $CIRCLE_BRANCH;
               BUILDDIR_YGG=$CIRCLE_WORKING_DIRECTORY ./build-vyos-i386 $CIRCLE_BRANCH
@@ -140,8 +140,8 @@ jobs:
           name: Build for macOS
           command: |
               GO111MODULE=on GOOS=darwin GOARCH=amd64 ./build
-              cp yggdrasil /tmp/upload/$CINAME-$CIVERSION-darwin-amd64
-              cp yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-darwin-amd64;
+              cp mesh /tmp/upload/$CINAME-$CIVERSION-darwin-amd64
+              cp meshctl /tmp/upload/$CINAME-$CIVERSION-meshctl-darwin-amd64;
 
       - run:
           name: Build for macOS (.pkg format)
@@ -181,23 +181,23 @@ jobs:
       - run:
           name: Build for OpenBSD
           command: |
-              rm -f {yggdrasil,yggdrasilctl}
-              GOOS=openbsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-openbsd-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-openbsd-amd64;
-              GOOS=openbsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-openbsd-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-openbsd-i386;
+              rm -f {mesh,meshctl}
+              GOOS=openbsd GOARCH=amd64 ./build && mv mesh /tmp/upload/$CINAME-$CIVERSION-openbsd-amd64 && mv meshctl /tmp/upload/$CINAME-$CIVERSION-meshctl-openbsd-amd64;
+              GOOS=openbsd GOARCH=386 ./build && mv mesh /tmp/upload/$CINAME-$CIVERSION-openbsd-i386 && mv meshctl /tmp/upload/$CINAME-$CIVERSION-meshctl-openbsd-i386;
 
       - run:
           name: Build for FreeBSD
           command: |
-              rm -f {yggdrasil,yggdrasilctl}
-              GOOS=freebsd GOARCH=amd64 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-freebsd-amd64 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-freebsd-amd64;
-              GOOS=freebsd GOARCH=386 ./build && mv yggdrasil /tmp/upload/$CINAME-$CIVERSION-freebsd-i386 && mv yggdrasilctl /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-freebsd-i386;
+              rm -f {mesh,meshctl}
+              GOOS=freebsd GOARCH=amd64 ./build && mv mesh /tmp/upload/$CINAME-$CIVERSION-freebsd-amd64 && mv meshctl /tmp/upload/$CINAME-$CIVERSION-meshctl-freebsd-amd64;
+              GOOS=freebsd GOARCH=386 ./build && mv mesh /tmp/upload/$CINAME-$CIVERSION-freebsd-i386 && mv meshctl /tmp/upload/$CINAME-$CIVERSION-meshctl-freebsd-i386;
 
       - run:
           name: Build for Windows
           command: |
-              rm -f {yggdrasil,yggdrasilctl}
-              GOOS=windows GOARCH=amd64 ./build && mv yggdrasil.exe /tmp/upload/$CINAME-$CIVERSION-windows-amd64.exe && mv yggdrasilctl.exe /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-windows-amd64.exe;
-              GOOS=windows GOARCH=386 ./build && mv yggdrasil.exe /tmp/upload/$CINAME-$CIVERSION-windows-i386.exe && mv yggdrasilctl.exe /tmp/upload/$CINAME-$CIVERSION-yggdrasilctl-windows-i386.exe;
+              rm -f {mesh,meshctl}
+              GOOS=windows GOARCH=amd64 ./build && mv mesh.exe /tmp/upload/$CINAME-$CIVERSION-windows-amd64.exe && mv meshctl.exe /tmp/upload/$CINAME-$CIVERSION-meshctl-windows-amd64.exe;
+              GOOS=windows GOARCH=386 ./build && mv mesh.exe /tmp/upload/$CINAME-$CIVERSION-windows-i386.exe && mv meshctl.exe /tmp/upload/$CINAME-$CIVERSION-meshctl-windows-i386.exe;
 
       - persist_to_workspace:
           root: /tmp

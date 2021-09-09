@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # This is a lazy script to create a .deb for Debian/Ubuntu. It installs
-# yggdrasil and enables it in systemd. You can give it the PKGARCH= argument
+# mesh and enables it in systemd. You can give it the PKGARCH= argument
 # i.e. PKGARCH=i386 sh contrib/deb/generate.sh
 
 if [ `pwd` != `git rev-parse --show-toplevel` ]
@@ -15,10 +15,10 @@ PKGNAME=$(sh contrib/semver/name.sh)
 PKGVERSION=$(sh contrib/semver/version.sh --bare)
 PKGARCH=${PKGARCH-amd64}
 PKGFILE=$PKGNAME-$PKGVERSION-$PKGARCH.deb
-PKGREPLACES=yggdrasil
+PKGREPLACES=mesh
 
 if [ $PKGBRANCH = "master" ]; then
-  PKGREPLACES=yggdrasil-develop
+  PKGREPLACES=mesh-develop
 fi
 
 if [ $PKGARCH = "amd64" ]; then GOARCH=amd64 GOOS=linux ./build
@@ -66,56 +66,56 @@ cat > /tmp/$PKGNAME/debian/docs << EOF
 Please see https://github.com/RiV-chain/RiV-mesh/
 EOF
 cat > /tmp/$PKGNAME/debian/install << EOF
-usr/bin/yggdrasil usr/bin
-usr/bin/yggdrasilctl usr/bin
+usr/bin/mesh usr/bin
+usr/bin/meshctl usr/bin
 etc/systemd/system/*.service etc/systemd/system
 EOF
 cat > /tmp/$PKGNAME/debian/postinst << EOF
 #!/bin/sh
 
-if ! getent group yggdrasil 2>&1 > /dev/null; then
-  groupadd --system --force yggdrasil || echo "Failed to create group 'yggdrasil' - please create it manually and reinstall"
+if ! getent group mesh 2>&1 > /dev/null; then
+  groupadd --system --force mesh || echo "Failed to create group 'mesh' - please create it manually and reinstall"
 fi
 
-if [ -f /etc/yggdrasil.conf ];
+if [ -f /etc/mesh.conf ];
 then
   mkdir -p /var/backups
-  echo "Backing up configuration file to /var/backups/yggdrasil.conf.`date +%Y%m%d`"
-  cp /etc/yggdrasil.conf /var/backups/yggdrasil.conf.`date +%Y%m%d`
-  echo "Normalising and updating /etc/yggdrasil.conf"
-  /usr/bin/yggdrasil -useconf -normaliseconf < /var/backups/yggdrasil.conf.`date +%Y%m%d` > /etc/yggdrasil.conf
-  chgrp yggdrasil /etc/yggdrasil.conf
+  echo "Backing up configuration file to /var/backups/mesh.conf.`date +%Y%m%d`"
+  cp /etc/mesh.conf /var/backups/mesh.conf.`date +%Y%m%d`
+  echo "Normalising and updating /etc/mesh.conf"
+  /usr/bin/mesh -useconf -normaliseconf < /var/backups/mesh.conf.`date +%Y%m%d` > /etc/mesh.conf
+  chgrp mesh /etc/mesh.conf
 
   if command -v systemctl >/dev/null; then
     systemctl daemon-reload >/dev/null || true
-    systemctl enable yggdrasil || true
-    systemctl start yggdrasil || true
+    systemctl enable mesh || true
+    systemctl start mesh || true
   fi
 else
-  echo "Generating initial configuration file /etc/yggdrasil.conf"
+  echo "Generating initial configuration file /etc/mesh.conf"
   echo "Please familiarise yourself with this file before starting Mesh"
-  sh -c 'umask 0027 && /usr/bin/yggdrasil -genconf > /etc/yggdrasil.conf'
-  chgrp yggdrasil /etc/yggdrasil.conf
+  sh -c 'umask 0027 && /usr/bin/mesh -genconf > /etc/mesh.conf'
+  chgrp mesh /etc/mesh.conf
 fi
 EOF
 cat > /tmp/$PKGNAME/debian/prerm << EOF
 #!/bin/sh
 if command -v systemctl >/dev/null; then
-  if systemctl is-active --quiet yggdrasil; then
-    systemctl stop yggdrasil || true
+  if systemctl is-active --quiet mesh; then
+    systemctl stop mesh || true
   fi
-  systemctl disable yggdrasil || true
+  systemctl disable mesh || true
 fi
 EOF
 
-cp yggdrasil /tmp/$PKGNAME/usr/bin/
-cp yggdrasilctl /tmp/$PKGNAME/usr/bin/
+cp mesh /tmp/$PKGNAME/usr/bin/
+cp meshctl /tmp/$PKGNAME/usr/bin/
 cp contrib/systemd/*.service /tmp/$PKGNAME/etc/systemd/system/
 
 tar -czvf /tmp/$PKGNAME/data.tar.gz -C /tmp/$PKGNAME/ \
-  usr/bin/yggdrasil usr/bin/yggdrasilctl \
-  etc/systemd/system/yggdrasil.service \
-  etc/systemd/system/yggdrasil-default-config.service
+  usr/bin/mesh usr/bin/meshctl \
+  etc/systemd/system/mesh.service \
+  etc/systemd/system/mesh-default-config.service
 tar -czvf /tmp/$PKGNAME/control.tar.gz -C /tmp/$PKGNAME/debian .
 echo 2.0 > /tmp/$PKGNAME/debian-binary
 

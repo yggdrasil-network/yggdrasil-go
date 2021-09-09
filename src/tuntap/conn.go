@@ -9,7 +9,7 @@ import (
 	"github.com/Arceliar/phony"
 	"github.com/RiV-chain/RiV-mesh/src/address"
 	"github.com/RiV-chain/RiV-mesh/src/util"
-	"github.com/RiV-chain/RiV-mesh/src/yggdrasil"
+	"github.com/RiV-chain/RiV-mesh/src/mesh"
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv6"
 )
@@ -19,7 +19,7 @@ const tunConnTimeout = 2 * time.Minute
 type tunConn struct {
 	phony.Inbox
 	tun   *TunAdapter
-	conn  *yggdrasil.Conn
+	conn  *mesh.Conn
 	addr  address.Address
 	snet  address.Subnet
 	stop  chan struct{}
@@ -181,7 +181,7 @@ func (s *tunConn) _write(bs []byte) (err error) {
 		err = errors.New("address not allowed")
 		return
 	}
-	msg := yggdrasil.FlowKeyMessage{
+	msg := mesh.FlowKeyMessage{
 		FlowKey: util.GetFlowKey(bs),
 		Message: bs,
 	}
@@ -191,7 +191,7 @@ func (s *tunConn) _write(bs []byte) (err error) {
 			return
 		}
 		s.Act(s.conn, func() {
-			if e, eok := err.(yggdrasil.ConnError); !eok {
+			if e, eok := err.(mesh.ConnError); !eok {
 				if e.Closed() {
 					s.tun.log.Debugln(s.conn.String(), "TUN/TAP generic write debug:", err)
 				} else {

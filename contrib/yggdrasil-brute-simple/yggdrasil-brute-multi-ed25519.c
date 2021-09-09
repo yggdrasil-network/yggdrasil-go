@@ -20,7 +20,7 @@ if besthash:
 	besthash = hash
 */
 
-#include "yggdrasil-brute.h"
+#include "mesh-brute.h"
 
 
 int main(int argc, char **argv) {
@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
 	int where;
 
 	if (argc != 2) {
-		fprintf(stderr, "usage: ./yggdrasil-brute-multi-curve25519 <seconds>\n");
+		fprintf(stderr, "usage: ./mesh-brute-multi-curve25519 <seconds>\n");
 		return 1;
 	}
 
@@ -55,7 +55,7 @@ int main(int argc, char **argv) {
 	requestedtime = atoi(argv[1]);
 
 	if (requestedtime < 0) requestedtime = 0;
-	fprintf(stderr, "Searching for yggdrasil ed25519 keys (this will take slightly longer than %ld seconds)\n", requestedtime);
+	fprintf(stderr, "Searching for mesh ed25519 keys (this will take slightly longer than %ld seconds)\n", requestedtime);
 
 	sodium_memzero(bestsklist, NUMKEYS * 64);
 	sodium_memzero(besthashlist, NUMKEYS * 64);

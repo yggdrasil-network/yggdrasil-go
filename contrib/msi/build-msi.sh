@@ -58,9 +58,9 @@ cat > updateconfig.bat << EOF
 if not exist %ALLUSERSPROFILE%\\Mesh (
   mkdir %ALLUSERSPROFILE%\\Mesh
 )
-if not exist %ALLUSERSPROFILE%\\Mesh\\yggdrasil.conf (
-  if exist yggdrasil.exe (
-    yggdrasil.exe -genconf > %ALLUSERSPROFILE%\\Mesh\\yggdrasil.conf
+if not exist %ALLUSERSPROFILE%\\Mesh\\mesh.conf (
+  if exist mesh.exe (
+    mesh.exe -genconf > %ALLUSERSPROFILE%\\Mesh\\mesh.conf
   )
 )
 EOF
@@ -139,9 +139,9 @@ cat > wix.xml << EOF
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
             <File
               Id="Mesh"
-              Name="yggdrasil.exe"
+              Name="mesh.exe"
               DiskId="1"
-              Source="yggdrasil.exe"
+              Source="mesh.exe"
               KeyPath="yes" />
 
             <File
@@ -160,12 +160,12 @@ cat > wix.xml << EOF
               Name="Mesh"
               Start="auto"
               Type="ownProcess"
-              Arguments='-useconffile "%ALLUSERSPROFILE%\\Mesh\\yggdrasil.conf" -logto "%ALLUSERSPROFILE%\\Mesh\\yggdrasil.log"'
+              Arguments='-useconffile "%ALLUSERSPROFILE%\\Mesh\\mesh.conf" -logto "%ALLUSERSPROFILE%\\Mesh\\mesh.log"'
               Vital="yes" />
 
             <ServiceControl
               Id="ServiceControl"
-              Name="yggdrasil"
+              Name="mesh"
               Start="install"
               Stop="both"
               Remove="uninstall" />
@@ -174,9 +174,9 @@ cat > wix.xml << EOF
           <Component Id="CtrlExecutable" Guid="a916b730-974d-42a1-b687-d9d504cbb86a">
             <File
               Id="Meshctl"
-              Name="yggdrasilctl.exe"
+              Name="meshctl.exe"
               DiskId="1"
-              Source="yggdrasilctl.exe"
+              Source="meshctl.exe"
               KeyPath="yes"/>
           </Component>
 

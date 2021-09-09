@@ -11,7 +11,7 @@ type platformDefaultParameters struct {
 	// Admin socket
 	DefaultAdminListen string
 
-	// Configuration (used for yggdrasilctl)
+	// Configuration (used for meshctl)
 	DefaultConfigFile string
 
 	// Multicast interfaces

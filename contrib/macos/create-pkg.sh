@@ -18,9 +18,9 @@ command -v mkbom >/dev/null 2>&1 || (
 # Check if we can find the files we need - they should
 # exist if you are running this script from the root of
 # the RiV-mesh repo and you have ran ./build
-test -f yggdrasil || (echo "yggdrasil binary not found"; exit 1)
-test -f yggdrasilctl || (echo "yggdrasilctl binary not found"; exit 1)
-test -f contrib/macos/yggdrasil.plist || (echo "contrib/macos/yggdrasil.plist not found"; exit 1)
+test -f mesh || (echo "mesh binary not found"; exit 1)
+test -f meshctl || (echo "meshctl binary not found"; exit 1)
+test -f contrib/macos/mesh.plist || (echo "contrib/macos/mesh.plist not found"; exit 1)
 test -f contrib/semver/version.sh || (echo "contrib/semver/version.sh not found"; exit 1)
 
 # Delete the pkgbuild folder if it already exists
@@ -34,37 +34,37 @@ mkdir -p pkgbuild/root/usr/local/bin
 mkdir -p pkgbuild/root/Library/LaunchDaemons
 
 # Copy package contents into the pkgbuild root
-cp yggdrasil pkgbuild/root/usr/local/bin
-cp yggdrasilctl pkgbuild/root/usr/local/bin
-cp contrib/macos/yggdrasil.plist pkgbuild/root/Library/LaunchDaemons
+cp mesh pkgbuild/root/usr/local/bin
+cp meshctl pkgbuild/root/usr/local/bin
+cp contrib/macos/mesh.plist pkgbuild/root/Library/LaunchDaemons
 
 # Create the postinstall script
 cat > pkgbuild/scripts/postinstall << EOF
 #!/bin/sh
 
 # Normalise the config if it exists, generate it if it doesn't
-if [ -f /etc/yggdrasil.conf ];
+if [ -f /etc/mesh.conf ];
 then
   mkdir -p /Library/Preferences/Mesh
-  echo "Backing up configuration file to /Library/Preferences/Mesh/yggdrasil.conf.`date +%Y%m%d`"
-  cp /etc/yggdrasil.conf /Library/Preferences/Mesh/yggdrasil.conf.`date +%Y%m%d`
-  echo "Normalising /etc/yggdrasil.conf"
-  /usr/local/bin/yggdrasil -useconffile /Library/Preferences/Mesh/yggdrasil.conf.`date +%Y%m%d` -normaliseconf > /etc/yggdrasil.conf
+  echo "Backing up configuration file to /Library/Preferences/Mesh/mesh.conf.`date +%Y%m%d`"
+  cp /etc/mesh.conf /Library/Preferences/Mesh/mesh.conf.`date +%Y%m%d`
+  echo "Normalising /etc/mesh.conf"
+  /usr/local/bin/mesh -useconffile /Library/Preferences/Mesh/mesh.conf.`date +%Y%m%d` -normaliseconf > /etc/mesh.conf
 else
-  /usr/local/bin/yggdrasil -genconf > /etc/yggdrasil.conf
+  /usr/local/bin/mesh -genconf > /etc/mesh.conf
 fi
 
 # Unload existing Mesh launchd service, if possible
-test -f /Library/LaunchDaemons/yggdrasil.plist && (launchctl unload /Library/LaunchDaemons/yggdrasil.plist || true)
+test -f /Library/LaunchDaemons/mesh.plist && (launchctl unload /Library/LaunchDaemons/mesh.plist || true)
 
 # Load Mesh launchd service and start Mesh
-launchctl load /Library/LaunchDaemons/yggdrasil.plist
+launchctl load /Library/LaunchDaemons/mesh.plist
 EOF
 
 # Set execution permissions
 chmod +x pkgbuild/scripts/postinstall
-chmod +x pkgbuild/root/usr/local/bin/yggdrasil
-chmod +x pkgbuild/root/usr/local/bin/yggdrasilctl
+chmod +x pkgbuild/root/usr/local/bin/mesh
+chmod +x pkgbuild/root/usr/local/bin/meshctl
 
 # Pack payload and scripts
 ( cd pkgbuild/scripts && find . | cpio -o --format odc --owner 0:80 | gzip -c ) > pkgbuild/flat/base.pkg/Scripts
