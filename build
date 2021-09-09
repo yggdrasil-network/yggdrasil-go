@@ -34,13 +34,13 @@ if [ $IOS ]; then
   echo "Building framework for iOS"
   go get golang.org/x/mobile/bind
   gomobile bind -target ios -tags mobile -o Mesh.framework -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
-    github.com/RiV-chain/mesh-extras/src/mobile \
+    github.com/RiV-chain/RiV-mesh-extras/src/mobile \
     github.com/RiV-chain/RiV-mesh/src/config
 elif [ $ANDROID ]; then
   echo "Building aar for Android"
   go get golang.org/x/mobile/bind
   gomobile bind -target android -tags mobile -o mesh.aar -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
-    github.com/RiV-chain/mesh-extras/src/mobile \
+    github.com/RiV-chain/RiV-mesh-extras/src/mobile \
     github.com/RiV-chain/RiV-mesh/src/config
 else
   for CMD in mesh meshctl ; do
