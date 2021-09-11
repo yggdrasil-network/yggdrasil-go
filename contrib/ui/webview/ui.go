@@ -18,7 +18,7 @@ func main() {
 	w := webview.New(debug)
 	defer w.Destroy()
 	w.SetTitle("RiV-mesh")
-	w.SetSize(450, 410, webview.HintNone)
+	w.SetSize(465, 410, webview.HintNone)
 	path, err := filepath.Abs(filepath.Dir(os.Args[0]))
     if err != nil {
             log.Fatal(err)
@@ -40,25 +40,30 @@ func run(w webview.WebView){
 		if exists {
 			fmt.Println("Program path: %s", path)
 			riv_ctrl_path := fmt.Sprintf("%s\\RiV-mesh\\meshctl.exe", path)
-			run_command(w, riv_ctrl_path, "getSelf")
+			get_self(w, riv_ctrl_path, "getSelf")
 		} else {
 			fmt.Println("could not find Program Files path")
 		}
 	} else {
 		riv_ctrl_path := fmt.Sprintf("meshctl")
-		run_command(w, riv_ctrl_path, "getSelf")
+		get_self(w, riv_ctrl_path, "getSelf")
 	}
 }
 
-func run_command(w webview.WebView, riv_ctrl_path string, command string){
-	
+func run_command(riv_ctrl_path string, command string) []string{
 	cmd := exec.Command(riv_ctrl_path, command)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Fatalf("cmd.Run() failed with %s\n", err)
-		return
+		return nil
 	}
 	lines := strings.Split(string(out), "\n")
+	return lines
+}
+
+func get_self(w webview.WebView, riv_ctrl_path string, command string){
+	
+	lines := run_command(riv_ctrl_path, command)
 	m := make(map[string]string)
 	for i, s := range lines {
 		p := strings.SplitN(s, ":", 2)
