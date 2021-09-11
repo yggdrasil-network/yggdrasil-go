@@ -40,13 +40,15 @@ func run(w webview.WebView){
 		if exists {
 			fmt.Println("Program path: %s", path)
 			riv_ctrl_path := fmt.Sprintf("%s\\RiV-mesh\\meshctl.exe", path)
-			get_self(w, riv_ctrl_path, "getSelf")
+			get_self(w, riv_ctrl_path)
+			get_peers(w, riv_ctrl_path)
 		} else {
 			fmt.Println("could not find Program Files path")
 		}
 	} else {
 		riv_ctrl_path := fmt.Sprintf("meshctl")
-		get_self(w, riv_ctrl_path, "getSelf")
+		get_self(w, riv_ctrl_path)
+		get_peers(w, riv_ctrl_path)
 	}
 }
 
@@ -61,15 +63,14 @@ func run_command(riv_ctrl_path string, command string) []string{
 	return lines
 }
 
-func get_self(w webview.WebView, riv_ctrl_path string, command string){
+func get_self(w webview.WebView, riv_ctrl_path string){
 	
-	lines := run_command(riv_ctrl_path, command)
+	lines := run_command(riv_ctrl_path, "getSelf")
 	m := make(map[string]string)
-	for i, s := range lines {
+	for _, s := range lines {
 		p := strings.SplitN(s, ":", 2)
 		if len(p)>1 {
 			m[p[0]]=strings.TrimSpace(p[1])
-			fmt.Println(i)
 		}
 	}
 	if val, ok := m["IPv6 address"]; ok {
@@ -81,8 +82,36 @@ func get_self(w webview.WebView, riv_ctrl_path string, command string){
 		//found subnet
 		fmt.Printf("Subnet: %s\n", val)
 		go setFieldValue(w, "subnet", val)
-	}
+	}	
+}
+
+func get_peers(w webview.WebView, riv_ctrl_path string){
 	
+	lines := run_command(riv_ctrl_path, "getPeers")
+	lines = lines[1:] /*remove first element which is a header*/
+	var m []string
+	r:=""
+	for _, s := range lines {
+		p := strings.SplitN(s, " ", -1)
+		if len(p)>1 {
+			for _, t := range p {
+				if len(strings.TrimSpace(t))>0 {
+					r=strings.TrimSpace(t)
+				}
+			}
+			index_p := strings.Index(r, "%")
+			index_b := strings.Index(r, "]")
+			if index_p>0 && index_b>0 {
+				r = r[:index_p]+r[index_b:]
+			}
+			m=append(m, r)
+		}
+	}
+	for k := range m {         // Loop
+	    fmt.Println(k)
+	}
+	inner_html := strings.Join(m[:], "<br>")
+	go setFieldValue(w, "peers", inner_html)
 }
 
 func setFieldValue(p webview.WebView, id string, value string) {
