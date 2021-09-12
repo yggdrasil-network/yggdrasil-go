@@ -168,7 +168,19 @@ cat > wix.xml << EOF
               Name="Mesh"
               Start="auto"
               Type="ownProcess"
-              Arguments='-useconffile "%ALLUSERSPROFILE%\\Mesh\\mesh.conf" -logto "%ALLUSERSPROFILE%\\Mesh\\mesh.log"'
+              Arguments='-useconffile "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.conf" -logto "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.log"'
+              Vital="yes" />
+
+            <ServiceInstall
+              Id="ServiceInstaller-UI"
+              Account="LocalSystem"
+              Description="Mesh Network UI process"
+              DisplayName="Mesh UI Service"
+              ErrorControl="normal"
+              LoadOrderGroup="NetworkProvider"
+              Name="MeshUI"
+              Start="auto"
+              Type="ownProcess"
               Vital="yes" />
 
             <ServiceControl

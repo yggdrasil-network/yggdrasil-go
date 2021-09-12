@@ -68,6 +68,7 @@ EOF
 cat > /tmp/$PKGNAME/debian/install << EOF
 usr/bin/mesh usr/bin
 usr/bin/meshctl usr/bin
+usr/bin/mesh-ui usr/bin
 etc/systemd/system/*.service etc/systemd/system
 EOF
 cat > /tmp/$PKGNAME/debian/postinst << EOF
@@ -110,10 +111,11 @@ EOF
 
 cp mesh /tmp/$PKGNAME/usr/bin/
 cp meshctl /tmp/$PKGNAME/usr/bin/
+cp mesh-ui /tmp/$PKGNAME/usr/bin/
 cp contrib/systemd/*.service /tmp/$PKGNAME/etc/systemd/system/
 
 tar -czvf /tmp/$PKGNAME/data.tar.gz -C /tmp/$PKGNAME/ \
-  usr/bin/mesh usr/bin/meshctl \
+  usr/bin/mesh usr/bin/meshctl usr/bin/mesh-ui \
   etc/systemd/system/mesh.service \
   etc/systemd/system/mesh-default-config.service
 tar -czvf /tmp/$PKGNAME/control.tar.gz -C /tmp/$PKGNAME/debian .
