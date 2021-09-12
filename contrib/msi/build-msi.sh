@@ -241,18 +241,18 @@ cat > wix.xml << EOF
       Return="check"
       Impersonate="yes" />
 
-    <UI Id="WixUI">
-      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
-    </UI>
-    <UIRef Id="WixUI_Common" />
     <Property Id="WixShellExecTarget" Value="[#MeshUI]" />
-    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Name" />
     <CustomAction Id="LaunchApplication" BinaryKey="WixCA" DllEntry="WixShellExec" Impersonate="yes" />
 
     <InstallExecuteSequence>
       <Custom
         Action="UpdateGenerateConfig"
         Before="StartServices">
+          NOT Installed AND NOT REMOVE
+      </Custom>
+      <Custom
+        Action="LaunchApplication"
+        After="StartServices">
           NOT Installed AND NOT REMOVE
       </Custom>
     </InstallExecuteSequence>
