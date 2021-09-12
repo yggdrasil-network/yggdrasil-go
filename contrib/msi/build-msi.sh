@@ -120,8 +120,8 @@ cat > wix.xml << EOF
     <Package
       Id="*"
       Keywords="Installer"
-      Description="Mesh Network Installer"
-      Comments="Mesh Network standalone router for Windows."
+      Description="RiV-mesh Network Installer"
+      Comments="RiV-mesh Network standalone router for Windows."
       Manufacturer="github.com/RiV-chain"
       InstallerVersion="200"
       InstallScope="perMachine"
@@ -143,7 +143,7 @@ cat > wix.xml << EOF
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
             <File
-              Id="Mesh"
+              Id="RiV-mesh"
               Name="mesh.exe"
               DiskId="1"
               Source="mesh.exe"
@@ -158,8 +158,8 @@ cat > wix.xml << EOF
             <ServiceInstall
               Id="MeshServiceInstaller"
               Account="LocalSystem"
-              Description="Mesh Network router process"
-              DisplayName="Mesh Service"
+              Description="RiV-mesh Network router process"
+              DisplayName="RiV-mesh Service"
               ErrorControl="normal"
               LoadOrderGroup="NetworkProvider"
               Name="Mesh"
@@ -253,7 +253,7 @@ cat > wix.xml << EOF
 
     <!-- Step 3: Include the custom action -->
     <Property Id="WixShellExecTarget" Value="[#MeshUI]" />
-    <CustomAction Id="LaunchApplication" 
+    <CustomAction Id="LaunchApplication"
         BinaryKey="WixCA"
         DllEntry="WixShellExec"
         Impersonate="yes" />
