@@ -236,10 +236,6 @@ cat > wix.xml << EOF
       <ComponentRef Id="ConfigScript" />
     </Feature>
 
-    <Feature Id="UIFeature" Title="RiV-mesh manager" Level="1">
-      <ComponentRef Id="UIExecutable" />
-    </Feature>
-
     <CustomAction
       Id="UpdateGenerateConfig"
       Directory="MeshInstallFolder"
