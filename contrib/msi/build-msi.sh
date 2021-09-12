@@ -250,11 +250,6 @@ cat > wix.xml << EOF
         Before="StartServices">
           NOT Installed AND NOT REMOVE
       </Custom>
-      <Custom
-        Action="LaunchApplication"
-        After="StartServices">
-          NOT Installed AND NOT REMOVE
-      </Custom>
     </InstallExecuteSequence>
 
   </Product>
