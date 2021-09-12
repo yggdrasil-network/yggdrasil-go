@@ -125,7 +125,7 @@ cat > wix.xml << EOF
        Value="LaunchApplication">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
     </UI>
 
-    <Property Id="WixShellExecTarget" Value="[#mesh-ui.exe]" />
+    <Property Id="WixShellExecTarget" Value="[#MeshUI]" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Name" />
     <CustomAction Id="LaunchApplication" BinaryKey="WixCA" DllEntry="WixShellExec" Impersonate="yes" />
 
@@ -200,26 +200,26 @@ cat > wix.xml << EOF
           <Component Id="UIExecutable" Guid="ef9f30e0-8274-4526-835b-51bc09b5b1b7">
 
             <File
-              Id="mesh-ui.exe"
+              Id="MeshUI"
               Name="mesh-ui.exe"
               DiskId="1"
               Source="mesh-ui.exe"
               KeyPath="yes" />
 
             <File
-              Id="index.html"
+              Id="WebViewHtmlFile"
               Name="index.html"
               DiskId="1"
               Source="${PKGINDEXFILE}" />
 
             <File
-              Id="webview.dll"
+              Id="WebViewDllFile"
               Name="webview.dll"
               DiskId="1"
               Source="${PKGWEBVIEWFILE}" />
 
             <File
-              Id="WebView2Loader.dll"
+              Id="WebViewLoaderFile"
               Name="WebView2Loader.dll"
               DiskId="1"
               Source="${PKGWEBVIEWFILELOADER}" />
