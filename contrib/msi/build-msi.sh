@@ -117,10 +117,6 @@ cat > wix.xml << EOF
     Version="${PKGVERSIONMS}"
     Manufacturer="github.com/RiV-chain">
 
-    <Property Id="WixShellExecTarget" Value="[#MeshUI]" />
-    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Name" />
-    <CustomAction Id="LaunchApplication" BinaryKey="WixCA" DllEntry="WixShellExec" Impersonate="yes" />
-
     <Package
       Id="*"
       Keywords="Installer"
