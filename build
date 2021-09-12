@@ -6,7 +6,7 @@ PKGSRC=${PKGSRC:-github.com/RiV-chain/RiV-mesh/src/version}
 PKGNAME=${PKGNAME:-$(sh contrib/semver/name.sh)}
 PKGVER=${PKGVER:-$(sh contrib/semver/version.sh --bare)}
 if [ "$LDFLAGS" ]; then
-  LDFLAGS="-X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
+  LDFLAGS="$LDFLAGS -X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
 else
   LDFLAGS="-X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
 fi
