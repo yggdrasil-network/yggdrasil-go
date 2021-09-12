@@ -83,8 +83,12 @@ then
 fi
 if [ $PKGARCH = "x64" ]; then
   PKGWINTUNDLL=wintun/bin/amd64/wintun.dll
+  PKGWEBVIEWFILE=contrib/ui/mesh-ui/dll/x64/webview.dll
+  PKGWEBVIEWFILELOADER=contrib/ui/mesh-ui/dll/x64/WebView2Loader.dll
 elif [ $PKGARCH = "x86" ]; then
   PKGWINTUNDLL=wintun/bin/x86/wintun.dll
+  PKGWEBVIEWFILE=contrib/ui/mesh-ui/dll/x86/webview.dll
+  PKGWEBVIEWFILELOADER=contrib/ui/mesh-ui/dll/x86/WebView2Loader.dll
 elif [ $PKGARCH = "arm" ]; then
   PKGWINTUNDLL=wintun/bin/arm/wintun.dll
 #elif [ $PKGARCH = "arm64" ]; then
@@ -137,7 +141,6 @@ cat > wix.xml << EOF
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
-
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
             <File
               Id="Mesh"
@@ -196,6 +199,18 @@ cat > wix.xml << EOF
               Name="index.html"
               DiskId="1"
               Source="${PKGINDEXFILE}" />
+
+            <File
+              Id="WebViewFile"
+              Name="webview.dll"
+              DiskId="1"
+              Source="${PKGWEBVIEWFILE}" />
+
+            <File
+              Id="WebViewFileLoader"
+              Name="WebView2Loader.dll"
+              DiskId="1"
+              Source="${PKGWEBVIEWFILELOADER}" />
 
             <ServiceInstall
               Id="UIServiceInstaller"
