@@ -234,7 +234,7 @@ cat > wix.xml << EOF
     </Feature>
 
     <UI>
-      <Publish Dialog="ExitDialog"
+      <Publish
        Control="Finish"
        Event="DoAction"
        Value="LaunchApplication">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
