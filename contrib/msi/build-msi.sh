@@ -182,7 +182,7 @@ cat > wix.xml << EOF
               KeyPath="yes"/>
           </Component>
 
-          <Component Guid="ef9f30e0-8274-4526-835b-51bc09b5b1b7">
+          <Component Id="UIExecutable" Guid="ef9f30e0-8274-4526-835b-51bc09b5b1b7">
 
             <File
               Id="MeshUI"
@@ -231,8 +231,13 @@ cat > wix.xml << EOF
 
     <Feature Id="MeshFeature" Title="Mesh" Level="1">
       <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="UIExecutable" />
       <ComponentRef Id="CtrlExecutable" />
       <ComponentRef Id="ConfigScript" />
+    </Feature>
+
+    <Feature Id="UIFeature" Title="RiV-mesh manager" Level="1">
+      <ComponentRef Id="UIExecutable" />
     </Feature>
 
     <CustomAction
