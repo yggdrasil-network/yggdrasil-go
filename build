@@ -5,7 +5,7 @@ set -ef
 PKGSRC=${PKGSRC:-github.com/RiV-chain/RiV-mesh/src/version}
 PKGNAME=${PKGNAME:-$(sh contrib/semver/name.sh)}
 PKGVER=${PKGVER:-$(sh contrib/semver/version.sh --bare)}
-if [ $LDFLAGS ]; then
+if [ "$LDFLAGS" ]; then
   LDFLAGS="$LDFLAGS -X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
 else
   LDFLAGS="-X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
@@ -48,7 +48,7 @@ elif [ $ANDROID ]; then
 else
   for CMD in ./cmd/mesh ./cmd/meshctl ./contrib/ui/mesh-ui ; do
     echo "Building: $CMD"
-    go build $ARGS -ldflags="$LDFLAGS" -gcflags="$GCFLAGS" $CMD
+    go build $ARGS -ldflags "$LDFLAGS" -gcflags "$GCFLAGS" $CMD
 
     if [ $UPX ]; then
       upx --brute $CMD
