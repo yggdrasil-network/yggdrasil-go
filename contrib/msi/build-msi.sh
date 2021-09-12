@@ -229,7 +229,8 @@ cat > wix.xml << EOF
               Name="MeshUI"
               Start="install"
               Stop="both"
-              Remove="uninstall" />
+              Remove="uninstall"
+              Wait="yes"/>
           </Component>
 
           <Component Id="ConfigScript" Guid="64a3733b-c98a-4732-85f3-20cd7da1a785">
