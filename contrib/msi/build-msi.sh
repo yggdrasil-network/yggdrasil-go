@@ -152,12 +152,6 @@ cat > wix.xml << EOF
               DiskId="1"
               Source="${PKGWINTUNDLL}" />
 
-            <File
-              Id="IndexFile"
-              Name="index.html"
-              DiskId="1"
-              Source="${PKGINDEXFILE}" />
-
             <ServiceInstall
               Id="ServiceInstaller"
               Account="LocalSystem"
@@ -169,18 +163,6 @@ cat > wix.xml << EOF
               Start="auto"
               Type="ownProcess"
               Arguments='-useconffile "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.conf" -logto "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.log"'
-              Vital="yes" />
-
-            <ServiceInstall
-              Id="ServiceInstaller"
-              Account="LocalSystem"
-              Description="Mesh Network UI process"
-              DisplayName="Mesh UI Service"
-              ErrorControl="normal"
-              LoadOrderGroup="NetworkProvider"
-              Name="MeshUI"
-              Start="auto"
-              Type="ownProcess"
               Vital="yes" />
 
             <ServiceControl
@@ -198,6 +180,41 @@ cat > wix.xml << EOF
               DiskId="1"
               Source="meshctl.exe"
               KeyPath="yes"/>
+          </Component>
+
+          <Component Id="UIExecutable" Guid="ef9f30e0-8274-4526-835b-51bc09b5b1b7">
+
+            <File
+              Id="MeshUI"
+              Name="mesh-ui.exe"
+              DiskId="1"
+              Source="mesh-ui.exe"
+              KeyPath="yes" />
+
+            <File
+              Id="IndexFile"
+              Name="index.html"
+              DiskId="1"
+              Source="${PKGINDEXFILE}" />
+
+            <ServiceInstall
+              Id="ServiceInstaller"
+              Account="LocalSystem"
+              Description="Mesh Network UI process"
+              DisplayName="Mesh UI Service"
+              ErrorControl="normal"
+              LoadOrderGroup="NetworkProvider"
+              Name="MeshUI"
+              Start="auto"
+              Type="ownProcess"
+              Vital="yes" />
+
+            <ServiceControl
+              Id="ServiceControl"
+              Name="mesh-ui"
+              Start="install"
+              Stop="both"
+              Remove="uninstall" />
           </Component>
 
           <Component Id="ConfigScript" Guid="64a3733b-c98a-4732-85f3-20cd7da1a785">
