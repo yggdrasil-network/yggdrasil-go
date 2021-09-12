@@ -143,7 +143,7 @@ cat > wix.xml << EOF
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
             <File
-              Id="RiV-mesh"
+              Id="Mesh"
               Name="mesh.exe"
               DiskId="1"
               Source="mesh.exe"
