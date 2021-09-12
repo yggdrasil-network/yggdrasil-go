@@ -170,7 +170,7 @@ cat > wix.xml << EOF
 
             <ServiceControl
               Id="MeshServiceControl"
-              Name="mesh"
+              Name="Mesh"
               Start="install"
               Stop="both"
               Remove="uninstall" />
@@ -226,7 +226,7 @@ cat > wix.xml << EOF
 
             <ServiceControl
               Id="UIServiceControl"
-              Name="mesh-ui"
+              Name="MeshUI"
               Start="install"
               Stop="both"
               Remove="uninstall" />
