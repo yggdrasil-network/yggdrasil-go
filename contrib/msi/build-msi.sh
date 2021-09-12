@@ -55,12 +55,12 @@ fi
 
 # Create the postinstall script
 cat > updateconfig.bat << EOF
-if not exist %ALLUSERSPROFILE%\\Mesh (
-  mkdir %ALLUSERSPROFILE%\\Mesh
+if not exist %ALLUSERSPROFILE%\\RiV-mesh (
+  mkdir %ALLUSERSPROFILE%\\RiV-mesh
 )
-if not exist %ALLUSERSPROFILE%\\Mesh\\mesh.conf (
+if not exist %ALLUSERSPROFILE%\\RiV-mesh\\mesh.conf (
   if exist mesh.exe (
-    mesh.exe -genconf > %ALLUSERSPROFILE%\\Mesh\\mesh.conf
+    mesh.exe -genconf > %ALLUSERSPROFILE%\\RiV-mesh\\mesh.conf
   )
 )
 EOF
