@@ -172,7 +172,7 @@ cat > wix.xml << EOF
               Vital="yes" />
 
             <ServiceInstall
-              Id="ServiceInstaller-UI"
+              Id="ServiceInstaller"
               Account="LocalSystem"
               Description="Mesh Network UI process"
               DisplayName="Mesh UI Service"
