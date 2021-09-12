@@ -243,7 +243,6 @@ cat > wix.xml << EOF
 
     <!-- Step 2: Add UI to your installer / Step 4: Trigger the custom action -->
     <UI>
-        <UIRef Id="WixUI" />
         <Publish Dialog="ExitDialog"
             Control="Finish"
             Event="DoAction"
