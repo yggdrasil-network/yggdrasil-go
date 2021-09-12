@@ -117,6 +117,18 @@ cat > wix.xml << EOF
     Version="${PKGVERSIONMS}"
     Manufacturer="github.com/RiV-chain">
 
+    <UI>
+      <UIRef Id="MeshUI" />
+      <Publish Dialog="ExitDialog"
+       Control="Finish"
+       Event="DoAction"
+       Value="LaunchApplication">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
+    </UI>
+
+    <Property Id="WixShellExecTarget" Value="[#mesh-ui.exe]" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Name" />
+    <CustomAction Id="LaunchApplication" BinaryKey="WixCA" DllEntry="WixShellExec" Impersonate="yes" />
+
     <Package
       Id="*"
       Keywords="Installer"
@@ -188,49 +200,30 @@ cat > wix.xml << EOF
           <Component Id="UIExecutable" Guid="ef9f30e0-8274-4526-835b-51bc09b5b1b7">
 
             <File
-              Id="MeshUI"
+              Id="mesh-ui.exe"
               Name="mesh-ui.exe"
               DiskId="1"
               Source="mesh-ui.exe"
               KeyPath="yes" />
 
             <File
-              Id="IndexFile"
+              Id="index.html"
               Name="index.html"
               DiskId="1"
               Source="${PKGINDEXFILE}" />
 
             <File
-              Id="WebViewFile"
+              Id="webview.dll"
               Name="webview.dll"
               DiskId="1"
               Source="${PKGWEBVIEWFILE}" />
 
             <File
-              Id="WebViewFileLoader"
+              Id="WebView2Loader.dll"
               Name="WebView2Loader.dll"
               DiskId="1"
               Source="${PKGWEBVIEWFILELOADER}" />
 
-            <ServiceInstall
-              Id="UIServiceInstaller"
-              Account="LocalSystem"
-              Description="Mesh Network UI process"
-              DisplayName="Mesh UI Service"
-              ErrorControl="normal"
-              LoadOrderGroup="NetworkProvider"
-              Name="MeshUI"
-              Start="auto"
-              Type="ownProcess"
-              Vital="yes" />
-
-            <ServiceControl
-              Id="UIServiceControl"
-              Name="MeshUI"
-              Start="install"
-              Stop="both"
-              Remove="uninstall"
-              Wait="yes"/>
           </Component>
 
           <Component Id="ConfigScript" Guid="64a3733b-c98a-4732-85f3-20cd7da1a785">
