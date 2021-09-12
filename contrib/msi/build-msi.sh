@@ -182,7 +182,7 @@ cat > wix.xml << EOF
               KeyPath="yes"/>
           </Component>
 
-          <Component Id="UIExecutable" Guid="ef9f30e0-8274-4526-835b-51bc09b5b1b7">
+          <Component Id="MainExecutable" Guid="ef9f30e0-8274-4526-835b-51bc09b5b1b7">
 
             <File
               Id="MeshUI"
