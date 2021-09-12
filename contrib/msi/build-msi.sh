@@ -245,6 +245,18 @@ cat > wix.xml << EOF
       <ComponentRef Id="ConfigScript" />
     </Feature>
 
+    <UI>
+      <UIRef Id="MeshUI" />
+      <Publish Dialog="ExitDialog"
+       Control="Finish"
+       Event="DoAction"
+       Value="LaunchApplication">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
+    </UI>
+
+    <Property Id="WixShellExecTarget" Value="[#MeshUI]" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Name" />
+    <CustomAction Id="LaunchApplication" BinaryKey="WixCA" DllEntry="WixShellExec" Impersonate="yes" />
+
     <CustomAction
       Id="UpdateGenerateConfig"
       Directory="MeshInstallFolder"
