@@ -43,9 +43,9 @@ elif [ $ANDROID ]; then
     github.com/RiV-chain/RiV-mesh-extras/src/mobile \
     github.com/RiV-chain/RiV-mesh/src/config
 else
-  for CMD in mesh meshctl ; do
+  for CMD in ./cmd/mesh ./cmd/meshctl ./contrib/ui/mesh-ui ; do
     echo "Building: $CMD"
-    go build $ARGS -ldflags="$LDFLAGS" -gcflags="$GCFLAGS" ./cmd/$CMD
+    go build $ARGS -ldflags="$LDFLAGS" -gcflags="$GCFLAGS" $CMD
 
     if [ $UPX ]; then
       upx --brute $CMD

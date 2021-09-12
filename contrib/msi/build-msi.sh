@@ -69,6 +69,8 @@ EOF
 PKGNAME=$(sh contrib/semver/name.sh)
 PKGVERSION=$(sh contrib/msi/msversion.sh --bare)
 PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
+PKGINDEXFILE=contrib/ui/mesh-ui/index.html
+
 [ "${PKGARCH}" == "x64" ] && \
   PKGGUID="77757838-1a23-40a5-a720-c3b43e0260cc" PKGINSTFOLDER="ProgramFiles64Folder" || \
   PKGGUID="54a3294e-a441-4322-aefb-3bb40dd022bb" PKGINSTFOLDER="ProgramFilesFolder"
@@ -149,6 +151,12 @@ cat > wix.xml << EOF
               Name="wintun.dll"
               DiskId="1"
               Source="${PKGWINTUNDLL}" />
+
+            <File
+              Id="IndexFile"
+              Name="index.html"
+              DiskId="1"
+              Source="${PKGINDEXFILE}" />
 
             <ServiceInstall
               Id="ServiceInstaller"
