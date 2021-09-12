@@ -153,7 +153,7 @@ cat > wix.xml << EOF
               Source="${PKGWINTUNDLL}" />
 
             <ServiceInstall
-              Id="ServiceInstaller"
+              Id="MeshServiceInstaller"
               Account="LocalSystem"
               Description="Mesh Network router process"
               DisplayName="Mesh Service"
@@ -166,7 +166,7 @@ cat > wix.xml << EOF
               Vital="yes" />
 
             <ServiceControl
-              Id="ServiceControl"
+              Id="MeshServiceControl"
               Name="mesh"
               Start="install"
               Stop="both"
@@ -198,7 +198,7 @@ cat > wix.xml << EOF
               Source="${PKGINDEXFILE}" />
 
             <ServiceInstall
-              Id="ServiceInstaller"
+              Id="UIServiceInstaller"
               Account="LocalSystem"
               Description="Mesh Network UI process"
               DisplayName="Mesh UI Service"
@@ -210,7 +210,7 @@ cat > wix.xml << EOF
               Vital="yes" />
 
             <ServiceControl
-              Id="ServiceControl"
+              Id="UIServiceControl"
               Name="mesh-ui"
               Start="install"
               Stop="both"
