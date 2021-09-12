@@ -233,8 +233,6 @@ cat > wix.xml << EOF
       <ComponentRef Id="ConfigScript" />
     </Feature>
 
-    <UIRef Id="MeshUI"/>
-
     <UI>
       <Publish Dialog="ExitDialog"
        Control="Finish"
