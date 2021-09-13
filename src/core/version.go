@@ -20,7 +20,7 @@ type version_metadata struct {
 // Gets a base metadata with no keys set, but with the correct version numbers.
 func version_getBaseMetadata() version_metadata {
 	return version_metadata{
-		meta:     [4]byte{'m', 'e', 't', 'a'},
+		meta:     [4]byte{'z', 'e', 't', 'a'},
 		ver:      0,
 		minorVer: 4,
 	}
