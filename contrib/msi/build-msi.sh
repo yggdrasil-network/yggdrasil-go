@@ -70,6 +70,7 @@ PKGNAME=$(sh contrib/semver/name.sh)
 PKGVERSION=$(sh contrib/msi/msversion.sh --bare)
 PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
 PKGINDEXFILE=contrib/ui/mesh-ui/index.html
+PKGLICENSEFILE=LICENSE.rtf
 
 [ "${PKGARCH}" == "x64" ] && \
   PKGGUID="77757838-1a23-40a5-a720-c3b43e0260cc" PKGINSTFOLDER="ProgramFiles64Folder" || \
@@ -99,9 +100,9 @@ else
 fi
 
 if [ $PKGNAME != "master" ]; then
-  PKGDISPLAYNAME="Mesh Network (${PKGNAME} branch)"
+  PKGDISPLAYNAME="RiV-mesh Network (${PKGNAME} branch)"
 else
-  PKGDISPLAYNAME="Mesh Network"
+  PKGDISPLAYNAME="RiV-mesh Network"
 fi
 
 # Generate the wix.xml file
@@ -249,6 +250,7 @@ cat > wix.xml << EOF
             Event="DoAction"
             Value="LaunchApplication">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
     </UI>
+    <WixVariable Id="WixUILicenseRtf" Value="LICENSE.rtf" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch RiV-mesh" />
 
     <!-- Step 3: Include the custom action -->
