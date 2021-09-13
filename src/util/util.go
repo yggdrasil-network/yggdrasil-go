@@ -1,4 +1,4 @@
-// Package util contains miscellaneous utilities used by yggdrasil.
+// Package util contains miscellaneous utilities used by mesh.
 // In particular, this includes a crypto worker pool, Cancellation machinery, and a sync.Pool used to reuse []byte.
 package util
 

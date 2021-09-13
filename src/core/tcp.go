@@ -26,8 +26,8 @@ import (
 
 	"golang.org/x/net/proxy"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	//"github.com/yggdrasil-network/yggdrasil-go/src/util"
+	"github.com/RiV-chain/RiV-mesh/src/address"
+	//"github.com/RiV-chain/RiV-mesh/src/util"
 )
 
 const default_timeout = 6 * time.Second

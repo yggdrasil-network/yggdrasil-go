@@ -1,4 +1,4 @@
-// Package address contains the types used by yggdrasil to represent IPv6 addresses or prefixes, as well as functions for working with these types.
+// Package address contains the types used by mesh to represent IPv6 addresses or prefixes, as well as functions for working with these types.
 // Of particular importance are the functions used to derive addresses or subnets from a NodeID, or to get the NodeID and bitmask of the bits visible from an address, which is needed for DHT searches.
 package address
 
@@ -6,18 +6,18 @@ import (
 	"crypto/ed25519"
 )
 
-// Address represents an IPv6 address in the yggdrasil address range.
+// Address represents an IPv6 address in the mesh address range.
 type Address [16]byte
 
-// Subnet represents an IPv6 /64 subnet in the yggdrasil subnet range.
+// Subnet represents an IPv6 /64 subnet in the mesh subnet range.
 type Subnet [8]byte
 
-// GetPrefix returns the address prefix used by yggdrasil.
+// GetPrefix returns the address prefix used by mesh.
 // The current implementation requires this to be a multiple of 8 bits + 7 bits.
 // The 8th bit of the last byte is used to signal nodes (0) or /64 prefixes (1).
 // Nodes that configure this differently will be unable to communicate with each other using IP packets, though routing and the DHT machinery *should* still work.
 func GetPrefix() [1]byte {
-	return [...]byte{0x02}
+	return [...]byte{0xfc}
 }
 
 // IsValid returns true if an address falls within the range used by nodes in the network.

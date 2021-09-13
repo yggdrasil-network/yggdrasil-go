@@ -1,9 +1,9 @@
 #!/bin/sh
 
-CONFFILE="/etc/yggdrasil.conf"
+CONFFILE="/etc/mesh.conf"
 
 genconf() {
-	/usr/bin/yggdrasil -genconf > "$1"
+	/usr/bin/mesh -genconf > "$1"
 	return $?
 }
 
@@ -33,8 +33,8 @@ start() {
 		fi
 	fi
 
-	printf 'Starting yggdrasil: '
-	if start-stop-daemon -S -q -b -x /usr/bin/yggdrasil \
+	printf 'Starting mesh: '
+	if start-stop-daemon -S -q -b -x /usr/bin/mesh \
 		-- -useconffile "$CONFFILE"; then
 		echo "OK"
 	else
@@ -43,8 +43,8 @@ start() {
 }
 
 stop() {
-	printf "Stopping yggdrasil: "
-	if start-stop-daemon -K -q -x /usr/bin/yggdrasil; then
+	printf "Stopping mesh: "
+	if start-stop-daemon -K -q -x /usr/bin/mesh; then
 		echo "OK"
 	else
 		echo "FAIL"
@@ -52,8 +52,8 @@ stop() {
 }
 
 reload() {
-	printf "Reloading yggdrasil: "
-	if start-stop-daemon -K -q -s HUP -x /usr/bin/yggdrasil; then
+	printf "Reloading mesh: "
+	if start-stop-daemon -K -q -s HUP -x /usr/bin/mesh; then
 		echo "OK"
 	else
 		echo "FAIL"

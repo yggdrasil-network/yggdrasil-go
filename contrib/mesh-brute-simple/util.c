@@ -1,4 +1,4 @@
-#include "yggdrasil-brute.h"
+#include "mesh-brute.h"
 
 int find_where(unsigned char hash[64], unsigned char besthashlist[NUMKEYS][64]) {
 	/* Where to insert hash into sorted hashlist */
@@ -28,7 +28,7 @@ void insert_32(unsigned char itemlist[NUMKEYS][32], unsigned char item[32], int 
 }
 
 void make_addr(unsigned char addr[32], unsigned char hash[64]) {
-	/* Public key hash to yggdrasil ipv6 address */
+	/* Public key hash to mesh ipv6 address */
 	int i;
 	int offset;
 	unsigned char mask;

@@ -14,8 +14,8 @@ import (
 	//"sync/atomic"
 	"time"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
+	"github.com/RiV-chain/RiV-mesh/src/address"
+	"github.com/RiV-chain/RiV-mesh/src/util"
 	"golang.org/x/net/proxy"
 	//"github.com/Arceliar/phony" // TODO? use instead of mutexes
 )

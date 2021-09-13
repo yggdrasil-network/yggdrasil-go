@@ -1,0 +1,72 @@
+#!/bin/sh
+#
+# Put the mesh and meshctl binaries into /usr/local/bin
+# Then copy this script into /etc/rc.d/mesh
+# Finally, run:
+#   1. chmod +x /etc/rc.d/mesh /usr/local/bin/{mesh,meshctl}
+#   2. echo "mesh_enable=yes" >> /etc/rc.d
+#   3. service mesh start
+#
+# PROVIDE: mesh
+# REQUIRE: networking
+# KEYWORD:
+
+. /etc/rc.subr
+
+name="mesh"
+rcvar="mesh_enable"
+
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+
+pidfile="/var/run/mesh/${name}.pid"
+command="/usr/sbin/daemon"
+command_args="-P ${pidfile} -r -f ${mesh_command}"
+
+mesh_start()
+{
+	test ! -x /usr/local/bin/mesh && (
+		logger -s -t mesh "Warning: /usr/local/bin/mesh is missing or not executable"
+		logger -s -t mesh "Copy the mesh binary into /usr/local/bin and then chmod +x /usr/local/bin/mesh"
+		return 1
+	)
+
+	test ! -f /etc/mesh.conf && (
+		logger -s -t mesh "Generating new configuration file into /etc/mesh.conf"
+		/usr/local/bin/mesh -genconf > /etc/mesh.conf
+	)
+
+	tap_path="$(cat /etc/mesh.conf | egrep -o '/dev/tap[0-9]{1,2}$')"
+	tap_name="$(echo -n ${tap_path} | tr -d '/dev/')"
+
+	/sbin/ifconfig ${tap_name} >/dev/null 2>&1 || (
+		logger -s -t mesh "Creating ${tap_name} adapter"
+		/sbin/ifconfig ${tap_name} create || logger -s -t mesh "Failed to create ${tap_name} adapter"
+	)
+
+	test ! -d /var/run/mesh && mkdir -p /var/run/mesh
+
+	logger -s -t mesh "Starting mesh"
+	${command} ${command_args} /usr/local/bin/mesh -useconffile /etc/mesh.conf \
+		1>/var/log/mesh.stdout.log \
+		2>/var/log/mesh.stderr.log &
+}
+
+mesh_stop()
+{
+	logger -s -t mesh "Stopping mesh"
+	test -f /var/run/mesh/${name}.pid && kill -TERM $(cat /var/run/mesh/${name}.pid)
+
+	tap_path="$(cat /etc/mesh.conf | grep /dev/tap | egrep -o '/dev/.*$')"
+        tap_name="$(echo -n ${tap_path} | tr -d '/dev/')"
+
+	/sbin/ifconfig ${tap_name} >/dev/null 2>&1 && (
+		logger -s -t mesh "Destroying ${tap_name} adapter"
+		/sbin/ifconfig ${tap_name} destroy || logger -s -t mesh "Failed to destroy ${tap_name} adapter"
+	)
+}
+
+load_rc_config $name
+: ${mesh_enable:=no}
+
+run_rc_command "$1"

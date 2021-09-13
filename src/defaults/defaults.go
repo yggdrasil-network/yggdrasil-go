@@ -1,6 +1,6 @@
 package defaults
 
-import "github.com/yggdrasil-network/yggdrasil-go/src/config"
+import "github.com/RiV-chain/RiV-mesh/src/config"
 
 type MulticastInterfaceConfig = config.MulticastInterfaceConfig
 
@@ -11,7 +11,7 @@ type platformDefaultParameters struct {
 	// Admin socket
 	DefaultAdminListen string
 
-	// Configuration (used for yggdrasilctl)
+	// Configuration (used for meshctl)
 	DefaultConfigFile string
 
 	// Multicast interfaces

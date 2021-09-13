@@ -10,8 +10,8 @@ import (
 
 	"github.com/gologme/log"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/RiV-chain/RiV-mesh/src/config"
+	"github.com/RiV-chain/RiV-mesh/src/defaults"
 )
 
 // GenerateConfig produces default configuration with suitable modifications for tests.

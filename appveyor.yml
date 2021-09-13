@@ -5,12 +5,16 @@ os: Visual Studio 2019
 shallow_clone: false
 
 environment:
+  MSYSTEM: MINGW64
   MSYS2_PATH_TYPE: inherit
   CHERE_INVOKING: enabled_from_arguments
 
 build_script:
 - cmd: >-
     cd %APPVEYOR_BUILD_FOLDER%
+  ##### MinGW build
+- set OPT_PATH=C:\msys64\mingw32\bin;C:\msys64\mingw64\bin;
+- set PATH=%OPT_PATH%%PATH%
 - c:\msys64\usr\bin\bash -lc "./contrib/msi/build-msi.sh x64"
 - c:\msys64\usr\bin\bash -lc "./contrib/msi/build-msi.sh x86"
 

@@ -23,16 +23,16 @@ import (
 	"github.com/kardianos/minwinsvc"
 	"github.com/mitchellh/mapstructure"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
-	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/RiV-chain/RiV-mesh/src/address"
+	"github.com/RiV-chain/RiV-mesh/src/admin"
+	"github.com/RiV-chain/RiV-mesh/src/config"
+	"github.com/RiV-chain/RiV-mesh/src/defaults"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/core"
-	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
-	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
-	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
-	"github.com/yggdrasil-network/yggdrasil-go/src/version"
+	"github.com/RiV-chain/RiV-mesh/src/core"
+	"github.com/RiV-chain/RiV-mesh/src/ipv6rwc"
+	"github.com/RiV-chain/RiV-mesh/src/multicast"
+	"github.com/RiV-chain/RiV-mesh/src/tuntap"
+	"github.com/RiV-chain/RiV-mesh/src/version"
 )
 
 type node struct {
@@ -224,7 +224,7 @@ func getArgs() yggArgs {
 	}
 }
 
-// The main function is responsible for configuring and starting Yggdrasil.
+// The main function is responsible for configuring and starting Mesh.
 func run(args yggArgs, ctx context.Context, done chan struct{}) {
 	defer close(done)
 	// Create a new logger that logs output to stdout.
@@ -325,11 +325,11 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 	default:
 	}
 
-	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
+	// Setup the Mesh node itself. The node{} type includes a Core, so we
 	// don't need to create this manually.
 	n := node{config: cfg}
-	// Now start Yggdrasil - this starts the DHT, router, switch and other core
-	// components needed for Yggdrasil to operate
+	// Now start Mesh - this starts the DHT, router, switch and other core
+	// components needed for Mesh to operate
 	if err = n.core.Start(cfg, logger); err != nil {
 		logger.Errorln("An error occurred during startup")
 		panic(err)

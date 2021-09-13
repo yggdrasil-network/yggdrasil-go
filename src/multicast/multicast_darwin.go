@@ -12,7 +12,7 @@ void StartAWDLBrowsing() {
 		serviceBrowser = [[NSNetServiceBrowser alloc] init];
 		serviceBrowser.includesPeerToPeer = YES;
 	}
-	[serviceBrowser searchForServicesOfType:@"_yggdrasil._tcp" inDomain:@""];
+	[serviceBrowser searchForServicesOfType:@"_mesh._tcp" inDomain:@""];
 }
 void StopAWDLBrowsing() {
 	if (serviceBrowser == nil) {

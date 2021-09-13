@@ -1,0 +1,13 @@
+[Unit]
+Description=mesh default config generator
+ConditionPathExists=|!/etc/mesh.conf
+ConditionFileNotEmpty=|!/etc/mesh.conf
+Wants=local-fs.target
+After=local-fs.target
+
+[Service]
+Type=oneshot
+Group=mesh
+StandardOutput=file:/etc/mesh.conf
+ExecStart=/usr/bin/mesh -genconf
+ExecStartPost=/usr/bin/chmod 0640 /etc/mesh.conf

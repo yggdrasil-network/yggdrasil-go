@@ -2,11 +2,14 @@
 
 set -ef
 
-PKGSRC=${PKGSRC:-github.com/yggdrasil-network/yggdrasil-go/src/version}
+PKGSRC=${PKGSRC:-github.com/RiV-chain/RiV-mesh/src/version}
 PKGNAME=${PKGNAME:-$(sh contrib/semver/name.sh)}
 PKGVER=${PKGVER:-$(sh contrib/semver/version.sh --bare)}
-
-LDFLAGS="-X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
+if [ "$LDFLAGS" ]; then
+  LDFLAGS="$LDFLAGS -X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
+else
+  LDFLAGS="-X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
+fi
 ARGS="-v"
 
 while getopts "uaitc:l:dro:p" option
@@ -33,19 +36,19 @@ fi
 if [ $IOS ]; then
   echo "Building framework for iOS"
   go get golang.org/x/mobile/bind
-  gomobile bind -target ios -tags mobile -o Yggdrasil.framework -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
-    github.com/yggdrasil-network/yggdrasil-extras/src/mobile \
-    github.com/yggdrasil-network/yggdrasil-go/src/config
+  gomobile bind -target ios -tags mobile -o Mesh.framework -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
+    github.com/RiV-chain/RiV-mesh-extras/src/mobile \
+    github.com/RiV-chain/RiV-mesh/src/config
 elif [ $ANDROID ]; then
   echo "Building aar for Android"
   go get golang.org/x/mobile/bind
-  gomobile bind -target android -tags mobile -o yggdrasil.aar -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
-    github.com/yggdrasil-network/yggdrasil-extras/src/mobile \
-    github.com/yggdrasil-network/yggdrasil-go/src/config
+  gomobile bind -target android -tags mobile -o mesh.aar -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
+    github.com/RiV-chain/RiV-mesh-extras/src/mobile \
+    github.com/RiV-chain/RiV-mesh/src/config
 else
-  for CMD in yggdrasil yggdrasilctl ; do
+  for CMD in ./cmd/mesh ./cmd/meshctl ./contrib/ui/mesh-ui ; do
     echo "Building: $CMD"
-    go build $ARGS -ldflags="$LDFLAGS" -gcflags="$GCFLAGS" ./cmd/$CMD
+    go build $ARGS -ldflags "$LDFLAGS" -gcflags "$GCFLAGS" $CMD
 
     if [ $UPX ]; then
       upx --brute $CMD

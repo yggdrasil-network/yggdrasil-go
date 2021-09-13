@@ -11,7 +11,7 @@ import (
 	"github.com/hjson/hjson-go"
 	"golang.org/x/text/encoding/unicode"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/RiV-chain/RiV-mesh/src/defaults"
 )
 
 type CmdLineEnv struct {

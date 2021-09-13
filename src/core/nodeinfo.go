@@ -12,9 +12,9 @@ import (
 	iwt "github.com/Arceliar/ironwood/types"
 	"github.com/Arceliar/phony"
 
-	//"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	"github.com/yggdrasil-network/yggdrasil-go/src/version"
+	//"github.com/RiV-chain/RiV-mesh/src/crypto"
+	"github.com/RiV-chain/RiV-mesh/src/address"
+	"github.com/RiV-chain/RiV-mesh/src/version"
 )
 
 // NodeInfoPayload represents a RequestNodeInfo response, in bytes.

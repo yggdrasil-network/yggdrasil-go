@@ -51,12 +51,12 @@ ip netns exec node4 ip link set lo up
 ip netns exec node5 ip link set lo up
 ip netns exec node6 ip link set lo up
 
-echo '{AdminListen: "none"}' | ip netns exec node1 env PPROFLISTEN=localhost:6060 ./yggdrasil --useconf &> /dev/null &
-echo '{AdminListen: "none"}' | ip netns exec node2 env PPROFLISTEN=localhost:6060 ./yggdrasil --useconf &> /dev/null &
-echo '{AdminListen: "none"}' | ip netns exec node3 env PPROFLISTEN=localhost:6060 ./yggdrasil --useconf &> /dev/null &
-echo '{AdminListen: "none"}' | ip netns exec node4 env PPROFLISTEN=localhost:6060 ./yggdrasil --useconf &> /dev/null &
-echo '{AdminListen: "none"}' | ip netns exec node5 env PPROFLISTEN=localhost:6060 ./yggdrasil --useconf &> /dev/null &
-echo '{AdminListen: "none"}' | ip netns exec node6 env PPROFLISTEN=localhost:6060 ./yggdrasil --useconf &> /dev/null &
+echo '{AdminListen: "none"}' | ip netns exec node1 env PPROFLISTEN=localhost:6060 ./mesh --useconf &> /dev/null &
+echo '{AdminListen: "none"}' | ip netns exec node2 env PPROFLISTEN=localhost:6060 ./mesh --useconf &> /dev/null &
+echo '{AdminListen: "none"}' | ip netns exec node3 env PPROFLISTEN=localhost:6060 ./mesh --useconf &> /dev/null &
+echo '{AdminListen: "none"}' | ip netns exec node4 env PPROFLISTEN=localhost:6060 ./mesh --useconf &> /dev/null &
+echo '{AdminListen: "none"}' | ip netns exec node5 env PPROFLISTEN=localhost:6060 ./mesh --useconf &> /dev/null &
+echo '{AdminListen: "none"}' | ip netns exec node6 env PPROFLISTEN=localhost:6060 ./mesh --useconf &> /dev/null &
 
 echo "Started, to continue you should (possibly w/ sudo):"
 echo "kill" $(jobs -p)
