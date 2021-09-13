@@ -17,6 +17,6 @@ if [ $? != 0 ] || [ -z "$BRANCH" ]; then
   BRANCH="master"
 fi
 
-STAG=$(echo $TAG | sed 's/v//')
+STAG=$(echo $TAG | sed 's/v//' | sed 's/[^0123456789.]././')
 
 printf '%s' "$STAG"
