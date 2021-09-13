@@ -73,7 +73,7 @@ jobs:
       - run:
           name: Build for Linux (RPM packages)
           command: |
-              git clone https://github.com/RiV-chain/mesh-package-rpm ~/rpmbuild/SPECS
+              git clone https://github.com/RiV-chain/RiV-mesh-package-rpm ~/rpmbuild/SPECS
               cd ../ && tar -czvf ~/rpmbuild/SOURCES/v$CIVERSIONRPM --transform "s/project/RiV-mesh-$CIBRANCH-$CIVERSIONRPM/" project
               sed -i "s/RiV-mesh/RiV-mesh-$CIBRANCH/" ~/rpmbuild/SPECS/mesh.spec
               sed -i "s/^PKGNAME=mesh/PKGNAME=mesh-$CIBRANCH/" ~/rpmbuild/SPECS/mesh.spec
@@ -90,12 +90,12 @@ jobs:
           name: Build for EdgeRouter and VyOS
           command: |
               rm -f {mesh,meshctl}
-              git clone https://github.com/neilalexander/vyatta-mesh /tmp/vyatta-mesh;
+              git clone https://github.com/RiV-chain/vyatta-mesh /tmp/vyatta-mesh;
               cd /tmp/vyatta-mesh;
-              BUILDDIR_YGG=$CIRCLE_WORKING_DIRECTORY ./build-edgerouter-x $CIRCLE_BRANCH;
-              BUILDDIR_YGG=$CIRCLE_WORKING_DIRECTORY ./build-edgerouter-lite $CIRCLE_BRANCH;
-              BUILDDIR_YGG=$CIRCLE_WORKING_DIRECTORY ./build-vyos-i386 $CIRCLE_BRANCH
-              BUILDDIR_YGG=$CIRCLE_WORKING_DIRECTORY ./build-vyos-amd64 $CIRCLE_BRANCH
+              BUILDDIR_RIV=$CIRCLE_WORKING_DIRECTORY ./build-edgerouter-x $CIRCLE_BRANCH;
+              BUILDDIR_RIV=$CIRCLE_WORKING_DIRECTORY ./build-edgerouter-lite $CIRCLE_BRANCH;
+              BUILDDIR_RIV=$CIRCLE_WORKING_DIRECTORY ./build-vyos-i386 $CIRCLE_BRANCH
+              BUILDDIR_RIV=$CIRCLE_WORKING_DIRECTORY ./build-vyos-amd64 $CIRCLE_BRANCH
               mv *.deb /tmp/upload;
 
       - persist_to_workspace:

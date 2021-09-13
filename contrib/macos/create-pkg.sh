@@ -3,9 +3,10 @@
 # Check if xar and mkbom are available
 command -v xar >/dev/null 2>&1 || (
   echo "Building xar"
-  sudo apt-get install libxml2-dev libssl1.0-dev zlib1g-dev -y
-  mkdir -p /tmp/xar && cd /tmp/xar
-  git clone https://github.com/mackyle/xar && cd xar/xar
+  sudo apt-get install libxml2-dev libssl1.0-dev zlib1g-dev autoconf -y
+  rm -rf /tmp/xar && mkdir -p /tmp/xar && cd /tmp/xar
+  #git clone https://github.com/mackyle/xar && cd xar/xar
+  git clone https://github.com/RiV-chain/xar.git && cd xar/xar
   (sh autogen.sh && make && sudo make install) || (echo "Failed to build xar"; exit 1)
 )
 command -v mkbom >/dev/null 2>&1 || (
@@ -45,19 +46,19 @@ cat > pkgbuild/scripts/postinstall << EOF
 # Normalise the config if it exists, generate it if it doesn't
 if [ -f /etc/mesh.conf ];
 then
-  mkdir -p /Library/Preferences/Mesh
-  echo "Backing up configuration file to /Library/Preferences/Mesh/mesh.conf.`date +%Y%m%d`"
-  cp /etc/mesh.conf /Library/Preferences/Mesh/mesh.conf.`date +%Y%m%d`
+  mkdir -p /Library/Preferences/RiV-mesh
+  echo "Backing up configuration file to /Library/Preferences/RiV-mesh/mesh.conf.`date +%Y%m%d`"
+  cp /etc/mesh.conf /Library/Preferences/RiV-mesh/mesh.conf.`date +%Y%m%d`
   echo "Normalising /etc/mesh.conf"
-  /usr/local/bin/mesh -useconffile /Library/Preferences/Mesh/mesh.conf.`date +%Y%m%d` -normaliseconf > /etc/mesh.conf
+  /usr/local/bin/mesh -useconffile /Library/Preferences/RiV-mesh/mesh.conf.`date +%Y%m%d` -normaliseconf > /etc/mesh.conf
 else
   /usr/local/bin/mesh -genconf > /etc/mesh.conf
 fi
 
-# Unload existing Mesh launchd service, if possible
+# Unload existing RiV-mesh launchd service, if possible
 test -f /Library/LaunchDaemons/mesh.plist && (launchctl unload /Library/LaunchDaemons/mesh.plist || true)
 
-# Load Mesh launchd service and start Mesh
+# Load RiV-mesh launchd service and start RiV-mesh
 launchctl load /Library/LaunchDaemons/mesh.plist
 EOF
 
@@ -93,7 +94,7 @@ EOF
 cat > pkgbuild/flat/Distribution << EOF
 <?xml version="1.0" encoding="utf-8"?>
 <installer-script minSpecVersion="1.000000" authoringTool="com.apple.PackageMaker" authoringToolVersion="3.0.3" authoringToolBuild="174">
-    <title>Mesh (${PKGNAME}-${PKGVERSION})</title>
+    <title>RiV-mesh (${PKGNAME}-${PKGVERSION})</title>
     <options customize="never" allow-external-scripts="no"/>
     <domains enable_anywhere="true"/>
     <installation-check script="pm_install_check();"/>
@@ -101,7 +102,7 @@ cat > pkgbuild/flat/Distribution << EOF
     function pm_install_check() {
       if(!(system.compareVersions(system.version.ProductVersion,'10.10') >= 0)) {
         my.result.title = 'Failure';
-        my.result.message = 'You need at least Mac OS X 10.10 to install Mesh.';
+        my.result.message = 'You need at least Mac OS X 10.10 to install RiV-mesh.';
         my.result.type = 'Fatal';
         return false;
       }
