@@ -77,11 +77,11 @@ by giving the RiV-mesh binary the `CAP_NET_ADMIN` capability.
 
 ## Documentation
 
-Documentation is available [on our website](https://RiV-chain.github.io).
+Documentation is available [on our website](https://riv-chain.github.io/RiV-mesh/).
 
-- [Installing RiV-mesh](https://RiV-chain.github.io/installation.html)
-- [Configuring RiV-mesh](https://RiV-chain.github.io/configuration.html)
-- [Frequently asked questions](https://RiV-chain.github.io/faq.html)
+- [Installing RiV-mesh](https://riv-chain.github.io/RiV-mesh/)
+- [Configuring RiV-mesh](https://riv-chain.github.io/RiV-mesh/)
+- [Frequently asked questions](https://riv-chain.github.io/RiV-mesh/)
 - [Version changelog](CHANGELOG.md)
 
 ## Community
