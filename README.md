@@ -92,6 +92,9 @@ Documentation is available [on our website](https://riv-chain.github.io/RiV-mesh
 Feel free to join us on our [Telegram
 channel](https://t.me/rivchain).
 
+##Public peers
+If you are operating RiV-mesh peer and may create your pool request with your new per or use existing one https://github.com/RiV-chain/public-peers
+
 ## License
 
 This code is released under the terms of the LGPLv3, but with an added exception
