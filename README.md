@@ -3,6 +3,9 @@
 [![CircleCI](https://circleci.com/gh/RiV-chain/RiV-mesh.svg?style=shield&circle-token=:circle-token
 )](https://circleci.com/gh/RiV-chain/RiV-mesh)
 
+## Why fork?
+RiV-mesh is fork of Yggdrasil which is great project. Starting from Yggdrasil 0.4 dev team removed CKR feature which is a core for secure tunneling like VPN does. RiV-mesh gets back CKR feature. Second reason: Yggdrasil uses deprecated 200::/7 IPv6 address pool which can be assigned for some network in future, unlike this fc00::/7 is safe and has been taken for RiV-mesh.
+
 ## Introduction
 
 RiV-mesh is an implementation of a fully end-to-end encrypted IPv6
@@ -77,17 +80,20 @@ by giving the RiV-mesh binary the `CAP_NET_ADMIN` capability.
 
 ## Documentation
 
-Documentation is available [on our website](https://RiV-chain.github.io).
+Documentation is available [on our website](https://riv-chain.github.io/RiV-mesh/).
 
-- [Installing RiV-mesh](https://RiV-chain.github.io/installation.html)
-- [Configuring RiV-mesh](https://RiV-chain.github.io/configuration.html)
-- [Frequently asked questions](https://RiV-chain.github.io/faq.html)
+- [Installing RiV-mesh](https://riv-chain.github.io/RiV-mesh/)
+- [Configuring RiV-mesh](https://riv-chain.github.io/RiV-mesh/)
+- [Frequently asked questions](https://riv-chain.github.io/RiV-mesh/)
 - [Version changelog](CHANGELOG.md)
 
 ## Community
 
 Feel free to join us on our [Telegram
 channel](https://t.me/rivchain).
+
+## Public peers
+If you are operating RiV-mesh peer and may create your pool request with your new per or use existing one https://github.com/RiV-chain/public-peers
 
 ## License
 
