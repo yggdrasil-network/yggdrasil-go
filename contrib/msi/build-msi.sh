@@ -46,6 +46,8 @@ then
     exit 1
   )
 fi
+
+which go
 #install go-winres
 go install github.com/tc-hib/go-winres@latest
 go-winres init
