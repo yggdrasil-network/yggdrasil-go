@@ -55,9 +55,15 @@ PKGINDEXFILE=contrib/ui/mesh-ui/index.html
 PKGLICENSEFILE=LICENSE.rtf
 
 #Build winres
-go-winres simply --icon riv.ico --file-version $PKGVERSION --file-description "RiV-mesh (c), 2021 RIV CHAIN" --product-version $PKGVERSION --product-name "RiV-mesh" --copyright "Copyright (c) 2021, RIV CHAIN"
+go-winres simply --icon riv.ico --file-version $PKGVERSION --file-description "RiV-mesh (c) service, 2021 RIV CHAIN" \
+--product-version $PKGVERSION --product-name "RiV-mesh" --copyright "Copyright (c) 2021, RIV CHAIN"
 cp *.syso cmd/mesh
+go-winres simply --icon riv.ico --file-version $PKGVERSION --file-description "RiV-mesh (c) GUI, 2021 RIV CHAIN" \
+--product-version $PKGVERSION --product-name "RiV-mesh" --copyright "Copyright (c) 2021, RIV CHAIN" --manifest gui
 cp *.syso contrib/ui/mesh-ui
+go-winres simply --file-version $PKGVERSION --file-description "RiV-mesh (c) CLI, 2021 RIV CHAIN" \
+--product-version $PKGVERSION --product-name "RiV-mesh" --copyright "Copyright (c) 2021, RIV CHAIN" --manifest cli
+cp *.syso cmd/meshctl
 
 # Build Mesh!
 [ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ LDFLAGS="-H windowsgui" ./build
