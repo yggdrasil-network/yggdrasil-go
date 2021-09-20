@@ -47,10 +47,9 @@ then
   )
 fi
 
-which go
-#install go-winres
-#go install github.com/tc-hib/go-winres@latest
+#Build winres
 go-winres init
+go-winres make
 
 # Build Mesh!
 [ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ LDFLAGS="-H windowsgui" ./build
