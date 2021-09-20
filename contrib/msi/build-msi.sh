@@ -153,7 +153,8 @@ cat > wix.xml << EOF
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="DesktopFolder" Name="Desktop" />
       <Directory Id="ProgramFilesFolder">
-        <Directory Id="INSTALLFOLDER" Name="RiV-mesh" >
+        <Directory Id="INSTALLFOLDER" Name="RiV-mesh">
+        </Directory>
       </Directory>
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
