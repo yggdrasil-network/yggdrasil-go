@@ -151,11 +151,6 @@ cat > wix.xml << EOF
       CompressionLevel="high" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
-      <Directory Id="DesktopFolder" Name="Desktop" />
-      <Directory Id="ProgramFilesFolder">
-        <Directory Id="INSTALLFOLDER" Name="RiV-mesh">
-        </Directory>
-      </Directory>
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
@@ -209,18 +204,7 @@ cat > wix.xml << EOF
               Name="mesh-ui.exe"
               DiskId="1"
               Source="mesh-ui.exe"
-              KeyPath="yes">
-        <Shortcut Id="DesktopShortcut"
-                  Directory="DesktopFolder"
-                  Name="RiV-mesh"
-                  Description="RiV-mesh IoT E2E encrypted network"
-                  WorkingDirectory="INSTALLFOLDER"
-                  Icon="RiVMeshIcon"
-                  IconIndex="0"
-                  Advertise="yes" >
-           <Icon Id="RiVMeshIcon" SourceFile="MeshUI" />
-        </Shortcut>
-             </File>
+              KeyPath="yes" />
 
             <File
               Id="WebViewHtmlFile"
@@ -242,6 +226,16 @@ cat > wix.xml << EOF
 
           </Component>
 
+          <Component Id="cmpDesktopShortcut" Guid="e32e4d07-abf8-4c37-a2c3-1ca4b4f98adc" Directory="DesktopFolder" >
+             <Shortcut Id="RiVMeshDesktopShortcut" 
+                  Name="RiV-mesh" 
+                  Description="RiV-mesh is IoT E2E encrypted network" 
+                  Directory="DesktopFolder" 
+                  Target="[INSTALLFOLDER]mesh-ui.exe"
+                  WorkingDirectory="INSTALLFOLDER"/>
+             <RegistryValue Root="HKCU" Key="Software\RiV-chain\RiV-mesh" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+          </Component>
+
           <Component Id="ConfigScript" Guid="64a3733b-c98a-4732-85f3-20cd7da1a785">
             <File
               Id="Configbat"
@@ -258,6 +252,7 @@ cat > wix.xml << EOF
       <ComponentRef Id="MainExecutable" />
       <ComponentRef Id="UIExecutable" />
       <ComponentRef Id="CtrlExecutable" />
+      <ComponentRef Id="cmpDesktopShortcut" />
       <ComponentRef Id="ConfigScript" />
     </Feature>
 
