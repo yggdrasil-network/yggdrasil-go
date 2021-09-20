@@ -8,13 +8,18 @@ environment:
   MSYSTEM: MINGW64
   MSYS2_PATH_TYPE: inherit
   CHERE_INVOKING: enabled_from_arguments
+  GO111MODULE: on
+  GOPATH: c:\gopath
+
+stack: go 1.15
 
 build_script:
 - cmd: >-
     cd %APPVEYOR_BUILD_FOLDER%
   ##### MinGW build
 - set OPT_PATH=C:\msys64\mingw32\bin;C:\msys64\mingw64\bin;
-- set PATH=%OPT_PATH%%PATH%
+- set PATH=%GOPATH%\bin;%OPT_PATH%%PATH%
+- go install github.com/tc-hib/go-winres@latest
 - c:\msys64\usr\bin\bash -lc "./contrib/msi/build-msi.sh x64"
 - c:\msys64\usr\bin\bash -lc "./contrib/msi/build-msi.sh x86"
 
