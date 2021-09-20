@@ -286,8 +286,8 @@ cat > wix.xml << EOF
              Name="RiV-mesh"
              Description="RiV-mesh is IoT E2E encrypted network"
              Directory="DesktopFolder"
-             Target="[INSTALLFOLDER]mesh-ui.exe"
-             WorkingDirectory="INSTALLFOLDER"/>
+             Target="[MeshInstallFolder]mesh-ui.exe"
+             WorkingDirectory="${MeshInstallFolder}"/>
         <RegistryValue Root="HKCU" Key="Software\RiV-chain\RiV-mesh" Name="installed" Type="integer" Value="1" KeyPath="yes" />
      </Component>
 
