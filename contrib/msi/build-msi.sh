@@ -151,6 +151,25 @@ cat > wix.xml << EOF
       CompressionLevel="high" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
+
+    <Directory Id="DesktopFolder" Name="Desktop">
+        <Component Id="ApplicationShortcutDesktop" Guid="*">
+            <Shortcut Id="ApplicationDesktopShortcut"
+                Name="RiV-mesh"
+                Description="RiV-mesh IoT E2E encrypted network."
+                Target="[MYAPPDIRPROPERTY]mesh-ui.exe"
+                WorkingDirectory="MYAPPDIRPROPERTY"/>
+            <RemoveFolder Id="DesktopFolder" On="uninstall"/>
+            <RegistryValue
+                Root="HKCU"
+                Key="Software\MyCompany\MyApplicationName"
+                Name="installed"
+                Type="integer"
+                Value="1"
+                KeyPath="yes"/>
+        </Component>
+    </Directory>
+
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
@@ -239,6 +258,7 @@ cat > wix.xml << EOF
     </Directory>
 
     <Feature Id="MeshFeature" Title="Mesh" Level="1">
+      <ComponentRef Id="ApplicationShortcutDesktop"/>
       <ComponentRef Id="MainExecutable" />
       <ComponentRef Id="UIExecutable" />
       <ComponentRef Id="CtrlExecutable" />
