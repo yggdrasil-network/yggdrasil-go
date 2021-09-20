@@ -151,25 +151,10 @@ cat > wix.xml << EOF
       CompressionLevel="high" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
-
-    <Directory Id="DesktopFolder" Name="Desktop">
-        <Component Id="ApplicationShortcutDesktop" Guid="*">
-            <Shortcut Id="ApplicationDesktopShortcut"
-                Name="RiV-mesh"
-                Description="RiV-mesh IoT E2E encrypted network."
-                Target="[MYAPPDIRPROPERTY]mesh-ui.exe"
-                WorkingDirectory="MYAPPDIRPROPERTY"/>
-            <RemoveFolder Id="DesktopFolder" On="uninstall"/>
-            <RegistryValue
-                Root="HKCU"
-                Key="Software\MyCompany\MyApplicationName"
-                Name="installed"
-                Type="integer"
-                Value="1"
-                KeyPath="yes"/>
-        </Component>
-    </Directory>
-
+      <Directory Id="DesktopFolder" Name="Desktop" />
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="RiV-mesh" >
+      </Directory>
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
@@ -223,7 +208,18 @@ cat > wix.xml << EOF
               Name="mesh-ui.exe"
               DiskId="1"
               Source="mesh-ui.exe"
-              KeyPath="yes" />
+              KeyPath="yes">
+        <Shortcut Id="DesktopShortcut"
+                  Directory="DesktopFolder"
+                  Name="RiV-mesh"
+                  Description="RiV-mesh IoT E2E encrypted network"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="mesh-ui.exe"
+                  IconIndex="0"
+                  Advertise="yes" >
+           <Icon Id="mesh-ui.exe" SourceFile="mesh-ui.exe" />
+        </Shortcut>
+             </File>
 
             <File
               Id="WebViewHtmlFile"
@@ -258,7 +254,6 @@ cat > wix.xml << EOF
     </Directory>
 
     <Feature Id="MeshFeature" Title="Mesh" Level="1">
-      <ComponentRef Id="ApplicationShortcutDesktop"/>
       <ComponentRef Id="MainExecutable" />
       <ComponentRef Id="UIExecutable" />
       <ComponentRef Id="CtrlExecutable" />
