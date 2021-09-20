@@ -47,8 +47,15 @@ then
   )
 fi
 
+# Work out metadata for the package info
+PKGNAME=$(sh contrib/semver/name.sh)
+PKGVERSION=$(sh contrib/msi/msversion.sh --bare)
+PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
+PKGINDEXFILE=contrib/ui/mesh-ui/index.html
+PKGLICENSEFILE=LICENSE.rtf
+
 #Build winres
-go-winres simply --icon riv.ico
+go-winres simply --icon riv.ico --file-version $PKGVERSION --file-description "RiV-mesh (c), 2021 RIV CHAIN" --product-version $PKGVERSION --product-name "RiV-mesh" --copyright "Copyright (c) 2021, RIV CHAIN"
 cp *.syso cmd/mesh
 cp *.syso contrib/ui/mesh-ui
 
@@ -69,13 +76,6 @@ if not exist %ALLUSERSPROFILE%\\RiV-mesh\\mesh.conf (
   )
 )
 EOF
-
-# Work out metadata for the package info
-PKGNAME=$(sh contrib/semver/name.sh)
-PKGVERSION=$(sh contrib/msi/msversion.sh --bare)
-PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
-PKGINDEXFILE=contrib/ui/mesh-ui/index.html
-PKGLICENSEFILE=LICENSE.rtf
 
 [ "${PKGARCH}" == "x64" ] && \
   PKGGUID="77757838-1a23-40a5-a720-c3b43e0260cc" PKGINSTFOLDER="ProgramFiles64Folder" || \
