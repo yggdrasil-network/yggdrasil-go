@@ -48,8 +48,9 @@ then
 fi
 
 #Build winres
-go-winres init
-go-winres make
+go-winres simply --icon riv.ico
+cp *.syso cmd/mesh
+cp *.syso contrib/ui/mesh-ui
 
 # Build Mesh!
 [ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ LDFLAGS="-H windowsgui" ./build
