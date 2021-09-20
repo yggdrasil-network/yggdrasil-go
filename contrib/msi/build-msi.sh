@@ -5,7 +5,7 @@
 # the system and within the PATH. This is ran currently by Appveyor (see
 # appveyor.yml in the repository root) for both x86 and x64.
 #
-# Author: Neil Alexander <neilalexander@users.noreply.github.com>
+# Author: Neil Alexander <neilalexander@users.noreply.github.com>, Vadym Vikulin <vadym.vikulin@rivchain.org>
 
 # Get arch from command line if given
 PKGARCH=$1
@@ -46,7 +46,9 @@ then
     exit 1
   )
 fi
-
+#install go-winres
+go install github.com/tc-hib/go-winres@latest
+go-winres init
 # Build Mesh!
 [ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ LDFLAGS="-H windowsgui" ./build
 [ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=1 CC=i686-w64-mingw32-gcc CXX=i686-w64-mingw32-g++ LDFLAGS="-H windowsgui" ./build
