@@ -218,7 +218,7 @@ cat > wix.xml << EOF
                   Icon="mesh-ui.exe"
                   IconIndex="0"
                   Advertise="yes" >
-           <Icon Id="mesh-ui.exe" SourceFile="mesh-ui.exe" />
+           <Icon Id="RiVMeshIcon" SourceFile="mesh-ui.exe" />
         </Shortcut>
              </File>
 
