@@ -215,7 +215,7 @@ cat > wix.xml << EOF
                   Name="RiV-mesh"
                   Description="RiV-mesh IoT E2E encrypted network"
                   WorkingDirectory="INSTALLFOLDER"
-                  Icon="mesh-ui.exe"
+                  Icon="RiVMeshIcon"
                   IconIndex="0"
                   Advertise="yes" >
            <Icon Id="RiVMeshIcon" SourceFile="MeshUI" />
