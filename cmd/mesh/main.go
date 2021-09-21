@@ -185,14 +185,14 @@ func setLogLevel(loglevel string, logger *log.Logger) {
 type yggArgs struct {
 	genconf       bool
 	useconf       bool
-	useconffile   string
 	normaliseconf bool
 	confjson      bool
 	autoconf      bool
 	ver           bool
-	logto         string
 	getaddr       bool
 	getsnet       bool
+	useconffile   string
+	logto         string
 	loglevel      string
 }
 
