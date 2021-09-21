@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <title>RiV-nesh</title>
+    <title>RiV-mesh</title>
     <link rel="stylesheet" href="https://maxst.icons8.com/vue-static/landings/line-awesome/font-awesome-line-awesome/css/all.min.css" type="text/css">
     <link rel="stylesheet" href="https://unpkg.com/bulmaswatch/slate/bulmaswatch.min.css" type="text/css">
     <script>
@@ -98,6 +98,17 @@
         button.onclick = function() {
             message.value = "";
             info.className = "notification is-primary is-hidden";
+        };
+        var button = document.getElementById("window_close");
+        button.onclick = function() {
+            message.value = "";
+            info.className = "notification is-primary is-hidden";
+        };
+        var button = document.getElementById("window_save");
+        button.onclick = function() {
+            message.value = "";
+            info.className = "notification is-primary is-hidden";
+            //todo save peers
         };
     };
     
@@ -217,7 +228,7 @@ function add_table(peerList) {
               <p style="padding:3px; max-height: 250px; overflow-y: auto;" id="info_text"></p>
         <div style="padding-left:100px; padding-top:15px;" class="field is-grouped" >      
         <p class="control">
-          <a class="button is-success">
+          <a id="window_save" class="button is-success">
           <span class="icon is-small">
             <i class="fa fa-check"> </i>
           </span>
@@ -225,7 +236,7 @@ function add_table(peerList) {
         </a>
         </p>
         <p class="control">
-          <a class="button is-danger is-outlined">
+          <a id="window_close" class="button is-danger is-outlined">
           <span> Cancel </span>
           <span class="icon is-small">
             <i class="fa fa-times"> </i>
