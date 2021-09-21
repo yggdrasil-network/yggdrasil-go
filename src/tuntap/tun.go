@@ -114,11 +114,11 @@ func (tun *TunAdapter) _start() error {
 	if tun.isOpen {
 		return errors.New("TUN module is already started")
 	}
-	tun.config.RLock()
-	defer tun.config.RUnlock()
 	if tun.config == nil {
 		return errors.New("no configuration available to TUN")
 	}
+	tun.config.RLock()
+	defer tun.config.RUnlock()
 	tun.addr = tun.rwc.Address()
 	tun.subnet = tun.rwc.Subnet()
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
