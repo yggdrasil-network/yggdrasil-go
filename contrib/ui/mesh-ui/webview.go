@@ -9,8 +9,8 @@ import (
 	"strings"
 	"os/exec"
 	"log"
-	"os"
-	"fmt"	
+	"fmt"
+	"os"	
 )
 
 func main() {
@@ -18,7 +18,7 @@ func main() {
 	w := webview.New(debug)
 	defer w.Destroy()
 	w.SetTitle("RiV-mesh")
-	w.SetSize(465, 410, webview.HintNone)
+	w.SetSize(470, 415, webview.HintNone)
 	path, err := filepath.Abs(filepath.Dir(os.Args[0]))
     if err != nil {
             log.Fatal(err)

@@ -22,6 +22,6 @@ require (
 	golang.org/x/net v0.0.0-20210610132358-84b48f89b13b
 	golang.org/x/sys v0.0.0-20210611083646-a4fc73990273
 	golang.org/x/text v0.3.7-0.20210503195748-5c7c50ebbd4f
-	golang.zx2c4.com/wireguard v0.0.0-20210604143328-f9b48a961cd2
+	golang.zx2c4.com/wireguard v0.0.0-20210905140043-2ef39d47540c
 	golang.zx2c4.com/wireguard/windows v0.3.14
 )
