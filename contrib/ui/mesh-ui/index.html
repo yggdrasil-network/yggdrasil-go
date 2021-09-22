@@ -90,7 +90,7 @@
     
     function showWindow(text) {
         var info = document.getElementById("notification_window");
-        var message = document.getElementById("info_text");
+        var message = document.getElementById("info_window");
         message.innerHTML = text;
     
         info.className = "notification is-primary";
@@ -225,7 +225,7 @@ function add_table(peerList) {
 
         <div style="z-index: 9;" class="box stack-top notification is-primary is-hidden" id="notification_window">
               <button class="delete" id="info_close"></button>
-              <p style="padding:3px; max-height: 250px; overflow-y: auto;" id="info_text"></p>
+              <p style="padding:3px; max-height: 250px; overflow-y: auto;" id="info_window"></p>
         <div style="padding-left:100px; padding-top:15px;" class="field is-grouped" >      
         <p class="control">
           <a id="window_save" class="button is-success">
