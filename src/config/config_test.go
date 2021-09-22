@@ -8,15 +8,6 @@ import (
 
 func TestConfig_Keys(t *testing.T) {
 	var nodeConfig NodeConfig
-
-	if nodeConfig.PublicKey != "" {
-		t.Fatal("public key is not empty by default")
-	}
-
-	if nodeConfig.PrivateKey != "" {
-		t.Fatal("private key is not empty by default")
-	}
-
 	nodeConfig.NewKeys()
 
 	publicKey1, err := hex.DecodeString(nodeConfig.PublicKey)
