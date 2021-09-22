@@ -109,6 +109,16 @@
             message.value = "";
             info.className = "notification is-primary is-hidden";
             //todo save peers
+            var peers = document.querySelectorAll('*[id^="peer-"]');
+            var peer_list = [];
+            for (i = 0; i < peers.length; ++i) {
+              var p = peers[i];
+              if (p.checked) {
+            		var peerURL = p.parentElement.parentElement.firstChild.innerText;
+            		peer_list.push(peerURL);
+              }
+            }
+            savePeers(JSON.stringify(peer_list));
         };
     };
     
@@ -129,11 +139,13 @@ function add_table(peerList) {
 
   // creates a <table> element and a <tbody> element
   var tbl = document.createElement("table");
+  tbl.setAttribute('id', "peer_list");
   //tbl.setAttribute('cellpadding', '10');
   var tblBody = document.createElement("tbody");
 
   // creating all cells
   for (var c in peerList) {
+    let counter = 1;
     for (peer in peerList[c]){
     // creates a table row
     var row = document.createElement("tr");
@@ -143,6 +155,7 @@ function add_table(peerList) {
     var peerSelect = document.createElement("td");
     var chk = document.createElement('input');
     chk.setAttribute('type', 'checkbox');
+    chk.setAttribute('id', "peer-"+counter);
     peerSelect.appendChild(chk);
     row.appendChild(peerAddress);
     row.appendChild(peerSelect);
@@ -222,7 +235,6 @@ function add_table(peerList) {
 <body onload="onLoad();">
    <div style="padding:3px; max-height: 250px;">
    <div class="box">
-
         <div style="z-index: 9;" class="box stack-top notification is-primary is-hidden" id="notification_window">
               <button class="delete" id="info_close"></button>
               <p style="padding:3px; max-height: 250px; overflow-y: auto;" id="info_window"></p>

@@ -2,35 +2,42 @@ package main
 
 import (
 	"github.com/webview/webview"
+	"encoding/json"
 	"path/filepath"
 	"io/ioutil"
+	"os/exec"
 	"net/url"
 	"runtime"
 	"strings"
-	"os/exec"
 	"log"
 	"fmt"
 	"os"	
 )
 
 func main() {
-	debug := true
-	w := webview.New(debug)
-	defer w.Destroy()
-	w.SetTitle("RiV-mesh")
-	w.SetSize(470, 415, webview.HintNone)
-	path, err := filepath.Abs(filepath.Dir(os.Args[0]))
+    debug := true
+    w := webview.New(debug)
+    defer w.Destroy()
+    w.SetTitle("RiV-mesh")
+    w.SetSize(470, 415, webview.HintNone)
+    path, err := filepath.Abs(filepath.Dir(os.Args[0]))
     if err != nil {
             log.Fatal(err)
     }
     log.Println(path)
-	w.Bind("onLoad", func() {
-			log.Println("page loaded")
-			go run(w)
-	})
-	dat, err := ioutil.ReadFile(path+"/index.html")
-	w.Navigate("data:text/html,"+url.QueryEscape(string(dat)))
-	w.Run()
+    w.Bind("onLoad", func() {
+	log.Println("page loaded")
+	go run(w)
+    })
+    w.Bind("savePeers", func(peer_list string) {
+	//log.Println("peers saved ", peer_list)
+	var peers []string
+	_ = json.Unmarshal([]byte(peer_list), &peers)
+	log.Printf("Unmarshaled: %v", peers)
+    })
+    dat, err := ioutil.ReadFile(path+"/index.html")
+    w.Navigate("data:text/html,"+url.QueryEscape(string(dat)))
+    w.Run()
 }
 
 func run(w webview.WebView){
@@ -107,7 +114,8 @@ func get_peers(w webview.WebView, riv_ctrl_path string){
 			m=append(m, r)
 		}
 	}
-	for k := range m {         // Loop
+	for k := range m {         
+	    // Loop
 	    fmt.Println(k)
 	}
 	inner_html := strings.Join(m[:], "<br>")
