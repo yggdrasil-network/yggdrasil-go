@@ -3,7 +3,7 @@ module github.com/RiV-chain/RiV-mesh
 go 1.16
 
 require (
-	github.com/Arceliar/ironwood v0.0.0-20210619124114-6ad55cae5031
+	github.com/Arceliar/ironwood v0.0.0-20210912013146-c2bc55bb349c
 	github.com/Arceliar/phony v0.0.0-20210209235338-dde1a8dca979
 	github.com/VividCortex/ewma v1.2.0 // indirect
 	github.com/cheggaaa/pb/v3 v3.0.8
