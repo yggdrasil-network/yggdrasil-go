@@ -129,6 +129,7 @@ func (k *keyStore) sendToSubnet(subnet address.Subnet, bs []byte) {
 
 func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 	k.mutex.Lock()
+	defer k.mutex.Unlock()
 	var kArray keyArray
 	copy(kArray[:], key)
 	var info *keyInfo
@@ -140,8 +141,6 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 		k.keyToInfo[info.key] = info
 		k.addrToInfo[info.address] = info
 		k.subnetToInfo[info.subnet] = info
-		k.resetTimeout(info)
-		k.mutex.Unlock()
 		if buf := k.addrBuffer[info.address]; buf != nil {
 			k.core.WriteTo(buf.packet, iwt.Addr(info.key[:]))
 			delete(k.addrBuffer, info.address)
@@ -150,10 +149,8 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 			k.core.WriteTo(buf.packet, iwt.Addr(info.key[:]))
 			delete(k.subnetBuffer, info.subnet)
 		}
-	} else {
-		k.resetTimeout(info)
-		k.mutex.Unlock()
 	}
+	k.resetTimeout(info)
 	return info
 }
 
