@@ -105,7 +105,7 @@ jobs:
 
   build-macos:
     macos:
-      xcode: "10.0.0"
+      xcode: "13.0.0"
 
     working_directory: ~/go/src/github.com/yggdrasil-network/yggdrasil-go
 
