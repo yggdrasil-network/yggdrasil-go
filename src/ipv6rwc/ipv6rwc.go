@@ -132,6 +132,7 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 	var kArray keyArray
 	copy(kArray[:], key)
 	var info *keyInfo
+	var packets [][]byte
 	if info = k.keyToInfo[kArray]; info == nil {
 		info = new(keyInfo)
 		info.key = kArray
@@ -140,19 +141,19 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 		k.keyToInfo[info.key] = info
 		k.addrToInfo[info.address] = info
 		k.subnetToInfo[info.subnet] = info
-		k.resetTimeout(info)
-		k.mutex.Unlock()
 		if buf := k.addrBuffer[info.address]; buf != nil {
-			k.core.WriteTo(buf.packet, iwt.Addr(info.key[:]))
+			packets = append(packets, buf.packet)
 			delete(k.addrBuffer, info.address)
 		}
 		if buf := k.subnetBuffer[info.subnet]; buf != nil {
-			k.core.WriteTo(buf.packet, iwt.Addr(info.key[:]))
+			packets = append(packets, buf.packet)
 			delete(k.subnetBuffer, info.subnet)
 		}
-	} else {
-		k.resetTimeout(info)
-		k.mutex.Unlock()
+	}
+	k.resetTimeout(info)
+	k.mutex.Unlock()
+	for _, packet := range packets {
+		k.core.WriteTo(packet, iwt.Addr(info.key[:]))
 	}
 	return info
 }

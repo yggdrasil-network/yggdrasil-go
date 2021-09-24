@@ -1,3 +1,4 @@
+//go:build linux || netbsd || freebsd || openbsd || dragonflybsd
 // +build linux netbsd freebsd openbsd dragonflybsd
 
 package multicast

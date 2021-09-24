@@ -1,3 +1,4 @@
+//go:build !linux && !darwin && !windows && !openbsd && !freebsd && !mobile
 // +build !linux,!darwin,!windows,!openbsd,!freebsd,!mobile
 
 package tuntap
