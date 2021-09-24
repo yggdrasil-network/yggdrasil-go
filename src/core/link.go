@@ -98,6 +98,22 @@ func (l *links) call(u *url.URL, sintf string) error {
 		l.tcp.call(pathtokens[0], tcpOpts, sintf)
 	case "tls":
 		tcpOpts.upgrade = l.tcp.tls.forDialer
+		// SNI headers must contain hostnames and not IP addresses, so we must make sure
+		// that we do not populate the SNI with an IP literal. We do this by splitting
+		// the host-port combo from the query option and then seeing if it parses to an
+		// IP address successfully or not.
+		if sni := u.Query().Get("sni"); sni != "" {
+			if net.ParseIP(sni) == nil {
+				tcpOpts.tlsSNI = sni
+			}
+		}
+		// If the SNI is not configured still because the above failed then we'll try
+		// again but this time we'll use the host part of the peering URI instead.
+		if tcpOpts.tlsSNI == "" {
+			if host, _, err := net.SplitHostPort(u.Host); err == nil && net.ParseIP(host) == nil {
+				tcpOpts.tlsSNI = host
+			}
+		}
 		l.tcp.call(u.Host, tcpOpts, sintf)
 	default:
 		return errors.New("unknown call scheme: " + u.Scheme)
