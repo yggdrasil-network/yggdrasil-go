@@ -38,8 +38,8 @@ type AdminSocketResponse struct {
 }
 
 type handler struct {
-	args    []string                                   // List of human-readable argument names
-	handler func(json.RawMessage) (interface{}, error) // First is input map, second is output
+	args    []string            // List of human-readable argument names
+	handler core.AddHandlerFunc // First is input map, second is output
 }
 
 type ListResponse struct {
@@ -51,7 +51,7 @@ type ListEntry struct {
 }
 
 // AddHandler is called for each admin function to add the handler and help documentation to the API.
-func (a *AdminSocket) AddHandler(name string, args []string, handlerfunc func(json.RawMessage) (interface{}, error)) error {
+func (a *AdminSocket) AddHandler(name string, args []string, handlerfunc core.AddHandlerFunc) error {
 	if _, ok := a.handlers[strings.ToLower(name)]; ok {
 		return errors.New("handler already exists")
 	}
