@@ -64,6 +64,7 @@ type tcpOptions struct {
 	socksProxyAddr string
 	socksProxyAuth *proxy.Auth
 	socksPeerAddr  string
+	tlsSNI         string
 }
 
 func (l *TcpListener) Stop() {

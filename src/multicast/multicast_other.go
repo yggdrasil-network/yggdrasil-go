@@ -1,3 +1,4 @@
+//go:build !linux && !darwin && !netbsd && !freebsd && !openbsd && !dragonflybsd && !windows
 // +build !linux,!darwin,!netbsd,!freebsd,!openbsd,!dragonflybsd,!windows
 
 package multicast
