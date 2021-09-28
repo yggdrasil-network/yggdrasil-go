@@ -15,6 +15,10 @@ command -v mkbom >/dev/null 2>&1 || (
   sudo make install || (echo "Failed to build mkbom"; exit 1)
 )
 
+# Build Yggdrasil
+echo "running GO111MODULE=on GOOS=darwin GOARCH=${PKGARCH-amd64} ./build"
+GO111MODULE=on GOOS=darwin GOARCH=${PKGARCH-amd64} ./build
+
 # Check if we can find the files we need - they should
 # exist if you are running this script from the root of
 # the yggdrasil-go repo and you have ran ./build
