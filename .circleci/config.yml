@@ -5,7 +5,7 @@ version: 2.1
 jobs:
   lint:
     docker:
-      - image: circleci/golang:1.16
+      - image: circleci/golang:1.17
 
     steps:
       - checkout
@@ -23,7 +23,7 @@ jobs:
 
   build-linux:
     docker:
-      - image: circleci/golang:1.16
+      - image: circleci/golang:1.17
 
     steps:
       - checkout
@@ -124,11 +124,11 @@ jobs:
               echo -e "Host *\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
 
       - run:
-          name: Install Go 1.16
+          name: Install Go 1.17
           command: |
               cd /tmp
-              curl -LO https://dl.google.com/go/go1.16.darwin-amd64.pkg
-              sudo installer -pkg /tmp/go1.16.darwin-amd64.pkg -target /
+              curl -LO https://dl.google.com/go/go1.17.darwin-amd64.pkg
+              sudo installer -pkg /tmp/go1.17.darwin-amd64.pkg -target /
 
       #- run:
       #    name: Install Gomobile
@@ -141,12 +141,16 @@ jobs:
           command: |
               GO111MODULE=on GOOS=darwin GOARCH=amd64 ./build
               cp mesh /tmp/upload/$CINAME-$CIVERSION-darwin-amd64
-              cp meshctl /tmp/upload/$CINAME-$CIVERSION-meshctl-darwin-amd64;
+              cp meshctl /tmp/upload/$CINAME-$CIVERSION-meshctlctl-darwin-amd64;
+              GO111MODULE=on GOOS=darwin GOARCH=arm64 ./build
+              cp mesh /tmp/upload/$CINAME-$CIVERSION-darwin-arm64
+              cp meshctl /tmp/upload/$CINAME-$CIVERSION-meshctlctl-darwin-arm64;
 
       - run:
           name: Build for macOS (.pkg format)
           command: |
               PKGARCH=amd64 sh contrib/macos/create-pkg.sh
+              PKGARCH=arm64 sh contrib/macos/create-pkg.sh
               mv *.pkg /tmp/upload/
 
       #- run:
@@ -164,7 +168,7 @@ jobs:
 
   build-other:
     docker:
-      - image: circleci/golang:1.16
+      - image: circleci/golang:1.17
 
     steps:
       - checkout
