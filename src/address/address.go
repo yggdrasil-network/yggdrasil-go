@@ -129,7 +129,11 @@ func (a *Address) GetKey() ed25519.PublicKey {
 		bits <<= byte(idx % 8)
 		keyIdx := keyOffset + (idx - addrOffset)
 		bits >>= byte(keyIdx % 8)
-		key[keyIdx/8] |= bits
+		idx := keyIdx / 8
+		if idx >= len(key) {
+			break
+		}
+		key[idx] |= bits
 	}
 	for idx := range key {
 		key[idx] = ^key[idx]
