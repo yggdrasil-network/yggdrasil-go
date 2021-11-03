@@ -1,8 +1,8 @@
 [Unit]
 Description=yggdrasil
-Wants=network.target
+Wants=network-online.target
 Wants=yggdrasil-default-config.service
-After=network.target
+After=network-online.target
 After=yggdrasil-default-config.service
 
 [Service]
