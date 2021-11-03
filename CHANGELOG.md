@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.4.2] - 2021-11-03
+### Fixed
+- Reverted a dependency update which resulted in problems building with Go 1.16 and running on Windows
+
 ## [0.4.1] - 2021-11-03
 ### Added
 - TLS peerings now support Server Name Indication (SNI)
