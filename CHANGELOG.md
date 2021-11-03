@@ -25,6 +25,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.4.1] - 2021-11-03
+### Added
+- TLS peerings now support Server Name Indication (SNI)
+    - The SNI is sent automatically if the peering URI contains a DNS name
+    - A custom SNI can be specified by adding the `?sni=domain.com` parameter to the peering URI
+- A new `ipv6rwc` API package now implements the IPv6-specific logic separate from the `tun` package
+
+### Fixed
+- A crash when calculating the partial public key for very high IPv6 addresses has been fixed
+- A crash due to a concurrent map write has been fixed
+- A crash due to missing TUN configuration has been fixed
+- A race condition in the keystore code has been fixed
+
 ## [0.4.0] - 2021-07-04
 ### Added
 - New routing scheme, which is backwards incompatible with previous versions of Yggdrasil
