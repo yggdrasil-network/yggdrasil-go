@@ -33,15 +33,17 @@ fi
 if [ $IOS ]; then
   echo "Building framework for iOS"
   go get golang.org/x/mobile/bind
-  gomobile bind -target ios -tags mobile -o Yggdrasil.framework -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
-    github.com/yggdrasil-network/yggdrasil-extras/src/mobile \
-    github.com/yggdrasil-network/yggdrasil-go/src/config
+  gomobile bind \
+    -target ios -tags mobile -o Yggdrasil.xcframework \
+    -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
+    ./src/mobile ./src/config
 elif [ $ANDROID ]; then
   echo "Building aar for Android"
   go get golang.org/x/mobile/bind
-  gomobile bind -target android -tags mobile -o yggdrasil.aar -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
-    github.com/yggdrasil-network/yggdrasil-extras/src/mobile \
-    github.com/yggdrasil-network/yggdrasil-go/src/config
+  gomobile bind \
+    -target android -tags mobile -o yggdrasil.aar \
+    -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
+    ./src/mobile ./src/config
 else
   for CMD in yggdrasil yggdrasilctl ; do
     echo "Building: $CMD"
