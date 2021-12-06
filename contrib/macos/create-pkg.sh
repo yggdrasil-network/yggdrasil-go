@@ -79,6 +79,7 @@ PKGNAME=$(sh contrib/semver/name.sh)
 PKGVERSION=$(sh contrib/semver/version.sh --bare)
 PKGARCH=${PKGARCH-amd64}
 PAYLOADSIZE=$(( $(wc -c pkgbuild/flat/base.pkg/Payload | awk '{ print $1 }') / 1024 ))
+[ "$PKGARCH" = "amd64" ] && PKGHOSTARCH="x86_64" || PKGHOSTARCH=${PKGARCH}
 
 # Create the PackageInfo file
 cat > pkgbuild/flat/base.pkg/PackageInfo << EOF
@@ -98,7 +99,7 @@ cat > pkgbuild/flat/Distribution << EOF
 <?xml version="1.0" encoding="utf-8"?>
 <installer-script minSpecVersion="1.000000" authoringTool="com.apple.PackageMaker" authoringToolVersion="3.0.3" authoringToolBuild="174">
     <title>Yggdrasil (${PKGNAME}-${PKGVERSION})</title>
-    <options customize="never" allow-external-scripts="no"/>
+    <options customize="never" allow-external-scripts="no" hostArchitectures="${PKGHOSTARCH}" />
     <domains enable_anywhere="true"/>
     <installation-check script="pm_install_check();"/>
     <script>
