@@ -3,8 +3,11 @@
 # Get the current branch name
 BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
 
+if [ -n "$APPVEYOR_PULL_REQUEST_NUMBER" ]; then
+  printf "yggdrasil-pr%s" "$APPVEYOR_PULL_REQUEST_NUMBER"
+  exit 0
 # Complain if the git history is not available
-if [ $? != 0 ] || [ -z "$BRANCH" ]; then
+elif [ $? != 0 ] || [ -z "$BRANCH" ]; then
   printf "yggdrasil"
   exit 0
 fi
