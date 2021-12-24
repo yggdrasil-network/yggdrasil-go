@@ -21,7 +21,8 @@ fi
 if [ "${APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH}" != "" ];
 then
   git fetch --all
-  git checkout ${APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH}
+  echo "HEAD_REPO_BRANCH is ${APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH}"
+#  git checkout ${APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH}
 elif [ "${APPVEYOR_REPO_BRANCH}" != "" ];
 then
   git fetch --all
