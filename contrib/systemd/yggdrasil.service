@@ -6,8 +6,6 @@ After=network-online.target
 After=yggdrasil-default-config.service
 
 [Service]
-User=yggdrasil
-Group=yggdrasil
 ProtectHome=true
 ProtectSystem=true
 SyslogIdentifier=yggdrasil
@@ -16,6 +14,12 @@ ExecStart=/usr/bin/yggdrasil -useconffile /etc/yggdrasil.conf
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 TimeoutStopSec=5
+Group=yggdrasil
+User=yggdrasil-dyn
+DynamicUser=true
+ProtectSystem=strict
+NoNewPrivileges=true
+ReadWritePaths=/var/run/yggdrasil /run/yggdrasil
 
 # make sure /var/run/yggdrasil/ is created writable for the user.
 RuntimeDirectory=yggdrasil
