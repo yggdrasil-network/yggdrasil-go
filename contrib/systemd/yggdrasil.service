@@ -24,7 +24,7 @@ ReadWritePaths=/var/run/yggdrasil /run/yggdrasil
 # make sure /var/run/yggdrasil/ is created writable for the user.
 RuntimeDirectory=yggdrasil
 # the small list of admin capabilities we need to do our job
-AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
 
 [Install]
 WantedBy=multi-user.target
