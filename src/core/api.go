@@ -2,12 +2,15 @@ package core
 
 import (
 	"crypto/ed25519"
+	"time"
+
 	//"encoding/hex"
 	"encoding/json"
 	//"errors"
 	//"fmt"
 	"net"
 	"net/url"
+
 	//"sort"
 	//"time"
 
@@ -24,11 +27,14 @@ type Self struct {
 }
 
 type Peer struct {
-	Key    ed25519.PublicKey
-	Root   ed25519.PublicKey
-	Coords []uint64
-	Port   uint64
-	Remote string
+	Key     ed25519.PublicKey
+	Root    ed25519.PublicKey
+	Coords  []uint64
+	Port    uint64
+	Remote  string
+	RXBytes uint64
+	TXBytes uint64
+	Uptime  time.Duration
 }
 
 type DHTEntry struct {
@@ -74,6 +80,9 @@ func (c *Core) GetPeers() []Peer {
 		if name := names[p.Conn]; name != "" {
 			info.Remote = name
 		}
+		info.RXBytes = p.RXBytes
+		info.TXBytes = p.TXBytes
+		info.Uptime = p.Uptime
 		peers = append(peers, info)
 	}
 	return peers

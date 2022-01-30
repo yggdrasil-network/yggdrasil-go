@@ -2,6 +2,8 @@ module github.com/yggdrasil-network/yggdrasil-go
 
 go 1.16
 
+replace github.com/Arceliar/ironwood => github.com/neilalexander/ironwood v0.0.0-20220130210920-48e68101c869
+
 require (
 	github.com/Arceliar/ironwood v0.0.0-20210619124114-6ad55cae5031
 	github.com/Arceliar/phony v0.0.0-20210209235338-dde1a8dca979
