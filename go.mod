@@ -17,11 +17,10 @@ require (
 	github.com/mitchellh/mapstructure v1.4.1
 	github.com/vishvananda/netlink v1.1.0
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
-	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a // indirect
-	golang.org/x/mobile v0.0.0-20211103151657-e68c98865fb2
-	golang.org/x/net v0.0.0-20210805182204-aaa1db679c0d
-	golang.org/x/sys v0.0.0-20210809222454-d867a43fc93e
-	golang.org/x/text v0.3.7-0.20210503195748-5c7c50ebbd4f
-	golang.zx2c4.com/wireguard v0.0.0-20210604143328-f9b48a961cd2
-	golang.zx2c4.com/wireguard/windows v0.3.14
+	golang.org/x/mobile v0.0.0-20220112015953-858099ff7816
+	golang.org/x/net v0.0.0-20211101193420-4a448f8816b3
+	golang.org/x/sys v0.0.0-20211102192858-4dd72447c267
+	golang.org/x/text v0.3.8-0.20211004125949-5bd84dd9b33b
+	golang.zx2c4.com/wireguard v0.0.0-20211017052713-f87e87af0d9a
+	golang.zx2c4.com/wireguard/windows v0.4.12
 )

@@ -21,7 +21,7 @@ fi
 if [ "${APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH}" != "" ];
 then
   git fetch --all
-  git checkout ${APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH}
+#  git checkout ${APPVEYOR_PULL_REQUEST_HEAD_REPO_BRANCH}
 elif [ "${APPVEYOR_REPO_BRANCH}" != "" ];
 then
   git fetch --all
@@ -76,7 +76,7 @@ PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
 # Download the Wintun driver
 if [ ! -d wintun ];
 then
-  curl -o wintun.zip https://www.wintun.net/builds/wintun-0.11.zip
+  curl -o wintun.zip https://www.wintun.net/builds/wintun-0.14.1.zip
   unzip wintun.zip
 fi
 if [ $PKGARCH = "x64" ]; then
