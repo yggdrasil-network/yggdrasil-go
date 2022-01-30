@@ -18,8 +18,9 @@ require (
 	github.com/vishvananda/netlink v1.1.0
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
 	golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a // indirect
-	golang.org/x/net v0.0.0-20210610132358-84b48f89b13b
-	golang.org/x/sys v0.0.0-20210611083646-a4fc73990273
+	golang.org/x/mobile v0.0.0-20211103151657-e68c98865fb2
+	golang.org/x/net v0.0.0-20210805182204-aaa1db679c0d
+	golang.org/x/sys v0.0.0-20210809222454-d867a43fc93e
 	golang.org/x/text v0.3.7-0.20210503195748-5c7c50ebbd4f
 	golang.zx2c4.com/wireguard v0.0.0-20210604143328-f9b48a961cd2
 	golang.zx2c4.com/wireguard/windows v0.3.14
