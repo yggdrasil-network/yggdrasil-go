@@ -2,7 +2,7 @@
 
 set -ef
 
-[ ! -d contrib/mobile ] && (echo "Must run contrib/mobile/build.sh [-i] [-a] from the repository top level folder"; exit 1)
+[ ! -d contrib/mobile ] && (echo "Must run ./contrib/mobile/build [-i] [-a] from the repository top level folder"; exit 1)
 
 PKGSRC=${PKGSRC:-github.com/yggdrasil-network/yggdrasil-go/src/version}
 PKGNAME=${PKGNAME:-$(sh contrib/semver/name.sh)}
