@@ -2,6 +2,7 @@ package core
 
 import (
 	"crypto/ed25519"
+	"sync/atomic"
 	"time"
 
 	//"encoding/hex"
@@ -80,9 +81,11 @@ func (c *Core) GetPeers() []Peer {
 		if name := names[p.Conn]; name != "" {
 			info.Remote = name
 		}
-		info.RXBytes = p.RXBytes
-		info.TXBytes = p.TXBytes
-		info.Uptime = p.Uptime
+		if linkconn, ok := p.Conn.(*linkConn); ok {
+			info.RXBytes = atomic.LoadUint64(&linkconn.rx)
+			info.TXBytes = atomic.LoadUint64(&linkconn.tx)
+			info.Uptime = time.Since(linkconn.up)
+		}
 		peers = append(peers, info)
 	}
 	return peers
