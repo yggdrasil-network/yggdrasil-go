@@ -14,6 +14,8 @@ import (
 	//"sync/atomic"
 	"time"
 
+	"sync/atomic"
+
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"golang.org/x/net/proxy"
@@ -40,7 +42,7 @@ type linkInfo struct {
 type link struct {
 	lname    string
 	links    *links
-	conn     net.Conn
+	conn     *linkConn
 	options  linkOptions
 	info     linkInfo
 	incoming bool
@@ -124,7 +126,10 @@ func (l *links) call(u *url.URL, sintf string) error {
 func (l *links) create(conn net.Conn, name, linkType, local, remote string, incoming, force bool, options linkOptions) (*link, error) {
 	// Technically anything unique would work for names, but let's pick something human readable, just for debugging
 	intf := link{
-		conn:    conn,
+		conn: &linkConn{
+			Conn: conn,
+			up:   time.Now(),
+		},
 		lname:   name,
 		links:   l,
 		options: options,
@@ -271,4 +276,25 @@ func (intf *link) close() {
 
 func (intf *link) name() string {
 	return intf.lname
+}
+
+type linkConn struct {
+	// tx and rx are at the beginning of the struct to ensure 64-bit alignment
+	// on 32-bit platforms, see https://pkg.go.dev/sync/atomic#pkg-note-BUG
+	rx uint64
+	tx uint64
+	up time.Time
+	net.Conn
+}
+
+func (c *linkConn) Read(p []byte) (n int, err error) {
+	n, err = c.Conn.Read(p)
+	atomic.AddUint64(&c.rx, uint64(n))
+	return
+}
+
+func (c *linkConn) Write(p []byte) (n int, err error) {
+	n, err = c.Conn.Write(p)
+	atomic.AddUint64(&c.tx, uint64(n))
+	return
 }
