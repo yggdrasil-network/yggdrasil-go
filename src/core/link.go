@@ -272,10 +272,12 @@ func (intf *link) name() string {
 }
 
 type linkConn struct {
-	net.Conn
+	// tx and rx are at the beginning of the struct to ensure 64-bit alignment
+	// on 32-bit platforms, see https://pkg.go.dev/sync/atomic#pkg-note-BUG
 	rx uint64
 	tx uint64
 	up time.Time
+	net.Conn
 }
 
 func (c *linkConn) Read(p []byte) (n int, err error) {
