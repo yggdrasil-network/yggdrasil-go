@@ -9,8 +9,11 @@ environment:
   CHERE_INVOKING: enabled_from_arguments
 
 build_script:
-- cmd: >-
-    cd %APPVEYOR_BUILD_FOLDER%
+- cmd: cd %APPVEYOR_BUILD_FOLDER%
+- curl -o C:\projects\golang.zip https://dl.google.com/go/go1.17.5.windows-amd64.zip
+- 7z x C:\projects\golang.zip -oC:\projects\
+- cmd: set PATH=C:\projects\go\bin;%PATH%
+- cmd: set GOROOT=C:\projects\go
 - c:\msys64\usr\bin\bash -lc "./contrib/msi/build-msi.sh x64"
 - c:\msys64\usr\bin\bash -lc "./contrib/msi/build-msi.sh x86"
 

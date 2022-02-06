@@ -19,6 +19,9 @@ type PeerEntry struct {
 	Port      uint64   `json:"port"`
 	Coords    []uint64 `json:"coords"`
 	Remote    string   `json:"remote"`
+	RXBytes   uint64   `json:"bytes_recvd"`
+	TXBytes   uint64   `json:"bytes_sent"`
+	Uptime    float64  `json:"uptime"`
 }
 
 func (a *AdminSocket) getPeersHandler(req *GetPeersRequest, res *GetPeersResponse) error {
@@ -31,6 +34,9 @@ func (a *AdminSocket) getPeersHandler(req *GetPeersRequest, res *GetPeersRespons
 			Port:      p.Port,
 			Coords:    p.Coords,
 			Remote:    p.Remote,
+			RXBytes:   p.RXBytes,
+			TXBytes:   p.TXBytes,
+			Uptime:    p.Uptime.Seconds(),
 		}
 	}
 	return nil
