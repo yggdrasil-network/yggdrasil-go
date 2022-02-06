@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
-## [0.4.3] - 2022-02-05
+## [0.4.3] - 2022-02-06
 ### Added
 - `bytes_sent`, `bytes_recvd` and `uptime` have been added to `getPeers`
 - Clearer logging when connections are rejected due to incompatible peer versions
