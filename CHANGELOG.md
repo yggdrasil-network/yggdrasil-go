@@ -25,6 +25,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.4.3] - 2022-02-06
+### Added
+- `bytes_sent`, `bytes_recvd` and `uptime` have been added to `getPeers`
+- Clearer logging when connections are rejected due to incompatible peer versions
+
+### Fixed
+- Latency-based parent selection tiebreak is now reliable on platforms even with low timer resolution
+- Tree distance calculation offsets have been corrected
+
 ## [0.4.2] - 2021-11-03
 ### Fixed
 - Reverted a dependency update which resulted in problems building with Go 1.16 and running on Windows
