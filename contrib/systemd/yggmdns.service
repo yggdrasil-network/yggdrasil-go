@@ -1,0 +1,16 @@
+[Unit]
+Description=yggdrasil
+Wants=yggdrasil.service
+After=yggdrasil.service
+
+[Service]
+Group=yggdrasil
+ProtectHome=true
+ProtectSystem=true
+SyslogIdentifier=yggmdns
+ExecStart=/usr/bin/yggmdns -useconffile /etc/yggdrasil.conf
+Restart=always
+TimeoutStopSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -28,7 +28,7 @@ if [ -z $TABLES ] && [ -z $DEBUG ]; then
   LDFLAGS="$LDFLAGS -s -w"
 fi
 
-for CMD in yggdrasil yggdrasilctl ; do
+for CMD in yggdrasil yggdrasilctl yggmdns ; do
   echo "Building: $CMD"
   go build $ARGS -ldflags="$LDFLAGS" -gcflags="$GCFLAGS" ./cmd/$CMD
 

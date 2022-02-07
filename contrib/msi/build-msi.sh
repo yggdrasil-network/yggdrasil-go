@@ -171,6 +171,39 @@ cat > wix.xml << EOF
               Remove="uninstall" />
           </Component>
 
+          <Component Id="mDNSExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb25">
+            <File
+              Id="YggdrasilmDNS"
+              Name="yggmdns.exe"
+              DiskId="1"
+              Source="yggmdns.exe"
+              KeyPath="yes" />
+
+            <ServiceInstall
+              Id="ServiceInstallermDNS"
+              Account="LocalSystem"
+              Description="Yggdrasil mDNS responder"
+              DisplayName="Yggdrasil mDNS Service"
+              ErrorControl="normal"
+              LoadOrderGroup="NetworkProvider"
+              Name="YggdrasilmDNS"
+              Start="auto"
+              Type="ownProcess"
+              Arguments='-interface Yggdrasil -useconffile "%ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf" -logto "%ALLUSERSPROFILE%\\Yggdrasil\\yggmdns.log"'
+              Vital="no">
+              <ServiceDependency
+                Id="Yggdrasil"
+                Group="no" />
+            </ServiceInstall>
+
+            <ServiceControl
+              Id="ServiceControlmDNS"
+              Name="yggdrasilmdns"
+              Start="install"
+              Stop="both"
+              Remove="uninstall" />
+          </Component>
+          
           <Component Id="CtrlExecutable" Guid="a916b730-974d-42a1-b687-d9d504cbb86a">
             <File
               Id="Yggdrasilctl"
@@ -194,6 +227,7 @@ cat > wix.xml << EOF
 
     <Feature Id="YggdrasilFeature" Title="Yggdrasil" Level="1">
       <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="mDNSExecutable" />
       <ComponentRef Id="CtrlExecutable" />
       <ComponentRef Id="ConfigScript" />
     </Feature>

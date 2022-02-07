@@ -47,9 +47,9 @@ func (p *protoHandler) init(core *Core) {
 	p.core = core
 	p.nodeinfo.init(p)
 
-	p.selfRequests  = make(map[keyArray]*reqInfo)
+	p.selfRequests = make(map[keyArray]*reqInfo)
 	p.peersRequests = make(map[keyArray]*reqInfo)
-	p.dhtRequests   = make(map[keyArray]*reqInfo)
+	p.dhtRequests = make(map[keyArray]*reqInfo)
 }
 
 // Common functions

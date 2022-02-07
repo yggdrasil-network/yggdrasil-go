@@ -39,6 +39,7 @@ func GenerateConfig() *config.NodeConfig {
 	cfg.IfName = GetDefaults().DefaultIfName
 	cfg.IfMTU = GetDefaults().DefaultIfMTU
 	cfg.NodeInfoPrivacy = false
+	cfg.MixinHostname = false
 
 	return cfg
 }

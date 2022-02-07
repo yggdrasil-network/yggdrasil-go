@@ -32,6 +32,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 )
 
@@ -194,6 +195,7 @@ type yggArgs struct {
 	useconffile   string
 	logto         string
 	loglevel      string
+	hostname      string
 }
 
 func getArgs() yggArgs {
@@ -208,6 +210,12 @@ func getArgs() yggArgs {
 	getaddr := flag.Bool("address", false, "returns the IPv6 address as derived from the supplied configuration")
 	getsnet := flag.Bool("subnet", false, "returns the IPv6 subnet as derived from the supplied configuration")
 	loglevel := flag.String("loglevel", "info", "loglevel to enable")
+
+	h, err := os.Hostname()
+	if err != nil {
+		h = ""
+	}
+	hostname := flag.String("hostname", h, "hostname (used for mDNS)")
 	flag.Parse()
 	return yggArgs{
 		genconf:       *genconf,
@@ -221,6 +229,7 @@ func getArgs() yggArgs {
 		getaddr:       *getaddr,
 		getsnet:       *getsnet,
 		loglevel:      *loglevel,
+		hostname:      *hostname,
 	}
 }
 
@@ -325,6 +334,14 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 	default:
 	}
 
+	if cfg.MixinHostname {
+		fmt.Println("Mixing hostname into private key")
+		sigPriv, _ := hex.DecodeString(cfg.PrivateKey)
+		newPriv := util.MixinHostname(sigPriv, args.hostname)
+		cfg.PrivateKey = hex.EncodeToString(newPriv)
+		cfg.PublicKey = hex.EncodeToString(newPriv.Public().(ed25519.PublicKey))
+	}
+
 	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
 	// don't need to create this manually.
 	n := node{config: cfg}
@@ -369,6 +386,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 	logger.Infof("Your public key is %s", hex.EncodeToString(public[:]))
 	logger.Infof("Your IPv6 address is %s", address.String())
 	logger.Infof("Your IPv6 subnet is %s", subnet.String())
+	logger.Infof("Your hostname is %s", args.hostname)
 	// Catch interrupts from the operating system to exit gracefully.
 	<-ctx.Done()
 	// Capture the service being stopped on Windows.

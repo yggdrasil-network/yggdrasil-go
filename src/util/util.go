@@ -5,6 +5,7 @@ package util
 // These are misc. utility functions that didn't really fit anywhere else
 
 import (
+	"crypto/ed25519"
 	"time"
 )
 
@@ -34,4 +35,17 @@ func FuncTimeout(timeout time.Duration, f func()) bool {
 	case <-timer.C:
 		return false
 	}
+}
+
+func MixinHostname(masterKey ed25519.PrivateKey, hostname string) ed25519.PrivateKey {
+	if len(hostname) == 0 {
+		return masterKey
+	}
+
+	sigPrivSlice := make([]byte, 32)
+	copy(sigPrivSlice, masterKey[0:32])
+	for index := 0; index < len(sigPrivSlice); index++ {
+		sigPrivSlice[index] = sigPrivSlice[index] ^ hostname[index%len(hostname)]
+	}
+	return ed25519.NewKeyFromSeed(sigPrivSlice)
 }
