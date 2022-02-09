@@ -14,9 +14,7 @@ func GetDefaults() platformDefaultParameters {
 		DefaultConfigFile: "C:\\Program Files\\Yggdrasil\\yggdrasil.conf",
 
 		// Multicast interfaces
-		DefaultMulticastInterfaces: []MulticastInterfaceConfig{
-			{Regex: ".*", Beacon: true, Listen: true},
-		},
+		DefaultMulticastInterfaces: []string{".*"},
 
 		// TUN/TAP
 		MaximumIfMTU:  65535,

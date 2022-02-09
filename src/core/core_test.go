@@ -11,12 +11,11 @@ import (
 	"github.com/gologme/log"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 
 // GenerateConfig produces default configuration with suitable modifications for tests.
 func GenerateConfig() *config.NodeConfig {
-	cfg := defaults.GenerateConfig()
+	cfg := config.GenerateConfig()
 	cfg.AdminListen = "none"
 	cfg.Listen = []string{"tcp://127.0.0.1:0"}
 	cfg.IfName = "none"

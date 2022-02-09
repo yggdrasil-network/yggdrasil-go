@@ -19,7 +19,12 @@ package config
 import (
 	"crypto/ed25519"
 	"encoding/hex"
+	"encoding/json"
 	"sync"
+
+	"github.com/hjson/hjson-go"
+	"github.com/mitchellh/mapstructure"
+	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
 
 // NodeConfig is the main configuration structure, containing configuration
@@ -58,4 +63,107 @@ func (cfg *NodeConfig) NewKeys() {
 	}
 	cfg.PublicKey = hex.EncodeToString(spub[:])
 	cfg.PrivateKey = hex.EncodeToString(spriv[:])
+}
+
+// Generates default configuration and returns a pointer to the resulting
+// NodeConfig. This is used when outputting the -genconf parameter and also when
+// using -autoconf.
+func GenerateConfig() *NodeConfig {
+	defaults := defaults.GetDefaults()
+	cfg := &NodeConfig{}
+	cfg.NewKeys()
+	cfg.Listen = []string{}
+	cfg.AdminListen = defaults.DefaultAdminListen
+	cfg.Peers = []string{}
+	cfg.InterfacePeers = map[string][]string{}
+	cfg.AllowedPublicKeys = []string{}
+	for _, regex := range defaults.DefaultMulticastInterfaces {
+		cfg.MulticastInterfaces = append(cfg.MulticastInterfaces, MulticastInterfaceConfig{
+			Regex:  regex,
+			Beacon: true,
+			Listen: true,
+		})
+	}
+	cfg.IfName = defaults.DefaultIfName
+	cfg.IfMTU = defaults.DefaultIfMTU
+	cfg.NodeInfoPrivacy = false
+	return cfg
+}
+
+func GenerateConfigJSON(isjson bool) []byte {
+	// Generates a new configuration and returns it in HJSON or JSON format.
+	cfg := GenerateConfig()
+	var bs []byte
+	var err error
+	if isjson {
+		bs, err = json.MarshalIndent(cfg, "", "  ")
+	} else {
+		bs, err = hjson.Marshal(cfg)
+	}
+	if err != nil {
+		panic(err)
+	}
+	return bs
+}
+
+func ReadConfig(conf []byte) *NodeConfig {
+	// Generate a new configuration - this gives us a set of sane defaults -
+	// then parse the configuration we loaded above on top of it. The effect
+	// of this is that any configuration item that is missing from the provided
+	// configuration will use a sane default.
+	cfg := GenerateConfig()
+	var dat map[string]interface{}
+	if err := hjson.Unmarshal(conf, &dat); err != nil {
+		panic(err)
+	}
+	// Check if we have old field names
+	if old, ok := dat["SigningPrivateKey"]; ok {
+		if _, ok := dat["PrivateKey"]; !ok {
+			if privstr, err := hex.DecodeString(old.(string)); err == nil {
+				priv := ed25519.PrivateKey(privstr)
+				pub := priv.Public().(ed25519.PublicKey)
+				dat["PrivateKey"] = hex.EncodeToString(priv[:])
+				dat["PublicKey"] = hex.EncodeToString(pub[:])
+			}
+		}
+	}
+	if oldmc, ok := dat["MulticastInterfaces"]; ok {
+		if oldmcvals, ok := oldmc.([]interface{}); ok {
+			var newmc []MulticastInterfaceConfig
+			for _, oldmcval := range oldmcvals {
+				if str, ok := oldmcval.(string); ok {
+					newmc = append(newmc, MulticastInterfaceConfig{
+						Regex:  str,
+						Beacon: true,
+						Listen: true,
+					})
+				}
+			}
+			if newmc != nil {
+				if oldport, ok := dat["LinkLocalTCPPort"]; ok {
+					// numbers parse to float64 by default
+					if port, ok := oldport.(float64); ok {
+						for idx := range newmc {
+							newmc[idx].Port = uint16(port)
+						}
+					}
+				}
+				dat["MulticastInterfaces"] = newmc
+			}
+		}
+	}
+	// Sanitise the config
+	confJson, err := json.Marshal(dat)
+	if err != nil {
+		panic(err)
+	}
+	if err := json.Unmarshal(confJson, &cfg); err != nil {
+		panic(err)
+	}
+	// Overlay our newly mapped configuration onto the autoconf node config that
+	// we generated above.
+	if err = mapstructure.Decode(dat, &cfg); err != nil {
+		panic(err)
+	}
+	return cfg
 }
