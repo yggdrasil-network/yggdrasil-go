@@ -11,7 +11,6 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
@@ -44,7 +43,7 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 	logger.EnableLevel("error")
 	logger.EnableLevel("warn")
 	logger.EnableLevel("info")
-	m.config = defaults.GenerateConfig()
+	m.config = config.GenerateConfig()
 	if err := json.Unmarshal(configjson, &m.config); err != nil {
 		return err
 	}
@@ -107,7 +106,7 @@ func (m *Yggdrasil) Stop() error {
 
 // GenerateConfigJSON generates mobile-friendly configuration in JSON format
 func GenerateConfigJSON() []byte {
-	nc := defaults.GenerateConfig()
+	nc := config.GenerateConfig()
 	nc.IfName = "none"
 	if json, err := json.Marshal(nc); err == nil {
 		return json

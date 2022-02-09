@@ -158,6 +158,6 @@ func main() {
 	case <-term:
 	}
 
-	n.Close()
 	_ = tuntap.Stop()
+	n.Close()
 }
