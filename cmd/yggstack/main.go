@@ -6,29 +6,18 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-
-	"inet.af/netstack/tcpip"
-	"inet.af/netstack/tcpip/adapters/gonet"
-	"inet.af/netstack/tcpip/buffer"
-	"inet.af/netstack/tcpip/header"
-	"inet.af/netstack/tcpip/network/ipv6"
-	"inet.af/netstack/tcpip/stack"
-	"inet.af/netstack/tcpip/transport/icmp"
-	"inet.af/netstack/tcpip/transport/tcp"
 
 	"github.com/gologme/log"
 	gsyslog "github.com/hashicorp/go-syslog"
 	"github.com/hjson/hjson-go"
 
+	"github.com/yggdrasil-network/yggdrasil-go/contrib/netstack"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 	"github.com/yggdrasil-network/yggdrasil-go/src/setup"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
@@ -152,64 +141,21 @@ func main() {
 	logger.Infof("Your IPv6 address is %s", address.String())
 	logger.Infof("Your IPv6 subnet is %s", subnet.String())
 
-	iprwc := ipv6rwc.NewReadWriteCloser(&n.Core)
-	s := stack.New(stack.Options{
-		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv6.NewProtocol},
-		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, icmp.NewProtocol6},
-		HandleLocal:        true,
-		IPTables:           &stack.IPTables{},
-	})
-	endpoint := &TCPIPEndpoint{
-		stack:    s,
-		ipv6rwc:  iprwc,
-		readBuf:  make([]byte, iprwc.MTU()),
-		writeBuf: make([]byte, iprwc.MTU()),
-	}
-	if err := s.CreateNIC(1, endpoint); err != nil {
-		panic(err)
-	}
-	if err := s.AddProtocolAddress(
-		1,
-		tcpip.ProtocolAddress{
-			Protocol:          ipv6.ProtocolNumber,
-			AddressWithPrefix: tcpip.Address(address).WithPrefix(),
-		},
-		stack.AddressProperties{},
-	); err != nil {
-		panic(err)
-	}
-	s.AddRoute(tcpip.Route{
-		Destination: header.IPv6EmptySubnet,
-		NIC:         1,
-	})
-	s.AllowICMPMessage()
-	go func() {
-		var rx int
-		var err error
-		for {
-			rx, err = iprwc.Read(endpoint.readBuf)
-			if err != nil {
-				log.Println(err)
-				break
-			}
-			pkb := stack.NewPacketBuffer(stack.PacketBufferOptions{
-				Data: buffer.NewVectorisedView(rx, []buffer.View{
-					buffer.NewViewFromBytes(endpoint.readBuf[:rx]),
-				}),
-			})
-			endpoint.dispatcher.DeliverNetworkPacket("", "", ipv6.ProtocolNumber, pkb)
-		}
-	}()
-
-	listener, err := endpoint.ListenTCP(&net.TCPAddr{Port: 80})
+	_, err = netstack.CreateYggdrasilNetstack(&n.Core, false)
 	if err != nil {
-		log.Panicln(err)
+		logger.Fatalln(err)
 	}
-	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		_, _ = io.WriteString(writer, "Hello from userspace TCP "+request.RemoteAddr)
-	})
-	httpServer := &http.Server{}
-	go httpServer.Serve(listener) // nolint:errcheck
+	/*
+		listener, err := s.ListenTCP(&net.TCPAddr{Port: 80})
+		if err != nil {
+			log.Panicln(err)
+		}
+		http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+			_, _ = io.WriteString(writer, "Hello from userspace TCP "+request.RemoteAddr)
+		})
+		httpServer := &http.Server{}
+		go httpServer.Serve(listener) // nolint:errcheck
+	*/
 
 	term := make(chan os.Signal, 1)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
@@ -220,96 +166,4 @@ func main() {
 	}
 
 	n.Close()
-}
-
-const IPv6HdrSize = 40
-
-type TCPIPEndpoint struct {
-	stack      *stack.Stack
-	ipv6rwc    *ipv6rwc.ReadWriteCloser
-	dispatcher stack.NetworkDispatcher
-	readBuf    []byte
-	writeBuf   []byte
-}
-
-func (e *TCPIPEndpoint) Attach(dispatcher stack.NetworkDispatcher) { e.dispatcher = dispatcher }
-
-func (e *TCPIPEndpoint) IsAttached() bool { return e.dispatcher != nil }
-
-func (e *TCPIPEndpoint) MTU() uint32 { return uint32(e.ipv6rwc.MTU()) }
-
-func (*TCPIPEndpoint) Capabilities() stack.LinkEndpointCapabilities { return stack.CapabilityNone }
-
-func (*TCPIPEndpoint) MaxHeaderLength() uint16 { return IPv6HdrSize }
-
-func (*TCPIPEndpoint) LinkAddress() tcpip.LinkAddress { return "" }
-
-func (*TCPIPEndpoint) Wait() {}
-
-func (e *TCPIPEndpoint) WritePacket(
-	_ stack.RouteInfo,
-	_ tcpip.NetworkProtocolNumber,
-	pkt *stack.PacketBuffer,
-) tcpip.Error {
-	vv := buffer.NewVectorisedView(pkt.Size(), pkt.Views())
-	n, err := vv.Read(e.writeBuf)
-	if err != nil {
-		log.Println(err)
-		return &tcpip.ErrAborted{}
-	}
-	_, err = e.ipv6rwc.Write(e.writeBuf[:n])
-	if err != nil {
-		log.Println(err)
-		return &tcpip.ErrAborted{}
-	}
-	return nil
-}
-
-func (e *TCPIPEndpoint) WritePackets(
-	stack.RouteInfo,
-	stack.PacketBufferList,
-	tcpip.NetworkProtocolNumber,
-) (int, tcpip.Error) {
-	panic("not implemented")
-}
-
-func (e *TCPIPEndpoint) WriteRawPacket(*stack.PacketBuffer) tcpip.Error {
-	panic("not implemented")
-}
-
-func (*TCPIPEndpoint) ARPHardwareType() header.ARPHardwareType {
-	return header.ARPHardwareNone
-}
-
-func (e *TCPIPEndpoint) AddHeader(tcpip.LinkAddress, tcpip.LinkAddress, tcpip.NetworkProtocolNumber, *stack.PacketBuffer) {
-}
-
-func (e *TCPIPEndpoint) Close() error {
-	e.stack.RemoveNIC(1)
-	e.dispatcher = nil
-	return nil
-}
-
-func convertToFullAddr(ip net.IP, port int) (tcpip.FullAddress, tcpip.NetworkProtocolNumber) {
-	return tcpip.FullAddress{
-		NIC:  1,
-		Addr: tcpip.Address(ip),
-		Port: uint16(port),
-	}, ipv6.ProtocolNumber
-}
-
-func (e *TCPIPEndpoint) DialTCP(addr *net.TCPAddr) (net.Conn, error) {
-	if addr == nil {
-		panic("not implemented")
-	}
-	fa, pn := convertToFullAddr(addr.IP, addr.Port)
-	return gonet.DialTCP(e.stack, fa, pn)
-}
-
-func (e *TCPIPEndpoint) ListenTCP(addr *net.TCPAddr) (net.Listener, error) {
-	if addr == nil {
-		panic("not implemented")
-	}
-	fa, pn := convertToFullAddr(addr.IP, addr.Port)
-	return gonet.ListenTCP(e.stack, fa, pn)
 }
