@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 
+	"net/http"
 	_ "net/http/pprof"
 )
 
@@ -141,21 +143,20 @@ func main() {
 	logger.Infof("Your IPv6 address is %s", address.String())
 	logger.Infof("Your IPv6 subnet is %s", subnet.String())
 
-	_, err = netstack.CreateYggdrasilNetstack(&n.Core, false)
+	s, err := netstack.CreateYggdrasilNetstack(&n.Core)
 	if err != nil {
 		logger.Fatalln(err)
 	}
-	/*
-		listener, err := s.ListenTCP(&net.TCPAddr{Port: 80})
-		if err != nil {
-			log.Panicln(err)
-		}
-		http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-			_, _ = io.WriteString(writer, "Hello from userspace TCP "+request.RemoteAddr)
-		})
-		httpServer := &http.Server{}
-		go httpServer.Serve(listener) // nolint:errcheck
-	*/
+
+	listener, err := s.ListenTCP(&net.TCPAddr{Port: 80})
+	if err != nil {
+		log.Panicln(err)
+	}
+	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+		_, _ = io.WriteString(writer, "Hello from userspace TCP "+request.RemoteAddr)
+	})
+	httpServer := &http.Server{}
+	go httpServer.Serve(listener) // nolint:errcheck
 
 	term := make(chan os.Signal, 1)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
