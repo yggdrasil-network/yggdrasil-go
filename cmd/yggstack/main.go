@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
@@ -15,6 +16,7 @@ import (
 	"github.com/gologme/log"
 	gsyslog "github.com/hashicorp/go-syslog"
 	"github.com/hjson/hjson-go"
+	"github.com/things-go/go-socks5"
 
 	"github.com/yggdrasil-network/yggdrasil-go/contrib/netstack"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
@@ -27,8 +29,19 @@ import (
 	_ "net/http/pprof"
 )
 
+type nameResolver struct{}
+
+func (r *nameResolver) Resolve(ctx context.Context, name string) (context.Context, net.IP, error) {
+	ip := net.ParseIP(name)
+	if ip == nil {
+		return nil, nil, fmt.Errorf("not a valid IP address")
+	}
+	return ctx, ip, nil
+}
+
 // The main function is responsible for configuring and starting Yggdrasil.
 func main() {
+	socks := flag.String("socks", "", "address to listen on for SOCKS, i.e. :1080")
 	args := setup.ParseArguments()
 
 	// Create a new logger that logs output to stdout.
@@ -148,12 +161,21 @@ func main() {
 		logger.Fatalln(err)
 	}
 
+	if *socks != "" {
+		resolver := &nameResolver{}
+		server := socks5.NewServer(
+			socks5.WithDial(s.DialContext),
+			socks5.WithResolver(resolver),
+		)
+		go server.ListenAndServe("tcp", *socks) // nolint:errcheck
+	}
+
 	listener, err := s.ListenTCP(&net.TCPAddr{Port: 80})
 	if err != nil {
 		log.Panicln(err)
 	}
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		_, _ = io.WriteString(writer, "Hello from userspace TCP "+request.RemoteAddr)
+		_, _ = io.WriteString(writer, "I am Yggstack!")
 	})
 	httpServer := &http.Server{}
 	go httpServer.Serve(listener) // nolint:errcheck

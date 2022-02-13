@@ -1,8 +1,10 @@
 package netstack
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"strconv"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 
@@ -38,30 +40,59 @@ func CreateYggdrasilNetstack(ygg *core.Core) (*YggdrasilNetstack, error) {
 	return s, nil
 }
 
-func convertToFullAddr(ip net.IP, port int) (tcpip.FullAddress, tcpip.NetworkProtocolNumber) {
+func convertToFullAddr(ip net.IP, port int) (tcpip.FullAddress, tcpip.NetworkProtocolNumber, error) {
 	return tcpip.FullAddress{
 		NIC:  1,
 		Addr: tcpip.Address(ip),
 		Port: uint16(port),
-	}, ipv6.ProtocolNumber
+	}, ipv6.ProtocolNumber, nil
+}
+
+func convertToFullAddrFromString(endpoint string) (tcpip.FullAddress, tcpip.NetworkProtocolNumber, error) {
+	host, port, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		return tcpip.FullAddress{}, 0, fmt.Errorf("net.SplitHostPort: %w", err)
+	}
+	pn := 80
+	if port != "" {
+		if pn, err = strconv.Atoi(port); err != nil {
+			return tcpip.FullAddress{}, 0, fmt.Errorf("strconv.Atoi: %w", err)
+		}
+	}
+	return convertToFullAddr(net.ParseIP(host), pn)
+}
+
+func (s *YggdrasilNetstack) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	fa, pn, err := convertToFullAddrFromString(address)
+	if err != nil {
+		return nil, fmt.Errorf("convertToFullAddrFromString: %w", err)
+	}
+	switch network {
+	case "tcp", "tcp6":
+		return gonet.DialContextTCP(ctx, s.stack, fa, pn)
+	case "udp", "udp6":
+		return gonet.DialUDP(s.stack, nil, &fa, pn)
+	default:
+		return nil, fmt.Errorf("not supported")
+	}
 }
 
 func (s *YggdrasilNetstack) DialTCP(addr *net.TCPAddr) (net.Conn, error) {
-	fa, pn := convertToFullAddr(addr.IP, addr.Port)
+	fa, pn, _ := convertToFullAddr(addr.IP, addr.Port)
 	return gonet.DialTCP(s.stack, fa, pn)
 }
 
 func (s *YggdrasilNetstack) DialUDP(addr *net.UDPAddr) (net.PacketConn, error) {
-	fa, pn := convertToFullAddr(addr.IP, addr.Port)
+	fa, pn, _ := convertToFullAddr(addr.IP, addr.Port)
 	return gonet.DialUDP(s.stack, nil, &fa, pn)
 }
 
 func (s *YggdrasilNetstack) ListenTCP(addr *net.TCPAddr) (net.Listener, error) {
-	fa, pn := convertToFullAddr(addr.IP, addr.Port)
+	fa, pn, _ := convertToFullAddr(addr.IP, addr.Port)
 	return gonet.ListenTCP(s.stack, fa, pn)
 }
 
 func (s *YggdrasilNetstack) ListenUDP(addr *net.UDPAddr) (net.PacketConn, error) {
-	fa, pn := convertToFullAddr(addr.IP, addr.Port)
+	fa, pn, _ := convertToFullAddr(addr.IP, addr.Port)
 	return gonet.DialUDP(s.stack, &fa, nil, pn)
 }
