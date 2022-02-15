@@ -1,13 +1,11 @@
 package main
 
 import (
-	"context"
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -18,6 +16,7 @@ import (
 	"github.com/hjson/hjson-go"
 	"github.com/things-go/go-socks5"
 
+	"github.com/yggdrasil-network/yggdrasil-go/cmd/yggstack/types"
 	"github.com/yggdrasil-network/yggdrasil-go/contrib/netstack"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
@@ -25,23 +24,15 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 
-	"net/http"
 	_ "net/http/pprof"
 )
 
-type nameResolver struct{}
-
-func (r *nameResolver) Resolve(ctx context.Context, name string) (context.Context, net.IP, error) {
-	ip := net.ParseIP(name)
-	if ip == nil {
-		return nil, nil, fmt.Errorf("not a valid IP address")
-	}
-	return ctx, ip, nil
-}
-
 // The main function is responsible for configuring and starting Yggdrasil.
 func main() {
+	var expose types.TCPMappings
 	socks := flag.String("socks", "", "address to listen on for SOCKS, i.e. :1080")
+	nameserver := flag.String("nameserver", "", "the Yggdrasil IPv6 address to use as a DNS server for SOCKS")
+	flag.Var(&expose, "exposetcp", "TCP ports to expose to the network, e.g. 22, 2022:22, 22:192.168.1.1:2022")
 	args := setup.ParseArguments()
 
 	// Create a new logger that logs output to stdout.
@@ -162,7 +153,7 @@ func main() {
 	}
 
 	if *socks != "" {
-		resolver := &nameResolver{}
+		resolver := types.NewNameResolver(s, *nameserver)
 		server := socks5.NewServer(
 			socks5.WithDial(s.DialContext),
 			socks5.WithResolver(resolver),
@@ -170,15 +161,28 @@ func main() {
 		go server.ListenAndServe("tcp", *socks) // nolint:errcheck
 	}
 
-	listener, err := s.ListenTCP(&net.TCPAddr{Port: 80})
-	if err != nil {
-		log.Panicln(err)
+	for _, mapping := range expose {
+		go func(mapping types.TCPMapping) {
+			listener, err := s.ListenTCP(mapping.Listen)
+			if err != nil {
+				panic(err)
+			}
+			logger.Infof("Mapping Yggdrasil port %d to %s", mapping.Listen.Port, mapping.Mapped)
+			for {
+				c, err := listener.Accept()
+				if err != nil {
+					panic(err)
+				}
+				r, err := net.DialTCP("tcp", nil, mapping.Mapped)
+				if err != nil {
+					logger.Errorf("Failed to connect to %s: %s", mapping.Mapped, err)
+					_ = c.Close()
+					continue
+				}
+				types.ProxyTCP(n.MTU(), c, r)
+			}
+		}(mapping)
 	}
-	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		_, _ = io.WriteString(writer, "I am Yggstack!")
-	})
-	httpServer := &http.Server{}
-	go httpServer.Serve(listener) // nolint:errcheck
 
 	term := make(chan os.Signal, 1)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)

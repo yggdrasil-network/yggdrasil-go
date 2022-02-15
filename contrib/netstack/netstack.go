@@ -71,7 +71,11 @@ func (s *YggdrasilNetstack) DialContext(ctx context.Context, network, address st
 	case "tcp", "tcp6":
 		return gonet.DialContextTCP(ctx, s.stack, fa, pn)
 	case "udp", "udp6":
-		return gonet.DialUDP(s.stack, nil, &fa, pn)
+		conn, err := gonet.DialUDP(s.stack, nil, &fa, pn)
+		if err != nil {
+			return nil, fmt.Errorf("gonet.DialUDP: %w", err)
+		}
+		return conn, nil
 	default:
 		return nil, fmt.Errorf("not supported")
 	}
