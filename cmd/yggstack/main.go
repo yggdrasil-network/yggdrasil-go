@@ -87,7 +87,7 @@ func main() {
 		}
 	case args.GenConf:
 		// Generate a new configuration and print it to stdout.
-		fmt.Println(config.GenerateConfigJSON(args.ConfJSON))
+		fmt.Printf("%s\n", config.GenerateConfigJSON(args.ConfJSON))
 		return
 	default:
 		// No flags were provided, therefore print the list of flags to stdout.
