@@ -9,10 +9,8 @@ require (
 	github.com/cheggaaa/pb/v3 v3.0.8
 	github.com/fatih/color v1.12.0 // indirect
 	github.com/gologme/log v1.2.0
-	github.com/google/btree v1.0.1 // indirect
 	github.com/hashicorp/go-syslog v1.0.0
 	github.com/hjson/hjson-go v3.1.0+incompatible
-	github.com/kardianos/minwinsvc v1.0.0
 	github.com/mattn/go-isatty v0.0.13 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/mitchellh/mapstructure v1.4.1
@@ -22,8 +20,6 @@ require (
 	golang.org/x/net v0.0.0-20211101193420-4a448f8816b3
 	golang.org/x/sys v0.0.0-20211102192858-4dd72447c267
 	golang.org/x/text v0.3.8-0.20211004125949-5bd84dd9b33b
-	golang.org/x/time v0.0.0-20211116232009-f0f3c7e86c11 // indirect
 	golang.zx2c4.com/wireguard v0.0.0-20211017052713-f87e87af0d9a
 	golang.zx2c4.com/wireguard/windows v0.4.12
-	inet.af/netstack v0.0.0-20211120045802-8aa80cf23d3c
 )
