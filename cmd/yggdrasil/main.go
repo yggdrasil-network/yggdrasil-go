@@ -14,6 +14,7 @@ import (
 	"github.com/gologme/log"
 	gsyslog "github.com/hashicorp/go-syslog"
 	"github.com/hjson/hjson-go"
+	"github.com/kardianos/minwinsvc"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
@@ -138,8 +139,10 @@ func main() {
 		logger.Errorln("An error occurred initialising TUN/TAP:", err)
 	} else if err := tuntap.Start(); err != nil {
 		logger.Errorln("An error occurred starting TUN/TAP:", err)
+	} else {
+		tuntap.SetupAdminHandlers(n.Admin())
+		defer tuntap.Stop() // nolint:errcheck
 	}
-	tuntap.SetupAdminHandlers(n.Admin())
 
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
@@ -153,11 +156,14 @@ func main() {
 	term := make(chan os.Signal, 1)
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
+	// Capture the service being stopped on Windows.
+	minwinsvc.SetOnExit(n.Close)
+
+	// Will happen either if we get a TERM signal or something else called
+	// the n.Close() method.
 	select {
 	case <-n.Done():
 	case <-term:
+		n.Close()
 	}
-
-	_ = tuntap.Stop()
-	n.Close()
 }

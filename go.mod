@@ -11,6 +11,7 @@ require (
 	github.com/gologme/log v1.2.0
 	github.com/hashicorp/go-syslog v1.0.0
 	github.com/hjson/hjson-go v3.1.0+incompatible
+	github.com/kardianos/minwinsvc v1.0.0
 	github.com/mattn/go-isatty v0.0.13 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/mitchellh/mapstructure v1.4.1
