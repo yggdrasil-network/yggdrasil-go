@@ -2,11 +2,17 @@ package types
 
 import (
 	"context"
+	"crypto/ed25519"
+	"encoding/hex"
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/yggdrasil-network/yggdrasil-go/contrib/netstack"
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 )
+
+const NameMappingSuffix = ".pk.ygg"
 
 type NameResolver struct {
 	resolver *net.Resolver
@@ -31,6 +37,16 @@ func NewNameResolver(stack *netstack.YggdrasilNetstack, nameserver string) *Name
 }
 
 func (r *NameResolver) Resolve(ctx context.Context, name string) (context.Context, net.IP, error) {
+	if strings.HasSuffix(name, NameMappingSuffix) {
+		name = strings.TrimSuffix(name, NameMappingSuffix)
+		var pk [ed25519.PublicKeySize]byte
+		if b, err := hex.DecodeString(name); err != nil {
+			return nil, nil, fmt.Errorf("hex.DecodeString: %w", err)
+		} else {
+			copy(pk[:], b)
+			return ctx, net.IP(address.AddrForKey(pk[:])[:]), nil
+		}
+	}
 	ip := net.ParseIP(name)
 	if ip == nil {
 		addrs, err := r.resolver.LookupIP(ctx, "ip6", name)

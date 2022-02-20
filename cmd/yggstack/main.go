@@ -143,9 +143,11 @@ func main() {
 	address := n.Address()
 	subnet := n.Subnet()
 	public := n.GetSelf().Key
-	logger.Infof("Your public key is %s", hex.EncodeToString(public[:]))
+	publicstr := hex.EncodeToString(public[:])
+	logger.Infof("Your public key is %s", publicstr)
 	logger.Infof("Your IPv6 address is %s", address.String())
 	logger.Infof("Your IPv6 subnet is %s", subnet.String())
+	logger.Infof("Your Yggstack resolver name is %s%s", publicstr, types.NameMappingSuffix)
 
 	s, err := netstack.CreateYggdrasilNetstack(&n.Core)
 	if err != nil {
