@@ -237,11 +237,11 @@ func (k *keyStore) readPC(p []byte) (int, error) {
 		k.mutex.Unlock()
 		if len(bs) > mtu {
 			// Using bs would make it leak off the stack, so copy to buf
-			buf := make([]byte, 40)
-			copy(buf, bs)
+			buf := make([]byte, 512)
+			cn := copy(buf, bs)
 			ptb := &icmp.PacketTooBig{
 				MTU:  mtu,
-				Data: buf[:40],
+				Data: buf[:cn],
 			}
 			if packet, err := CreateICMPv6(buf[8:24], buf[24:40], ipv6.ICMPTypePacketTooBig, 0, ptb); err == nil {
 				_, _ = k.writePC(packet)
