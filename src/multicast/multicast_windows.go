@@ -3,8 +3,11 @@
 
 package multicast
 
-import "syscall"
-import "golang.org/x/sys/windows"
+import (
+	"syscall"
+
+	"golang.org/x/sys/windows"
+)
 
 func (m *Multicast) _multicastStarted() {
 
