@@ -2,18 +2,32 @@ name: Yggdrasil
 
 on:
   push:
-    branches: [ master develop ]
   pull_request:
-    branches: [ master develop ]
   release:
+  workflow_dispatch:
 
 jobs:
-  build-test:
-    name: Go ${{ matrix.goversion }}
-  
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+      - uses: actions/checkout@v3
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          args: --issues-exit-code=1
+
+  build-linux:
     strategy:
+      fail-fast: false
       matrix:
         goversion: ["1.16", "1.17", "1.18"]
+        
+    name: Build & Test (Linux, Go ${{ matrix.goversion }})
+    needs: [lint]
         
     runs-on: ubuntu-latest
     steps:
@@ -29,3 +43,62 @@ jobs:
 
     - name: Unit tests
       run: go test -v ./...
+
+  build-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        goversion: ["1.16", "1.17", "1.18"]
+  
+    name: Build & Test (Windows, Go ${{ matrix.goversion }})
+    needs: [lint]
+        
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ matrix.goversion }}
+
+    - name: Build Yggdrasil
+      run: go build -v ./...
+
+    - name: Unit tests
+      run: go test -v ./...
+      
+  build-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        goversion: ["1.16", "1.17", "1.18"]
+  
+    name: Build & Test (macOS, Go ${{ matrix.goversion }})
+    needs: [lint]
+        
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ matrix.goversion }}
+
+    - name: Build Yggdrasil
+      run: go build -v ./...
+
+    - name: Unit tests
+      run: go test -v ./...
+
+  tests-ok:
+    name: All tests passed
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: ${{ !cancelled() }}
+    steps:
+      - name: Check all tests passed
+        uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}
