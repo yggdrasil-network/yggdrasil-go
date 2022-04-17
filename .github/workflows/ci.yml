@@ -1,0 +1,31 @@
+name: Yggdrasil
+
+on:
+  push:
+    branches: [ master develop ]
+  pull_request:
+    branches: [ master develop ]
+  release:
+
+jobs:
+  build-test:
+    name: Go ${{ matrix.goversion }}
+  
+    strategy:
+      matrix:
+        goversion: ["1.16", "1.17", "1.18"]
+        
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ matrix.goversion }}
+
+    - name: Build Yggdrasil
+      run: go build -v ./...
+
+    - name: Unit tests
+      run: go test -v ./...
