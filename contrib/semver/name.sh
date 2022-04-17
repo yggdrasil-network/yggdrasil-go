@@ -1,13 +1,12 @@
 #!/bin/sh
 
 # Get the current branch name
-BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
+BRANCH="$GITHUB_REF_NAME"
+if [ -z "$BRANCH" ]; then
+  BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
+fi
 
-if [ -n "$APPVEYOR_PULL_REQUEST_NUMBER" ]; then
-  printf "yggdrasil-pr%s" "$APPVEYOR_PULL_REQUEST_NUMBER"
-  exit 0
-# Complain if the git history is not available
-elif [ $? != 0 ] || [ -z "$BRANCH" ]; then
+if [ $? != 0 ] || [ -z "$BRANCH" ]; then
   printf "yggdrasil"
   exit 0
 fi
