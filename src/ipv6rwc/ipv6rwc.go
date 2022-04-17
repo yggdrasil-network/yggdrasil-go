@@ -153,7 +153,7 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 	k.resetTimeout(info)
 	k.mutex.Unlock()
 	for _, packet := range packets {
-		k.core.WriteTo(packet, iwt.Addr(info.key[:]))
+		_, _ = k.core.WriteTo(packet, iwt.Addr(info.key[:]))
 	}
 	return info
 }
