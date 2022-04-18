@@ -34,7 +34,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Changed
 
-- Go 1.17 is now required
+- Go 1.17 is now required to build Yggdrasil
 
 ## [0.4.3] - 2022-02-06
 
