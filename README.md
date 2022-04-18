@@ -1,7 +1,6 @@
 # Yggdrasil
 
-[![CircleCI](https://circleci.com/gh/yggdrasil-network/yggdrasil-go.svg?style=shield&circle-token=:circle-token
-)](https://circleci.com/gh/yggdrasil-network/yggdrasil-go)
+[![Build status](https://github.com/yggdrasil-network/yggdrasil-go/actions/workflows/ci.yml/badge.svg)](https://github.com/yggdrasil-network/yggdrasil-go/actions/workflows/ci.yml)
 
 ## Introduction
 
