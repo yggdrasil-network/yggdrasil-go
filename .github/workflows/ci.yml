@@ -32,11 +32,6 @@ jobs:
       contents: read
       security-events: write
 
-    strategy:
-      fail-fast: false
-      matrix:
-        language: ["go"]
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -44,7 +39,7 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
         with:
-          languages: ${{ matrix.language }}
+          languages: go
 
       - name: Autobuild
         uses: github/codeql-action/autobuild@v2
