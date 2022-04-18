@@ -24,6 +24,34 @@ jobs:
         with:
           args: --issues-exit-code=1
 
+  codeql:
+    name: Analyse
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["go"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+
   build-linux:
     strategy:
       fail-fast: false
@@ -98,7 +126,7 @@ jobs:
 
   tests-ok:
     name: All tests passed
-    needs: [build-linux, build-windows, build-macos]
+    needs: [lint, codeql, build-linux, build-windows, build-macos]
     runs-on: ubuntu-latest
     if: ${{ !cancelled() }}
     steps:
