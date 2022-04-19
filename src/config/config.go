@@ -27,6 +27,8 @@ import (
 // supply one of these structs to the Yggdrasil core when starting a node.
 type NodeConfig struct {
 	sync.RWMutex        `json:"-"`
+	LogTo               string                     `comment:"Your file path to log to, \"syslog\" or \"stdout\". It will override run argument provided configuration."`
+	LogLevel            string                     `comment:"Your log level, \"error\", \"warn\", \"info\", \"debug\", \"trace\"."`
 	Peers               []string                   `comment:"List of connection strings for outbound peer connections in URI format,\ne.g. tls://a.b.c.d:e or socks://a.b.c.d:e/f.g.h.i:j. These connections\nwill obey the operating system routing table, therefore you should\nuse this section when you may connect via different interfaces."`
 	InterfacePeers      map[string][]string        `comment:"List of connection strings for outbound peer connections in URI format,\narranged by source interface, e.g. { \"eth0\": [ tls://a.b.c.d:e ] }.\nNote that SOCKS peerings will NOT be affected by this option and should\ngo in the \"Peers\" section instead."`
 	Listen              []string                   `comment:"Listen addresses for incoming connections. You will need to add\nlisteners in order to accept incoming peerings from non-local nodes.\nMulticast peer discovery will work regardless of any listeners set\nhere. Each listener should be specified in URI format as above, e.g.\ntls://0.0.0.0:0 or tls://[::]:0 to listen on all interfaces."`

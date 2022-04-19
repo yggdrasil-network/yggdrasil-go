@@ -30,6 +30,8 @@ func GenerateConfig() *config.NodeConfig {
 	// Create a node configuration and populate it.
 	cfg := new(config.NodeConfig)
 	cfg.NewKeys()
+	cfg.LogTo = "stdout"
+	cfg.LogLevel = "info"
 	cfg.Listen = []string{}
 	cfg.AdminListen = GetDefaults().DefaultAdminListen
 	cfg.Peers = []string{}

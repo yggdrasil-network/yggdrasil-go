@@ -43,7 +43,7 @@ type node struct {
 	admin     *admin.AdminSocket
 }
 
-func readConfig(log *log.Logger, useconf bool, useconffile string, normaliseconf bool) *config.NodeConfig {
+func readConfig(useconf bool, useconffile string, normaliseconf bool) *config.NodeConfig {
 	// Use a configuration file. If -useconf, the configuration will be read
 	// from stdin. If -useconffile, the configuration will be read from the
 	// filesystem.
@@ -83,10 +83,10 @@ func readConfig(log *log.Logger, useconf bool, useconffile string, normaliseconf
 	}
 	// Check if we have old field names
 	if _, ok := dat["TunnelRouting"]; ok {
-		log.Warnln("WARNING: Tunnel routing is no longer supported")
+		fmt.Println("WARNING: Tunnel routing is no longer supported")
 	}
 	if old, ok := dat["SigningPrivateKey"]; ok {
-		log.Warnln("WARNING: The \"SigningPrivateKey\" configuration option has been renamed to \"PrivateKey\"")
+		fmt.Println("WARNING: The \"SigningPrivateKey\" configuration option has been renamed to \"PrivateKey\"")
 		if _, ok := dat["PrivateKey"]; !ok {
 			if privstr, err := hex.DecodeString(old.(string)); err == nil {
 				priv := ed25519.PrivateKey(privstr)
@@ -94,7 +94,7 @@ func readConfig(log *log.Logger, useconf bool, useconffile string, normaliseconf
 				dat["PrivateKey"] = hex.EncodeToString(priv[:])
 				dat["PublicKey"] = hex.EncodeToString(pub[:])
 			} else {
-				log.Warnln("WARNING: The \"SigningPrivateKey\" configuration option contains an invalid value and will be ignored")
+				fmt.Println("WARNING: The \"SigningPrivateKey\" configuration option contains an invalid value and will be ignored")
 			}
 		}
 	}
@@ -192,8 +192,6 @@ type yggArgs struct {
 	getaddr       bool
 	getsnet       bool
 	useconffile   string
-	logto         string
-	loglevel      string
 }
 
 func getArgs() yggArgs {
@@ -204,10 +202,8 @@ func getArgs() yggArgs {
 	confjson := flag.Bool("json", false, "print configuration from -genconf or -normaliseconf as JSON instead of HJSON")
 	autoconf := flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
 	ver := flag.Bool("version", false, "prints the version of this build")
-	logto := flag.String("logto", "stdout", "file path to log to, \"syslog\" or \"stdout\"")
 	getaddr := flag.Bool("address", false, "returns the IPv6 address as derived from the supplied configuration")
 	getsnet := flag.Bool("subnet", false, "returns the IPv6 subnet as derived from the supplied configuration")
-	loglevel := flag.String("loglevel", "info", "loglevel to enable")
 	flag.Parse()
 	return yggArgs{
 		genconf:       *genconf,
@@ -217,41 +213,14 @@ func getArgs() yggArgs {
 		confjson:      *confjson,
 		autoconf:      *autoconf,
 		ver:           *ver,
-		logto:         *logto,
 		getaddr:       *getaddr,
 		getsnet:       *getsnet,
-		loglevel:      *loglevel,
 	}
 }
 
 // The main function is responsible for configuring and starting Yggdrasil.
 func run(args yggArgs, ctx context.Context, done chan struct{}) {
 	defer close(done)
-	// Create a new logger that logs output to stdout.
-	var logger *log.Logger
-	switch args.logto {
-	case "stdout":
-		logger = log.New(os.Stdout, "", log.Flags())
-	case "syslog":
-		if syslogger, err := gsyslog.NewLogger(gsyslog.LOG_NOTICE, "DAEMON", version.BuildName()); err == nil {
-			logger = log.New(syslogger, "", log.Flags())
-		}
-	default:
-		if logfd, err := os.OpenFile(args.logto, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
-			logger = log.New(logfd, "", log.Flags())
-		}
-	}
-	if logger == nil {
-		logger = log.New(os.Stdout, "", log.Flags())
-		logger.Warnln("Logging defaulting to stdout")
-	}
-
-	if args.normaliseconf {
-		setLogLevel("error", logger)
-	} else {
-		setLogLevel(args.loglevel, logger)
-	}
-
 	var cfg *config.NodeConfig
 	var err error
 	switch {
@@ -265,7 +234,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		cfg = defaults.GenerateConfig()
 	case args.useconffile != "" || args.useconf:
 		// Read the configuration from either stdin or from the filesystem
-		cfg = readConfig(logger, args.useconf, args.useconffile, args.normaliseconf)
+		cfg = readConfig(args.useconf, args.useconffile, args.normaliseconf)
 		// If the -normaliseconf option was specified then remarshal the above
 		// configuration and print it back to stdout. This lets the user update
 		// their configuration file with newly mapped names (like above) or to
@@ -296,6 +265,30 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 	// if we don't.
 	if cfg == nil {
 		return
+	}
+	// Create a new logger that logs output to stdout.
+	var logger *log.Logger
+	switch cfg.LogTo {
+	case "stdout":
+		logger = log.New(os.Stdout, "", log.Flags())
+	case "syslog":
+		if syslogger, err := gsyslog.NewLogger(gsyslog.LOG_NOTICE, "DAEMON", version.BuildName()); err == nil {
+			logger = log.New(syslogger, "", log.Flags())
+		}
+	default:
+		if logfd, err := os.OpenFile(cfg.LogTo, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+			logger = log.New(logfd, "", log.Flags())
+		}
+	}
+	if logger == nil {
+		logger = log.New(os.Stdout, "", log.Flags())
+		logger.Warnln("Logging defaulting to stdout")
+	}
+
+	if args.normaliseconf {
+		setLogLevel("error", logger)
+	} else {
+		setLogLevel(cfg.LogLevel, logger)
 	}
 	// Have we been asked for the node address yet? If so, print it and then stop.
 	getNodeKey := func() ed25519.PublicKey {
