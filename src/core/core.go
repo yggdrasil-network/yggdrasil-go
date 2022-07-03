@@ -228,7 +228,8 @@ func (c *Core) _close() error {
 
 func (c *Core) MTU() uint64 {
 	const sessionTypeOverhead = 1
-	return c.PacketConn.MTU() - sessionTypeOverhead
+	const AESOverhead = 12 + 16 // nonce + tag
+	return c.PacketConn.MTU() - (sessionTypeOverhead + AESOverhead)
 }
 
 func (c *Core) ReadFrom(p []byte) (n int, from net.Addr, err error) {
@@ -301,7 +302,7 @@ func (c *Core) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 		buf = append(buf, gcm.Seal(nonce, nonce, p, nil)...)
 		n, err = c.PacketConn.WriteTo(buf, addr)
 		if n > 0 {
-			n -= 1 + len(nonce)
+			n -= 1 + 12 + 16
 		}
 	}
 	return
