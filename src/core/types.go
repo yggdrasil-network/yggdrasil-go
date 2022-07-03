@@ -5,6 +5,7 @@ const (
 	typeSessionDummy = iota // nolint:deadcode,varcheck
 	typeSessionTraffic
 	typeSessionProto
+	typeSessionEncTraffic
 )
 
 // Protocol packet types
