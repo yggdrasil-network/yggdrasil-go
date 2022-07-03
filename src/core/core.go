@@ -3,6 +3,10 @@ package core
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/aes"
+        "crypto/cipher"
+        "crypto/rand"
+        "io"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -30,6 +34,7 @@ type Core struct {
 	phony.Inbox
 	*iwe.PacketConn
 	config       *config.NodeConfig // Config
+	sgcm         map[string] cipher.AEAD
 	secret       ed25519.PrivateKey
 	public       ed25519.PublicKey
 	links        links
@@ -50,6 +55,32 @@ func (c *Core) _init() error {
 	if c.log == nil {
 		c.log = log.New(ioutil.Discard, "", 0)
 	}
+
+	c.sgcm = make(map[string] cipher.AEAD)
+
+	for addr, csecret := range c.config.Secrets {
+            var gcm cipher.AEAD
+            switch len(csecret) {
+                case 16, 24, 32: // Generate GCM
+                    ch, err  := aes.NewCipher([]byte(csecret))
+                    if err != nil { return fmt.Errorf("aes.NewCipher: %w", err) }
+                    gcm, err = cipher.NewGCM(ch)
+                    if err != nil { return fmt.Errorf("cipher.NewGCM: %w", err) }
+                default:
+                    return fmt.Errorf("Secret for %s is incorrect length. Should be 16, 24 or 32 bytes", addr)
+            }
+
+            if strings.ToLower(addr) == "all" {
+                c.sgcm["0"] = gcm
+            } else {
+                saddr, err := hex.DecodeString(addr)
+                if err != nil { return err }
+                if len(saddr) != ed25519.PublicKeySize {
+                    return fmt.Errorf("PublicKey '%s' has the wrong length", addr)
+                }
+                c.sgcm[string(saddr)] = gcm
+            }
+        }
 
 	sigPriv, err := hex.DecodeString(c.config.PrivateKey)
 	if err != nil {
@@ -204,36 +235,73 @@ func (c *Core) ReadFrom(p []byte) (n int, from net.Addr, err error) {
 		if n == 0 {
 			continue
 		}
-		switch bs[0] {
-		case typeSessionTraffic:
-			// This is what we want to handle here
-		case typeSessionProto:
-			var key keyArray
-			copy(key[:], from.(iwt.Addr))
-			data := append([]byte(nil), bs[1:n]...)
-			c.proto.handleProto(nil, key, data)
-			continue
-		default:
-			continue
-		}
-		bs = bs[1:n]
-		copy(p, bs)
-		if len(p) < len(bs) {
-			n = len(p)
-		} else {
-			n = len(bs)
-		}
-		return
-	}
+                switch bs[0] {
+                case typeSessionTraffic:
+                        // This is what we want to handle here
+                        gcm := c.getSecretForAddr(from)
+                        if gcm != nil { continue }
+                        bs = bs[1:n]
+
+                case typeSessionEncTraffic:
+                        // Encoded traddic. Decode first
+                        gcm := c.getSecretForAddr(from)
+                        if gcm == nil { continue }
+                        bs, err = gcm.Open(nil, bs[1:gcm.NonceSize()+1], bs[gcm.NonceSize()+1:n], nil)
+                        if err != nil { // If we failed to decrypt the packet, we silently skip it.
+                            err = nil
+                            continue
+                        }
+
+                case typeSessionProto:
+                        var key keyArray
+                        copy(key[:], from.(iwt.Addr))
+                        data := append([]byte(nil), bs[1:n]...)
+                        c.proto.handleProto(nil, key, data)
+                        continue
+                default:
+                        continue
+                }
+                copy(p, bs)
+                if len(p) < len(bs) {
+                        n = len(p)
+                } else {
+                        n = len(bs)
+                }
+                return
+        }
 }
 
 func (c *Core) WriteTo(p []byte, addr net.Addr) (n int, err error) {
-	buf := make([]byte, 0, 65535)
-	buf = append(buf, typeSessionTraffic)
-	buf = append(buf, p...)
-	n, err = c.PacketConn.WriteTo(buf, addr)
-	if n > 0 {
-		n -= 1
-	}
-	return
+        buf := make([]byte, 0, 65535)
+        gcm := c.getSecretForAddr(addr)
+        if gcm == nil { // unencrypted traffic
+            buf = append(buf, typeSessionTraffic)
+            buf = append(buf, p...)
+            n, err = c.PacketConn.WriteTo(buf, addr)
+            if n > 0 {
+                n -= 1
+            }
+        } else {
+            buf = append(buf, typeSessionEncTraffic)
+            nonce := make([]byte, gcm.NonceSize())
+            if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+                return 0, err
+            }
+            buf = append(buf, gcm.Seal(nonce, nonce, p, nil)...)
+            n, err = c.PacketConn.WriteTo(buf, addr)
+            if n > 0 {
+                n -= 1+len(nonce)
+            }
+        }
+        return
+}
+
+func (c *Core) getSecretForAddr(addr net.Addr) (ch cipher.AEAD) {
+    if ch, exist := c.sgcm[string(ed25519.PublicKey(addr.(iwt.Addr)))]; exist {
+        return ch
+    }
+    if ch, exist := c.sgcm["0"]; exist {
+        return ch
+    }
+    return nil
 }
