@@ -1,0 +1,263 @@
+name: Yggdrasil
+
+on:
+  push:
+  pull_request:
+  release:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+      - uses: actions/checkout@v3
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          args: --issues-exit-code=1
+
+  codeql:
+    name: Analyse
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: go
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+
+  build-linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        goversion: ["1.17", "1.18"]
+
+    name: Build & Test (Linux, Go ${{ matrix.goversion }})
+    needs: [lint]
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.goversion }}
+
+      - name: Build Yggdrasil
+        run: go build -v ./...
+
+      - name: Unit tests
+        run: go test -v ./...
+
+  build-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        goversion: ["1.17", "1.18"]
+
+    name: Build & Test (Windows, Go ${{ matrix.goversion }})
+    needs: [lint]
+
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.goversion }}
+
+      - name: Build Yggdrasil
+        run: go build -v ./...
+
+      - name: Unit tests
+        run: go test -v ./...
+
+  build-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        goversion: ["1.17", "1.18"]
+
+    name: Build & Test (macOS, Go ${{ matrix.goversion }})
+    needs: [lint]
+
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.goversion }}
+
+      - name: Build Yggdrasil
+        run: go build -v ./...
+
+      - name: Unit tests
+        run: go test -v ./...
+
+  tests-ok:
+    name: All tests passed
+    needs: [lint, codeql, build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: ${{ !cancelled() }}
+    steps:
+      - name: Check all tests passed
+        uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}
+
+  build-packages-debian:
+    strategy:
+      fail-fast: false
+      matrix:
+        pkgarch: ["amd64", "i386", "mips", "mipsel", "armhf", "armel", "arm64"]
+
+    name: Create Package (Debian, ${{ matrix.pkgarch }})
+    needs: [tests-ok]
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+
+      - name: Build package
+        env:
+          PKGARCH: ${{ matrix.pkgarch }}
+        run: sh contrib/deb/generate.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: Debian package (${{ matrix.pkgarch }})
+          path: "*.deb"
+          if-no-files-found: error
+
+  build-packages-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        pkgarch: ["amd64", "arm64"]
+
+    name: Create Package (macOS, ${{ matrix.pkgarch }})
+    needs: [tests-ok]
+
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+
+      - name: Build package
+        env:
+          PKGARCH: ${{ matrix.pkgarch }}
+        run: sh contrib/macos/create-pkg.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: macOS package (${{ matrix.pkgarch }})
+          path: "*.pkg"
+          if-no-files-found: error
+
+  build-packages-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        pkgarch: ["x64", "x86", "arm", "arm64"]
+
+    name: Create Package (Windows, ${{ matrix.pkgarch }})
+    needs: [tests-ok]
+
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+
+      - name: Build package
+        run: sh contrib/msi/build-msi.sh ${{ matrix.pkgarch }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: Windows package (${{ matrix.pkgarch }})
+          path: "*.msi"
+          if-no-files-found: error
+
+  build-packages-router:
+    strategy:
+      fail-fast: false
+      matrix:
+        pkgarch: ["edgerouter-x", "edgerouter-lite", "vyos-amd64", "vyos-i386"]
+
+    name: Create Package (Router, ${{ matrix.pkgarch }})
+    needs: [tests-ok]
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          path: yggdrasil
+
+      - uses: actions/checkout@v3
+        with:
+          repository: neilalexander/vyatta-yggdrasil
+          path: vyatta-yggdrasil
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+
+      - name: Build package
+        env:
+          BUILDDIR_YGG: /home/runner/work/yggdrasil-go/yggdrasil-go/yggdrasil
+        run: cd /home/runner/work/yggdrasil-go/yggdrasil-go/vyatta-yggdrasil && ./build-${{ matrix.pkgarch }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: Router package (${{ matrix.pkgarch }})
+          path: "/home/runner/work/yggdrasil-go/yggdrasil-go/vyatta-yggdrasil/*.deb"
+          if-no-files-found: error

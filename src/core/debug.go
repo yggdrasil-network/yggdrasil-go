@@ -3,14 +3,16 @@
 
 package core
 
-import "fmt"
+import (
+	"fmt"
 
-import _ "net/http/pprof"
-import "net/http"
-import "runtime"
-import "os"
+	"net/http"
+	_ "net/http/pprof"
+	"os"
+	"runtime"
 
-import "github.com/gologme/log"
+	"github.com/gologme/log"
+)
 
 // Start the profiler in debug builds, if the required environment variable is set.
 func init() {

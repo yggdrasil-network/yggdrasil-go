@@ -83,8 +83,7 @@ func (a *AdminSocket) Init(c *core.Core, nc *config.NodeConfig, log *log.Logger,
 		}
 		return res, nil
 	})
-	a.core.SetAdmin(a)
-	return nil
+	return a.core.SetAdmin(a)
 }
 
 func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {

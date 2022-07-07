@@ -300,7 +300,7 @@ func handleGetSelf(res map[string]interface{}, verbose bool) {
 		if boxSigKey, ok := v.(map[string]interface{})["key"].(string); ok {
 			fmt.Println("Public key:", boxSigKey)
 		}
-		if coords, ok := v.(map[string]interface{})["coords"].(string); ok {
+		if coords, ok := v.(map[string]interface{})["coords"].([]interface{}); ok {
 			fmt.Println("Coords:", coords)
 		}
 		if verbose {

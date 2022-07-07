@@ -108,7 +108,7 @@ func SubnetForKey(publicKey ed25519.PublicKey) *Subnet {
 	}
 	var snet Subnet
 	copy(snet[:], addr[:])
-	prefix := GetPrefix()
+	prefix := GetPrefix() // nolint:staticcheck
 	snet[len(prefix)-1] |= 0x01
 	return &snet
 }
@@ -117,7 +117,7 @@ func SubnetForKey(publicKey ed25519.PublicKey) *Subnet {
 // This is used for key lookup.
 func (a *Address) GetKey() ed25519.PublicKey {
 	var key [ed25519.PublicKeySize]byte
-	prefix := GetPrefix()
+	prefix := GetPrefix() // nolint:staticcheck
 	ones := int(a[len(prefix)])
 	for idx := 0; idx < ones; idx++ {
 		key[idx/8] |= 0x80 >> byte(idx%8)

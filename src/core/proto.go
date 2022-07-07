@@ -47,9 +47,9 @@ func (p *protoHandler) init(core *Core) {
 	p.core = core
 	p.nodeinfo.init(p)
 
-	p.selfRequests  = make(map[keyArray]*reqInfo)
+	p.selfRequests = make(map[keyArray]*reqInfo)
 	p.peersRequests = make(map[keyArray]*reqInfo)
-	p.dhtRequests   = make(map[keyArray]*reqInfo)
+	p.dhtRequests = make(map[keyArray]*reqInfo)
 }
 
 // Common functions
@@ -65,8 +65,14 @@ func (p *protoHandler) handleProto(from phony.Actor, key keyArray, bs []byte) {
 	case typeProtoNodeInfoResponse:
 		p.nodeinfo.handleRes(p, key, bs[1:])
 	case typeProtoDebug:
-		p._handleDebug(key, bs[1:])
+		p.handleDebug(from, key, bs[1:])
 	}
+}
+
+func (p *protoHandler) handleDebug(from phony.Actor, key keyArray, bs []byte) {
+	p.Act(from, func() {
+		p._handleDebug(key, bs)
+	})
 }
 
 func (p *protoHandler) _handleDebug(key keyArray, bs []byte) {
