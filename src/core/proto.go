@@ -65,8 +65,14 @@ func (p *protoHandler) handleProto(from phony.Actor, key keyArray, bs []byte) {
 	case typeProtoNodeInfoResponse:
 		p.nodeinfo.handleRes(p, key, bs[1:])
 	case typeProtoDebug:
-		p._handleDebug(key, bs[1:])
+		p.handleDebug(from, key, bs[1:])
 	}
+}
+
+func (p *protoHandler) handleDebug(from phony.Actor, key keyArray, bs []byte) {
+	p.Act(from, func() {
+		p._handleDebug(key, bs)
+	})
 }
 
 func (p *protoHandler) _handleDebug(key keyArray, bs []byte) {
