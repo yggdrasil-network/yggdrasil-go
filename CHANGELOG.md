@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Fixed
 
 - ICMPv6 "Packet Too Big" payload size has been increased, which should fix Path MTU Discovery (PMTUD) when two nodes have different `IfMTU` values configured
+- A crash has been fixed when handling debug packet responses
+- `yggdrasilctl getSelf` should now report coordinates correctly again
 
 ### Changed
 
