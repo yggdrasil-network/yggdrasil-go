@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"encoding/hex"
 	"errors"
@@ -215,12 +216,10 @@ func (intf *link) handler() (chan struct{}, error) {
 		}
 	}
 	// Check if we're authorized to connect to this key / IP
-	intf.links.core.config.RLock()
-	allowed := intf.links.core.config.AllowedPublicKeys
-	intf.links.core.config.RUnlock()
+	allowed := intf.links.core.config._allowedPublicKeys
 	isallowed := len(allowed) == 0
-	for _, k := range allowed {
-		if k == hex.EncodeToString(meta.key) { // TODO: this is yuck
+	for k := range allowed {
+		if bytes.Equal(k[:], meta.key) {
 			isallowed = true
 			break
 		}

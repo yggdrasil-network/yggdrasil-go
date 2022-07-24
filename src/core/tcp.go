@@ -96,7 +96,7 @@ func (t *tcp) getAddr() *net.TCPAddr {
 }
 
 // Initializes the struct.
-func (t *tcp) init(l *links) error {
+func (t *tcp) init(l *links, listeners []ListenAddress) error {
 	t.links = l
 	t.tls.init(t)
 	t.mutex.Lock()
@@ -105,10 +105,8 @@ func (t *tcp) init(l *links) error {
 	t.listeners = make(map[string]*TcpListener)
 	t.mutex.Unlock()
 
-	t.links.core.config.RLock()
-	defer t.links.core.config.RUnlock()
-	for _, listenaddr := range t.links.core.config.Listen {
-		u, err := url.Parse(listenaddr)
+	for _, listenaddr := range listeners {
+		u, err := url.Parse(string(listenaddr))
 		if err != nil {
 			t.links.core.log.Errorln("Failed to parse listener: listener", listenaddr, "is not correctly formatted, ignoring")
 		}

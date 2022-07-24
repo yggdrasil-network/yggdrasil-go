@@ -2,8 +2,6 @@ package core
 
 import (
 	"crypto/ed25519"
-	"sync/atomic"
-	"time"
 
 	//"encoding/hex"
 	"encoding/json"
@@ -27,6 +25,7 @@ type Self struct {
 	Coords []uint64
 }
 
+/*
 type Peer struct {
 	Key     ed25519.PublicKey
 	Root    ed25519.PublicKey
@@ -37,6 +36,7 @@ type Peer struct {
 	TXBytes uint64
 	Uptime  time.Duration
 }
+*/
 
 type DHTEntry struct {
 	Key  ed25519.PublicKey
@@ -62,6 +62,7 @@ func (c *Core) GetSelf() Self {
 	return self
 }
 
+/*
 func (c *Core) GetPeers() []Peer {
 	var peers []Peer
 	names := make(map[net.Conn]string)
@@ -90,6 +91,7 @@ func (c *Core) GetPeers() []Peer {
 	}
 	return peers
 }
+*/
 
 func (c *Core) GetDHT() []DHTEntry {
 	var dhts []DHTEntry
