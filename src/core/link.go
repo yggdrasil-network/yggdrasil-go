@@ -17,6 +17,7 @@ import (
 
 	"sync/atomic"
 
+	"github.com/Arceliar/phony"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"golang.org/x/net/proxy"
@@ -62,7 +63,14 @@ func (l *links) init(c *Core) error {
 	l.mutex.Unlock()
 	l.stopped = make(chan struct{})
 
-	if err := l.tcp.init(l); err != nil {
+	var listeners []ListenAddress
+	phony.Block(c, func() {
+		listeners = make([]ListenAddress, 0, len(c.config._listeners))
+		for listener := range c.config._listeners {
+			listeners = append(listeners, listener)
+		}
+	})
+	if err := l.tcp.init(l, listeners); err != nil {
 		c.log.Errorln("Failed to start TCP interface")
 		return err
 	}
@@ -71,10 +79,6 @@ func (l *links) init(c *Core) error {
 }
 
 func (l *links) call(u *url.URL, sintf string) error {
-	//u, err := url.Parse(uri)
-	//if err != nil {
-	//	return fmt.Errorf("peer %s is not correctly formatted (%s)", uri, err)
-	//}
 	tcpOpts := tcpOptions{}
 	if pubkeys, ok := u.Query()["key"]; ok && len(pubkeys) > 0 {
 		tcpOpts.pinnedEd25519Keys = make(map[keyArray]struct{})

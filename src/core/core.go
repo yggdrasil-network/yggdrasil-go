@@ -15,7 +15,6 @@ import (
 	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 	//"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 )
@@ -61,6 +60,9 @@ func New(secret ed25519.PrivateKey, opts ...SetupOption) (*Core, error) {
 	if c.PacketConn, err = iwe.NewPacketConn(c.secret); err != nil {
 		return nil, fmt.Errorf("error creating encryption: %w", err)
 	}
+	c.config._peers = map[Peer]struct{}{}
+	c.config._listeners = map[ListenAddress]struct{}{}
+	c.config._allowedPublicKeys = map[[32]byte]struct{}{}
 	for _, opt := range opts {
 		c._applyOption(opt)
 	}
@@ -101,7 +103,7 @@ func (c *Core) _applyOption(opt SetupOption) {
 	case IfMTU:
 		c.config.ifmtu = v
 	case AllowedPublicKey:
-		pk := crypto.SigPubKey{}
+		pk := [32]byte{}
 		copy(pk[:], v)
 		c.config._allowedPublicKeys[pk] = struct{}{}
 	}
