@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 
@@ -61,7 +60,7 @@ func (cmdLineEnv *CmdLineEnv) parseFlagsAndArgs() {
 
 func (cmdLineEnv *CmdLineEnv) setEndpoint(logger *log.Logger) {
 	if cmdLineEnv.server == cmdLineEnv.endpoint {
-		if config, err := ioutil.ReadFile(defaults.GetDefaults().DefaultConfigFile); err == nil {
+		if config, err := os.ReadFile(defaults.GetDefaults().DefaultConfigFile); err == nil {
 			if bytes.Equal(config[0:2], []byte{0xFF, 0xFE}) ||
 				bytes.Equal(config[0:2], []byte{0xFE, 0xFF}) {
 				utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
