@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -67,7 +67,7 @@ func New(secret ed25519.PrivateKey, opts ...SetupOption) (*Core, error) {
 		c._applyOption(opt)
 	}
 	if c.log == nil {
-		c.log = log.New(ioutil.Discard, "", 0)
+		c.log = log.New(io.Discard, "", 0)
 	}
 	c.proto.init(c)
 	if err := c.links.init(c); err != nil {
