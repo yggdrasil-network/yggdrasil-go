@@ -62,11 +62,11 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 	if len(m.config.MulticastInterfaces) > 0 {
 		if err := m.multicast.Init(&m.core, m.config, logger, nil); err != nil {
 			logger.Errorln("An error occurred initialising multicast:", err)
-			return err
+			return nil
 		}
 		if err := m.multicast.Start(); err != nil {
 			logger.Errorln("An error occurred starting multicast:", err)
-			return err
+			return nil
 		}
 	}
 	return nil
