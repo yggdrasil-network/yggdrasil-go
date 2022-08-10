@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -51,10 +51,10 @@ func readConfig(log *log.Logger, useconf bool, useconffile string, normaliseconf
 	var err error
 	if useconffile != "" {
 		// Read the file from the filesystem
-		conf, err = ioutil.ReadFile(useconffile)
+		conf, err = os.ReadFile(useconffile)
 	} else {
 		// Read the file from stdin.
-		conf, err = ioutil.ReadAll(os.Stdin)
+		conf, err = io.ReadAll(os.Stdin)
 	}
 	if err != nil {
 		panic(err)

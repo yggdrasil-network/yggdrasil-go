@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/url"
 	"time"
@@ -48,7 +48,7 @@ func (c *Core) _init() error {
 	c.config.RLock()
 	defer c.config.RUnlock()
 	if c.log == nil {
-		c.log = log.New(ioutil.Discard, "", 0)
+		c.log = log.New(io.Discard, "", 0)
 	}
 
 	sigPriv, err := hex.DecodeString(c.config.PrivateKey)
