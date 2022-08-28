@@ -36,7 +36,7 @@ import (
 )
 
 type node struct {
-	core      core.Core
+	core      *core.Core
 	config    *config.NodeConfig
 	tuntap    *tuntap.TunAdapter
 	multicast *multicast.Multicast
@@ -327,11 +327,32 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 
 	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
 	// don't need to create this manually.
+	sk, err := hex.DecodeString(cfg.PrivateKey)
+	if err != nil {
+		panic(err)
+	}
+	options := []core.SetupOption{
+		core.IfName(cfg.IfName),
+		core.IfMTU(cfg.IfMTU),
+	}
+	for _, peer := range cfg.Peers {
+		options = append(options, core.Peer{URI: peer})
+	}
+	for intf, peers := range cfg.InterfacePeers {
+		for _, peer := range peers {
+			options = append(options, core.Peer{URI: peer, SourceInterface: intf})
+		}
+	}
+	for _, allowed := range cfg.AllowedPublicKeys {
+		k, err := hex.DecodeString(allowed)
+		if err != nil {
+			panic(err)
+		}
+		options = append(options, core.AllowedPublicKey(k[:]))
+	}
 	n := node{config: cfg}
-	// Now start Yggdrasil - this starts the DHT, router, switch and other core
-	// components needed for Yggdrasil to operate
-	if err = n.core.Start(cfg, logger); err != nil {
-		logger.Errorln("An error occurred during startup")
+	n.core, err = core.New(sk[:], options...)
+	if err != nil {
 		panic(err)
 	}
 	// Register the session firewall gatekeeper function
@@ -340,21 +361,21 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 	n.multicast = &multicast.Multicast{}
 	n.tuntap = &tuntap.TunAdapter{}
 	// Start the admin socket
-	if err := n.admin.Init(&n.core, cfg, logger, nil); err != nil {
+	if err := n.admin.Init(n.core, cfg, logger, nil); err != nil {
 		logger.Errorln("An error occurred initialising admin socket:", err)
 	} else if err := n.admin.Start(); err != nil {
 		logger.Errorln("An error occurred starting admin socket:", err)
 	}
 	n.admin.SetupAdminHandlers(n.admin)
 	// Start the multicast interface
-	if err := n.multicast.Init(&n.core, cfg, logger, nil); err != nil {
+	if err := n.multicast.Init(n.core, cfg, logger, nil); err != nil {
 		logger.Errorln("An error occurred initialising multicast:", err)
 	} else if err := n.multicast.Start(); err != nil {
 		logger.Errorln("An error occurred starting multicast:", err)
 	}
 	n.multicast.SetupAdminHandlers(n.admin)
 	// Start the TUN/TAP interface
-	rwc := ipv6rwc.NewReadWriteCloser(&n.core)
+	rwc := ipv6rwc.NewReadWriteCloser(n.core)
 	if err := n.tuntap.Init(rwc, cfg, logger, nil); err != nil {
 		logger.Errorln("An error occurred initialising TUN/TAP:", err)
 	} else if err := n.tuntap.Start(); err != nil {

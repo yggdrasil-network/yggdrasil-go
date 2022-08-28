@@ -21,13 +21,13 @@ import (
 	//"github.com/Arceliar/phony"
 )
 
-type Self struct {
+type SelfInfo struct {
 	Key    ed25519.PublicKey
 	Root   ed25519.PublicKey
 	Coords []uint64
 }
 
-type Peer struct {
+type PeerInfo struct {
 	Key     ed25519.PublicKey
 	Root    ed25519.PublicKey
 	Coords  []uint64
@@ -38,23 +38,23 @@ type Peer struct {
 	Uptime  time.Duration
 }
 
-type DHTEntry struct {
+type DHTEntryInfo struct {
 	Key  ed25519.PublicKey
 	Port uint64
 	Rest uint64
 }
 
-type PathEntry struct {
+type PathEntryInfo struct {
 	Key  ed25519.PublicKey
 	Path []uint64
 }
 
-type Session struct {
+type SessionInfo struct {
 	Key ed25519.PublicKey
 }
 
-func (c *Core) GetSelf() Self {
-	var self Self
+func (c *Core) GetSelf() SelfInfo {
+	var self SelfInfo
 	s := c.PacketConn.PacketConn.Debug.GetSelf()
 	self.Key = s.Key
 	self.Root = s.Root
@@ -62,8 +62,8 @@ func (c *Core) GetSelf() Self {
 	return self
 }
 
-func (c *Core) GetPeers() []Peer {
-	var peers []Peer
+func (c *Core) GetPeers() []PeerInfo {
+	var peers []PeerInfo
 	names := make(map[net.Conn]string)
 	c.links.mutex.Lock()
 	for _, info := range c.links.links {
@@ -72,7 +72,7 @@ func (c *Core) GetPeers() []Peer {
 	c.links.mutex.Unlock()
 	ps := c.PacketConn.PacketConn.Debug.GetPeers()
 	for _, p := range ps {
-		var info Peer
+		var info PeerInfo
 		info.Key = p.Key
 		info.Root = p.Root
 		info.Coords = p.Coords
@@ -91,11 +91,11 @@ func (c *Core) GetPeers() []Peer {
 	return peers
 }
 
-func (c *Core) GetDHT() []DHTEntry {
-	var dhts []DHTEntry
+func (c *Core) GetDHT() []DHTEntryInfo {
+	var dhts []DHTEntryInfo
 	ds := c.PacketConn.PacketConn.Debug.GetDHT()
 	for _, d := range ds {
-		var info DHTEntry
+		var info DHTEntryInfo
 		info.Key = d.Key
 		info.Port = d.Port
 		info.Rest = d.Rest
@@ -104,11 +104,11 @@ func (c *Core) GetDHT() []DHTEntry {
 	return dhts
 }
 
-func (c *Core) GetPaths() []PathEntry {
-	var paths []PathEntry
+func (c *Core) GetPaths() []PathEntryInfo {
+	var paths []PathEntryInfo
 	ps := c.PacketConn.PacketConn.Debug.GetPaths()
 	for _, p := range ps {
-		var info PathEntry
+		var info PathEntryInfo
 		info.Key = p.Key
 		info.Path = p.Path
 		paths = append(paths, info)
@@ -116,11 +116,11 @@ func (c *Core) GetPaths() []PathEntry {
 	return paths
 }
 
-func (c *Core) GetSessions() []Session {
-	var sessions []Session
+func (c *Core) GetSessions() []SessionInfo {
+	var sessions []SessionInfo
 	ss := c.PacketConn.Debug.GetSessions()
 	for _, s := range ss {
-		var info Session
+		var info SessionInfo
 		info.Key = s.Key
 		sessions = append(sessions, info)
 	}
