@@ -86,7 +86,7 @@ func (a *AdminSocket) Init(c *core.Core, nc *config.NodeConfig, log *log.Logger,
 	return a.core.SetAdmin(a)
 }
 
-func (a *AdminSocket) SetupAdminHandlers(na *AdminSocket) {
+func (a *AdminSocket) SetupAdminHandlers() {
 	_ = a.AddHandler("getSelf", []string{}, func(in json.RawMessage) (interface{}, error) {
 		req := &GetSelfRequest{}
 		res := &GetSelfResponse{}

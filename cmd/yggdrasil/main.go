@@ -366,7 +366,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 	} else if err := n.admin.Start(); err != nil {
 		logger.Errorln("An error occurred starting admin socket:", err)
 	}
-	n.admin.SetupAdminHandlers(n.admin)
+	n.admin.SetupAdminHandlers()
 	// Start the multicast interface
 	if err := n.multicast.Init(n.core, cfg, logger, nil); err != nil {
 		logger.Errorln("An error occurred initialising multicast:", err)
