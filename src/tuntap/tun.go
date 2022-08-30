@@ -32,7 +32,7 @@ type MTU uint16
 // should pass this object to the yggdrasil.SetRouterAdapter() function before
 // calling yggdrasil.Start().
 type TunAdapter struct {
-	rwc         *ipv6rwc.ReadWriteCloser
+	rwc         ipv6rwc.ReadWriteCloser
 	config      *config.NodeConfig
 	log         *log.Logger
 	addr        address.Address
@@ -93,7 +93,7 @@ func MaximumMTU() uint64 {
 
 // Init initialises the TUN module. You must have acquired a Listener from
 // the Yggdrasil core before this point and it must not be in use elsewhere.
-func (tun *TunAdapter) Init(rwc *ipv6rwc.ReadWriteCloser, config *config.NodeConfig, log *log.Logger, options interface{}) error {
+func (tun *TunAdapter) Init(rwc ipv6rwc.ReadWriteCloser, config *config.NodeConfig, log *log.Logger, options interface{}) error {
 	tun.rwc = rwc
 	tun.config = config
 	tun.log = log

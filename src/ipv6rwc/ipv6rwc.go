@@ -298,6 +298,38 @@ func (k *keyStore) writePC(bs []byte) (int, error) {
 
 // Exported API
 
+type ReadWriteCloser interface {
+	Address() address.Address
+	Subnet() address.Subnet
+	MTU() uint64
+	MaxMTU() uint64
+	SetMTU(uint64)
+	Read([]byte) (int, error)
+	Write([]byte) (int, error)
+	Close() error
+}
+
+func NewReadWriteCloser(c *core.Core) ReadWriteCloser {
+	k := &keyStore{}
+	k.init(c)
+	return k
+}
+
+func (k *keyStore) Address() address.Address {
+	return k.address
+}
+
+func (k *keyStore) Subnet() address.Subnet {
+	return k.subnet
+}
+
+func (k *keyStore) MTU() uint64 {
+	k.mutex.Lock()
+	mtu := k.mtu
+	k.mutex.Unlock()
+	return mtu
+}
+
 func (k *keyStore) MaxMTU() uint64 {
 	return k.core.MTU()
 }
@@ -314,41 +346,16 @@ func (k *keyStore) SetMTU(mtu uint64) {
 	k.mutex.Unlock()
 }
 
-func (k *keyStore) MTU() uint64 {
-	k.mutex.Lock()
-	mtu := k.mtu
-	k.mutex.Unlock()
-	return mtu
+func (k *keyStore) Read(p []byte) (n int, err error) {
+	return k.readPC(p)
 }
 
-type ReadWriteCloser struct {
-	keyStore
+func (k *keyStore) Write(p []byte) (n int, err error) {
+	return k.writePC(p)
 }
 
-func NewReadWriteCloser(c *core.Core) *ReadWriteCloser {
-	rwc := new(ReadWriteCloser)
-	rwc.init(c)
-	return rwc
-}
-
-func (rwc *ReadWriteCloser) Address() address.Address {
-	return rwc.address
-}
-
-func (rwc *ReadWriteCloser) Subnet() address.Subnet {
-	return rwc.subnet
-}
-
-func (rwc *ReadWriteCloser) Read(p []byte) (n int, err error) {
-	return rwc.readPC(p)
-}
-
-func (rwc *ReadWriteCloser) Write(p []byte) (n int, err error) {
-	return rwc.writePC(p)
-}
-
-func (rwc *ReadWriteCloser) Close() error {
-	err := rwc.core.Close()
-	rwc.core.Stop()
+func (k *keyStore) Close() error {
+	err := k.core.Close()
+	k.core.Stop()
 	return err
 }
