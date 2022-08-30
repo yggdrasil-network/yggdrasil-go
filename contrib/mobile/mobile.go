@@ -26,7 +26,7 @@ import (
 // in Swift therefore we use the "dummy" TUN interface instead.
 type Yggdrasil struct {
 	core      *core.Core
-	iprwc     *ipv6rwc.ReadWriteCloser
+	iprwc     ipv6rwc.ReadWriteCloser
 	config    *config.NodeConfig
 	multicast multicast.Multicast
 	log       MobileLogger
