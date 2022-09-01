@@ -109,6 +109,7 @@ func (t *tcp) init(l *links, listeners []ListenAddress) error {
 		u, err := url.Parse(string(listenaddr))
 		if err != nil {
 			t.links.core.log.Errorln("Failed to parse listener: listener", listenaddr, "is not correctly formatted, ignoring")
+			continue
 		}
 		if _, err := t.listenURL(u, ""); err != nil {
 			return err
