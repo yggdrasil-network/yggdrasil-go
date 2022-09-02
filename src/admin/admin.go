@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"sort"
 
 	"strings"
 	"time"
@@ -28,13 +29,17 @@ type AdminSocket struct {
 	done       chan struct{}
 }
 
+type AdminSocketRequest struct {
+	Name      string            `json:"request"`
+	Arguments map[string]string `json:"arguments,omitempty"`
+	KeepAlive bool              `json:"keepalive,omitempty"`
+}
+
 type AdminSocketResponse struct {
-	Status  string `json:"status"`
-	Request struct {
-		Name      string `json:"request"`
-		KeepAlive bool   `json:"keepalive"`
-	} `json:"request"`
-	Response interface{} `json:"response"`
+	Status   string             `json:"status"`
+	Error    string             `json:"error,omitempty"`
+	Request  AdminSocketRequest `json:"request"`
+	Response json.RawMessage    `json:"response"`
 }
 
 type handler struct {
@@ -43,11 +48,12 @@ type handler struct {
 }
 
 type ListResponse struct {
-	List map[string]ListEntry `json:"list"`
+	List []ListEntry `json:"list"`
 }
 
 type ListEntry struct {
-	Fields []string `json:"fields"`
+	Command string   `json:"command"`
+	Fields  []string `json:"fields,omitempty"`
 }
 
 // AddHandler is called for each admin function to add the handler and help documentation to the API.
@@ -73,14 +79,16 @@ func (a *AdminSocket) Init(c *core.Core, nc *config.NodeConfig, log *log.Logger,
 	a.done = make(chan struct{})
 	close(a.done) // Start in a done / not-started state
 	_ = a.AddHandler("list", []string{}, func(_ json.RawMessage) (interface{}, error) {
-		res := &ListResponse{
-			List: map[string]ListEntry{},
-		}
+		res := &ListResponse{}
 		for name, handler := range a.handlers {
-			res.List[name] = ListEntry{
-				Fields: handler.args,
-			}
+			res.List = append(res.List, ListEntry{
+				Command: name,
+				Fields:  handler.args,
+			})
 		}
+		sort.SliceStable(res.List, func(i, j int) bool {
+			return strings.Compare(res.List[i].Command, res.List[j].Command) < 0
+		})
 		return res, nil
 	})
 	return a.core.SetAdmin(a)
@@ -277,22 +285,28 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 		if err = json.Unmarshal(buf, &resp.Request); err == nil {
 			if resp.Request.Name == "" {
 				resp.Status = "error"
-				resp.Response = &ErrorResponse{
+				resp.Response, _ = json.Marshal(ErrorResponse{
 					Error: "No request specified",
-				}
+				})
 			} else if h, ok := a.handlers[strings.ToLower(resp.Request.Name)]; ok {
-				resp.Response, err = h.handler(buf)
+				res, err := h.handler(buf)
 				if err != nil {
 					resp.Status = "error"
-					resp.Response = &ErrorResponse{
+					resp.Response, _ = json.Marshal(ErrorResponse{
 						Error: err.Error(),
-					}
+					})
+				}
+				if resp.Response, err = json.Marshal(res); err != nil {
+					resp.Status = "error"
+					resp.Response, _ = json.Marshal(ErrorResponse{
+						Error: err.Error(),
+					})
 				}
 			} else {
 				resp.Status = "error"
-				resp.Response = &ErrorResponse{
+				resp.Response, _ = json.Marshal(ErrorResponse{
 					Error: fmt.Sprintf("Unknown action '%s', try 'list' for help", resp.Request.Name),
-				}
+				})
 			}
 		}
 		if err = encoder.Encode(resp); err != nil {
@@ -303,5 +317,18 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 		} else {
 			continue
 		}
+	}
+}
+
+type DataUnit uint64
+
+func (d DataUnit) String() string {
+	switch {
+	case d > 1024*1024*1024:
+		return fmt.Sprintf("%2.fgb", float64(d)/1024/1024/1024)
+	case d > 1024*1024:
+		return fmt.Sprintf("%2.fmb", float64(d)/1024/1024)
+	default:
+		return fmt.Sprintf("%2.fkb", float64(d)/1024)
 	}
 }
