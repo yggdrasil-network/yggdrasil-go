@@ -88,27 +88,6 @@ func New(secret ed25519.PrivateKey, opts ...SetupOption) (*Core, error) {
 	return c, nil
 }
 
-func (c *Core) _applyOption(opt SetupOption) {
-	switch v := opt.(type) {
-	case Peer:
-		c.config._peers[v] = struct{}{}
-	case ListenAddress:
-		c.config._listeners[v] = struct{}{}
-	case NodeInfo:
-		c.config.nodeinfo = v
-	case NodeInfoPrivacy:
-		c.config.nodeinfoPrivacy = v
-	case IfName:
-		c.config.ifname = v
-	case IfMTU:
-		c.config.ifmtu = v
-	case AllowedPublicKey:
-		pk := [32]byte{}
-		copy(pk[:], v)
-		c.config._allowedPublicKeys[pk] = struct{}{}
-	}
-}
-
 // If any static peers were provided in the configuration above then we should
 // configure them. The loop ensures that disconnected peers will eventually
 // be reconnected with.
