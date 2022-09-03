@@ -47,15 +47,17 @@ type Core struct {
 }
 
 func New(secret ed25519.PrivateKey, logger util.Logger, opts ...SetupOption) (*Core, error) {
+	c := &Core{
+		log: logger,
+	}
+	c.ctx, c.cancel = context.WithCancel(context.Background())
+	// Take a copy of the private key so that it is in our own memory space.
 	if len(secret) != ed25519.PrivateKeySize {
 		return nil, fmt.Errorf("private key is incorrect length")
 	}
-	c := &Core{
-		secret: secret,
-		public: secret.Public().(ed25519.PublicKey),
-		log:    logger,
-	}
-	c.ctx, c.cancel = context.WithCancel(context.Background())
+	c.secret = make(ed25519.PrivateKey, 0, ed25519.PrivateKeySize)
+	copy(c.secret, secret)
+	c.public = secret.Public().(ed25519.PublicKey)
 	var err error
 	if c.PacketConn, err = iwe.NewPacketConn(c.secret); err != nil {
 		return nil, fmt.Errorf("error creating encryption: %w", err)

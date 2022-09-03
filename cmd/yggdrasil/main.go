@@ -81,48 +81,6 @@ func readConfig(log *log.Logger, useconf bool, useconffile string, normaliseconf
 	if err := hjson.Unmarshal(conf, &dat); err != nil {
 		panic(err)
 	}
-	// Check if we have old field names
-	if _, ok := dat["TunnelRouting"]; ok {
-		log.Warnln("WARNING: Tunnel routing is no longer supported")
-	}
-	if old, ok := dat["SigningPrivateKey"]; ok {
-		log.Warnln("WARNING: The \"SigningPrivateKey\" configuration option has been renamed to \"PrivateKey\"")
-		if _, ok := dat["PrivateKey"]; !ok {
-			if privstr, err := hex.DecodeString(old.(string)); err == nil {
-				priv := ed25519.PrivateKey(privstr)
-				pub := priv.Public().(ed25519.PublicKey)
-				dat["PrivateKey"] = hex.EncodeToString(priv[:])
-				dat["PublicKey"] = hex.EncodeToString(pub[:])
-			} else {
-				log.Warnln("WARNING: The \"SigningPrivateKey\" configuration option contains an invalid value and will be ignored")
-			}
-		}
-	}
-	if oldmc, ok := dat["MulticastInterfaces"]; ok {
-		if oldmcvals, ok := oldmc.([]interface{}); ok {
-			var newmc []config.MulticastInterfaceConfig
-			for _, oldmcval := range oldmcvals {
-				if str, ok := oldmcval.(string); ok {
-					newmc = append(newmc, config.MulticastInterfaceConfig{
-						Regex:  str,
-						Beacon: true,
-						Listen: true,
-					})
-				}
-			}
-			if newmc != nil {
-				if oldport, ok := dat["LinkLocalTCPPort"]; ok {
-					// numbers parse to float64 by default
-					if port, ok := oldport.(float64); ok {
-						for idx := range newmc {
-							newmc[idx].Port = uint16(port)
-						}
-					}
-				}
-				dat["MulticastInterfaces"] = newmc
-			}
-		}
-	}
 	// Sanitise the config
 	confJson, err := json.Marshal(dat)
 	if err != nil {
@@ -322,7 +280,6 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 			fmt.Println(ipnet.String())
 		}
 		return
-	default:
 	}
 
 	n := &node{}
@@ -352,8 +309,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 			}
 			options = append(options, core.AllowedPublicKey(k[:]))
 		}
-		n.core, err = core.New(sk[:], logger, options...)
-		if err != nil {
+		if n.core, err = core.New(sk[:], logger, options...); err != nil {
 			panic(err)
 		}
 	}
@@ -363,8 +319,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		options := []admin.SetupOption{
 			admin.ListenAddress(cfg.AdminListen),
 		}
-		n.admin, err = admin.New(n.core, logger, options...)
-		if err != nil {
+		if n.admin, err = admin.New(n.core, logger, options...); err != nil {
 			panic(err)
 		}
 	}
@@ -380,8 +335,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 				Port:   intf.Port,
 			})
 		}
-		n.multicast, err = multicast.New(n.core, logger, options...)
-		if err != nil {
+		if n.multicast, err = multicast.New(n.core, logger, options...); err != nil {
 			panic(err)
 		}
 		if n.admin != nil {
@@ -395,9 +349,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 			tuntap.InterfaceName(cfg.IfName),
 			tuntap.InterfaceMTU(cfg.IfMTU),
 		}
-		rwc := ipv6rwc.NewReadWriteCloser(n.core)
-		n.tuntap, err = tuntap.New(rwc, logger, options...)
-		if err != nil {
+		if n.tuntap, err = tuntap.New(ipv6rwc.NewReadWriteCloser(n.core), logger, options...); err != nil {
 			panic(err)
 		}
 		if n.admin != nil {
