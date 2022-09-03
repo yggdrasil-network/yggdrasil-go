@@ -55,7 +55,7 @@ func New(secret ed25519.PrivateKey, logger util.Logger, opts ...SetupOption) (*C
 	if len(secret) != ed25519.PrivateKeySize {
 		return nil, fmt.Errorf("private key is incorrect length")
 	}
-	c.secret = make(ed25519.PrivateKey, 0, ed25519.PrivateKeySize)
+	c.secret = make(ed25519.PrivateKey, ed25519.PrivateKeySize)
 	copy(c.secret, secret)
 	c.public = secret.Public().(ed25519.PublicKey)
 	var err error
