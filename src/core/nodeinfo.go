@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"net"
 	"runtime"
 	"strings"
 	"time"
@@ -13,7 +12,7 @@ import (
 	"github.com/Arceliar/phony"
 
 	//"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 )
 
@@ -154,7 +153,7 @@ func (m *nodeinfo) _sendRes(key keyArray) {
 type GetNodeInfoRequest struct {
 	Key string `json:"key"`
 }
-type GetNodeInfoResponse map[string]interface{}
+type GetNodeInfoResponse map[string]json.RawMessage
 
 func (m *nodeinfo) nodeInfoAdminHandler(in json.RawMessage) (interface{}, error) {
 	var req GetNodeInfoRequest
@@ -182,8 +181,8 @@ func (m *nodeinfo) nodeInfoAdminHandler(in json.RawMessage) (interface{}, error)
 		if err := msg.UnmarshalJSON(info); err != nil {
 			return nil, err
 		}
-		ip := net.IP(address.AddrForKey(kbs)[:])
-		res := GetNodeInfoResponse{ip.String(): msg}
+		key := hex.EncodeToString(kbs[:])
+		res := GetNodeInfoResponse{key: msg}
 		return res, nil
 	}
 }
