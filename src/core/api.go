@@ -15,8 +15,8 @@ import (
 	//"sort"
 	//"time"
 
-	"github.com/gologme/log"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	//"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	//"github.com/Arceliar/phony"
 )
@@ -159,7 +159,7 @@ func (c *Core) Subnet() net.IPNet {
 // may be useful if you want to redirect the output later. Note that this
 // expects a Logger from the github.com/gologme/log package and not from Go's
 // built-in log package.
-func (c *Core) SetLogger(log *log.Logger) {
+func (c *Core) SetLogger(log util.Logger) {
 	c.log = log
 }
 
@@ -239,8 +239,10 @@ func (c *Core) RemovePeer(addr string, sintf string) error {
 
 // CallPeer calls a peer once. This should be specified in the peer URI format,
 // e.g.:
-// 		tcp://a.b.c.d:e
-//		socks://a.b.c.d:e/f.g.h.i:j
+//
+//	tcp://a.b.c.d:e
+//	socks://a.b.c.d:e/f.g.h.i:j
+//
 // This does not add the peer to the peer list, so if the connection drops, the
 // peer will not be called again automatically.
 func (c *Core) CallPeer(u *url.URL, sintf string) error {

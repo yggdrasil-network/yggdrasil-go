@@ -8,6 +8,20 @@ import (
 	"time"
 )
 
+// Any logger that satisfies this interface is suitable for Yggdrasil.
+type Logger interface {
+	Printf(string, ...interface{})
+	Println(...interface{})
+	Infof(string, ...interface{})
+	Infoln(...interface{})
+	Warnf(string, ...interface{})
+	Warnln(...interface{})
+	Errorf(string, ...interface{})
+	Errorln(...interface{})
+	Debugf(string, ...interface{})
+	Debugln(...interface{})
+}
+
 // TimerStop stops a timer and makes sure the channel is drained, returns true if the timer was stopped before firing.
 func TimerStop(t *time.Timer) bool {
 	stopped := t.Stop()

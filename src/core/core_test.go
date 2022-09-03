@@ -36,10 +36,11 @@ func CreateAndConnectTwo(t testing.TB, verbose bool) (nodeA *Core, nodeB *Core) 
 	if _, skB, err = ed25519.GenerateKey(nil); err != nil {
 		t.Fatal(err)
 	}
-	if nodeA, err = New(skA, ListenAddress("tcp://127.0.0.1:0"), IfName("none")); err != nil {
+	logger := GetLoggerWithPrefix("", false)
+	if nodeA, err = New(skA, logger, ListenAddress("tcp://127.0.0.1:0"), IfName("none")); err != nil {
 		t.Fatal(err)
 	}
-	if nodeB, err = New(skB, ListenAddress("tcp://127.0.0.1:0"), IfName("none")); err != nil {
+	if nodeB, err = New(skB, logger, ListenAddress("tcp://127.0.0.1:0"), IfName("none")); err != nil {
 		t.Fatal(err)
 	}
 

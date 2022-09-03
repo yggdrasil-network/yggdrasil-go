@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"regexp"
 
 	"github.com/gologme/log"
 
@@ -28,7 +29,7 @@ type Yggdrasil struct {
 	core      *core.Core
 	iprwc     *ipv6rwc.ReadWriteCloser
 	config    *config.NodeConfig
-	multicast multicast.Multicast
+	multicast *multicast.Multicast
 	log       MobileLogger
 }
 
@@ -49,46 +50,60 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 		return err
 	}
 	// Setup the Yggdrasil node itself.
-	sk, err := hex.DecodeString(m.config.PrivateKey)
-	if err != nil {
-		panic(err)
-	}
-	options := []core.SetupOption{
-		core.IfName("none"),
-		core.IfMTU(m.config.IfMTU),
-	}
-	for _, peer := range m.config.Peers {
-		options = append(options, core.Peer{URI: peer})
-	}
-	for intf, peers := range m.config.InterfacePeers {
-		for _, peer := range peers {
-			options = append(options, core.Peer{URI: peer, SourceInterface: intf})
-		}
-	}
-	for _, allowed := range m.config.AllowedPublicKeys {
-		k, err := hex.DecodeString(allowed)
+	{
+		sk, err := hex.DecodeString(m.config.PrivateKey)
 		if err != nil {
 			panic(err)
 		}
-		options = append(options, core.AllowedPublicKey(k[:]))
+		options := []core.SetupOption{
+			core.IfName("none"),
+			core.IfMTU(m.config.IfMTU),
+		}
+		for _, peer := range m.config.Peers {
+			options = append(options, core.Peer{URI: peer})
+		}
+		for intf, peers := range m.config.InterfacePeers {
+			for _, peer := range peers {
+				options = append(options, core.Peer{URI: peer, SourceInterface: intf})
+			}
+		}
+		for _, allowed := range m.config.AllowedPublicKeys {
+			k, err := hex.DecodeString(allowed)
+			if err != nil {
+				panic(err)
+			}
+			options = append(options, core.AllowedPublicKey(k[:]))
+		}
+		m.core, err = core.New(sk[:], logger, options...)
+		if err != nil {
+			panic(err)
+		}
 	}
-	m.core, err = core.New(sk[:], options...)
-	if err != nil {
-		panic(err)
+
+	// Setup the multicast module.
+	if len(m.config.MulticastInterfaces) > 0 {
+		var err error
+		options := []multicast.SetupOption{}
+		for _, intf := range m.config.MulticastInterfaces {
+			options = append(options, multicast.MulticastInterface{
+				Regex:  regexp.MustCompile(intf.Regex),
+				Beacon: intf.Beacon,
+				Listen: intf.Listen,
+				Port:   intf.Port,
+			})
+		}
+		m.multicast, err = multicast.New(m.core, logger, options...)
+		if err != nil {
+			panic(err)
+		}
 	}
+
 	mtu := m.config.IfMTU
 	m.iprwc = ipv6rwc.NewReadWriteCloser(m.core)
 	if m.iprwc.MaxMTU() < mtu {
 		mtu = m.iprwc.MaxMTU()
 	}
 	m.iprwc.SetMTU(mtu)
-	if len(m.config.MulticastInterfaces) > 0 {
-		if err := m.multicast.Init(m.core, m.config, logger, nil); err != nil {
-			logger.Errorln("An error occurred initialising multicast:", err)
-		} else if err := m.multicast.Start(); err != nil {
-			logger.Errorln("An error occurred starting multicast:", err)
-		}
-	}
 	return nil
 }
 

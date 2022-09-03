@@ -7,7 +7,6 @@ import (
 	"io"
 	"net"
 	"net/url"
-	"os"
 	"time"
 
 	iwe "github.com/Arceliar/ironwood/encrypted"
@@ -15,6 +14,7 @@ import (
 	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 	//"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 )
@@ -33,7 +33,7 @@ type Core struct {
 	public       ed25519.PublicKey
 	links        links
 	proto        protoHandler
-	log          *log.Logger
+	log          util.Logger
 	addPeerTimer *time.Timer
 	config       struct {
 		_peers             map[Peer]struct{}          // configurable after startup
@@ -46,14 +46,14 @@ type Core struct {
 	}
 }
 
-func New(secret ed25519.PrivateKey, opts ...SetupOption) (*Core, error) {
+func New(secret ed25519.PrivateKey, logger util.Logger, opts ...SetupOption) (*Core, error) {
 	if len(secret) != ed25519.PrivateKeySize {
 		return nil, fmt.Errorf("private key is incorrect length")
 	}
 	c := &Core{
 		secret: secret,
 		public: secret.Public().(ed25519.PublicKey),
-		log:    log.New(os.Stdout, "", 0), // TODO: not this
+		log:    logger,
 	}
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 	var err error

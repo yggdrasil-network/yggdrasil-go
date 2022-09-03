@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"syscall"
 
@@ -325,40 +326,59 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 	default:
 	}
 
-	// Setup the Yggdrasil node itself. The node{} type includes a Core, so we
-	// don't need to create this manually.
-	sk, err := hex.DecodeString(cfg.PrivateKey)
-	if err != nil {
-		panic(err)
-	}
-	options := []core.SetupOption{
-		core.IfName(cfg.IfName),
-		core.IfMTU(cfg.IfMTU),
-	}
-	for _, peer := range cfg.Peers {
-		options = append(options, core.Peer{URI: peer})
-	}
-	for intf, peers := range cfg.InterfacePeers {
-		for _, peer := range peers {
-			options = append(options, core.Peer{URI: peer, SourceInterface: intf})
-		}
-	}
-	for _, allowed := range cfg.AllowedPublicKeys {
-		k, err := hex.DecodeString(allowed)
+	n := &node{config: cfg}
+
+	// Setup the Yggdrasil node itself.
+	{
+		sk, err := hex.DecodeString(cfg.PrivateKey)
 		if err != nil {
 			panic(err)
 		}
-		options = append(options, core.AllowedPublicKey(k[:]))
+		options := []core.SetupOption{
+			core.IfName(cfg.IfName),
+			core.IfMTU(cfg.IfMTU),
+		}
+		for _, peer := range cfg.Peers {
+			options = append(options, core.Peer{URI: peer})
+		}
+		for intf, peers := range cfg.InterfacePeers {
+			for _, peer := range peers {
+				options = append(options, core.Peer{URI: peer, SourceInterface: intf})
+			}
+		}
+		for _, allowed := range cfg.AllowedPublicKeys {
+			k, err := hex.DecodeString(allowed)
+			if err != nil {
+				panic(err)
+			}
+			options = append(options, core.AllowedPublicKey(k[:]))
+		}
+		n.core, err = core.New(sk[:], logger, options...)
+		if err != nil {
+			panic(err)
+		}
 	}
-	n := node{config: cfg}
-	n.core, err = core.New(sk[:], options...)
-	if err != nil {
-		panic(err)
+
+	// Setup the multicast module.
+	{
+		options := []multicast.SetupOption{}
+		for _, intf := range cfg.MulticastInterfaces {
+			options = append(options, multicast.MulticastInterface{
+				Regex:  regexp.MustCompile(intf.Regex),
+				Beacon: intf.Beacon,
+				Listen: intf.Listen,
+				Port:   intf.Port,
+			})
+		}
+		n.multicast, err = multicast.New(n.core, logger, options...)
+		if err != nil {
+			panic(err)
+		}
 	}
+
 	// Register the session firewall gatekeeper function
 	// Allocate our modules
 	n.admin = &admin.AdminSocket{}
-	n.multicast = &multicast.Multicast{}
 	n.tuntap = &tuntap.TunAdapter{}
 	// Start the admin socket
 	if err := n.admin.Init(n.core, cfg, logger, nil); err != nil {
@@ -368,10 +388,8 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 	}
 	n.admin.SetupAdminHandlers()
 	// Start the multicast interface
-	if err := n.multicast.Init(n.core, cfg, logger, nil); err != nil {
+	if n.multicast, err = multicast.New(n.core, logger, nil); err != nil {
 		logger.Errorln("An error occurred initialising multicast:", err)
-	} else if err := n.multicast.Start(); err != nil {
-		logger.Errorln("An error occurred starting multicast:", err)
 	}
 	n.multicast.SetupAdminHandlers(n.admin)
 	// Start the TUN/TAP interface
