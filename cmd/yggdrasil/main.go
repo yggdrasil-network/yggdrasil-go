@@ -359,6 +359,17 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		}
 	}
 
+	// Setup the admin socket.
+	{
+		options := []admin.SetupOption{
+			admin.ListenAddress(cfg.AdminListen),
+		}
+		n.admin, err = admin.New(n.core, logger, options...)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	// Setup the multicast module.
 	{
 		options := []multicast.SetupOption{}
@@ -374,25 +385,13 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		if err != nil {
 			panic(err)
 		}
+		if n.admin != nil {
+			n.multicast.SetupAdminHandlers(n.admin)
+		}
 	}
 
-	// Register the session firewall gatekeeper function
-	// Allocate our modules
-	n.admin = &admin.AdminSocket{}
-	n.tuntap = &tuntap.TunAdapter{}
-	// Start the admin socket
-	if err := n.admin.Init(n.core, cfg, logger, nil); err != nil {
-		logger.Errorln("An error occurred initialising admin socket:", err)
-	} else if err := n.admin.Start(); err != nil {
-		logger.Errorln("An error occurred starting admin socket:", err)
-	}
-	n.admin.SetupAdminHandlers()
-	// Start the multicast interface
-	if n.multicast, err = multicast.New(n.core, logger, nil); err != nil {
-		logger.Errorln("An error occurred initialising multicast:", err)
-	}
-	n.multicast.SetupAdminHandlers(n.admin)
 	// Start the TUN/TAP interface
+	n.tuntap = &tuntap.TunAdapter{}
 	rwc := ipv6rwc.NewReadWriteCloser(n.core)
 	if err := n.tuntap.Init(rwc, cfg, logger, nil); err != nil {
 		logger.Errorln("An error occurred initialising TUN/TAP:", err)

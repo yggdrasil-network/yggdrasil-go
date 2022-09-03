@@ -12,21 +12,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gologme/log"
-
-	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 // TODO: Add authentication
 
 type AdminSocket struct {
-	core       *core.Core
-	log        *log.Logger
-	listenaddr string
-	listener   net.Listener
-	handlers   map[string]handler
-	done       chan struct{}
+	core     *core.Core
+	log      util.Logger
+	listener net.Listener
+	handlers map[string]handler
+	done     chan struct{}
+	config   struct {
+		listenaddr ListenAddress
+	}
 }
 
 type AdminSocketRequest struct {
@@ -69,15 +69,18 @@ func (a *AdminSocket) AddHandler(name string, args []string, handlerfunc core.Ad
 }
 
 // Init runs the initial admin setup.
-func (a *AdminSocket) Init(c *core.Core, nc *config.NodeConfig, log *log.Logger, options interface{}) error {
-	a.core = c
-	a.log = log
-	a.handlers = make(map[string]handler)
-	nc.RLock()
-	a.listenaddr = nc.AdminListen
-	nc.RUnlock()
-	a.done = make(chan struct{})
-	close(a.done) // Start in a done / not-started state
+func New(c *core.Core, log util.Logger, opts ...SetupOption) (*AdminSocket, error) {
+	a := &AdminSocket{
+		core:     c,
+		log:      log,
+		handlers: make(map[string]handler),
+	}
+	for _, opt := range opts {
+		a._applyOption(opt)
+	}
+	if a.config.listenaddr == "none" || a.config.listenaddr == "" {
+		return nil, nil
+	}
 	_ = a.AddHandler("list", []string{}, func(_ json.RawMessage) (interface{}, error) {
 		res := &ListResponse{}
 		for name, handler := range a.handlers {
@@ -91,7 +94,9 @@ func (a *AdminSocket) Init(c *core.Core, nc *config.NodeConfig, log *log.Logger,
 		})
 		return res, nil
 	})
-	return a.core.SetAdmin(a)
+	a.done = make(chan struct{})
+	go a.listen()
+	return a, a.core.SetAdmin(a)
 }
 
 func (a *AdminSocket) SetupAdminHandlers() {
@@ -156,15 +161,6 @@ func (a *AdminSocket) SetupAdminHandlers() {
 	//_ = a.AddHandler("debug_remoteGetDHT", []string{"key"}, t.proto.getDHTHandler)
 }
 
-// Start runs the admin API socket to listen for / respond to admin API calls.
-func (a *AdminSocket) Start() error {
-	if a.listenaddr != "none" && a.listenaddr != "" {
-		a.done = make(chan struct{})
-		go a.listen()
-	}
-	return nil
-}
-
 // IsStarted returns true if the module has been started.
 func (a *AdminSocket) IsStarted() bool {
 	select {
@@ -192,31 +188,32 @@ func (a *AdminSocket) Stop() error {
 
 // listen is run by start and manages API connections.
 func (a *AdminSocket) listen() {
-	u, err := url.Parse(a.listenaddr)
+	listenaddr := string(a.config.listenaddr)
+	u, err := url.Parse(listenaddr)
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "unix":
-			if _, err := os.Stat(a.listenaddr[7:]); err == nil {
-				a.log.Debugln("Admin socket", a.listenaddr[7:], "already exists, trying to clean up")
-				if _, err := net.DialTimeout("unix", a.listenaddr[7:], time.Second*2); err == nil || err.(net.Error).Timeout() {
-					a.log.Errorln("Admin socket", a.listenaddr[7:], "already exists and is in use by another process")
+			if _, err := os.Stat(listenaddr[7:]); err == nil {
+				a.log.Debugln("Admin socket", listenaddr[7:], "already exists, trying to clean up")
+				if _, err := net.DialTimeout("unix", listenaddr[7:], time.Second*2); err == nil || err.(net.Error).Timeout() {
+					a.log.Errorln("Admin socket", listenaddr[7:], "already exists and is in use by another process")
 					os.Exit(1)
 				} else {
-					if err := os.Remove(a.listenaddr[7:]); err == nil {
-						a.log.Debugln(a.listenaddr[7:], "was cleaned up")
+					if err := os.Remove(listenaddr[7:]); err == nil {
+						a.log.Debugln(listenaddr[7:], "was cleaned up")
 					} else {
-						a.log.Errorln(a.listenaddr[7:], "already exists and was not cleaned up:", err)
+						a.log.Errorln(listenaddr[7:], "already exists and was not cleaned up:", err)
 						os.Exit(1)
 					}
 				}
 			}
-			a.listener, err = net.Listen("unix", a.listenaddr[7:])
+			a.listener, err = net.Listen("unix", listenaddr[7:])
 			if err == nil {
-				switch a.listenaddr[7:8] {
+				switch listenaddr[7:8] {
 				case "@": // maybe abstract namespace
 				default:
-					if err := os.Chmod(a.listenaddr[7:], 0660); err != nil {
-						a.log.Warnln("WARNING:", a.listenaddr[:7], "may have unsafe permissions!")
+					if err := os.Chmod(listenaddr[7:], 0660); err != nil {
+						a.log.Warnln("WARNING:", listenaddr[:7], "may have unsafe permissions!")
 					}
 				}
 			}
@@ -224,10 +221,10 @@ func (a *AdminSocket) listen() {
 			a.listener, err = net.Listen("tcp", u.Host)
 		default:
 			// err = errors.New(fmt.Sprint("protocol not supported: ", u.Scheme))
-			a.listener, err = net.Listen("tcp", a.listenaddr)
+			a.listener, err = net.Listen("tcp", listenaddr)
 		}
 	} else {
-		a.listener, err = net.Listen("tcp", a.listenaddr)
+		a.listener, err = net.Listen("tcp", listenaddr)
 	}
 	if err != nil {
 		a.log.Errorf("Admin socket failed to listen: %v", err)
