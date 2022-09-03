@@ -216,11 +216,14 @@ func run() int {
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
-		table.SetHeader([]string{"Public Key", "IP Address"})
+		table.SetHeader([]string{"Public Key", "IP Address", "Uptime", "RX", "TX"})
 		for _, p := range resp.Sessions {
 			table.Append([]string{
 				p.PublicKey,
 				p.IPAddress,
+				(time.Duration(p.Uptime) * time.Second).String(),
+				p.RXBytes.String(),
+				p.TXBytes.String(),
 			})
 		}
 		table.Render()

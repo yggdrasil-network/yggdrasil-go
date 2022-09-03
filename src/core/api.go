@@ -50,7 +50,10 @@ type PathEntryInfo struct {
 }
 
 type SessionInfo struct {
-	Key ed25519.PublicKey
+	Key     ed25519.PublicKey
+	RXBytes uint64
+	TXBytes uint64
+	Uptime  time.Duration
 }
 
 func (c *Core) GetSelf() SelfInfo {
@@ -122,6 +125,9 @@ func (c *Core) GetSessions() []SessionInfo {
 	for _, s := range ss {
 		var info SessionInfo
 		info.Key = s.Key
+		info.RXBytes = s.RX
+		info.TXBytes = s.TX
+		info.Uptime = s.Uptime
 		sessions = append(sessions, info)
 	}
 	return sessions

@@ -3,7 +3,7 @@ module github.com/yggdrasil-network/yggdrasil-go
 go 1.17
 
 require (
-	github.com/Arceliar/ironwood v0.0.0-20220409035209-b7f71f05435a
+	github.com/Arceliar/ironwood v0.0.0-20220903132624-ee60c16bcfcf
 	github.com/Arceliar/phony v0.0.0-20210209235338-dde1a8dca979
 	github.com/cheggaaa/pb/v3 v3.0.8
 	github.com/gologme/log v1.2.0
@@ -34,6 +34,5 @@ require (
 	github.com/mattn/go-isatty v0.0.13 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/onsi/gomega v1.20.2
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
 )

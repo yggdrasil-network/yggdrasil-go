@@ -16,8 +16,11 @@ type GetSessionsResponse struct {
 }
 
 type SessionEntry struct {
-	IPAddress string `json:"address"`
-	PublicKey string `json:"key"`
+	IPAddress string   `json:"address"`
+	PublicKey string   `json:"key"`
+	RXBytes   DataUnit `json:"bytes_recvd"`
+	TXBytes   DataUnit `json:"bytes_sent"`
+	Uptime    float64  `json:"uptime"`
 }
 
 func (a *AdminSocket) getSessionsHandler(req *GetSessionsRequest, res *GetSessionsResponse) error {
@@ -28,6 +31,9 @@ func (a *AdminSocket) getSessionsHandler(req *GetSessionsRequest, res *GetSessio
 		res.Sessions = append(res.Sessions, SessionEntry{
 			IPAddress: net.IP(addr[:]).String(),
 			PublicKey: hex.EncodeToString(s.Key[:]),
+			RXBytes:   DataUnit(s.RXBytes),
+			TXBytes:   DataUnit(s.TXBytes),
+			Uptime:    s.Uptime.Seconds(),
 		})
 	}
 	sort.SliceStable(res.Sessions, func(i, j int) bool {

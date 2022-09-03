@@ -322,6 +322,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		if n.admin, err = admin.New(n.core, logger, options...); err != nil {
 			panic(err)
 		}
+		n.admin.SetupAdminHandlers()
 	}
 
 	// Setup the multicast module.
