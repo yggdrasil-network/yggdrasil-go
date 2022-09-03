@@ -80,8 +80,8 @@ func (m *Multicast) _start() error {
 	if len(m.config._interfaces) == 0 {
 		return nil
 	}
-	m.log.Infoln("Starting multicast module")
-	defer m.log.Infoln("Started multicast module")
+	m.log.Debugln("Starting multicast module")
+	defer m.log.Debugln("Started multicast module")
 	addr, err := net.ResolveUDPAddr("udp", string(m.config._groupAddr))
 	if err != nil {
 		return err

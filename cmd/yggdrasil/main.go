@@ -38,7 +38,6 @@ import (
 
 type node struct {
 	core      *core.Core
-	config    *config.NodeConfig
 	tuntap    *tuntap.TunAdapter
 	multicast *multicast.Multicast
 	admin     *admin.AdminSocket
@@ -326,7 +325,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 	default:
 	}
 
-	n := &node{config: cfg}
+	n := &node{}
 
 	// Setup the Yggdrasil node itself.
 	{
@@ -390,15 +389,22 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		}
 	}
 
-	// Start the TUN/TAP interface
-	n.tuntap = &tuntap.TunAdapter{}
-	rwc := ipv6rwc.NewReadWriteCloser(n.core)
-	if err := n.tuntap.Init(rwc, cfg, logger, nil); err != nil {
-		logger.Errorln("An error occurred initialising TUN/TAP:", err)
-	} else if err := n.tuntap.Start(); err != nil {
-		logger.Errorln("An error occurred starting TUN/TAP:", err)
+	// Setup the TUN module.
+	{
+		options := []tuntap.SetupOption{
+			tuntap.InterfaceName(cfg.IfName),
+			tuntap.InterfaceMTU(cfg.IfMTU),
+		}
+		rwc := ipv6rwc.NewReadWriteCloser(n.core)
+		n.tuntap, err = tuntap.New(rwc, logger, options...)
+		if err != nil {
+			panic(err)
+		}
+		if n.admin != nil {
+			n.tuntap.SetupAdminHandlers(n.admin)
+		}
 	}
-	n.tuntap.SetupAdminHandlers(n.admin)
+
 	// Make some nice output that tells us what our IPv6 address and subnet are.
 	// This is just logged to stdout for the user.
 	address := n.core.Address()
