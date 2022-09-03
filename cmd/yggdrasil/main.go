@@ -294,6 +294,9 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 			core.IfName(cfg.IfName),
 			core.IfMTU(cfg.IfMTU),
 		}
+		for _, addr := range cfg.Listen {
+			options = append(options, core.ListenAddress(addr))
+		}
 		for _, peer := range cfg.Peers {
 			options = append(options, core.Peer{URI: peer})
 		}
