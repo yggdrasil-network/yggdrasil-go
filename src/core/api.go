@@ -2,6 +2,7 @@ package core
 
 import (
 	"crypto/ed25519"
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -136,8 +137,15 @@ func (c *Core) GetSessions() []SessionInfo {
 // Listen starts a new listener (either TCP or TLS). The input should be a url.URL
 // parsed from a string of the form e.g. "tcp://a.b.c.d:e". In the case of a
 // link-local address, the interface should be provided as the second argument.
-func (c *Core) Listen(u *url.URL, sintf string) (*TcpListener, error) {
-	return c.links.tcp.listenURL(u, sintf)
+func (c *Core) Listen(u *url.URL, sintf string) (*Listener, error) {
+	switch u.Scheme {
+	case "tcp":
+		return c.links.tcp.listen(u, sintf)
+	case "tls":
+		return c.links.tls.listen(u, sintf)
+	default:
+		return nil, fmt.Errorf("unrecognised scheme %q", u.Scheme)
+	}
 }
 
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128

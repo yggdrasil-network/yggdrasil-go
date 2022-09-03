@@ -133,7 +133,6 @@ func (c *Core) _close() error {
 		c.addPeerTimer.Stop()
 		c.addPeerTimer = nil
 	}
-	_ = c.links.stop()
 	return err
 }
 
