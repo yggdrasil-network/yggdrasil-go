@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/Arceliar/phony"
@@ -39,7 +40,7 @@ func (l *links) newLinkTCP() *linkTCP {
 }
 
 func (l *linkTCP) dial(url *url.URL, options tcpOptions, sintf string) error {
-	info := linkInfoFor("tcp", url.Host, sintf)
+	info := linkInfoFor("tcp", sintf, strings.SplitN(url.Host, "%", 2)[0])
 	if l.links.isConnectedTo(info) {
 		return fmt.Errorf("duplicate connection attempt")
 	}
@@ -86,8 +87,9 @@ func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
 				cancel()
 				return
 			}
-			name := fmt.Sprintf("tcp://%s", conn.RemoteAddr())
-			info := linkInfoFor("tcp", sintf, conn.RemoteAddr().String())
+			addr := conn.RemoteAddr().(*net.TCPAddr)
+			name := fmt.Sprintf("tls://%s", addr)
+			info := linkInfoFor("tcp", sintf, strings.SplitN(addr.IP.String(), "%", 2)[0])
 			if err = l.handler(name, info, conn, tcpOptions{}, true); err != nil {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}

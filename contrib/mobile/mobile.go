@@ -55,10 +55,7 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 		if err != nil {
 			panic(err)
 		}
-		options := []core.SetupOption{
-			core.IfName("none"),
-			core.IfMTU(m.config.IfMTU),
-		}
+		options := []core.SetupOption{}
 		for _, peer := range m.config.Peers {
 			options = append(options, core.Peer{URI: peer})
 		}

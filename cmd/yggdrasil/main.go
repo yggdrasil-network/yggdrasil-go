@@ -28,9 +28,9 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
-	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
@@ -290,10 +290,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		if err != nil {
 			panic(err)
 		}
-		options := []core.SetupOption{
-			core.IfName(cfg.IfName),
-			core.IfMTU(cfg.IfMTU),
-		}
+		options := []core.SetupOption{}
 		for _, addr := range cfg.Listen {
 			options = append(options, core.ListenAddress(addr))
 		}

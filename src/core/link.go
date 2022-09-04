@@ -81,17 +81,12 @@ func (l *links) init(c *Core) error {
 func (l *links) isConnectedTo(info linkInfo) bool {
 	l.mutex.RLock()
 	defer l.mutex.RUnlock()
-	fmt.Println(l.links)
 	_, isConnected := l.links[info]
 	return isConnected
 }
 
 func (l *links) call(u *url.URL, sintf string) error {
-	info := linkInfo{
-		linkType: strings.ToLower(u.Scheme),
-		local:    sintf,
-		remote:   u.Host,
-	}
+	info := linkInfoFor(u.Scheme, sintf, u.Host)
 	if l.isConnectedTo(info) {
 		return fmt.Errorf("already connected to this node")
 	}
@@ -171,30 +166,30 @@ func (l *links) create(conn net.Conn, name string, info linkInfo, incoming, forc
 		force:    force,
 	}
 	go func() {
-		if err := intf.handler(info); err != nil {
+		if err := intf.handler(); err != nil {
 			l.core.log.Errorf("Link handler error (%s): %s", conn.RemoteAddr(), err)
 		}
 	}()
 	return nil
 }
 
-func (intf *link) handler(info linkInfo) error {
+func (intf *link) handler() error {
 	defer intf.conn.Close()
 
 	// Don't connect to this link more than once.
-	if intf.links.isConnectedTo(info) {
-		return fmt.Errorf("already connected to %+v", info)
+	if intf.links.isConnectedTo(intf.info) {
+		return fmt.Errorf("already connected to %+v", intf.info)
 	}
 
 	// Mark the connection as in progress.
 	intf.links.mutex.Lock()
-	intf.links.links[info] = nil
+	intf.links.links[intf.info] = nil
 	intf.links.mutex.Unlock()
 
 	// When we're done, clean up the connection entry.
 	defer func() {
 		intf.links.mutex.Lock()
-		delete(intf.links.links, info)
+		delete(intf.links.links, intf.info)
 		intf.links.mutex.Unlock()
 	}()
 
@@ -275,7 +270,7 @@ func (intf *link) handler(info linkInfo) error {
 	}
 
 	intf.links.mutex.Lock()
-	intf.links.links[info] = intf
+	intf.links.links[intf.info] = intf
 	intf.links.mutex.Unlock()
 
 	remoteAddr := net.IP(address.AddrForKey(meta.key)[:]).String()
@@ -304,13 +299,13 @@ func (intf *link) name() string {
 	return intf.lname
 }
 
-func linkInfoFor(linkType, local, remote string) linkInfo {
+func linkInfoFor(linkType, sintf, remote string) linkInfo {
 	if h, _, err := net.SplitHostPort(remote); err == nil {
 		remote = h
 	}
 	return linkInfo{
 		linkType: linkType,
-		local:    local,
+		local:    sintf,
 		remote:   remote,
 	}
 }

@@ -40,8 +40,6 @@ type Core struct {
 		_listeners         map[ListenAddress]struct{} // configurable after startup
 		nodeinfo           NodeInfo                   // immutable after startup
 		nodeinfoPrivacy    NodeInfoPrivacy            // immutable after startup
-		ifname             IfName                     // immutable after startup
-		ifmtu              IfMTU                      // immutable after startup
 		_allowedPublicKeys map[[32]byte]struct{}      // configurable after startup
 	}
 }
