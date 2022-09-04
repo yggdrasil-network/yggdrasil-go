@@ -2,7 +2,6 @@ package core
 
 import (
 	"bytes"
-	"context"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -27,6 +26,7 @@ type links struct {
 	core  *Core
 	tcp   *linkTCP           // TCP interface support
 	tls   *linkTLS           // TLS interface support
+	unix  *linkUNIX          // UNIX interface support
 	mutex sync.RWMutex       // protects links below
 	links map[linkInfo]*link // *link is nil if connection in progress
 	// TODO timeout (to remove from switch), read from config.ReadTimeout
@@ -55,13 +55,20 @@ type linkOptions struct {
 
 type Listener struct {
 	net.Listener
-	Close context.CancelFunc // deliberately replaces net.Listener.Close()
+	closed chan struct{}
+}
+
+func (l *Listener) Close() error {
+	err := l.Listener.Close()
+	<-l.closed
+	return err
 }
 
 func (l *links) init(c *Core) error {
 	l.core = c
 	l.tcp = l.newLinkTCP()
 	l.tls = l.newLinkTLS(l.tcp)
+	l.unix = l.newLinkUNIX()
 
 	l.mutex.Lock()
 	l.links = make(map[linkInfo]*link)
@@ -75,6 +82,25 @@ func (l *links) init(c *Core) error {
 		}
 	})
 
+	return nil
+}
+
+func (l *links) shutdown() error {
+	phony.Block(l.tcp, func() {
+		for l := range l.tcp._listeners {
+			l.Close()
+		}
+	})
+	phony.Block(l.tls, func() {
+		for l := range l.tls._listeners {
+			l.Close()
+		}
+	})
+	phony.Block(l.unix, func() {
+		for l := range l.unix._listeners {
+			l.Close()
+		}
+	})
 	return nil
 }
 
@@ -146,10 +172,33 @@ func (l *links) call(u *url.URL, sintf string) error {
 			}
 		}()
 
+	case "unix":
+		go func() {
+			if err := l.unix.dial(u, tcpOpts.linkOptions, sintf); err != nil {
+				l.core.log.Warnf("Failed to dial UNIX %s: %s\n", u.Host, err)
+			}
+		}()
+
 	default:
 		return errors.New("unknown call scheme: " + u.Scheme)
 	}
 	return nil
+}
+
+func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
+	var listener *Listener
+	var err error
+	switch u.Scheme {
+	case "tcp":
+		listener, err = l.tcp.listen(u, sintf)
+	case "tls":
+		listener, err = l.tls.listen(u, sintf)
+	case "unix":
+		listener, err = l.unix.listen(u, sintf)
+	default:
+		return nil, fmt.Errorf("unrecognised scheme %q", u.Scheme)
+	}
+	return listener, err
 }
 
 func (l *links) create(conn net.Conn, name string, info linkInfo, incoming, force bool, options linkOptions) error {
@@ -167,7 +216,7 @@ func (l *links) create(conn net.Conn, name string, info linkInfo, incoming, forc
 	}
 	go func() {
 		if err := intf.handler(); err != nil {
-			l.core.log.Errorf("Link handler error (%s): %s", conn.RemoteAddr(), err)
+			l.core.log.Errorf("Link handler %s error (%s): %s", name, conn.RemoteAddr(), err)
 		}
 	}()
 	return nil
@@ -178,7 +227,7 @@ func (intf *link) handler() error {
 
 	// Don't connect to this link more than once.
 	if intf.links.isConnectedTo(intf.info) {
-		return fmt.Errorf("already connected to %+v", intf.info)
+		return fmt.Errorf("already connected to this node")
 	}
 
 	// Mark the connection as in progress.
@@ -280,7 +329,7 @@ func (intf *link) handler() error {
 		strings.ToUpper(intf.info.linkType), remoteStr, localStr)
 
 	// TODO don't report an error if it's just a 'use of closed network connection'
-	if err = intf.links.core.HandleConn(meta.key, intf.conn); err != nil {
+	if err = intf.links.core.HandleConn(meta.key, intf.conn); err != nil && err != io.EOF {
 		intf.links.core.log.Infof("Disconnected %s: %s, source %s; error: %s",
 			strings.ToUpper(intf.info.linkType), remoteStr, localStr, err)
 	} else {

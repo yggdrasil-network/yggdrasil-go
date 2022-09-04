@@ -25,7 +25,7 @@ type linkTLS struct {
 	tcp        *linkTCP
 	listener   *net.ListenConfig
 	config     *tls.Config
-	_listeners map[net.Listener]context.CancelFunc
+	_listeners map[*Listener]context.CancelFunc
 }
 
 func (l *links) newLinkTLS(tcp *linkTCP) *linkTLS {
@@ -36,7 +36,7 @@ func (l *links) newLinkTLS(tcp *linkTCP) *linkTLS {
 			Control:   tcp.tcpContext,
 			KeepAlive: -1,
 		},
-		_listeners: map[net.Listener]context.CancelFunc{},
+		_listeners: map[*Listener]context.CancelFunc{},
 	}
 	var err error
 	lt.config, err = lt.generateConfig()
@@ -75,8 +75,7 @@ func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
 	ctx, cancel := context.WithCancel(l.core.ctx)
 	hostport := url.Host
 	if sintf != "" {
-		host, port, err := net.SplitHostPort(hostport)
-		if err == nil {
+		if host, port, err := net.SplitHostPort(hostport); err == nil {
 			hostport = fmt.Sprintf("[%s%%%s]:%s", host, sintf, port)
 		}
 	}
@@ -86,18 +85,23 @@ func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
 		return nil, err
 	}
 	tlslistener := tls.NewListener(listener, l.config)
+	entry := &Listener{
+		Listener: tlslistener,
+		closed:   make(chan struct{}),
+	}
 	phony.Block(l, func() {
-		l._listeners[tlslistener] = cancel
+		l._listeners[entry] = cancel
 	})
+	l.core.log.Printf("TLS listener started on %s", listener.Addr())
 	go func() {
 		defer phony.Block(l, func() {
-			delete(l._listeners, tlslistener)
+			delete(l._listeners, entry)
 		})
 		for {
 			conn, err := tlslistener.Accept()
 			if err != nil {
 				cancel()
-				return
+				break
 			}
 			addr := conn.RemoteAddr().(*net.TCPAddr)
 			name := fmt.Sprintf("tls://%s", addr)
@@ -106,11 +110,11 @@ func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
+		tlslistener.Close()
+		close(entry.closed)
+		l.core.log.Printf("TLS listener stopped on %s", listener.Addr())
 	}()
-	return &Listener{
-		Listener: tlslistener,
-		Close:    cancel,
-	}, nil
+	return entry, nil
 }
 
 func (l *linkTLS) generateConfig() (*tls.Config, error) {

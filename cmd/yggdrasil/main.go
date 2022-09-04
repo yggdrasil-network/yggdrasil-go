@@ -322,7 +322,9 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		if n.admin, err = admin.New(n.core, logger, options...); err != nil {
 			panic(err)
 		}
-		n.admin.SetupAdminHandlers()
+		if n.admin != nil {
+			n.admin.SetupAdminHandlers()
+		}
 	}
 
 	// Setup the multicast module.
@@ -339,7 +341,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		if n.multicast, err = multicast.New(n.core, logger, options...); err != nil {
 			panic(err)
 		}
-		if n.admin != nil {
+		if n.admin != nil && n.multicast != nil {
 			n.multicast.SetupAdminHandlers(n.admin)
 		}
 	}
@@ -353,7 +355,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		if n.tuntap, err = tuntap.New(ipv6rwc.NewReadWriteCloser(n.core), logger, options...); err != nil {
 			panic(err)
 		}
-		if n.admin != nil {
+		if n.admin != nil && n.tuntap != nil {
 			n.tuntap.SetupAdminHandlers(n.admin)
 		}
 	}

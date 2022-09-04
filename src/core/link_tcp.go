@@ -16,7 +16,7 @@ type linkTCP struct {
 	phony.Inbox
 	*links
 	listener   *net.ListenConfig
-	_listeners map[net.Listener]context.CancelFunc
+	_listeners map[*Listener]context.CancelFunc
 }
 
 type tcpOptions struct {
@@ -33,7 +33,7 @@ func (l *links) newLinkTCP() *linkTCP {
 		listener: &net.ListenConfig{
 			KeepAlive: -1,
 		},
-		_listeners: map[net.Listener]context.CancelFunc{},
+		_listeners: map[*Listener]context.CancelFunc{},
 	}
 	lt.listener.Control = lt.tcpContext
 	return lt
@@ -64,8 +64,7 @@ func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
 	ctx, cancel := context.WithCancel(l.core.ctx)
 	hostport := url.Host
 	if sintf != "" {
-		host, port, err := net.SplitHostPort(hostport)
-		if err == nil {
+		if host, port, err := net.SplitHostPort(hostport); err == nil {
 			hostport = fmt.Sprintf("[%s%%%s]:%s", host, sintf, port)
 		}
 	}
@@ -74,18 +73,23 @@ func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
 		cancel()
 		return nil, err
 	}
+	entry := &Listener{
+		Listener: listener,
+		closed:   make(chan struct{}),
+	}
 	phony.Block(l, func() {
-		l._listeners[listener] = cancel
+		l._listeners[entry] = cancel
 	})
+	l.core.log.Printf("TCP listener started on %s", listener.Addr())
 	go func() {
 		defer phony.Block(l, func() {
-			delete(l._listeners, listener)
+			delete(l._listeners, entry)
 		})
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
 				cancel()
-				return
+				break
 			}
 			addr := conn.RemoteAddr().(*net.TCPAddr)
 			name := fmt.Sprintf("tls://%s", addr)
@@ -94,11 +98,11 @@ func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
+		listener.Close()
+		close(entry.closed)
+		l.core.log.Printf("TCP listener stopped on %s", listener.Addr())
 	}()
-	return &Listener{
-		Listener: listener,
-		Close:    cancel,
-	}, nil
+	return entry, nil
 }
 
 func (l *linkTCP) handler(name string, info linkInfo, conn net.Conn, options tcpOptions, incoming bool) error {
@@ -158,9 +162,6 @@ func (l *linkTCP) dialerFor(saddr, sintf string) (*net.Dialer, error) {
 		for addrindex, addr := range addrs {
 			src, _, err := net.ParseCIDR(addr.String())
 			if err != nil {
-				continue
-			}
-			if src.Equal(dst.IP) {
 				continue
 			}
 			if !src.IsGlobalUnicast() && !src.IsLinkLocalUnicast() {

@@ -175,6 +175,9 @@ func (a *AdminSocket) IsStarted() bool {
 
 // Stop will stop the admin API and close the socket.
 func (a *AdminSocket) Stop() error {
+	if a == nil {
+		return nil
+	}
 	if a.listener != nil {
 		select {
 		case <-a.done:

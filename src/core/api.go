@@ -143,6 +143,8 @@ func (c *Core) Listen(u *url.URL, sintf string) (*Listener, error) {
 		return c.links.tcp.listen(u, sintf)
 	case "tls":
 		return c.links.tls.listen(u, sintf)
+	case "unix":
+		return c.links.unix.listen(u, sintf)
 	default:
 		return nil, fmt.Errorf("unrecognised scheme %q", u.Scheme)
 	}
