@@ -46,7 +46,7 @@ func (l *links) newLinkTLS(tcp *linkTCP) *linkTLS {
 	return lt
 }
 
-func (l *linkTLS) dial(url *url.URL, options tcpOptions, sintf string) error {
+func (l *linkTLS) dial(url *url.URL, options linkOptions, sintf, sni string) error {
 	info := linkInfoFor("tls", sintf, strings.SplitN(url.Host, "%", 2)[0])
 	if l.links.isConnectedTo(info) {
 		return fmt.Errorf("duplicate connection attempt")
@@ -60,9 +60,11 @@ func (l *linkTLS) dial(url *url.URL, options tcpOptions, sintf string) error {
 	if err != nil {
 		return err
 	}
+	tlsconfig := l.config.Clone()
+	tlsconfig.ServerName = sni
 	tlsdialer := &tls.Dialer{
 		NetDialer: dialer,
-		Config:    l.config,
+		Config:    tlsconfig,
 	}
 	conn, err := tlsdialer.DialContext(l.core.ctx, "tcp", addr.String())
 	if err != nil {
@@ -106,7 +108,7 @@ func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
 			addr := conn.RemoteAddr().(*net.TCPAddr)
 			name := fmt.Sprintf("tls://%s", addr)
 			info := linkInfoFor("tls", sintf, strings.SplitN(addr.IP.String(), "%", 2)[0])
-			if err = l.handler(name, info, conn, tcpOptions{}, true); err != nil {
+			if err = l.handler(name, info, conn, linkOptions{}, true); err != nil {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
@@ -164,6 +166,6 @@ func (l *linkTLS) generateConfig() (*tls.Config, error) {
 	}, nil
 }
 
-func (l *linkTLS) handler(name string, info linkInfo, conn net.Conn, options tcpOptions, incoming bool) error {
+func (l *linkTLS) handler(name string, info linkInfo, conn net.Conn, options linkOptions, incoming bool) error {
 	return l.tcp.handler(name, info, conn, options, incoming)
 }

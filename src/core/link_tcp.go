@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/Arceliar/phony"
-	"golang.org/x/net/proxy"
 )
 
 type linkTCP struct {
@@ -17,14 +16,6 @@ type linkTCP struct {
 	*links
 	listener   *net.ListenConfig
 	_listeners map[*Listener]context.CancelFunc
-}
-
-type tcpOptions struct {
-	linkOptions
-	socksProxyAddr string      // nolint:unused
-	socksProxyAuth *proxy.Auth // nolint:unused
-	socksPeerAddr  string      // nolint:unused
-	tlsSNI         string
 }
 
 func (l *links) newLinkTCP() *linkTCP {
@@ -39,7 +30,7 @@ func (l *links) newLinkTCP() *linkTCP {
 	return lt
 }
 
-func (l *linkTCP) dial(url *url.URL, options tcpOptions, sintf string) error {
+func (l *linkTCP) dial(url *url.URL, options linkOptions, sintf string) error {
 	info := linkInfoFor("tcp", sintf, strings.SplitN(url.Host, "%", 2)[0])
 	if l.links.isConnectedTo(info) {
 		return fmt.Errorf("duplicate connection attempt")
@@ -94,7 +85,7 @@ func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
 			addr := conn.RemoteAddr().(*net.TCPAddr)
 			name := fmt.Sprintf("tls://%s", addr)
 			info := linkInfoFor("tcp", sintf, strings.SplitN(addr.IP.String(), "%", 2)[0])
-			if err = l.handler(name, info, conn, tcpOptions{}, true); err != nil {
+			if err = l.handler(name, info, conn, linkOptions{}, true); err != nil {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
@@ -105,14 +96,14 @@ func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
 	return entry, nil
 }
 
-func (l *linkTCP) handler(name string, info linkInfo, conn net.Conn, options tcpOptions, incoming bool) error {
+func (l *linkTCP) handler(name string, info linkInfo, conn net.Conn, options linkOptions, incoming bool) error {
 	return l.links.create(
-		conn,                // connection
-		name,                // connection name
-		info,                // connection info
-		incoming,            // not incoming
-		false,               // not forced
-		options.linkOptions, // connection options
+		conn,     // connection
+		name,     // connection name
+		info,     // connection info
+		incoming, // not incoming
+		false,    // not forced
+		options,  // connection options
 	)
 }
 

@@ -27,6 +27,7 @@ type links struct {
 	tcp    *linkTCP           // TCP interface support
 	tls    *linkTLS           // TLS interface support
 	unix   *linkUNIX          // UNIX interface support
+	socks  *linkSOCKS         // SOCKS interface support
 	_links map[linkInfo]*link // *link is nil if connection in progress
 	// TODO timeout (to remove from switch), read from config.ReadTimeout
 }
@@ -68,6 +69,7 @@ func (l *links) init(c *Core) error {
 	l.tcp = l.newLinkTCP()
 	l.tls = l.newLinkTLS(l.tcp)
 	l.unix = l.newLinkUNIX()
+	l.socks = l.newLinkSOCKS()
 	l._links = make(map[linkInfo]*link)
 
 	var listeners []ListenAddress
@@ -113,65 +115,58 @@ func (l *links) call(u *url.URL, sintf string) error {
 	if l.isConnectedTo(info) {
 		return fmt.Errorf("already connected to this node")
 	}
-	tcpOpts := tcpOptions{
-		linkOptions: linkOptions{
-			pinnedEd25519Keys: map[keyArray]struct{}{},
-		},
+	options := linkOptions{
+		pinnedEd25519Keys: map[keyArray]struct{}{},
 	}
 	for _, pubkey := range u.Query()["key"] {
 		if sigPub, err := hex.DecodeString(pubkey); err == nil {
 			var sigPubKey keyArray
 			copy(sigPubKey[:], sigPub)
-			tcpOpts.pinnedEd25519Keys[sigPubKey] = struct{}{}
+			options.pinnedEd25519Keys[sigPubKey] = struct{}{}
 		}
 	}
 	switch info.linkType {
 	case "tcp":
 		go func() {
-			if err := l.tcp.dial(u, tcpOpts, sintf); err != nil {
+			if err := l.tcp.dial(u, options, sintf); err != nil {
 				l.core.log.Warnf("Failed to dial TCP %s: %s\n", u.Host, err)
 			}
 		}()
 
-		/*
-			case "socks":
-				tcpOpts.socksProxyAddr = u.Host
-				if u.User != nil {
-					tcpOpts.socksProxyAuth = &proxy.Auth{}
-					tcpOpts.socksProxyAuth.User = u.User.Username()
-					tcpOpts.socksProxyAuth.Password, _ = u.User.Password()
-				}
-				tcpOpts.upgrade = l.tcp.tls.forDialer // TODO make this configurable
-				pathtokens := strings.Split(strings.Trim(u.Path, "/"), "/")
-				go l.tcp.call(pathtokens[0], tcpOpts, sintf)
-		*/
+	case "socks":
+		go func() {
+			if err := l.socks.dial(u, options); err != nil {
+				l.core.log.Warnf("Failed to dial SOCKS %s: %s\n", u.Host, err)
+			}
+		}()
 
 	case "tls":
 		// SNI headers must contain hostnames and not IP addresses, so we must make sure
 		// that we do not populate the SNI with an IP literal. We do this by splitting
 		// the host-port combo from the query option and then seeing if it parses to an
 		// IP address successfully or not.
+		var tlsSNI string
 		if sni := u.Query().Get("sni"); sni != "" {
 			if net.ParseIP(sni) == nil {
-				tcpOpts.tlsSNI = sni
+				tlsSNI = sni
 			}
 		}
 		// If the SNI is not configured still because the above failed then we'll try
 		// again but this time we'll use the host part of the peering URI instead.
-		if tcpOpts.tlsSNI == "" {
+		if tlsSNI == "" {
 			if host, _, err := net.SplitHostPort(u.Host); err == nil && net.ParseIP(host) == nil {
-				tcpOpts.tlsSNI = host
+				tlsSNI = host
 			}
 		}
 		go func() {
-			if err := l.tls.dial(u, tcpOpts, sintf); err != nil {
+			if err := l.tls.dial(u, options, sintf, tlsSNI); err != nil {
 				l.core.log.Warnf("Failed to dial TLS %s: %s\n", u.Host, err)
 			}
 		}()
 
 	case "unix":
 		go func() {
-			if err := l.unix.dial(u, tcpOpts.linkOptions, sintf); err != nil {
+			if err := l.unix.dial(u, options, sintf); err != nil {
 				l.core.log.Warnf("Failed to dial UNIX %s: %s\n", u.Host, err)
 			}
 		}()
