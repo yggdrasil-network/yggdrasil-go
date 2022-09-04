@@ -16,6 +16,7 @@ import (
 	//"sort"
 	//"time"
 
+	"github.com/Arceliar/phony"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	//"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
@@ -69,11 +70,11 @@ func (c *Core) GetSelf() SelfInfo {
 func (c *Core) GetPeers() []PeerInfo {
 	var peers []PeerInfo
 	names := make(map[net.Conn]string)
-	c.links.mutex.Lock()
-	for _, info := range c.links.links {
-		names[info.conn] = info.lname
-	}
-	c.links.mutex.Unlock()
+	phony.Block(&c.links, func() {
+		for _, info := range c.links._links {
+			names[info.conn] = info.lname
+		}
+	})
 	ps := c.PacketConn.PacketConn.Debug.GetPeers()
 	for _, p := range ps {
 		var info PeerInfo

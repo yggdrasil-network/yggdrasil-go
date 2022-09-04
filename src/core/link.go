@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/url"
 	"strings"
-	"sync"
 
 	//"sync/atomic"
 	"time"
@@ -23,12 +22,12 @@ import (
 )
 
 type links struct {
-	core  *Core
-	tcp   *linkTCP           // TCP interface support
-	tls   *linkTLS           // TLS interface support
-	unix  *linkUNIX          // UNIX interface support
-	mutex sync.RWMutex       // protects links below
-	links map[linkInfo]*link // *link is nil if connection in progress
+	phony.Inbox
+	core   *Core
+	tcp    *linkTCP           // TCP interface support
+	tls    *linkTLS           // TLS interface support
+	unix   *linkUNIX          // UNIX interface support
+	_links map[linkInfo]*link // *link is nil if connection in progress
 	// TODO timeout (to remove from switch), read from config.ReadTimeout
 }
 
@@ -69,10 +68,7 @@ func (l *links) init(c *Core) error {
 	l.tcp = l.newLinkTCP()
 	l.tls = l.newLinkTLS(l.tcp)
 	l.unix = l.newLinkUNIX()
-
-	l.mutex.Lock()
-	l.links = make(map[linkInfo]*link)
-	l.mutex.Unlock()
+	l._links = make(map[linkInfo]*link)
 
 	var listeners []ListenAddress
 	phony.Block(c, func() {
@@ -105,9 +101,10 @@ func (l *links) shutdown() error {
 }
 
 func (l *links) isConnectedTo(info linkInfo) bool {
-	l.mutex.RLock()
-	defer l.mutex.RUnlock()
-	_, isConnected := l.links[info]
+	var isConnected bool
+	phony.Block(l, func() {
+		_, isConnected = l._links[info]
+	})
 	return isConnected
 }
 
@@ -231,16 +228,14 @@ func (intf *link) handler() error {
 	}
 
 	// Mark the connection as in progress.
-	intf.links.mutex.Lock()
-	intf.links.links[intf.info] = nil
-	intf.links.mutex.Unlock()
+	phony.Block(intf.links, func() {
+		intf.links._links[intf.info] = nil
+	})
 
 	// When we're done, clean up the connection entry.
-	defer func() {
-		intf.links.mutex.Lock()
-		delete(intf.links.links, intf.info)
-		intf.links.mutex.Unlock()
-	}()
+	defer phony.Block(intf.links, func() {
+		delete(intf.links._links, intf.info)
+	})
 
 	// TODO split some of this into shorter functions, so it's easier to read, and for the FIXME duplicate peer issue mentioned later
 	meta := version_getBaseMetadata()
@@ -318,9 +313,9 @@ func (intf *link) handler() error {
 		return fmt.Errorf("forbidden connection")
 	}
 
-	intf.links.mutex.Lock()
-	intf.links.links[intf.info] = intf
-	intf.links.mutex.Unlock()
+	phony.Block(intf.links, func() {
+		intf.links._links[intf.info] = intf
+	})
 
 	remoteAddr := net.IP(address.AddrForKey(meta.key)[:]).String()
 	remoteStr := fmt.Sprintf("%s@%s", remoteAddr, intf.info.remote)
