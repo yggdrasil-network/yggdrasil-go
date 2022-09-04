@@ -38,24 +38,25 @@ func (l *links) newLinkTCP() *linkTCP {
 	return lt
 }
 
-func (l *linkTCP) dial(url *url.URL, options tcpOptions, sintf string) (*link, error) {
+func (l *linkTCP) dial(url *url.URL, options tcpOptions, sintf string) error {
+	info := linkInfoFor("tcp", url.Host, sintf)
+	if l.links.isConnectedTo(info) {
+		return fmt.Errorf("duplicate connection attempt")
+	}
 	addr, err := net.ResolveTCPAddr("tcp", url.Host)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	addr.Zone = sintf
 	dialer, err := l.dialerFor(addr.String(), sintf)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	conn, err := dialer.DialContext(l.core.ctx, "tcp", addr.String())
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if _, err = l.handler("TCP", conn, options, false); err != nil {
-		l.core.log.Errorln("Failed to create outbound link:", err)
-	}
-	return nil, err
+	return l.handler(url.String(), info, conn, options, false)
 }
 
 func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
@@ -85,8 +86,10 @@ func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
 				cancel()
 				return
 			}
-			if _, err := l.handler("TCP", conn, tcpOptions{}, true); err != nil {
-				l.core.log.Errorln("Failed to create link:", err)
+			name := fmt.Sprintf("tcp://%s", conn.RemoteAddr())
+			info := linkInfoFor("tcp", sintf, conn.RemoteAddr().String())
+			if err = l.handler(name, info, conn, tcpOptions{}, true); err != nil {
+				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
 	}()
@@ -96,16 +99,14 @@ func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
 	}, nil
 }
 
-func (l *linkTCP) handler(proto string, conn net.Conn, options tcpOptions, incoming bool) (*link, error) {
+func (l *linkTCP) handler(name string, info linkInfo, conn net.Conn, options tcpOptions, incoming bool) error {
 	return l.links.create(
-		conn,                       // connection
-		conn.RemoteAddr().String(), // connection name
-		proto,                      // connection protocol
-		conn.LocalAddr().String(),  // local address
-		conn.RemoteAddr().String(), // remote address
-		incoming,                   // not incoming
-		false,                      // not forced
-		options.linkOptions,        // connection options
+		conn,                // connection
+		name,                // connection name
+		info,                // connection info
+		incoming,            // not incoming
+		false,               // not forced
+		options.linkOptions, // connection options
 	)
 }
 

@@ -45,15 +45,19 @@ func (l *links) newLinkTLS(tcp *linkTCP) *linkTLS {
 	return lt
 }
 
-func (l *linkTLS) dial(url *url.URL, options tcpOptions, sintf string) (*link, error) {
+func (l *linkTLS) dial(url *url.URL, options tcpOptions, sintf string) error {
+	info := linkInfoFor("tls", url.Host, sintf)
+	if l.links.isConnectedTo(info) {
+		return fmt.Errorf("duplicate connection attempt")
+	}
 	addr, err := net.ResolveTCPAddr("tcp", url.Host)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	addr.Zone = sintf
 	dialer, err := l.tcp.dialerFor(addr.String(), sintf)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	tlsdialer := &tls.Dialer{
 		NetDialer: dialer,
@@ -61,12 +65,9 @@ func (l *linkTLS) dial(url *url.URL, options tcpOptions, sintf string) (*link, e
 	}
 	conn, err := tlsdialer.DialContext(l.core.ctx, "tcp", addr.String())
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if _, err = l.handler(conn, options, false); err != nil {
-		l.core.log.Errorln("Failed to create outbound link:", err)
-	}
-	return nil, err
+	return l.handler(url.String(), info, conn, options, false)
 }
 
 func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
@@ -97,7 +98,9 @@ func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
 				cancel()
 				return
 			}
-			if _, err := l.handler(conn, tcpOptions{}, true); err != nil {
+			name := fmt.Sprintf("tls://%s", conn.RemoteAddr())
+			info := linkInfoFor("tls", sintf, conn.RemoteAddr().String())
+			if err = l.handler(name, info, conn, tcpOptions{}, true); err != nil {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
@@ -155,6 +158,6 @@ func (l *linkTLS) generateConfig() (*tls.Config, error) {
 	}, nil
 }
 
-func (l *linkTLS) handler(conn net.Conn, options tcpOptions, incoming bool) (*link, error) {
-	return l.tcp.handler("TLS", conn, options, incoming)
+func (l *linkTLS) handler(name string, info linkInfo, conn net.Conn, options tcpOptions, incoming bool) error {
+	return l.tcp.handler(name, info, conn, options, incoming)
 }
