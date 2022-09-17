@@ -28,9 +28,9 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
-	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
@@ -290,10 +290,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		if err != nil {
 			panic(err)
 		}
-		options := []core.SetupOption{
-			core.IfName(cfg.IfName),
-			core.IfMTU(cfg.IfMTU),
-		}
+		options := []core.SetupOption{}
 		for _, addr := range cfg.Listen {
 			options = append(options, core.ListenAddress(addr))
 		}
@@ -325,7 +322,9 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		if n.admin, err = admin.New(n.core, logger, options...); err != nil {
 			panic(err)
 		}
-		n.admin.SetupAdminHandlers()
+		if n.admin != nil {
+			n.admin.SetupAdminHandlers()
+		}
 	}
 
 	// Setup the multicast module.
@@ -342,7 +341,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		if n.multicast, err = multicast.New(n.core, logger, options...); err != nil {
 			panic(err)
 		}
-		if n.admin != nil {
+		if n.admin != nil && n.multicast != nil {
 			n.multicast.SetupAdminHandlers(n.admin)
 		}
 	}
@@ -356,7 +355,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		if n.tuntap, err = tuntap.New(ipv6rwc.NewReadWriteCloser(n.core), logger, options...); err != nil {
 			panic(err)
 		}
-		if n.admin != nil {
+		if n.admin != nil && n.tuntap != nil {
 			n.tuntap.SetupAdminHandlers(n.admin)
 		}
 	}

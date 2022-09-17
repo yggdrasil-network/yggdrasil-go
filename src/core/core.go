@@ -40,8 +40,6 @@ type Core struct {
 		_listeners         map[ListenAddress]struct{} // configurable after startup
 		nodeinfo           NodeInfo                   // immutable after startup
 		nodeinfoPrivacy    NodeInfoPrivacy            // immutable after startup
-		ifname             IfName                     // immutable after startup
-		ifmtu              IfMTU                      // immutable after startup
 		_allowedPublicKeys map[[32]byte]struct{}      // configurable after startup
 	}
 }
@@ -49,6 +47,12 @@ type Core struct {
 func New(secret ed25519.PrivateKey, logger util.Logger, opts ...SetupOption) (*Core, error) {
 	c := &Core{
 		log: logger,
+	}
+	if name := version.BuildName(); name != "unknown" {
+		c.log.Infoln("Build name:", name)
+	}
+	if version := version.BuildVersion(); version != "unknown" {
+		c.log.Infoln("Build version:", version)
 	}
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 	// Take a copy of the private key so that it is in our own memory space.
@@ -78,15 +82,17 @@ func New(secret ed25519.PrivateKey, logger util.Logger, opts ...SetupOption) (*C
 	if err := c.proto.nodeinfo.setNodeInfo(c.config.nodeinfo, bool(c.config.nodeinfoPrivacy)); err != nil {
 		return nil, fmt.Errorf("error setting node info: %w", err)
 	}
-	c.addPeerTimer = time.AfterFunc(time.Minute, func() {
-		c.Act(nil, c._addPeerLoop)
-	})
-	if name := version.BuildName(); name != "unknown" {
-		c.log.Infoln("Build name:", name)
+	for listenaddr := range c.config._listeners {
+		u, err := url.Parse(string(listenaddr))
+		if err != nil {
+			c.log.Errorf("Invalid listener URI %q specified, ignoring\n", listenaddr)
+			continue
+		}
+		if _, err = c.links.listen(u, ""); err != nil {
+			c.log.Errorf("Failed to start listener %q: %s\n", listenaddr, err)
+		}
 	}
-	if version := version.BuildVersion(); version != "unknown" {
-		c.log.Infoln("Build version:", version)
-	}
+	c.Act(nil, c._addPeerLoop)
 	return c, nil
 }
 
@@ -94,10 +100,11 @@ func New(secret ed25519.PrivateKey, logger util.Logger, opts ...SetupOption) (*C
 // configure them. The loop ensures that disconnected peers will eventually
 // be reconnected with.
 func (c *Core) _addPeerLoop() {
-	if c.addPeerTimer == nil {
+	select {
+	case <-c.ctx.Done():
 		return
+	default:
 	}
-
 	// Add peers from the Peers section
 	for peer := range c.config._peers {
 		go func(peer string, intf string) {
@@ -128,12 +135,12 @@ func (c *Core) Stop() {
 // This function is unsafe and should only be ran by the core actor.
 func (c *Core) _close() error {
 	c.cancel()
+	_ = c.links.shutdown()
 	err := c.PacketConn.Close()
 	if c.addPeerTimer != nil {
 		c.addPeerTimer.Stop()
 		c.addPeerTimer = nil
 	}
-	_ = c.links.stop()
 	return err
 }
 

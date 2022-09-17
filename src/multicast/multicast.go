@@ -45,7 +45,7 @@ type interfaceInfo struct {
 }
 
 type listenerInfo struct {
-	listener *core.TcpListener
+	listener *core.Listener
 	time     time.Time
 	interval time.Duration
 	port     uint16
@@ -219,7 +219,7 @@ func (m *Multicast) _announce() {
 	for name, info := range m._listeners {
 		// Prepare our stop function!
 		stop := func() {
-			info.listener.Stop()
+			info.listener.Close()
 			delete(m._listeners, name)
 			m.log.Debugln("No longer multicasting on", name)
 		}

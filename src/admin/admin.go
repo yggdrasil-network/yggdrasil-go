@@ -175,6 +175,9 @@ func (a *AdminSocket) IsStarted() bool {
 
 // Stop will stop the admin API and close the socket.
 func (a *AdminSocket) Stop() error {
+	if a == nil {
+		return nil
+	}
 	if a.listener != nil {
 		select {
 		case <-a.done:
@@ -321,6 +324,8 @@ type DataUnit uint64
 
 func (d DataUnit) String() string {
 	switch {
+	case d > 1024*1024*1024*1024:
+		return fmt.Sprintf("%2.ftb", float64(d)/1024/1024/1024/1024)
 	case d > 1024*1024*1024:
 		return fmt.Sprintf("%2.fgb", float64(d)/1024/1024/1024)
 	case d > 1024*1024:
