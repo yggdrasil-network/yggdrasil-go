@@ -85,7 +85,7 @@ func run() int {
 	encoder := json.NewEncoder(conn)
 	send := &admin.AdminSocketRequest{}
 	recv := &admin.AdminSocketResponse{}
-
+	args := map[string]string{}
 	for c, a := range cmdLineEnv.args {
 		if c == 0 {
 			if strings.HasPrefix(a, "-") {
@@ -96,15 +96,17 @@ func run() int {
 			send.Name = a
 			continue
 		}
-		tokens := strings.SplitN(a, "=", 1)
+		tokens := strings.SplitN(a, "=", 2)
 		switch {
 		case len(tokens) == 1:
-			panic("incomplete argument supplied")
+			logger.Println("Ignoring invalid argument:", a)
 		default:
-			send.Arguments[tokens[0]] = tokens[1]
+			args[tokens[0]] = tokens[1]
 		}
 	}
-
+	if send.Arguments, err = json.Marshal(args); err != nil {
+		panic(err)
+	}
 	if err := encoder.Encode(&send); err != nil {
 		panic(err)
 	}
@@ -139,7 +141,7 @@ func run() int {
 	table.SetNoWhiteSpace(true)
 	table.SetAutoWrapText(false)
 
-	switch strings.ToLower(recv.Request.Name) {
+	switch strings.ToLower(send.Name) {
 	case "list":
 		var resp admin.ListResponse
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {

@@ -30,16 +30,16 @@ type AdminSocket struct {
 }
 
 type AdminSocketRequest struct {
-	Name      string            `json:"request"`
-	Arguments map[string]string `json:"arguments,omitempty"`
-	KeepAlive bool              `json:"keepalive,omitempty"`
+	Name      string          `json:"request"`
+	Arguments json.RawMessage `json:"arguments,omitempty"`
+	KeepAlive bool            `json:"keepalive,omitempty"`
 }
 
 type AdminSocketResponse struct {
-	Status   string             `json:"status"`
-	Error    string             `json:"error,omitempty"`
-	Request  AdminSocketRequest `json:"request"`
-	Response json.RawMessage    `json:"response"`
+	Status   string          `json:"status"`
+	Error    string          `json:"error,omitempty"`
+	Request  json.RawMessage `json:"request"`
+	Response json.RawMessage `json:"response"`
 }
 
 type handler struct {
@@ -298,25 +298,26 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 	for {
 		var err error
 		var buf json.RawMessage
+		var req AdminSocketRequest
 		var resp AdminSocketResponse
 		if err := func() error {
 			if err = decoder.Decode(&buf); err != nil {
 				return fmt.Errorf("Failed to find request")
 			}
-			if err = json.Unmarshal(buf, &resp.Request); err != nil {
+			if err = json.Unmarshal(buf, &req); err != nil {
 				return fmt.Errorf("Failed to unmarshal request")
 			}
-			if resp.Request.Name == "" {
+			if req.Name == "" {
 				return fmt.Errorf("No request specified")
 			}
-			reqname := strings.ToLower(resp.Request.Name)
+			reqname := strings.ToLower(req.Name)
 			handler, ok := a.handlers[reqname]
 			if !ok {
 				return fmt.Errorf("Unknown action '%s', try 'list' for help", reqname)
 			}
-			res, err := handler.handler(buf)
+			res, err := handler.handler(req.Arguments)
 			if err != nil {
-				return fmt.Errorf("Handler returned error: %w", err)
+				return err
 			}
 			if resp.Response, err = json.Marshal(res); err != nil {
 				return fmt.Errorf("Failed to marshal response: %w", err)
@@ -330,7 +331,7 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 		if err = encoder.Encode(resp); err != nil {
 			a.log.Debugln("Encode error:", err)
 		}
-		if !resp.Request.KeepAlive {
+		if !req.KeepAlive {
 			break
 		} else {
 			continue
