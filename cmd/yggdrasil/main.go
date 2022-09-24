@@ -32,13 +32,13 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
-	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
+	"github.com/yggdrasil-network/yggdrasil-go/src/tun"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 )
 
 type node struct {
 	core      *core.Core
-	tuntap    *tuntap.TunAdapter
+	tun       *tun.TunAdapter
 	multicast *multicast.Multicast
 	admin     *admin.AdminSocket
 }
@@ -219,7 +219,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		return
 	case args.autoconf:
 		// Use an autoconf-generated config, this will give us random keys and
-		// port numbers, and will use an automatically selected TUN/TAP interface.
+		// port numbers, and will use an automatically selected TUN interface.
 		cfg = defaults.GenerateConfig()
 	case args.useconffile != "" || args.useconf:
 		// Read the configuration from either stdin or from the filesystem
@@ -348,15 +348,15 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 
 	// Setup the TUN module.
 	{
-		options := []tuntap.SetupOption{
-			tuntap.InterfaceName(cfg.IfName),
-			tuntap.InterfaceMTU(cfg.IfMTU),
+		options := []tun.SetupOption{
+			tun.InterfaceName(cfg.IfName),
+			tun.InterfaceMTU(cfg.IfMTU),
 		}
-		if n.tuntap, err = tuntap.New(ipv6rwc.NewReadWriteCloser(n.core), logger, options...); err != nil {
+		if n.tun, err = tun.New(ipv6rwc.NewReadWriteCloser(n.core), logger, options...); err != nil {
 			panic(err)
 		}
-		if n.admin != nil && n.tuntap != nil {
-			n.tuntap.SetupAdminHandlers(n.admin)
+		if n.admin != nil && n.tun != nil {
+			n.tun.SetupAdminHandlers(n.admin)
 		}
 	}
 
@@ -378,7 +378,7 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 func (n *node) shutdown() {
 	_ = n.admin.Stop()
 	_ = n.multicast.Stop()
-	_ = n.tuntap.Stop()
+	_ = n.tun.Stop()
 	n.core.Stop()
 }
 

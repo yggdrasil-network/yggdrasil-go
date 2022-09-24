@@ -19,7 +19,7 @@ func getDefaults() platformDefaultParameters {
 			{Regex: "bridge.*", Beacon: true, Listen: true},
 		},
 
-		// TUN/TAP
+		// TUN
 		MaximumIfMTU:  65535,
 		DefaultIfMTU:  65535,
 		DefaultIfName: "auto",

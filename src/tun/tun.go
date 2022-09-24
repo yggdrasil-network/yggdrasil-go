@@ -1,10 +1,7 @@
-package tuntap
+package tun
 
 // This manages the tun driver to send/recv packets to/from applications
 
-// TODO: Crypto-key routing support
-// TODO: Set MTU of session properly
-// TODO: Reject packets that exceed session MTU with ICMPv6 for PMTU Discovery
 // TODO: Connection timeouts (call Conn.Close() when we want to time out)
 // TODO: Don't block in reader on writes that are pending searches
 
@@ -12,8 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-
-	//"sync"
 
 	"github.com/Arceliar/phony"
 	"golang.zx2c4.com/wireguard/tun"

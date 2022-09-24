@@ -1,4 +1,4 @@
-package tuntap
+package tun
 
 func (m *TunAdapter) _applyOption(opt SetupOption) {
 	switch v := opt.(type) {

@@ -17,7 +17,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
-	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
+	"github.com/yggdrasil-network/yggdrasil-go/src/tun"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 )
 
@@ -256,7 +256,7 @@ func run() int {
 		table.Render()
 
 	case "gettun":
-		var resp tuntap.GetTUNResponse
+		var resp tun.GetTUNResponse
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}

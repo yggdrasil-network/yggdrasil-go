@@ -1,7 +1,7 @@
 //go:build !linux && !darwin && !windows && !openbsd && !freebsd && !mobile
 // +build !linux,!darwin,!windows,!openbsd,!freebsd,!mobile
 
-package tuntap
+package tun
 
 // This is to catch unsupported platforms
 // If your platform supports tun devices, you could try configuring it manually

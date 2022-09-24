@@ -18,7 +18,7 @@ func getDefaults() platformDefaultParameters {
 			{Regex: ".*", Beacon: true, Listen: true},
 		},
 
-		// TUN/TAP
+		// TUN
 		MaximumIfMTU:  32767,
 		DefaultIfMTU:  32767,
 		DefaultIfName: "/dev/tun0",

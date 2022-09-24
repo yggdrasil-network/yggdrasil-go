@@ -1,4 +1,4 @@
-package tuntap
+package tun
 
 const TUN_OFFSET_BYTES = 4
 

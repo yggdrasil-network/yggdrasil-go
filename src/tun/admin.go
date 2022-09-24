@@ -1,4 +1,4 @@
-package tuntap
+package tun
 
 import (
 	"encoding/json"

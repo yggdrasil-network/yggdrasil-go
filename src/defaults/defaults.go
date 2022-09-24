@@ -20,7 +20,7 @@ type platformDefaultParameters struct {
 	// Multicast interfaces
 	DefaultMulticastInterfaces []MulticastInterfaceConfig
 
-	// TUN/TAP
+	// TUN
 	MaximumIfMTU  uint64
 	DefaultIfMTU  uint64
 	DefaultIfName string

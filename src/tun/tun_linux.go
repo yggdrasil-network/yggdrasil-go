@@ -1,7 +1,7 @@
 //go:build !mobile
 // +build !mobile
 
-package tuntap
+package tun
 
 // The linux platform specific tun parts
 
@@ -28,7 +28,7 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 	return tun.setupAddress(addr)
 }
 
-// Configures the TAP adapter with the correct IPv6 address and MTU. Netlink
+// Configures the TUN adapter with the correct IPv6 address and MTU. Netlink
 // is used to do this, so there is not a hard requirement on "ip" or "ifconfig"
 // to exist on the system, but this will fail if Netlink is not present in the
 // kernel (it nearly always is).
