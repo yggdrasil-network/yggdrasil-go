@@ -113,17 +113,19 @@ func (l *links) isConnectedTo(info linkInfo) bool {
 func (l *links) call(u *url.URL, sintf string) error {
 	info := linkInfoFor(u.Scheme, sintf, u.Host)
 	if l.isConnectedTo(info) {
-		return fmt.Errorf("already connected to this node")
+		return nil
 	}
 	options := linkOptions{
 		pinnedEd25519Keys: map[keyArray]struct{}{},
 	}
 	for _, pubkey := range u.Query()["key"] {
-		if sigPub, err := hex.DecodeString(pubkey); err == nil {
-			var sigPubKey keyArray
-			copy(sigPubKey[:], sigPub)
-			options.pinnedEd25519Keys[sigPubKey] = struct{}{}
+		sigPub, err := hex.DecodeString(pubkey)
+		if err != nil {
+			return fmt.Errorf("pinned key contains invalid hex characters")
 		}
+		var sigPubKey keyArray
+		copy(sigPubKey[:], sigPub)
+		options.pinnedEd25519Keys[sigPubKey] = struct{}{}
 	}
 	switch info.linkType {
 	case "tcp":
