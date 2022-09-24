@@ -17,7 +17,6 @@ import (
 
 	"github.com/Arceliar/phony"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	//"github.com/Arceliar/phony" // TODO? use instead of mutexes
 )
 
@@ -234,35 +233,24 @@ func (intf *link) handler() error {
 		delete(intf.links._links, intf.info)
 	})
 
-	// TODO split some of this into shorter functions, so it's easier to read, and for the FIXME duplicate peer issue mentioned later
 	meta := version_getBaseMetadata()
 	meta.key = intf.links.core.public
 	metaBytes := meta.encode()
-	// TODO timeouts on send/recv (goroutine for send/recv, channel select w/ timer)
-	var err error
-	if !util.FuncTimeout(30*time.Second, func() {
-		var n int
-		n, err = intf.conn.Write(metaBytes)
-		if err == nil && n != len(metaBytes) {
-			err = errors.New("incomplete metadata send")
-		}
-	}) {
-		return errors.New("timeout on metadata send")
+	if err := intf.conn.SetDeadline(time.Now().Add(time.Second * 6)); err != nil {
+		return fmt.Errorf("failed to set handshake deadline: %w", err)
 	}
-	if err != nil {
+	n, err := intf.conn.Write(metaBytes)
+	switch {
+	case err != nil:
 		return fmt.Errorf("write handshake: %w", err)
+	case err == nil && n != len(metaBytes):
+		return fmt.Errorf("incomplete handshake send")
 	}
-	if !util.FuncTimeout(30*time.Second, func() {
-		var n int
-		n, err = io.ReadFull(intf.conn, metaBytes)
-		if err == nil && n != len(metaBytes) {
-			err = errors.New("incomplete metadata recv")
-		}
-	}) {
-		return errors.New("timeout on metadata recv")
-	}
-	if err != nil {
+	if _, err = io.ReadFull(intf.conn, metaBytes); err != nil {
 		return fmt.Errorf("read handshake: %w", err)
+	}
+	if err := intf.conn.SetDeadline(time.Time{}); err != nil {
+		return fmt.Errorf("failed to clear handshake deadline: %w", err)
 	}
 	meta = version_metadata{}
 	base := version_getBaseMetadata()
