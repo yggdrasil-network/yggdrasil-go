@@ -16,6 +16,8 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
+	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
+	"github.com/yggdrasil-network/yggdrasil-go/src/tuntap"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 )
 
@@ -135,6 +137,7 @@ func run() int {
 	table.SetBorder(false)
 	table.SetTablePadding("\t") // pad with tabs
 	table.SetNoWhiteSpace(true)
+	table.SetAutoWrapText(false)
 
 	switch strings.ToLower(recv.Request.Name) {
 	case "list":
@@ -142,9 +145,12 @@ func run() int {
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
-		table.SetHeader([]string{"Command", "Arguments"})
+		table.SetHeader([]string{"Command", "Arguments", "Description"})
 		for _, entry := range resp.List {
-			table.Append([]string{entry.Command, strings.Join(entry.Fields, ", ")})
+			for i := range entry.Fields {
+				entry.Fields[i] = entry.Fields[i] + "=..."
+			}
+			table.Append([]string{entry.Command, strings.Join(entry.Fields, ", "), entry.Description})
 		}
 		table.Render()
 
@@ -238,8 +244,31 @@ func run() int {
 			break
 		}
 
+	case "getmulticastinterfaces":
+		var resp multicast.GetMulticastInterfacesResponse
+		if err := json.Unmarshal(recv.Response, &resp); err != nil {
+			panic(err)
+		}
+		table.SetHeader([]string{"Interface"})
+		for _, p := range resp.Interfaces {
+			table.Append([]string{p})
+		}
+		table.Render()
+
+	case "gettun":
+		var resp tuntap.GetTUNResponse
+		if err := json.Unmarshal(recv.Response, &resp); err != nil {
+			panic(err)
+		}
+		table.Append([]string{"TUN enabled:", fmt.Sprintf("%#v", resp.Enabled)})
+		if resp.Enabled {
+			table.Append([]string{"Interface name:", resp.Name})
+			table.Append([]string{"Interface MTU:", fmt.Sprintf("%d", resp.MTU)})
+		}
+		table.Render()
+
 	default:
-		panic("unknown response type: " + recv.Request.Name)
+		fmt.Println(string(recv.Response))
 	}
 
 	return 0

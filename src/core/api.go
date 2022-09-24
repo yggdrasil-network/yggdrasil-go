@@ -273,7 +273,7 @@ func (c *Core) PublicKey() ed25519.PublicKey {
 // Hack to get the admin stuff working, TODO something cleaner
 
 type AddHandler interface {
-	AddHandler(name string, args []string, handlerfunc AddHandlerFunc) error
+	AddHandler(name, desc string, args []string, handlerfunc AddHandlerFunc) error
 }
 
 type AddHandlerFunc func(json.RawMessage) (interface{}, error)
@@ -281,16 +281,28 @@ type AddHandlerFunc func(json.RawMessage) (interface{}, error)
 // SetAdmin must be called after Init and before Start.
 // It sets the admin handler for NodeInfo and the Debug admin functions.
 func (c *Core) SetAdmin(a AddHandler) error {
-	if err := a.AddHandler("getNodeInfo", []string{"key"}, c.proto.nodeinfo.nodeInfoAdminHandler); err != nil {
+	if err := a.AddHandler(
+		"getNodeInfo", "Request nodeinfo from a remote node by its public key", []string{"key"},
+		c.proto.nodeinfo.nodeInfoAdminHandler,
+	); err != nil {
 		return err
 	}
-	if err := a.AddHandler("debug_remoteGetSelf", []string{"key"}, c.proto.getSelfHandler); err != nil {
+	if err := a.AddHandler(
+		"debug_remoteGetSelf", "Debug use only", []string{"key"},
+		c.proto.getSelfHandler,
+	); err != nil {
 		return err
 	}
-	if err := a.AddHandler("debug_remoteGetPeers", []string{"key"}, c.proto.getPeersHandler); err != nil {
+	if err := a.AddHandler(
+		"debug_remoteGetPeers", "Debug use only", []string{"key"},
+		c.proto.getPeersHandler,
+	); err != nil {
 		return err
 	}
-	if err := a.AddHandler("debug_remoteGetDHT", []string{"key"}, c.proto.getDHTHandler); err != nil {
+	if err := a.AddHandler(
+		"debug_remoteGetDHT", "Debug use only", []string{"key"},
+		c.proto.getDHTHandler,
+	); err != nil {
 		return err
 	}
 	return nil

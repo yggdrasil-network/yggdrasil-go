@@ -43,6 +43,7 @@ type AdminSocketResponse struct {
 }
 
 type handler struct {
+	desc    string              // What does the endpoint do?
 	args    []string            // List of human-readable argument names
 	handler core.AddHandlerFunc // First is input map, second is output
 }
@@ -52,16 +53,18 @@ type ListResponse struct {
 }
 
 type ListEntry struct {
-	Command string   `json:"command"`
-	Fields  []string `json:"fields,omitempty"`
+	Command     string   `json:"command"`
+	Description string   `json:"description"`
+	Fields      []string `json:"fields,omitempty"`
 }
 
 // AddHandler is called for each admin function to add the handler and help documentation to the API.
-func (a *AdminSocket) AddHandler(name string, args []string, handlerfunc core.AddHandlerFunc) error {
+func (a *AdminSocket) AddHandler(name, desc string, args []string, handlerfunc core.AddHandlerFunc) error {
 	if _, ok := a.handlers[strings.ToLower(name)]; ok {
 		return errors.New("handler already exists")
 	}
 	a.handlers[strings.ToLower(name)] = handler{
+		desc:    desc,
 		args:    args,
 		handler: handlerfunc,
 	}
@@ -81,12 +84,13 @@ func New(c *core.Core, log util.Logger, opts ...SetupOption) (*AdminSocket, erro
 	if a.config.listenaddr == "none" || a.config.listenaddr == "" {
 		return nil, nil
 	}
-	_ = a.AddHandler("list", []string{}, func(_ json.RawMessage) (interface{}, error) {
+	_ = a.AddHandler("list", "List available commands", []string{}, func(_ json.RawMessage) (interface{}, error) {
 		res := &ListResponse{}
 		for name, handler := range a.handlers {
 			res.List = append(res.List, ListEntry{
-				Command: name,
-				Fields:  handler.args,
+				Command:     name,
+				Description: handler.desc,
+				Fields:      handler.args,
 			})
 		}
 		sort.SliceStable(res.List, func(i, j int) bool {
@@ -100,61 +104,76 @@ func New(c *core.Core, log util.Logger, opts ...SetupOption) (*AdminSocket, erro
 }
 
 func (a *AdminSocket) SetupAdminHandlers() {
-	_ = a.AddHandler("getSelf", []string{}, func(in json.RawMessage) (interface{}, error) {
-		req := &GetSelfRequest{}
-		res := &GetSelfResponse{}
-		if err := json.Unmarshal(in, &req); err != nil {
-			return nil, err
-		}
-		if err := a.getSelfHandler(req, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	})
-	_ = a.AddHandler("getPeers", []string{}, func(in json.RawMessage) (interface{}, error) {
-		req := &GetPeersRequest{}
-		res := &GetPeersResponse{}
-		if err := json.Unmarshal(in, &req); err != nil {
-			return nil, err
-		}
-		if err := a.getPeersHandler(req, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	})
-	_ = a.AddHandler("getDHT", []string{}, func(in json.RawMessage) (interface{}, error) {
-		req := &GetDHTRequest{}
-		res := &GetDHTResponse{}
-		if err := json.Unmarshal(in, &req); err != nil {
-			return nil, err
-		}
-		if err := a.getDHTHandler(req, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	})
-	_ = a.AddHandler("getPaths", []string{}, func(in json.RawMessage) (interface{}, error) {
-		req := &GetPathsRequest{}
-		res := &GetPathsResponse{}
-		if err := json.Unmarshal(in, &req); err != nil {
-			return nil, err
-		}
-		if err := a.getPathsHandler(req, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	})
-	_ = a.AddHandler("getSessions", []string{}, func(in json.RawMessage) (interface{}, error) {
-		req := &GetSessionsRequest{}
-		res := &GetSessionsResponse{}
-		if err := json.Unmarshal(in, &req); err != nil {
-			return nil, err
-		}
-		if err := a.getSessionsHandler(req, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	})
+	_ = a.AddHandler(
+		"getSelf", "Show details about this node", []string{},
+		func(in json.RawMessage) (interface{}, error) {
+			req := &GetSelfRequest{}
+			res := &GetSelfResponse{}
+			if err := json.Unmarshal(in, &req); err != nil {
+				return nil, err
+			}
+			if err := a.getSelfHandler(req, res); err != nil {
+				return nil, err
+			}
+			return res, nil
+		},
+	)
+	_ = a.AddHandler(
+		"getPeers", "Show directly connected peers", []string{},
+		func(in json.RawMessage) (interface{}, error) {
+			req := &GetPeersRequest{}
+			res := &GetPeersResponse{}
+			if err := json.Unmarshal(in, &req); err != nil {
+				return nil, err
+			}
+			if err := a.getPeersHandler(req, res); err != nil {
+				return nil, err
+			}
+			return res, nil
+		},
+	)
+	_ = a.AddHandler(
+		"getDHT", "Show known DHT entries", []string{},
+		func(in json.RawMessage) (interface{}, error) {
+			req := &GetDHTRequest{}
+			res := &GetDHTResponse{}
+			if err := json.Unmarshal(in, &req); err != nil {
+				return nil, err
+			}
+			if err := a.getDHTHandler(req, res); err != nil {
+				return nil, err
+			}
+			return res, nil
+		},
+	)
+	_ = a.AddHandler(
+		"getPaths", "Show established paths through this node", []string{},
+		func(in json.RawMessage) (interface{}, error) {
+			req := &GetPathsRequest{}
+			res := &GetPathsResponse{}
+			if err := json.Unmarshal(in, &req); err != nil {
+				return nil, err
+			}
+			if err := a.getPathsHandler(req, res); err != nil {
+				return nil, err
+			}
+			return res, nil
+		},
+	)
+	_ = a.AddHandler(
+		"getSessions", "Show established traffic sessions with remote nodes", []string{},
+		func(in json.RawMessage) (interface{}, error) {
+			req := &GetSessionsRequest{}
+			res := &GetSessionsResponse{}
+			if err := json.Unmarshal(in, &req); err != nil {
+				return nil, err
+			}
+			if err := a.getSessionsHandler(req, res); err != nil {
+				return nil, err
+			}
+			return res, nil
+		},
+	)
 	//_ = a.AddHandler("getNodeInfo", []string{"key"}, t.proto.nodeinfo.nodeInfoAdminHandler)
 	//_ = a.AddHandler("debug_remoteGetSelf", []string{"key"}, t.proto.getSelfHandler)
 	//_ = a.AddHandler("debug_remoteGetPeers", []string{"key"}, t.proto.getPeersHandler)
@@ -279,35 +298,34 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 	for {
 		var err error
 		var buf json.RawMessage
-		_ = decoder.Decode(&buf)
 		var resp AdminSocketResponse
-		resp.Status = "success"
-		if err = json.Unmarshal(buf, &resp.Request); err == nil {
-			if resp.Request.Name == "" {
-				resp.Status = "error"
-				resp.Response, _ = json.Marshal(ErrorResponse{
-					Error: "No request specified",
-				})
-			} else if h, ok := a.handlers[strings.ToLower(resp.Request.Name)]; ok {
-				res, err := h.handler(buf)
-				if err != nil {
-					resp.Status = "error"
-					resp.Response, _ = json.Marshal(ErrorResponse{
-						Error: err.Error(),
-					})
-				}
-				if resp.Response, err = json.Marshal(res); err != nil {
-					resp.Status = "error"
-					resp.Response, _ = json.Marshal(ErrorResponse{
-						Error: err.Error(),
-					})
-				}
-			} else {
-				resp.Status = "error"
-				resp.Response, _ = json.Marshal(ErrorResponse{
-					Error: fmt.Sprintf("Unknown action '%s', try 'list' for help", resp.Request.Name),
-				})
+		if err := func() error {
+			if err = decoder.Decode(&buf); err != nil {
+				return fmt.Errorf("Failed to find request")
 			}
+			if err = json.Unmarshal(buf, &resp.Request); err != nil {
+				return fmt.Errorf("Failed to unmarshal request")
+			}
+			if resp.Request.Name == "" {
+				return fmt.Errorf("No request specified")
+			}
+			reqname := strings.ToLower(resp.Request.Name)
+			handler, ok := a.handlers[reqname]
+			if !ok {
+				return fmt.Errorf("Unknown action '%s', try 'list' for help", reqname)
+			}
+			res, err := handler.handler(buf)
+			if err != nil {
+				return fmt.Errorf("Handler returned error: %w", err)
+			}
+			if resp.Response, err = json.Marshal(res); err != nil {
+				return fmt.Errorf("Failed to marshal response: %w", err)
+			}
+			resp.Status = "success"
+			return nil
+		}(); err != nil {
+			resp.Status = "error"
+			resp.Error = err.Error()
 		}
 		if err = encoder.Encode(resp); err != nil {
 			a.log.Debugln("Encode error:", err)
