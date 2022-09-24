@@ -16,13 +16,12 @@ import (
 	//"sync"
 
 	"github.com/Arceliar/phony"
-	"github.com/gologme/log"
 	"golang.zx2c4.com/wireguard/tun"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 type MTU uint16
@@ -32,9 +31,8 @@ type MTU uint16
 // should pass this object to the yggdrasil.SetRouterAdapter() function before
 // calling yggdrasil.Start().
 type TunAdapter struct {
-	core        *core.Core
-	config      *config.NodeConfig
-	log         *log.Logger
+	rwc         *ipv6rwc.ReadWriteCloser
+	log         util.Logger
 	addr        address.Address
 	subnet      address.Subnet
 	mtu         uint64
@@ -43,6 +41,10 @@ type TunAdapter struct {
 	//mutex        sync.RWMutex // Protects the below
 	isOpen    bool
 	isEnabled bool // Used by the writer to drop sessionTraffic if not enabled
+	config    struct {
+		name InterfaceName
+		mtu  InterfaceMTU
+	}
 }
 
 // Gets the maximum supported MTU for the platform based on the defaults in
@@ -93,53 +95,41 @@ func MaximumMTU() uint64 {
 
 // Init initialises the TUN module. You must have acquired a Listener from
 // the Yggdrasil core before this point and it must not be in use elsewhere.
-func (tun *TunAdapter) Init(core *core.Core, config *config.NodeConfig, log *log.Logger, options interface{}) error {
-	tun.core = core
-	tun.config = config
-	tun.log = log
-	return nil
-}
-
-// Start the setup process for the TUN adapter. If successful, starts the
-// reader actor to handle packets on that interface.
-func (tun *TunAdapter) Start() error {
-	var err error
-	phony.Block(tun, func() {
-		err = tun._start()
-	})
-	return err
+func New(rwc *ipv6rwc.ReadWriteCloser, log util.Logger, opts ...SetupOption) (*TunAdapter, error) {
+	tun := &TunAdapter{
+		rwc: rwc,
+		log: log,
+	}
+	for _, opt := range opts {
+		tun._applyOption(opt)
+	}
+	return tun, tun._start()
 }
 
 func (tun *TunAdapter) _start() error {
 	if tun.isOpen {
 		return errors.New("TUN module is already started")
 	}
-	tun.config.RLock()
-	defer tun.config.RUnlock()
-	if tun.config == nil {
-		return errors.New("no configuration available to TUN")
-	}
-	pk := tun.core.PublicKey()
-	tun.addr = *address.AddrForKey(pk)
-	tun.subnet = *address.SubnetForKey(pk)
+	tun.addr = tun.rwc.Address()
+	tun.subnet = tun.rwc.Subnet()
 	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
-	if tun.config.IfName == "none" || tun.config.IfName == "dummy" {
+	if tun.config.name == "none" || tun.config.name == "dummy" {
 		tun.log.Debugln("Not starting TUN as ifname is none or dummy")
 		tun.isEnabled = false
 		go tun.write()
 		return nil
 	}
-	mtu := tun.config.IfMTU
-	if tun.core.MaxMTU() < mtu {
-		mtu = tun.core.MaxMTU()
+	mtu := uint64(tun.config.mtu)
+	if tun.rwc.MaxMTU() < mtu {
+		mtu = tun.rwc.MaxMTU()
 	}
-	if err := tun.setup(tun.config.IfName, addr, mtu); err != nil {
+	if err := tun.setup(string(tun.config.name), addr, mtu); err != nil {
 		return err
 	}
 	if tun.MTU() != mtu {
-		tun.log.Warnf("Warning: Interface MTU %d automatically adjusted to %d (supported range is 1280-%d)", tun.config.IfMTU, tun.MTU(), MaximumMTU())
+		tun.log.Warnf("Warning: Interface MTU %d automatically adjusted to %d (supported range is 1280-%d)", tun.config.mtu, tun.MTU(), MaximumMTU())
 	}
-	tun.core.SetMTU(tun.MTU())
+	tun.rwc.SetMTU(tun.MTU())
 	tun.isOpen = true
 	tun.isEnabled = true
 	go tun.read()

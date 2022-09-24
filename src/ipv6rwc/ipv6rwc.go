@@ -1,4 +1,4 @@
-package core
+package ipv6rwc
 
 import (
 	"crypto/ed25519"
@@ -14,14 +14,22 @@ import (
 	iwt "github.com/Arceliar/ironwood/types"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 )
 
 const keyStoreTimeout = 2 * time.Minute
 
+// Out-of-band packet types
+const (
+	typeKeyDummy = iota // nolint:deadcode,varcheck
+	typeKeyLookup
+	typeKeyResponse
+)
+
 type keyArray [ed25519.PublicKeySize]byte
 
 type keyStore struct {
-	core         *Core
+	core         *core.Core
 	address      address.Address
 	subnet       address.Subnet
 	mutex        sync.Mutex
@@ -45,11 +53,11 @@ type buffer struct {
 	timeout *time.Timer
 }
 
-func (k *keyStore) init(core *Core) {
-	k.core = core
-	k.address = *address.AddrForKey(k.core.public)
-	k.subnet = *address.SubnetForKey(k.core.public)
-	if err := k.core.pc.SetOutOfBandHandler(k.oobHandler); err != nil {
+func (k *keyStore) init(c *core.Core) {
+	k.core = c
+	k.address = *address.AddrForKey(k.core.PublicKey())
+	k.subnet = *address.SubnetForKey(k.core.PublicKey())
+	if err := k.core.SetOutOfBandHandler(k.oobHandler); err != nil {
 		err = fmt.Errorf("tun.core.SetOutOfBandHander: %w", err)
 		panic(err)
 	}
@@ -66,7 +74,7 @@ func (k *keyStore) sendToAddress(addr address.Address, bs []byte) {
 	if info := k.addrToInfo[addr]; info != nil {
 		k.resetTimeout(info)
 		k.mutex.Unlock()
-		_, _ = k.core.pc.WriteTo(bs, iwt.Addr(info.key[:]))
+		_, _ = k.core.WriteTo(bs, iwt.Addr(info.key[:]))
 	} else {
 		var buf *buffer
 		if buf = k.addrBuffer[addr]; buf == nil {
@@ -95,7 +103,7 @@ func (k *keyStore) sendToSubnet(subnet address.Subnet, bs []byte) {
 	if info := k.subnetToInfo[subnet]; info != nil {
 		k.resetTimeout(info)
 		k.mutex.Unlock()
-		_, _ = k.core.pc.WriteTo(bs, iwt.Addr(info.key[:]))
+		_, _ = k.core.WriteTo(bs, iwt.Addr(info.key[:]))
 	} else {
 		var buf *buffer
 		if buf = k.subnetBuffer[subnet]; buf == nil {
@@ -124,6 +132,7 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 	var kArray keyArray
 	copy(kArray[:], key)
 	var info *keyInfo
+	var packets [][]byte
 	if info = k.keyToInfo[kArray]; info == nil {
 		info = new(keyInfo)
 		info.key = kArray
@@ -132,19 +141,19 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 		k.keyToInfo[info.key] = info
 		k.addrToInfo[info.address] = info
 		k.subnetToInfo[info.subnet] = info
-		k.resetTimeout(info)
-		k.mutex.Unlock()
 		if buf := k.addrBuffer[info.address]; buf != nil {
-			k.core.pc.WriteTo(buf.packet, iwt.Addr(info.key[:]))
+			packets = append(packets, buf.packet)
 			delete(k.addrBuffer, info.address)
 		}
 		if buf := k.subnetBuffer[info.subnet]; buf != nil {
-			k.core.pc.WriteTo(buf.packet, iwt.Addr(info.key[:]))
+			packets = append(packets, buf.packet)
 			delete(k.subnetBuffer, info.subnet)
 		}
-	} else {
-		k.resetTimeout(info)
-		k.mutex.Unlock()
+	}
+	k.resetTimeout(info)
+	k.mutex.Unlock()
+	for _, packet := range packets {
+		_, _ = k.core.WriteTo(packet, iwt.Addr(info.key[:]))
 	}
 	return info
 }
@@ -191,46 +200,29 @@ func (k *keyStore) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte) {
 }
 
 func (k *keyStore) sendKeyLookup(partial ed25519.PublicKey) {
-	sig := ed25519.Sign(k.core.secret, partial[:])
+	sig := ed25519.Sign(k.core.PrivateKey(), partial[:])
 	bs := append([]byte{typeKeyLookup}, sig...)
-	_ = k.core.pc.SendOutOfBand(partial, bs)
+	_ = k.core.SendOutOfBand(partial, bs)
 }
 
 func (k *keyStore) sendKeyResponse(dest ed25519.PublicKey) {
-	sig := ed25519.Sign(k.core.secret, dest[:])
+	sig := ed25519.Sign(k.core.PrivateKey(), dest[:])
 	bs := append([]byte{typeKeyResponse}, sig...)
-	_ = k.core.pc.SendOutOfBand(dest, bs)
-}
-
-func (k *keyStore) maxSessionMTU() uint64 {
-	const sessionTypeOverhead = 1
-	return k.core.pc.MTU() - sessionTypeOverhead
+	_ = k.core.SendOutOfBand(dest, bs)
 }
 
 func (k *keyStore) readPC(p []byte) (int, error) {
-	buf := make([]byte, k.core.pc.MTU(), 65535)
+	buf := make([]byte, k.core.MTU(), 65535)
 	for {
 		bs := buf
-		n, from, err := k.core.pc.ReadFrom(bs)
+		n, from, err := k.core.ReadFrom(bs)
 		if err != nil {
 			return n, err
 		}
 		if n == 0 {
 			continue
 		}
-		switch bs[0] {
-		case typeSessionTraffic:
-			// This is what we want to handle here
-		case typeSessionProto:
-			var key keyArray
-			copy(key[:], from.(iwt.Addr))
-			data := append([]byte(nil), bs[1:n]...)
-			k.core.proto.handleProto(nil, key, data)
-			continue
-		default:
-			continue
-		}
-		bs = bs[1:n]
+		bs = bs[:n]
 		if len(bs) == 0 {
 			continue
 		}
@@ -245,11 +237,11 @@ func (k *keyStore) readPC(p []byte) (int, error) {
 		k.mutex.Unlock()
 		if len(bs) > mtu {
 			// Using bs would make it leak off the stack, so copy to buf
-			buf := make([]byte, 40)
-			copy(buf, bs)
+			buf := make([]byte, 512)
+			cn := copy(buf, bs)
 			ptb := &icmp.PacketTooBig{
 				MTU:  mtu,
-				Data: buf[:40],
+				Data: buf[:cn],
 			}
 			if packet, err := CreateICMPv6(buf[8:24], buf[24:40], ipv6.ICMPTypePacketTooBig, 0, ptb); err == nil {
 				_, _ = k.writePC(packet)
@@ -294,15 +286,69 @@ func (k *keyStore) writePC(bs []byte) (int, error) {
 		strErr := fmt.Sprint("incorrect source address: ", net.IP(srcAddr[:]).String())
 		return 0, errors.New(strErr)
 	}
-	buf := make([]byte, 1+len(bs), 65535)
-	buf[0] = typeSessionTraffic
-	copy(buf[1:], bs)
 	if dstAddr.IsValid() {
-		k.sendToAddress(dstAddr, buf)
+		k.sendToAddress(dstAddr, bs)
 	} else if dstSubnet.IsValid() {
-		k.sendToSubnet(dstSubnet, buf)
+		k.sendToSubnet(dstSubnet, bs)
 	} else {
 		return 0, errors.New("invalid destination address")
 	}
 	return len(bs), nil
+}
+
+// Exported API
+
+func (k *keyStore) MaxMTU() uint64 {
+	return k.core.MTU()
+}
+
+func (k *keyStore) SetMTU(mtu uint64) {
+	if mtu > k.MaxMTU() {
+		mtu = k.MaxMTU()
+	}
+	if mtu < 1280 {
+		mtu = 1280
+	}
+	k.mutex.Lock()
+	k.mtu = mtu
+	k.mutex.Unlock()
+}
+
+func (k *keyStore) MTU() uint64 {
+	k.mutex.Lock()
+	mtu := k.mtu
+	k.mutex.Unlock()
+	return mtu
+}
+
+type ReadWriteCloser struct {
+	keyStore
+}
+
+func NewReadWriteCloser(c *core.Core) *ReadWriteCloser {
+	rwc := new(ReadWriteCloser)
+	rwc.init(c)
+	return rwc
+}
+
+func (rwc *ReadWriteCloser) Address() address.Address {
+	return rwc.address
+}
+
+func (rwc *ReadWriteCloser) Subnet() address.Subnet {
+	return rwc.subnet
+}
+
+func (rwc *ReadWriteCloser) Read(p []byte) (n int, err error) {
+	return rwc.readPC(p)
+}
+
+func (rwc *ReadWriteCloser) Write(p []byte) (n int, err error) {
+	return rwc.writePC(p)
+}
+
+func (rwc *ReadWriteCloser) Close() error {
+	err := rwc.core.Close()
+	rwc.core.Stop()
+	return err
 }

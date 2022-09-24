@@ -1,0 +1,131 @@
+name: Yggdrasil
+
+on:
+  push:
+  pull_request:
+  release:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+      - uses: actions/checkout@v3
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          args: --issues-exit-code=1
+
+  codeql:
+    name: Analyse
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: go
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+
+  build-linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        goversion: ["1.17", "1.18", "1.19"]
+
+    name: Build & Test (Linux, Go ${{ matrix.goversion }})
+    needs: [lint]
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.goversion }}
+
+      - name: Build Yggdrasil
+        run: go build -v ./...
+
+      - name: Unit tests
+        run: go test -v ./...
+
+  build-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        goversion: ["1.17", "1.18", "1.19"]
+
+    name: Build & Test (Windows, Go ${{ matrix.goversion }})
+    needs: [lint]
+
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.goversion }}
+
+      - name: Build Yggdrasil
+        run: go build -v ./...
+
+      - name: Unit tests
+        run: go test -v ./...
+
+  build-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        goversion: ["1.17", "1.18", "1.19"]
+
+    name: Build & Test (macOS, Go ${{ matrix.goversion }})
+    needs: [lint]
+
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.goversion }}
+
+      - name: Build Yggdrasil
+        run: go build -v ./...
+
+      - name: Unit tests
+        run: go test -v ./...
+
+  tests-ok:
+    name: All tests passed
+    needs: [lint, codeql, build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: ${{ !cancelled() }}
+    steps:
+      - name: Check all tests passed
+        uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}

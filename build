@@ -9,13 +9,11 @@ PKGVER=${PKGVER:-$(sh contrib/semver/version.sh --bare)}
 LDFLAGS="-X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
 ARGS="-v"
 
-while getopts "uaitc:l:dro:p" option
+while getopts "utc:l:dro:p" option
 do
   case "$option"
   in
   u) UPX=true;;
-  i) IOS=true;;
-  a) ANDROID=true;;
   t) TABLES=true;;
   c) GCFLAGS="$GCFLAGS $OPTARG";;
   l) LDFLAGS="$LDFLAGS $OPTARG";;
@@ -30,25 +28,11 @@ if [ -z $TABLES ] && [ -z $DEBUG ]; then
   LDFLAGS="$LDFLAGS -s -w"
 fi
 
-if [ $IOS ]; then
-  echo "Building framework for iOS"
-  go get golang.org/x/mobile/bind
-  gomobile bind -target ios -tags mobile -o Yggdrasil.framework -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
-    github.com/yggdrasil-network/yggdrasil-extras/src/mobile \
-    github.com/yggdrasil-network/yggdrasil-go/src/config
-elif [ $ANDROID ]; then
-  echo "Building aar for Android"
-  go get golang.org/x/mobile/bind
-  gomobile bind -target android -tags mobile -o yggdrasil.aar -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
-    github.com/yggdrasil-network/yggdrasil-extras/src/mobile \
-    github.com/yggdrasil-network/yggdrasil-go/src/config
-else
-  for CMD in yggdrasil yggdrasilctl ; do
-    echo "Building: $CMD"
-    go build $ARGS -ldflags="$LDFLAGS" -gcflags="$GCFLAGS" ./cmd/$CMD
+for CMD in yggdrasil yggdrasilctl ; do
+  echo "Building: $CMD"
+  go build $ARGS -ldflags="$LDFLAGS" -gcflags="$GCFLAGS" ./cmd/$CMD
 
-    if [ $UPX ]; then
-      upx --brute $CMD
-    fi
-  done
-fi
+  if [ $UPX ]; then
+    upx --brute $CMD
+  fi
+done

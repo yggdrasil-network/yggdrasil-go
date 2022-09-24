@@ -2,70 +2,82 @@ package core
 
 import (
 	"crypto/ed25519"
+	"fmt"
+	"sync/atomic"
+	"time"
+
 	//"encoding/hex"
 	"encoding/json"
 	//"errors"
 	//"fmt"
 	"net"
 	"net/url"
+
 	//"sort"
 	//"time"
 
-	"github.com/gologme/log"
+	"github.com/Arceliar/phony"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	//"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 	//"github.com/Arceliar/phony"
 )
 
-type Self struct {
+type SelfInfo struct {
 	Key    ed25519.PublicKey
 	Root   ed25519.PublicKey
 	Coords []uint64
 }
 
-type Peer struct {
-	Key    ed25519.PublicKey
-	Root   ed25519.PublicKey
-	Coords []uint64
-	Port   uint64
-	Remote string
+type PeerInfo struct {
+	Key     ed25519.PublicKey
+	Root    ed25519.PublicKey
+	Coords  []uint64
+	Port    uint64
+	Remote  string
+	RXBytes uint64
+	TXBytes uint64
+	Uptime  time.Duration
 }
 
-type DHTEntry struct {
+type DHTEntryInfo struct {
 	Key  ed25519.PublicKey
 	Port uint64
 	Rest uint64
 }
 
-type PathEntry struct {
+type PathEntryInfo struct {
 	Key  ed25519.PublicKey
 	Path []uint64
 }
 
-type Session struct {
-	Key ed25519.PublicKey
+type SessionInfo struct {
+	Key     ed25519.PublicKey
+	RXBytes uint64
+	TXBytes uint64
+	Uptime  time.Duration
 }
 
-func (c *Core) GetSelf() Self {
-	var self Self
-	s := c.pc.PacketConn.Debug.GetSelf()
+func (c *Core) GetSelf() SelfInfo {
+	var self SelfInfo
+	s := c.PacketConn.PacketConn.Debug.GetSelf()
 	self.Key = s.Key
 	self.Root = s.Root
 	self.Coords = s.Coords
 	return self
 }
 
-func (c *Core) GetPeers() []Peer {
-	var peers []Peer
+func (c *Core) GetPeers() []PeerInfo {
+	var peers []PeerInfo
 	names := make(map[net.Conn]string)
-	c.links.mutex.Lock()
-	for _, info := range c.links.links {
-		names[info.conn] = info.lname
-	}
-	c.links.mutex.Unlock()
-	ps := c.pc.PacketConn.Debug.GetPeers()
+	phony.Block(&c.links, func() {
+		for _, info := range c.links._links {
+			names[info.conn] = info.lname
+		}
+	})
+	ps := c.PacketConn.PacketConn.Debug.GetPeers()
 	for _, p := range ps {
-		var info Peer
+		var info PeerInfo
 		info.Key = p.Key
 		info.Root = p.Root
 		info.Coords = p.Coords
@@ -74,16 +86,21 @@ func (c *Core) GetPeers() []Peer {
 		if name := names[p.Conn]; name != "" {
 			info.Remote = name
 		}
+		if linkconn, ok := p.Conn.(*linkConn); ok {
+			info.RXBytes = atomic.LoadUint64(&linkconn.rx)
+			info.TXBytes = atomic.LoadUint64(&linkconn.tx)
+			info.Uptime = time.Since(linkconn.up)
+		}
 		peers = append(peers, info)
 	}
 	return peers
 }
 
-func (c *Core) GetDHT() []DHTEntry {
-	var dhts []DHTEntry
-	ds := c.pc.PacketConn.Debug.GetDHT()
+func (c *Core) GetDHT() []DHTEntryInfo {
+	var dhts []DHTEntryInfo
+	ds := c.PacketConn.PacketConn.Debug.GetDHT()
 	for _, d := range ds {
-		var info DHTEntry
+		var info DHTEntryInfo
 		info.Key = d.Key
 		info.Port = d.Port
 		info.Rest = d.Rest
@@ -92,11 +109,11 @@ func (c *Core) GetDHT() []DHTEntry {
 	return dhts
 }
 
-func (c *Core) GetPaths() []PathEntry {
-	var paths []PathEntry
-	ps := c.pc.PacketConn.Debug.GetPaths()
+func (c *Core) GetPaths() []PathEntryInfo {
+	var paths []PathEntryInfo
+	ps := c.PacketConn.PacketConn.Debug.GetPaths()
 	for _, p := range ps {
-		var info PathEntry
+		var info PathEntryInfo
 		info.Key = p.Key
 		info.Path = p.Path
 		paths = append(paths, info)
@@ -104,12 +121,15 @@ func (c *Core) GetPaths() []PathEntry {
 	return paths
 }
 
-func (c *Core) GetSessions() []Session {
-	var sessions []Session
-	ss := c.pc.Debug.GetSessions()
+func (c *Core) GetSessions() []SessionInfo {
+	var sessions []SessionInfo
+	ss := c.PacketConn.Debug.GetSessions()
 	for _, s := range ss {
-		var info Session
+		var info SessionInfo
 		info.Key = s.Key
+		info.RXBytes = s.RX
+		info.TXBytes = s.TX
+		info.Uptime = s.Uptime
 		sessions = append(sessions, info)
 	}
 	return sessions
@@ -118,8 +138,17 @@ func (c *Core) GetSessions() []Session {
 // Listen starts a new listener (either TCP or TLS). The input should be a url.URL
 // parsed from a string of the form e.g. "tcp://a.b.c.d:e". In the case of a
 // link-local address, the interface should be provided as the second argument.
-func (c *Core) Listen(u *url.URL, sintf string) (*TcpListener, error) {
-	return c.links.tcp.listenURL(u, sintf)
+func (c *Core) Listen(u *url.URL, sintf string) (*Listener, error) {
+	switch u.Scheme {
+	case "tcp":
+		return c.links.tcp.listen(u, sintf)
+	case "tls":
+		return c.links.tls.listen(u, sintf)
+	case "unix":
+		return c.links.unix.listen(u, sintf)
+	default:
+		return nil, fmt.Errorf("unrecognised scheme %q", u.Scheme)
+	}
 }
 
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128
@@ -147,7 +176,7 @@ func (c *Core) Subnet() net.IPNet {
 // may be useful if you want to redirect the output later. Note that this
 // expects a Logger from the github.com/gologme/log package and not from Go's
 // built-in log package.
-func (c *Core) SetLogger(log *log.Logger) {
+func (c *Core) SetLogger(log util.Logger) {
 	c.log = log
 }
 
@@ -227,8 +256,10 @@ func (c *Core) RemovePeer(addr string, sintf string) error {
 
 // CallPeer calls a peer once. This should be specified in the peer URI format,
 // e.g.:
-// 		tcp://a.b.c.d:e
-//		socks://a.b.c.d:e/f.g.h.i:j
+//
+//	tcp://a.b.c.d:e
+//	socks://a.b.c.d:e/f.g.h.i:j
+//
 // This does not add the peer to the peer list, so if the connection drops, the
 // peer will not be called again automatically.
 func (c *Core) CallPeer(u *url.URL, sintf string) error {
@@ -239,62 +270,39 @@ func (c *Core) PublicKey() ed25519.PublicKey {
 	return c.public
 }
 
-func (c *Core) MaxMTU() uint64 {
-	return c.store.maxSessionMTU()
-}
-
-func (c *Core) SetMTU(mtu uint64) {
-	if mtu < 1280 {
-		mtu = 1280
-	}
-	c.store.mutex.Lock()
-	c.store.mtu = mtu
-	c.store.mutex.Unlock()
-}
-
-func (c *Core) MTU() uint64 {
-	c.store.mutex.Lock()
-	mtu := c.store.mtu
-	c.store.mutex.Unlock()
-	return mtu
-}
-
-// Implement io.ReadWriteCloser
-
-func (c *Core) Read(p []byte) (n int, err error) {
-	n, err = c.store.readPC(p)
-	return
-}
-
-func (c *Core) Write(p []byte) (n int, err error) {
-	n, err = c.store.writePC(p)
-	return
-}
-
-func (c *Core) Close() error {
-	c.Stop()
-	return nil
-}
-
 // Hack to get the admin stuff working, TODO something cleaner
 
 type AddHandler interface {
-	AddHandler(name string, args []string, handlerfunc func(json.RawMessage) (interface{}, error)) error
+	AddHandler(name, desc string, args []string, handlerfunc AddHandlerFunc) error
 }
+
+type AddHandlerFunc func(json.RawMessage) (interface{}, error)
 
 // SetAdmin must be called after Init and before Start.
 // It sets the admin handler for NodeInfo and the Debug admin functions.
 func (c *Core) SetAdmin(a AddHandler) error {
-	if err := a.AddHandler("getNodeInfo", []string{"key"}, c.proto.nodeinfo.nodeInfoAdminHandler); err != nil {
+	if err := a.AddHandler(
+		"getNodeInfo", "Request nodeinfo from a remote node by its public key", []string{"key"},
+		c.proto.nodeinfo.nodeInfoAdminHandler,
+	); err != nil {
 		return err
 	}
-	if err := a.AddHandler("debug_remoteGetSelf", []string{"key"}, c.proto.getSelfHandler); err != nil {
+	if err := a.AddHandler(
+		"debug_remoteGetSelf", "Debug use only", []string{"key"},
+		c.proto.getSelfHandler,
+	); err != nil {
 		return err
 	}
-	if err := a.AddHandler("debug_remoteGetPeers", []string{"key"}, c.proto.getPeersHandler); err != nil {
+	if err := a.AddHandler(
+		"debug_remoteGetPeers", "Debug use only", []string{"key"},
+		c.proto.getPeersHandler,
+	); err != nil {
 		return err
 	}
-	if err := a.AddHandler("debug_remoteGetDHT", []string{"key"}, c.proto.getDHTHandler); err != nil {
+	if err := a.AddHandler(
+		"debug_remoteGetDHT", "Debug use only", []string{"key"},
+		c.proto.getDHTHandler,
+	); err != nil {
 		return err
 	}
 	return nil

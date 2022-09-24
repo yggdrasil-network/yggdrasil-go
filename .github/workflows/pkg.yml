@@ -1,0 +1,137 @@
+name: Packages
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-packages-debian:
+    strategy:
+      fail-fast: false
+      matrix:
+        pkgarch: ["amd64", "i386", "mips", "mipsel", "armhf", "armel", "arm64"]
+
+    name: Package (Debian, ${{ matrix.pkgarch }})
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+
+      - name: Build package
+        env:
+          PKGARCH: ${{ matrix.pkgarch }}
+        run: sh contrib/deb/generate.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: Debian package (${{ matrix.pkgarch }})
+          path: "*.deb"
+          if-no-files-found: error
+
+  build-packages-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        pkgarch: ["amd64", "arm64"]
+
+    name: Package (macOS, ${{ matrix.pkgarch }})
+
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+
+      - name: Build package
+        env:
+          PKGARCH: ${{ matrix.pkgarch }}
+        run: sh contrib/macos/create-pkg.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: macOS package (${{ matrix.pkgarch }})
+          path: "*.pkg"
+          if-no-files-found: error
+
+  build-packages-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        pkgarch: ["x64", "x86", "arm", "arm64"]
+
+    name: Package (Windows, ${{ matrix.pkgarch }})
+
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+
+      - name: Build package
+        run: sh contrib/msi/build-msi.sh ${{ matrix.pkgarch }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: Windows package (${{ matrix.pkgarch }})
+          path: "*.msi"
+          if-no-files-found: error
+
+  build-packages-router:
+    strategy:
+      fail-fast: false
+      matrix:
+        pkgarch: ["edgerouter-x", "edgerouter-lite", "vyos-amd64", "vyos-i386"]
+
+    name: Package (Router, ${{ matrix.pkgarch }})
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          path: yggdrasil
+
+      - uses: actions/checkout@v3
+        with:
+          repository: neilalexander/vyatta-yggdrasil
+          path: vyatta-yggdrasil
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19
+
+      - name: Build package
+        env:
+          BUILDDIR_YGG: /home/runner/work/yggdrasil-go/yggdrasil-go/yggdrasil
+        run: cd /home/runner/work/yggdrasil-go/yggdrasil-go/vyatta-yggdrasil && ./build-${{ matrix.pkgarch }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: Router package (${{ matrix.pkgarch }})
+          path: "/home/runner/work/yggdrasil-go/yggdrasil-go/vyatta-yggdrasil/*.deb"
+          if-no-files-found: error

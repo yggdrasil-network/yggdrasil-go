@@ -9,13 +9,11 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"regexp"
 	"time"
 
 	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 	"golang.org/x/net/ipv6"
 )
@@ -27,13 +25,15 @@ import (
 type Multicast struct {
 	phony.Inbox
 	core        *core.Core
-	config      *config.NodeConfig
 	log         *log.Logger
 	sock        *ipv6.PacketConn
-	groupAddr   string
-	listeners   map[string]*listenerInfo
-	isOpen      bool
-	_interfaces map[string]interfaceInfo
+	_isOpen     bool
+	_listeners  map[string]*listenerInfo
+	_interfaces map[string]*interfaceInfo
+	config      struct {
+		_groupAddr  GroupAddress
+		_interfaces map[MulticastInterface]struct{}
+	}
 }
 
 type interfaceInfo struct {
@@ -45,46 +45,44 @@ type interfaceInfo struct {
 }
 
 type listenerInfo struct {
-	listener *core.TcpListener
+	listener *core.Listener
 	time     time.Time
 	interval time.Duration
 	port     uint16
 }
 
-// Init prepares the multicast interface for use.
-func (m *Multicast) Init(core *core.Core, nc *config.NodeConfig, log *log.Logger, options interface{}) error {
-	m.core = core
-	m.config = nc
-	m.log = log
-	m.listeners = make(map[string]*listenerInfo)
-	m._interfaces = make(map[string]interfaceInfo)
-	m.groupAddr = "[ff02::114]:9001"
-	return nil
-}
-
 // Start starts the multicast interface. This launches goroutines which will
 // listen for multicast beacons from other hosts and will advertise multicast
 // beacons out to the network.
-func (m *Multicast) Start() error {
+func New(core *core.Core, log *log.Logger, opts ...SetupOption) (*Multicast, error) {
+	m := &Multicast{
+		core:        core,
+		log:         log,
+		_listeners:  make(map[string]*listenerInfo),
+		_interfaces: make(map[string]*interfaceInfo),
+	}
+	m.config._interfaces = map[MulticastInterface]struct{}{}
+	m.config._groupAddr = GroupAddress("[ff02::114]:9001")
+	for _, opt := range opts {
+		m._applyOption(opt)
+	}
 	var err error
 	phony.Block(m, func() {
 		err = m._start()
 	})
-	m.log.Debugln("Started multicast module")
-	return err
+	return m, err
 }
 
 func (m *Multicast) _start() error {
-	if m.isOpen {
+	if m._isOpen {
 		return fmt.Errorf("multicast module is already started")
 	}
-	m.config.RLock()
-	defer m.config.RUnlock()
-	if len(m.config.MulticastInterfaces) == 0 {
+	if len(m.config._interfaces) == 0 {
 		return nil
 	}
-	m.log.Infoln("Starting multicast module")
-	addr, err := net.ResolveUDPAddr("udp", m.groupAddr)
+	m.log.Debugln("Starting multicast module")
+	defer m.log.Debugln("Started multicast module")
+	addr, err := net.ResolveUDPAddr("udp", string(m.config._groupAddr))
 	if err != nil {
 		return err
 	}
@@ -101,7 +99,7 @@ func (m *Multicast) _start() error {
 		// Windows can't set this flag, so we need to handle it in other ways
 	}
 
-	m.isOpen = true
+	m._isOpen = true
 	go m.listen()
 	m.Act(nil, m._multicastStarted)
 	m.Act(nil, m._announce)
@@ -113,7 +111,7 @@ func (m *Multicast) _start() error {
 func (m *Multicast) IsStarted() bool {
 	var isOpen bool
 	phony.Block(m, func() {
-		isOpen = m.isOpen
+		isOpen = m._isOpen
 	})
 	return isOpen
 }
@@ -130,7 +128,7 @@ func (m *Multicast) Stop() error {
 
 func (m *Multicast) _stop() error {
 	m.log.Infoln("Stopping multicast module")
-	m.isOpen = false
+	m._isOpen = false
 	if m.sock != nil {
 		m.sock.Close()
 	}
@@ -138,7 +136,7 @@ func (m *Multicast) _stop() error {
 }
 
 func (m *Multicast) _updateInterfaces() {
-	interfaces := m.getAllowedInterfaces()
+	interfaces := m._getAllowedInterfaces()
 	for name, info := range interfaces {
 		addrs, err := info.iface.Addrs()
 		if err != nil {
@@ -163,10 +161,8 @@ func (m *Multicast) Interfaces() map[string]net.Interface {
 }
 
 // getAllowedInterfaces returns the currently known/enabled multicast interfaces.
-func (m *Multicast) getAllowedInterfaces() map[string]interfaceInfo {
-	interfaces := make(map[string]interfaceInfo)
-	// Get interface expressions from config
-	ifcfgs := m.config.MulticastInterfaces
+func (m *Multicast) _getAllowedInterfaces() map[string]*interfaceInfo {
+	interfaces := make(map[string]*interfaceInfo)
 	// Ask the system for network interfaces
 	allifaces, err := net.Interfaces()
 	if err != nil {
@@ -176,62 +172,55 @@ func (m *Multicast) getAllowedInterfaces() map[string]interfaceInfo {
 	}
 	// Work out which interfaces to announce on
 	for _, iface := range allifaces {
-		if iface.Flags&net.FlagUp == 0 {
-			// Ignore interfaces that are down
-			continue
+		switch {
+		case iface.Flags&net.FlagUp == 0:
+			continue // Ignore interfaces that are down
+		case iface.Flags&net.FlagMulticast == 0:
+			continue // Ignore non-multicast interfaces
+		case iface.Flags&net.FlagPointToPoint != 0:
+			continue // Ignore point-to-point interfaces
 		}
-		if iface.Flags&net.FlagMulticast == 0 {
-			// Ignore non-multicast interfaces
-			continue
-		}
-		if iface.Flags&net.FlagPointToPoint != 0 {
-			// Ignore point-to-point interfaces
-			continue
-		}
-		for _, ifcfg := range ifcfgs {
+		for ifcfg := range m.config._interfaces {
 			// Compile each regular expression
-			e, err := regexp.Compile(ifcfg.Regex)
-			if err != nil {
-				panic(err)
-			}
 			// Does the interface match the regular expression? Store it if so
-			if e.MatchString(iface.Name) {
-				if ifcfg.Beacon || ifcfg.Listen {
-					info := interfaceInfo{
-						iface:  iface,
-						beacon: ifcfg.Beacon,
-						listen: ifcfg.Listen,
-						port:   ifcfg.Port,
-					}
-					interfaces[iface.Name] = info
-				}
-				break
+			if !ifcfg.Beacon && !ifcfg.Listen {
+				continue
 			}
+			if !ifcfg.Regex.MatchString(iface.Name) {
+				continue
+			}
+			interfaces[iface.Name] = &interfaceInfo{
+				iface:  iface,
+				beacon: ifcfg.Beacon,
+				listen: ifcfg.Listen,
+				port:   ifcfg.Port,
+			}
+			break
 		}
 	}
 	return interfaces
 }
 
 func (m *Multicast) _announce() {
-	if !m.isOpen {
+	if !m._isOpen {
 		return
 	}
 	m._updateInterfaces()
-	groupAddr, err := net.ResolveUDPAddr("udp6", m.groupAddr)
+	groupAddr, err := net.ResolveUDPAddr("udp6", string(m.config._groupAddr))
 	if err != nil {
 		panic(err)
 	}
-	destAddr, err := net.ResolveUDPAddr("udp6", m.groupAddr)
+	destAddr, err := net.ResolveUDPAddr("udp6", string(m.config._groupAddr))
 	if err != nil {
 		panic(err)
 	}
 	// There might be interfaces that we configured listeners for but are no
 	// longer up - if that's the case then we should stop the listeners
-	for name, info := range m.listeners {
+	for name, info := range m._listeners {
 		// Prepare our stop function!
 		stop := func() {
-			info.listener.Stop()
-			delete(m.listeners, name)
+			info.listener.Close()
+			delete(m._listeners, name)
 			m.log.Debugln("No longer multicasting on", name)
 		}
 		// If the interface is no longer visible on the system then stop the
@@ -290,7 +279,7 @@ func (m *Multicast) _announce() {
 			}
 			// Try and see if we already have a TCP listener for this interface
 			var linfo *listenerInfo
-			if nfo, ok := m.listeners[iface.Name]; !ok || nfo.listener.Listener == nil {
+			if nfo, ok := m._listeners[iface.Name]; !ok || nfo.listener.Listener == nil {
 				// No listener was found - let's create one
 				urlString := fmt.Sprintf("tls://[%s]:%d", addrIP, info.port)
 				u, err := url.Parse(urlString)
@@ -300,14 +289,14 @@ func (m *Multicast) _announce() {
 				if li, err := m.core.Listen(u, iface.Name); err == nil {
 					m.log.Debugln("Started multicasting on", iface.Name)
 					// Store the listener so that we can stop it later if needed
-					linfo = &listenerInfo{listener: li, time: time.Now()}
-					m.listeners[iface.Name] = linfo
+					linfo = &listenerInfo{listener: li, time: time.Now(), port: info.port}
+					m._listeners[iface.Name] = linfo
 				} else {
 					m.log.Warnln("Not multicasting on", iface.Name, "due to error:", err)
 				}
 			} else {
 				// An existing listener was found
-				linfo = m.listeners[iface.Name]
+				linfo = m._listeners[iface.Name]
 			}
 			// Make sure nothing above failed for some reason
 			if linfo == nil {
@@ -340,7 +329,7 @@ func (m *Multicast) _announce() {
 }
 
 func (m *Multicast) listen() {
-	groupAddr, err := net.ResolveUDPAddr("udp6", m.groupAddr)
+	groupAddr, err := net.ResolveUDPAddr("udp6", string(m.config._groupAddr))
 	if err != nil {
 		panic(err)
 	}
@@ -388,7 +377,7 @@ func (m *Multicast) listen() {
 		if !from.IP.Equal(addr.IP) {
 			continue
 		}
-		var interfaces map[string]interfaceInfo
+		var interfaces map[string]*interfaceInfo
 		phony.Block(m, func() {
 			interfaces = m._interfaces
 		})

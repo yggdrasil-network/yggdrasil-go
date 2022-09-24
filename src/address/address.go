@@ -64,7 +64,7 @@ func AddrForKey(publicKey ed25519.PublicKey) *Address {
 		buf[idx] = ^buf[idx]
 	}
 	var addr Address
-	var temp []byte
+	var temp = make([]byte, 0, 32)
 	done := false
 	ones := byte(0)
 	bits := byte(0)
@@ -108,7 +108,7 @@ func SubnetForKey(publicKey ed25519.PublicKey) *Subnet {
 	}
 	var snet Subnet
 	copy(snet[:], addr[:])
-	prefix := GetPrefix()
+	prefix := GetPrefix() // nolint:staticcheck
 	snet[len(prefix)-1] |= 0x01
 	return &snet
 }
@@ -117,7 +117,7 @@ func SubnetForKey(publicKey ed25519.PublicKey) *Subnet {
 // This is used for key lookup.
 func (a *Address) GetKey() ed25519.PublicKey {
 	var key [ed25519.PublicKeySize]byte
-	prefix := GetPrefix()
+	prefix := GetPrefix() // nolint:staticcheck
 	ones := int(a[len(prefix)])
 	for idx := 0; idx < ones; idx++ {
 		key[idx/8] |= 0x80 >> byte(idx%8)
@@ -129,7 +129,11 @@ func (a *Address) GetKey() ed25519.PublicKey {
 		bits <<= byte(idx % 8)
 		keyIdx := keyOffset + (idx - addrOffset)
 		bits >>= byte(keyIdx % 8)
-		key[keyIdx/8] |= bits
+		idx := keyIdx / 8
+		if idx >= len(key) {
+			break
+		}
+		key[idx] |= bits
 	}
 	for idx := range key {
 		key[idx] = ^key[idx]

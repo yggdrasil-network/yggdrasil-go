@@ -1,7 +1,6 @@
 # Yggdrasil
 
-[![CircleCI](https://circleci.com/gh/yggdrasil-network/yggdrasil-go.svg?style=shield&circle-token=:circle-token
-)](https://circleci.com/gh/yggdrasil-network/yggdrasil-go)
+[![Build status](https://github.com/yggdrasil-network/yggdrasil-go/actions/workflows/ci.yml/badge.svg)](https://github.com/yggdrasil-network/yggdrasil-go/actions/workflows/ci.yml)
 
 ## Introduction
 
@@ -16,7 +15,7 @@ connectivity - it also works over IPv4.
 Yggdrasil works on a number of platforms, including Linux, macOS, Ubiquiti
 EdgeRouter, VyOS, Windows, FreeBSD, OpenBSD and OpenWrt.
 
-Please see our [Installation](https://yggdrasil-network.github.io/installation.html) 
+Please see our [Installation](https://yggdrasil-network.github.io/installation.html)
 page for more information. You may also find other platform-specific wrappers, scripts
 or tools in the `contrib` folder.
 
@@ -25,7 +24,7 @@ or tools in the `contrib` folder.
 If you want to build from source, as opposed to installing one of the pre-built
 packages:
 
-1. Install [Go](https://golang.org) (requires Go 1.16 or later)
+1. Install [Go](https://golang.org) (requires Go 1.17 or later)
 2. Clone this repository
 2. Run `./build`
 
@@ -57,6 +56,7 @@ other configuration such as listen addresses or multicast addresses, etc.
 ### Run Yggdrasil
 
 To run with the generated static configuration:
+
 ```
 ./yggdrasil -useconffile /path/to/yggdrasil.conf
 ```
