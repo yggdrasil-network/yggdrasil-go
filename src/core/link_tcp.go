@@ -89,7 +89,7 @@ func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
-		listener.Close()
+		_ = listener.Close()
 		close(entry.closed)
 		l.core.log.Printf("TCP listener stopped on %s", listener.Addr())
 	}()

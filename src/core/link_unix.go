@@ -79,7 +79,7 @@ func (l *linkUNIX) listen(url *url.URL, _ string) (*Listener, error) {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
-		listener.Close()
+		_ = listener.Close()
 		close(entry.closed)
 		l.core.log.Printf("UNIX listener stopped on %s", listener.Addr())
 	}()

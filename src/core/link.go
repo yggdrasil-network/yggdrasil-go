@@ -82,23 +82,22 @@ func (l *links) init(c *Core) error {
 	return nil
 }
 
-func (l *links) shutdown() error {
+func (l *links) shutdown() {
 	phony.Block(l.tcp, func() {
 		for l := range l.tcp._listeners {
-			l.Close()
+			_ = l.Close()
 		}
 	})
 	phony.Block(l.tls, func() {
 		for l := range l.tls._listeners {
-			l.Close()
+			_ = l.Close()
 		}
 	})
 	phony.Block(l.unix, func() {
 		for l := range l.unix._listeners {
-			l.Close()
+			_ = l.Close()
 		}
 	})
-	return nil
 }
 
 func (l *links) isConnectedTo(info linkInfo) bool {
@@ -216,7 +215,7 @@ func (l *links) create(conn net.Conn, name string, info linkInfo, incoming, forc
 }
 
 func (intf *link) handler() error {
-	defer intf.conn.Close()
+	defer intf.conn.Close() // nolint:errcheck
 
 	// Don't connect to this link more than once.
 	if intf.links.isConnectedTo(intf.info) {
@@ -249,7 +248,7 @@ func (intf *link) handler() error {
 	if _, err = io.ReadFull(intf.conn, metaBytes); err != nil {
 		return fmt.Errorf("read handshake: %w", err)
 	}
-	if err := intf.conn.SetDeadline(time.Time{}); err != nil {
+	if err = intf.conn.SetDeadline(time.Time{}); err != nil {
 		return fmt.Errorf("failed to clear handshake deadline: %w", err)
 	}
 	meta = version_metadata{}
@@ -294,7 +293,7 @@ func (intf *link) handler() error {
 	if intf.incoming && !intf.force && !isallowed {
 		intf.links.core.log.Warnf("%s connection from %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
 			strings.ToUpper(intf.info.linkType), intf.info.remote, hex.EncodeToString(meta.key))
-		intf.close()
+		_ = intf.close()
 		return fmt.Errorf("forbidden connection")
 	}
 

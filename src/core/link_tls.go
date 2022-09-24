@@ -112,7 +112,7 @@ func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
-		tlslistener.Close()
+		_ = tlslistener.Close()
 		close(entry.closed)
 		l.core.log.Printf("TLS listener stopped on %s", listener.Addr())
 	}()

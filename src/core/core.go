@@ -127,7 +127,7 @@ func (c *Core) _addPeerLoop() {
 func (c *Core) Stop() {
 	phony.Block(c, func() {
 		c.log.Infoln("Stopping...")
-		c._close()
+		_ = c._close()
 		c.log.Infoln("Stopped")
 	})
 }
@@ -135,7 +135,7 @@ func (c *Core) Stop() {
 // This function is unsafe and should only be ran by the core actor.
 func (c *Core) _close() error {
 	c.cancel()
-	_ = c.links.shutdown()
+	c.links.shutdown()
 	err := c.PacketConn.Close()
 	if c.addPeerTimer != nil {
 		c.addPeerTimer.Stop()
