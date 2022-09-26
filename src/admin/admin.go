@@ -174,6 +174,34 @@ func (a *AdminSocket) SetupAdminHandlers() {
 			return res, nil
 		},
 	)
+	_ = a.AddHandler(
+		"addPeer", "Add a peer to the peer list", []string{"uri", "interface"},
+		func(in json.RawMessage) (interface{}, error) {
+			req := &AddPeerRequest{}
+			res := &AddPeerResponse{}
+			if err := json.Unmarshal(in, &req); err != nil {
+				return nil, err
+			}
+			if err := a.addPeerHandler(req, res); err != nil {
+				return nil, err
+			}
+			return res, nil
+		},
+	)
+	_ = a.AddHandler(
+		"removePeer", "Remove a peer from the peer list", []string{"uri", "interface"},
+		func(in json.RawMessage) (interface{}, error) {
+			req := &RemovePeerRequest{}
+			res := &RemovePeerResponse{}
+			if err := json.Unmarshal(in, &req); err != nil {
+				return nil, err
+			}
+			if err := a.removePeerHandler(req, res); err != nil {
+				return nil, err
+			}
+			return res, nil
+		},
+	)
 	//_ = a.AddHandler("getNodeInfo", []string{"key"}, t.proto.nodeinfo.nodeInfoAdminHandler)
 	//_ = a.AddHandler("debug_remoteGetSelf", []string{"key"}, t.proto.getSelfHandler)
 	//_ = a.AddHandler("debug_remoteGetPeers", []string{"key"}, t.proto.getPeersHandler)

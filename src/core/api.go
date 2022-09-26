@@ -185,74 +185,29 @@ func (c *Core) SetLogger(log util.Logger) {
 //		socks://a.b.c.d:e/f.g.h.i:j
 // This adds the peer to the peer list, so that they will be called again if the
 // connection drops.
-/*
-func (c *Core) AddPeer(addr string, sintf string) error {
-	if err := c.CallPeer(addr, sintf); err != nil {
-		// TODO: We maybe want this to write the peer to the persistent
-		// configuration even if a connection attempt fails, but first we'll need to
-		// move the code to check the peer URI so that we don't deliberately save a
-		// peer with a known bad URI. Loading peers from config should really do the
-		// same thing too but I don't think that happens today
+func (c *Core) AddPeer(uri string, sourceInterface string) error {
+	u, err := url.Parse(uri)
+	if err != nil {
 		return err
 	}
-	c.config.Mutex.Lock()
-	defer c.config.Mutex.Unlock()
-	if sintf == "" {
-		for _, peer := range c.config.Current.Peers {
-			if peer == addr {
-				return errors.New("peer already added")
-			}
-		}
-		c.config.Current.Peers = append(c.config.Current.Peers, addr)
-	} else {
-		if _, ok := c.config.Current.InterfacePeers[sintf]; ok {
-			for _, peer := range c.config.Current.InterfacePeers[sintf] {
-				if peer == addr {
-					return errors.New("peer already added")
-				}
-			}
-		}
-		if _, ok := c.config.Current.InterfacePeers[sintf]; !ok {
-			c.config.Current.InterfacePeers[sintf] = []string{addr}
-		} else {
-			c.config.Current.InterfacePeers[sintf] = append(c.config.Current.InterfacePeers[sintf], addr)
-		}
+	err = c.CallPeer(u, sourceInterface)
+	if err != nil {
+		return err
 	}
-	return nil
-}
-*/
-
-/*
-func (c *Core) RemovePeer(addr string, sintf string) error {
-	if sintf == "" {
-		for i, peer := range c.config.Current.Peers {
-			if peer == addr {
-				c.config.Current.Peers = append(c.config.Current.Peers[:i], c.config.Current.Peers[i+1:]...)
-				break
-			}
-		}
-	} else if _, ok := c.config.Current.InterfacePeers[sintf]; ok {
-		for i, peer := range c.config.Current.InterfacePeers[sintf] {
-			if peer == addr {
-				c.config.Current.InterfacePeers[sintf] = append(c.config.Current.InterfacePeers[sintf][:i], c.config.Current.InterfacePeers[sintf][i+1:]...)
-				break
-			}
-		}
-	}
-
-	panic("TODO") // Get the net.Conn to this peer (if any) and close it
-	c.peers.Act(nil, func() {
-		ports := c.peers.ports
-		for _, peer := range ports {
-			if addr == peer.intf.name() {
-				c.peers._removePeer(peer)
-			}
-		}
+	phony.Block(c, func() {
+		c.config._peers[Peer{uri, sourceInterface}] = struct{}{}
 	})
-
 	return nil
 }
-*/
+
+// RemovePeer removes a peer. The peer should be specified in URI format, see AddPeer.
+// The peer is not disconnected immediately.
+func (c *Core) RemovePeer(uri string, sourceInterface string) error {
+	phony.Block(c, func() {
+		delete(c.config._peers, Peer{uri, sourceInterface})
+	})
+	return nil
+}
 
 // CallPeer calls a peer once. This should be specified in the peer URI format,
 // e.g.:
