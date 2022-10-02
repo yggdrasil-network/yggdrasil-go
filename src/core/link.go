@@ -219,7 +219,7 @@ func (intf *link) handler() error {
 
 	// Don't connect to this link more than once.
 	if intf.links.isConnectedTo(intf.info) {
-		return fmt.Errorf("already connected to this node")
+		return nil
 	}
 
 	// Mark the connection as in progress.
