@@ -36,7 +36,7 @@ type Core struct {
 	log          util.Logger
 	addPeerTimer *time.Timer
 	config       struct {
-		_peers             map[Peer]struct{}          // configurable after startup
+		_peers             map[Peer]*linkInfo         // configurable after startup
 		_listeners         map[ListenAddress]struct{} // configurable after startup
 		nodeinfo           NodeInfo                   // immutable after startup
 		nodeinfoPrivacy    NodeInfoPrivacy            // immutable after startup
@@ -66,7 +66,7 @@ func New(secret ed25519.PrivateKey, logger util.Logger, opts ...SetupOption) (*C
 	if c.PacketConn, err = iwe.NewPacketConn(c.secret); err != nil {
 		return nil, fmt.Errorf("error creating encryption: %w", err)
 	}
-	c.config._peers = map[Peer]struct{}{}
+	c.config._peers = map[Peer]*linkInfo{}
 	c.config._listeners = map[ListenAddress]struct{}{}
 	c.config._allowedPublicKeys = map[[32]byte]struct{}{}
 	for _, opt := range opts {
