@@ -188,6 +188,13 @@ func (c *Core) SetLogger(log util.Logger) {
 // This adds the peer to the peer list, so that they will be called again if the
 // connection drops.
 func (c *Core) AddPeer(uri string, sourceInterface string) error {
+	var known bool
+	phony.Block(c, func() {
+		_, known = c.config._peers[Peer{uri, sourceInterface}]
+	})
+	if known {
+		return fmt.Errorf("peer already configured")
+	}
 	u, err := url.Parse(uri)
 	if err != nil {
 		return err
