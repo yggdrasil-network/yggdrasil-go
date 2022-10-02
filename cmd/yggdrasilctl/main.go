@@ -174,16 +174,16 @@ func run() int {
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
-		table.SetHeader([]string{"Port", "Public Key", "IP Address", "Peering URI", "Uptime", "RX", "TX"})
+		table.SetHeader([]string{"Port", "Public Key", "IP Address", "Uptime", "RX", "TX", "URI"})
 		for _, peer := range resp.Peers {
 			table.Append([]string{
 				fmt.Sprintf("%d", peer.Port),
 				peer.PublicKey,
 				peer.IPAddress,
-				peer.Remote,
 				(time.Duration(peer.Uptime) * time.Second).String(),
 				peer.RXBytes.String(),
 				peer.TXBytes.String(),
+				peer.Remote,
 			})
 		}
 		table.Render()
@@ -268,6 +268,8 @@ func run() int {
 			table.Append([]string{"Interface MTU:", fmt.Sprintf("%d", resp.MTU)})
 		}
 		table.Render()
+
+	case "addpeer", "removepeer":
 
 	default:
 		fmt.Println(string(recv.Response))
