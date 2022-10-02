@@ -7,7 +7,7 @@ import (
 func (c *Core) _applyOption(opt SetupOption) {
 	switch v := opt.(type) {
 	case Peer:
-		c.config._peers[v] = struct{}{}
+		c.config._peers[v] = nil
 	case ListenAddress:
 		c.config._listeners[v] = struct{}{}
 	case NodeInfo:

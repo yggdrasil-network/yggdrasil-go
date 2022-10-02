@@ -181,8 +181,10 @@ func (c *Core) SetLogger(log util.Logger) {
 }
 
 // AddPeer adds a peer. This should be specified in the peer URI format, e.g.:
-// 		tcp://a.b.c.d:e
-//		socks://a.b.c.d:e/f.g.h.i:j
+//
+//	tcp://a.b.c.d:e
+//	socks://a.b.c.d:e/f.g.h.i:j
+//
 // This adds the peer to the peer list, so that they will be called again if the
 // connection drops.
 func (c *Core) AddPeer(uri string, sourceInterface string) error {
@@ -190,12 +192,12 @@ func (c *Core) AddPeer(uri string, sourceInterface string) error {
 	if err != nil {
 		return err
 	}
-	err = c.CallPeer(u, sourceInterface)
+	info, err := c.links.call(u, sourceInterface)
 	if err != nil {
 		return err
 	}
 	phony.Block(c, func() {
-		c.config._peers[Peer{uri, sourceInterface}] = struct{}{}
+		c.config._peers[Peer{uri, sourceInterface}] = &info
 	})
 	return nil
 }
@@ -203,10 +205,24 @@ func (c *Core) AddPeer(uri string, sourceInterface string) error {
 // RemovePeer removes a peer. The peer should be specified in URI format, see AddPeer.
 // The peer is not disconnected immediately.
 func (c *Core) RemovePeer(uri string, sourceInterface string) error {
+	var err error
 	phony.Block(c, func() {
-		delete(c.config._peers, Peer{uri, sourceInterface})
+		peer := Peer{uri, sourceInterface}
+		linkInfo, ok := c.config._peers[peer]
+		if !ok {
+			err = fmt.Errorf("peer not configured")
+			return
+		}
+		if ok && linkInfo != nil {
+			c.links.Act(nil, func() {
+				if link := c.links._links[*linkInfo]; link != nil {
+					_ = link.close()
+				}
+			})
+		}
+		delete(c.config._peers, peer)
 	})
-	return nil
+	return err
 }
 
 // CallPeer calls a peer once. This should be specified in the peer URI format,
@@ -218,7 +234,8 @@ func (c *Core) RemovePeer(uri string, sourceInterface string) error {
 // This does not add the peer to the peer list, so if the connection drops, the
 // peer will not be called again automatically.
 func (c *Core) CallPeer(u *url.URL, sintf string) error {
-	return c.links.call(u, sintf)
+	_, err := c.links.call(u, sintf)
+	return err
 }
 
 func (c *Core) PublicKey() ed25519.PublicKey {
