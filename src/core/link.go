@@ -9,15 +9,11 @@ import (
 	"net"
 	"net/url"
 	"strings"
-
-	//"sync/atomic"
-	"time"
-
 	"sync/atomic"
+	"time"
 
 	"github.com/Arceliar/phony"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	//"github.com/Arceliar/phony" // TODO? use instead of mutexes
 )
 
 type links struct {
@@ -28,7 +24,6 @@ type links struct {
 	unix   *linkUNIX          // UNIX interface support
 	socks  *linkSOCKS         // SOCKS interface support
 	_links map[linkInfo]*link // *link is nil if connection in progress
-	// TODO timeout (to remove from switch), read from config.ReadTimeout
 }
 
 // linkInfo is used as a map key

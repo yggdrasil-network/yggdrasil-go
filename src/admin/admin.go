@@ -13,14 +13,13 @@ import (
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 )
 
 // TODO: Add authentication
 
 type AdminSocket struct {
 	core     *core.Core
-	log      util.Logger
+	log      core.Logger
 	listener net.Listener
 	handlers map[string]handler
 	done     chan struct{}
@@ -72,7 +71,7 @@ func (a *AdminSocket) AddHandler(name, desc string, args []string, handlerfunc c
 }
 
 // Init runs the initial admin setup.
-func New(c *core.Core, log util.Logger, opts ...SetupOption) (*AdminSocket, error) {
+func New(c *core.Core, log core.Logger, opts ...SetupOption) (*AdminSocket, error) {
 	a := &AdminSocket{
 		core:     c,
 		log:      log,

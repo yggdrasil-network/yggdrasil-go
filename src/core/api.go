@@ -2,25 +2,15 @@ package core
 
 import (
 	"crypto/ed25519"
+	"encoding/json"
 	"fmt"
+	"net"
+	"net/url"
 	"sync/atomic"
 	"time"
 
-	//"encoding/hex"
-	"encoding/json"
-	//"errors"
-	//"fmt"
-	"net"
-	"net/url"
-
-	//"sort"
-	//"time"
-
 	"github.com/Arceliar/phony"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
-	//"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
-	//"github.com/Arceliar/phony"
 )
 
 type SelfInfo struct {
@@ -176,7 +166,7 @@ func (c *Core) Subnet() net.IPNet {
 // may be useful if you want to redirect the output later. Note that this
 // expects a Logger from the github.com/gologme/log package and not from Go's
 // built-in log package.
-func (c *Core) SetLogger(log util.Logger) {
+func (c *Core) SetLogger(log Logger) {
 	c.log = log
 }
 

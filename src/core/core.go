@@ -14,9 +14,7 @@ import (
 	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/util"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
-	//"github.com/yggdrasil-network/yggdrasil-go/src/crypto"
 )
 
 // The Core object represents the Yggdrasil node. You should create a Core
@@ -33,7 +31,7 @@ type Core struct {
 	public       ed25519.PublicKey
 	links        links
 	proto        protoHandler
-	log          util.Logger
+	log          Logger
 	addPeerTimer *time.Timer
 	config       struct {
 		_peers             map[Peer]*linkInfo         // configurable after startup
@@ -44,7 +42,7 @@ type Core struct {
 	}
 }
 
-func New(secret ed25519.PrivateKey, logger util.Logger, opts ...SetupOption) (*Core, error) {
+func New(secret ed25519.PrivateKey, logger Logger, opts ...SetupOption) (*Core, error) {
 	c := &Core{
 		log: logger,
 	}
@@ -192,4 +190,17 @@ func (c *Core) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 		n -= 1
 	}
 	return
+}
+
+type Logger interface {
+	Printf(string, ...interface{})
+	Println(...interface{})
+	Infof(string, ...interface{})
+	Infoln(...interface{})
+	Warnf(string, ...interface{})
+	Warnln(...interface{})
+	Errorf(string, ...interface{})
+	Errorln(...interface{})
+	Debugf(string, ...interface{})
+	Debugln(...interface{})
 }
