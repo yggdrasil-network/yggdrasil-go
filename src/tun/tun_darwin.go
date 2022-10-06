@@ -1,7 +1,7 @@
 //go:build !mobile
 // +build !mobile
 
-package tuntap
+package tun
 
 // The darwin platform specific tun parts
 

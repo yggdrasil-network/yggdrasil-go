@@ -1,7 +1,7 @@
 //go:build windows
 // +build windows
 
-package tuntap
+package tun
 
 import (
 	"bytes"
@@ -50,7 +50,7 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 	})
 }
 
-// Sets the MTU of the TAP adapter.
+// Sets the MTU of the TUN adapter.
 func (tun *TunAdapter) setupMTU(mtu uint64) error {
 	if tun.iface == nil || tun.Name() == "" {
 		return errors.New("Can't configure MTU as TUN adapter is not present")
@@ -77,7 +77,7 @@ func (tun *TunAdapter) setupMTU(mtu uint64) error {
 	return nil
 }
 
-// Sets the IPv6 address of the TAP adapter.
+// Sets the IPv6 address of the TUN adapter.
 func (tun *TunAdapter) setupAddress(addr string) error {
 	if tun.iface == nil || tun.Name() == "" {
 		return errors.New("Can't configure IPv6 address as TUN adapter is not present")

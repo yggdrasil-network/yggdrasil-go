@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 
@@ -15,9 +14,9 @@ import (
 )
 
 type CmdLineEnv struct {
-	args                 []string
-	endpoint, server     string
-	injson, verbose, ver bool
+	args             []string
+	endpoint, server string
+	injson, ver      bool
 }
 
 func newCmdLineEnv() CmdLineEnv {
@@ -47,7 +46,6 @@ func (cmdLineEnv *CmdLineEnv) parseFlagsAndArgs() {
 
 	server := flag.String("endpoint", cmdLineEnv.endpoint, "Admin socket endpoint")
 	injson := flag.Bool("json", false, "Output in JSON format (as opposed to pretty-print)")
-	verbose := flag.Bool("v", false, "Verbose output (includes public keys)")
 	ver := flag.Bool("version", false, "Prints the version of this build")
 
 	flag.Parse()
@@ -55,13 +53,12 @@ func (cmdLineEnv *CmdLineEnv) parseFlagsAndArgs() {
 	cmdLineEnv.args = flag.Args()
 	cmdLineEnv.server = *server
 	cmdLineEnv.injson = *injson
-	cmdLineEnv.verbose = *verbose
 	cmdLineEnv.ver = *ver
 }
 
 func (cmdLineEnv *CmdLineEnv) setEndpoint(logger *log.Logger) {
 	if cmdLineEnv.server == cmdLineEnv.endpoint {
-		if config, err := ioutil.ReadFile(defaults.GetDefaults().DefaultConfigFile); err == nil {
+		if config, err := os.ReadFile(defaults.GetDefaults().DefaultConfigFile); err == nil {
 			if bytes.Equal(config[0:2], []byte{0xFF, 0xFE}) ||
 				bytes.Equal(config[0:2], []byte{0xFE, 0xFF}) {
 				utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
