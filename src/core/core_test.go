@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"math/rand"
 	"net/url"
 	"os"
@@ -9,20 +10,7 @@ import (
 	"time"
 
 	"github.com/gologme/log"
-
-	"github.com/yggdrasil-network/yggdrasil-go/src/config"
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 )
-
-// GenerateConfig produces default configuration with suitable modifications for tests.
-func GenerateConfig() *config.NodeConfig {
-	cfg := defaults.GenerateConfig()
-	cfg.AdminListen = "none"
-	cfg.Listen = []string{"tcp://127.0.0.1:0"}
-	cfg.IfName = "none"
-
-	return cfg
-}
 
 // GetLoggerWithPrefix creates a new logger instance with prefix.
 // If verbose is set to true, three log levels are enabled: "info", "warn", "error".
@@ -40,13 +28,19 @@ func GetLoggerWithPrefix(prefix string, verbose bool) *log.Logger {
 // CreateAndConnectTwo creates two nodes. nodeB connects to nodeA.
 // Verbosity flag is passed to logger.
 func CreateAndConnectTwo(t testing.TB, verbose bool) (nodeA *Core, nodeB *Core) {
-	nodeA = new(Core)
-	if err := nodeA.Start(GenerateConfig(), GetLoggerWithPrefix("A: ", verbose)); err != nil {
+	var err error
+	var skA, skB ed25519.PrivateKey
+	if _, skA, err = ed25519.GenerateKey(nil); err != nil {
 		t.Fatal(err)
 	}
-
-	nodeB = new(Core)
-	if err := nodeB.Start(GenerateConfig(), GetLoggerWithPrefix("B: ", verbose)); err != nil {
+	if _, skB, err = ed25519.GenerateKey(nil); err != nil {
+		t.Fatal(err)
+	}
+	logger := GetLoggerWithPrefix("", false)
+	if nodeA, err = New(skA, logger, ListenAddress("tcp://127.0.0.1:0")); err != nil {
+		t.Fatal(err)
+	}
+	if nodeB, err = New(skB, logger, ListenAddress("tcp://127.0.0.1:0")); err != nil {
 		t.Fatal(err)
 	}
 

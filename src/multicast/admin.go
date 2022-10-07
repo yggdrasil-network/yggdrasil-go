@@ -20,15 +20,18 @@ func (m *Multicast) getMulticastInterfacesHandler(req *GetMulticastInterfacesReq
 }
 
 func (m *Multicast) SetupAdminHandlers(a *admin.AdminSocket) {
-	_ = a.AddHandler("getMulticastInterfaces", []string{}, func(in json.RawMessage) (interface{}, error) {
-		req := &GetMulticastInterfacesRequest{}
-		res := &GetMulticastInterfacesResponse{}
-		if err := json.Unmarshal(in, &req); err != nil {
-			return nil, err
-		}
-		if err := m.getMulticastInterfacesHandler(req, res); err != nil {
-			return nil, err
-		}
-		return res, nil
-	})
+	_ = a.AddHandler(
+		"getMulticastInterfaces", "Show which interfaces multicast is enabled on", []string{},
+		func(in json.RawMessage) (interface{}, error) {
+			req := &GetMulticastInterfacesRequest{}
+			res := &GetMulticastInterfacesResponse{}
+			if err := json.Unmarshal(in, &req); err != nil {
+				return nil, err
+			}
+			if err := m.getMulticastInterfacesHandler(req, res); err != nil {
+				return nil, err
+			}
+			return res, nil
+		},
+	)
 }

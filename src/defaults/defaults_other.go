@@ -5,7 +5,7 @@ package defaults
 
 // Sane defaults for the other platforms. The "default" options may be
 // may be replaced by the running configuration.
-func GetDefaults() platformDefaultParameters {
+func getDefaults() platformDefaultParameters {
 	return platformDefaultParameters{
 		// Admin
 		DefaultAdminListen: "tcp://localhost:9001",
@@ -18,7 +18,7 @@ func GetDefaults() platformDefaultParameters {
 			{Regex: ".*", Beacon: true, Listen: true},
 		},
 
-		// TUN/TAP
+		// TUN
 		MaximumIfMTU:  65535,
 		DefaultIfMTU:  65535,
 		DefaultIfName: "none",
