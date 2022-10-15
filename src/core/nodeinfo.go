@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
-	"strings"
 	"time"
 
 	iwt "github.com/Arceliar/ironwood/types"
@@ -14,18 +13,15 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 )
 
-// NodeInfoPayload represents a RequestNodeInfo response, in bytes.
-type NodeInfoPayload []byte
-
 type nodeinfo struct {
 	phony.Inbox
 	proto      *protoHandler
-	myNodeInfo NodeInfoPayload
+	myNodeInfo json.RawMessage
 	callbacks  map[keyArray]nodeinfoCallback
 }
 
 type nodeinfoCallback struct {
-	call    func(nodeinfo NodeInfoPayload)
+	call    func(nodeinfo json.RawMessage)
 	created time.Time
 }
 
@@ -54,7 +50,7 @@ func (m *nodeinfo) _cleanup() {
 	})
 }
 
-func (m *nodeinfo) _addCallback(sender keyArray, call func(nodeinfo NodeInfoPayload)) {
+func (m *nodeinfo) _addCallback(sender keyArray, call func(nodeinfo json.RawMessage)) {
 	m.callbacks[sender] = nodeinfoCallback{
 		created: time.Now(),
 		call:    call,
@@ -62,67 +58,55 @@ func (m *nodeinfo) _addCallback(sender keyArray, call func(nodeinfo NodeInfoPayl
 }
 
 // Handles the callback, if there is one
-func (m *nodeinfo) _callback(sender keyArray, nodeinfo NodeInfoPayload) {
+func (m *nodeinfo) _callback(sender keyArray, nodeinfo json.RawMessage) {
 	if callback, ok := m.callbacks[sender]; ok {
 		callback.call(nodeinfo)
 		delete(m.callbacks, sender)
 	}
 }
 
-func (m *nodeinfo) _getNodeInfo() NodeInfoPayload {
+func (m *nodeinfo) _getNodeInfo() json.RawMessage {
 	return m.myNodeInfo
 }
 
 // Set the current node's nodeinfo
-func (m *nodeinfo) setNodeInfo(given interface{}, privacy bool) (err error) {
+func (m *nodeinfo) setNodeInfo(given map[string]interface{}, privacy bool) (err error) {
 	phony.Block(m, func() {
 		err = m._setNodeInfo(given, privacy)
 	})
 	return
 }
 
-func (m *nodeinfo) _setNodeInfo(given interface{}, privacy bool) error {
-	defaults := map[string]interface{}{
-		"buildname":     version.BuildName(),
-		"buildversion":  version.BuildVersion(),
-		"buildplatform": runtime.GOOS,
-		"buildarch":     runtime.GOARCH,
+func (m *nodeinfo) _setNodeInfo(given map[string]interface{}, privacy bool) error {
+	newnodeinfo := make(map[string]interface{}, len(given))
+	for k, v := range given {
+		newnodeinfo[k] = v
 	}
-	newnodeinfo := make(map[string]interface{})
 	if !privacy {
-		for k, v := range defaults {
-			newnodeinfo[k] = v
-		}
-	}
-	if nodeinfomap, ok := given.(map[string]interface{}); ok {
-		for key, value := range nodeinfomap {
-			if _, ok := defaults[key]; ok {
-				if strvalue, strok := value.(string); strok && strings.EqualFold(strvalue, "null") || value == nil {
-					delete(newnodeinfo, key)
-				}
-				continue
-			}
-			newnodeinfo[key] = value
-		}
+		newnodeinfo["buildname"] = version.BuildName()
+		newnodeinfo["buildversion"] = version.BuildVersion()
+		newnodeinfo["buildplatform"] = runtime.GOOS
+		newnodeinfo["buildarch"] = runtime.GOARCH
 	}
 	newjson, err := json.Marshal(newnodeinfo)
-	if err == nil {
-		if len(newjson) > 16384 {
-			return errors.New("NodeInfo exceeds max length of 16384 bytes")
-		}
+	switch {
+	case err != nil:
+		return fmt.Errorf("NodeInfo marshalling failed: %w", err)
+	case len(newjson) > 16384:
+		return fmt.Errorf("NodeInfo exceeds max length of 16384 bytes")
+	default:
 		m.myNodeInfo = newjson
 		return nil
 	}
-	return err
 }
 
-func (m *nodeinfo) sendReq(from phony.Actor, key keyArray, callback func(nodeinfo NodeInfoPayload)) {
+func (m *nodeinfo) sendReq(from phony.Actor, key keyArray, callback func(nodeinfo json.RawMessage)) {
 	m.Act(from, func() {
 		m._sendReq(key, callback)
 	})
 }
 
-func (m *nodeinfo) _sendReq(key keyArray, callback func(nodeinfo NodeInfoPayload)) {
+func (m *nodeinfo) _sendReq(key keyArray, callback func(nodeinfo json.RawMessage)) {
 	if callback != nil {
 		m._addCallback(key, callback)
 	}
@@ -135,7 +119,7 @@ func (m *nodeinfo) handleReq(from phony.Actor, key keyArray) {
 	})
 }
 
-func (m *nodeinfo) handleRes(from phony.Actor, key keyArray, info NodeInfoPayload) {
+func (m *nodeinfo) handleRes(from phony.Actor, key keyArray, info json.RawMessage) {
 	m.Act(from, func() {
 		m._callback(key, info)
 	})
@@ -169,7 +153,7 @@ func (m *nodeinfo) nodeInfoAdminHandler(in json.RawMessage) (interface{}, error)
 	}
 	copy(key[:], kbs)
 	ch := make(chan []byte, 1)
-	m.sendReq(nil, key, func(info NodeInfoPayload) {
+	m.sendReq(nil, key, func(info json.RawMessage) {
 		ch <- info
 	})
 	timer := time.NewTimer(6 * time.Second)

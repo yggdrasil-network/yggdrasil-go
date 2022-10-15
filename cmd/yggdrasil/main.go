@@ -290,7 +290,10 @@ func run(args yggArgs, ctx context.Context, done chan struct{}) {
 		if err != nil {
 			panic(err)
 		}
-		options := []core.SetupOption{}
+		options := []core.SetupOption{
+			core.NodeInfo(cfg.NodeInfo),
+			core.NodeInfoPrivacy(cfg.NodeInfoPrivacy),
+		}
 		for _, addr := range cfg.Listen {
 			options = append(options, core.ListenAddress(addr))
 		}
