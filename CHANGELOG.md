@@ -42,8 +42,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 ### Fixed
 
-- A bug when tracking information about expired root nodes has been fixed, which should hopefully resolve issues with reparenting and connection failures when the root node disappears and 
+- Tracking information about expired root nodes has been fixed, which should hopefully resolve issues with reparenting and connection failures when the root node disappears
 - A bug in the mobile framework code which caused a crash on Android when multicast failed to set up has been fixed
+- Yggdrasil should now shut down gracefully and clean up correctly when running as a Windows service
 
 ## [0.4.4] - 2022-07-07
 
