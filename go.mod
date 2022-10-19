@@ -2,7 +2,7 @@ module github.com/yggdrasil-network/yggdrasil-go
 
 go 1.17
 
-replace github.com/Arceliar/ironwood => github.com/neilalexander/ironwood v0.0.0-20221019170140-a75def48d9f8
+replace github.com/Arceliar/ironwood => github.com/neilalexander/ironwood v0.0.0-20221019173208-3529562f5a44
 
 require (
 	github.com/Arceliar/ironwood v0.0.0-20220924160422-ed4b6d4750b6
