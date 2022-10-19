@@ -362,3 +362,12 @@ func (c *linkConn) Write(p []byte) (n int, err error) {
 	atomic.AddUint64(&c.tx, uint64(n))
 	return
 }
+
+func linkOptionsForListener(u *url.URL) (l linkOptions) {
+	if p := u.Query().Get("priority"); p != "" {
+		if pi, err := strconv.ParseUint(p, 10, 8); err == nil {
+			l.priority = uint8(pi)
+		}
+	}
+	return
+}

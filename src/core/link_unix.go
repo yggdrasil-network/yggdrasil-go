@@ -75,7 +75,7 @@ func (l *linkUNIX) listen(url *url.URL, _ string) (*Listener, error) {
 				break
 			}
 			info := linkInfoFor("unix", "", url.String())
-			if err = l.handler(url.String(), info, conn, linkOptions{}, true); err != nil {
+			if err = l.handler(url.String(), info, conn, linkOptionsForListener(url), true); err != nil {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}

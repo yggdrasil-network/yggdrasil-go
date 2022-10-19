@@ -16,10 +16,11 @@ type SetupOption interface {
 }
 
 type MulticastInterface struct {
-	Regex  *regexp.Regexp
-	Beacon bool
-	Listen bool
-	Port   uint16
+	Regex    *regexp.Regexp
+	Beacon   bool
+	Listen   bool
+	Port     uint16
+	Priority uint8
 }
 
 type GroupAddress string
