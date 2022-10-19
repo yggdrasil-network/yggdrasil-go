@@ -174,10 +174,11 @@ func run() int {
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
-		table.SetHeader([]string{"Port", "Public Key", "IP Address", "Uptime", "RX", "TX", "URI"})
+		table.SetHeader([]string{"Port", "Priority", "Public Key", "IP Address", "Uptime", "RX", "TX", "URI"})
 		for _, peer := range resp.Peers {
 			table.Append([]string{
 				fmt.Sprintf("%d", peer.Port),
+				fmt.Sprintf("%d", peer.Priority),
 				peer.PublicKey,
 				peer.IPAddress,
 				(time.Duration(peer.Uptime) * time.Second).String(),

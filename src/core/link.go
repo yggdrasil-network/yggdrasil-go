@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -45,6 +46,7 @@ type link struct {
 
 type linkOptions struct {
 	pinnedEd25519Keys map[keyArray]struct{}
+	priority          uint8
 }
 
 type Listener struct {
@@ -120,17 +122,24 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 		copy(sigPubKey[:], sigPub)
 		options.pinnedEd25519Keys[sigPubKey] = struct{}{}
 	}
+	if p := u.Query().Get("priority"); p != "" {
+		pi, err := strconv.ParseUint(p, 10, 8)
+		if err != nil {
+			return info, fmt.Errorf("priority invalid: %w", err)
+		}
+		options.priority = uint8(pi)
+	}
 	switch info.linkType {
 	case "tcp":
 		go func() {
-			if err := l.tcp.dial(u, options, sintf); err != nil {
+			if err := l.tcp.dial(u, options, sintf); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial TCP %s: %s\n", u.Host, err)
 			}
 		}()
 
 	case "socks":
 		go func() {
-			if err := l.socks.dial(u, options); err != nil {
+			if err := l.socks.dial(u, options); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial SOCKS %s: %s\n", u.Host, err)
 			}
 		}()
@@ -154,14 +163,14 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 			}
 		}
 		go func() {
-			if err := l.tls.dial(u, options, sintf, tlsSNI); err != nil {
+			if err := l.tls.dial(u, options, sintf, tlsSNI); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial TLS %s: %s\n", u.Host, err)
 			}
 		}()
 
 	case "unix":
 		go func() {
-			if err := l.unix.dial(u, options, sintf); err != nil {
+			if err := l.unix.dial(u, options, sintf); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial UNIX %s: %s\n", u.Host, err)
 			}
 		}()
@@ -303,7 +312,7 @@ func (intf *link) handler() error {
 		strings.ToUpper(intf.info.linkType), remoteStr, localStr)
 
 	// TODO don't report an error if it's just a 'use of closed network connection'
-	if err = intf.links.core.HandleConn(meta.key, intf.conn); err != nil && err != io.EOF {
+	if err = intf.links.core.HandleConn(meta.key, intf.conn, intf.options.priority); err != nil && err != io.EOF {
 		intf.links.core.log.Infof("Disconnected %s: %s, source %s; error: %s",
 			strings.ToUpper(intf.info.linkType), remoteStr, localStr, err)
 	} else {
