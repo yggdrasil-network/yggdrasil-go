@@ -49,7 +49,7 @@ func (l *links) newLinkTLS(tcp *linkTCP) *linkTLS {
 func (l *linkTLS) dial(url *url.URL, options linkOptions, sintf, sni string) error {
 	info := linkInfoFor("tls", sintf, strings.SplitN(url.Host, "%", 2)[0])
 	if l.links.isConnectedTo(info) {
-		return fmt.Errorf("duplicate connection attempt")
+		return nil
 	}
 	addr, err := net.ResolveTCPAddr("tcp", url.Host)
 	if err != nil {

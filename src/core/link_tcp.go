@@ -33,7 +33,7 @@ func (l *links) newLinkTCP() *linkTCP {
 func (l *linkTCP) dial(url *url.URL, options linkOptions, sintf string) error {
 	info := linkInfoFor("tcp", sintf, strings.SplitN(url.Host, "%", 2)[0])
 	if l.links.isConnectedTo(info) {
-		return fmt.Errorf("duplicate connection attempt")
+		return nil
 	}
 	addr, err := net.ResolveTCPAddr("tcp", url.Host)
 	if err != nil {

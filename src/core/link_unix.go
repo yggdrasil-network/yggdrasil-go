@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/url"
 	"time"
@@ -36,7 +35,7 @@ func (l *links) newLinkUNIX() *linkUNIX {
 func (l *linkUNIX) dial(url *url.URL, options linkOptions, _ string) error {
 	info := linkInfoFor("unix", "", url.Path)
 	if l.links.isConnectedTo(info) {
-		return fmt.Errorf("duplicate connection attempt")
+		return nil
 	}
 	addr, err := net.ResolveUnixAddr("unix", url.Path)
 	if err != nil {
