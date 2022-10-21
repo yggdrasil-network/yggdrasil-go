@@ -55,8 +55,7 @@ func (l *linkTLS) dial(url *url.URL, options linkOptions, sintf, sni string) err
 	if err != nil {
 		return err
 	}
-	addr.Zone = sintf
-	dialer, err := l.tcp.dialerFor(addr.String(), sintf)
+	dialer, err := l.tcp.dialerFor(addr, sintf)
 	if err != nil {
 		return err
 	}

@@ -39,8 +39,7 @@ func (l *linkTCP) dial(url *url.URL, options linkOptions, sintf string) error {
 	if err != nil {
 		return err
 	}
-	addr.Zone = sintf
-	dialer, err := l.dialerFor(addr.String(), sintf)
+	dialer, err := l.dialerFor(addr, sintf)
 	if err != nil {
 		return err
 	}
@@ -121,13 +120,11 @@ func (l *linkTCP) getAddr() *net.TCPAddr {
 	return addr
 }
 
-func (l *linkTCP) dialerFor(saddr, sintf string) (*net.Dialer, error) {
-	dst, err := net.ResolveTCPAddr("tcp", saddr)
-	if err != nil {
-		return nil, err
-	}
+func (l *linkTCP) dialerFor(dst *net.TCPAddr, sintf string) (*net.Dialer, error) {
 	if dst.IP.IsLinkLocalUnicast() {
-		dst.Zone = sintf
+		if sintf != "" {
+			dst.Zone = sintf
+		}
 		if dst.Zone == "" {
 			return nil, fmt.Errorf("link-local address requires a zone")
 		}
