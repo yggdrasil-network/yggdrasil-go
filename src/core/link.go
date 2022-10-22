@@ -286,7 +286,7 @@ func (intf *link) handler() error {
 		}
 	}
 	if intf.incoming && !intf.force && !isallowed {
-		intf.links.core.log.Warnf("%s connection from %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
+		intf.links.core.log.Warnf("%s connection from %s forbidden: AllowedPublicKeys does not contain key %s",
 			strings.ToUpper(intf.info.linkType), intf.info.remote, hex.EncodeToString(meta.key))
 		_ = intf.close()
 		return fmt.Errorf("forbidden connection")
@@ -302,15 +302,15 @@ func (intf *link) handler() error {
 	intf.links.core.log.Infof("Connected %s: %s, source %s",
 		strings.ToUpper(intf.info.linkType), remoteStr, localStr)
 
-	// TODO don't report an error if it's just a 'use of closed network connection'
-	if err = intf.links.core.HandleConn(meta.key, intf.conn); err != nil && err != io.EOF {
-		intf.links.core.log.Infof("Disconnected %s: %s, source %s; error: %s",
-			strings.ToUpper(intf.info.linkType), remoteStr, localStr, err)
-	} else {
+	err = intf.links.core.HandleConn(meta.key, intf.conn)
+	switch err {
+	case io.EOF, net.ErrClosed, nil:
 		intf.links.core.log.Infof("Disconnected %s: %s, source %s",
 			strings.ToUpper(intf.info.linkType), remoteStr, localStr)
+	default:
+		intf.links.core.log.Infof("Disconnected %s: %s, source %s; error: %s",
+			strings.ToUpper(intf.info.linkType), remoteStr, localStr, err)
 	}
-
 	return nil
 }
 
