@@ -47,16 +47,15 @@ func (l *links) newLinkTLS(tcp *linkTCP) *linkTLS {
 }
 
 func (l *linkTLS) dial(url *url.URL, options linkOptions, sintf, sni string) error {
-	info := linkInfoFor("tls", sintf, strings.SplitN(url.Host, "%", 2)[0])
-	if l.links.isConnectedTo(info) {
-		return fmt.Errorf("duplicate connection attempt")
-	}
 	addr, err := net.ResolveTCPAddr("tcp", url.Host)
 	if err != nil {
 		return err
 	}
-	addr.Zone = sintf
-	dialer, err := l.tcp.dialerFor(addr.String(), sintf)
+	info := linkInfoFor("tls", sintf, addr.String())
+	if l.links.isConnectedTo(info) {
+		return nil
+	}
+	dialer, err := l.tcp.dialerFor(addr, sintf)
 	if err != nil {
 		return err
 	}
@@ -70,7 +69,8 @@ func (l *linkTLS) dial(url *url.URL, options linkOptions, sintf, sni string) err
 	if err != nil {
 		return err
 	}
-	return l.handler(url.String(), info, conn, options, false)
+	uri := strings.TrimRight(strings.SplitN(url.String(), "?", 2)[0], "/")
+	return l.handler(uri, info, conn, options, false, false)
 }
 
 func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
@@ -107,8 +107,8 @@ func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
 			}
 			addr := conn.RemoteAddr().(*net.TCPAddr)
 			name := fmt.Sprintf("tls://%s", addr)
-			info := linkInfoFor("tls", sintf, strings.SplitN(addr.IP.String(), "%", 2)[0])
-			if err = l.handler(name, info, conn, linkOptionsForListener(url), true); err != nil {
+			info := linkInfoFor("tls", sintf, addr.String())
+			if err = l.handler(name, info, conn, linkOptionsForListener(url), true, addr.IP.IsLinkLocalUnicast()); err != nil {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
@@ -166,6 +166,6 @@ func (l *linkTLS) generateConfig() (*tls.Config, error) {
 	}, nil
 }
 
-func (l *linkTLS) handler(name string, info linkInfo, conn net.Conn, options linkOptions, incoming bool) error {
-	return l.tcp.handler(name, info, conn, options, incoming)
+func (l *linkTLS) handler(name string, info linkInfo, conn net.Conn, options linkOptions, incoming, force bool) error {
+	return l.tcp.handler(name, info, conn, options, incoming, force)
 }

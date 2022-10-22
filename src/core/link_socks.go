@@ -23,7 +23,7 @@ func (l *links) newLinkSOCKS() *linkSOCKS {
 func (l *linkSOCKS) dial(url *url.URL, options linkOptions) error {
 	info := linkInfoFor("socks", "", url.Path)
 	if l.links.isConnectedTo(info) {
-		return fmt.Errorf("duplicate connection attempt")
+		return nil
 	}
 	proxyAuth := &proxy.Auth{}
 	proxyAuth.User = url.User.Username()

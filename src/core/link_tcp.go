@@ -31,16 +31,15 @@ func (l *links) newLinkTCP() *linkTCP {
 }
 
 func (l *linkTCP) dial(url *url.URL, options linkOptions, sintf string) error {
-	info := linkInfoFor("tcp", sintf, strings.SplitN(url.Host, "%", 2)[0])
-	if l.links.isConnectedTo(info) {
-		return fmt.Errorf("duplicate connection attempt")
-	}
 	addr, err := net.ResolveTCPAddr("tcp", url.Host)
 	if err != nil {
 		return err
 	}
-	addr.Zone = sintf
-	dialer, err := l.dialerFor(addr.String(), sintf)
+	info := linkInfoFor("tcp", sintf, addr.String())
+	if l.links.isConnectedTo(info) {
+		return nil
+	}
+	dialer, err := l.dialerFor(addr, sintf)
 	if err != nil {
 		return err
 	}
@@ -48,7 +47,8 @@ func (l *linkTCP) dial(url *url.URL, options linkOptions, sintf string) error {
 	if err != nil {
 		return err
 	}
-	return l.handler(url.String(), info, conn, options, false)
+	uri := strings.TrimRight(strings.SplitN(url.String(), "?", 2)[0], "/")
+	return l.handler(uri, info, conn, options, false, false)
 }
 
 func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
@@ -83,9 +83,9 @@ func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
 				break
 			}
 			addr := conn.RemoteAddr().(*net.TCPAddr)
-			name := fmt.Sprintf("tls://%s", addr)
-			info := linkInfoFor("tcp", sintf, strings.SplitN(addr.IP.String(), "%", 2)[0])
-			if err = l.handler(name, info, conn, linkOptionsForListener(url), true); err != nil {
+			name := fmt.Sprintf("tcp://%s", addr)
+			info := linkInfoFor("tcp", sintf, addr.String())
+			if err = l.handler(name, info, conn, linkOptionsForListener(url), true, addr.IP.IsLinkLocalUnicast()); err != nil {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
@@ -96,13 +96,13 @@ func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
 	return entry, nil
 }
 
-func (l *linkTCP) handler(name string, info linkInfo, conn net.Conn, options linkOptions, incoming bool) error {
+func (l *linkTCP) handler(name string, info linkInfo, conn net.Conn, options linkOptions, incoming, force bool) error {
 	return l.links.create(
 		conn,     // connection
 		name,     // connection name
 		info,     // connection info
 		incoming, // not incoming
-		false,    // not forced
+		force,    // not forced
 		options,  // connection options
 	)
 }
@@ -121,13 +121,11 @@ func (l *linkTCP) getAddr() *net.TCPAddr {
 	return addr
 }
 
-func (l *linkTCP) dialerFor(saddr, sintf string) (*net.Dialer, error) {
-	dst, err := net.ResolveTCPAddr("tcp", saddr)
-	if err != nil {
-		return nil, err
-	}
+func (l *linkTCP) dialerFor(dst *net.TCPAddr, sintf string) (*net.Dialer, error) {
 	if dst.IP.IsLinkLocalUnicast() {
-		dst.Zone = sintf
+		if sintf != "" {
+			dst.Zone = sintf
+		}
 		if dst.Zone == "" {
 			return nil, fmt.Errorf("link-local address requires a zone")
 		}

@@ -281,8 +281,7 @@ func (intf *link) handler() error {
 		var key keyArray
 		copy(key[:], meta.key)
 		if _, allowed := pinned[key]; !allowed {
-			intf.links.core.log.Errorf("Failed to connect to node: %q sent ed25519 key that does not match pinned keys", intf.name())
-			return fmt.Errorf("failed to connect: host sent ed25519 key that does not match pinned keys")
+			return fmt.Errorf("node public key that does not match pinned keys")
 		}
 	}
 	// Check if we're authorized to connect to this key / IP
@@ -295,31 +294,33 @@ func (intf *link) handler() error {
 		}
 	}
 	if intf.incoming && !intf.force && !isallowed {
-		intf.links.core.log.Warnf("%s connection from %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
-			strings.ToUpper(intf.info.linkType), intf.info.remote, hex.EncodeToString(meta.key))
 		_ = intf.close()
-		return fmt.Errorf("forbidden connection")
+		return fmt.Errorf("node public key %q is not in AllowedPublicKeys", hex.EncodeToString(meta.key))
 	}
 
 	phony.Block(intf.links, func() {
 		intf.links._links[intf.info] = intf
 	})
 
+	dir := "outbound"
+	if intf.incoming {
+		dir = "inbound"
+	}
 	remoteAddr := net.IP(address.AddrForKey(meta.key)[:]).String()
 	remoteStr := fmt.Sprintf("%s@%s", remoteAddr, intf.info.remote)
 	localStr := intf.conn.LocalAddr()
-	intf.links.core.log.Infof("Connected %s: %s, source %s",
-		strings.ToUpper(intf.info.linkType), remoteStr, localStr)
+	intf.links.core.log.Infof("Connected %s %s: %s, source %s",
+		dir, strings.ToUpper(intf.info.linkType), remoteStr, localStr)
 
-	// TODO don't report an error if it's just a 'use of closed network connection'
-	if err = intf.links.core.HandleConn(meta.key, intf.conn, intf.options.priority); err != nil && err != io.EOF {
-		intf.links.core.log.Infof("Disconnected %s: %s, source %s; error: %s",
-			strings.ToUpper(intf.info.linkType), remoteStr, localStr, err)
-	} else {
-		intf.links.core.log.Infof("Disconnected %s: %s, source %s",
-			strings.ToUpper(intf.info.linkType), remoteStr, localStr)
+	err = intf.links.core.HandleConn(meta.key, intf.conn, intf.options.priority)
+	switch err {
+	case io.EOF, net.ErrClosed, nil:
+		intf.links.core.log.Infof("Disconnected %s %s: %s, source %s",
+			dir, strings.ToUpper(intf.info.linkType), remoteStr, localStr)
+	default:
+		intf.links.core.log.Infof("Disconnected %s %s: %s, source %s; error: %s",
+			dir, strings.ToUpper(intf.info.linkType), remoteStr, localStr, err)
 	}
-
 	return nil
 }
 
@@ -327,14 +328,7 @@ func (intf *link) close() error {
 	return intf.conn.Close()
 }
 
-func (intf *link) name() string {
-	return intf.lname
-}
-
 func linkInfoFor(linkType, sintf, remote string) linkInfo {
-	if h, _, err := net.SplitHostPort(remote); err == nil {
-		remote = h
-	}
 	return linkInfo{
 		linkType: linkType,
 		local:    sintf,
