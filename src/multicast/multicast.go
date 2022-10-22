@@ -77,7 +77,11 @@ func (m *Multicast) _start() error {
 	if m._isOpen {
 		return fmt.Errorf("multicast module is already started")
 	}
-	if len(m.config._interfaces) == 0 {
+	var anyEnabled bool
+	for intf := range m.config._interfaces {
+		anyEnabled = anyEnabled || intf.Beacon || intf.Listen
+	}
+	if !anyEnabled {
 		return nil
 	}
 	m.log.Debugln("Starting multicast module")
