@@ -320,9 +320,6 @@ func (intf *link) close() error {
 }
 
 func linkInfoFor(linkType, sintf, remote string) linkInfo {
-	if h, _, err := net.SplitHostPort(remote); err == nil {
-		remote = h
-	}
 	return linkInfo{
 		linkType: linkType,
 		local:    sintf,
