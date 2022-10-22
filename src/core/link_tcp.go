@@ -35,13 +35,13 @@ func (l *linkTCP) dial(url *url.URL, options linkOptions, sintf string) error {
 	if err != nil {
 		return err
 	}
-	info := linkInfoFor("tcp", sintf, addr.String())
-	if l.links.isConnectedTo(info) {
-		return nil
-	}
 	dialer, err := l.dialerFor(addr, sintf)
 	if err != nil {
 		return err
+	}
+	info := linkInfoFor("tcp", sintf, tcpIDFor(dialer.LocalAddr, addr))
+	if l.links.isConnectedTo(info) {
+		return nil
 	}
 	conn, err := dialer.DialContext(l.core.ctx, "tcp", addr.String())
 	if err != nil {
@@ -82,10 +82,11 @@ func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
 				cancel()
 				break
 			}
-			addr := conn.RemoteAddr().(*net.TCPAddr)
-			name := fmt.Sprintf("tcp://%s", addr)
-			info := linkInfoFor("tcp", sintf, addr.String())
-			if err = l.handler(name, info, conn, linkOptions{}, true, addr.IP.IsLinkLocalUnicast()); err != nil {
+			laddr := conn.LocalAddr().(*net.TCPAddr)
+			raddr := conn.RemoteAddr().(*net.TCPAddr)
+			name := fmt.Sprintf("tcp://%s", raddr)
+			info := linkInfoFor("tcp", sintf, tcpIDFor(laddr, raddr))
+			if err = l.handler(name, info, conn, linkOptions{}, true, raddr.IP.IsLinkLocalUnicast()); err != nil {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
@@ -178,4 +179,17 @@ func (l *linkTCP) dialerFor(dst *net.TCPAddr, sintf string) (*net.Dialer, error)
 		}
 	}
 	return dialer, nil
+}
+
+func tcpIDFor(local net.Addr, remoteAddr *net.TCPAddr) string {
+	if localAddr, ok := local.(*net.TCPAddr); ok && localAddr.IP.Equal(remoteAddr.IP) {
+		// Nodes running on the same host — include both the IP and port.
+		return remoteAddr.String()
+	}
+	if remoteAddr.IP.IsLinkLocalUnicast() {
+		// Nodes discovered via multicast — include the IP only.
+		return remoteAddr.IP.String()
+	}
+	// Nodes connected remotely — include both the IP and port.
+	return remoteAddr.String()
 }
