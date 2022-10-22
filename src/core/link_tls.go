@@ -51,13 +51,13 @@ func (l *linkTLS) dial(url *url.URL, options linkOptions, sintf, sni string) err
 	if err != nil {
 		return err
 	}
-	info := linkInfoFor("tls", sintf, addr.String())
-	if l.links.isConnectedTo(info) {
-		return nil
-	}
 	dialer, err := l.tcp.dialerFor(addr, sintf)
 	if err != nil {
 		return err
+	}
+	info := linkInfoFor("tls", sintf, tcpIDFor(dialer.LocalAddr, addr))
+	if l.links.isConnectedTo(info) {
+		return nil
 	}
 	tlsconfig := l.config.Clone()
 	tlsconfig.ServerName = sni
@@ -105,10 +105,11 @@ func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
 				cancel()
 				break
 			}
-			addr := conn.RemoteAddr().(*net.TCPAddr)
-			name := fmt.Sprintf("tls://%s", addr)
-			info := linkInfoFor("tls", sintf, addr.String())
-			if err = l.handler(name, info, conn, linkOptionsForListener(url), true, addr.IP.IsLinkLocalUnicast()); err != nil {
+			laddr := conn.LocalAddr().(*net.TCPAddr)
+			raddr := conn.RemoteAddr().(*net.TCPAddr)
+			name := fmt.Sprintf("tls://%s", raddr)
+			info := linkInfoFor("tls", sintf, tcpIDFor(laddr, raddr))
+			if err = l.handler(name, info, conn, linkOptionsForListener(url), true, raddr.IP.IsLinkLocalUnicast()); err != nil {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
