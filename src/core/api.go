@@ -63,6 +63,9 @@ func (c *Core) GetPeers() []PeerInfo {
 	names := make(map[net.Conn]string)
 	phony.Block(&c.links, func() {
 		for _, info := range c.links._links {
+			if info == nil {
+				continue
+			}
 			names[info.conn] = info.lname
 		}
 	})
