@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - Adding peers using the `InterfacePeers` configuration option should now work correctly again
 - Multiple connections from the same remote IP address will no longer be incorrectly dropped
 - The admin socket will no longer incorrectly claim TCP connections as TLS
+- A panic that could occur when calling `GetPeers` while a peering link is being set up has been fixed
 
 ## [0.4.5] - 2022-10-15
 
