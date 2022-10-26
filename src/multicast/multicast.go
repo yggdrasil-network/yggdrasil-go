@@ -37,11 +37,12 @@ type Multicast struct {
 }
 
 type interfaceInfo struct {
-	iface  net.Interface
-	addrs  []net.Addr
-	beacon bool
-	listen bool
-	port   uint16
+	iface    net.Interface
+	addrs    []net.Addr
+	beacon   bool
+	listen   bool
+	port     uint16
+	priority uint8
 }
 
 type listenerInfo struct {
@@ -77,7 +78,11 @@ func (m *Multicast) _start() error {
 	if m._isOpen {
 		return fmt.Errorf("multicast module is already started")
 	}
-	if len(m.config._interfaces) == 0 {
+	var anyEnabled bool
+	for intf := range m.config._interfaces {
+		anyEnabled = anyEnabled || intf.Beacon || intf.Listen
+	}
+	if !anyEnabled {
 		return nil
 	}
 	m.log.Debugln("Starting multicast module")
@@ -190,10 +195,11 @@ func (m *Multicast) _getAllowedInterfaces() map[string]*interfaceInfo {
 				continue
 			}
 			interfaces[iface.Name] = &interfaceInfo{
-				iface:  iface,
-				beacon: ifcfg.Beacon,
-				listen: ifcfg.Listen,
-				port:   ifcfg.Port,
+				iface:    iface,
+				beacon:   ifcfg.Beacon,
+				listen:   ifcfg.Listen,
+				port:     ifcfg.Port,
+				priority: ifcfg.Priority,
 			}
 			break
 		}
@@ -383,7 +389,7 @@ func (m *Multicast) listen() {
 		})
 		if info, ok := interfaces[from.Zone]; ok && info.listen {
 			addr.Zone = ""
-			pin := fmt.Sprintf("/?key=%s", hex.EncodeToString(key))
+			pin := fmt.Sprintf("/?key=%s&priority=%d", hex.EncodeToString(key), info.priority)
 			u, err := url.Parse("tls://" + addr.String() + pin)
 			if err != nil {
 				m.log.Debugln("Call from multicast failed, parse error:", addr.String(), err)
