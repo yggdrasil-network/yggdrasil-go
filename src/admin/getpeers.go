@@ -19,6 +19,7 @@ type PeerEntry struct {
 	IPAddress string   `json:"address"`
 	PublicKey string   `json:"key"`
 	Port      uint64   `json:"port"`
+	Priority  uint8    `json:"priority"`
 	Coords    []uint64 `json:"coords"`
 	Remote    string   `json:"remote"`
 	RXBytes   DataUnit `json:"bytes_recvd"`
@@ -35,6 +36,7 @@ func (a *AdminSocket) getPeersHandler(req *GetPeersRequest, res *GetPeersRespons
 			IPAddress: net.IP(addr[:]).String(),
 			PublicKey: hex.EncodeToString(p.Key),
 			Port:      p.Port,
+			Priority:  p.Priority,
 			Coords:    p.Coords,
 			Remote:    p.Remote,
 			RXBytes:   DataUnit(p.RXBytes),
@@ -43,6 +45,9 @@ func (a *AdminSocket) getPeersHandler(req *GetPeersRequest, res *GetPeersRespons
 		})
 	}
 	sort.Slice(res.Peers, func(i, j int) bool {
+		if res.Peers[i].Port == res.Peers[j].Port {
+			return res.Peers[i].Priority < res.Peers[j].Priority
+		}
 		return res.Peers[i].Port < res.Peers[j].Port
 	})
 	return nil
