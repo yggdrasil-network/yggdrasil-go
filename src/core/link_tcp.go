@@ -86,7 +86,7 @@ func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
 			raddr := conn.RemoteAddr().(*net.TCPAddr)
 			name := fmt.Sprintf("tcp://%s", raddr)
 			info := linkInfoFor("tcp", sintf, tcpIDFor(laddr, raddr))
-			if err = l.handler(name, info, conn, linkOptions{}, true, raddr.IP.IsLinkLocalUnicast()); err != nil {
+			if err = l.handler(name, info, conn, linkOptionsForListener(url), true, raddr.IP.IsLinkLocalUnicast()); err != nil {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}

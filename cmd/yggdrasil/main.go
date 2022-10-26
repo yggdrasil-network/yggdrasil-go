@@ -335,10 +335,11 @@ func run(args yggArgs, ctx context.Context) {
 		options := []multicast.SetupOption{}
 		for _, intf := range cfg.MulticastInterfaces {
 			options = append(options, multicast.MulticastInterface{
-				Regex:  regexp.MustCompile(intf.Regex),
-				Beacon: intf.Beacon,
-				Listen: intf.Listen,
-				Port:   intf.Port,
+				Regex:    regexp.MustCompile(intf.Regex),
+				Beacon:   intf.Beacon,
+				Listen:   intf.Listen,
+				Port:     intf.Port,
+				Priority: intf.Priority,
 			})
 		}
 		if n.multicast, err = multicast.New(n.core, logger, options...); err != nil {
