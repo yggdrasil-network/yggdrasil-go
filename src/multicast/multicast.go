@@ -14,13 +14,13 @@ import (
 	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/core"
+	"github.com/RiV-chain/RiV-mesh/src/core"
 	"golang.org/x/net/ipv6"
 )
 
 // Multicast represents the multicast advertisement and discovery mechanism used
-// by Yggdrasil to find peers on the same subnet. When a beacon is received on a
-// configured multicast interface, Yggdrasil will attempt to peer with that node
+// by RiV-mesh to find peers on the same subnet. When a beacon is received on a
+// configured multicast interface, RiV-mesh will attempt to peer with that node
 // automatically.
 type Multicast struct {
 	phony.Inbox
@@ -195,11 +195,10 @@ func (m *Multicast) _getAllowedInterfaces() map[string]*interfaceInfo {
 				continue
 			}
 			interfaces[iface.Name] = &interfaceInfo{
-				iface:    iface,
-				beacon:   ifcfg.Beacon,
-				listen:   ifcfg.Listen,
-				port:     ifcfg.Port,
-				priority: ifcfg.Priority,
+				iface:  iface,
+				beacon: ifcfg.Beacon,
+				listen: ifcfg.Listen,
+				port:   ifcfg.Port,
 			}
 			break
 		}

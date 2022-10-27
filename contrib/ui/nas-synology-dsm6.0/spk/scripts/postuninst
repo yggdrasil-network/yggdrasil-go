@@ -1,0 +1,8 @@
+#!/bin/sh
+
+rm -f /var/run/mesh.pid
+LOG_SYMLINK=/var/log/mesh.log
+[ -L $LOG_SYMLINK ] && rm -f $LOG_SYMLINK
+rm -f /etc/nginx/conf.d/dsm.mesh.conf
+
+exit 0

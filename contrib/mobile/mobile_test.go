@@ -3,14 +3,14 @@ package mobile
 import "testing"
 
 func TestStartYggdrasil(t *testing.T) {
-	ygg := &Yggdrasil{}
-	if err := ygg.StartAutoconfigure(); err != nil {
-		t.Fatalf("Failed to start Yggdrasil: %s", err)
+	ygg := &Mesh{}
+	if err := mesh.StartAutoconfigure(); err != nil {
+		t.Fatalf("Failed to start Mesh: %s", err)
 	}
-	t.Log("Address:", ygg.GetAddressString())
-	t.Log("Subnet:", ygg.GetSubnetString())
-	t.Log("Coords:", ygg.GetCoordsString())
-	if err := ygg.Stop(); err != nil {
+	t.Log("Address:", mesh.GetAddressString())
+	t.Log("Subnet:", mesh.GetSubnetString())
+	t.Log("Coords:", mesh.GetCoordsString())
+	if err := mesh.Stop(); err != nil {
 		t.Fatalf("Failed to stop Yggdrasil: %s", err)
 	}
 }

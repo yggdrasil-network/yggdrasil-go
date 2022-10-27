@@ -1,0 +1,19 @@
+[Unit]
+Description=RiV-mesh is an early-stage implementation of a fully end-to-end encrypted IPv6 network
+
+[Service]
+Type=idle
+Group=admin
+ProtectHome=true
+ProtectSystem=true
+SyslogIdentifier=mesh
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_NET_BIND_SERVICE
+ExecStartPre=+-/sbin/modprobe tun
+ExecStart=/apps/mesh/bin/mesh -useconffile /etc/mesh.conf -httpaddress http://localhost:19019 -wwwroot /apps/mesh/www -logto /apps/mesh/var/log/mesh.log
+ExecStop=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

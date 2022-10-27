@@ -1,0 +1,10 @@
+#!/bin/sh
+
+get_info() {
+  rn_nml -g systeminfo | tr '\n' ' ' | sed -r "s|.*<$1>(.*)</$1>.*|\1|"
+}
+echo vendor=Netgear
+echo vendorOperatingSystemName="$(get_info Firmware_Name)"
+echo firmwareVersion="$(get_info Firmware_Version)"
+echo model="$(get_info Model)"
+echo serial="$(get_info Serial)"

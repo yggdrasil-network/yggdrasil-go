@@ -1,0 +1,11 @@
+[zh-cn]
+mesh = "RiV Mesh"
+auth = "Riv Chain ltd"
+tos_mesh_note = "RiV-mesh 是完全端到端加密 IPv6 網絡的實現"
+enter = "进入"
+
+[en-us]
+mesh = "RiV Mesh"
+auth = "Riv Chain ltd"
+tos_mesh_note = "RiV-mesh is an implementation of a fully end-to-end encrypted IPv6 network."
+enter = "Enter"

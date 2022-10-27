@@ -1,0 +1,11 @@
+{
+	".url": {
+		"org.mesh": {
+			"type": "url",
+			"title": "RiV Mesh",
+			"desc": "ipv6 mesh network",
+			"icon": "mesh-{0}.png",
+			"url": "/webman/3rdparty/mesh/login.html"
+		}
+	}
+}

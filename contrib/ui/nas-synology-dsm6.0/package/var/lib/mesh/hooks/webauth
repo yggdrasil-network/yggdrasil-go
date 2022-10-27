@@ -1,0 +1,22 @@
+#!/bin/sh
+export CONTENT_LENGTH=$HTTP_CONTENT_LENGTH
+export CONTENT_TYPE=$HTTP_CONTENT_TYPE
+
+IFS=';'
+for x in $HTTP_COOKIE
+do
+  case $x in
+    *EdSynoToken*)
+      eval $x
+      ;;
+  esac
+done
+[ -z $QUERY_STRING ] && export QUERY_STRING=SynoToken=$EdSynoToken || export QUERY_STRING="$QUERY_STRING&SynoToken=$EdSynoToken"
+
+[ ! -z $HTTP_X_REAL_IP ] && export REMOTE_ADDR=$HTTP_X_REAL_IP
+[ ! -z $HTTP_X_FORWARDED_FOR_ADDR ] && export SERVER_ADDR=$HTTP_X_FORWARDED_FOR_ADDR
+[ ! -z $HTTP_X_FORWARDED_FOR_PORT ] && export SERVER_PORT=$HTTP_X_FORWARDED_FOR_PORT
+
+#exit with zero status on auth success and 1 on error
+[ ! -z $(/usr/syno/synoman/webman/modules/authenticate.cgi) ]
+exit $?

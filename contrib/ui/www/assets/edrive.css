@@ -1,0 +1,160 @@
+.hide{display:none;}
+
+body {	
+	font: 12px Verdana;
+	padding: 0;
+	margin: 0;
+}
+hr {
+	background: none;
+	border: none;
+	border-bottom: 2px solid gray;
+}
+a { color: #02b7ff; }
+
+::-webkit-input-placeholder { color: #666 !important; }
+:-moz-placeholder { color: #666 !important; }
+::-moz-placeholder { color: #666 !important; }
+:-ms-input-placeholder { color: #666 !important; }
+
+.nas-apps-config-form-message {
+	background: #ccc;
+	color: black;
+	padding: 6px 12px;
+	margin: 0 8px 8px 8px;
+	border-radius: 6px;
+	font-weight: bold;
+	text-align: center;
+	background-color: #00c81e;
+} 
+
+.nas-apps-config-form-message-error {
+	background-color: #fa1c1ce8;	
+} 
+
+.nas-apps-config-form-middle {
+	width: 500px;
+	margin: 0 auto;
+	padding: 20px;
+	overflow: hidden;
+}
+
+.nas-apps-config-form-top {
+	padding: 10px 20px;
+	width: 500px;
+	margin: 0 auto;
+}
+.nas-apps-config-form-bottom {
+	text-align: right;
+	width: 500px;
+	margin: 0 auto;
+	padding: 10px 20px;
+}
+.nas-apps-config-form-left { float: left; }
+.nas-apps-config-form-right {
+	float: right;
+	width: 200px;
+	padding: 20px 0;
+}
+
+.nas-apps-config-form-link-info {
+	margin: 5px 0 20px 0;
+}
+
+/* top */
+.nas-apps-config-form-app-logo {
+	height: 110px;
+	background: center center no-repeat;
+	background-size: 439px 90px;
+	background-image: url(logo.png),url(logo.svg);
+}
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) { 
+	.nas-apps-config-form-app-logo { background-image: url(copy_logo@2x.png); }
+}
+.nas-apps-config-form-app-version {
+	font-size: 10px;
+	text-align: right;
+}
+
+/* bottom */
+.nas-apps-config-form-partner-logo {
+	height: 110px;
+	background: center center no-repeat;
+	background-image: url(partner-logo.png),url(partner-logo.svg);
+}
+
+.nas-apps-config-form-auth {
+	margin-bottom: 16px;
+}
+.nas-apps-config-form-auth-id,
+.nas-apps-config-form-location-name {
+	margin: 8px;
+	font-weight: bold;	
+	font-size: 14px;
+}
+.nas-apps-config-form-auth-link {
+	margin: 8px;
+}
+
+.nas-apps-config-form-field-label {
+	display: block;
+	margin: 4px 8px -4px 8px;
+	font-size: 10px;
+	color: #999;
+}
+.nas-apps-config-form-field input,
+.nas-apps-config-form-field select {
+	background: transparent;
+	-webkit-appearance: none;	
+	border-radius: 10px;
+	padding: 6px 12px;
+	font: 12px Verdana;
+	border: 1px solid #666;
+	margin: 8px;
+	width: 200px;
+	box-sizing: border-box;
+	-o-box-sizing: border-box;
+	-ms-box-sizing: border-box;
+	-moz-box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+}
+.nas-apps-config-form-field select:focus option {
+	color: black;	
+}
+
+.nas-apps-config-form-field input:focus,
+.nas-apps-config-form-field select:focus {
+	border: 2px solid #02b7ff;
+	outline: none;
+	margin: 7px;
+}
+
+.nas-apps-config-form-button {
+	height: 30px;
+	width: 75px;
+	color: white;	
+	background: black;
+	font: 12px Verdana;
+	border-radius: 8px;
+	border: 1px solid #666;
+	margin: 8px;
+	padding: 0 16px;
+	cursor: pointer;
+	background: -webkit-linear-gradient(#3f3f3f, #000);
+}
+
+.nas-apps-config-form-button.nas-apps-feedback-button {
+	width: auto !important;
+	margin: 0;
+	margin-top: 8px;
+}
+
+.nas-apps-config-form-button[type=submit] {
+	border-color: #c1d3dc;
+	background: -webkit-linear-gradient(#405f70, #000);
+	box-shadow: inset 0 0 6px #405f70;
+}
+
+.nas-apps-config-nas-logout-block {
+	text-align: right;
+}

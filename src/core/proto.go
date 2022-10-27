@@ -12,7 +12,7 @@ import (
 	iwt "github.com/Arceliar/ironwood/types"
 	"github.com/Arceliar/phony"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/RiV-chain/RiV-mesh/src/address"
 )
 
 const (

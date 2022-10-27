@@ -1,0 +1,76 @@
+#!/bin/sh
+#exit with zero status on auth success and 1 on error
+#
+#You can use our cgi to restrict access to RiV Mesh configuration page only for authenticated NAS OS users.
+#==========================
+#1. use login to verify authenticated NAS OS user
+#
+#for example:
+#
+#root@AS6208T-RD:/ # REMOTE_ADDR="127.0.0.1" QUERY_STRING="act=login&apptag=mesh&account=admin&password=admin888" /usr/webman/portal/apis/appCentral/applogin.cgi
+#Content-type: text/plain; charset=utf-8
+#
+#result:
+#{ "success": true, "account": "admin", "sid": "yPgoWu95eXxCxZJr", "isAdminGroup": 1, "model": "AS6208T", "hostid": "20-16-01-21-14-01" }
+#
+#explanation:   
+#apptag:  application name 
+#account&password:  which you want to verify
+#
+#2. When you finish verifying authenticated NAS OS user, you must logout from NAS.
+#
+#for example:
+#
+#root@AS6208T-RD:/ # QUERY_STRING="act=logout&sid=yPgoWu95eXxCxZJr" /usr/webman/portal/apis/login.cgi
+#Content-type: text/plain; charset=utf-8
+#
+#result
+#{ "success": true }
+#
+#explanation:  
+#sid:  same as above (login result)
+
+
+
+CACHE="/usr/local/AppCentral/mesh/var/lib/mesh/access_key"
+if [ -f $CACHE ] && [ "$(expr $(date +%s) - $(date -r $CACHE +%s))" -lt 3600 ]; then
+   exit 0
+fi
+
+#we want read e.g.:
+#HTTP_COOKIE='access_key=sdu45KJFDHksadulf='
+IFS=';'
+for x in $HTTP_COOKIE
+do
+    eval $x
+done
+#we want get e.g.:
+#access_key='user=admin;pwd=L4edNyoCC15.kDBLIN05480'
+access_key=$(echo $access_key | base64 -d)
+
+CACHE="/usr/local/AppCentral/mesh/var/lib/mesh/$access_key"
+if [ -f $CACHE ] && [ "$(expr $(date +%s) - $(date -r $CACHE +%s))" -lt 3600 ]; then
+	exit 0
+fi
+
+IFS=';'
+for x in $access_key
+do
+    eval $x
+done
+
+if [ -z "${user}" ] || [ -z "${pwd}" ]; then
+	exit 1
+fi
+
+export REMOTE_ADDR="127.0.0.1" 
+export QUERY_STRING="act=login&apptag=mesh&account=${user}&password=${pwd}" 
+S=$(/usr/webman/portal/apis/appCentral/applogin.cgi | sed '/"sid"/!d; s/\s\+//g; s/.*"sid":"\([^"]*\)".*/\1/')
+if [ -z $S ]; then
+	exit 1
+else
+	export QUERY_STRING="act=logout&sid=$S" 
+	/usr/webman/portal/apis/login.cgi >/dev/null
+	touch $CACHE
+	exit 0
+fi

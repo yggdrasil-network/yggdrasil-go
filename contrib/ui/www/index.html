@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>  	
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <META HTTP-EQUIV="Pragma" CONTENT="no-cache">
+    <META HTTP-EQUIV="Cache-Control" CONTENT="no-cache">
+    <META HTTP-EQUIV="Expires" CONTENT="-1">
+    <link href="assets/edrive.css" rel="stylesheet" media="all">
+    <link href="assets/partner.css" rel="stylesheet" media="all">
+    <link rel="icon" type="image/x-icon" href="assets/favicon.png">
+    <title>RiV-Mesh</title>    
+    <script src="assets/jquery.min.js"></script>
+    <script src="assets/properties.js"></script>
+    <script src="assets/edrive.js"></script>
+    <script>
+      window.addEventListener('DOMContentLoaded', function(event) {
+        setTimeout(function () {
+          if(document.getElementById("dynamic_body").style.display === 'none') {
+            document.getElementById("static_body").style.display = "block";
+          }
+        }, 100)
+      })
+    </script>
+  </head>
+  <body>
+    <div id="dynamic_body" style="display: none;">
+    <div class="nas-apps-config-form-top">
+      <div id="nasLogoutBlock" class="nas-apps-config-nas-logout-block hide"><a id="nasLogoutBtn" href="#">Log Out <b class="nas-user-name">Device User</b></a></div>
+      <div class="nas-apps-config-form-app-logo"></div>
+      <div class="nas-apps-config-form-app-version hide">Version <span  id="version"></span></div>
+    </div>
+
+    <hr />
+
+		<div id="applicationAlert" class="nas-apps-config-form-middle nas-apps-config-form-message nas-apps-config-form-message-error hide">
+			Application error: Something went wrong
+		</div>
+
+    <div id="loginScreen" class="nas-apps-config-form-middle hide">        
+
+      <div id="loginAlert" class="nas-apps-config-form-message nas-apps-config-form-message-error hide">
+        peer is unavailable
+      </div>
+			<h2 style="text-align: center;">Sign in with your RiV-Mesh credentials<br>to connect to your RiV-Mesh account</h2>
+      <form id="loginForm" class="form-horizontal nas-apps-config-form-left">
+
+        <div class="nas-apps-config-form-field">
+          <label class="nas-apps-config-form-field-label" for="inputEmail">Host</label>      				
+          <input type="text" id="inputHost" placeholder="Host">      				
+        </div>
+
+        <div class="nas-apps-config-form-field">
+          <label class="nas-apps-config-form-field-label" for="inputPort">Port</label>      				
+          <input id="inputPort" placeholder="Port">      				
+        </div>
+
+        <div class="nas-apps-config-form-field">
+          <button id="loginBtn" type="submit" class="nas-apps-config-form-button" style="width: 110px">Add</button>  
+        </div>
+
+      </form>
+
+      <div class="nas-apps-config-form-right">          
+        <div>
+          <a id="goToSignupBtn" href="#"><b>Sign Up</b></a>
+          <div class="nas-apps-config-form-link-info" id="signingUpPropositionMessage">Don't have an RiV-Mesh peer? Add it here</div>
+        </div>
+
+        <div>
+          <a id="checkPeerBtn" href='#' >Check peer online</a>
+        </div>          
+        <br/>
+
+        <div>
+          <a class="nas-visit-ed-website-login" href="#" target="_blank">Visit RiV-Mesh Website</a>
+        </div>          
+      </div>
+
+    </div>
+
+
+    <div id="loadingScreen" class="hide" style="text-align:center; margin: 60px 0 60px 0">      
+      <h4>
+        <span id="loadingMessage"></span> <span style="padding-left: 3px; padding-right: 3px;"></span> ...
+      </h4>
+      <br />
+      <div style="margin-top:6px"> <img src="assets/ajax-loader.gif"> </div>
+    </div>
+
+
+    <div id="statusScreen" class="nas-apps-config-form-middle hide" style="text-align: center">
+
+      <div class=row>
+        <div id="statusAlert" class="nas-apps-config-form-message hide">
+          Successfully connected
+        </div>
+      </div>
+
+      <div class="row">
+        <h4><font size=3>IPv6: <span class="nas-apps-config-form-auth-id" id="username"></span> </font> </h4>
+        <br/>
+        <button id="logoutBtn" class="nas-apps-config-form-button" style="width: 220px">Edit peers &raquo; </button>
+      </div>
+
+      <div class="row">     
+        <br/><br/><br/>
+        <a style="text-decoration: underline" target="_blank" class="nas-visit-ed-website-loggedin" href="#"><b>Learn more about RiV-Mesh</b></a>     
+      </div>  
+
+      <div class="row">     
+        <br/><br/><br/>
+        <a id='logFileBtn' style="text-decoration: underline" target="_blank" href="#">View log file</a> 
+				<br/>
+        <a id='getDiagFileBtn' style="text-decoration: underline" target="_blank" href="#">Download diagnostics</a>     
+      </div>  
+
+    </div>
+
+    <div id="authNASScreen" class="nas-apps-config-form-middle hide">        
+      <h2 style="text-align: center;">
+				Warning: This browser is not yet authorized to access application like RiV-Mesh on your <span class="nas-os-name">device</span>. <br/><br/>
+				Please <a id="loginToYourNAS" href='#'>login to your NAS device</a> and then try again.
+      </h2>
+    </div>
+
+    <div id="authNASRichScreen" class="nas-apps-config-form-middle hide">        
+			<div id="nasLoginAlert" class="nas-apps-config-form-message nas-apps-config-form-message-error hide">
+				Wrong username/password
+			</div>
+
+			<h2 style="text-align: center">Please sign with your NAS credentials</h2>
+			<form id="nasLoginForm" class="form-horizontal nas-apps-config-form-left" style="text-align: center; width:500px">
+				<div class="nas-apps-config-form-field">
+					<label class="nas-apps-config-form-field-label" for="nasInputUser"><span class="nas-os-name">device</span> User</label>      				
+					<input type="text" id="nasInputUser" placeholder="NAS Device user name">      				
+				</div>
+
+				<div class="nas-apps-config-form-field">
+					<label class="nas-apps-config-form-field-label" for="nasInputPassword">Password</label>      				
+					<input type="password" id="nasInputPassword" placeholder="Password">      				
+				</div>
+
+				<div class="nas-apps-config-form-field">
+					<button id="nasLoginBtn" type="submit" class="nas-apps-config-form-button" style="width: 110px">Login</button>  
+				</div>
+
+			</form>
+    </div>
+
+    <div id="signupScreen" class="nas-apps-config-form-middle hide">        
+
+      <div id="signupAlert" class="nas-apps-config-form-message nas-apps-config-form-message-error hide">
+        Wrong IP/port
+      </div>
+
+      <form id="signupForm" class="form-horizontal nas-apps-config-form-left">
+
+        <div class="nas-apps-config-form-field">
+          <label class="nas-apps-config-form-field-label" for="inputIPS">Host</label>              
+          <input type="text" id="inputIPS" placeholder="Host">             
+        </div>
+
+        <div class="nas-apps-config-form-field">
+          <label class="nas-apps-config-form-field-label" for="inputPortS">Port</label>              
+          <input id="inputPortS" placeholder="Port">             
+        </div>
+
+        <div class="nas-apps-config-form-field">
+          <label class="nas-apps-config-form-field-label" for="inputPortConfirm">Confirm port</label>              
+          <input id="inputPortConfirm" placeholder="Confirm port">             
+        </div>
+
+        <div class="nas-apps-config-form-field">
+          <button id="signupBtn" type="submit" class="nas-apps-config-form-button" style="width: 110px">Add</button>             
+        </div>
+
+      </form>
+
+      <div class="nas-apps-config-form-right">          
+        <div>            
+          <div class="nas-apps-config-form-link-info">
+            <b id="signingUpMessage">If you are operating RiV-mesh peer and may create your pool request with your new per or use existing one <a href="https://github.com/RiV-chain/public-peers.">in GitHub</a></b>
+          </div>
+        </div>
+
+        <div>
+          <a id="signupBackToLoginBtn" href="#">Back to login</a>
+        </div>          
+        <br/>
+        <div>
+          <a class="nas-visit-ed-website-signup" href="#" target="_blank">Visit RiV-Mesh Website</a>
+        </div>          
+      </div>
+
+    </div>
+
+
+    <div id="loginLoadingMessage" class="hide">Logging in </div>
+    <div id="logoutLoadingMessage" class="hide">Logging out </div>
+    <div id="signupLoadingMessage" class="hide">Addeing new peer<span class="nas-os-name">device</span></div>
+    <div id="loginSuccess" class="hide">Successfully linked your RiV-Mesh account with your <span class="nas-os-name">device</span>!</div>
+    <div id="ipOrDNError" class="hide">Peer host is uanavailable</div>
+    <div id="hostFormatError" class="hide">Host format is incorrect: should be an IP or domain name</div>
+    <hr />
+
+    <div class="nas-apps-config-form-bottom">
+      <div class="nas-apps-config-form-partner-logo"></div>
+    </div>
+  </div>
+  <div id="static_body" style="display: none;">
+    <h1 style="text-align: center;">Cannot render application interface</h1>
+  </div>
+  </body>
+</html>

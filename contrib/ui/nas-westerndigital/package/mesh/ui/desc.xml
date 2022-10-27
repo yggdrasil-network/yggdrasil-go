@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?> 
+<config>   
+	<en-US><![CDATA[RiV-mesh is an early-stage implementation of a fully end-to-end encrypted IPv6
+ network. It is lightweight, self-arranging, supported on multiple platforms and
+ allows pretty much any IPv6-capable application to communicate securely with
+ other RiV-mesh nodes. <a href="https://github.com/RiV-chain/RiV-mesh" target="_blank">Learn more here</a>...]]></en-US>
+</config>

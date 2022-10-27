@@ -15,16 +15,12 @@ command -v mkbom >/dev/null 2>&1 || (
   sudo make install || (echo "Failed to build mkbom"; exit 1)
 )
 
-# Build Yggdrasil
-echo "running GO111MODULE=on GOOS=darwin GOARCH=${PKGARCH-amd64} ./build"
-GO111MODULE=on GOOS=darwin GOARCH=${PKGARCH-amd64} ./build
-
 # Check if we can find the files we need - they should
 # exist if you are running this script from the root of
-# the yggdrasil-go repo and you have ran ./build
-test -f yggdrasil || (echo "yggdrasil binary not found"; exit 1)
-test -f yggdrasilctl || (echo "yggdrasilctl binary not found"; exit 1)
-test -f contrib/macos/yggdrasil.plist || (echo "contrib/macos/yggdrasil.plist not found"; exit 1)
+# the RiV-mesh repo and you have ran ./build
+test -f mesh || (echo "mesh binary not found"; exit 1)
+test -f meshctl || (echo "meshctl binary not found"; exit 1)
+test -f contrib/macos/mesh.plist || (echo "contrib/macos/mesh.plist not found"; exit 1)
 test -f contrib/semver/version.sh || (echo "contrib/semver/version.sh not found"; exit 1)
 
 # Delete the pkgbuild folder if it already exists
@@ -35,40 +31,43 @@ mkdir -p pkgbuild/scripts
 mkdir -p pkgbuild/flat/base.pkg
 mkdir -p pkgbuild/flat/Resources/en.lproj
 mkdir -p pkgbuild/root/usr/local/bin
+mkdir -p pkgbuild/root/Applications/RiV-mesh.app/Contents/MacOS
 mkdir -p pkgbuild/root/Library/LaunchDaemons
 
 # Copy package contents into the pkgbuild root
-cp yggdrasil pkgbuild/root/usr/local/bin
-cp yggdrasilctl pkgbuild/root/usr/local/bin
-cp contrib/macos/yggdrasil.plist pkgbuild/root/Library/LaunchDaemons
+cp mesh pkgbuild/root/Applications/RiV-mesh.app/Contents/MacOS
+cp meshctl pkgbuild/root/usr/local/bin
+cp contrib/macos/mesh.plist pkgbuild/root/Library/LaunchDaemons
 
 # Create the postinstall script
 cat > pkgbuild/scripts/postinstall << EOF
 #!/bin/sh
 
 # Normalise the config if it exists, generate it if it doesn't
-if [ -f /etc/yggdrasil.conf ];
+if [ -f /etc/mesh.conf ];
 then
-  mkdir -p /Library/Preferences/Yggdrasil
-  echo "Backing up configuration file to /Library/Preferences/Yggdrasil/yggdrasil.conf.`date +%Y%m%d`"
-  cp /etc/yggdrasil.conf /Library/Preferences/Yggdrasil/yggdrasil.conf.`date +%Y%m%d`
-  echo "Normalising /etc/yggdrasil.conf"
-  /usr/local/bin/yggdrasil -useconffile /Library/Preferences/Yggdrasil/yggdrasil.conf.`date +%Y%m%d` -normaliseconf > /etc/yggdrasil.conf
+  mkdir -p /Library/Preferences/RiV-mesh
+  echo "Backing up configuration file to /Library/Preferences/RiV-mesh/mesh.conf.`date +%Y%m%d`"
+  cp /etc/mesh.conf /Library/Preferences/RiV-mesh/mesh.conf.`date +%Y%m%d`
+  echo "Normalising /etc/mesh.conf"
+  /Applications/RiV-mesh.app/Contents/MacOS/mesh -useconffile /Library/Preferences/RiV-mesh/mesh.conf.`date +%Y%m%d` -normaliseconf > /etc/mesh.conf
 else
-  /usr/local/bin/yggdrasil -genconf > /etc/yggdrasil.conf
+  /Applications/RiV-mesh.app/Contents/MacOS/mesh -genconf > /etc/mesh.conf
 fi
 
-# Unload existing Yggdrasil launchd service, if possible
-test -f /Library/LaunchDaemons/yggdrasil.plist && (launchctl unload /Library/LaunchDaemons/yggdrasil.plist || true)
+chmod 755 /etc/mesh.conf
 
-# Load Yggdrasil launchd service and start Yggdrasil
-launchctl load /Library/LaunchDaemons/yggdrasil.plist
+# Unload existing RiV-mesh launchd service, if possible
+test -f /Library/LaunchDaemons/mesh.plist && (launchctl unload /Library/LaunchDaemons/mesh.plist || true)
+
+# Load RiV-mesh launchd service and start RiV-mesh
+launchctl load /Library/LaunchDaemons/mesh.plist
 EOF
 
 # Set execution permissions
-chmod +x pkgbuild/scripts/postinstall
-chmod +x pkgbuild/root/usr/local/bin/yggdrasil
-chmod +x pkgbuild/root/usr/local/bin/yggdrasilctl
+chmod 755 pkgbuild/scripts/postinstall
+chmod 755 pkgbuild/root/Applications/RiV-mesh.app/Contents/MacOS/mesh
+chmod 755 pkgbuild/root/usr/local/bin/meshctl
 
 # Pack payload and scripts
 ( cd pkgbuild/scripts && find . | cpio -o --format odc --owner 0:80 | gzip -c ) > pkgbuild/flat/base.pkg/Scripts
@@ -79,11 +78,10 @@ PKGNAME=$(sh contrib/semver/name.sh)
 PKGVERSION=$(sh contrib/semver/version.sh --bare)
 PKGARCH=${PKGARCH-amd64}
 PAYLOADSIZE=$(( $(wc -c pkgbuild/flat/base.pkg/Payload | awk '{ print $1 }') / 1024 ))
-[ "$PKGARCH" = "amd64" ] && PKGHOSTARCH="x86_64" || PKGHOSTARCH=${PKGARCH}
 
 # Create the PackageInfo file
 cat > pkgbuild/flat/base.pkg/PackageInfo << EOF
-<pkg-info format-version="2" identifier="io.github.yggdrasil-network.pkg" version="${PKGVERSION}" install-location="/" auth="root">
+<pkg-info format-version="2" identifier="io.github.RiV-chain.pkg" version="${PKGVERSION}" install-location="/" auth="root">
   <payload installKBytes="${PAYLOADSIZE}" numberOfFiles="3"/>
   <scripts>
     <postinstall file="./postinstall"/>
@@ -98,15 +96,15 @@ EOF
 cat > pkgbuild/flat/Distribution << EOF
 <?xml version="1.0" encoding="utf-8"?>
 <installer-script minSpecVersion="1.000000" authoringTool="com.apple.PackageMaker" authoringToolVersion="3.0.3" authoringToolBuild="174">
-    <title>Yggdrasil (${PKGNAME}-${PKGVERSION})</title>
-    <options customize="never" allow-external-scripts="no" hostArchitectures="${PKGHOSTARCH}" />
+    <title>RiV-mesh (${PKGNAME}-${PKGVERSION})</title>
+    <options customize="never" allow-external-scripts="no"/>
     <domains enable_anywhere="true"/>
     <installation-check script="pm_install_check();"/>
     <script>
     function pm_install_check() {
       if(!(system.compareVersions(system.version.ProductVersion,'10.10') >= 0)) {
         my.result.title = 'Failure';
-        my.result.message = 'You need at least Mac OS X 10.10 to install Yggdrasil.';
+        my.result.message = 'You need at least Mac OS X 10.10 to install RiV-mesh.';
         my.result.type = 'Fatal';
         return false;
       }
@@ -117,11 +115,11 @@ cat > pkgbuild/flat/Distribution << EOF
         <line choice="choice1"/>
     </choices-outline>
     <choice id="choice1" title="base">
-        <pkg-ref id="io.github.yggdrasil-network.pkg"/>
+        <pkg-ref id="io.github.RiV-mesh.pkg"/>
     </choice>
-    <pkg-ref id="io.github.yggdrasil-network.pkg" installKBytes="${PAYLOADSIZE}" version="${VERSION}" auth="Root">#base.pkg</pkg-ref>
+    <pkg-ref id="io.github.RiV-mesh.pkg" installKBytes="${PAYLOADSIZE}" version="${VERSION}" auth="Root">#base.pkg</pkg-ref>
 </installer-script>
 EOF
 
 # Finally pack the .pkg
-( cd pkgbuild/flat && xar --compression none -cf "../../${PKGNAME}-${PKGVERSION}-macos-${PKGARCH}.pkg" * )
+( cd pkgbuild/flat && xar --compression none -cf "../../${PKGNAME}-${PKGVERSION}-macos-${PKGARCH}-nogui.pkg" * )

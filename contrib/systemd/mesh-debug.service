@@ -1,0 +1,21 @@
+[Unit]
+Description=mesh
+Wants=network-online.target
+Wants=mesh-default-config.service
+After=network-online.target
+After=mesh-default-config.service
+
+[Service]
+Group=mesh
+ProtectHome=true
+ProtectSystem=true
+SyslogIdentifier=mesh
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_NET_BIND_SERVICE
+ExecStartPre=+-/sbin/modprobe tun
+ExecStart=/usr/bin/mesh -useconffile /etc/mesh.conf -loglevel debug -logto /var/log/mesh.log
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+TimeoutStopSec=5
+
+[Install]
+WantedBy=multi-user.target

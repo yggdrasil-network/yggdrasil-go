@@ -1,0 +1,18 @@
+<html>
+  <head>
+    <script type="text/javascript" src="/scripts/ext-3/adapter/ext/ext-base.js?v=1401997094"></script>
+    <script type="text/javascript" src="/scripts/ext-3/ext-all.js?v=1401997094"></script>
+    <script type="text/javascript" src="/webman/dsmtoken.cgi"></script>
+  </head>
+  <body>
+    <script>
+      Ext.onReady(function () {
+        if (Ext.isEmpty(SYNO.SDS.Session)) {
+          window.location.assign("/webman");
+        } else {
+          window.location.assign(Ext.urlAppend(window.location.origin + "/mesh/"));
+        }
+      });
+    </script>
+  </body>
+</html>

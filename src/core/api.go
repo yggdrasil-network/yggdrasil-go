@@ -2,15 +2,22 @@ package core
 
 import (
 	"crypto/ed25519"
-	"encoding/json"
 	"fmt"
-	"net"
-	"net/url"
 	"sync/atomic"
 	"time"
 
+	//"encoding/hex"
+	"encoding/json"
+	//"errors"
+	//"fmt"
+	"net"
+	"net/url"
+
+	//"sort"
+	//"time"
+
 	"github.com/Arceliar/phony"
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/RiV-chain/RiV-mesh/src/address"
 )
 
 type SelfInfo struct {
@@ -146,7 +153,7 @@ func (c *Core) Listen(u *url.URL, sintf string) (*Listener, error) {
 	}
 }
 
-// Address gets the IPv6 address of the Yggdrasil node. This is always a /128
+// Address gets the IPv6 address of the Mesh node. This is always a /128
 // address. The IPv6 address is only relevant when the node is operating as an
 // IP router and often is meaningless when embedded into an application, unless
 // that application also implements either VPN functionality or deals with IP
@@ -156,7 +163,7 @@ func (c *Core) Address() net.IP {
 	return addr
 }
 
-// Subnet gets the routed IPv6 subnet of the Yggdrasil node. This is always a
+// Subnet gets the routed IPv6 subnet of the Mesh node. This is always a
 // /64 subnet. The IPv6 subnet is only relevant when the node is operating as an
 // IP router and often is meaningless when embedded into an application, unless
 // that application also implements either VPN functionality or deals with IP
@@ -167,7 +174,7 @@ func (c *Core) Subnet() net.IPNet {
 	return net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
 }
 
-// SetLogger sets the output logger of the Yggdrasil node after startup. This
+// SetLogger sets the output logger of the Mesh node after startup. This
 // may be useful if you want to redirect the output later. Note that this
 // expects a Logger from the github.com/gologme/log package and not from Go's
 // built-in log package.
@@ -176,36 +183,29 @@ func (c *Core) SetLogger(log Logger) {
 }
 
 // AddPeer adds a peer. This should be specified in the peer URI format, e.g.:
-//
-//	tcp://a.b.c.d:e
-//	socks://a.b.c.d:e/f.g.h.i:j
-//
+// 		tcp://a.b.c.d:e
+//		socks://a.b.c.d:e/f.g.h.i:j
 // This adds the peer to the peer list, so that they will be called again if the
 // connection drops.
-func (c *Core) AddPeer(uri string, sourceInterface string) error {
-	var known bool
-	phony.Block(c, func() {
-		_, known = c.config._peers[Peer{uri, sourceInterface}]
-	})
-	if known {
-		return fmt.Errorf("peer already configured")
+
+func (c *Core) AddPeer(peer string, intf string) error {
+	select {
+	case <-c.ctx.Done():
+		return nil
+	default:
 	}
-	u, err := url.Parse(uri)
+	u, err := url.Parse(peer)
 	if err != nil {
+		c.log.Errorln("Failed to parse peer url:", peer, err)
 		return err
 	}
-	info, err := c.links.call(u, sourceInterface)
-	if err != nil {
+	if err := c.CallPeer(u, intf); err != nil {
+		c.log.Errorln("Failed to add peer:", err)
 		return err
 	}
-	phony.Block(c, func() {
-		c.config._peers[Peer{uri, sourceInterface}] = &info
-	})
 	return nil
 }
 
-// RemovePeer removes a peer. The peer should be specified in URI format, see AddPeer.
-// The peer is not disconnected immediately.
 func (c *Core) RemovePeer(uri string, sourceInterface string) error {
 	var err error
 	phony.Block(c, func() {
@@ -225,6 +225,15 @@ func (c *Core) RemovePeer(uri string, sourceInterface string) error {
 		delete(c.config._peers, peer)
 	})
 	return err
+}
+
+func (c *Core) RemovePeers() error {
+	c.config._peers = map[Peer]*linkInfo{}
+	//for k := range c.config.InterfacePeers {
+	//	delete(c.config.InterfacePeers, k)
+	//}
+
+	return nil
 }
 
 // CallPeer calls a peer once. This should be specified in the peer URI format,

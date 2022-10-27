@@ -1,0 +1,61 @@
+#!/bin/sh
+# postinst script for mesh
+#
+# see: dh_installdeb(1)
+
+set -e
+
+# summary of how this script can be called:
+#        * <postinst> `configure' <most-recently-configured-version>
+#        * <old-postinst> `abort-upgrade' <new version>
+#        * <conflictor's-postinst> `abort-remove' `in-favour' <package>
+#          <new-version>
+#        * <postinst> `abort-remove'
+#        * <deconfigured's-postinst> `abort-deconfigure' `in-favour'
+#          <failed-install-package> <version> `removing'
+#          <conflicting-package> <version>
+# for details, see http://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+
+case "$1" in
+    configure)
+    chown -R admin:admin /apps/mesh
+    if systemctl restart apache2.service; then
+      # success
+      event_push app meshd '<add-s resource-type="LocalApp" resource-id="LocalApp"><LocalApp appname="mesh" success="1"/></add-s>' 0 0
+    else
+      # error
+      event_push app meshd '<add-s resource-type="LocalApp" resource-id="LocalApp"><LocalApp appname="mesh" success="0"/></add-s>' 0 0
+    fi
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+if [ -f /etc/mesh.conf ]; then
+  mkdir -p /var/backups
+  echo "Backing up configuration file to /var/backups/mesh.conf.`date +%Y%m%d`"
+  cp /etc/mesh.conf /var/backups/mesh.conf.`date +%Y%m%d`
+  echo "Normalising and updating /etc/mesh.conf"
+  /apps/mesh/bin/mesh -useconf -normaliseconf < /var/backups/mesh.conf.`date +%Y%m%d` > /etc/mesh.conf
+else
+  echo "Generating initial configuration file /etc/mesh.conf"
+  echo "Please familiarise yourself with this file before starting RiV-mesh"
+  sh -c 'umask 0027 && /apps/mesh/bin/mesh -genconf > /etc/mesh.conf'
+fi
+
+chmod 755 /etc/mesh.conf
+if command -v systemctl >/dev/null; then
+  systemctl daemon-reload || echo -n "daemon not reloaded!"
+  systemctl enable mesh || echo -n "systemctl enable failed!"
+  systemctl restart mesh || echo -n "systemctl restart failed!"
+fi
+
+exit 0

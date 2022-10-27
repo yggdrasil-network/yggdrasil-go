@@ -1,0 +1,11 @@
+[zh-cn]
+name = "RiV Mesh"
+auth = "mesh"
+version = "%%VERSION%%"
+descript = "RiV-mesh is an implementation of a fully end-to-end encrypted IPv6 network."
+
+[en-us]
+name = "RiV Mesh"
+auth = "mesh"
+version = "%%VERSION%%"
+descript = "RiV-mesh is an implementation of a fully end-to-end encrypted IPv6 network."

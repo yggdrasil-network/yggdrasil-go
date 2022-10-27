@@ -1,0 +1,9 @@
+.nas-apps-config-form-app-logo {
+	height: 110px;
+	background: url(logo.png) left center no-repeat;
+	background-size: 262px 56px;
+}
+
+a {
+    color: #692782!important;
+}

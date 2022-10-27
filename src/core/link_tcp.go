@@ -181,6 +181,7 @@ func (l *linkTCP) dialerFor(dst *net.TCPAddr, sintf string) (*net.Dialer, error)
 	return dialer, nil
 }
 
+
 func tcpIDFor(local net.Addr, remoteAddr *net.TCPAddr) string {
 	if localAddr, ok := local.(*net.TCPAddr); ok && localAddr.IP.Equal(remoteAddr.IP) {
 		// Nodes running on the same host — include both the IP and port.

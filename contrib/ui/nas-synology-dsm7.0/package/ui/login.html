@@ -1,0 +1,15 @@
+<html>
+  <head>
+    <script type="text/javascript" src="/scripts/ext-3/adapter/ext/ext-base.js?v=1401997094"></script>
+    <script type="text/javascript" src="/scripts/ext-3/ext-all.js?v=1401997094"></script>
+		<script type="text/javascript" src="/webapi/entry.cgi?api=SYNO.API.Auth&version=6&method=synotoken"></script>
+  </head>
+  <body>
+    <script>
+      Ext.onReady(function () {
+				window.location.assign(Ext.urlAppend("http://" + location.hostname + ":19019?origin=" + encodeURIComponent(window.location.origin)));
+      });
+    </script>
+  </body>
+</html>
+

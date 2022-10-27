@@ -57,13 +57,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - It is now possible to `addPeer` and `removePeer` using the admin socket again
 - The `getSessions` admin socket call reports number of bytes received and transmitted again
 - The link setup code has been refactored, making it easier to support new peering types in the future
-- Yggdrasil now maintains configuration internally, rather than relying on a shared and potentially mutable structure
+- RiV-mesh now maintains configuration internally, rather than relying on a shared and potentially mutable structure
 
 ### Fixed
 
 - Tracking information about expired root nodes has been fixed, which should hopefully resolve issues with reparenting and connection failures when the root node disappears
 - A bug in the mobile framework code which caused a crash on Android when multicast failed to set up has been fixed
-- Yggdrasil should now shut down gracefully and clean up correctly when running as a Windows service
+- RiV-mesh should now shut down gracefully and clean up correctly when running as a Windows service
 
 ## [0.4.4] - 2022-07-07
 
@@ -71,11 +71,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 - ICMPv6 "Packet Too Big" payload size has been increased, which should fix Path MTU Discovery (PMTUD) when two nodes have different `IfMTU` values configured
 - A crash has been fixed when handling debug packet responses
-- `yggdrasilctl getSelf` should now report coordinates correctly again
+- `meshctl getSelf` should now report coordinates correctly again
 
 ### Changed
 
-- Go 1.17 is now required to build Yggdrasil
+- Go 1.17 is now required to build RiV-mesh
 
 ## [0.4.3] - 2022-02-06
 

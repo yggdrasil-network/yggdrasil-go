@@ -4,7 +4,7 @@ set -ef
 
 [ ! -d contrib/mobile ] && (echo "Must run ./contrib/mobile/build [-i] [-a] from the repository top level folder"; exit 1)
 
-PKGSRC=${PKGSRC:-github.com/yggdrasil-network/yggdrasil-go/src/version}
+PKGSRC=${PKGSRC:-github.com/RiV-chain/RiV-mesh/src/version}
 PKGNAME=${PKGNAME:-$(sh contrib/semver/name.sh)}
 PKGVER=${PKGVER:-$(sh contrib/semver/version.sh --bare)}
 
@@ -37,7 +37,7 @@ if [ $IOS ]; then
   echo "Building framework for iOS"
   go get golang.org/x/mobile/bind
   gomobile bind \
-    -target ios -tags mobile -o Yggdrasil.xcframework \
+    -target ios -tags mobile -o Mesh.xcframework \
     -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
     ./contrib/mobile ./src/config;
 fi
@@ -46,7 +46,7 @@ if [ $ANDROID ]; then
   echo "Building aar for Android"
   go get golang.org/x/mobile/bind
   gomobile bind \
-    -target android -tags mobile -o yggdrasil.aar \
+    -target android -tags mobile -o mesh.aar \
     -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
     ./contrib/mobile ./src/config;
 fi

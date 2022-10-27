@@ -8,10 +8,10 @@ package defaults
 func getDefaults() platformDefaultParameters {
 	return platformDefaultParameters{
 		// Admin
-		DefaultAdminListen: "unix:///var/run/yggdrasil.sock",
+		DefaultAdminListen: "tcp://localhost:9001",
 
-		// Configuration (used for yggdrasilctl)
-		DefaultConfigFile: "/usr/local/etc/yggdrasil.conf",
+		// Configuration (used for meshctl)
+		DefaultConfigFile: "/usr/local/etc/mesh.conf",
 
 		// Multicast interfaces
 		DefaultMulticastInterfaces: []MulticastInterfaceConfig{

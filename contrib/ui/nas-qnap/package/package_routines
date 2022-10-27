@@ -1,0 +1,42 @@
+#script called from qinstall.sh
+
+#SYS_QPKG_SERVICE_ENABLED="FALSE"
+QPKG_NAME="mesh"
+CONF=/etc/config/mesh.conf
+
+PKG_PRE_REMOVE="{
+  killall -q mesh
+  rm -rf /share/Web/$QPKG_NAME
+  [ -L /var/log/mesh.log ] && rm -f /var/log/mesh.log
+}"
+
+PKG_MAIN_REMOVE="{
+  $CMD_RM -f $CONF
+}"
+
+pkg_pre_install(){
+  killall -q mesh
+  rm -rf /share/Web/$QPKG_NAME
+}
+
+pkg_install(){
+  exec 2>/tmp/mesh.log
+  set -x
+  if [ -f $CONF ]; then
+     mkdir -p /var/backups
+     echo "Backing up configuration file to /var/backups/mesh.conf.`date +%Y%m%d`"
+     cp $CONF /var/backups/mesh.conf.`date +%Y%m%d`
+     echo "Normalising and updating $CONF"
+     ${SYS_QPKG_DIR}/bin/mesh -useconf -normaliseconf < /var/backups/mesh.conf.`date +%Y%m%d` > $CONF
+  else
+     echo "Generating initial configuration file $config_file"
+     echo "Please familiarise yourself with this file before starting RiV-mesh"
+     sh -c "umask 0027 && ${SYS_QPKG_DIR}/bin/mesh -genconf > '$CONF'"
+  fi
+  chmod a+w $CONF
+
+}
+
+pkg_post_install(){
+  ln -sf $SYS_QPKG_DIR/var/log/mesh.log $SYS_QPKG_DIR/www/log
+}

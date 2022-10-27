@@ -14,11 +14,11 @@ import (
 	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/version"
+	"github.com/RiV-chain/RiV-mesh/src/version"
 )
 
-// The Core object represents the Yggdrasil node. You should create a Core
-// object for each Yggdrasil node you plan to run.
+// The Core object represents the Mesh node. You should create a Core
+// object for each Mesh node you plan to run.
 type Core struct {
 	// This is the main data structure that holds everything else for a node
 	// We're going to keep our own copy of the provided config - that way we can
@@ -34,7 +34,7 @@ type Core struct {
 	log          Logger
 	addPeerTimer *time.Timer
 	config       struct {
-		_peers             map[Peer]*linkInfo         // configurable after startup
+		_peers             map[Peer]*linkInfo          // configurable after startup
 		_listeners         map[ListenAddress]struct{} // configurable after startup
 		nodeinfo           NodeInfo                   // immutable after startup
 		nodeinfoPrivacy    NodeInfoPrivacy            // immutable after startup
@@ -121,7 +121,7 @@ func (c *Core) _addPeerLoop() {
 	})
 }
 
-// Stop shuts down the Yggdrasil node.
+// Stop shuts down the Mesh node.
 func (c *Core) Stop() {
 	phony.Block(c, func() {
 		c.log.Infoln("Stopping...")

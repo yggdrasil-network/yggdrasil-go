@@ -1,0 +1,17 @@
+# Last Modified: Fri Oct 30 11:33:31 2020
+#include <tunables/global>
+
+/usr/bin/mesh {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+
+  capability net_admin,
+  capability net_raw,
+
+  /dev/net/tun rw,
+  /proc/sys/net/core/somaxconn r,
+  /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
+
+  /etc/mesh.conf rw,
+  /run/mesh.sock rw,
+}

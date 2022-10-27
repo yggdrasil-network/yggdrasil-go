@@ -1,0 +1,25 @@
+body {
+	color: gray;
+	background: black;
+}
+.nas-apps-config-form-message.nas-apps-config-form-message-error {
+	color: white;
+}
+
+/* bottom */
+.nas-apps-config-form-partner-logo {
+	width: 200px;
+	height: 82px;
+	margin: 0 auto;
+}
+.nas-apps-config-form-auth-id,
+.nas-apps-config-form-location-name {
+	color: white;
+}
+.nas-apps-config-form-field input,
+.nas-apps-config-form-field select {
+	color: white;
+}
+.nas-apps-config-form-field select:focus option {
+	background: white;
+}

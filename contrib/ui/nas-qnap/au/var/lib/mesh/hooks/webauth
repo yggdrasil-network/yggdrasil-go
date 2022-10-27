@@ -1,0 +1,31 @@
+#!/bin/sh
+#we want read:
+#export HTTP_COOKIE='qnapuser=admin; qnappwd=L4edNyoCC15.kDBLIN05480'
+
+IFS=';'
+for x in $HTTP_COOKIE
+do
+    eval $x
+done
+[ -z ${qnapuser} ] && exit 1
+[ -z ${qnappwd} ] && exit 1
+
+#exit with zero status on auth success
+#2-pass auth
+S=$(curl -s -k -L "http://127.0.0.1:58080/cgi-bin/authLogin.cgi?user=${qnapuser}&pwd=${qnappwd}" | tr -d '\040\011\012\015' | grep -F '<authPassed><![CDATA[1]]></authPassed>')
+[ ! 0 -eq ${#S} ] && exit 0
+
+AUTH_PORT=$(cat /etc/apache-sys-proxy.conf | grep Listen | awk '{print $2}')
+if [ -n $AUTH_PORT ] ; then
+	AUTH_PORT=8080
+fi
+
+S=$(curl -s -k -L "http://127.0.0.1:${AUTH_PORT}/cgi-bin/authLogin.cgi?user=${qnapuser}&pwd=${qnappwd}" | tr -d '\040\011\012\015' | grep -F '<authPassed><![CDATA[1]]></authPassed>')
+[ ! 0 -eq ${#S} ] && exit 0
+
+#fallback to plain password auth
+#decode password first
+plain_pwd=$(openssl enc -base64 -d <<< ${qnappwd})
+[ -z $plain_pwd ] && exit 1
+S=$(curl -s -k -L "http://127.0.0.1:${AUTH_PORT}/cgi-bin/authLogin.cgi?user=${qnapuser}&plain_pwd=${plain_pwd}" | tr -d '\040\011\012\015' | grep -F '<authPassed><![CDATA[1]]></authPassed>')
+[ 0 -eq ${#S} ] && exit 1 || exit 0

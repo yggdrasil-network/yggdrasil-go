@@ -5,7 +5,7 @@ import (
 	"net"
 	"sort"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/RiV-chain/RiV-mesh/src/address"
 )
 
 type GetPeersRequest struct {

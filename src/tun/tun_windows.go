@@ -6,10 +6,11 @@ package tun
 import (
 	"bytes"
 	"errors"
+	"time"
 	"log"
 	"net"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/RiV-chain/RiV-mesh/src/defaults"
 	"golang.org/x/sys/windows"
 
 	wgtun "golang.zx2c4.com/wireguard/tun"
@@ -28,16 +29,25 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 		var err error
 		var iface wgtun.Device
 		var guid windows.GUID
-		if guid, err = windows.GUIDFromString("{8f59971a-7872-4aa6-b2eb-061fc4e9d0a7}"); err != nil {
+		if guid, err = windows.GUIDFromString("{f1369c05-0344-40ed-a772-bfb4770abdd0}"); err != nil {
 			return err
 		}
 		if iface, err = wgtun.CreateTUNWithRequestedGUID(ifname, &guid, int(mtu)); err != nil {
 			return err
 		}
 		tun.iface = iface
-		if err = tun.setupAddress(addr); err != nil {
-			tun.log.Errorln("Failed to set up TUN address:", err)
-			return err
+		for i := 1; i < 10; i++ {
+			if err = tun.setupAddress(addr); err != nil {
+				tun.log.Errorln("Failed to set up TUN address:", err)
+				log.Printf("waiting...")
+				if i > 8 {
+					return err
+				} else {
+					time.Sleep(time.Duration(2 * i) * time.Second)
+				}
+			} else {
+				break
+			}
 		}
 		if err = tun.setupMTU(getSupportedMTU(mtu)); err != nil {
 			tun.log.Errorln("Failed to set up TUN MTU:", err)

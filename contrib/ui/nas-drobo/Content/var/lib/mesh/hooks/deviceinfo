@@ -1,0 +1,16 @@
+#!/bin/sh
+echo vendor=Drobo
+
+# get device model, e.g., "5N"
+_get_device_model() {
+	for f in /sys/devices/dri_dnas_primary/dnas_adp_1/host*/target*/*:*:*:*/model; do
+		if [ -e "$f" ]; then
+			cat "$f"
+			return
+		fi
+	done
+}
+
+echo serial=$(cat /mnt/DroboFS/Shares/DroboApps/mesh/host_uid.txt)
+echo firmwareVersion=$(/usr/bin/esa vxver)
+echo model=$(_get_device_model)

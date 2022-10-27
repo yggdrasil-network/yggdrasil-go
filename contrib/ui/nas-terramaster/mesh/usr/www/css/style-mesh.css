@@ -1,0 +1,17 @@
+.plex{}
+.plex .header{border:none;height:150px;padding:20px 0 30px;box-sizing:border-box;}
+.plex .header .logo{margin:0px auto;width:300px;height:100px;display:block;outline:none;background: url(../images/ext/plex-logo.svg) #8B6161 center center no-repeat;background-size:90%;}
+.plex .introduce{width:520px;margin:0 auto;line-height:24px;font-size:16px;}
+.plex .introduce *{line-height:24px;font-size:16px;}
+.plex .introduce i{display: table-row;font-size:24px;font-style: normal;line-height:40px;}
+.heder-info{display: table;width: 85%;margin: 0 auto;}
+.logo-info{display: table-cell;width: 70%;vertical-align: middle;}
+.logo-info img{width: 10%;float: left;}
+.logo-info figcaption{height: 45px;float: left;line-height: 45px;font-size: 30px;margin-left: 10px;}
+.v-info{display: table-cell;}
+.v-info p{margin: 0;padding: 0;}
+.intr{display: table;width: 85%;margin: 0 auto;margin-top: 8px;margin-bottom: 50px;}
+.btn-info-no{line-height: 1;height: 30px;padding: 0 15px;background-color: rgb(255,255,255);border: 1px solid rgb(210,210,210); color: rgb(120,120,120);position: relative;z-index: 200;}
+.btn-info-no:active{color: rgb(60,60,60);border-color: rgb(138,138,138);}
+.btn-info-no:hover{color: rgb(60,60,60);border-color: rgb(138,138,138);}
+.fieldset:first-child{padding-top: 0 !important;}

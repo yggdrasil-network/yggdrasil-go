@@ -1,0 +1,7 @@
+#!/bin/sh
+echo vendor=westerndigital
+echo vendorOperatingSystemName=WDMyCloud
+echo firmwareVersion=$(cat /etc/version)
+echo model=$(cat /etc/nas/nasdevice.xml | grep modelName | sed -e 's/<[^>]*>//g;s/^[ \t]*//')
+echo serial=$(cat /etc/nas/nasdevice.xml | grep serialNumber | sed -e 's/<[^>]*>//g;s/^[ \t]*//')
+

@@ -1,0 +1,6 @@
+#!/bin/sh
+echo vendor=TerraMaster
+echo vendorOperatingSystemName=TerraMaster TOS
+echo firmwareVersion=$(awk -F= '$1 ~ /version/ {print $2}' /etc/tos.conf)
+#echo model=
+#echo serial=

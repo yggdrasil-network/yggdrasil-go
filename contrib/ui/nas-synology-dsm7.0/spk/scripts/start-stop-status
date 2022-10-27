@@ -1,0 +1,120 @@
+#!/bin/sh
+
+BASE="/var/packages/mesh/target"
+CONFIG_DIR="/var/packages/mesh/etc"
+config_file="$CONFIG_DIR/mesh.conf"
+LOG_FILE="$BASE/var/log/mesh.log"
+export LD_LIBRARY_PATH="$BASE/lib"
+cd /
+
+set_proxy()
+{
+	if [ -f /etc/proxy.conf ]; then
+		. /etc/proxy.conf
+		if [ "$proxy_enabled" = "yes" ]; then
+			export http_proxy="$https_host":"$https_port"
+		fi
+	fi
+}
+
+start_service ()
+{
+
+    set_proxy
+
+    if [ -f $config_file ]; then
+       mkdir -p /var/backups
+       echo "Backing up configuration file to /var/backups/mesh.conf.`date +%Y%m%d`"
+       cp $config_file /var/backups/mesh.conf.`date +%Y%m%d`
+       echo "Normalising and updating /etc/mesh.conf"
+       ${BASE}/bin/mesh -useconf -normaliseconf < /var/backups/mesh.conf.`date +%Y%m%d` > $config_file
+    else
+       echo "Generating initial configuration file $config_file"
+       echo "Please familiarise yourself with this file before starting RiV-mesh"
+       sh -c "umask 0027 && ${BASE}/bin/mesh -genconf > '$config_file'"
+    fi
+
+    # Create the necessary file structure for /dev/net/tun
+    if ( [ ! -c /dev/net/tun ] ); then
+      if ( [ ! -d /dev/net ] ); then
+      mkdir -m 755 /dev/net
+    fi
+      mknod /dev/net/tun c 10 200
+      chmod 0755 /dev/net/tun
+    fi
+
+    # Load the tun module if not already loaded
+    if ( !(lsmod | grep -q "^tun\s") ); then
+      insmod /lib/modules/tun.ko
+    fi
+    
+    #workaround for bin error:
+    #Not multicasting on eth0 due to error: listen tcp [xxxx]:0: bind: cannot assign requested address
+    sysctl net.ipv6.ip_nonlocal_bind=1
+
+    # Launch the server in the background.
+    ${BASE}/bin/mesh -useconffile "$config_file" \
+    -httpaddress "http://[::]:19019" \
+    -wwwroot "$BASE/www" \
+    -logto "$BASE/var/log/mesh.log" &
+    
+    return $?
+}
+
+stop_service ()
+{
+    pid=`pidof -s mesh`
+    if [ -z "$pid" ]; then
+      echo "mesh was not running"
+      exit 0
+    fi
+    kill "$pid"
+}
+
+status_service ()
+{
+
+    pid=`pidof -s mesh`
+
+    if [[ ! -z "${pid}" ]] && [ -d /proc/${pid} ]; then
+        return 0
+    fi
+    if [[ ! -z "${pid}" ]]; then
+        return 1
+    fi
+    return 3
+}
+
+case $1 in
+    start)
+        start_service
+        echo "Running RiV Mesh"
+        exit 0
+        ;;
+    stop)
+        stop_service
+        echo "Stopped RiV Mesh"
+        exit 0
+        ;;
+    status)
+	status_service
+        sts=$?
+        if [ $sts -eq 0 ]; then
+            echo "RiV Mesh is running"
+        else
+            echo "RiV Mesh is not running"
+        fi
+        exit $sts
+        ;;
+
+    log)
+        if [ -f $LOG_FILE ];
+        then
+           echo $LOG_FILE
+        fi
+        exit 0
+        ;;
+    *)
+        exit 1
+        ;;
+esac

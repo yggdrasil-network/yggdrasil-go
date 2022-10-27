@@ -1,0 +1,7 @@
+#!/bin/sh
+CFG=/etc/default_config/uLinux.conf
+echo vendor=QNAP
+echo vendorOperatingSystemName=$(/sbin/getcfg System OS -f $CFG)
+echo firmwareVersion=$(/sbin/getcfg System Version -f $CFG)
+echo model=$(/sbin/getcfg System Model -f $CFG)
+echo serial=$(/sbin/get_hwsn)

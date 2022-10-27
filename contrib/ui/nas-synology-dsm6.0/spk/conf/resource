@@ -1,0 +1,5 @@
+{
+	"port-config": {
+		"protocol-file": "mesh.sc"
+	}
+}

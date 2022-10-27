@@ -1,0 +1,7 @@
+#!/bin/sh
+echo vendor=Synology
+echo vendorOperatingSystemName=DSM
+. /etc.defaults/VERSION
+echo firmwareVersion="${productversion}-${buildnumber}"
+echo $(cat /etc/avahi/services/dsminfo.service | grep model | sed -e 's/<[^>]*>//g;s/^ *//')
+echo $(cat /etc/avahi/services/dsminfo.service | grep serial | sed -e 's/<[^>]*>//g;s/^ *//')

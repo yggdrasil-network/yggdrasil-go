@@ -1,0 +1,74 @@
+#!/bin/sh
+
+BASE="/usr"
+CONFIG_DIR="/etc"
+config_file="$CONFIG_DIR/mesh.conf"
+LOG_FILE="$BASE/var/log/mesh.log"
+
+service_status()
+{
+
+    pid=`pidof -s mesh`
+
+    if [[ ! -z "${pid}" ]] && [ -d /proc/${pid} ]; then
+        echo "mesh running"
+        exit 1
+    fi
+    echo "mesh stopped"
+}
+
+service_start(){
+
+    if [ -f $config_file ]; then
+       mkdir -p /var/backups
+       echo "Backing up configuration file to /var/backups/mesh.conf.`date +%Y%m%d`"
+       cp $config_file /var/backups/mesh.conf.`date +%Y%m%d`
+       echo "Normalising and updating /etc/mesh.conf"
+       ${BASE}/bin/mesh -useconf -normaliseconf < /var/backups/mesh.conf.`date +%Y%m%d` > $config_file
+    else
+       echo "Generating initial configuration file $config_file"
+       echo "Please familiarise yourself with this file before starting RiV-mesh"
+       sh -c "umask 0027 && ${BASE}/bin/mesh -genconf > '$config_file'"
+    fi
+
+    # Launch the server in the background.
+    ${BASE}/bin/mesh -useconffile "$config_file" \
+    -httpaddress "http://127.0.0.1:19019" \
+    -wwwroot "/usr/local/mesh/www" \
+    -logto "$BASE/var/log/mesh.log" &
+
+    service nginx reload
+    sleep 1
+}
+
+service_stop(){
+    pid=`pidof -s mesh`
+    if [ -z "$pid" ]; then
+      echo "mesh was not running"
+      exit 0
+    fi
+    kill "$pid"
+}
+
+service_restart(){
+	service_stop
+	service_start
+}
+
+case $1 in
+        start)
+                service_start
+                exit 0 ;;
+        stop)
+                service_stop
+                exit 0 ;;
+        restart)
+                service_restart
+                exit 0 ;;
+        status)
+                service_status
+                exit 0 ;;
+        *)
+                echo "Usage: `basename $0` {start|stop|restart|status}"
+                exit 1 ;;
+esac

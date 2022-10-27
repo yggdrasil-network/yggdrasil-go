@@ -1,0 +1,11 @@
+Source: mesh
+Package: mesh
+Version: 0.4.4
+Architecture: amd64
+Maintainer: Vadym Vikulin <vadym.vikulin@rivchain.org>
+Depends: lsb-base, debconf, readynasos (>= 6.0.5~T1271)
+Section: net
+Priority: optional
+Installed-Size: 20000
+Homepage: https://github.com/RiV-chain/RiV-mesh
+Description: RiV-mesh is an implementation of a fully end-to-end encrypted IPv6 network
