@@ -114,7 +114,7 @@ func (l *linkSCTP) listen(url *url.URL, sintf string) (*Listener, error) {
 
 			l.core.log.Printf("Read buffer %d", rbuf)
 		        l.core.log.Printf("Write buffer %d", wbuf)
-			if err = l.handler(name, info, conn, linkOptions{}, true, addr.IP.IsLinkLocalUnicast()); err != nil {
+			if err = l.handler(name, info, conn, linkOptions{}, true, addr.IPAddrs[0].IP.IsLinkLocalUnicast()); err != nil {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
@@ -125,7 +125,7 @@ func (l *linkSCTP) listen(url *url.URL, sintf string) (*Listener, error) {
 	return entry, nil
 }
 
-func (l *linkSCTP) handler(name string, info linkInfo, conn net.Conn, options linkOptions, incoming bool, force boo) error {
+func (l *linkSCTP) handler(name string, info linkInfo, conn net.Conn, options linkOptions, incoming bool, force bool) error {
 	return l.links.create(
 		conn,     // connection
 		name,     // connection name
