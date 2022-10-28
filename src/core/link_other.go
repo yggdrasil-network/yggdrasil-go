@@ -69,6 +69,7 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 			return info, fmt.Errorf("priority invalid: %w", err)
 		}
 		options.priority = uint8(pi)
+	}
 	switch info.linkType {
 	case "tcp":
 		go func() {
