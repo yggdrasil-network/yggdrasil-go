@@ -126,7 +126,7 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 		}()
 
 	default:
-		return errors.New("unknown call scheme: " + u.Scheme)
+		return info, errors.New("unknown call scheme: " + u.Scheme)
 	}
 	return info, nil
 }
