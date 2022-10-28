@@ -51,7 +51,7 @@ func (l *links) init(c *Core) error {
 func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 	info := linkInfoFor(u.Scheme, sintf, u.Host)
 	if l.isConnectedTo(info) {
-		return nil
+		return info, nil
 	}
 	options := linkOptions{
 		pinnedEd25519Keys: map[keyArray]struct{}{},
@@ -59,7 +59,7 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 	for _, pubkey := range u.Query()["key"] {
 		sigPub, err := hex.DecodeString(pubkey)
 		if err != nil {
-			return fmt.Errorf("pinned key contains invalid hex characters")
+			return info, fmt.Errorf("pinned key contains invalid hex characters")
 		}
 		var sigPubKey keyArray
 		copy(sigPubKey[:], sigPub)
