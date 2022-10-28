@@ -6,7 +6,9 @@ package core
 import (
 	"encoding/hex"
 	"errors"
+	"io"
 	"fmt"
+	"strconv"
 	"net"
 	"net/url"
 
@@ -126,7 +128,7 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 	default:
 		return errors.New("unknown call scheme: " + u.Scheme)
 	}
-	return nil
+	return info, nil
 }
 
 func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
