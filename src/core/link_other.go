@@ -72,14 +72,14 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 	switch info.linkType {
 	case "tcp":
 		go func() {
-			if err := l.tcp.dial(u, options, sintf); err != nil && err != io.EOF
+			if err := l.tcp.dial(u, options, sintf); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial TCP %s: %s\n", u.Host, err)
 			}
 		}()
 
 	case "socks":
 		go func() {
-			if err := l.socks.dial(u, options); err != nil && err != io.EOF
+			if err := l.socks.dial(u, options); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial SOCKS %s: %s\n", u.Host, err)
 			}
 		}()
@@ -103,7 +103,7 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 			}
 		}
 		go func() {
-			if err := l.tls.dial(u, options, sintf, tlsSNI); err != nil && err != io.EOF
+			if err := l.tls.dial(u, options, sintf, tlsSNI); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial TLS %s: %s\n", u.Host, err)
 			}
 		}()
@@ -111,10 +111,10 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 	case "unix":
 		go func() {
 			if err := l.unix.dial(u, options, sintf); err != nil && err != io.EOF {
-			if err := l.unix.dial(u, options, sintf); err != nil {
 				l.core.log.Warnf("Failed to dial UNIX %s: %s\n", u.Host, err)
 			}
 		}()
+
 	case "mpath":
 		go func() {
 			if err := l.mpath.dial(u, options, sintf); err != nil && err != io.EOF {
