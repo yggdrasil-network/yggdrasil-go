@@ -3,6 +3,7 @@ package defaults
 import "github.com/RiV-chain/RiV-mesh/src/config"
 
 type MulticastInterfaceConfig = config.MulticastInterfaceConfig
+type NetworkDomainConfig = config.NetworkDomainConfig
 
 var defaultConfig = ""      // LDFLAGS='-X github.com/yggdrasil-network/yggdrasil-go/src/defaults.defaultConfig=/path/to/config
 var defaultAdminListen = "" // LDFLAGS='-X github.com/yggdrasil-network/yggdrasil-go/src/defaults.defaultAdminListen=unix://path/to/sock'
@@ -19,6 +20,9 @@ type platformDefaultParameters struct {
 
 	// Multicast interfaces
 	DefaultMulticastInterfaces []MulticastInterfaceConfig
+
+	//Network domain
+	DefaultNetworkDomain NetworkDomainConfig
 
 	// TUN
 	MaximumIfMTU  uint64
@@ -52,6 +56,7 @@ func GenerateConfig() *config.NodeConfig {
 	cfg.InterfacePeers = map[string][]string{}
 	cfg.AllowedPublicKeys = []string{}
 	cfg.MulticastInterfaces = defaults.DefaultMulticastInterfaces
+	cfg.NetworkDomain = defaults.DefaultNetworkDomain
 	cfg.IfName = defaults.DefaultIfName
 	cfg.IfMTU = defaults.DefaultIfMTU
 	cfg.NodeInfoPrivacy = false

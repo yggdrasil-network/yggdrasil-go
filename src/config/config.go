@@ -39,6 +39,7 @@ type NodeConfig struct {
 	IfMTU               uint64                     `comment:"Maximum Transmission Unit (MTU) size for your local TUN interface.\nDefault is the largest supported size for your platform. The lowest\npossible value is 1280."`
 	NodeInfoPrivacy     bool                       `comment:"By default, nodeinfo contains some defaults including the platform,\narchitecture and RiV-mesh version. These can help when surveying\nthe network and diagnosing network routing problems. Enabling\nnodeinfo privacy prevents this, so that only items specified in\n\"NodeInfo\" are sent back if specified."`
 	NodeInfo            map[string]interface{}     `comment:"Optional node info. This must be a { \"key\": \"value\", ... } map\nor set as null. This is entirely optional but, if set, is visible\nto the whole network on request."`
+	NetworkDomain       NetworkDomainConfig        `comment:"Address prefix used by mesh.\nThe current implementation requires this to be a multiple of 8 bits + 7 bits.4\nNodes that configure this differently will be unable to communicate with each other using IP packets."`
 }
 
 type MulticastInterfaceConfig struct {
@@ -47,6 +48,10 @@ type MulticastInterfaceConfig struct {
 	Listen bool
 	Port uint16
 	Priority uint8
+}
+
+type NetworkDomainConfig struct {
+        Prefix [1]byte
 }
 
 // NewSigningKeys replaces the signing keypair in the NodeConfig with a new

@@ -18,6 +18,11 @@ func getDefaults() platformDefaultParameters {
 			{Regex: ".*", Beacon: true, Listen: true},
 		},
 
+                // Network domain
+                DefaultNetworkDomain: NetworkDomainConfig{
+                        Prefix: [...]byte{0xfc},
+                },
+
 		// TUN
 		MaximumIfMTU:  16384,
 		DefaultIfMTU:  16384,
