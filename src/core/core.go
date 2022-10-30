@@ -35,11 +35,12 @@ type Core struct {
 	log          Logger
 	addPeerTimer *time.Timer
 	config       struct {
-		_peers             map[Peer]*linkInfo          // configurable after startup
+		_peers             map[Peer]*linkInfo         // configurable after startup
 		_listeners         map[ListenAddress]struct{} // configurable after startup
 		nodeinfo           NodeInfo                   // immutable after startup
 		nodeinfoPrivacy    NodeInfoPrivacy            // immutable after startup
 		_allowedPublicKeys map[[32]byte]struct{}      // configurable after startup
+		networkdomain      NetworkDomain              // immutable after startup
 	}
 }
 

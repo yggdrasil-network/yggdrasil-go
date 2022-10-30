@@ -26,6 +26,7 @@ type MTU uint16
 // should pass this object to the mesh.SetRouterAdapter() function before
 // calling mesh.Start().
 type TunAdapter struct {
+	core        *core.Core
 	rwc         *ipv6rwc.ReadWriteCloser
 	log         core.Logger
 	addr        core.Address
@@ -107,7 +108,7 @@ func (tun *TunAdapter) _start() error {
 	}
 	tun.addr = tun.rwc.Address()
 	tun.subnet = tun.rwc.Subnet()
-	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(core.GetPrefix())-1)
+	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(tun.core.GetPrefix())-1)
 	if tun.config.name == "none" || tun.config.name == "dummy" {
 		tun.log.Debugln("Not starting TUN as ifname is none or dummy")
 		tun.isEnabled = false

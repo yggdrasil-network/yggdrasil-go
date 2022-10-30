@@ -94,7 +94,7 @@ func (k *keyStore) sendToAddress(addr core.Address, bs []byte) {
 			}
 		})
 		k.mutex.Unlock()
-		k.sendKeyLookup(addr.GetKey())
+		k.sendKeyLookup(k.core.GetAddressKey(addr))
 	}
 }
 
@@ -123,7 +123,7 @@ func (k *keyStore) sendToSubnet(subnet core.Subnet, bs []byte) {
 			}
 		})
 		k.mutex.Unlock()
-		k.sendKeyLookup(subnet.GetKey())
+		k.sendKeyLookup(k.core.GetSubnetKey(subnet))
 	}
 }
 
@@ -286,9 +286,9 @@ func (k *keyStore) writePC(bs []byte) (int, error) {
 		strErr := fmt.Sprint("incorrect source address: ", net.IP(srcAddr[:]).String())
 		return 0, errors.New(strErr)
 	}
-	if dstAddr.IsValid() {
+	if k.core.IsValidAddress(dstAddr) {
 		k.sendToAddress(dstAddr, bs)
-	} else if dstSubnet.IsValid() {
+	} else if k.core.IsValidSubnet(dstSubnet) {
 		k.sendToSubnet(dstSubnet, bs)
 	} else {
 		return 0, errors.New("invalid destination address")
