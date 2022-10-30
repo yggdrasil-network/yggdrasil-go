@@ -91,9 +91,10 @@ func MaximumMTU() uint64 {
 
 // Init initialises the TUN module. You must have acquired a Listener from
 // the Mesh	 core before this point and it must not be in use elsewhere.
-func New(rwc *ipv6rwc.ReadWriteCloser, log core.Logger, opts ...SetupOption) (*TunAdapter, error) {
+func New(core *core.Core, log core.Logger, opts ...SetupOption) (*TunAdapter, error) {
 	tun := &TunAdapter{
-		rwc: rwc,
+		core: core,
+		rwc: ipv6rwc.NewReadWriteCloser(core),
 		log: log,
 	}
 	for _, opt := range opts {

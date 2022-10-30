@@ -31,7 +31,7 @@ import (
 	"github.com/RiV-chain/RiV-mesh/src/defaults"
 
 	"github.com/RiV-chain/RiV-mesh/src/core"
-	"github.com/RiV-chain/RiV-mesh/src/ipv6rwc"
+	//"github.com/RiV-chain/RiV-mesh/src/ipv6rwc"
 	"github.com/RiV-chain/RiV-mesh/src/multicast"
 	"github.com/RiV-chain/RiV-mesh/src/tun"
 	"github.com/RiV-chain/RiV-mesh/src/version"
@@ -301,6 +301,7 @@ func run(args yggArgs, ctx context.Context) {
 		options := []core.SetupOption{
 			core.NodeInfo(cfg.NodeInfo),
 			core.NodeInfoPrivacy(cfg.NodeInfoPrivacy),
+			core.NetworkDomain(cfg.NetworkDomain),
 		}
 		for _, addr := range cfg.Listen {
 			options = append(options, core.ListenAddress(addr))
@@ -364,7 +365,7 @@ func run(args yggArgs, ctx context.Context) {
 			tun.InterfaceName(cfg.IfName),
 			tun.InterfaceMTU(cfg.IfMTU),
 		}
-		if n.tun, err = tun.New(ipv6rwc.NewReadWriteCloser(n.core), logger, options...); err != nil {
+		if n.tun, err = tun.New(n.core, logger, options...); err != nil {
 			panic(err)
 		}
 		if n.admin != nil && n.tun != nil {

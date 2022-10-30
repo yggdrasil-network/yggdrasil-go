@@ -14,6 +14,8 @@ func (c *Core) _applyOption(opt SetupOption) {
 		c.config.nodeinfo = v
 	case NodeInfoPrivacy:
 		c.config.nodeinfoPrivacy = v
+	case NetworkDomain:
+		c.config.networkdomain = v
 	case AllowedPublicKey:
 		pk := [32]byte{}
 		copy(pk[:], v)
@@ -41,4 +43,5 @@ func (a ListenAddress) isSetupOption()    {}
 func (a Peer) isSetupOption()             {}
 func (a NodeInfo) isSetupOption()         {}
 func (a NodeInfoPrivacy) isSetupOption()  {}
+func (a NetworkDomain) isSetupOption()    {}
 func (a AllowedPublicKey) isSetupOption() {}
