@@ -25,7 +25,7 @@ import (
 	"github.com/kardianos/minwinsvc"
 	"github.com/mitchellh/mapstructure"
 
-	"github.com/RiV-chain/RiV-mesh/src/address"
+	//"github.com/RiV-chain/RiV-mesh/src/address"
 	"github.com/RiV-chain/RiV-mesh/src/admin"
 	"github.com/RiV-chain/RiV-mesh/src/config"
 	"github.com/RiV-chain/RiV-mesh/src/defaults"
@@ -261,6 +261,7 @@ func run(args yggArgs, ctx context.Context) {
 	if cfg == nil {
 		return
 	}
+	n := &node{}
 	// Have we been asked for the node address yet? If so, print it and then stop.
 	getNodeKey := func() ed25519.PublicKey {
 		if pubkey, err := hex.DecodeString(cfg.PrivateKey); err == nil {
@@ -271,14 +272,14 @@ func run(args yggArgs, ctx context.Context) {
 	switch {
 	case args.getaddr:
 		if key := getNodeKey(); key != nil {
-			addr := address.AddrForKey(key)
+			addr := n.core.AddrForKey(key)
 			ip := net.IP(addr[:])
 			fmt.Println(ip.String())
 		}
 		return
 	case args.getsnet:
 		if key := getNodeKey(); key != nil {
-			snet := address.SubnetForKey(key)
+			snet := n.core.SubnetForKey(key)
 			ipnet := net.IPNet{
 				IP:   append(snet[:], 0, 0, 0, 0, 0, 0, 0, 0),
 				Mask: net.CIDRMask(len(snet)*8, 128),
@@ -291,7 +292,6 @@ func run(args yggArgs, ctx context.Context) {
 	cfg.HttpAddress = args.httpaddress
 	cfg.WwwRoot = args.wwwroot
 
-	n := &node{}
 	// Setup the RiV-mesh node itself.
 	{
 		sk, err := hex.DecodeString(cfg.PrivateKey)

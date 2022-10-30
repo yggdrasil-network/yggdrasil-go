@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/RiV-chain/RiV-mesh/src/address"
+	//"github.com/RiV-chain/RiV-mesh/src/address"
 )
 
 type GetPathsRequest struct {
@@ -26,7 +26,7 @@ func (a *AdminSocket) getPathsHandler(req *GetPathsRequest, res *GetPathsRespons
 	paths := a.core.GetPaths()
 	res.Paths = make([]PathEntry, 0, len(paths))
 	for _, p := range paths {
-		addr := address.AddrForKey(p.Key)
+		addr := a.core.AddrForKey(p.Key)
 		res.Paths = append(res.Paths, PathEntry{
 			IPAddress: net.IP(addr[:]).String(),
 			PublicKey: hex.EncodeToString(p.Key),

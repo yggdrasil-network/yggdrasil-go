@@ -1,6 +1,6 @@
 // Package address contains the types used by mesh to represent IPv6 addresses or prefixes, as well as functions for working with these types.
 // Of particular importance are the functions used to derive addresses or subnets from a NodeID, or to get the NodeID and bitmask of the bits visible from an address, which is needed for DHT searches.
-package address
+package core
 
 import (
 	"crypto/ed25519"
@@ -48,7 +48,7 @@ func (s *Subnet) IsValid() bool {
 // This address begins with the contents of GetPrefix(), with the last bit set to 0 to indicate an address.
 // The following 8 bits are set to the number of leading 1 bits in the bitwise inverse of the public key.
 // The bitwise inverse of the key, excluding the leading 1 bits and the first leading 0 bit, is truncated to the appropriate length and makes up the remainder of the address.
-func AddrForKey(publicKey ed25519.PublicKey) *Address {
+func (c *Core) AddrForKey(publicKey ed25519.PublicKey) *Address {
 	// 128 bit address
 	// Begins with prefix
 	// Next bit is a 0
@@ -98,11 +98,11 @@ func AddrForKey(publicKey ed25519.PublicKey) *Address {
 // The subnet begins with the address prefix, with the last bit set to 1 to indicate a prefix.
 // The following 8 bits are set to the number of leading 1 bits in the bitwise inverse of the key.
 // The bitwise inverse of the key, excluding the leading 1 bits and the first leading 0 bit, is truncated to the appropriate length and makes up the remainder of the subnet.
-func SubnetForKey(publicKey ed25519.PublicKey) *Subnet {
+func (c *Core) SubnetForKey(publicKey ed25519.PublicKey) *Subnet {
 	// Exactly as the address version, with two exceptions:
 	//  1) The first bit after the fixed prefix is a 1 instead of a 0
 	//  2) It's truncated to a subnet prefix length instead of 128 bits
-	addr := AddrForKey(publicKey)
+	addr := c.AddrForKey(publicKey)
 	if addr == nil {
 		return nil
 	}

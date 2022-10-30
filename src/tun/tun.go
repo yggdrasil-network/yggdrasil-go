@@ -13,7 +13,7 @@ import (
 	"github.com/Arceliar/phony"
 	"golang.zx2c4.com/wireguard/tun"
 
-	"github.com/RiV-chain/RiV-mesh/src/address"
+	//"github.com/RiV-chain/RiV-mesh/src/address"
 	"github.com/RiV-chain/RiV-mesh/src/core"
 	"github.com/RiV-chain/RiV-mesh/src/defaults"
 	"github.com/RiV-chain/RiV-mesh/src/ipv6rwc"
@@ -28,8 +28,8 @@ type MTU uint16
 type TunAdapter struct {
 	rwc         *ipv6rwc.ReadWriteCloser
 	log         core.Logger
-	addr        address.Address
-	subnet      address.Subnet
+	addr        core.Address
+	subnet      core.Subnet
 	mtu         uint64
 	iface       tun.Device
 	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
@@ -107,7 +107,7 @@ func (tun *TunAdapter) _start() error {
 	}
 	tun.addr = tun.rwc.Address()
 	tun.subnet = tun.rwc.Subnet()
-	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
+	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(core.GetPrefix())-1)
 	if tun.config.name == "none" || tun.config.name == "dummy" {
 		tun.log.Debugln("Not starting TUN as ifname is none or dummy")
 		tun.isEnabled = false

@@ -1,4 +1,4 @@
-package address
+package core
 
 import (
 	"bytes"

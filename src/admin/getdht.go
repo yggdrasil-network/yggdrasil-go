@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/RiV-chain/RiV-mesh/src/address"
+	//"github.com/RiV-chain/RiV-mesh/src/address"
 )
 
 type GetDHTRequest struct{}
@@ -26,7 +26,7 @@ func (a *AdminSocket) getDHTHandler(req *GetDHTRequest, res *GetDHTResponse) err
 	dht := a.core.GetDHT()
 	res.DHT = make([]DHTEntry, 0, len(dht))
 	for _, d := range dht {
-		addr := address.AddrForKey(d.Key)
+		addr := a.core.AddrForKey(d.Key)
 		res.DHT = append(res.DHT, DHTEntry{
 			IPAddress: net.IP(addr[:]).String(),
 			PublicKey: hex.EncodeToString(d.Key[:]),

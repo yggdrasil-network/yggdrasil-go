@@ -9,7 +9,7 @@ import (
 
 	"github.com/gologme/log"
 
-	"github.com/RiV-chain/RiV-mesh/src/address"
+	//"github.com/RiV-chain/RiV-mesh/src/address"
 	"github.com/RiV-chain/RiV-mesh/src/config"
 	"github.com/RiV-chain/RiV-mesh/src/core"
 	"github.com/RiV-chain/RiV-mesh/src/defaults"
@@ -176,7 +176,7 @@ func (m *Mesh) GetPeersJSON() (result string) {
 		IP string
 	}{}
 	for _, v := range m.core.GetPeers() {
-		a := address.AddrForKey(v.Key)
+		a := m.core.AddrForKey(v.Key)
 		ip := net.IP(a[:]).String()
 		peers = append(peers, struct {
 			core.PeerInfo

@@ -16,7 +16,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Arceliar/phony"
-	"github.com/RiV-chain/RiV-mesh/src/address"
+	//"github.com/RiV-chain/RiV-mesh/src/address"
 	//"github.com/Arceliar/phony" // TODO? use instead of mutexes
 )
 
@@ -188,7 +188,7 @@ func (intf *link) handler() error {
 	if intf.incoming {
 		dir = "inbound"
 	}
-	remoteAddr := net.IP(address.AddrForKey(meta.key)[:]).String()
+	remoteAddr := net.IP(intf.links.core.AddrForKey(meta.key)[:]).String()
 	remoteStr := fmt.Sprintf("%s@%s", remoteAddr, intf.info.remote)
 	localStr := intf.conn.LocalAddr()
 	intf.links.core.log.Infof("Connected %s %s: %s, source %s",
