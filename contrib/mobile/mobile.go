@@ -115,6 +115,18 @@ func (m *Yggdrasil) Send(p []byte) error {
 	return nil
 }
 
+// Send sends a packet to Yggdrasil. It should be a fully formed IPv6 packet
+func (m *Yggdrasil) SendBytes(p []byte, length int) error {
+	if m.iprwc == nil {
+		return nil
+	}
+	if len(p) < length {
+		return nil
+	}
+	_, _ = m.iprwc.Write(p[:length])
+	return nil
+}
+
 // Recv waits for and reads a packet coming from Yggdrasil. It
 // will be a fully formed IPv6 packet
 func (m *Yggdrasil) Recv() ([]byte, error) {
@@ -124,6 +136,16 @@ func (m *Yggdrasil) Recv() ([]byte, error) {
 	var buf [65535]byte
 	n, _ := m.iprwc.Read(buf[:])
 	return buf[:n], nil
+}
+
+// Recv waits for and reads a packet coming from Yggdrasil to given buffer, returning length of it
+// It will be a fully formed IPv6 packet
+func (m *Yggdrasil) RecvBytes(buf []byte) (int, error) {
+	if m.iprwc == nil {
+		return 0, nil
+	}
+	n, _ := m.iprwc.Read(buf)
+	return n, nil
 }
 
 // Stop the mobile Yggdrasil instance
