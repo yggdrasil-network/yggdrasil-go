@@ -87,7 +87,7 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 				Beacon:   intf.Beacon,
 				Listen:   intf.Listen,
 				Port:     intf.Port,
-				Priority: intf.Priority,
+				Priority: uint8(intf.Priority),
 			})
 		}
 		m.multicast, err = multicast.New(m.core, logger, options...)
@@ -138,7 +138,7 @@ func (m *Yggdrasil) Recv() ([]byte, error) {
 	return buf[:n], nil
 }
 
-// Recv waits for and reads a packet coming from Yggdrasil to given buffer, returning size of packet 
+// Recv waits for and reads a packet coming from Yggdrasil to given buffer, returning size of packet
 func (m *Yggdrasil) RecvBuffer(buf []byte) (int, error) {
 	if m.iprwc == nil {
 		return 0, nil
