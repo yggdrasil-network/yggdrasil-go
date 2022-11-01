@@ -339,7 +339,7 @@ func run(args yggArgs, ctx context.Context) {
 				Beacon:   intf.Beacon,
 				Listen:   intf.Listen,
 				Port:     intf.Port,
-				Priority: intf.Priority,
+				Priority: uint8(intf.Priority),
 			})
 		}
 		if n.multicast, err = multicast.New(n.core, logger, options...); err != nil {
