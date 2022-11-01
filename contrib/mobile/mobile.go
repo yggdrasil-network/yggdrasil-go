@@ -115,8 +115,8 @@ func (m *Yggdrasil) Send(p []byte) error {
 	return nil
 }
 
-// Send sends a packet to Yggdrasil. It should be a fully formed IPv6 packet
-func (m *Yggdrasil) SendBytes(p []byte, length int) error {
+// Send sends a packet from given buffer to Yggdrasil. From first byte up to length.
+func (m *Yggdrasil) SendBuffer(p []byte, length int) error {
 	if m.iprwc == nil {
 		return nil
 	}
@@ -138,9 +138,8 @@ func (m *Yggdrasil) Recv() ([]byte, error) {
 	return buf[:n], nil
 }
 
-// Recv waits for and reads a packet coming from Yggdrasil to given buffer, returning length of it
-// It will be a fully formed IPv6 packet
-func (m *Yggdrasil) RecvBytes(buf []byte) (int, error) {
+// Recv waits for and reads a packet coming from Yggdrasil to given buffer, returning size of packet 
+func (m *Yggdrasil) RecvBuffer(buf []byte) (int, error) {
 	if m.iprwc == nil {
 		return 0, nil
 	}
