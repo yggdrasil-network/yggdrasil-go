@@ -120,20 +120,18 @@ func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
 	return entry, nil
 }
 
+// RFC5280 section 4.1.2.5
+var notAfterNeverExpires = time.Date(9999, time.December, 31, 23, 59, 59, 0, time.UTC)
+
 func (l *linkTLS) generateConfig() (*tls.Config, error) {
 	certBuf := &bytes.Buffer{}
-
-	// TODO: because NotAfter is finite, we should add some mechanism to
-	// regenerate the certificate and restart the listeners periodically
-	// for nodes with very high uptimes. Perhaps regenerate certs and restart
-	// listeners every few months or so.
 	cert := x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
 			CommonName: hex.EncodeToString(l.links.core.public[:]),
 		},
 		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(time.Hour * 24 * 365),
+		NotAfter:              notAfterNeverExpires,
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
