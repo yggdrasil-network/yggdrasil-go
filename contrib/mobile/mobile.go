@@ -87,7 +87,7 @@ func (m *Mesh) StartJSON(configjson []byte) error {
 				Beacon: intf.Beacon,
 				Listen: intf.Listen,
 				Port: intf.Port,
-				Priority: intf.Priority,
+				Priority: uint8(intf.Priority),
 			})
 		}
 		m.multicast, err = multicast.New(m.core, logger, options...)
@@ -115,7 +115,19 @@ func (m *Mesh) Send(p []byte) error {
 	return nil
 }
 
-// Recv waits for and reads a packet coming from Mesh. It
+// Send sends a packet from given buffer to Yggdrasil. From first byte up to length.
+func (m *Mesh) SendBuffer(p []byte, length int) error {
+	if m.iprwc == nil {
+		return nil
+	}
+	if len(p) < length {
+		return nil
+	}
+	_, _ = m.iprwc.Write(p[:length])
+	return nil
+}
+
+// Recv waits for and reads a packet coming from Yggdrasil. It
 // will be a fully formed IPv6 packet
 func (m *Mesh) Recv() ([]byte, error) {
 	if m.iprwc == nil {
@@ -124,6 +136,15 @@ func (m *Mesh) Recv() ([]byte, error) {
 	var buf [65535]byte
 	n, _ := m.iprwc.Read(buf[:])
 	return buf[:n], nil
+}
+
+// Recv waits for and reads a packet coming from Yggdrasil to given buffer, returning size of packet
+func (m *Yggdrasil) RecvBuffer(buf []byte) (int, error) {
+	if m.iprwc == nil {
+		return 0, nil
+	}
+	n, _ := m.iprwc.Read(buf)
+	return n, nil
 }
 
 // Stop the mobile Mesh instance
