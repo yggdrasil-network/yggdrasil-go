@@ -13,6 +13,7 @@ import (
 	"math/big"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -47,30 +48,45 @@ func (l *links) newLinkTLS(tcp *linkTCP) *linkTLS {
 }
 
 func (l *linkTLS) dial(url *url.URL, options linkOptions, sintf, sni string) error {
-	addr, err := net.ResolveTCPAddr("tcp", url.Host)
-	if err != nil {
-		return err
-	}
-	dialer, err := l.tcp.dialerFor(addr, sintf)
-	if err != nil {
-		return err
-	}
-	info := linkInfoFor("tls", sintf, tcpIDFor(dialer.LocalAddr, addr))
+	info := linkInfoFor("tls", sintf, url.Host)
 	if l.links.isConnectedTo(info) {
 		return nil
 	}
-	tlsconfig := l.config.Clone()
-	tlsconfig.ServerName = sni
-	tlsdialer := &tls.Dialer{
-		NetDialer: dialer,
-		Config:    tlsconfig,
-	}
-	conn, err := tlsdialer.DialContext(l.core.ctx, "tcp", addr.String())
+	host, p, err := net.SplitHostPort(url.Host)
 	if err != nil {
 		return err
 	}
-	uri := strings.TrimRight(strings.SplitN(url.String(), "?", 2)[0], "/")
-	return l.handler(uri, info, conn, options, false, false)
+	port, err := strconv.Atoi(p)
+	if err != nil {
+		return err
+	}
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return err
+	}
+	for _, ip := range ips {
+		addr := &net.TCPAddr{
+			IP:   ip,
+			Port: port,
+		}
+		dialer, err := l.tcp.dialerFor(addr, sintf)
+		if err != nil {
+			continue
+		}
+		tlsconfig := l.config.Clone()
+		tlsconfig.ServerName = sni
+		tlsdialer := &tls.Dialer{
+			NetDialer: dialer,
+			Config:    tlsconfig,
+		}
+		conn, err := tlsdialer.DialContext(l.core.ctx, "tcp", addr.String())
+		if err != nil {
+			continue
+		}
+		uri := strings.TrimRight(strings.SplitN(url.String(), "?", 2)[0], "/")
+		return l.handler(uri, info, conn, options, false, false)
+	}
+	return fmt.Errorf("failed to connect via %d addresses", len(ips))
 }
 
 func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
@@ -105,10 +121,9 @@ func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
 				cancel()
 				break
 			}
-			laddr := conn.LocalAddr().(*net.TCPAddr)
 			raddr := conn.RemoteAddr().(*net.TCPAddr)
 			name := fmt.Sprintf("tls://%s", raddr)
-			info := linkInfoFor("tls", sintf, tcpIDFor(laddr, raddr))
+			info := linkInfoFor("tls", sintf, raddr.String())
 			if err = l.handler(name, info, conn, linkOptionsForListener(url), true, raddr.IP.IsLinkLocalUnicast()); err != nil {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
