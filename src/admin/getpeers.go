@@ -5,7 +5,7 @@ import (
 	"net"
 	"sort"
 
-	"github.com/RiV-chain/RiV-mesh/src/address"
+	//"github.com/RiV-chain/RiV-mesh/src/address"
 )
 
 type GetPeersRequest struct {
@@ -31,7 +31,7 @@ func (a *AdminSocket) getPeersHandler(req *GetPeersRequest, res *GetPeersRespons
 	peers := a.core.GetPeers()
 	res.Peers = make([]PeerEntry, 0, len(peers))
 	for _, p := range peers {
-		addr := address.AddrForKey(p.Key)
+		addr := a.core.AddrForKey(p.Key)
 		res.Peers = append(res.Peers, PeerEntry{
 			IPAddress: net.IP(addr[:]).String(),
 			PublicKey: hex.EncodeToString(p.Key),

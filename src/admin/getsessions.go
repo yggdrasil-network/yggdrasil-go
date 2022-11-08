@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/RiV-chain/RiV-mesh/src/address"
+	//"github.com/RiV-chain/RiV-mesh/src/address"
 )
 
 type GetSessionsRequest struct{}
@@ -27,7 +27,7 @@ func (a *AdminSocket) getSessionsHandler(req *GetSessionsRequest, res *GetSessio
 	sessions := a.core.GetSessions()
 	res.Sessions = make([]SessionEntry, 0, len(sessions))
 	for _, s := range sessions {
-		addr := address.AddrForKey(s.Key)
+		addr := a.core.AddrForKey(s.Key)
 		res.Sessions = append(res.Sessions, SessionEntry{
 			IPAddress: net.IP(addr[:]).String(),
 			PublicKey: hex.EncodeToString(s.Key[:]),

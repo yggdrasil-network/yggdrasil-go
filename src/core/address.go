@@ -1,6 +1,6 @@
 // Package address contains the types used by mesh to represent IPv6 addresses or prefixes, as well as functions for working with these types.
 // Of particular importance are the functions used to derive addresses or subnets from a NodeID, or to get the NodeID and bitmask of the bits visible from an address, which is needed for DHT searches.
-package address
+package core
 
 import (
 	"crypto/ed25519"
@@ -16,15 +16,15 @@ type Subnet [8]byte
 // The current implementation requires this to be a multiple of 8 bits + 7 bits.
 // The 8th bit of the last byte is used to signal nodes (0) or /64 prefixes (1).
 // Nodes that configure this differently will be unable to communicate with each other using IP packets, though routing and the DHT machinery *should* still work.
-func GetPrefix() [1]byte {
-	return [...]byte{0xfc}
+func (c *Core) GetPrefix() [1]byte {
+	return c.config.networkdomain.Prefix
 }
 
 // IsValid returns true if an address falls within the range used by nodes in the network.
-func (a *Address) IsValid() bool {
-	prefix := GetPrefix()
+func (c *Core) IsValidAddress(a Address) bool {
+	prefix := c.GetPrefix()
 	for idx := range prefix {
-		if (*a)[idx] != prefix[idx] {
+		if a[idx] != prefix[idx] {
 			return false
 		}
 	}
@@ -32,15 +32,15 @@ func (a *Address) IsValid() bool {
 }
 
 // IsValid returns true if a prefix falls within the range usable by the network.
-func (s *Subnet) IsValid() bool {
-	prefix := GetPrefix()
+func (c *Core) IsValidSubnet(s Subnet) bool {
+	prefix := c.GetPrefix()
 	l := len(prefix)
 	for idx := range prefix[:l-1] {
-		if (*s)[idx] != prefix[idx] {
+		if s[idx] != prefix[idx] {
 			return false
 		}
 	}
-	return (*s)[l-1] == prefix[l-1]|0x01
+	return s[l-1] == prefix[l-1]|0x01
 }
 
 // AddrForKey takes an ed25519.PublicKey as an argument and returns an *Address.
@@ -48,7 +48,7 @@ func (s *Subnet) IsValid() bool {
 // This address begins with the contents of GetPrefix(), with the last bit set to 0 to indicate an address.
 // The following 8 bits are set to the number of leading 1 bits in the bitwise inverse of the public key.
 // The bitwise inverse of the key, excluding the leading 1 bits and the first leading 0 bit, is truncated to the appropriate length and makes up the remainder of the address.
-func AddrForKey(publicKey ed25519.PublicKey) *Address {
+func (c *Core) AddrForKey(publicKey ed25519.PublicKey) *Address {
 	// 128 bit address
 	// Begins with prefix
 	// Next bit is a 0
@@ -86,7 +86,7 @@ func AddrForKey(publicKey ed25519.PublicKey) *Address {
 			temp = append(temp, bits)
 		}
 	}
-	prefix := GetPrefix()
+	prefix := c.GetPrefix()
 	copy(addr[:], prefix[:])
 	addr[len(prefix)] = ones
 	copy(addr[len(prefix)+1:], temp)
@@ -98,26 +98,26 @@ func AddrForKey(publicKey ed25519.PublicKey) *Address {
 // The subnet begins with the address prefix, with the last bit set to 1 to indicate a prefix.
 // The following 8 bits are set to the number of leading 1 bits in the bitwise inverse of the key.
 // The bitwise inverse of the key, excluding the leading 1 bits and the first leading 0 bit, is truncated to the appropriate length and makes up the remainder of the subnet.
-func SubnetForKey(publicKey ed25519.PublicKey) *Subnet {
+func (c *Core) SubnetForKey(publicKey ed25519.PublicKey) *Subnet {
 	// Exactly as the address version, with two exceptions:
 	//  1) The first bit after the fixed prefix is a 1 instead of a 0
 	//  2) It's truncated to a subnet prefix length instead of 128 bits
-	addr := AddrForKey(publicKey)
+	addr := c.AddrForKey(publicKey)
 	if addr == nil {
 		return nil
 	}
 	var snet Subnet
 	copy(snet[:], addr[:])
-	prefix := GetPrefix() // nolint:staticcheck
+	prefix := c.GetPrefix() // nolint:staticcheck
 	snet[len(prefix)-1] |= 0x01
 	return &snet
 }
 
 // GetKet returns the partial ed25519.PublicKey for the Address.
 // This is used for key lookup.
-func (a *Address) GetKey() ed25519.PublicKey {
+func (c *Core) GetAddressKey(a Address) ed25519.PublicKey {
 	var key [ed25519.PublicKeySize]byte
-	prefix := GetPrefix() // nolint:staticcheck
+	prefix := c.GetPrefix() // nolint:staticcheck
 	ones := int(a[len(prefix)])
 	for idx := 0; idx < ones; idx++ {
 		key[idx/8] |= 0x80 >> byte(idx%8)
@@ -143,8 +143,8 @@ func (a *Address) GetKey() ed25519.PublicKey {
 
 // GetKet returns the partial ed25519.PublicKey for the Subnet.
 // This is used for key lookup.
-func (s *Subnet) GetKey() ed25519.PublicKey {
+func (c *Core) GetSubnetKey(s Subnet) ed25519.PublicKey {
 	var addr Address
 	copy(addr[:], s[:])
-	return addr.GetKey()
+	return c.GetAddressKey(addr)
 }

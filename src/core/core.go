@@ -20,6 +20,7 @@ import (
 // The Core object represents the Mesh node. You should create a Core
 // object for each Mesh node you plan to run.
 type Core struct {
+	address      Address
 	// This is the main data structure that holds everything else for a node
 	// We're going to keep our own copy of the provided config - that way we can
 	// guarantee that it will be covered by the mutex
@@ -34,11 +35,12 @@ type Core struct {
 	log          Logger
 	addPeerTimer *time.Timer
 	config       struct {
-		_peers             map[Peer]*linkInfo          // configurable after startup
+		_peers             map[Peer]*linkInfo         // configurable after startup
 		_listeners         map[ListenAddress]struct{} // configurable after startup
 		nodeinfo           NodeInfo                   // immutable after startup
 		nodeinfoPrivacy    NodeInfoPrivacy            // immutable after startup
 		_allowedPublicKeys map[[32]byte]struct{}      // configurable after startup
+		networkdomain      NetworkDomain              // immutable after startup
 	}
 }
 

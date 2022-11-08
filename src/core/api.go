@@ -17,7 +17,7 @@ import (
 	//"time"
 
 	"github.com/Arceliar/phony"
-	"github.com/RiV-chain/RiV-mesh/src/address"
+	//"github.com/RiV-chain/RiV-mesh/src/address"
 )
 
 type SelfInfo struct {
@@ -159,7 +159,7 @@ func (c *Core) Listen(u *url.URL, sintf string) (*Listener, error) {
 // that application also implements either VPN functionality or deals with IP
 // packets specifically.
 func (c *Core) Address() net.IP {
-	addr := net.IP(address.AddrForKey(c.public)[:])
+	addr := net.IP(c.AddrForKey(c.public)[:])
 	return addr
 }
 
@@ -169,7 +169,7 @@ func (c *Core) Address() net.IP {
 // that application also implements either VPN functionality or deals with IP
 // packets specifically.
 func (c *Core) Subnet() net.IPNet {
-	subnet := address.SubnetForKey(c.public)[:]
+	subnet := c.SubnetForKey(c.public)[:]
 	subnet = append(subnet, 0, 0, 0, 0, 0, 0, 0, 0)
 	return net.IPNet{IP: subnet, Mask: net.CIDRMask(64, 128)}
 }

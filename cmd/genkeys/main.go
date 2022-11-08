@@ -19,7 +19,7 @@ import (
 	"net"
 	"runtime"
 
-	"github.com/RiV-chain/RiV-mesh/src/address"
+	"github.com/RiV-chain/RiV-mesh/src/core"
 )
 
 type keySet struct {
@@ -41,7 +41,7 @@ func main() {
 			fmt.Println("-----")
 			fmt.Println("Priv:", hex.EncodeToString(newKey.priv))
 			fmt.Println("Pub:", hex.EncodeToString(newKey.pub))
-			addr := address.AddrForKey(newKey.pub)
+			addr := core.AddrForKey(newKey.pub)
 			fmt.Println("IP:", net.IP(addr[:]).String())
 		}
 	}

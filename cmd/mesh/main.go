@@ -25,13 +25,13 @@ import (
 	"github.com/kardianos/minwinsvc"
 	"github.com/mitchellh/mapstructure"
 
-	"github.com/RiV-chain/RiV-mesh/src/address"
+	//"github.com/RiV-chain/RiV-mesh/src/address"
 	"github.com/RiV-chain/RiV-mesh/src/admin"
 	"github.com/RiV-chain/RiV-mesh/src/config"
 	"github.com/RiV-chain/RiV-mesh/src/defaults"
 
 	"github.com/RiV-chain/RiV-mesh/src/core"
-	"github.com/RiV-chain/RiV-mesh/src/ipv6rwc"
+	//"github.com/RiV-chain/RiV-mesh/src/ipv6rwc"
 	"github.com/RiV-chain/RiV-mesh/src/multicast"
 	"github.com/RiV-chain/RiV-mesh/src/tun"
 	"github.com/RiV-chain/RiV-mesh/src/version"
@@ -261,6 +261,7 @@ func run(args yggArgs, ctx context.Context) {
 	if cfg == nil {
 		return
 	}
+	n := &node{}
 	// Have we been asked for the node address yet? If so, print it and then stop.
 	getNodeKey := func() ed25519.PublicKey {
 		if pubkey, err := hex.DecodeString(cfg.PrivateKey); err == nil {
@@ -271,14 +272,14 @@ func run(args yggArgs, ctx context.Context) {
 	switch {
 	case args.getaddr:
 		if key := getNodeKey(); key != nil {
-			addr := address.AddrForKey(key)
+			addr := n.core.AddrForKey(key)
 			ip := net.IP(addr[:])
 			fmt.Println(ip.String())
 		}
 		return
 	case args.getsnet:
 		if key := getNodeKey(); key != nil {
-			snet := address.SubnetForKey(key)
+			snet := n.core.SubnetForKey(key)
 			ipnet := net.IPNet{
 				IP:   append(snet[:], 0, 0, 0, 0, 0, 0, 0, 0),
 				Mask: net.CIDRMask(len(snet)*8, 128),
@@ -291,7 +292,6 @@ func run(args yggArgs, ctx context.Context) {
 	cfg.HttpAddress = args.httpaddress
 	cfg.WwwRoot = args.wwwroot
 
-	n := &node{}
 	// Setup the RiV-mesh node itself.
 	{
 		sk, err := hex.DecodeString(cfg.PrivateKey)
@@ -301,6 +301,7 @@ func run(args yggArgs, ctx context.Context) {
 		options := []core.SetupOption{
 			core.NodeInfo(cfg.NodeInfo),
 			core.NodeInfoPrivacy(cfg.NodeInfoPrivacy),
+			core.NetworkDomain(cfg.NetworkDomain),
 		}
 		for _, addr := range cfg.Listen {
 			options = append(options, core.ListenAddress(addr))
@@ -364,7 +365,7 @@ func run(args yggArgs, ctx context.Context) {
 			tun.InterfaceName(cfg.IfName),
 			tun.InterfaceMTU(cfg.IfMTU),
 		}
-		if n.tun, err = tun.New(ipv6rwc.NewReadWriteCloser(n.core), logger, options...); err != nil {
+		if n.tun, err = tun.New(n.core, logger, options...); err != nil {
 			panic(err)
 		}
 		if n.admin != nil && n.tun != nil {

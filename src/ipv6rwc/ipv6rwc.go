@@ -13,7 +13,7 @@ import (
 
 	iwt "github.com/Arceliar/ironwood/types"
 
-	"github.com/RiV-chain/RiV-mesh/src/address"
+	//"github.com/RiV-chain/RiV-mesh/src/address"
 	"github.com/RiV-chain/RiV-mesh/src/core"
 )
 
@@ -30,21 +30,21 @@ type keyArray [ed25519.PublicKeySize]byte
 
 type keyStore struct {
 	core         *core.Core
-	address      address.Address
-	subnet       address.Subnet
+	address      core.Address
+	subnet       core.Subnet
 	mutex        sync.Mutex
 	keyToInfo    map[keyArray]*keyInfo
-	addrToInfo   map[address.Address]*keyInfo
-	addrBuffer   map[address.Address]*buffer
-	subnetToInfo map[address.Subnet]*keyInfo
-	subnetBuffer map[address.Subnet]*buffer
+	addrToInfo   map[core.Address]*keyInfo
+	addrBuffer   map[core.Address]*buffer
+	subnetToInfo map[core.Subnet]*keyInfo
+	subnetBuffer map[core.Subnet]*buffer
 	mtu          uint64
 }
 
 type keyInfo struct {
 	key     keyArray
-	address address.Address
-	subnet  address.Subnet
+	address core.Address
+	subnet  core.Subnet
 	timeout *time.Timer // From calling a time.AfterFunc to do cleanup
 }
 
@@ -55,21 +55,21 @@ type buffer struct {
 
 func (k *keyStore) init(c *core.Core) {
 	k.core = c
-	k.address = *address.AddrForKey(k.core.PublicKey())
-	k.subnet = *address.SubnetForKey(k.core.PublicKey())
+	k.address = *c.AddrForKey(k.core.PublicKey())
+	k.subnet = *c.SubnetForKey(k.core.PublicKey())
 	if err := k.core.SetOutOfBandHandler(k.oobHandler); err != nil {
 		err = fmt.Errorf("tun.core.SetOutOfBandHander: %w", err)
 		panic(err)
 	}
 	k.keyToInfo = make(map[keyArray]*keyInfo)
-	k.addrToInfo = make(map[address.Address]*keyInfo)
-	k.addrBuffer = make(map[address.Address]*buffer)
-	k.subnetToInfo = make(map[address.Subnet]*keyInfo)
-	k.subnetBuffer = make(map[address.Subnet]*buffer)
+	k.addrToInfo = make(map[core.Address]*keyInfo)
+	k.addrBuffer = make(map[core.Address]*buffer)
+	k.subnetToInfo = make(map[core.Subnet]*keyInfo)
+	k.subnetBuffer = make(map[core.Subnet]*buffer)
 	k.mtu = 1280 // Default to something safe, expect user to set this
 }
 
-func (k *keyStore) sendToAddress(addr address.Address, bs []byte) {
+func (k *keyStore) sendToAddress(addr core.Address, bs []byte) {
 	k.mutex.Lock()
 	if info := k.addrToInfo[addr]; info != nil {
 		k.resetTimeout(info)
@@ -94,11 +94,11 @@ func (k *keyStore) sendToAddress(addr address.Address, bs []byte) {
 			}
 		})
 		k.mutex.Unlock()
-		k.sendKeyLookup(addr.GetKey())
+		k.sendKeyLookup(k.core.GetAddressKey(addr))
 	}
 }
 
-func (k *keyStore) sendToSubnet(subnet address.Subnet, bs []byte) {
+func (k *keyStore) sendToSubnet(subnet core.Subnet, bs []byte) {
 	k.mutex.Lock()
 	if info := k.subnetToInfo[subnet]; info != nil {
 		k.resetTimeout(info)
@@ -123,7 +123,7 @@ func (k *keyStore) sendToSubnet(subnet address.Subnet, bs []byte) {
 			}
 		})
 		k.mutex.Unlock()
-		k.sendKeyLookup(subnet.GetKey())
+		k.sendKeyLookup(k.core.GetSubnetKey(subnet))
 	}
 }
 
@@ -136,8 +136,8 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 	if info = k.keyToInfo[kArray]; info == nil {
 		info = new(keyInfo)
 		info.key = kArray
-		info.address = *address.AddrForKey(ed25519.PublicKey(info.key[:]))
-		info.subnet = *address.SubnetForKey(ed25519.PublicKey(info.key[:]))
+		info.address = *k.core.AddrForKey(ed25519.PublicKey(info.key[:]))
+		info.subnet = *k.core.SubnetForKey(ed25519.PublicKey(info.key[:]))
 		k.keyToInfo[info.key] = info
 		k.addrToInfo[info.address] = info
 		k.subnetToInfo[info.subnet] = info
@@ -184,7 +184,7 @@ func (k *keyStore) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte) {
 	sig := data[1:]
 	switch data[0] {
 	case typeKeyLookup:
-		snet := *address.SubnetForKey(toKey)
+		snet := *k.core.SubnetForKey(toKey)
 		if snet == k.subnet && ed25519.Verify(fromKey, toKey[:], sig) {
 			// This is looking for at least our subnet (possibly our address)
 			// Send a response
@@ -248,8 +248,8 @@ func (k *keyStore) readPC(p []byte) (int, error) {
 			}
 			continue
 		}
-		var srcAddr, dstAddr address.Address
-		var srcSubnet, dstSubnet address.Subnet
+		var srcAddr, dstAddr core.Address
+		var srcSubnet, dstSubnet core.Subnet
 		copy(srcAddr[:], bs[8:])
 		copy(dstAddr[:], bs[24:])
 		copy(srcSubnet[:], bs[8:])
@@ -274,8 +274,8 @@ func (k *keyStore) writePC(bs []byte) (int, error) {
 		strErr := fmt.Sprint("undersized IPv6 packet, length: ", len(bs))
 		return 0, errors.New(strErr)
 	}
-	var srcAddr, dstAddr address.Address
-	var srcSubnet, dstSubnet address.Subnet
+	var srcAddr, dstAddr core.Address
+	var srcSubnet, dstSubnet core.Subnet
 	copy(srcAddr[:], bs[8:])
 	copy(dstAddr[:], bs[24:])
 	copy(srcSubnet[:], bs[8:])
@@ -286,9 +286,9 @@ func (k *keyStore) writePC(bs []byte) (int, error) {
 		strErr := fmt.Sprint("incorrect source address: ", net.IP(srcAddr[:]).String())
 		return 0, errors.New(strErr)
 	}
-	if dstAddr.IsValid() {
+	if k.core.IsValidAddress(dstAddr) {
 		k.sendToAddress(dstAddr, bs)
-	} else if dstSubnet.IsValid() {
+	} else if k.core.IsValidSubnet(dstSubnet) {
 		k.sendToSubnet(dstSubnet, bs)
 	} else {
 		return 0, errors.New("invalid destination address")
@@ -331,11 +331,11 @@ func NewReadWriteCloser(c *core.Core) *ReadWriteCloser {
 	return rwc
 }
 
-func (rwc *ReadWriteCloser) Address() address.Address {
+func (rwc *ReadWriteCloser) Address() core.Address {
 	return rwc.address
 }
 
-func (rwc *ReadWriteCloser) Subnet() address.Subnet {
+func (rwc *ReadWriteCloser) Subnet() core.Subnet {
 	return rwc.subnet
 }
 
