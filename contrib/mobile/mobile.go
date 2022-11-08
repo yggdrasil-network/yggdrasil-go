@@ -139,7 +139,7 @@ func (m *Mesh) Recv() ([]byte, error) {
 }
 
 // Recv waits for and reads a packet coming from Yggdrasil to given buffer, returning size of packet
-func (m *Yggdrasil) RecvBuffer(buf []byte) (int, error) {
+func (m *Mesh) RecvBuffer(buf []byte) (int, error) {
 	if m.iprwc == nil {
 		return 0, nil
 	}
