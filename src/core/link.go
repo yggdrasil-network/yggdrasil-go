@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -45,6 +46,7 @@ type link struct {
 
 type linkOptions struct {
 	pinnedEd25519Keys map[keyArray]struct{}
+	priority          uint8
 }
 
 type Listener struct {
@@ -120,17 +122,24 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 		copy(sigPubKey[:], sigPub)
 		options.pinnedEd25519Keys[sigPubKey] = struct{}{}
 	}
+	if p := u.Query().Get("priority"); p != "" {
+		pi, err := strconv.ParseUint(p, 10, 8)
+		if err != nil {
+			return info, fmt.Errorf("priority invalid: %w", err)
+		}
+		options.priority = uint8(pi)
+	}
 	switch info.linkType {
 	case "tcp":
 		go func() {
-			if err := l.tcp.dial(u, options, sintf); err != nil {
+			if err := l.tcp.dial(u, options, sintf); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial TCP %s: %s\n", u.Host, err)
 			}
 		}()
 
 	case "socks":
 		go func() {
-			if err := l.socks.dial(u, options); err != nil {
+			if err := l.socks.dial(u, options); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial SOCKS %s: %s\n", u.Host, err)
 			}
 		}()
@@ -154,14 +163,14 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 			}
 		}
 		go func() {
-			if err := l.tls.dial(u, options, sintf, tlsSNI); err != nil {
+			if err := l.tls.dial(u, options, sintf, tlsSNI); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial TLS %s: %s\n", u.Host, err)
 			}
 		}()
 
 	case "unix":
 		go func() {
-			if err := l.unix.dial(u, options, sintf); err != nil {
+			if err := l.unix.dial(u, options, sintf); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial UNIX %s: %s\n", u.Host, err)
 			}
 		}()
@@ -272,8 +281,7 @@ func (intf *link) handler() error {
 		var key keyArray
 		copy(key[:], meta.key)
 		if _, allowed := pinned[key]; !allowed {
-			intf.links.core.log.Errorf("Failed to connect to node: %q sent ed25519 key that does not match pinned keys", intf.name())
-			return fmt.Errorf("failed to connect: host sent ed25519 key that does not match pinned keys")
+			return fmt.Errorf("node public key that does not match pinned keys")
 		}
 	}
 	// Check if we're authorized to connect to this key / IP
@@ -286,31 +294,33 @@ func (intf *link) handler() error {
 		}
 	}
 	if intf.incoming && !intf.force && !isallowed {
-		intf.links.core.log.Warnf("%s connection from %s forbidden: AllowedEncryptionPublicKeys does not contain key %s",
-			strings.ToUpper(intf.info.linkType), intf.info.remote, hex.EncodeToString(meta.key))
 		_ = intf.close()
-		return fmt.Errorf("forbidden connection")
+		return fmt.Errorf("node public key %q is not in AllowedPublicKeys", hex.EncodeToString(meta.key))
 	}
 
 	phony.Block(intf.links, func() {
 		intf.links._links[intf.info] = intf
 	})
 
+	dir := "outbound"
+	if intf.incoming {
+		dir = "inbound"
+	}
 	remoteAddr := net.IP(address.AddrForKey(meta.key)[:]).String()
 	remoteStr := fmt.Sprintf("%s@%s", remoteAddr, intf.info.remote)
 	localStr := intf.conn.LocalAddr()
-	intf.links.core.log.Infof("Connected %s: %s, source %s",
-		strings.ToUpper(intf.info.linkType), remoteStr, localStr)
+	intf.links.core.log.Infof("Connected %s %s: %s, source %s",
+		dir, strings.ToUpper(intf.info.linkType), remoteStr, localStr)
 
-	// TODO don't report an error if it's just a 'use of closed network connection'
-	if err = intf.links.core.HandleConn(meta.key, intf.conn); err != nil && err != io.EOF {
-		intf.links.core.log.Infof("Disconnected %s: %s, source %s; error: %s",
-			strings.ToUpper(intf.info.linkType), remoteStr, localStr, err)
-	} else {
-		intf.links.core.log.Infof("Disconnected %s: %s, source %s",
-			strings.ToUpper(intf.info.linkType), remoteStr, localStr)
+	err = intf.links.core.HandleConn(meta.key, intf.conn, intf.options.priority)
+	switch err {
+	case io.EOF, net.ErrClosed, nil:
+		intf.links.core.log.Infof("Disconnected %s %s: %s, source %s",
+			dir, strings.ToUpper(intf.info.linkType), remoteStr, localStr)
+	default:
+		intf.links.core.log.Infof("Disconnected %s %s: %s, source %s; error: %s",
+			dir, strings.ToUpper(intf.info.linkType), remoteStr, localStr, err)
 	}
-
 	return nil
 }
 
@@ -318,14 +328,7 @@ func (intf *link) close() error {
 	return intf.conn.Close()
 }
 
-func (intf *link) name() string {
-	return intf.lname
-}
-
 func linkInfoFor(linkType, sintf, remote string) linkInfo {
-	if h, _, err := net.SplitHostPort(remote); err == nil {
-		remote = h
-	}
 	return linkInfo{
 		linkType: linkType,
 		local:    sintf,
@@ -351,5 +354,14 @@ func (c *linkConn) Read(p []byte) (n int, err error) {
 func (c *linkConn) Write(p []byte) (n int, err error) {
 	n, err = c.Conn.Write(p)
 	atomic.AddUint64(&c.tx, uint64(n))
+	return
+}
+
+func linkOptionsForListener(u *url.URL) (l linkOptions) {
+	if p := u.Query().Get("priority"); p != "" {
+		if pi, err := strconv.ParseUint(p, 10, 8); err == nil {
+			l.priority = uint8(pi)
+		}
+	}
 	return
 }

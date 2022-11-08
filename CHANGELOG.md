@@ -26,6 +26,45 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.4.6] - 2022-10-25
+
+### Added
+
+- Support for prioritising multiple peerings to the same node has been added, useful for nodes with multiple network interfaces
+  - The priority can be configured by specifying `?priority=X` in a `Peers` or `Listen` URI, or by specifying `Priority` within a `MulticastInterfaces` configuration entry
+  - Priorities are values between 0 and 254 (default is 0), lower numbers are prioritised and nodes will automatically negotiate the higher of the two values
+
+### Changed
+
+- On Linux, `SO_REUSEADDR` is now used on the multicast port instead of `SO_REUSEPORT`, which should allow processes running under different users to run simultaneously
+
+### Fixed
+
+- Adding peers using the `InterfacePeers` configuration option should now work correctly again
+- Multiple connections from the same remote IP address will no longer be incorrectly dropped
+- The admin socket will no longer incorrectly claim TCP connections as TLS
+- A panic that could occur when calling `GetPeers` while a peering link is being set up has been fixed
+
+## [0.4.5] - 2022-10-15
+
+### Added
+
+- Support for peering over UNIX sockets is now available, by configuring `Listen` and peering URIs in the `unix:///path/to/socket.sock` format
+
+### Changed
+
+- `yggdrasilctl` has been refactored and now has cleaner output
+- It is now possible to `addPeer` and `removePeer` using the admin socket again
+- The `getSessions` admin socket call reports number of bytes received and transmitted again
+- The link setup code has been refactored, making it easier to support new peering types in the future
+- Yggdrasil now maintains configuration internally, rather than relying on a shared and potentially mutable structure
+
+### Fixed
+
+- Tracking information about expired root nodes has been fixed, which should hopefully resolve issues with reparenting and connection failures when the root node disappears
+- A bug in the mobile framework code which caused a crash on Android when multicast failed to set up has been fixed
+- Yggdrasil should now shut down gracefully and clean up correctly when running as a Windows service
+
 ## [0.4.4] - 2022-07-07
 
 ### Fixed

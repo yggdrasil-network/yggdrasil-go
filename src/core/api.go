@@ -20,14 +20,15 @@ type SelfInfo struct {
 }
 
 type PeerInfo struct {
-	Key     ed25519.PublicKey
-	Root    ed25519.PublicKey
-	Coords  []uint64
-	Port    uint64
-	Remote  string
-	RXBytes uint64
-	TXBytes uint64
-	Uptime  time.Duration
+	Key      ed25519.PublicKey
+	Root     ed25519.PublicKey
+	Coords   []uint64
+	Port     uint64
+	Priority uint8
+	Remote   string
+	RXBytes  uint64
+	TXBytes  uint64
+	Uptime   time.Duration
 }
 
 type DHTEntryInfo struct {
@@ -62,6 +63,9 @@ func (c *Core) GetPeers() []PeerInfo {
 	names := make(map[net.Conn]string)
 	phony.Block(&c.links, func() {
 		for _, info := range c.links._links {
+			if info == nil {
+				continue
+			}
 			names[info.conn] = info.lname
 		}
 	})
@@ -72,6 +76,7 @@ func (c *Core) GetPeers() []PeerInfo {
 		info.Root = p.Root
 		info.Coords = p.Coords
 		info.Port = p.Port
+		info.Priority = p.Priority
 		info.Remote = p.Conn.RemoteAddr().String()
 		if name := names[p.Conn]; name != "" {
 			info.Remote = name

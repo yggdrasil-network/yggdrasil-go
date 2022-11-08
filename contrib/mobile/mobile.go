@@ -83,10 +83,11 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 		options := []multicast.SetupOption{}
 		for _, intf := range m.config.MulticastInterfaces {
 			options = append(options, multicast.MulticastInterface{
-				Regex:  regexp.MustCompile(intf.Regex),
-				Beacon: intf.Beacon,
-				Listen: intf.Listen,
-				Port:   intf.Port,
+				Regex:    regexp.MustCompile(intf.Regex),
+				Beacon:   intf.Beacon,
+				Listen:   intf.Listen,
+				Port:     intf.Port,
+				Priority: uint8(intf.Priority),
 			})
 		}
 		m.multicast, err = multicast.New(m.core, logger, options...)
@@ -114,6 +115,18 @@ func (m *Yggdrasil) Send(p []byte) error {
 	return nil
 }
 
+// Send sends a packet from given buffer to Yggdrasil. From first byte up to length.
+func (m *Yggdrasil) SendBuffer(p []byte, length int) error {
+	if m.iprwc == nil {
+		return nil
+	}
+	if len(p) < length {
+		return nil
+	}
+	_, _ = m.iprwc.Write(p[:length])
+	return nil
+}
+
 // Recv waits for and reads a packet coming from Yggdrasil. It
 // will be a fully formed IPv6 packet
 func (m *Yggdrasil) Recv() ([]byte, error) {
@@ -123,6 +136,15 @@ func (m *Yggdrasil) Recv() ([]byte, error) {
 	var buf [65535]byte
 	n, _ := m.iprwc.Read(buf[:])
 	return buf[:n], nil
+}
+
+// Recv waits for and reads a packet coming from Yggdrasil to given buffer, returning size of packet
+func (m *Yggdrasil) RecvBuffer(buf []byte) (int, error) {
+	if m.iprwc == nil {
+		return 0, nil
+	}
+	n, _ := m.iprwc.Read(buf)
+	return n, nil
 }
 
 // Stop the mobile Yggdrasil instance
