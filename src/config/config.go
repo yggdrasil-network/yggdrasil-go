@@ -47,7 +47,7 @@ type MulticastInterfaceConfig struct {
 	Beacon bool
 	Listen bool
 	Port uint16
-	Priority uint8
+	Priority uint64 // really uint8, but gobind won't export it
 }
 
 type NetworkDomainConfig struct {
