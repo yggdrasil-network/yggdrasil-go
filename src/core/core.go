@@ -121,6 +121,27 @@ func (c *Core) _addPeerLoop() {
 	})
 }
 
+// Connects first peer from config, just to reconnect fast after network switch
+// Used in mobile
+func (c *Core) ConnectFirstPeer() {
+	select {
+	case <-c.ctx.Done():
+		return
+	default:
+	}
+	// Add peers from the Peers section
+	for peer := range c.config._peers {
+	    u, err := url.Parse(peer.URI)
+        if err != nil {
+            c.log.Errorln("Failed to parse peer url:", peer, err)
+        }
+        if err := c.CallPeer(u, peer.SourceInterface); err != nil {
+            c.log.Errorln("Failed to add peer:", err)
+        }
+        break
+	}
+}
+
 // Stop shuts down the Yggdrasil node.
 func (c *Core) Stop() {
 	phony.Block(c, func() {

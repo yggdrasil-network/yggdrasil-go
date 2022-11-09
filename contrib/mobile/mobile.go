@@ -169,6 +169,11 @@ func GenerateConfigJSON() []byte {
 	return nil
 }
 
+// Connects first peer from config, just to reconnect fast after network switch
+func (m *Yggdrasil) ConnectFirstPeer() {
+	m.core.ConnectFirstPeer()
+}
+
 // GetAddressString gets the node's IPv6 address
 func (m *Yggdrasil) GetAddressString() string {
 	ip := m.core.Address()
