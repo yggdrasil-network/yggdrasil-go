@@ -69,8 +69,12 @@ func (l *linkTLS) dial(url *url.URL, options linkOptions, sintf, sni string) err
 	if err != nil {
 		return err
 	}
-	uri := strings.TrimRight(strings.SplitN(url.String(), "?", 2)[0], "/")
-	return l.handler(uri, info, conn, options, false, false)
+	name := strings.TrimRight(strings.SplitN(url.String(), "?", 2)[0], "/")
+	dial := &linkDial{
+		url:   url,
+		sintf: sintf,
+	}
+	return l.handler(dial, name, info, conn, options, false, false)
 }
 
 func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
@@ -109,7 +113,7 @@ func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
 			raddr := conn.RemoteAddr().(*net.TCPAddr)
 			name := fmt.Sprintf("tls://%s", raddr)
 			info := linkInfoFor("tls", sintf, tcpIDFor(laddr, raddr))
-			if err = l.handler(name, info, conn, linkOptionsForListener(url), true, raddr.IP.IsLinkLocalUnicast()); err != nil {
+			if err = l.handler(nil, name, info, conn, linkOptionsForListener(url), true, raddr.IP.IsLinkLocalUnicast()); err != nil {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
@@ -165,6 +169,6 @@ func (l *linkTLS) generateConfig() (*tls.Config, error) {
 	}, nil
 }
 
-func (l *linkTLS) handler(name string, info linkInfo, conn net.Conn, options linkOptions, incoming, force bool) error {
-	return l.tcp.handler(name, info, conn, options, incoming, force)
+func (l *linkTLS) handler(dial *linkDial, name string, info linkInfo, conn net.Conn, options linkOptions, incoming, force bool) error {
+	return l.tcp.handler(dial, name, info, conn, options, incoming, force)
 }
