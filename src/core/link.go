@@ -113,7 +113,9 @@ func (l *links) isConnectedTo(info linkInfo) bool {
 func (l *links) call(u *url.URL, sintf string, errch chan<- error) (info linkInfo, err error) {
 	info = linkInfoFor(u.Scheme, sintf, u.Host)
 	if l.isConnectedTo(info) {
-		close(errch) // already connected, no error
+		if errch != nil {
+			close(errch) // already connected, no error
+		}
 		return info, nil
 	}
 	options := linkOptions{
@@ -122,7 +124,9 @@ func (l *links) call(u *url.URL, sintf string, errch chan<- error) (info linkInf
 	for _, pubkey := range u.Query()["key"] {
 		sigPub, err := hex.DecodeString(pubkey)
 		if err != nil {
-			close(errch)
+			if errch != nil {
+				close(errch)
+			}
 			return info, fmt.Errorf("pinned key contains invalid hex characters")
 		}
 		var sigPubKey keyArray
@@ -132,7 +136,9 @@ func (l *links) call(u *url.URL, sintf string, errch chan<- error) (info linkInf
 	if p := u.Query().Get("priority"); p != "" {
 		pi, err := strconv.ParseUint(p, 10, 8)
 		if err != nil {
-			close(errch)
+			if errch != nil {
+				close(errch)
+			}
 			return info, fmt.Errorf("priority invalid: %w", err)
 		}
 		options.priority = uint8(pi)
@@ -208,7 +214,9 @@ func (l *links) call(u *url.URL, sintf string, errch chan<- error) (info linkInf
 		}()
 
 	default:
-		close(errch)
+		if errch != nil {
+			close(errch)
+		}
 		return info, errors.New("unknown call scheme: " + u.Scheme)
 	}
 	return info, nil
