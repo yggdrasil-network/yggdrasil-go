@@ -121,6 +121,13 @@ func (c *Core) _addPeerLoop() {
 	})
 }
 
+func (c *Core) RetryPeersNow() {
+	if c.addPeerTimer != nil && !c.addPeerTimer.Stop() {
+		<-c.addPeerTimer.C
+	}
+	c.Act(nil, c._addPeerLoop)
+}
+
 // Stop shuts down the Yggdrasil node.
 func (c *Core) Stop() {
 	phony.Block(c, func() {
