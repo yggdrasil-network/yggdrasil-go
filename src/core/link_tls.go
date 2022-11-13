@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Arceliar/phony"
+	"github.com/pires/go-proxyproto"
 )
 
 type linkTLS struct {
@@ -90,7 +91,16 @@ func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
 		cancel()
 		return nil, err
 	}
-	tlslistener := tls.NewListener(listener, l.config)
+	var tlslistener net.Listener
+	var proxylistener proxyproto.Listener
+	linkoptions := linkOptionsForListener(url)
+	if linkoptions.proxyprotocol {
+		proxylistener = proxyproto.Listener{Listener: listener}
+		tlslistener = tls.NewListener(&proxylistener, l.config)
+		l.core.log.Printf("ProxyProtocol enabled for TLS listener %s", listener.Addr())
+	} else {
+		tlslistener = tls.NewListener(listener, l.config)
+	}
 	entry := &Listener{
 		Listener: tlslistener,
 		closed:   make(chan struct{}),

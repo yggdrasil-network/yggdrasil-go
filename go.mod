@@ -12,6 +12,7 @@ require (
 	github.com/kardianos/minwinsvc v1.0.2
 	github.com/mitchellh/mapstructure v1.4.1
 	github.com/vishvananda/netlink v1.1.0
+	github.com/pires/go-proxyproto v0.6.2
 	golang.org/x/mobile v0.0.0-20221110043201-43a038452099
 	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b
 	golang.org/x/sys v0.0.0-20221013171732-95e765b1cc43

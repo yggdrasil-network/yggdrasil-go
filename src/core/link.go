@@ -52,6 +52,7 @@ type link struct {
 type linkOptions struct {
 	pinnedEd25519Keys map[keyArray]struct{}
 	priority          uint8
+	proxyprotocol     bool
 }
 
 type Listener struct {
@@ -427,6 +428,9 @@ func linkOptionsForListener(u *url.URL) (l linkOptions) {
 		if pi, err := strconv.ParseUint(p, 10, 8); err == nil {
 			l.priority = uint8(pi)
 		}
+	}
+	if p := u.Query().Get("proxyprotocol"); p == "true" {
+		l.proxyprotocol = true
 	}
 	return
 }
