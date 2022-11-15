@@ -26,6 +26,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.4.7] - 2022-11-19
+
+### Added
+
+- Dropped outbound peerings will now try to reconnect after a single second, rather than waiting up to 60 seconds for the normal peer timer
+
+### Changed
+
+- Session encryption keys are now rotated at most once per minute, which reduces CPU usage and improves throughput on fast low latency links
+- Buffers are now reused in the session encryption handler, which improves session throughput and reduces memory allocations
+- Buffers are now reused in the router for DHT and path traffic, which improves overall routing throughput and reduces memory allocations
+
+### Fixed
+
+- A bug in the admin socket where requests fail unless `arguments` is specified has been fixed
+- Certificates on TLS listeners will no longer expire after a year
+- The `-address` and `-subnet` command line options now return a useful warning when no configuration is specified
+
 ## [0.4.6] - 2022-10-25
 
 ### Added
