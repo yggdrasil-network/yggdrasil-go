@@ -247,7 +247,12 @@ func run(args yggArgs, ctx context.Context) {
 		return
 	default:
 		// No flags were provided, therefore print the list of flags to stdout.
+		fmt.Println("Usage:")
 		flag.PrintDefaults()
+
+		if args.getaddr || args.getsnet {
+			fmt.Println("\nError: You need to specify some config data using -useconf or -useconffile.")
+		}
 	}
 	// Have we got a working configuration? If we don't then it probably means
 	// that neither -autoconf, -useconf or -useconffile were set above. Stop
@@ -339,7 +344,7 @@ func run(args yggArgs, ctx context.Context) {
 				Beacon:   intf.Beacon,
 				Listen:   intf.Listen,
 				Port:     intf.Port,
-				Priority: intf.Priority,
+				Priority: uint8(intf.Priority),
 			})
 		}
 		if n.multicast, err = multicast.New(n.core, logger, options...); err != nil {

@@ -194,7 +194,7 @@ func (c *Core) AddPeer(uri string, sourceInterface string) error {
 	if err != nil {
 		return err
 	}
-	info, err := c.links.call(u, sourceInterface)
+	info, err := c.links.call(u, sourceInterface, nil)
 	if err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ func (c *Core) RemovePeer(uri string, sourceInterface string) error {
 // This does not add the peer to the peer list, so if the connection drops, the
 // peer will not be called again automatically.
 func (c *Core) CallPeer(u *url.URL, sintf string) error {
-	_, err := c.links.call(u, sintf)
+	_, err := c.links.call(u, sintf, nil)
 	return err
 }
 

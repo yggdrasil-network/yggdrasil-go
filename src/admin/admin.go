@@ -327,6 +327,7 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 		var buf json.RawMessage
 		var req AdminSocketRequest
 		var resp AdminSocketResponse
+		req.Arguments = []byte("{}")
 		if err := func() error {
 			if err = decoder.Decode(&buf); err != nil {
 				return fmt.Errorf("Failed to find request")
