@@ -32,10 +32,6 @@ func (l *links) newLinkTCP() *linkTCP {
 }
 
 func (l *linkTCP) dial(url *url.URL, options linkOptions, sintf string) error {
-	info := linkInfoFor("tcp", sintf, url.Host)
-	if l.links.isConnectedTo(info) {
-		return nil
-	}
 	host, p, err := net.SplitHostPort(url.Host)
 	if err != nil {
 		return err
@@ -57,12 +53,20 @@ func (l *linkTCP) dial(url *url.URL, options linkOptions, sintf string) error {
 		if err != nil {
 			continue
 		}
+		info := linkInfoFor("tcp", sintf, tcpIDFor(dialer.LocalAddr, addr))
+		if l.links.isConnectedTo(info) {
+			return nil
+		}
 		conn, err := dialer.DialContext(l.core.ctx, "tcp", addr.String())
 		if err != nil {
 			continue
 		}
-		uri := strings.TrimRight(strings.SplitN(url.String(), "?", 2)[0], "/")
-		return l.handler(uri, info, conn, options, false, false)
+		name := strings.TrimRight(strings.SplitN(url.String(), "?", 2)[0], "/")
+		dial := &linkDial{
+			url:   url,
+			sintf: sintf,
+		}
+		return l.handler(dial, name, info, conn, options, false, false)
 	}
 	return fmt.Errorf("failed to connect via %d addresses", len(ips))
 }
@@ -98,10 +102,11 @@ func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
 				cancel()
 				break
 			}
+			laddr := conn.LocalAddr().(*net.TCPAddr)
 			raddr := conn.RemoteAddr().(*net.TCPAddr)
 			name := fmt.Sprintf("tcp://%s", raddr)
-			info := linkInfoFor("tcp", sintf, raddr.String())
-			if err = l.handler(name, info, conn, linkOptionsForListener(url), true, raddr.IP.IsLinkLocalUnicast()); err != nil {
+			info := linkInfoFor("tcp", sintf, tcpIDFor(laddr, raddr))
+			if err = l.handler(nil, name, info, conn, linkOptionsForListener(url), true, raddr.IP.IsLinkLocalUnicast()); err != nil {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
@@ -112,9 +117,10 @@ func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
 	return entry, nil
 }
 
-func (l *linkTCP) handler(name string, info linkInfo, conn net.Conn, options linkOptions, incoming, force bool) error {
+func (l *linkTCP) handler(dial *linkDial, name string, info linkInfo, conn net.Conn, options linkOptions, incoming, force bool) error {
 	return l.links.create(
 		conn,     // connection
+		dial,     // connection URL
 		name,     // connection name
 		info,     // connection info
 		incoming, // not incoming
@@ -194,4 +200,17 @@ func (l *linkTCP) dialerFor(dst *net.TCPAddr, sintf string) (*net.Dialer, error)
 		}
 	}
 	return dialer, nil
+}
+
+func tcpIDFor(local net.Addr, remoteAddr *net.TCPAddr) string {
+	if localAddr, ok := local.(*net.TCPAddr); ok && localAddr.IP.Equal(remoteAddr.IP) {
+		// Nodes running on the same host — include both the IP and port.
+		return remoteAddr.String()
+	}
+	if remoteAddr.IP.IsLinkLocalUnicast() {
+		// Nodes discovered via multicast — include the IP only.
+		return remoteAddr.IP.String()
+	}
+	// Nodes connected remotely — include both the IP and port.
+	return remoteAddr.String()
 }

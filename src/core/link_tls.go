@@ -48,10 +48,6 @@ func (l *links) newLinkTLS(tcp *linkTCP) *linkTLS {
 }
 
 func (l *linkTLS) dial(url *url.URL, options linkOptions, sintf, sni string) error {
-	info := linkInfoFor("tls", sintf, url.Host)
-	if l.links.isConnectedTo(info) {
-		return nil
-	}
 	host, p, err := net.SplitHostPort(url.Host)
 	if err != nil {
 		return err
@@ -73,6 +69,10 @@ func (l *linkTLS) dial(url *url.URL, options linkOptions, sintf, sni string) err
 		if err != nil {
 			continue
 		}
+		info := linkInfoFor("tls", sintf, tcpIDFor(dialer.LocalAddr, addr))
+		if l.links.isConnectedTo(info) {
+			return nil
+		}
 		tlsconfig := l.config.Clone()
 		tlsconfig.ServerName = sni
 		tlsdialer := &tls.Dialer{
@@ -83,8 +83,12 @@ func (l *linkTLS) dial(url *url.URL, options linkOptions, sintf, sni string) err
 		if err != nil {
 			continue
 		}
-		uri := strings.TrimRight(strings.SplitN(url.String(), "?", 2)[0], "/")
-		return l.handler(uri, info, conn, options, false, false)
+		name := strings.TrimRight(strings.SplitN(url.String(), "?", 2)[0], "/")
+		dial := &linkDial{
+			url:   url,
+			sintf: sintf,
+		}
+		return l.handler(dial, name, info, conn, options, false, false)
 	}
 	return fmt.Errorf("failed to connect via %d addresses", len(ips))
 }
@@ -121,10 +125,11 @@ func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
 				cancel()
 				break
 			}
+			laddr := conn.LocalAddr().(*net.TCPAddr)
 			raddr := conn.RemoteAddr().(*net.TCPAddr)
 			name := fmt.Sprintf("tls://%s", raddr)
-			info := linkInfoFor("tls", sintf, raddr.String())
-			if err = l.handler(name, info, conn, linkOptionsForListener(url), true, raddr.IP.IsLinkLocalUnicast()); err != nil {
+			info := linkInfoFor("tls", sintf, tcpIDFor(laddr, raddr))
+			if err = l.handler(nil, name, info, conn, linkOptionsForListener(url), true, raddr.IP.IsLinkLocalUnicast()); err != nil {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
@@ -135,20 +140,18 @@ func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
 	return entry, nil
 }
 
+// RFC5280 section 4.1.2.5
+var notAfterNeverExpires = time.Date(9999, time.December, 31, 23, 59, 59, 0, time.UTC)
+
 func (l *linkTLS) generateConfig() (*tls.Config, error) {
 	certBuf := &bytes.Buffer{}
-
-	// TODO: because NotAfter is finite, we should add some mechanism to
-	// regenerate the certificate and restart the listeners periodically
-	// for nodes with very high uptimes. Perhaps regenerate certs and restart
-	// listeners every few months or so.
 	cert := x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
 			CommonName: hex.EncodeToString(l.links.core.public[:]),
 		},
 		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(time.Hour * 24 * 365),
+		NotAfter:              notAfterNeverExpires,
 		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
@@ -182,6 +185,6 @@ func (l *linkTLS) generateConfig() (*tls.Config, error) {
 	}, nil
 }
 
-func (l *linkTLS) handler(name string, info linkInfo, conn net.Conn, options linkOptions, incoming, force bool) error {
-	return l.tcp.handler(name, info, conn, options, incoming, force)
+func (l *linkTLS) handler(dial *linkDial, name string, info linkInfo, conn net.Conn, options linkOptions, incoming, force bool) error {
+	return l.tcp.handler(dial, name, info, conn, options, incoming, force)
 }

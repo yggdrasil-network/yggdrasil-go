@@ -3,7 +3,7 @@ module github.com/yggdrasil-network/yggdrasil-go
 go 1.17
 
 require (
-	github.com/Arceliar/ironwood v0.0.0-20221025225125-45b4281814c2
+	github.com/Arceliar/ironwood v0.0.0-20221115123222-ec61cea2f439
 	github.com/Arceliar/phony v0.0.0-20210209235338-dde1a8dca979
 	github.com/cheggaaa/pb/v3 v3.0.8
 	github.com/gologme/log v1.2.0
@@ -12,7 +12,7 @@ require (
 	github.com/kardianos/minwinsvc v1.0.2
 	github.com/mitchellh/mapstructure v1.4.1
 	github.com/vishvananda/netlink v1.1.0
-	golang.org/x/mobile v0.0.0-20221020085226-b36e6246172e
+	golang.org/x/mobile v0.0.0-20221110043201-43a038452099
 	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b
 	golang.org/x/sys v0.0.0-20221013171732-95e765b1cc43
 	golang.org/x/text v0.3.8

@@ -159,6 +159,11 @@ func (m *Yggdrasil) Stop() error {
 	return nil
 }
 
+// Retry resets the peer connection timer and tries to dial them immediately.
+func (m *Yggdrasil) RetryPeersNow() {
+	m.core.RetryPeersNow()
+}
+
 // GenerateConfigJSON generates mobile-friendly configuration in JSON format
 func GenerateConfigJSON() []byte {
 	nc := defaults.GenerateConfig()

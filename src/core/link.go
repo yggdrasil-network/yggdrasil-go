@@ -34,6 +34,11 @@ type linkInfo struct {
 	remote   string // Remote name or address
 }
 
+type linkDial struct {
+	url   *url.URL
+	sintf string
+}
+
 type link struct {
 	lname    string
 	links    *links
@@ -105,9 +110,12 @@ func (l *links) isConnectedTo(info linkInfo) bool {
 	return isConnected
 }
 
-func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
-	info := linkInfoFor(u.Scheme, sintf, u.Host)
+func (l *links) call(u *url.URL, sintf string, errch chan<- error) (info linkInfo, err error) {
+	info = linkInfoFor(u.Scheme, sintf, u.Host)
 	if l.isConnectedTo(info) {
+		if errch != nil {
+			close(errch) // already connected, no error
+		}
 		return info, nil
 	}
 	options := linkOptions{
@@ -116,6 +124,9 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 	for _, pubkey := range u.Query()["key"] {
 		sigPub, err := hex.DecodeString(pubkey)
 		if err != nil {
+			if errch != nil {
+				close(errch)
+			}
 			return info, fmt.Errorf("pinned key contains invalid hex characters")
 		}
 		var sigPubKey keyArray
@@ -125,6 +136,9 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 	if p := u.Query().Get("priority"); p != "" {
 		pi, err := strconv.ParseUint(p, 10, 8)
 		if err != nil {
+			if errch != nil {
+				close(errch)
+			}
 			return info, fmt.Errorf("priority invalid: %w", err)
 		}
 		options.priority = uint8(pi)
@@ -132,15 +146,27 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 	switch info.linkType {
 	case "tcp":
 		go func() {
+			if errch != nil {
+				defer close(errch)
+			}
 			if err := l.tcp.dial(u, options, sintf); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial TCP %s: %s\n", u.Host, err)
+				if errch != nil {
+					errch <- err
+				}
 			}
 		}()
 
 	case "socks":
 		go func() {
+			if errch != nil {
+				defer close(errch)
+			}
 			if err := l.socks.dial(u, options); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial SOCKS %s: %s\n", u.Host, err)
+				if errch != nil {
+					errch <- err
+				}
 			}
 		}()
 
@@ -163,19 +189,34 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 			}
 		}
 		go func() {
+			if errch != nil {
+				defer close(errch)
+			}
 			if err := l.tls.dial(u, options, sintf, tlsSNI); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial TLS %s: %s\n", u.Host, err)
+				if errch != nil {
+					errch <- err
+				}
 			}
 		}()
 
 	case "unix":
 		go func() {
+			if errch != nil {
+				defer close(errch)
+			}
 			if err := l.unix.dial(u, options, sintf); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial UNIX %s: %s\n", u.Host, err)
+				if errch != nil {
+					errch <- err
+				}
 			}
 		}()
 
 	default:
+		if errch != nil {
+			close(errch)
+		}
 		return info, errors.New("unknown call scheme: " + u.Scheme)
 	}
 	return info, nil
@@ -197,7 +238,7 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 	return listener, err
 }
 
-func (l *links) create(conn net.Conn, name string, info linkInfo, incoming, force bool, options linkOptions) error {
+func (l *links) create(conn net.Conn, dial *linkDial, name string, info linkInfo, incoming, force bool, options linkOptions) error {
 	intf := link{
 		conn: &linkConn{
 			Conn: conn,
@@ -211,14 +252,14 @@ func (l *links) create(conn net.Conn, name string, info linkInfo, incoming, forc
 		force:    force,
 	}
 	go func() {
-		if err := intf.handler(); err != nil {
+		if err := intf.handler(dial); err != nil {
 			l.core.log.Errorf("Link handler %s error (%s): %s", name, conn.RemoteAddr(), err)
 		}
 	}()
 	return nil
 }
 
-func (intf *link) handler() error {
+func (intf *link) handler(dial *linkDial) error {
 	defer intf.conn.Close() // nolint:errcheck
 
 	// Don't connect to this link more than once.
@@ -321,6 +362,30 @@ func (intf *link) handler() error {
 		intf.links.core.log.Infof("Disconnected %s %s: %s, source %s; error: %s",
 			dir, strings.ToUpper(intf.info.linkType), remoteStr, localStr, err)
 	}
+
+	if !intf.incoming && dial != nil {
+		// The connection was one that we dialled, so wait a second and try to
+		// dial it again.
+		var retry func(attempt int)
+		retry = func(attempt int) {
+			// intf.links.core.log.Infof("Retrying %s (attempt %d of 5)...", dial.url.String(), attempt)
+			errch := make(chan error, 1)
+			if _, err := intf.links.call(dial.url, dial.sintf, errch); err != nil {
+				return
+			}
+			if err := <-errch; err != nil {
+				if attempt < 3 {
+					time.AfterFunc(time.Second, func() {
+						retry(attempt + 1)
+					})
+				}
+			}
+		}
+		time.AfterFunc(time.Second, func() {
+			retry(1)
+		})
+	}
+
 	return nil
 }
 
