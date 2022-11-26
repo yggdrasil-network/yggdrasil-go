@@ -13,7 +13,6 @@ import (
 	"math/big"
 	"net"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -48,38 +47,22 @@ func (l *links) newLinkTLS(tcp *linkTCP) *linkTLS {
 }
 
 func (l *linkTLS) dial(url *url.URL, options linkOptions, sintf, sni string) error {
-	host, p, err := net.SplitHostPort(url.Host)
+	dialers, err := l.tcp.dialersFor(url, options, sintf)
 	if err != nil {
 		return err
 	}
-	port, err := strconv.Atoi(p)
-	if err != nil {
-		return err
+	if len(dialers) == 0 {
+		return nil
 	}
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		return err
-	}
-	for _, ip := range ips {
-		addr := &net.TCPAddr{
-			IP:   ip,
-			Port: port,
-		}
-		dialer, err := l.tcp.dialerFor(addr, sintf)
-		if err != nil {
-			continue
-		}
-		info := linkInfoFor("tls", sintf, tcpIDFor(dialer.LocalAddr, addr))
-		if l.links.isConnectedTo(info) {
-			return nil
-		}
+	for _, d := range dialers {
 		tlsconfig := l.config.Clone()
 		tlsconfig.ServerName = sni
 		tlsdialer := &tls.Dialer{
-			NetDialer: dialer,
+			NetDialer: d.dialer,
 			Config:    tlsconfig,
 		}
-		conn, err := tlsdialer.DialContext(l.core.ctx, "tcp", addr.String())
+		var conn net.Conn
+		conn, err = tlsdialer.DialContext(l.core.ctx, "tcp", d.addr.String())
 		if err != nil {
 			continue
 		}
@@ -88,9 +71,9 @@ func (l *linkTLS) dial(url *url.URL, options linkOptions, sintf, sni string) err
 			url:   url,
 			sintf: sintf,
 		}
-		return l.handler(dial, name, info, conn, options, false, false)
+		return l.handler(dial, name, d.info, conn, options, false, false)
 	}
-	return fmt.Errorf("failed to connect via %d addresses", len(ips))
+	return fmt.Errorf("failed to connect via %d address(es), last error: %w", len(dialers), err)
 }
 
 func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {

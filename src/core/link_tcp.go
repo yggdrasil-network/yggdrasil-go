@@ -31,19 +31,26 @@ func (l *links) newLinkTCP() *linkTCP {
 	return lt
 }
 
-func (l *linkTCP) dial(url *url.URL, options linkOptions, sintf string) error {
+type tcpDialer struct {
+	info   linkInfo
+	dialer *net.Dialer
+	addr   *net.TCPAddr
+}
+
+func (l *linkTCP) dialersFor(url *url.URL, options linkOptions, sintf string) ([]*tcpDialer, error) {
 	host, p, err := net.SplitHostPort(url.Host)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	port, err := strconv.Atoi(p)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	ips, err := net.LookupIP(host)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	dialers := make([]*tcpDialer, 0, len(ips))
 	for _, ip := range ips {
 		addr := &net.TCPAddr{
 			IP:   ip,
@@ -55,10 +62,30 @@ func (l *linkTCP) dial(url *url.URL, options linkOptions, sintf string) error {
 		}
 		info := linkInfoFor("tcp", sintf, tcpIDFor(dialer.LocalAddr, addr))
 		if l.links.isConnectedTo(info) {
-			return nil
+			return nil, nil
 		}
-		conn, err := dialer.DialContext(l.core.ctx, "tcp", addr.String())
+		dialers = append(dialers, &tcpDialer{
+			info:   info,
+			dialer: dialer,
+			addr:   addr,
+		})
+	}
+	return dialers, nil
+}
+
+func (l *linkTCP) dial(url *url.URL, options linkOptions, sintf string) error {
+	dialers, err := l.dialersFor(url, options, sintf)
+	if err != nil {
+		return err
+	}
+	if len(dialers) == 0 {
+		return nil
+	}
+	for _, d := range dialers {
+		var conn net.Conn
+		conn, err = d.dialer.DialContext(l.core.ctx, "tcp", d.addr.String())
 		if err != nil {
+			l.core.log.Warnf("Failed to connect to %s: %s", d.addr, err)
 			continue
 		}
 		name := strings.TrimRight(strings.SplitN(url.String(), "?", 2)[0], "/")
@@ -66,9 +93,9 @@ func (l *linkTCP) dial(url *url.URL, options linkOptions, sintf string) error {
 			url:   url,
 			sintf: sintf,
 		}
-		return l.handler(dial, name, info, conn, options, false, false)
+		return l.handler(dial, name, d.info, conn, options, false, false)
 	}
-	return fmt.Errorf("failed to connect via %d addresses", len(ips))
+	return fmt.Errorf("failed to connect via %d address(es), last error: %w", len(dialers), err)
 }
 
 func (l *linkTCP) listen(url *url.URL, sintf string) (*Listener, error) {
