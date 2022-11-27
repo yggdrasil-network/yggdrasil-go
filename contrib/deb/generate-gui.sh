@@ -39,6 +39,7 @@ mkdir -p /tmp/$PKGNAME/usr/local/bin/
 mkdir -p /tmp/$PKGNAME/etc/systemd/system/
 mkdir -p /tmp/$PKGNAME/usr/share/applications/
 mkdir -p /tmp/$PKGNAME/etc/
+mkdir -p /tmp/$PKGNAME/usr/share/riv
 mkdir -p /tmp/$PKGNAME/etc/xdg/autostart
 chmod 0775 /tmp/$PKGNAME/ -R
 
@@ -49,14 +50,14 @@ for resolution in 16x16 24x24 32x32 48x48 64x64 192x192 256x256 512x512; do
   chmod 644 /tmp/$PKGNAME/usr/share/icons/hicolor/$resolution/apps/riv.png
 done
 
-cp contrib/ui/mesh-ui/index.html /tmp/$PKGNAME/etc/
+cp -r contrib/ui/mesh-ui/ui /tmp/$PKGNAME/usr/share/riv
 
 cat > /tmp/$PKGNAME/usr/share/applications/riv.desktop << EOF
 [Desktop Entry]
 Name=RiV mesh
 GenericName=Mesh network
 Comment=RiV-mesh is an early-stage implementation of a fully end-to-end encrypted IPv6 network
-Exec=sh -c "/usr/bin/mesh-ui /etc/index.html"
+Exec=sh -c "/usr/bin/mesh-ui /usr/share/riv/ui/index.html"
 Terminal=false
 Type=Application
 Icon=riv
@@ -93,7 +94,7 @@ usr/bin/mesh usr/bin
 usr/bin/meshctl usr/bin
 usr/bin/mesh-ui usr/bin
 usr/local/bin/meshctl usr/local/bin
-etc/index.html etc
+usr/share/riv/ui usr/share/riv
 etc/xdg/autostart/riv.desktop etc/xdg/autostart
 etc/systemd/system/*.service etc/systemd/system
 usr/share/applications/riv.desktop usr/share/applications
@@ -157,7 +158,7 @@ chmod 644 /tmp/$PKGNAME/etc/systemd/system/*
 chmod 644 /tmp/$PKGNAME/usr/share/applications/riv.desktop
 chmod 644 /tmp/$PKGNAME/etc/xdg/autostart/*
 chmod 755 /tmp/$PKGNAME/usr/bin/*
-chmod 755 /tmp/$PKGNAME/etc/index.html
+chmod -R u+rwX,go+rX,g-w /tmp/$PKGNAME/usr/share/riv/ui
 
 dpkg-deb --build --root-owner-group /tmp/$PKGNAME
 cp /tmp/$PKGFILE .
