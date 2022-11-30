@@ -297,12 +297,6 @@ cat > wix.xml << EOF
       Impersonate="yes" />
 
     <!-- Step 2: Add UI to your installer / Step 4: Trigger the custom action -->
-    <CustomAction Id="LaunchApplication"
-      FileKey="MeshUI"
-      ExeCommand="[MeshInstallFolder]mesh-ui.exe ui\index.html"
-      Execute="immediate"
-      Impersonate="yes"
-      Return="asyncNoWait" />
     <UI>
         <UIRef Id="WixUI_Minimal" />
         <Publish Dialog="ExitDialog"
@@ -310,17 +304,19 @@ cat > wix.xml << EOF
             Event="DoAction"
             Value="LaunchApplication">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
     </UI>
+    <CustomAction Id="LaunchApplication"
+        ExeCommand="[MeshInstallFolder]mesh-ui.exe ui\index.html"
+        Execute="immediate"
+        BinaryKey="WixCA"
+        DllEntry="WixShellExec"
+        Impersonate="yes"
+        Return="asyncNoWait"/>
     <WixVariable Id="WixUILicenseRtf" Value="${PKGLICENSEFILE}" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch RiV-mesh" />
 
     <!-- Step 3: Include the custom action -->
     <Property Id="WixShellExecTarget" Value="[#MeshUI]" />
     <Property Id="ASSISTANCE_START_VIA_REGISTRY">1</Property>
-    <CustomAction Id="LaunchApplication"
-        BinaryKey="WixCA"
-        DllEntry="WixShellExec"
-        Impersonate="yes" />
-
     <InstallExecuteSequence>
       <Custom
         Action="UpdateGenerateConfig"
