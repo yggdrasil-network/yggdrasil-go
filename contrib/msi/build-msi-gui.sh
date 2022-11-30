@@ -165,40 +165,40 @@ cat > wix.xml << EOF
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
           <Directory Id="WebViewUIFolder" Name="ui" >
+            <Directory Id="AssetsFolder" Name="assets" >
+              <Component Id="AssetsResources" Guid="6e9af115-daa0-4aac-8e6a-5ba65e720a4d">
+                    <File
+                      Id="AllMinCssFile"
+                      Name="all.min.css"
+                      DiskId="1"
+                      Source="${PKGWEBVIEWRESOURCESFOLDER}all.min.css" />
+                    <File
+                      Id="BulmaswatchCssFile"
+                      Name="bulmaswatch.min.css"
+                      DiskId="1"
+                      Source="${PKGWEBVIEWRESOURCESFOLDER}bulmaswatch.min.css" />
+                    <File
+                      Id="BulmaswatchCssMapFile"
+                      Name="bulmaswatch.min.css.map"
+                      DiskId="1"
+                      Source="${PKGWEBVIEWRESOURCESFOLDER}bulmaswatch.min.css.map" />
+              </Component>
+            </Directory>
+            <Directory Id="WebfontsFolder" Name="webfonts" >
+              <Component Id="FontsResources" Guid="4ffeb20b-61a8-4c7f-ba16-0d0c8e43b09a">
+                    <File
+                      Id="FontFile"
+                      Name="fa-solid-900.woff2"
+                      DiskId="1"
+                      Source="${PKGFONTSRESOURCESFOLDER}fa-solid-900.woff2" />
+              </Component>
+            </Directory>
             <Component Id="WebViewResources" Guid="a4a5a50a-a336-4789-bf61-ca76fe217e3f">
                   <File
                     Id="WebViewHtmlFile"
                     Name="index.html"
                     DiskId="1"
                     Source="${PKGUIFOLDER}index.html" />
-            </Component>
-          </Directory>
-          <Directory Id="AssetsFolder" Name="assets" >
-            <Component Id="AssetsResources" Guid="6e9af115-daa0-4aac-8e6a-5ba65e720a4d">
-                  <File
-                    Id="AllMinCssFile"
-                    Name="all.min.css"
-                    DiskId="1"
-                    Source="${PKGWEBVIEWRESOURCESFOLDER}all.min.css" />
-                  <File
-                    Id="BulmaswatchCssFile"
-                    Name="bulmaswatch.min.css"
-                    DiskId="1"
-                    Source="${PKGWEBVIEWRESOURCESFOLDER}bulmaswatch.min.css" />
-                  <File
-                    Id="BulmaswatchCssMapFile"
-                    Name="bulmaswatch.min.css.map"
-                    DiskId="1"
-                    Source="${PKGWEBVIEWRESOURCESFOLDER}bulmaswatch.min.css.map" />
-            </Component>
-          </Directory>
-          <Directory Id="WebfontsFolder" Name="webfonts" >
-            <Component Id="FontsResources" Guid="4ffeb20b-61a8-4c7f-ba16-0d0c8e43b09a">
-                  <File
-                    Id="FontFile"
-                    Name="fa-solid-900.woff2"
-                    DiskId="1"
-                    Source="${PKGFONTSRESOURCESFOLDER}fa-solid-900.woff2" />
             </Component>
           </Directory>
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
@@ -328,7 +328,8 @@ cat > wix.xml << EOF
              Name="RiV-mesh"
              Description="RiV-mesh is IoT E2E encrypted network"
              Directory="DesktopFolder"
-             Target="[MeshInstallFolder]mesh-ui.exe ui\index.html"
+             Target="[MeshInstallFolder]mesh-ui.exe"
+             Arguments="ui\index.html"
              WorkingDirectory="MeshInstallFolder"/>
         <RegistryValue Root="HKCU" Key="Software\RiV-chain\RiV-mesh" Name="installed" Type="integer" Value="1" KeyPath="yes" />
         <RegistryValue Id="MerAs.rst" Root="HKMU" Action="write"
