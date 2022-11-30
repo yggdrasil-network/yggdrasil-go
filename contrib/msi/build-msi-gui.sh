@@ -153,6 +153,8 @@ cat > wix.xml << EOF
       Cabinet="Media.cab"
       EmbedCab="yes"
       CompressionLevel="high" />
+    
+    <Property Id="SOURCEDIRECTORY" Value="${PKGUIFOLDER}" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="DesktopFolder"  SourceName="Desktop"/>
@@ -211,10 +213,6 @@ cat > wix.xml << EOF
               DiskId="1"
               Source="mesh-ui.exe"
               KeyPath="yes" />
-
-            <CopyFile Id="CopyWebViewUIFolder" SourceProperty="${PKGUIFOLDER}"
-              DestinationDirectory="ui" SourceName="*" />
-
             <File
               Id="WebViewDllFile"
               Name="webview.dll"
@@ -229,6 +227,11 @@ cat > wix.xml << EOF
 
           </Component>
 
+          <Component Id="CopyComponent" Guid="c61706dd-2204-4c72-8870-8cb05291c962">
+              <CopyFile Id="CopyWebViewUIFolder" SourceProperty="SOURCEDIRECTORY"
+                DestinationDirectory="ui" SourceName="*" />
+          </Component>
+
           <Component Id="ConfigScript" Guid="64a3733b-c98a-4732-85f3-20cd7da1a785">
             <File
               Id="Configbat"
@@ -237,6 +240,7 @@ cat > wix.xml << EOF
               Source="updateconfig.bat"
               KeyPath="yes"/>
           </Component>
+
         </Directory>
       </Directory>
     </Directory>
