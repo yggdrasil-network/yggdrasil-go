@@ -154,12 +154,11 @@ cat > wix.xml << EOF
       EmbedCab="yes"
       CompressionLevel="high" />
 
-    <Directory Id="WebViewUIFolder" Name="ui"/>
-    
     <Property Id="SOURCEDIRECTORY" Value="${PKGUIFOLDER}" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="DesktopFolder"  SourceName="Desktop"/>
+      <Directory Id="WebViewUIFolder" Name="ui"/>
       <Directory Id="CopyWebViewUIFolder" SourceName="SourceDir"/>
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
