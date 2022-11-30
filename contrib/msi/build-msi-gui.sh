@@ -156,7 +156,7 @@ cat > wix.xml << EOF
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="DesktopFolder"  SourceName="Desktop"/>
-      <Directory Id="CopyWebViewUIFolder" SourceName="ui">
+      <Directory Id="CopyWebViewUIFolder" SourceName="SourceDir"/>
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
