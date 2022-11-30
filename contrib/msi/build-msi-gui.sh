@@ -51,7 +51,11 @@ fi
 PKGNAME=$(sh contrib/semver/name.sh)
 PKGVERSION=$(sh contrib/msi/msversion.sh --bare)
 PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
-PKGUIFOLDER=contrib/ui/mesh-ui/ui
+PKGUIFOLDER=contrib/ui/mesh-ui/ui/
+PKGWEBVIEWRESOURCESFOLDER="${PKGUIFOLDER}assets/"
+PKGFONTSRESOURCESFOLDER="${PKGUIFOLDER}webfonts/"
+
+${PKGUIFOLDER}index.html
 PKGLICENSEFILE=LICENSE.rtf
 
 #Build winres
@@ -166,7 +170,7 @@ cat > wix.xml << EOF
                     Id="WebViewHtmlFile"
                     Name="index.html"
                     DiskId="1"
-                    Source="${PKGWEBVIEWFILE}" />
+                    Source="${PKGUIFOLDER}index.html" />
             </Component>
           </Directory>
           <Directory Id="AssetsFolder" Name="assets" >
@@ -175,18 +179,17 @@ cat > wix.xml << EOF
                     Id="AllMinCssFile"
                     Name="all.min.css"
                     DiskId="1"
-                    Source="${PKGWEBVIEWFILE}" />
+                    Source="${PKGWEBVIEWRESOURCESFOLDER}all.min.css" />
                   <File
                     Id="BulmaswatchCssFile"
                     Name="bulmaswatch.min.css"
                     DiskId="1"
-                    Source="${PKGWEBVIEWFILE}" />
+                    Source="${PKGWEBVIEWRESOURCESFOLDER}bulmaswatch.min.css" />
                   <File
                     Id="BulmaswatchCssMapFile"
                     Name="bulmaswatch.min.css.map"
                     DiskId="1"
-                    Source="${PKGWEBVIEWFILE}" />
-                    
+                    Source="${PKGWEBVIEWRESOURCESFOLDER}bulmaswatch.min.css.map" />
             </Component>
           </Directory>
           <Directory Id="WebfontsFolder" Name="webfonts" >
@@ -195,7 +198,7 @@ cat > wix.xml << EOF
                     Id="FontFile"
                     Name="fa-solid-900.woff2"
                     DiskId="1"
-                    Source="${PKGWEBVIEWFILE}" />
+                    Source="${PKGFONTSRESOURCESFOLDER}fa-solid-900.woff2" />
             </Component>
           </Directory>
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
@@ -325,13 +328,13 @@ cat > wix.xml << EOF
              Name="RiV-mesh"
              Description="RiV-mesh is IoT E2E encrypted network"
              Directory="DesktopFolder"
-             Target="[MeshInstallFolder]mesh-ui.exe -ui\index.html"
+             Target="[MeshInstallFolder]mesh-ui.exe ui\index.html"
              WorkingDirectory="MeshInstallFolder"/>
         <RegistryValue Root="HKCU" Key="Software\RiV-chain\RiV-mesh" Name="installed" Type="integer" Value="1" KeyPath="yes" />
         <RegistryValue Id="MerAs.rst" Root="HKMU" Action="write"
             Key="Software\Microsoft\Windows\CurrentVersion\Run"
             Name="RiV-mesh client"
-            Value="[MeshInstallFolder]mesh-ui.exe -ui\index.html"
+            Value="[MeshInstallFolder]mesh-ui.exe ui\index.html"
             Type="string" />
         <Condition>ASSISTANCE_START_VIA_REGISTRY</Condition>
      </Component>
