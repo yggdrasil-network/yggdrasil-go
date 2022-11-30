@@ -161,6 +161,15 @@ cat > wix.xml << EOF
       <Directory Id="CopyWebViewUIFolder" SourceName="SourceDir"/>
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
+          <Directory Id="WebViewUIFolder" Name="ui" >
+            <Component Id="WebViewReslources" Guid="a4a5a50a-a336-4789-bf61-ca76fe217e3f">
+                  <File
+                  Id="WebViewHtmlFile"
+                  Name="index.html"
+                  DiskId="1"
+                  Source="${PKGWEBVIEWFILE}" />
+            </Component>
+          </Directory>
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
             <File
               Id="Mesh"
@@ -194,15 +203,6 @@ cat > wix.xml << EOF
               Start="install"
               Stop="both"
               Remove="uninstall" />
-          </Component>
-          <Component Id="WebViewReslources" Guid="a4a5a50a-a336-4789-bf61-ca76fe217e3f">
-            <Directory Id="WebViewUIFolder" Name="ui" >
-                <File
-                Id="WebViewHtmlFile"
-                Name="index.html"
-                DiskId="1"
-                Source="${PKGWEBVIEWFILE}" />
-            </Directory>
           </Component>
           <Component Id="CtrlExecutable" Guid="a916b730-974d-42a1-b687-d9d504cbb86a">
             <File
