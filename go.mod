@@ -51,6 +51,7 @@ require (
 	github.com/fatih/color v1.12.0 // indirect
 	github.com/mattn/go-isatty v0.0.13 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
+	github.com/miekg/dns v1.1.50
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
 )
