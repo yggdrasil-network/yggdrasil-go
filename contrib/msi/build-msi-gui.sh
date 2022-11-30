@@ -278,6 +278,7 @@ cat > wix.xml << EOF
       <ComponentRef Id="MainExecutable" />
       <ComponentRef Id="WebViewResources" />
       <ComponentRef Id="AssetsResources" />
+      <ComponentRef Id="FontsResources" />
       <ComponentRef Id="UIExecutable" />
       <ComponentRef Id="CtrlExecutable" />
       <ComponentRef Id="cmpDesktopShortcut" />
