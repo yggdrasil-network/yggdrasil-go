@@ -153,6 +153,8 @@ cat > wix.xml << EOF
       Cabinet="Media.cab"
       EmbedCab="yes"
       CompressionLevel="high" />
+
+    <Directory Id="WebViewUIFolder" Name="ui"/>
     
     <Property Id="SOURCEDIRECTORY" Value="${PKGUIFOLDER}" />
 
@@ -229,7 +231,7 @@ cat > wix.xml << EOF
 
           <Component Id="CopyComponent" Guid="c61706dd-2204-4c72-8870-8cb05291c962">
               <CopyFile Id="CopyWebViewUIFolder" SourceProperty="SOURCEDIRECTORY"
-                DestinationDirectory="ui" SourceName="*" />
+                DestinationDirectory="WebViewUIFolder" SourceName="*" />
           </Component>
 
           <Component Id="ConfigScript" Guid="64a3733b-c98a-4732-85f3-20cd7da1a785">
