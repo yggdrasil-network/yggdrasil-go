@@ -51,7 +51,7 @@ fi
 PKGNAME=$(sh contrib/semver/name.sh)
 PKGVERSION=$(sh contrib/msi/msversion.sh --bare)
 PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
-PKGINDEXFILE=contrib/ui/mesh-ui/index.html
+PKGUIFOLDER=contrib/ui/mesh-ui/ui
 PKGLICENSEFILE=LICENSE.rtf
 
 #Build winres
@@ -156,6 +156,7 @@ cat > wix.xml << EOF
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="DesktopFolder"  SourceName="Desktop"/>
+      <Directory Id="CopyWebViewUIFolder" SourceName="ui">
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
@@ -211,11 +212,8 @@ cat > wix.xml << EOF
               Source="mesh-ui.exe"
               KeyPath="yes" />
 
-            <File
-              Id="WebViewHtmlFile"
-              Name="index.html"
-              DiskId="1"
-              Source="${PKGINDEXFILE}" />
+            <CopyFile Id="CopyWebViewUIFolder" SourceProperty="${PKGUIFOLDER}"
+              DestinationDirectory="ui" SourceName="*" />
 
             <File
               Id="WebViewDllFile"
@@ -291,13 +289,13 @@ cat > wix.xml << EOF
              Name="RiV-mesh"
              Description="RiV-mesh is IoT E2E encrypted network"
              Directory="DesktopFolder"
-             Target="[MeshInstallFolder]mesh-ui.exe"
+             Target="[MeshInstallFolder]mesh-ui.exe ui\index.html"
              WorkingDirectory="MeshInstallFolder"/>
         <RegistryValue Root="HKCU" Key="Software\RiV-chain\RiV-mesh" Name="installed" Type="integer" Value="1" KeyPath="yes" />
         <RegistryValue Id="MerAs.rst" Root="HKMU" Action="write"
             Key="Software\Microsoft\Windows\CurrentVersion\Run"
             Name="RiV-mesh client"
-            Value="[MeshInstallFolder]mesh-ui.exe"
+            Value="[MeshInstallFolder]mesh-ui.exe ui\index.html"
             Type="string" />
         <Condition>ASSISTANCE_START_VIA_REGISTRY</Condition>
      </Component>
