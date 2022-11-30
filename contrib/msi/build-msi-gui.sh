@@ -306,13 +306,13 @@ cat > wix.xml << EOF
     </UI>
     <WixVariable Id="WixUILicenseRtf" Value="${PKGLICENSEFILE}" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch RiV-mesh" />
-    <CustomAction Id="LaunchApplication"
-        BinaryKey="WixCA" 
-        DllEntry="WixShellExec"
-        Impersonate="yes"/>
+    <CustomAction Id="LaunchApplication" 
+      Impersonate="yes" 
+      FileKey="[#MeshUI]"
+      ExeCommand="ui\index.html" 
+      Return="asyncNoWait" />
 
     <!-- Step 3: Include the custom action -->
-    <Property Id="WixShellExecTarget" Value="[#MeshUI] ui\index.html" />
     <Property Id="ASSISTANCE_START_VIA_REGISTRY">1</Property>
     <InstallExecuteSequence>
       <Custom
