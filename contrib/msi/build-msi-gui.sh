@@ -297,6 +297,12 @@ cat > wix.xml << EOF
       Impersonate="yes" />
 
     <!-- Step 2: Add UI to your installer / Step 4: Trigger the custom action -->
+    <CustomAction Id="LaunchApplication"
+      FileKey="MeshUI"
+      ExeCommand="[MeshInstallFolder]mesh-ui.exe ui\index.html"
+      Execute="immediate"
+      Impersonate="yes"
+      Return="asyncNoWait" />
     <UI>
         <UIRef Id="WixUI_Minimal" />
         <Publish Dialog="ExitDialog"
