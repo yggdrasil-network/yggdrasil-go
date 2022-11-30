@@ -229,6 +229,7 @@ cat > wix.xml << EOF
           </Component>
 
           <Component Id="CopyComponent" Guid="c61706dd-2204-4c72-8870-8cb05291c962">
+              <CreateFolder/>
               <CopyFile Id="CopyWebViewUIFolder" SourceProperty="SOURCEDIRECTORY"
                 DestinationDirectory="WebViewUIFolder" SourceName="*" />
           </Component>
