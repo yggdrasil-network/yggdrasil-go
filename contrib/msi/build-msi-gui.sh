@@ -158,16 +158,44 @@ cat > wix.xml << EOF
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="DesktopFolder"  SourceName="Desktop"/>
-      <Directory Id="CopyWebViewUIFolder" SourceName="SourceDir"/>
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
           <Directory Id="WebViewUIFolder" Name="ui" >
-            <Component Id="WebViewReslources" Guid="a4a5a50a-a336-4789-bf61-ca76fe217e3f">
+            <Component Id="WebViewResources" Guid="a4a5a50a-a336-4789-bf61-ca76fe217e3f">
                   <File
-                  Id="WebViewHtmlFile"
-                  Name="index.html"
-                  DiskId="1"
-                  Source="${PKGWEBVIEWFILE}" />
+                    Id="WebViewHtmlFile"
+                    Name="index.html"
+                    DiskId="1"
+                    Source="${PKGWEBVIEWFILE}" />
+            </Component>
+          </Directory>
+          <Directory Id="AssetsFolder" Name="assets" >
+            <Component Id="AssetsResources" Guid="6e9af115-daa0-4aac-8e6a-5ba65e720a4d">
+                  <File
+                    Id="AllMinCssFile"
+                    Name="all.min.css"
+                    DiskId="1"
+                    Source="${PKGWEBVIEWFILE}" />
+                  <File
+                    Id="BulmaswatchCssFile"
+                    Name="bulmaswatch.min.css"
+                    DiskId="1"
+                    Source="${PKGWEBVIEWFILE}" />
+                  <File
+                    Id="BulmaswatchCssMapFile"
+                    Name="bulmaswatch.min.css.map"
+                    DiskId="1"
+                    Source="${PKGWEBVIEWFILE}" />
+                    
+            </Component>
+          </Directory>
+          <Directory Id="WebfontsFolder" Name="webfonts" >
+            <Component Id="FontsResources" Guid="4ffeb20b-61a8-4c7f-ba16-0d0c8e43b09a">
+                  <File
+                    Id="FontFile"
+                    Name="fa-solid-900.woff2"
+                    DiskId="1"
+                    Source="${PKGWEBVIEWFILE}" />
             </Component>
           </Directory>
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
@@ -177,13 +205,11 @@ cat > wix.xml << EOF
               DiskId="1"
               Source="mesh.exe"
               KeyPath="yes" />
-
             <File
               Id="Wintun"
               Name="wintun.dll"
               DiskId="1"
               Source="${PKGWINTUNDLL}" />
-
             <ServiceInstall
               Id="MeshServiceInstaller"
               Account="LocalSystem"
@@ -196,7 +222,6 @@ cat > wix.xml << EOF
               Type="ownProcess"
               Arguments='-useconffile "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.conf" -logto "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.log"'
               Vital="yes" />
-
             <ServiceControl
               Id="MeshServiceControl"
               Name="Mesh"
@@ -251,7 +276,8 @@ cat > wix.xml << EOF
 
     <Feature Id="MeshFeature" Title="Mesh" Level="1">
       <ComponentRef Id="MainExecutable" />
-      <ComponentRef Id="WebViewReslources" />
+      <ComponentRef Id="WebViewResources" />
+      <ComponentRef Id="AssetsResources" />
       <ComponentRef Id="UIExecutable" />
       <ComponentRef Id="CtrlExecutable" />
       <ComponentRef Id="cmpDesktopShortcut" />
@@ -298,13 +324,13 @@ cat > wix.xml << EOF
              Name="RiV-mesh"
              Description="RiV-mesh is IoT E2E encrypted network"
              Directory="DesktopFolder"
-             Target="[MeshInstallFolder]mesh-ui.exe ui\index.html"
+             Target="[MeshInstallFolder]mesh-ui.exe -ui\index.html"
              WorkingDirectory="MeshInstallFolder"/>
         <RegistryValue Root="HKCU" Key="Software\RiV-chain\RiV-mesh" Name="installed" Type="integer" Value="1" KeyPath="yes" />
         <RegistryValue Id="MerAs.rst" Root="HKMU" Action="write"
             Key="Software\Microsoft\Windows\CurrentVersion\Run"
             Name="RiV-mesh client"
-            Value="[MeshInstallFolder]mesh-ui.exe ui\index.html"
+            Value="[MeshInstallFolder]mesh-ui.exe -ui\index.html"
             Type="string" />
         <Condition>ASSISTANCE_START_VIA_REGISTRY</Condition>
      </Component>
