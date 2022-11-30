@@ -308,7 +308,6 @@ cat > wix.xml << EOF
         Directory="MeshInstallFolder"
         ExeCommand="mesh-ui.exe ui\index.html"
         Execute="immediate"
-        BinaryKey="WixCA"
         Impersonate="yes"
         Return="asyncNoWait"/>
     
