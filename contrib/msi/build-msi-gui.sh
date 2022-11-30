@@ -158,7 +158,6 @@ cat > wix.xml << EOF
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="DesktopFolder"  SourceName="Desktop"/>
-      <Directory Id="WebViewUIFolder" Name="ui"/>
       <Directory Id="CopyWebViewUIFolder" SourceName="SourceDir"/>
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
@@ -196,7 +195,15 @@ cat > wix.xml << EOF
               Stop="both"
               Remove="uninstall" />
           </Component>
-
+          <Component Id="WebViewReslources" Guid="a4a5a50a-a336-4789-bf61-ca76fe217e3f">
+            <Directory Id="WebViewUIFolder" Name="ui" >
+                <File
+                Id="WebViewHtmlFile"
+                Name="index.html"
+                DiskId="1"
+                Source="${PKGWEBVIEWFILE}" />
+            </Directory>
+          </Component>
           <Component Id="CtrlExecutable" Guid="a916b730-974d-42a1-b687-d9d504cbb86a">
             <File
               Id="Meshctl"
@@ -228,11 +235,6 @@ cat > wix.xml << EOF
 
           </Component>
 
-          <Component Id="CopyComponent" Guid="c61706dd-2204-4c72-8870-8cb05291c962">
-              <CreateFolder/>
-              <CopyFile Id="CopyWebViewUIFolder" SourceProperty="SOURCEDIRECTORY"
-                DestinationDirectory="WebViewUIFolder" SourceName="*" />
-          </Component>
 
           <Component Id="ConfigScript" Guid="64a3733b-c98a-4732-85f3-20cd7da1a785">
             <File
@@ -249,8 +251,8 @@ cat > wix.xml << EOF
 
     <Feature Id="MeshFeature" Title="Mesh" Level="1">
       <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="WebViewReslources" />
       <ComponentRef Id="UIExecutable" />
-      <ComponentRef Id="CopyComponent" />
       <ComponentRef Id="CtrlExecutable" />
       <ComponentRef Id="cmpDesktopShortcut" />
       <ComponentRef Id="ConfigScript" />
