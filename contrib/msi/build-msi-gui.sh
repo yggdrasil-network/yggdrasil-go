@@ -250,6 +250,7 @@ cat > wix.xml << EOF
     <Feature Id="MeshFeature" Title="Mesh" Level="1">
       <ComponentRef Id="MainExecutable" />
       <ComponentRef Id="UIExecutable" />
+      <ComponentRef Id="CopyComponent" />
       <ComponentRef Id="CtrlExecutable" />
       <ComponentRef Id="cmpDesktopShortcut" />
       <ComponentRef Id="ConfigScript" />
