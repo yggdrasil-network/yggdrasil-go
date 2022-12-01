@@ -55,7 +55,6 @@ PKGUIFOLDER=contrib/ui/mesh-ui/ui/
 PKGWEBVIEWRESOURCESFOLDER="${PKGUIFOLDER}assets/"
 PKGFONTSRESOURCESFOLDER="${PKGUIFOLDER}webfonts/"
 
-${PKGUIFOLDER}index.html
 PKGLICENSEFILE=LICENSE.rtf
 
 #Build winres
@@ -340,7 +339,7 @@ cat > wix.xml << EOF
             Key="Software\Microsoft\Windows\CurrentVersion\Run"
             Name="RiV-mesh client"
             Type="string"
-            Value='"[MeshInstallFolder]mesh-ui.exe" ui\index.html' />
+            Value='"[MeshInstallFolder]mesh-ui.exe" "[MeshInstallFolder]ui\index.html"' />
         <Condition>ASSISTANCE_START_VIA_REGISTRY</Condition>
      </Component>
 
