@@ -16,11 +16,6 @@ import (
 	//"github.com/Arceliar/phony" // TODO? use instead of mutexes
 )
 
-type linkDial struct {
-	url   *url.URL
-	sintf string
-}
-
 type links struct {
 	phony.Inbox
 	core   *Core
