@@ -309,7 +309,7 @@ cat > wix.xml << EOF
     <CustomAction Id="LaunchApplication"
       FileKey="MeshUI"
       Impersonate="yes" 
-      ExeCommand="[MeshInstallFolder]ui\index.html" 
+      ExeCommand='"[MeshInstallFolder]ui\index.html"'
       Return="asyncNoWait" />
 
     <!-- Step 3: Include the custom action -->
