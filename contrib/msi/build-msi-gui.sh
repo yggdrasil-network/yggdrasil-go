@@ -334,7 +334,7 @@ cat > wix.xml << EOF
         <RegistryValue Id="MerAs.rst" Root="HKMU" Action="write"
             Key="Software\Microsoft\Windows\CurrentVersion\Run"
             Name="RiV-mesh client"
-            Value="[MeshInstallFolder]mesh-ui.exe ui\index.html"
+            Value='"[MeshInstallFolder]mesh-ui.exe" ui\index.html'
             Type="string" />
         <Condition>ASSISTANCE_START_VIA_REGISTRY</Condition>
      </Component>
