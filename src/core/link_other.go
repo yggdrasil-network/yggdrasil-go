@@ -6,15 +6,20 @@ package core
 import (
 	"encoding/hex"
 	"errors"
-	"io"
 	"fmt"
-	"strconv"
+	"io"
 	"net"
 	"net/url"
+	"strconv"
 
 	"github.com/Arceliar/phony"
 	//"github.com/Arceliar/phony" // TODO? use instead of mutexes
 )
+
+type linkDial struct {
+	url   *url.URL
+	sintf string
+}
 
 type links struct {
 	phony.Inbox
@@ -48,9 +53,12 @@ func (l *links) init(c *Core) error {
 	return nil
 }
 
-func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
-	info := linkInfoFor(u.Scheme, sintf, u.Host)
+func (l *links) call(u *url.URL, sintf string, errch chan<- error) (info linkInfo, err error) {
+	info = linkInfoFor(u.Scheme, sintf, u.Host)
 	if l.isConnectedTo(info) {
+		if errch != nil {
+			close(errch) // already connected, no error
+		}
 		return info, nil
 	}
 	options := linkOptions{
@@ -59,6 +67,9 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 	for _, pubkey := range u.Query()["key"] {
 		sigPub, err := hex.DecodeString(pubkey)
 		if err != nil {
+			if errch != nil {
+				close(errch)
+			}
 			return info, fmt.Errorf("pinned key contains invalid hex characters")
 		}
 		var sigPubKey keyArray
@@ -68,6 +79,9 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 	if p := u.Query().Get("priority"); p != "" {
 		pi, err := strconv.ParseUint(p, 10, 8)
 		if err != nil {
+			if errch != nil {
+				close(errch)
+			}
 			return info, fmt.Errorf("priority invalid: %w", err)
 		}
 		options.priority = uint8(pi)
@@ -75,15 +89,27 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 	switch info.linkType {
 	case "tcp":
 		go func() {
+			if errch != nil {
+				defer close(errch)
+			}
 			if err := l.tcp.dial(u, options, sintf); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial TCP %s: %s\n", u.Host, err)
+				if errch != nil {
+					errch <- err
+				}
 			}
 		}()
 
 	case "socks":
 		go func() {
+			if errch != nil {
+				defer close(errch)
+			}
 			if err := l.socks.dial(u, options); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial SOCKS %s: %s\n", u.Host, err)
+				if errch != nil {
+					errch <- err
+				}
 			}
 		}()
 
@@ -106,26 +132,47 @@ func (l *links) call(u *url.URL, sintf string) (linkInfo, error) {
 			}
 		}
 		go func() {
+			if errch != nil {
+				defer close(errch)
+			}
 			if err := l.tls.dial(u, options, sintf, tlsSNI); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial TLS %s: %s\n", u.Host, err)
+				if errch != nil {
+					errch <- err
+				}
 			}
 		}()
 
 	case "unix":
 		go func() {
+			if errch != nil {
+				defer close(errch)
+			}
 			if err := l.unix.dial(u, options, sintf); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial UNIX %s: %s\n", u.Host, err)
+				if errch != nil {
+					errch <- err
+				}
 			}
 		}()
 
 	case "mpath":
 		go func() {
+			if errch != nil {
+				defer close(errch)
+			}
 			if err := l.mpath.dial(u, options, sintf); err != nil && err != io.EOF {
 				l.core.log.Warnf("Failed to dial MPATH %s: %s\n", u.Host, err)
+				if errch != nil {
+					errch <- err
+				}
 			}
 		}()
 
 	default:
+		if errch != nil {
+			close(errch)
+		}
 		return info, errors.New("unknown call scheme: " + u.Scheme)
 	}
 	return info, nil
