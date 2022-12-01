@@ -34,8 +34,8 @@ pacman -S --needed --noconfirm unzip git curl
 # Download the wix tools!
 if [ ! -d wixbin ];
 then
-  curl -LO https://wixtoolset.org/downloads/v3.14.0.3910/wix314-binaries.zip
-  if [ `md5sum wix314-binaries.zip | cut -f 1 -d " "` != "34f655cf108086838dd5a76d4318063b" ];
+  curl -LO https://wixtoolset.org/downloads/v3.14.0.6526/wix314-binaries.zip
+  if [ `md5sum wix314-binaries.zip | cut -f 1 -d " "` != "aecd655bb56238d48ef5254cd4dc958e" ];
   then
     echo "wix package didn't match expected checksum"
     exit 1
