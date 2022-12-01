@@ -22,64 +22,69 @@ import (
 
 // linkInfo is used as a map key
 type linkInfo struct {
-        linkType string // Type of link, e.g. TCP, AWDL
-        local    string // Local name or address
-        remote   string // Remote name or address
+	linkType string // Type of link, e.g. TCP, AWDL
+	local    string // Local name or address
+	remote   string // Remote name or address
+}
+
+type linkDial struct {
+	url   *url.URL
+	sintf string
 }
 
 type link struct {
-        lname    string
-        links    *links
-        conn     *linkConn
-        options  linkOptions
-        info     linkInfo
-        incoming bool
-        force    bool
+	lname    string
+	links    *links
+	conn     *linkConn
+	options  linkOptions
+	info     linkInfo
+	incoming bool
+	force    bool
 }
 
 type linkOptions struct {
-        pinnedEd25519Keys map[keyArray]struct{}
+	pinnedEd25519Keys map[keyArray]struct{}
 	priority          uint8
 }
 
 type Listener struct {
-        net.Listener
-        closed chan struct{}
+	net.Listener
+	closed chan struct{}
 }
 
 func (l *Listener) Close() error {
-        err := l.Listener.Close()
-        <-l.closed
-        return err
+	err := l.Listener.Close()
+	<-l.closed
+	return err
 }
 
 func (l *links) shutdown() {
-        phony.Block(l.tcp, func() {
-                for l := range l.tcp._listeners {
-                        _ = l.Close()
-                }
-        })
-        phony.Block(l.tls, func() {
-                for l := range l.tls._listeners {
-                        _ = l.Close()
-                }
-        })
-        phony.Block(l.unix, func() {
-                for l := range l.unix._listeners {
-                        _ = l.Close()
-                }
-        })
+	phony.Block(l.tcp, func() {
+		for l := range l.tcp._listeners {
+			_ = l.Close()
+		}
+	})
+	phony.Block(l.tls, func() {
+		for l := range l.tls._listeners {
+			_ = l.Close()
+		}
+	})
+	phony.Block(l.unix, func() {
+		for l := range l.unix._listeners {
+			_ = l.Close()
+		}
+	})
 }
 
 func (l *links) isConnectedTo(info linkInfo) bool {
-        var isConnected bool
-        phony.Block(l, func() {
-                _, isConnected = l._links[info]
-        })
-        return isConnected
+	var isConnected bool
+	phony.Block(l, func() {
+		_, isConnected = l._links[info]
+	})
+	return isConnected
 }
 
-func (l *links) create(conn net.Conn, name string, info linkInfo, incoming, force bool, options linkOptions) error {
+func (l *links) create(conn net.Conn, dial *linkDial, name string, info linkInfo, incoming, force bool, options linkOptions) error {
 	intf := link{
 		conn: &linkConn{
 			Conn: conn,
@@ -93,14 +98,14 @@ func (l *links) create(conn net.Conn, name string, info linkInfo, incoming, forc
 		force:    force,
 	}
 	go func() {
-		if err := intf.handler(); err != nil {
+		if err := intf.handler(dial); err != nil {
 			l.core.log.Errorf("Link handler %s error (%s): %s", name, conn.RemoteAddr(), err)
 		}
 	}()
 	return nil
 }
 
-func (intf *link) handler() error {
+func (intf *link) handler(dial *linkDial) error {
 	defer intf.conn.Close() // nolint:errcheck
 
 	// Don't connect to this link more than once.
@@ -203,6 +208,30 @@ func (intf *link) handler() error {
 		intf.links.core.log.Infof("Disconnected %s %s: %s, source %s; error: %s",
 			dir, strings.ToUpper(intf.info.linkType), remoteStr, localStr, err)
 	}
+
+	if !intf.incoming && dial != nil {
+		// The connection was one that we dialled, so wait a second and try to
+		// dial it again.
+		var retry func(attempt int)
+		retry = func(attempt int) {
+			// intf.links.core.log.Infof("Retrying %s (attempt %d of 5)...", dial.url.String(), attempt)
+			errch := make(chan error, 1)
+			if _, err := intf.links.call(dial.url, dial.sintf, errch); err != nil {
+				return
+			}
+			if err := <-errch; err != nil {
+				if attempt < 3 {
+					time.AfterFunc(time.Second, func() {
+						retry(attempt + 1)
+					})
+				}
+			}
+		}
+		time.AfterFunc(time.Second, func() {
+			retry(1)
+		})
+	}
+
 	return nil
 }
 

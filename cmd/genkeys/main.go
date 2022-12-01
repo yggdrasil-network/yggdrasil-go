@@ -17,9 +17,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
+	"os"
 	"runtime"
 
-	"github.com/RiV-chain/RiV-mesh/src/core"
+	"github.com/gologme/log"
+
+	c "github.com/RiV-chain/RiV-mesh/src/core"
 )
 
 type keySet struct {
@@ -41,6 +44,8 @@ func main() {
 			fmt.Println("-----")
 			fmt.Println("Priv:", hex.EncodeToString(newKey.priv))
 			fmt.Println("Pub:", hex.EncodeToString(newKey.pub))
+			logger := log.New(os.Stdout, "", log.Flags())
+			core, _ := c.New(newKey.priv, logger, nil)
 			addr := core.AddrForKey(newKey.pub)
 			fmt.Println("IP:", net.IP(addr[:]).String())
 		}

@@ -13,8 +13,9 @@ import (
 	"net"
 	"os"
 
+	c "github.com/RiV-chain/RiV-mesh/src/core"
 	"github.com/cheggaaa/pb/v3"
-	"github.com/RiV-chain/RiV-mesh/src/address"
+	"github.com/gologme/log"
 )
 
 var numHosts = flag.Int("hosts", 1, "number of host vars to generate")
@@ -35,7 +36,6 @@ func main() {
 		println("Can't generate less keys than hosts.")
 		return
 	}
-
 	var keys []keySet
 	for i := 0; i < *numHosts+1; i++ {
 		keys = append(keys, newKey())
@@ -77,7 +77,9 @@ func newKey() keySet {
 	if err != nil {
 		panic(err)
 	}
-	ip := net.IP(address.AddrForKey(pub)[:]).String()
+	logger := log.New(os.Stdout, "", log.Flags())
+	core, _ := c.New(priv, logger, nil)
+	ip := net.IP(core.AddrForKey(pub)[:]).String()
 	return keySet{priv[:], pub[:], ip}
 }
 

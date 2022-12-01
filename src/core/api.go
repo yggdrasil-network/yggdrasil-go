@@ -188,21 +188,25 @@ func (c *Core) SetLogger(log Logger) {
 // This adds the peer to the peer list, so that they will be called again if the
 // connection drops.
 
-func (c *Core) AddPeer(peer string, intf string) error {
-	select {
-	case <-c.ctx.Done():
-		return nil
-	default:
+func (c *Core) AddPeer(uri string, sourceInterface string) error {
+	var known bool
+	phony.Block(c, func() {
+		_, known = c.config._peers[Peer{uri, sourceInterface}]
+	})
+	if known {
+		return fmt.Errorf("peer already configured")
 	}
-	u, err := url.Parse(peer)
+	u, err := url.Parse(uri)
 	if err != nil {
-		c.log.Errorln("Failed to parse peer url:", peer, err)
 		return err
 	}
-	if err := c.CallPeer(u, intf); err != nil {
-		c.log.Errorln("Failed to add peer:", err)
+	info, err := c.links.call(u, sourceInterface, nil)
+	if err != nil {
 		return err
 	}
+	phony.Block(c, func() {
+		c.config._peers[Peer{uri, sourceInterface}] = &info
+	})
 	return nil
 }
 
@@ -245,7 +249,7 @@ func (c *Core) RemovePeers() error {
 // This does not add the peer to the peer list, so if the connection drops, the
 // peer will not be called again automatically.
 func (c *Core) CallPeer(u *url.URL, sintf string) error {
-	_, err := c.links.call(u, sintf)
+	_, err := c.links.call(u, sintf, nil)
 	return err
 }
 

@@ -16,8 +16,6 @@ import (
 	"github.com/RiV-chain/RiV-mesh/src/ipv6rwc"
 	"github.com/RiV-chain/RiV-mesh/src/multicast"
 	"github.com/RiV-chain/RiV-mesh/src/version"
-
-	_ "golang.org/x/mobile/bind"
 )
 
 // RiV-mesh mobile package is meant to "plug the gap" for mobile support, as
@@ -83,10 +81,10 @@ func (m *Mesh) StartJSON(configjson []byte) error {
 		options := []multicast.SetupOption{}
 		for _, intf := range m.config.MulticastInterfaces {
 			options = append(options, multicast.MulticastInterface{
-				Regex: regexp.MustCompile(intf.Regex),
-				Beacon: intf.Beacon,
-				Listen: intf.Listen,
-				Port: intf.Port,
+				Regex:    regexp.MustCompile(intf.Regex),
+				Beacon:   intf.Beacon,
+				Listen:   intf.Listen,
+				Port:     intf.Port,
 				Priority: uint8(intf.Priority),
 			})
 		}
@@ -157,6 +155,11 @@ func (m *Mesh) Stop() error {
 	}
 	m.core.Stop()
 	return nil
+}
+
+// Retry resets the peer connection timer and tries to dial them immediately.
+func (m *Mesh) RetryPeersNow() {
+	m.core.RetryPeersNow()
 }
 
 // GenerateConfigJSON generates mobile-friendly configuration in JSON format

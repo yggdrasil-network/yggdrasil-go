@@ -20,7 +20,7 @@ import (
 // The Core object represents the Mesh node. You should create a Core
 // object for each Mesh node you plan to run.
 type Core struct {
-	address      Address
+	address Address
 	// This is the main data structure that holds everything else for a node
 	// We're going to keep our own copy of the provided config - that way we can
 	// guarantee that it will be covered by the mutex
@@ -121,6 +121,13 @@ func (c *Core) _addPeerLoop() {
 	c.addPeerTimer = time.AfterFunc(time.Minute, func() {
 		c.Act(nil, c._addPeerLoop)
 	})
+}
+
+func (c *Core) RetryPeersNow() {
+	if c.addPeerTimer != nil && !c.addPeerTimer.Stop() {
+		<-c.addPeerTimer.C
+	}
+	c.Act(nil, c._addPeerLoop)
 }
 
 // Stop shuts down the Mesh node.

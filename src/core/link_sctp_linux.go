@@ -5,12 +5,12 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/url"
-	"encoding/json"
-	"strings"
 	"strconv"
+	"strings"
 
 	"github.com/Arceliar/phony"
 	sctp "github.com/vikulin/sctp"
@@ -47,7 +47,7 @@ func (l *linkSCTP) dial(url *url.URL, options linkOptions, sintf string) error {
 	if err != nil {
 		return err
 	}
-	raddress := l.getAddress(dst.String()+":"+port)
+	raddress := l.getAddress(dst.String() + ":" + port)
 	var conn net.Conn
 	laddress := l.getAddress("0.0.0.0:0")
 	conn, err = sctp.NewSCTPConnection(laddress, laddress.AddressFamily, sctp.InitMsg{NumOstreams: 2, MaxInstreams: 2, MaxAttempts: 2, MaxInitTimeout: 5}, sctp.OneToOne, false)
@@ -63,7 +63,11 @@ func (l *linkSCTP) dial(url *url.URL, options linkOptions, sintf string) error {
 	//l.core.log.Printf("Read buffer %d", rbuf)
 	//l.core.log.Printf("Write buffer %d", wbuf)
 	conn.(*sctp.SCTPConn).SetEvents(sctp.SCTP_EVENT_DATA_IO)
-	return l.handler(url.String(), info, conn, options, false, false)
+	dial := &linkDial{
+		url:   url,
+		sintf: sintf,
+	}
+	return l.handler(dial, url.String(), info, conn, options, false, false)
 }
 
 func (l *linkSCTP) listen(url *url.URL, sintf string) (*Listener, error) {
@@ -102,9 +106,9 @@ func (l *linkSCTP) listen(url *url.URL, sintf string) (*Listener, error) {
 			}
 			addr := conn.RemoteAddr().(*sctp.SCTPAddr)
 			ips, err := json.Marshal(addr.IPAddrs)
-                        if err != nil {
-                                break
-                        }
+			if err != nil {
+				break
+			}
 			name := fmt.Sprintf("sctp://%s", ips)
 			info := linkInfoFor("sctp", sintf, string(ips))
 			//conn.(*sctp.SCTPConn).SetWriteBuffer(324288)
@@ -113,8 +117,8 @@ func (l *linkSCTP) listen(url *url.URL, sintf string) (*Listener, error) {
 			rbuf, _ := conn.(*sctp.SCTPConn).GetReadBuffer()
 
 			l.core.log.Printf("Read buffer %d", rbuf)
-		        l.core.log.Printf("Write buffer %d", wbuf)
-			if err = l.handler(name, info, conn, linkOptions{}, true, addr.IPAddrs[0].IP.IsLinkLocalUnicast()); err != nil {
+			l.core.log.Printf("Write buffer %d", wbuf)
+			if err = l.handler(nil, name, info, conn, linkOptionsForListener(url), true, addr.IPAddrs[0].IP.IsLinkLocalUnicast()); err != nil {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
@@ -125,9 +129,10 @@ func (l *linkSCTP) listen(url *url.URL, sintf string) (*Listener, error) {
 	return entry, nil
 }
 
-func (l *linkSCTP) handler(name string, info linkInfo, conn net.Conn, options linkOptions, incoming bool, force bool) error {
+func (l *linkSCTP) handler(dial *linkDial, name string, info linkInfo, conn net.Conn, options linkOptions, incoming, force bool) error {
 	return l.links.create(
 		conn,     // connection
+		dial,     // connection URL
 		name,     // connection name
 		info,     // connection info
 		incoming, // not incoming
@@ -161,7 +166,7 @@ func (l *linkSCTP) getAddress(host string) *sctp.SCTPAddr {
 	}
 	for _, i := range strings.Split(ip, ",") {
 		if a, err := net.ResolveIPAddr("ip", i); err == nil {
-			fmt.Sprintf("Resolved address '%s' to %s", i, a)
+			l.core.log.Printf("Resolved address '%s' to %s", i, a)
 			ips = append(ips, *a)
 		} else {
 			l.core.log.Errorln("Error resolving address '%s': %v", i, err)

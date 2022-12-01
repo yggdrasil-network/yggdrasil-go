@@ -3,7 +3,7 @@ package mobile
 import "testing"
 
 func TestStartYggdrasil(t *testing.T) {
-	ygg := &Mesh{}
+	mesh := &Mesh{}
 	if err := mesh.StartAutoconfigure(); err != nil {
 		t.Fatalf("Failed to start Mesh: %s", err)
 	}

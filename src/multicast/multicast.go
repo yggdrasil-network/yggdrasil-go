@@ -30,6 +30,7 @@ type Multicast struct {
 	_isOpen     bool
 	_listeners  map[string]*listenerInfo
 	_interfaces map[string]*interfaceInfo
+	_timer      *time.Timer
 	config      struct {
 		_groupAddr  GroupAddress
 		_interfaces map[MulticastInterface]struct{}
@@ -206,6 +207,15 @@ func (m *Multicast) _getAllowedInterfaces() map[string]*interfaceInfo {
 	return interfaces
 }
 
+func (m *Multicast) AnnounceNow() {
+	phony.Block(m, func() {
+		if m._timer != nil && !m._timer.Stop() {
+			<-m._timer.C
+		}
+		m.Act(nil, m._announce)
+	})
+}
+
 func (m *Multicast) _announce() {
 	if !m._isOpen {
 		return
@@ -328,7 +338,7 @@ func (m *Multicast) _announce() {
 			break
 		}
 	}
-	time.AfterFunc(time.Second, func() {
+	m._timer = time.AfterFunc(time.Second, func() {
 		m.Act(nil, m._announce)
 	})
 }

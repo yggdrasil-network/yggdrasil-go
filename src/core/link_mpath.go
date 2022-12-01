@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/url"
 	"strings"
+
 	"github.com/getlantern/multipath"
 
 	"github.com/Arceliar/phony"
@@ -39,8 +40,12 @@ func (l *linkMPATH) dial(url *url.URL, options linkOptions, sintf string) error 
 	if err != nil {
 		return err
 	}
-	uri := strings.TrimRight(strings.SplitN(url.String(), "?", 2)[0], "/")
-	return l.handler(uri, info, conn, options, false, false)
+	name := strings.TrimRight(strings.SplitN(url.String(), "?", 2)[0], "/")
+	dial := &linkDial{
+		url:   url,
+		sintf: sintf,
+	}
+	return l.handler(dial, name, info, conn, options, false, false)
 }
 
 func (l *linkMPATH) listen(url *url.URL, sintf string) (*Listener, error) {
@@ -74,10 +79,10 @@ func (l *linkMPATH) listen(url *url.URL, sintf string) (*Listener, error) {
 				cancel()
 				break
 			}
-			addr := conn.RemoteAddr().(*net.TCPAddr)
-			name := fmt.Sprintf("mpath://%s", addr)
-			info := linkInfoFor("mpath", sintf, strings.SplitN(addr.IP.String(), "%", 2)[0])
-			if err = l.handler(name, info, conn, linkOptions{}, true, addr.IP.IsLinkLocalUnicast()); err != nil {
+			raddr := conn.RemoteAddr().(*net.TCPAddr)
+			name := fmt.Sprintf("mpath://%s", raddr)
+			info := linkInfoFor("mpath", sintf, strings.SplitN(raddr.IP.String(), "%", 2)[0])
+			if err = l.handler(nil, name, info, conn, linkOptionsForListener(url), true, raddr.IP.IsLinkLocalUnicast()); err != nil {
 				l.core.log.Errorln("Failed to create inbound link:", err)
 			}
 		}
@@ -88,9 +93,10 @@ func (l *linkMPATH) listen(url *url.URL, sintf string) (*Listener, error) {
 	return entry, nil
 }
 
-func (l *linkMPATH) handler(name string, info linkInfo, conn net.Conn, options linkOptions, incoming, force bool) error {
+func (l *linkMPATH) handler(dial *linkDial, name string, info linkInfo, conn net.Conn, options linkOptions, incoming, force bool) error {
 	return l.links.create(
 		conn,     // connection
+		dial,     // connection URL
 		name,     // connection name
 		info,     // connection info
 		incoming, // not incoming
@@ -146,7 +152,7 @@ func (l *linkMPATH) connFor(url *url.URL, sinterfaces string) (net.Conn, error) 
 	if sinterfaces != "" {
 		sintfarray := strings.Split(sinterfaces, ",")
 		for _, dst := range remoteTargets {
-			for _, sintf := range sintfarray { 
+			for _, sintf := range sintfarray {
 				ief, err := net.InterfaceByName(sintf)
 				if err != nil {
 					l.core.log.Errorln("interface %s not found", sintf)
