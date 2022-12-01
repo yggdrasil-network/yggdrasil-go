@@ -58,14 +58,14 @@ PKGFONTSRESOURCESFOLDER="${PKGUIFOLDER}webfonts/"
 PKGLICENSEFILE=LICENSE.rtf
 
 #Build winres
-go-winres simply --icon riv.ico --file-version $PKGVERSION --file-description "RiV-mesh (c) service, 2021 RIV CHAIN" \
---product-version $PKGVERSION --product-name "RiV-mesh" --copyright "Copyright (c) 2021, RIV CHAIN"
+go-winres simply --icon riv.ico --file-version $PKGVERSION --file-description "RiV-mesh (c) service, 2022 RIV CHAIN" \
+--product-version $PKGVERSION --product-name "RiV-mesh" --copyright "Copyright (c) 2022, RIV CHAIN"
 cp *.syso cmd/mesh
-go-winres simply --icon riv.ico --file-version $PKGVERSION --file-description "RiV-mesh (c) GUI, 2021 RIV CHAIN" \
---product-version $PKGVERSION --product-name "RiV-mesh" --copyright "Copyright (c) 2021, RIV CHAIN" --manifest gui
+go-winres simply --icon riv.ico --file-version $PKGVERSION --file-description "RiV-mesh (c) GUI, 2022 RIV CHAIN" \
+--product-version $PKGVERSION --product-name "RiV-mesh" --copyright "Copyright (c) 2022, RIV CHAIN" --manifest gui
 cp *.syso contrib/ui/mesh-ui
-go-winres simply --file-version $PKGVERSION --file-description "RiV-mesh (c) CLI, 2021 RIV CHAIN" \
---product-version $PKGVERSION --product-name "RiV-mesh" --copyright "Copyright (c) 2021, RIV CHAIN" --manifest cli
+go-winres simply --file-version $PKGVERSION --file-description "RiV-mesh (c) CLI, 2022 RIV CHAIN" \
+--product-version $PKGVERSION --product-name "RiV-mesh" --copyright "Copyright (c) 2022, RIV CHAIN" --manifest cli
 cp *.syso cmd/meshctl
 
 # Build Mesh!
