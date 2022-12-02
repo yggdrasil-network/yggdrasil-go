@@ -22,40 +22,33 @@
       if(value === "-1"){
         var peerAddress = document.getElementById("label_"+peer);
         peerAddress.style.color = "rgba(250,250,250,.5)";
-        moveRowToEnd(peerTable, peerCell.parentNode);
+      } else {
+      
+        cellText = document.createTextNode(value);
+        peerCell.appendChild(cellText);
         
-        return;
+        var peerCellTime = document.getElementById("time_"+peer);
+        var cellTextTime = document.createTextNode("ms");
+        peerCellTime.appendChild(cellTextTime);
       }
-      
-      cellText = document.createTextNode(value);
-      peerCell.appendChild(cellText);
-      
-      var peerCellTime = document.getElementById("time_"+peer);
-      var cellTextTime = document.createTextNode("ms");
-      peerCellTime.appendChild(cellTextTime);
+      peerCell.parentNode.classList.remove("is-hidden");
       //sort table
-      sortTable(peerTable, 2, false);
+      moveRowToOrderPos(peerTable, 2, peerCell.parentNode)
     }
-    
-    function sortTable(table, col, reverse) {
-        var tb = table.tBodies[0], // use `<tbody>` to ignore `<thead>` and `<tfoot>` rows
-            tr = Array.prototype.slice.call(tb.rows, 0), // put rows into array
-            i;
-        reverse = -((+reverse) || -1);
-        tr = tr.sort(function (a, b) { // sort rows
-            // `-1 *` if want opposite order
-            return reverse * (a.cells[col].textContent.trim() // using `.textContent.trim()` for test
-                    .localeCompare(b.cells[col].textContent.trim(), 'en', {numeric: true})
-                   );
-        });
-        for(i = 0; i < tr.length; ++i) tb.appendChild(tr[i]); // append each row in order
+      
+    function cmpTime(a, b) {
+        return a.textContent.trim() === "" ? 1 : (a.textContent.trim() // using `.textContent.trim()` for test
+                .localeCompare(b.textContent.trim(), 'en', {numeric: true}))       
     }
-
-    function moveRowToEnd(table, row) {
-        var tb = table.tBodies[0]; // use `<tbody>` to ignore `<thead>` and `<tfoot>` rows
-        var rowIndex = row.rowIndex;
-        table.deleteRow(rowIndex);
-        tb.appendChild(row); // append each row in order
+      
+    function moveRowToOrderPos(table, col, row) {
+        var tb = table.tBodies[0], tr = tb.rows;
+        var i = 0;
+        for(; i < tr.length && cmpTime(row.cells[col], tr[i].cells[col]) >= 0; ++i);
+        if(i < tr.length && i != row.rowIndex) {
+            tb.deleteRow(row.rowIndex);
+            tb.insertBefore(row, tr[i]);
+        }
     }
   
     function openTab(element, tabName) {
@@ -141,11 +134,13 @@
       button_info_close.onclick = function() {
         message.value = "";
         info.className = "notification is-primary is-hidden";
+        //document.getElementById("peer_list").remove();
       };
       var button_window_close = document.getElementById("window_close");
       button_window_close.onclick = function() {
         message.value = "";
         info.className = "notification is-primary is-hidden";
+        //document.getElementById("peer_list").remove();
       };
       var button_window_save = document.getElementById("window_save");
       button_window_save.onclick = function() {
@@ -162,6 +157,7 @@
             }
           }
           savePeers(JSON.stringify(peer_list));
+          //document.getElementById("peer_list").remove();
         };
   }
       
@@ -197,6 +193,7 @@
         peers.push(peer);
         // creates a table row
         var row = document.createElement("tr");
+        row.className = "is-hidden";
         var imgElement = document.createElement("td");
         clone = flag.cloneNode(false);
         imgElement.appendChild(clone);
