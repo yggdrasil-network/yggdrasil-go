@@ -6,11 +6,11 @@ package core
 import (
 	"context"
 	"fmt"
-	"net"
-	"net/url"
-	"net/netip"
-	"strings"
 	"github.com/getlantern/multipath"
+	"net"
+	"net/netip"
+	"net/url"
+	"strings"
 
 	"github.com/Arceliar/phony"
 )
@@ -46,7 +46,7 @@ func (l *linkMPATH) dial(url *url.URL, options linkOptions, sintf string) error 
 	dial := &linkDial{
 		url:   url,
 		sintf: sintf,
-	
+	}
 	return l.handler(dial, url.String(), info, conn, options, false, false)
 }
 
@@ -98,7 +98,7 @@ func (l *linkMPATH) listen(url *url.URL, sintf string) (*Listener, error) {
 func (l *linkMPATH) handler(dial *linkDial, name string, info linkInfo, conn net.Conn, options linkOptions, incoming bool, force bool) error {
 	return l.links.create(
 		conn,     // connection
-		dial, // connection URL
+		dial,     // connection URL
 		name,     // connection name
 		info,     // connection info
 		incoming, // not incoming
@@ -120,7 +120,6 @@ func (l *linkMPATH) getAddr() *net.TCPAddr {
 	})
 	return addr
 }
-
 
 func (l *linkMPATH) connFor(url *url.URL, sinterfaces string) (net.Conn, error) {
 	//Peer url has following format: mpath://host-1:port-1/host-2:port-2.../host-n:port-n
@@ -158,7 +157,7 @@ func (l *linkMPATH) connFor(url *url.URL, sinterfaces string) (net.Conn, error) 
 					continue
 				}
 				src := net.ParseIP(addr.WithZone("").String())
-				
+
 				dstIp := dst.(*net.TCPAddr).IP
 
 				if !src.IsGlobalUnicast() && !src.IsLinkLocalUnicast() {
@@ -178,7 +177,7 @@ func (l *linkMPATH) connFor(url *url.URL, sinterfaces string) (net.Conn, error) 
 					trackers = append(trackers, multipath.NullTracker{})
 					l.core.log.Printf("added outbound dialer for %s->%s", src.String(), dst.String())
 				}
-				
+
 			}
 		}
 	} else {
