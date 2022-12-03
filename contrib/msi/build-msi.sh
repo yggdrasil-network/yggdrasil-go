@@ -132,6 +132,9 @@ cat > wix.xml << EOF
       EmbedCab="yes"
       CompressionLevel="high" />
 
+    <Icon Id="icon.ico" SourceFile="riv.ico"/>
+    <Property Id="ARPPRODUCTICON" Value="icon.ico" />
+
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="Mesh">

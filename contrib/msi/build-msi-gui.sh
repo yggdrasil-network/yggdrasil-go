@@ -158,9 +158,9 @@ cat > wix.xml << EOF
       CompressionLevel="high" />
 
     <Icon Id="icon.ico" SourceFile="riv.ico"/>
+    <Property Id="ARPPRODUCTICON" Value="icon.ico" />
 
     <Property Id="SOURCEDIRECTORY" Value="${PKGUIFOLDER}" />
-    <Property Id="ARPPRODUCTICON" Value="icon.ico" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="DesktopFolder"  SourceName="Desktop"/>
