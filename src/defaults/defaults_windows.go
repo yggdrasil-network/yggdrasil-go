@@ -11,17 +11,17 @@ func getDefaults() platformDefaultParameters {
 		DefaultAdminListen: "tcp://localhost:9001",
 
 		// Configuration (used for meshctl)
-		DefaultConfigFile: "C:\\Program Files\\RiV-mesh\\mesh.conf",
+		DefaultConfigFile: "C:\\ProgramData\\RiV-mesh\\mesh.conf",
 
 		// Multicast interfaces
 		DefaultMulticastInterfaces: []MulticastInterfaceConfig{
 			{Regex: ".*", Beacon: true, Listen: true},
 		},
 
-                // Network domain
-                DefaultNetworkDomain: NetworkDomainConfig{
-                        Prefix: [...]byte{0xfc},
-                },
+		// Network domain
+		DefaultNetworkDomain: NetworkDomainConfig{
+			Prefix: [...]byte{0xfc},
+		},
 
 		// TUN
 		MaximumIfMTU:  65535,
