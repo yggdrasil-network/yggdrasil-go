@@ -157,6 +157,9 @@ cat > wix.xml << EOF
       EmbedCab="yes"
       CompressionLevel="high" />
 
+    <Icon Id="icon.ico" SourceFile="riv.ico"/>
+    <Property Id="ARPPRODUCTICON" Value="icon.ico" />
+
     <Property Id="SOURCEDIRECTORY" Value="${PKGUIFOLDER}" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
