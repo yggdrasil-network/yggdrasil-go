@@ -5,7 +5,7 @@ package main
 
 import (
 	"os/exec"
-	//"syscall"
+	"syscall"
 )
 
 var riv_ctrl_path string
