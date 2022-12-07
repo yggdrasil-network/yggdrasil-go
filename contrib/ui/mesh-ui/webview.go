@@ -20,8 +20,6 @@ import (
 	"github.com/RiV-chain/RiV-mesh/src/admin"
 )
 
-var riv_ctrl_path string
-
 func main() {
 	debug := true
 	w := webview.New(debug)

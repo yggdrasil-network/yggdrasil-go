@@ -8,6 +8,8 @@ import (
 	//"syscall"
 )
 
+var riv_ctrl_path string
+
 func run_command(command string) []byte {
 	args := []string{"-json", command}
 	cmd := exec.Command(riv_ctrl_path, args...)
