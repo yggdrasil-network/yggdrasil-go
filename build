@@ -43,6 +43,11 @@ for CMD in ./cmd/mesh ./cmd/meshctl ; do
   fi
 done
 
+#only UI should be built with windowsgui flag
+if [ "$GOOS" == "windows" ]; then
+   LDFLAGS="$LDFLAGS -H windowsgui"
+fi
+
 #dynamic only
 for CMD in ./contrib/ui/mesh-ui ; do
   echo "Building: $CMD"
