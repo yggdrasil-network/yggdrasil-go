@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/olekukonko/tablewriter"
 	"github.com/RiV-chain/RiV-mesh/src/admin"
 	"github.com/RiV-chain/RiV-mesh/src/core"
 	"github.com/RiV-chain/RiV-mesh/src/multicast"
 	"github.com/RiV-chain/RiV-mesh/src/tun"
 	"github.com/RiV-chain/RiV-mesh/src/version"
+	"github.com/olekukonko/tablewriter"
 )
 
 func main() {
@@ -58,21 +58,22 @@ func run() int {
 
 	var conn net.Conn
 	u, err := url.Parse(cmdLineEnv.endpoint)
+	d := net.Dialer{Timeout: 5000 * time.Millisecond}
 	if err == nil {
 		switch strings.ToLower(u.Scheme) {
 		case "unix":
 			logger.Println("Connecting to UNIX socket", cmdLineEnv.endpoint[7:])
-			conn, err = net.Dial("unix", cmdLineEnv.endpoint[7:])
+			conn, err = d.Dial("unix", cmdLineEnv.endpoint[7:])
 		case "tcp":
 			logger.Println("Connecting to TCP socket", u.Host)
-			conn, err = net.Dial("tcp", u.Host)
+			conn, err = d.Dial("tcp", u.Host)
 		default:
 			logger.Println("Unknown protocol or malformed address - check your endpoint")
 			err = errors.New("protocol not supported")
 		}
 	} else {
 		logger.Println("Connecting to TCP socket", u.Host)
-		conn, err = net.Dial("tcp", cmdLineEnv.endpoint)
+		conn, err = d.Dial("tcp", cmdLineEnv.endpoint)
 	}
 	if err != nil {
 		panic(err)
