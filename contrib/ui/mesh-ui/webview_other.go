@@ -143,20 +143,11 @@ func check(peer string) int64 {
 }
 
 func get_user_home_path() string {
-	if runtime.GOOS == "windows" {
-		path, exists := os.LookupEnv("USERPROFILE")
-		if exists {
-			return path
-		} else {
-			return ""
-		}
+	path, exists := os.LookupEnv("HOME")
+	if exists {
+		return path
 	} else {
-		path, exists := os.LookupEnv("HOME")
-		if exists {
-			return path
-		} else {
-			return ""
-		}
+		return ""
 	}
 }
 

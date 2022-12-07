@@ -4,28 +4,9 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"log"
-	"net"
-	"net/url"
-	"os"
 	"os/exec"
-	"path/filepath"
-	"runtime"
-	"strconv"
-	"strings"
 	"syscall"
-	"time"
-
-	"github.com/hjson/hjson-go"
-	"github.com/webview/webview"
-
-	"github.com/RiV-chain/RiV-mesh/src/admin"
 )
-
-var riv_ctrl_path string
 
 func run_command(command string) []byte {
 	args := []string{"-json", command}
