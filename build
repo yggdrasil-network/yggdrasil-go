@@ -12,7 +12,7 @@ else
 fi
 ARGS="-v"
 
-while getopts "utc:l:dro:p" option
+while getopts "utc:l:dro:ps" option
 do
   case "$option"
   in
@@ -24,6 +24,8 @@ do
   r) ARGS="$ARGS -race";;
   o) ARGS="$ARGS -o $OPTARG";;
   p) ARGS="$ARGS -buildmode=pie";;
+  # statically linked executable
+  s) LDFLAGS="$LDFLAGS -linkmode external -extldflags=-static";;
   esac
 done
 
