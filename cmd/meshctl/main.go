@@ -170,6 +170,7 @@ func run() int {
 		table.Append([]string{"IPv6 subnet:", resp.Subnet})
 		table.Append([]string{"Coordinates:", fmt.Sprintf("%v", resp.Coords)})
 		table.Append([]string{"Public key:", resp.PublicKey})
+		table.Append([]string{"Private key:", resp.PrivateKey})
 		table.Render()
 
 	case "getpeers":

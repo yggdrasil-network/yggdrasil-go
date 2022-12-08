@@ -21,9 +21,10 @@ import (
 )
 
 type SelfInfo struct {
-	Key    ed25519.PublicKey
-	Root   ed25519.PublicKey
-	Coords []uint64
+	Key        ed25519.PublicKey
+	Root       ed25519.PublicKey
+	PrivateKey ed25519.PrivateKey
+	Coords     []uint64
 }
 
 type PeerInfo struct {
@@ -60,6 +61,7 @@ func (c *Core) GetSelf() SelfInfo {
 	var self SelfInfo
 	s := c.PacketConn.PacketConn.Debug.GetSelf()
 	self.Key = s.Key
+	self.PrivateKey = c.secret
 	self.Root = s.Root
 	self.Coords = s.Coords
 	return self

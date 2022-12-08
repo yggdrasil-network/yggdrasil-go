@@ -11,6 +11,7 @@
   <script>
       
     function setFieldValue(id, value){
+      //console.log(`setFieldValue(${id}, ${value})`);
       var field = document.getElementById(id);
       field.innerHTML = value;
     }
@@ -49,6 +50,7 @@
             tb.deleteRow(row.rowIndex);
             tb.insertBefore(row, tr[i]);
         }
+        
     }
   
     function openTab(element, tabName) {
@@ -70,7 +72,7 @@
       // Show the current tab, and add an "is-active" class to the button that opened the tab
       document.getElementById(tabName).className = "tab here";
       element.parentElement.className = "tab is-active";
-      refreshRecordsList();
+      //refreshRecordsList();
     }
       
     function copy2clipboard(text){
@@ -174,11 +176,11 @@
   }
     
   function add_table(peerList) {
+    
     var peers = [];
     //const countries = Object.keys(peerList);
     // get the reference for the body
     var body = document.createElement("div");
-  
     // creates a <table> element and a <tbody> element
     var tbl = document.createElement("table");
     tbl.setAttribute('id', "peer_list");
@@ -229,7 +231,18 @@
     return peers;
   }
 
-        
+  function togglePrivKeyVisibility() {
+      if(this.classList.contains("fa-eye-slash")) {
+        this.classList.remove("fa-eye-slash");
+        this.classList.add("fa-eye");
+        document.getElementById("priv_key_visible").innerHTML = document.getElementById("priv_key").innerHTML;  
+      } else {
+        this.classList.remove("fa-eye");
+        this.classList.add("fa-eye-slash");
+        document.getElementById("priv_key_visible").innerHTML = "••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••";  
+      }
+  }
+      
   </script>
   <style>
           
@@ -248,7 +261,11 @@
     .item {
       padding: 10px;
       /*border: 1px solid #5d656d;*/
-      
+    }
+
+    .overflow-ellipsis {
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     
     .column {
@@ -396,7 +413,29 @@
         </div>
         
         <div class="tab here is-hidden" id="keys">
-    
+             <div class="column">
+                <div class="container-ip">
+                  <div class="item">Public&nbsp;Key</div>
+                  <div id="pub_key" class="item push-right overflow-ellipsis">Public Key</div>
+                  <div class="item">
+                    <a class="fas fa-copy" onclick="copy2clipboard(document.getElementById('pub_key').innerHTML);"/></a>
+                  </div>
+                </div>
+                
+                <div class="container-ip">
+                  <div class="item">Private&nbsp;Key</div>
+                  
+                  <div id="priv_key" class="is-hidden" ></div>
+                  <div id="priv_key_visible" class="item push-right overflow-ellipsis">••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</div>
+                  <div class="item">
+                    <a class="fas fa-light fa-eye-slash" onclick="(togglePrivKeyVisibility.bind(this))()"></a>
+                  </div>
+                  <div class="item">
+                    <a class="fas fa-copy" onclick="copy2clipboard(document.getElementById('priv_key').innerHTML);"/></a>
+                  </div>
+                </div>
+                
+             </div>
         </div>
             
 

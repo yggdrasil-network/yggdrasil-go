@@ -192,6 +192,8 @@ func get_self(w webview.WebView) {
 	//found ipv6
 	fmt.Printf("IPv6: %s\n", res.IPAddress)
 	go setFieldValue(w, "ipv6", res.IPAddress)
+	go setFieldValue(w, "pub_key", res.PublicKey)
+	go setFieldValue(w, "priv_key", res.PrivateKey)
 	//found subnet
 	fmt.Printf("Subnet: %s\n", res.Subnet)
 	go setFieldValue(w, "subnet", res.Subnet)
