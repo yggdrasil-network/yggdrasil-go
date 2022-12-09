@@ -4,6 +4,7 @@ package core
 
 import (
 	"crypto/ed25519"
+	"encoding/hex"
 )
 
 // Address represents an IPv6 address in the mesh address range.
@@ -17,7 +18,13 @@ type Subnet [8]byte
 // The 8th bit of the last byte is used to signal nodes (0) or /64 prefixes (1).
 // Nodes that configure this differently will be unable to communicate with each other using IP packets, though routing and the DHT machinery *should* still work.
 func (c *Core) GetPrefix() [1]byte {
-	return c.config.networkdomain.Prefix
+	p, err := hex.DecodeString(c.config.networkdomain.Prefix)
+	if err != nil {
+		panic(err)
+	}
+	var prefix [1]byte
+	copy(prefix[:], p[:1])
+	return prefix
 }
 
 // IsValid returns true if an address falls within the range used by nodes in the network.

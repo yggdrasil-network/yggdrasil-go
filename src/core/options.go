@@ -35,7 +35,7 @@ type Peer struct {
 type NodeInfo map[string]interface{}
 type NodeInfoPrivacy bool
 type NetworkDomain struct {
-	Prefix          [1]byte
+	Prefix string
 }
 type AllowedPublicKey ed25519.PublicKey
 

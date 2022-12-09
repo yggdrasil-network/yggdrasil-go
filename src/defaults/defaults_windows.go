@@ -20,7 +20,7 @@ func getDefaults() platformDefaultParameters {
 
 		// Network domain
 		DefaultNetworkDomain: NetworkDomainConfig{
-			Prefix: [...]byte{0xfc},
+			Prefix: "fc",
 		},
 
 		// TUN
