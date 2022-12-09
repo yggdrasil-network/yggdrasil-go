@@ -42,10 +42,10 @@ buildbin() {
   local CMD=$(realpath $1)
   echo "Building: $CMD for $GOOS-$GOARCH"
 
-  (cd "$TARGET_PATH" && go build $ARGS -ldflags "${LDFLAGS}${LDFLAGS2}" -gcflags "$GCFLAGS" $CMD)
+  (cd "$TARGET_PATH" && go build $ARGS -ldflags "${LDFLAGS}${LDFLAGS2}" -gcflags "$GCFLAGS" "$CMD")
 
   if [ $UPX ]; then
-    upx --brute $CMD
+    upx --brute "$CMD"
   fi
 }
 

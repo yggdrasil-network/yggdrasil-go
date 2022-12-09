@@ -4,13 +4,13 @@
 # mesh and enables it in systemd. You can give it the PKGARCH= argument
 # i.e. PKGARCH=i386 sh contrib/deb/generate.sh
 
-if [ `pwd` != `git rev-parse --show-toplevel` ]
+if [ $(pwd) != $(git rev-parse --show-toplevel) ]
 then
   echo "You should run this script from the top-level directory of the git repo"
   exit 1
 fi
 
-PKGBRANCH=$(basename `git name-rev --name-only HEAD`)
+PKGBRANCH=$(basename $(git name-rev --name-only HEAD))
 PKG=$(sh contrib/semver/name.sh)
 PKGVERSION=$(sh contrib/semver/version.sh --bare)
 PKGARCH=${PKGARCH-amd64}
@@ -113,7 +113,7 @@ EOF
 cp mesh /tmp/$PKGNAME/usr/bin/
 cp meshctl /tmp/$PKGNAME/usr/bin/
 ln -s /usr/bin/meshctl /tmp/$PKGNAME/usr/local/bin/meshctl
-if [ $LOGLEVEL = "DEBUG" ]; then cp contrib/systemd/mesh-debug.service /tmp/$PKGNAME/etc/systemd/system/mesh.service
+if [ "$LOGLEVEL" = "DEBUG" ]; then cp contrib/systemd/mesh-debug.service /tmp/$PKGNAME/etc/systemd/system/mesh.service
 else
     cp contrib/systemd/mesh.service /tmp/$PKGNAME/etc/systemd/system/
 fi
