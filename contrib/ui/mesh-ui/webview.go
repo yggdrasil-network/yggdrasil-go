@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -9,15 +11,16 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/hjson/hjson-go"
 	"github.com/webview/webview"
+	"golang.org/x/text/encoding/unicode"
 
 	"github.com/RiV-chain/RiV-mesh/src/admin"
+	"github.com/RiV-chain/RiV-mesh/src/defaults"
 )
 
 func main() {
@@ -40,7 +43,6 @@ func main() {
 		fmt.Printf("Unable to create folder: %v", err)
 	}
 	mesh_settings_path := filepath.Join(user_home, mesh_folder, mesh_conf)
-	riv_ctrl_path = get_ctl_path()
 	if _, err := os.Stat(mesh_settings_path); os.IsNotExist(err) {
 		err := ioutil.WriteFile(mesh_settings_path, []byte(""), 0750)
 		if err != nil {
@@ -145,36 +147,19 @@ func get_user_home_path() string {
 	}
 }
 
-func get_ctl_path() string {
-	if runtime.GOOS == "windows" {
-		program_path := "programfiles"
-		path, exists := os.LookupEnv(program_path)
-		if exists {
-			fmt.Println("Program path: %s", path)
-			ctl_path := fmt.Sprintf("%s\\RiV-mesh\\meshctl.exe", path)
-			return ctl_path
-		} else {
-			fmt.Println("could not find Program Files path")
-			return ""
-		}
-	} else {
-		ctl_path := fmt.Sprintf("/usr/local/bin/meshctl")
-		return ctl_path
-	}
-}
-
 func run(w webview.WebView) {
-	if len(riv_ctrl_path) > 0 {
-		get_self(w)
-		get_peers(w)
-	}
+	get_self(w)
+	get_peers(w)
 	_ = time.AfterFunc(10*time.Second, func() {
 		run(w)
 	})
 }
 
 func add_peers(uri string) {
-	run_command_with_arg("addpeers", "uri="+uri)
+	_, err := run_command_with_arg("addpeers", "uri="+uri)
+	if err != nil {
+		log.Println("Error in the add_peers() call:", err)
+	}
 }
 
 func remove_peers() {
@@ -233,4 +218,118 @@ func setPingValue(p webview.WebView, peer string, value string) {
 	p.Dispatch(func() {
 		p.Eval("setPingValue('" + peer + "','" + value + "');")
 	})
+}
+
+func run_command(command string) []byte {
+	data, err := run_command_with_arg(command, "")
+	if err != nil {
+		log.Println("Error in the "+command+" call:", err)
+	}
+	return data
+}
+
+func run_command_with_arg(command string, arg string) ([]byte, error) {
+	logbuffer := &bytes.Buffer{}
+	logger := log.New(logbuffer, "", log.Flags())
+
+	wrapErr := func(err error) error {
+		logger.Println("Error:", err)
+		return errors.New(fmt.Sprintln(logbuffer))
+	}
+
+	endpoint := getEndpoint(logger)
+
+	var conn net.Conn
+	u, err := url.Parse(endpoint)
+	d := net.Dialer{Timeout: 5000 * time.Millisecond}
+	if err == nil {
+		switch strings.ToLower(u.Scheme) {
+		case "unix":
+			logger.Println("Connecting to UNIX socket", endpoint[7:])
+			conn, err = d.Dial("unix", endpoint[7:])
+		case "tcp":
+			logger.Println("Connecting to TCP socket", u.Host)
+			conn, err = d.Dial("tcp", u.Host)
+		default:
+			logger.Println("Unknown protocol or malformed address - check your endpoint")
+			err = errors.New("protocol not supported")
+		}
+	} else {
+		logger.Println("Connecting to TCP socket", u.Host)
+		conn, err = d.Dial("tcp", endpoint)
+	}
+	if err != nil {
+		return nil, wrapErr(err)
+	}
+
+	logger.Println("Connected")
+	defer conn.Close()
+
+	decoder := json.NewDecoder(conn)
+	encoder := json.NewEncoder(conn)
+	send := &admin.AdminSocketRequest{}
+	recv := &admin.AdminSocketResponse{}
+	send.Name = command
+	args := map[string]string{}
+	switch {
+	case len(arg) > 0:
+		tokens := strings.SplitN(arg, "=", 2)
+		args[tokens[0]] = tokens[1]
+	default:
+	}
+
+	if send.Arguments, err = json.Marshal(args); err != nil {
+		return nil, err
+	}
+	if err := encoder.Encode(&send); err != nil {
+		return nil, err
+	}
+	logger.Printf("Request sent")
+	//js, _ := json.Marshal(send)
+	//fmt.Println("sent:", string(js))
+	if err := decoder.Decode(&recv); err != nil {
+		return nil, wrapErr(err)
+	}
+	if recv.Status == "error" {
+		if err := recv.Error; err != "" {
+			return nil, wrapErr(errors.New("Admin socket returned an error:" + err))
+		} else {
+			return nil, wrapErr(errors.New("Admin socket returned an error but didn't specify any error text"))
+		}
+	}
+	if json, err := json.MarshalIndent(recv.Response, "", "  "); err == nil {
+		return json, nil
+	}
+	return nil, wrapErr(err)
+}
+
+func getEndpoint(logger *log.Logger) string {
+	if config, err := os.ReadFile(defaults.GetDefaults().DefaultConfigFile); err == nil {
+		if bytes.Equal(config[0:2], []byte{0xFF, 0xFE}) ||
+			bytes.Equal(config[0:2], []byte{0xFE, 0xFF}) {
+			utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
+			decoder := utf.NewDecoder()
+			config, err = decoder.Bytes(config)
+			if err != nil {
+				return defaults.GetDefaults().DefaultAdminListen
+			}
+		}
+		var dat map[string]interface{}
+		if err := hjson.Unmarshal(config, &dat); err != nil {
+			return defaults.GetDefaults().DefaultAdminListen
+		}
+		if ep, ok := dat["AdminListen"].(string); ok && (ep != "none" && ep != "") {
+			logger.Println("Found platform default config file", defaults.GetDefaults().DefaultConfigFile)
+			logger.Println("Using endpoint", ep, "from AdminListen")
+			return ep
+		} else {
+			logger.Println("Configuration file doesn't contain appropriate AdminListen option")
+			logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
+			return defaults.GetDefaults().DefaultAdminListen
+		}
+	} else {
+		logger.Println("Can't open config file from default location", defaults.GetDefaults().DefaultConfigFile)
+		logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
+		return defaults.GetDefaults().DefaultAdminListen
+	}
 }
