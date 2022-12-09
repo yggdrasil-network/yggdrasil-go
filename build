@@ -1,5 +1,4 @@
-#!/bin/sh
-
+#!/bin/bash
 set -ef
 
 PKGSRC=${PKGSRC:-github.com/RiV-chain/RiV-mesh/src/version}
@@ -12,7 +11,8 @@ else
 fi
 ARGS="-v"
 
-while getopts "utc:l:dro:ps" option
+TARGET_PATH=$(pwd)
+while getopts "utc:l:dro:psg:b:" option
 do
   case "$option"
   in
@@ -26,6 +26,10 @@ do
   p) ARGS="$ARGS -buildmode=pie";;
   # statically linked executable
   s) STATIC=" -linkmode external -extldflags=-static";;
+  # build target
+  g) TARGET=$OPTARG;;
+  # build path
+  b) TARGET_PATH=$OPTARG;;
   esac
 done
 
@@ -34,26 +38,46 @@ if [ -z $TABLES ] && [ -z $DEBUG ]; then
 fi
 
 #could be static
-for CMD in ./cmd/mesh ./cmd/meshctl ; do
-  echo "Building: $CMD"
-  go build $ARGS -ldflags "${LDFLAGS}${STATIC}" -gcflags "$GCFLAGS" $CMD
+buildbin() {
+  local CMD=$(realpath $1)
+  echo "Building: $CMD for $GOOS-$GOARCH"
+
+  (cd $TARGET_PATH && go build $ARGS -ldflags "${LDFLAGS}${LDFLAGS2}" -gcflags "$GCFLAGS" $CMD)
 
   if [ $UPX ]; then
     upx --brute $CMD
   fi
-done
+}
 
-#only UI should be built with windowsgui flag
-if [ "$GOOS" == "windows" ]; then
-   LDFLAGS="$LDFLAGS -H windowsgui"
-fi
+build_mesh() {
+  LDFLAGS2="${STATIC}" buildbin ./cmd/mesh
+}
 
-#dynamic only
-for CMD in ./contrib/ui/mesh-ui ; do
-  echo "Building: $CMD"
-  go build $ARGS -ldflags "$LDFLAGS" -gcflags "$GCFLAGS" $CMD
+build_meshctl() {
+  LDFLAGS2="${STATIC}" buildbin ./cmd/meshctl
+}
 
-  if [ $UPX ]; then
-    upx --brute $CMD
+build_mesh_ui() {
+  #only UI should be built with windowsgui flag
+  if [ "$GOOS" == "windows" ]; then
+    LDFLAGS2=" -H windowsgui"
   fi
-done
+  buildbin ./contrib/ui/mesh-ui
+}
+
+case $TARGET in 
+  "mesh")
+    build_mesh
+    ;;
+  "meshctl")
+    build_meshctl
+    ;;
+  "mesh_ui")
+    build_mesh_ui
+    ;;
+  *)
+    build_mesh
+    build_meshctl
+    build_mesh_ui
+    ;;
+esac
