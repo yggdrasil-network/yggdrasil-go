@@ -20,9 +20,9 @@ func getDefaults() platformDefaultParameters {
 		},
 
 		// Network domain
-                DefaultNetworkDomain: NetworkDomainConfig{
-                        Prefix: [...]byte{0xfc},
-                },
+		DefaultNetworkDomain: NetworkDomainConfig{
+			Prefix: "fc",
+		},
 
 		// TUN
 		MaximumIfMTU:  65535,

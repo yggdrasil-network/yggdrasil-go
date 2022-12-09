@@ -5,7 +5,7 @@ ALL_EXE=mesh meshctl mesh_ui
 
 OUT_DIR=built
 
-PATH:=/devroot/toolchain/amd64-w64-mingw32-seh-cpp20/bin:$(PATH)
+PATH:=/devroot/toolchain/x86_64-w64-mingw32-seh-cpp20/bin:$(PATH)
 
 take=$(word $1,$(subst -, ,$2))
 
@@ -18,7 +18,7 @@ $(addprefix $(OUT_DIR)/,$(ALL_PLATFORMS)):
 linux-amd64: $(addprefix linux-amd64-,$(ALL_EXE))
 
 windows-amd64: $(addprefix windows-amd64-,$(ALL_EXE))
-windows-amd64-%: BUILD_ENV=CGO_ENABLED=1 CC=amd64-w64-mingw32-gcc CXX=amd64-w64-mingw32-g++
+windows-amd64-%: BUILD_ENV=CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 
 macos-amd64: $(addprefix macos-amd64-,$(ALL_EXE))
 macos-amd64-%: BUILD_ENV=GO111MODULE=on

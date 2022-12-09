@@ -43,15 +43,15 @@ type NodeConfig struct {
 }
 
 type MulticastInterfaceConfig struct {
-	Regex string
-	Beacon bool
-	Listen bool
-	Port uint16
+	Regex    string
+	Beacon   bool
+	Listen   bool
+	Port     uint16
 	Priority uint64 // really uint8, but gobind won't export it
 }
 
 type NetworkDomainConfig struct {
-        Prefix [1]byte
+	Prefix string
 }
 
 // NewSigningKeys replaces the signing keypair in the NodeConfig with a new
