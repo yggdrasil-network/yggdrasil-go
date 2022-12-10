@@ -18,9 +18,32 @@ import (
 	"github.com/webview/webview"
 
 	"github.com/RiV-chain/RiV-mesh/src/admin"
+	"github.com/docopt/docopt-go"
 )
 
+var confui struct {
+	Console bool `docopt:"-c,--console"`
+}
+
 func main() {
+	usage := `Graphical interface for RiV mesh.
+
+Usage:
+  mesh-ui
+  mesh-ui -c | --console
+  mesh-ui -h | --help
+  mesh-ui -v | --version
+
+Options:
+  -c --console  Show debug console window.
+  -h --help     Show this screen.
+  -v --version  Show version.`
+
+	opts, _ := docopt.ParseArgs(usage, os.Args[1:], "0.0.1")
+	opts.Bind(&confui)
+	if !confui.Console {
+		Console(false)
+	}
 	debug := true
 	w := webview.New(debug)
 	defer w.Destroy()
