@@ -13,6 +13,10 @@
 
     function setFieldValue(id, value) {
       //console.log(`setFieldValue(${id}, ${value})`);
+      if(id === 'peers') {
+        const reg =/%[^\]]*/gm;
+        value = value.replace(reg,"");
+      }
       var field = document.getElementById(id);
       field.innerHTML = value;
     }
