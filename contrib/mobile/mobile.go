@@ -47,13 +47,17 @@ func (m *Mesh) StartJSON(configjson []byte) error {
 	if err := json.Unmarshal(configjson, &m.config); err != nil {
 		return err
 	}
-	// Setup the Yggdrasil node itself.
+	// Setup the Mesh node itself.
 	{
 		sk, err := hex.DecodeString(m.config.PrivateKey)
 		if err != nil {
 			panic(err)
 		}
-		options := []core.SetupOption{}
+		options := []core.SetupOption{
+			core.NodeInfo(m.config.NodeInfo),
+			core.NodeInfoPrivacy(m.config.NodeInfoPrivacy),
+			core.NetworkDomain(m.config.NetworkDomain),
+		}
 		for _, peer := range m.config.Peers {
 			options = append(options, core.Peer{URI: peer})
 		}
