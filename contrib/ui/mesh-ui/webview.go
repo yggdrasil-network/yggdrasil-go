@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/hjson/hjson-go"
-	"github.com/webview/webview"
+	"github.com/jchv/go-webview-selector"
 
 	"github.com/RiV-chain/RiV-mesh/src/admin"
 )
