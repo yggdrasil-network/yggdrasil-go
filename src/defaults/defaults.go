@@ -8,6 +8,12 @@ type NetworkDomainConfig = config.NetworkDomainConfig
 var defaultConfig = ""      // LDFLAGS='-X github.com/yggdrasil-network/yggdrasil-go/src/defaults.defaultConfig=/path/to/config
 var defaultAdminListen = "" // LDFLAGS='-X github.com/yggdrasil-network/yggdrasil-go/src/defaults.defaultAdminListen=unix://path/to/sock'
 
+type defaultParameters struct {
+
+	//Network domain
+	DefaultNetworkDomain NetworkDomainConfig
+}
+
 // Defines which parameters are expected by default for configuration on a
 // specific platform. These values are populated in the relevant defaults_*.go
 // for the platform being targeted. They must be set.
@@ -21,13 +27,21 @@ type platformDefaultParameters struct {
 	// Multicast interfaces
 	DefaultMulticastInterfaces []MulticastInterfaceConfig
 
-	//Network domain
-	DefaultNetworkDomain NetworkDomainConfig
-
 	// TUN
 	MaximumIfMTU  uint64
 	DefaultIfMTU  uint64
 	DefaultIfName string
+}
+
+// Defines defaults for the all platforms.
+func define() defaultParameters {
+	return defaultParameters{
+
+		// Network domain
+		DefaultNetworkDomain: NetworkDomainConfig{
+			Prefix: "fc",
+		},
+	}
 }
 
 func GetDefaults() platformDefaultParameters {
@@ -56,10 +70,10 @@ func GenerateConfig() *config.NodeConfig {
 	cfg.InterfacePeers = map[string][]string{}
 	cfg.AllowedPublicKeys = []string{}
 	cfg.MulticastInterfaces = defaults.DefaultMulticastInterfaces
-	cfg.NetworkDomain = defaults.DefaultNetworkDomain
 	cfg.IfName = defaults.DefaultIfName
 	cfg.IfMTU = defaults.DefaultIfMTU
 	cfg.NodeInfoPrivacy = false
+	cfg.NetworkDomain = define().DefaultNetworkDomain
 
 	return cfg
 }
