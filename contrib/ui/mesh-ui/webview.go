@@ -21,6 +21,7 @@ import (
 	"github.com/RiV-chain/RiV-mesh/src/admin"
 	"github.com/docopt/docopt-go"
 )
+
 var usage = `Graphical interface for RiV mesh.
 
 Usage:
@@ -38,7 +39,7 @@ var confui struct {
 	IndexHtml string `docopt:"<index>"`
 	Console   bool   `docopt:"-c,--console"`
 }
-=======
+
 var uiVersion = "0.0.1"
 
 func main() {
