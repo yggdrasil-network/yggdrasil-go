@@ -30,3 +30,6 @@ func run_command_with_arg(command string, arg string) []byte {
 	}
 	return out
 }
+
+func Console(show bool) {
+}

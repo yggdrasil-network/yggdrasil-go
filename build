@@ -58,10 +58,6 @@ build_meshctl() {
 }
 
 build_mesh_ui() {
-  #only UI should be built with windowsgui flag
-  if [ "$GOOS" == "windows" ]; then
-    LDFLAGS2=" -H windowsgui"
-  fi
   buildbin ./contrib/ui/mesh-ui
 }
 
