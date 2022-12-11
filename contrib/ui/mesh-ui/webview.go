@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -21,24 +22,25 @@ import (
 	"github.com/docopt/docopt-go"
 )
 
-var confui struct {
-	Console bool `docopt:"-c,--console"`
-}
-
-func main() {
-	usage := `Graphical interface for RiV mesh.
+var usage = `Graphical interface for RiV mesh.
 
 Usage:
-  mesh-ui
-  mesh-ui -c | --console
+  mesh-ui [<index>] [-c]
   mesh-ui -h | --help
   mesh-ui -v | --version
 
 Options:
+  <index>       Index file name [default: index.html].
   -c --console  Show debug console window.
   -h --help     Show this screen.
   -v --version  Show version.`
 
+var confui struct {
+	IndexHtml string `docopt:"<index>"`
+	Console   bool   `docopt:"-c,--console"`
+}
+
+func main() {
 	opts, _ := docopt.ParseArgs(usage, os.Args[1:], "0.0.1")
 	opts.Bind(&confui)
 	if !confui.Console {
@@ -88,18 +90,21 @@ Options:
 			}
 		}
 	}
-	var path string
 
-	if len(os.Args) > 1 {
-		path, err = filepath.Abs(filepath.Dir(os.Args[1]))
-	} else {
-		path, err = filepath.Abs(filepath.Dir(os.Args[0]))
+	if confui.IndexHtml == "" {
+		confui.IndexHtml = "index.html"
 	}
+	confui.IndexHtml, err = filepath.Abs(confui.IndexHtml)
 	if err != nil {
-		log.Fatal(err)
+		panic(errors.New("Index file not found: " + err.Error()))
 	}
 
-	log.Println(path)
+	if stat, err := os.Stat(confui.IndexHtml); err != nil {
+		panic(errors.New("Index file not found or permissians denied: " + err.Error()))
+	} else if stat.IsDir() {
+		panic(errors.New(fmt.Sprintf("Index file %v not found", confui.IndexHtml)))
+	}
+
 	w.Bind("onLoad", func() {
 		log.Println("page loaded")
 		go run(w)
@@ -126,10 +131,8 @@ Options:
 	w.Bind("ping", func(peer_list string) {
 		go ping(w, peer_list)
 	})
-	//dat, err := ioutil.ReadFile(path+"/index.html")
-	//w.Navigate("data:text/html,"+url.QueryEscape(string(dat)))
-	//w.Navigate("data:text/html,"+"<html>"+path+"</html>")
-	w.Navigate("file://" + path + "/index.html")
+	log.Printf("Opening: %v", confui.IndexHtml)
+	w.Navigate(confui.IndexHtml)
 	w.Run()
 }
 
