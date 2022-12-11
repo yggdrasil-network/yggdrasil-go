@@ -20,6 +20,8 @@ import (
 	"github.com/RiV-chain/RiV-mesh/src/admin"
 )
 
+var uiVersion = "0.0.1"
+
 func main() {
 	debug := true
 	w := webview.New(debug)
@@ -194,6 +196,7 @@ func get_self(w webview.WebView) {
 	go setFieldValue(w, "ipv6", res.IPAddress)
 	go setFieldValue(w, "pub_key", res.PublicKey)
 	go setFieldValue(w, "priv_key", res.PrivateKey)
+	go setFieldValue(w, "version", fmt.Sprintf("v%v/%v", res.BuildVersion, uiVersion))
 	//found subnet
 	fmt.Printf("Subnet: %s\n", res.Subnet)
 	go setFieldValue(w, "subnet", res.Subnet)

@@ -273,7 +273,6 @@
 
     .column {
       max-height: 350px;
-
       display: flex;
       flex-direction: column;
       justify-content: space-between;
@@ -321,11 +320,15 @@
     img {
       display: block;
     }
+
+    html, body { 
+      height: 100vh; 
+    }
   </style>
 </head>
 
 <body onload="onLoad();">
-  <div style="padding:3px; max-height: 250px;">
+  <div class="container hero is-fullheight" style="padding:3px;">
     <div class="box is-hidden">
       <div style="z-index: 9;" class="box stack-top notification is-primary is-hidden" id="notification_window">
         <button class="delete" id="info_close"></button>
@@ -468,15 +471,21 @@
     </div>
 
 
+    <footer class="is-flex-align-items-flex-end" style="margin-top: auto">
+      <hr style="margin: 0px;background-color: #5d656d;">
+      <div id="version" class="content has-text-left" style="padding: 10px;padding-left: 50px;">
+          v123456
+      </div>
+    </footer>
+                      
   </div>
 
-  <div style="margin-left: 100px; margin-right: 100px;">
+  <div class="is-hidden" style="margin-left: 100px; margin-right: 100px;">
     <div class="notification is-primary is-hidden" id="notification_info">
       <button class="delete" id="info_close1"></button>
       <p id="info_text"></p>
     </div>
   </div>
-
 
   <div class="is-hidden">
 
