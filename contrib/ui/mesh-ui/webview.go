@@ -21,7 +21,6 @@ import (
 	"github.com/RiV-chain/RiV-mesh/src/admin"
 	"github.com/docopt/docopt-go"
 )
-
 var usage = `Graphical interface for RiV mesh.
 
 Usage:
@@ -39,9 +38,11 @@ var confui struct {
 	IndexHtml string `docopt:"<index>"`
 	Console   bool   `docopt:"-c,--console"`
 }
+=======
+var uiVersion = "0.0.1"
 
 func main() {
-	opts, _ := docopt.ParseArgs(usage, os.Args[1:], "0.0.1")
+	opts, _ := docopt.ParseArgs(usage, os.Args[1:], uiVersion)
 	opts.Bind(&confui)
 	if !confui.Console {
 		Console(false)
@@ -220,6 +221,7 @@ func get_self(w webview.WebView) {
 	go setFieldValue(w, "ipv6", res.IPAddress)
 	go setFieldValue(w, "pub_key", res.PublicKey)
 	go setFieldValue(w, "priv_key", res.PrivateKey)
+	go setFieldValue(w, "version", fmt.Sprintf("v%v/%v", res.BuildVersion, uiVersion))
 	//found subnet
 	fmt.Printf("Subnet: %s\n", res.Subnet)
 	go setFieldValue(w, "subnet", res.Subnet)
