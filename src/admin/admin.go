@@ -255,7 +255,7 @@ func (a *AdminSocket) StartHttpServer(nc *config.NodeConfig) {
 			if err != nil {
 				http.Error(w, err.Error(), 503)
 			}
-			fmt.Fprintf(w, string(b[:]))
+			fmt.Fprint(w, string(b[:]))
 		})
 		http.HandleFunc("/api/getpeers", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add("Content-Type", "application/json")
@@ -269,7 +269,7 @@ func (a *AdminSocket) StartHttpServer(nc *config.NodeConfig) {
 			if err != nil {
 				http.Error(w, err.Error(), 503)
 			}
-			fmt.Fprintf(w, string(b[:]))
+			fmt.Fprint(w, string(b[:]))
 		})
 		var docFs = ""
 		pakReader, err := zip.OpenReader(nc.WwwRoot)

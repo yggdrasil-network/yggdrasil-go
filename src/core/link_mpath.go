@@ -49,12 +49,14 @@ func (l *linkMPATH) dial(url *url.URL, options linkOptions, sintf string) error 
 }
 
 func (l *linkMPATH) listen(url *url.URL, sintf string) (*Listener, error) {
-	hostport := url.Host
-	if sintf != "" {
-		if host, port, err := net.SplitHostPort(hostport); err == nil {
-			hostport = fmt.Sprintf("[%s%%%s]:%s", host, sintf, port)
+	/*
+		hostport := url.Host
+		if sintf != "" {
+			if host, port, err := net.SplitHostPort(hostport); err == nil {
+				hostport = fmt.Sprintf("[%s%%%s]:%s", host, sintf, port)
+			}
 		}
-	}
+	*/
 	_, cancel := context.WithCancel(l.core.ctx)
 	listener, err := l.listenFor(url, sintf)
 	if err != nil {

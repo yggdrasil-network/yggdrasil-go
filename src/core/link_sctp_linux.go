@@ -55,6 +55,9 @@ func (l *linkSCTP) dial(url *url.URL, options linkOptions, sintf string) error {
 		return err
 	}
 	err = conn.(*sctp.SCTPConn).Connect(raddress)
+	if err != nil {
+		return err
+	}
 	//conn.(*sctp.SCTPConn).SetWriteBuffer(324288)
 	//conn.(*sctp.SCTPConn).SetReadBuffer(324288)
 	//wbuf, _ := conn.(*sctp.SCTPConn).GetWriteBuffer()
@@ -62,7 +65,10 @@ func (l *linkSCTP) dial(url *url.URL, options linkOptions, sintf string) error {
 
 	//l.core.log.Printf("Read buffer %d", rbuf)
 	//l.core.log.Printf("Write buffer %d", wbuf)
-	conn.(*sctp.SCTPConn).SetEvents(sctp.SCTP_EVENT_DATA_IO)
+	err = conn.(*sctp.SCTPConn).SetEvents(sctp.SCTP_EVENT_DATA_IO)
+	if err != nil {
+		return err
+	}
 	dial := &linkDial{
 		url:   url,
 		sintf: sintf,
@@ -72,12 +78,14 @@ func (l *linkSCTP) dial(url *url.URL, options linkOptions, sintf string) error {
 
 func (l *linkSCTP) listen(url *url.URL, sintf string) (*Listener, error) {
 	//_, cancel := context.WithCancel(l.core.ctx)
-	hostport := url.Host
-	if sintf != "" {
-		if host, port, err := net.SplitHostPort(hostport); err == nil {
-			hostport = fmt.Sprintf("[%s%%%s]:%s", host, sintf, port)
+	/*
+		hostport := url.Host
+		if sintf != "" {
+			if host, port, err := net.SplitHostPort(hostport); err == nil {
+				hostport = fmt.Sprintf("[%s%%%s]:%s", host, sintf, port)
+			}
 		}
-	}
+	*/
 	addr := l.getAddress(url.Host)
 	listener, err := sctp.NewSCTPListener(addr, sctp.InitMsg{NumOstreams: 2, MaxInstreams: 2, MaxAttempts: 2, MaxInitTimeout: 5}, sctp.OneToOne, false)
 
@@ -85,7 +93,10 @@ func (l *linkSCTP) listen(url *url.URL, sintf string) (*Listener, error) {
 		//cancel()
 		return nil, err
 	}
-	listener.SetEvents(sctp.SCTP_EVENT_DATA_IO)
+	err = listener.SetEvents(sctp.SCTP_EVENT_DATA_IO)
+	if err != nil {
+		return nil, err
+	}
 	entry := &Listener{
 		Listener: listener,
 		closed:   make(chan struct{}),
@@ -155,7 +166,7 @@ func (l *linkSCTP) getAddr() *net.TCPAddr {
 	return addr
 }
 
-//SCTP infrastructure
+// SCTP infrastructure
 func (l *linkSCTP) getAddress(host string) *sctp.SCTPAddr {
 
 	//sctp supports multihoming but current implementation reuires only one path
