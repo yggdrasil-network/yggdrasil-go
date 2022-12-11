@@ -153,6 +153,8 @@ func (l *linkSCTP) handler(dial *linkDial, name string, info linkInfo, conn net.
 }
 
 // Returns the address of the listener.
+//
+//nolint:unused
 func (l *linkSCTP) getAddr() *net.TCPAddr {
 	// TODO: Fix this, because this will currently only give a single address
 	// to multicast.go, which obviously is not great, but right now multicast.go
