@@ -118,8 +118,6 @@ cat > pkgbuild/root/Applications/RiV-mesh.app/Contents/Info.plist << EOF
   <string>mesh-ui</string>
   <key>CFBundleIdentifier</key>
   <string>io.github.RiV-mesh.pkg</string>
-  <key>WorkingDirectory</key>
-  <string>/Applications/RiV-mesh.app/Contents/MacOS</string>
   <key>StandardOutPath</key>
   <string>/tmp/mesh-ui.stdout.log</string>
   <key>StandardErrorPath</key>
