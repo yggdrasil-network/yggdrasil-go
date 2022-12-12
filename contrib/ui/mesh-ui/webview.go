@@ -113,7 +113,7 @@ func main() {
 			nopanic(errors.New("Index file not found: " + err.Error()))
 		}
 		if stat, err := os.Stat(confui.IndexHtml); err != nil {
-			panic(errors.New("Index file not found or permissians denied: " + err.Error()))
+			nopanic(errors.New("Index file not found or permissians denied: " + err.Error()))
 		} else if stat.IsDir() {
 			nopanic(errors.New(fmt.Sprintf("Index file %v not found", confui.IndexHtml)))
 		}
