@@ -4,6 +4,8 @@ set -ef
 PKGSRC=${PKGSRC:-github.com/RiV-chain/RiV-mesh/src/version}
 PKGNAME=${PKGNAME:-$(sh contrib/semver/name.sh)}
 PKGVER=${PKGVER:-$(sh contrib/semver/version.sh --bare)}
+echo "Building: $PKGVER"
+
 if [ "$LDFLAGS" ]; then
   LDFLAGS="$LDFLAGS -X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
 else
@@ -42,10 +44,10 @@ buildbin() {
   local CMD=$(realpath $1)
   echo "Building: $CMD for $GOOS-$GOARCH"
 
-  (cd $TARGET_PATH && go build $ARGS -ldflags "${LDFLAGS}${LDFLAGS2}" -gcflags "$GCFLAGS" $CMD)
+  (cd "$TARGET_PATH" && go build $ARGS -ldflags "${LDFLAGS}${LDFLAGS2}" -gcflags "$GCFLAGS" "$CMD")
 
   if [ $UPX ]; then
-    upx --brute $CMD
+    upx --brute "$CMD"
   fi
 }
 
@@ -58,10 +60,6 @@ build_meshctl() {
 }
 
 build_mesh_ui() {
-  #only UI should be built with windowsgui flag
-  if [ "$GOOS" == "windows" ]; then
-    LDFLAGS2=" -H windowsgui"
-  fi
   buildbin ./contrib/ui/mesh-ui
 }
 

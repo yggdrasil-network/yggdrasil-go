@@ -21,9 +21,35 @@ import (
 
 	"github.com/RiV-chain/RiV-mesh/src/admin"
 	"github.com/RiV-chain/RiV-mesh/src/defaults"
+	"github.com/docopt/docopt-go"
 )
 
+var usage = `Graphical interface for RiV mesh.
+
+Usage:
+  mesh-ui [<index>] [-c]
+  mesh-ui -h | --help
+  mesh-ui -v | --version
+
+Options:
+  <index>       Index file name [default: index.html].
+  -c --console  Show debug console window.
+  -h --help     Show this screen.
+  -v --version  Show version.`
+
+var confui struct {
+	IndexHtml string `docopt:"<index>"`
+	Console   bool   `docopt:"-c,--console"`
+}
+
+var uiVersion = "0.0.1"
+
 func main() {
+	opts, _ := docopt.ParseArgs(usage, os.Args[1:], uiVersion)
+	opts.Bind(&confui)
+	if !confui.Console {
+		Console(false)
+	}
 	debug := true
 	w := webview.New(debug)
 	defer w.Destroy()
@@ -67,18 +93,32 @@ func main() {
 			}
 		}
 	}
-	var path string
 
-	if len(os.Args) > 1 {
-		path, err = filepath.Abs(filepath.Dir(os.Args[1]))
-	} else {
-		path, err = filepath.Abs(filepath.Dir(os.Args[0]))
+	if confui.IndexHtml == "" {
+		confui.IndexHtml = "index.html"
 	}
-	if err != nil {
-		log.Fatal(err)
+	//Check is it URL already
+	indexUrl, err := url.ParseRequestURI(confui.IndexHtml)
+	if err != nil || len(indexUrl.Scheme) < 2 { // handling no scheme at all and windows c:\ as scheme detection
+		confui.IndexHtml, err = filepath.Abs(confui.IndexHtml)
+		if err != nil {
+			panic(errors.New("Index file not found: " + err.Error()))
+		}
+		if stat, err := os.Stat(confui.IndexHtml); err != nil {
+			panic(errors.New(fmt.Sprintf("Index file %v not found or permissians denied: %v", confui.IndexHtml, err.Error())))
+		} else if stat.IsDir() {
+			panic(errors.New(fmt.Sprintf("Index file %v not found", confui.IndexHtml)))
+		}
+		path_prefix := ""
+		if indexUrl != nil && len(indexUrl.Scheme) == 1 {
+			path_prefix = "/"
+		}
+		indexUrl, err = url.ParseRequestURI("file://" + path_prefix + strings.ReplaceAll(confui.IndexHtml, "\\", "/"))
+		if err != nil {
+			panic(errors.New("Index file URL parse error: " + err.Error()))
+		}
 	}
 
-	log.Println(path)
 	w.Bind("onLoad", func() {
 		log.Println("page loaded")
 		go run(w)
@@ -105,10 +145,8 @@ func main() {
 	w.Bind("ping", func(peer_list string) {
 		go ping(w, peer_list)
 	})
-	//dat, err := ioutil.ReadFile(path+"/index.html")
-	//w.Navigate("data:text/html,"+url.QueryEscape(string(dat)))
-	//w.Navigate("data:text/html,"+"<html>"+path+"</html>")
-	w.Navigate("file://" + path + "/index.html")
+	log.Printf("Opening: %v", indexUrl)
+	w.Navigate(indexUrl.String())
 	w.Run()
 }
 
@@ -179,6 +217,7 @@ func get_self(w webview.WebView) {
 	go setFieldValue(w, "ipv6", res.IPAddress)
 	go setFieldValue(w, "pub_key", res.PublicKey)
 	go setFieldValue(w, "priv_key", res.PrivateKey)
+	go setFieldValue(w, "version", fmt.Sprintf("v%v/%v", res.BuildVersion, uiVersion))
 	//found subnet
 	fmt.Printf("Subnet: %s\n", res.Subnet)
 	go setFieldValue(w, "subnet", res.Subnet)
