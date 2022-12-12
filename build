@@ -4,6 +4,8 @@ set -ef
 PKGSRC=${PKGSRC:-github.com/RiV-chain/RiV-mesh/src/version}
 PKGNAME=${PKGNAME:-$(sh contrib/semver/name.sh)}
 PKGVER=${PKGVER:-$(sh contrib/semver/version.sh --bare)}
+echo "Building: $PKGVER"
+
 if [ "$LDFLAGS" ]; then
   LDFLAGS="$LDFLAGS -X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
 else
