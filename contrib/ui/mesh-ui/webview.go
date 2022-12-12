@@ -109,7 +109,7 @@ func main() {
 			panic(errors.New(fmt.Sprintf("Index file %v not found", confui.IndexHtml)))
 		}
 		path_prefix := ""
-		if len(indexUrl.Scheme) == 1 {
+		if indexUrl != nil && len(indexUrl.Scheme) == 1 {
 			path_prefix = "/"
 		}
 		indexUrl, err = url.ParseRequestURI("file://" + path_prefix + strings.ReplaceAll(confui.IndexHtml, "\\", "/"))
