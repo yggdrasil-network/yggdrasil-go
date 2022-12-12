@@ -4,8 +4,18 @@
 package main
 
 import (
+	"os"
 	"syscall"
 )
+
+func get_user_home_path() string {
+	path, exists := os.LookupEnv("USERPROFILE")
+	if exists {
+		return path
+	} else {
+		return ""
+	}
+}
 
 func Console(show bool) {
 	var getWin = syscall.NewLazyDLL("kernel32.dll").NewProc("GetConsoleWindow")

@@ -176,15 +176,6 @@ func check(peer string) int64 {
 	return d.Milliseconds()
 }
 
-func get_user_home_path() string {
-	path, exists := os.LookupEnv("HOME")
-	if exists {
-		return path
-	} else {
-		return ""
-	}
-}
-
 func run(w webview.WebView) {
 	get_self(w)
 	get_peers(w)
