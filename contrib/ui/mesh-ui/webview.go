@@ -96,17 +96,26 @@ func main() {
 	if confui.IndexHtml == "" {
 		confui.IndexHtml = "index.html"
 	}
+	f, err := os.Create("/tmp/mesh-ui.log")
+	if err != nil {
+		defer f.Close()
+	}
+	var nopanic = func(err error) {
+		if f != nil {
+			fmt.Fprint(f, err.Error())
+		}
+	}
 	//Check is it URL already
 	indexUrl, err := url.ParseRequestURI(confui.IndexHtml)
 	if err != nil || len(indexUrl.Scheme) < 2 { // handling no scheme at all and windows c:\ as scheme detection
 		confui.IndexHtml, err = filepath.Abs(confui.IndexHtml)
 		if err != nil {
-			panic(errors.New("Index file not found: " + err.Error()))
+			nopanic(errors.New("Index file not found: " + err.Error()))
 		}
 		if stat, err := os.Stat(confui.IndexHtml); err != nil {
 			panic(errors.New("Index file not found or permissians denied: " + err.Error()))
 		} else if stat.IsDir() {
-			panic(errors.New(fmt.Sprintf("Index file %v not found", confui.IndexHtml)))
+			nopanic(errors.New(fmt.Sprintf("Index file %v not found", confui.IndexHtml)))
 		}
 		path_prefix := ""
 		if indexUrl != nil && len(indexUrl.Scheme) == 1 {
@@ -114,7 +123,7 @@ func main() {
 		}
 		indexUrl, err = url.ParseRequestURI("file://" + path_prefix + strings.ReplaceAll(confui.IndexHtml, "\\", "/"))
 		if err != nil {
-			panic(errors.New("Index file URL parse error: " + err.Error()))
+			nopanic(errors.New("Index file URL parse error: " + err.Error()))
 		}
 	}
 
