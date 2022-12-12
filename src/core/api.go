@@ -234,11 +234,18 @@ func (c *Core) RemovePeer(uri string, sourceInterface string) error {
 }
 
 func (c *Core) RemovePeers() error {
-	c.config._peers = map[Peer]*linkInfo{}
-	//for k := range c.config.InterfacePeers {
-	//	delete(c.config.InterfacePeers, k)
-	//}
-
+	phony.Block(c, func() {
+		for peer, linkInfo := range c.config._peers {
+			if linkInfo != nil {
+				c.links.Act(nil, func() {
+					if link := c.links._links[*linkInfo]; link != nil {
+						_ = link.close()
+					}
+				})
+			}
+			delete(c.config._peers, peer)
+		}
+	})
 	return nil
 }
 
