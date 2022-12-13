@@ -5,13 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/url"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 
+	"archive/zip"
 	"strings"
 	"time"
+
+	"github.com/remyoudompheng/go-misc/zipfs"
 
 	"github.com/RiV-chain/RiV-mesh/src/config"
 	"github.com/RiV-chain/RiV-mesh/src/core"
@@ -203,26 +206,26 @@ func (a *AdminSocket) SetupAdminHandlers() {
 			return res, nil
 		},
 	)
-        _ = a.AddHandler("addPeers", "Add peers to this node", []string{"uri", "[interface]"}, func(in json.RawMessage) (interface{}, error) {
-                req := &AddPeersRequest{}
-                res := &AddPeersResponse{}
+	_ = a.AddHandler("addPeers", "Add peers to this node", []string{"uri", "[interface]"}, func(in json.RawMessage) (interface{}, error) {
+		req := &AddPeersRequest{}
+		res := &AddPeersResponse{}
 
-                fmt.Println("json addpeers request %s", string(in[:]))
+		fmt.Println("json addpeers request %s", string(in[:]))
 
-                if err := json.Unmarshal(in, &req); err != nil {
-                        return nil, err
-                }
+		if err := json.Unmarshal(in, &req); err != nil {
+			return nil, err
+		}
 
-                if err := a.addPeersHandler(req, res); err != nil {
-                        return nil, err
-                }
-                return res, nil
-        })
-        _ = a.AddHandler("removePeers", "Remove all peers from this node", []string{}, func(in json.RawMessage) (interface{}, error) {
-                a.core.RemovePeers()
-                res := &AddPeersResponse{}
-                return res, nil
-        })
+		if err := a.addPeersHandler(req, res); err != nil {
+			return nil, err
+		}
+		return res, nil
+	})
+	_ = a.AddHandler("removePeers", "Remove all peers from this node", []string{}, func(in json.RawMessage) (interface{}, error) {
+		a.core.RemovePeers()
+		res := &AddPeersResponse{}
+		return res, nil
+	})
 
 	//_ = a.AddHandler("getNodeInfo", []string{"key"}, t.proto.nodeinfo.nodeInfoAdminHandler)
 	//_ = a.AddHandler("debug_remoteGetSelf", []string{"key"}, t.proto.getSelfHandler)
@@ -232,16 +235,16 @@ func (a *AdminSocket) SetupAdminHandlers() {
 
 // Start runs http server
 func (a *AdminSocket) StartHttpServer(nc *config.NodeConfig) {
-	if nc.HttpAddress != "none" && nc.HttpAddress != "" && nc.WwwRoot != "none" && nc.WwwRoot != ""{
+	if nc.HttpAddress != "none" && nc.HttpAddress != "" && nc.WwwRoot != "none" && nc.WwwRoot != "" {
 		u, err := url.Parse(nc.HttpAddress)
 		if err != nil {
 			a.log.Errorln("An error occurred parsing http address:", err)
 			return
 		}
-		http.HandleFunc("/api", func(w http.ResponseWriter, r *http.Request){
+		http.HandleFunc("/api", func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "Following methods are allowed: getself, getpeers. litening"+u.Host)
 		})
-		http.HandleFunc("/api/getself", func(w http.ResponseWriter, r *http.Request){
+		http.HandleFunc("/api/getself", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add("Content-Type", "application/json")
 			req := &GetSelfRequest{}
 			res := &GetSelfResponse{}
@@ -254,7 +257,7 @@ func (a *AdminSocket) StartHttpServer(nc *config.NodeConfig) {
 			}
 			fmt.Fprintf(w, string(b[:]))
 		})
-		http.HandleFunc("/api/getpeers", func(w http.ResponseWriter, r *http.Request){
+		http.HandleFunc("/api/getpeers", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add("Content-Type", "application/json")
 			req := &GetPeersRequest{}
 			res := &GetPeersResponse{}
@@ -268,7 +271,13 @@ func (a *AdminSocket) StartHttpServer(nc *config.NodeConfig) {
 			}
 			fmt.Fprintf(w, string(b[:]))
 		})
-		http.Handle("/", http.FileServer(http.Dir(nc.WwwRoot)))
+		fs := http.Dir(nc.WwwRoot)
+		pak, err := zip.OpenReader(nc.WwwRoot)
+		if err == nil {
+			fs = zipfs.NewZipFS(&pak.Reader)
+			defer pak.Close()
+		}
+		http.Handle("/", http.FileServer(fs))
 		l, e := net.Listen("tcp4", u.Host)
 		if e != nil {
 			a.log.Errorln("%s\n", e)
