@@ -52,8 +52,6 @@ PKGNAME=$(sh contrib/semver/name.sh)
 PKGVERSION=$(sh contrib/msi/msversion.sh --bare)
 PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
 PKGUIFOLDER=contrib/ui/mesh-ui/ui/
-PKGWEBVIEWRESOURCESFOLDER="${PKGUIFOLDER}assets/"
-PKGFONTSRESOURCESFOLDER="${PKGUIFOLDER}webfonts/"
 
 PKGLICENSEFILE=LICENSE.rtf
 
@@ -112,6 +110,9 @@ else
   exit 1
 fi
 
+PKG_UI_ASSETS_ZIP=$(pwd)/ui
+( cd "$PKGUIFOLDER" && zip -q -r "$PKG_UI_ASSETS_ZIP" * )
+
 if [ $PKGNAME != "master" ]; then
   PKGDISPLAYNAME="RiV-mesh Network (${PKGNAME} branch)"
 else
@@ -155,49 +156,10 @@ cat > wix.xml << EOF
     <Icon Id="icon.ico" SourceFile="riv.ico"/>
     <Property Id="ARPPRODUCTICON" Value="icon.ico" />
 
-    <Property Id="SOURCEDIRECTORY" Value="${PKGUIFOLDER}" />
-
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="DesktopFolder"  SourceName="Desktop"/>
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
-          <Directory Id="WebViewUIFolder" Name="ui" >
-            <Directory Id="AssetsFolder" Name="assets" >
-              <Component Id="AssetsResources" Guid="6e9af115-daa0-4aac-8e6a-5ba65e720a4d">
-                    <File
-                      Id="AllMinCssFile"
-                      Name="all.min.css"
-                      DiskId="1"
-                      Source="${PKGWEBVIEWRESOURCESFOLDER}all.min.css" />
-                    <File
-                      Id="BulmaswatchCssFile"
-                      Name="bulmaswatch.min.css"
-                      DiskId="1"
-                      Source="${PKGWEBVIEWRESOURCESFOLDER}bulmaswatch.min.css" />
-                    <File
-                      Id="BulmaswatchCssMapFile"
-                      Name="bulmaswatch.min.css.map"
-                      DiskId="1"
-                      Source="${PKGWEBVIEWRESOURCESFOLDER}bulmaswatch.min.css.map" />
-              </Component>
-            </Directory>
-            <Directory Id="WebfontsFolder" Name="webfonts" >
-              <Component Id="FontsResources" Guid="4ffeb20b-61a8-4c7f-ba16-0d0c8e43b09a">
-                    <File
-                      Id="FontFile"
-                      Name="fa-solid-900.woff2"
-                      DiskId="1"
-                      Source="${PKGFONTSRESOURCESFOLDER}fa-solid-900.woff2" />
-              </Component>
-            </Directory>
-            <Component Id="WebViewResources" Guid="a4a5a50a-a336-4789-bf61-ca76fe217e3f">
-                  <File
-                    Id="WebViewHtmlFile"
-                    Name="index.html"
-                    DiskId="1"
-                    Source="${PKGUIFOLDER}index.html" />
-            </Component>
-          </Directory>
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
             <File
               Id="Mesh"
@@ -220,7 +182,7 @@ cat > wix.xml << EOF
               Name="Mesh"
               Start="auto"
               Type="ownProcess"
-              Arguments='-useconffile "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.conf" -logto "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.log" -httpaddress "http://localhost:19019" -wwwroot "[MeshInstallFolder]\\ui"'
+              Arguments='-useconffile "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.conf" -logto "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.log" -httpaddress "http://localhost:19019" -wwwroot "[MeshInstallFolder]ui.zip"'
               Vital="yes" />
             <ServiceControl
               Id="MeshServiceControl"
@@ -257,6 +219,12 @@ cat > wix.xml << EOF
               Name="WebView2Loader.dll"
               DiskId="1"
               Source="${PKGWEBVIEWFILELOADER}" />
+
+            <File
+              Id="UiAssets"
+              Name="ui.zip"
+              DiskId="1"
+              Source="${PKG_UI_ASSETS_ZIP}" />
 
           </Component>
 
