@@ -112,6 +112,7 @@ fi
 
 PKG_UI_ASSETS_ZIP=$(pwd)/ui.zip
 ( cd "$PKGUIFOLDER" && 7z a "$PKG_UI_ASSETS_ZIP" * )
+PKG_UI_ASSETS_ZIP=ui.zip
 
 if [ $PKGNAME != "master" ]; then
   PKGDISPLAYNAME="RiV-mesh Network (${PKGNAME} branch)"
@@ -236,7 +237,7 @@ cat > wix.xml << EOF
               DiskId="1"
               Source="updateconfig.bat"
               KeyPath="yes"/>
-          </Component>
+          </Component>      
 
         </Directory>
       </Directory>
