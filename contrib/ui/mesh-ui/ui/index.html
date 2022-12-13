@@ -136,23 +136,23 @@
       var message = document.getElementById("info_window");
       message.innerHTML = text;
 
-      info.className = "notification is-primary";
+      info.classList.remove("is-hidden");
       var button_info_close = document.getElementById("info_close");
       button_info_close.onclick = function () {
         message.value = "";
-        info.className = "notification is-primary is-hidden";
+        info.classList.add("is-hidden");
         //document.getElementById("peer_list").remove();
       };
       var button_window_close = document.getElementById("window_close");
       button_window_close.onclick = function () {
         message.value = "";
-        info.className = "notification is-primary is-hidden";
+        info.classList.add("is-hidden");
         //document.getElementById("peer_list").remove();
       };
       var button_window_save = document.getElementById("window_save");
       button_window_save.onclick = function () {
         message.value = "";
-        info.className = "notification is-primary is-hidden";
+        info.classList.add("is-hidden");
         //todo save peers
         var peers = document.querySelectorAll('*[id^="peer-"]');
         var peer_list = [];
@@ -327,9 +327,9 @@
 </head>
 
 <body onload="onLoad();">
-  <div class="container hero is-fullheight" style="padding:3px;">
-    <div class="box is-hidden">
-      <div style="z-index: 9;" class="box stack-top notification is-primary is-hidden" id="notification_window">
+  <div class="container hero is-fullheight">
+    <div class="box is-hidden" id="notification_window">
+      <div style="z-index: 9;" class="notification is-primary">
         <button class="delete" id="info_close"></button>
         <p style="padding:3px; max-height: 250px; overflow-y: auto;" id="info_window"></p>
         <div style="padding-left:100px; padding-top:15px;" class="field is-grouped">

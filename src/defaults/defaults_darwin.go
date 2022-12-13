@@ -19,11 +19,6 @@ func getDefaults() platformDefaultParameters {
 			{Regex: "bridge.*", Beacon: true, Listen: true},
 		},
 
-		// Network domain
-		DefaultNetworkDomain: NetworkDomainConfig{
-			Prefix: "fc",
-		},
-
 		// TUN
 		MaximumIfMTU:  65535,
 		DefaultIfMTU:  65535,

@@ -47,10 +47,15 @@ cp meshctl pkgbuild/root/usr/local/bin
 cp mesh pkgbuild/root/Applications/RiV-mesh.app/Contents/MacOS
 cp mesh-ui pkgbuild/root/Applications/RiV-mesh.app/Contents/MacOS
 cp riv.icns pkgbuild/root/Applications/RiV-mesh.app/Contents/Resources
-cp contrib/ui/mesh-ui/ui/index.html pkgbuild/root/Applications/RiV-mesh.app/Contents/MacOS
-cp -r contrib/ui/mesh-ui/ui/assets pkgbuild/root/Applications/RiV-mesh.app/Contents/MacOS
-cp -r contrib/ui/mesh-ui/ui/webfonts pkgbuild/root/Applications/RiV-mesh.app/Contents/MacOS
+cp -r contrib/ui/mesh-ui/ui pkgbuild/root/Applications/RiV-mesh.app/Contents/Resources
 cp contrib/macos/mesh.plist pkgbuild/root/Library/LaunchDaemons
+
+# Create open script
+cat > pkgbuild/root/Applications/RiV-mesh.app/Contents/MacOS/open-mesh-ui << EOF
+#!/usr/bin/env bash
+
+exec /Applications/RiV-mesh.app/Contents/MacOS/mesh-ui /Applications/RiV-mesh.app/Contents/Resources/ui/index.html 1>/tmp/mesh-ui.stdout.log 2>/tmp/mesh-ui.stderr.log
+EOF
 
 # Create the postinstall script
 cat > pkgbuild/scripts/postinstall << EOF
@@ -82,7 +87,7 @@ chmod 755 pkgbuild/scripts/postinstall
 chmod 755 pkgbuild/root/usr/local/bin/meshctl
 chmod 755 pkgbuild/root/Applications/RiV-mesh.app/Contents/MacOS/mesh
 chmod 755 pkgbuild/root/Applications/RiV-mesh.app/Contents/MacOS/mesh-ui
-chmod 755 pkgbuild/root/Applications/RiV-mesh.app/Contents/MacOS/index.html
+chmod 755 pkgbuild/root/Applications/RiV-mesh.app/Contents/MacOS/open-mesh-ui
 
 # Work out metadata for the package info
 PKGNAME=$(sh contrib/semver/name.sh)
@@ -115,13 +120,9 @@ cat > pkgbuild/root/Applications/RiV-mesh.app/Contents/Info.plist << EOF
   <key>CFBundleShortVersionString</key>
   <string>${PKGVERSION}</string>
   <key>CFBundleExecutable</key>
-  <string>mesh-ui</string>
+  <string>open-mesh-ui</string>
   <key>CFBundleIdentifier</key>
   <string>io.github.RiV-mesh.pkg</string>
-  <key>StandardOutPath</key>
-  <string>/tmp/mesh-ui.stdout.log</string>
-  <key>StandardErrorPath</key>
-  <string>/tmp/mesh-ui.stderr.log</string>
 </dict>
 </plist>
 EOF
