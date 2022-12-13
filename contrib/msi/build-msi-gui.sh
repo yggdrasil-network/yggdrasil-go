@@ -52,8 +52,6 @@ PKGNAME=$(sh contrib/semver/name.sh)
 PKGVERSION=$(sh contrib/msi/msversion.sh --bare)
 PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
 PKGUIFOLDER=contrib/ui/mesh-ui/ui/
-PKGWEBVIEWRESOURCESFOLDER="${PKGUIFOLDER}assets/"
-PKGFONTSRESOURCESFOLDER="${PKGUIFOLDER}webfonts/"
 
 PKGLICENSEFILE=LICENSE.rtf
 
@@ -112,6 +110,10 @@ else
   exit 1
 fi
 
+PKG_UI_ASSETS_ZIP=$(pwd)/ui.zip
+( cd "$PKGUIFOLDER" && 7z a "$PKG_UI_ASSETS_ZIP" * )
+PKG_UI_ASSETS_ZIP=ui.zip
+
 if [ $PKGNAME != "master" ]; then
   PKGDISPLAYNAME="RiV-mesh Network (${PKGNAME} branch)"
 else
@@ -155,49 +157,10 @@ cat > wix.xml << EOF
     <Icon Id="icon.ico" SourceFile="riv.ico"/>
     <Property Id="ARPPRODUCTICON" Value="icon.ico" />
 
-    <Property Id="SOURCEDIRECTORY" Value="${PKGUIFOLDER}" />
-
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="DesktopFolder"  SourceName="Desktop"/>
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
-          <Directory Id="WebViewUIFolder" Name="ui" >
-            <Directory Id="AssetsFolder" Name="assets" >
-              <Component Id="AssetsResources" Guid="6e9af115-daa0-4aac-8e6a-5ba65e720a4d">
-                    <File
-                      Id="AllMinCssFile"
-                      Name="all.min.css"
-                      DiskId="1"
-                      Source="${PKGWEBVIEWRESOURCESFOLDER}all.min.css" />
-                    <File
-                      Id="BulmaswatchCssFile"
-                      Name="bulmaswatch.min.css"
-                      DiskId="1"
-                      Source="${PKGWEBVIEWRESOURCESFOLDER}bulmaswatch.min.css" />
-                    <File
-                      Id="BulmaswatchCssMapFile"
-                      Name="bulmaswatch.min.css.map"
-                      DiskId="1"
-                      Source="${PKGWEBVIEWRESOURCESFOLDER}bulmaswatch.min.css.map" />
-              </Component>
-            </Directory>
-            <Directory Id="WebfontsFolder" Name="webfonts" >
-              <Component Id="FontsResources" Guid="4ffeb20b-61a8-4c7f-ba16-0d0c8e43b09a">
-                    <File
-                      Id="FontFile"
-                      Name="fa-solid-900.woff2"
-                      DiskId="1"
-                      Source="${PKGFONTSRESOURCESFOLDER}fa-solid-900.woff2" />
-              </Component>
-            </Directory>
-            <Component Id="WebViewResources" Guid="a4a5a50a-a336-4789-bf61-ca76fe217e3f">
-                  <File
-                    Id="WebViewHtmlFile"
-                    Name="index.html"
-                    DiskId="1"
-                    Source="${PKGUIFOLDER}index.html" />
-            </Component>
-          </Directory>
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
             <File
               Id="Mesh"
@@ -220,7 +183,7 @@ cat > wix.xml << EOF
               Name="Mesh"
               Start="auto"
               Type="ownProcess"
-              Arguments='-useconffile "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.conf" -logto "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.log"'
+              Arguments='-useconffile "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.conf" -logto "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.log" -httpaddress "http://localhost:19019" -wwwroot "[MeshInstallFolder]ui.zip"'
               Vital="yes" />
             <ServiceControl
               Id="MeshServiceControl"
@@ -258,6 +221,12 @@ cat > wix.xml << EOF
               DiskId="1"
               Source="${PKGWEBVIEWFILELOADER}" />
 
+            <File
+              Id="UiAssets"
+              Name="ui.zip"
+              DiskId="1"
+              Source="${PKG_UI_ASSETS_ZIP}" />
+
           </Component>
 
 
@@ -268,7 +237,7 @@ cat > wix.xml << EOF
               DiskId="1"
               Source="updateconfig.bat"
               KeyPath="yes"/>
-          </Component>
+          </Component>      
 
         </Directory>
       </Directory>
@@ -276,9 +245,6 @@ cat > wix.xml << EOF
 
     <Feature Id="MeshFeature" Title="Mesh" Level="1">
       <ComponentRef Id="MainExecutable" />
-      <ComponentRef Id="WebViewResources" />
-      <ComponentRef Id="AssetsResources" />
-      <ComponentRef Id="FontsResources" />
       <ComponentRef Id="UIExecutable" />
       <ComponentRef Id="CtrlExecutable" />
       <ComponentRef Id="cmpDesktopShortcut" />
@@ -306,7 +272,7 @@ cat > wix.xml << EOF
     <CustomAction Id="LaunchApplication"
       FileKey="MeshUI"
       Impersonate="yes" 
-      ExeCommand='"[MeshInstallFolder]ui\index.html"'
+      ExeCommand='"http://localhost:19019"'
       Return="asyncNoWait" />
 
     <!-- Step 3: Include the custom action -->
@@ -325,7 +291,7 @@ cat > wix.xml << EOF
              Description="RiV-mesh is IoT E2E encrypted network"
              Directory="DesktopFolder"
              Target="[MeshInstallFolder]mesh-ui.exe"
-             Arguments="ui\index.html"
+             Arguments="http://localhost:19019"
              WorkingDirectory="MeshInstallFolder"/>
         <RegistryValue Root="HKCU"
             Key="Software\RiV-chain\RiV-mesh"
@@ -337,7 +303,7 @@ cat > wix.xml << EOF
             Key="Software\Microsoft\Windows\CurrentVersion\Run"
             Name="RiV-mesh client"
             Type="string"
-            Value='"[MeshInstallFolder]mesh-ui.exe" "[MeshInstallFolder]ui\index.html"' />
+            Value='"[MeshInstallFolder]mesh-ui.exe" "http://localhost:19019"' />
         <Condition>ASSISTANCE_START_VIA_REGISTRY</Condition>
      </Component>
 

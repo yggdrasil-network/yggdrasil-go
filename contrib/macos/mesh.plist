@@ -9,6 +9,12 @@
       <string>/Applications/RiV-mesh.app/Contents/MacOS/mesh</string>
       <string>-useconffile</string>
       <string>/etc/mesh.conf</string>
+      <string>-logto</string>
+      <string>/var/log/mesh.log</string>
+      <string>-httpaddress</string>
+      <string>http://localhost:19019</string>
+      <string>-wwwroot</string>
+      <string>/Applications/RiV-mesh.app/Contents/Resources/ui</string>
     </array>
     <key>KeepAlive</key>
     <true/>
