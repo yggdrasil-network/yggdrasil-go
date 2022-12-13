@@ -5,7 +5,6 @@ import (
 	"net"
 	"sort"
 	"strings"
-
 	//"github.com/RiV-chain/RiV-mesh/src/address"
 )
 

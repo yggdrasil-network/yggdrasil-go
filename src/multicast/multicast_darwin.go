@@ -4,7 +4,6 @@
 
 package multicast
 
-
 import (
 	"syscall"
 

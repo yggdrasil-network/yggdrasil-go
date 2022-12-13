@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"net"
 	"sort"
-
 	//"github.com/RiV-chain/RiV-mesh/src/address"
 )
 
