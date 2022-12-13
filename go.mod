@@ -14,7 +14,6 @@ require (
 	github.com/mitchellh/mapstructure v1.4.1
 	github.com/vikulin/sctp v0.0.0-20221009200520-ae0f2830e422
 	github.com/vishvananda/netlink v1.1.0
-	github.com/webview/webview v0.0.0-20210330151455-f540d88dde4e
 	golang.org/x/net v0.0.0-20221014081412-f15817d10f9b
 	golang.org/x/sys v0.0.0-20221013171732-95e765b1cc43
 	golang.org/x/text v0.3.8
@@ -34,6 +33,7 @@ require (
 	github.com/getlantern/ops v0.0.0-20190325191751-d70cb0d6f85f // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/google/uuid v1.1.2 // indirect
+	github.com/webview/webview v0.0.0-20210330151455-f540d88dde4e
 	github.com/libp2p/go-buffer-pool v0.0.2 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
