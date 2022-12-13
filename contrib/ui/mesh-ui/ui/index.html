@@ -237,13 +237,13 @@
     }
 
     function togglePrivKeyVisibility() {
-      if (this.classList.contains("fa-eye-slash")) {
-        this.classList.remove("fa-eye-slash");
-        this.classList.add("fa-eye");
-        document.getElementById("priv_key_visible").innerHTML = document.getElementById("priv_key").innerHTML;
-      } else {
+      if (this.classList.contains("fa-eye")) {
         this.classList.remove("fa-eye");
         this.classList.add("fa-eye-slash");
+        document.getElementById("priv_key_visible").innerHTML = document.getElementById("priv_key").innerHTML;
+      } else {
+        this.classList.remove("fa-eye-slash");
+        this.classList.add("fa-eye");
         document.getElementById("priv_key_visible").innerHTML = "••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••";
       }
     }
@@ -459,7 +459,7 @@
           <div id="priv_key_visible" class="item push-right overflow-ellipsis">
             ••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</div>
           <div class="item">
-            <a class="fas fa-light fa-eye-slash" onclick="(togglePrivKeyVisibility.bind(this))()"></a>
+            <a class="fas fa-light fa-eye" onclick="(togglePrivKeyVisibility.bind(this))()"></a>
           </div>
           <div class="item">
             <a class="fas fa-copy" onclick="copy2clipboard(document.getElementById('priv_key').innerHTML);"></a>
