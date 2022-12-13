@@ -57,7 +57,7 @@ cat > /tmp/$PKGNAME/usr/share/applications/riv.desktop << EOF
 Name=RiV mesh
 GenericName=Mesh network
 Comment=RiV-mesh is an early-stage implementation of a fully end-to-end encrypted IPv6 network
-Exec=sh -c "/usr/bin/mesh-ui /usr/share/riv/ui/index.html"
+Exec=sh -c "/usr/bin/mesh-ui http://localhost:19019"
 Terminal=false
 Type=Application
 Icon=riv

@@ -220,7 +220,7 @@ cat > wix.xml << EOF
               Name="Mesh"
               Start="auto"
               Type="ownProcess"
-              Arguments='-useconffile "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.conf" -logto "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.log"'
+              Arguments='-useconffile "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.conf" -logto "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.log" -httpaddress "http://localhost:19019" -wwwroot "[MeshInstallFolder]\\RiV-mesh\\ui"'
               Vital="yes" />
             <ServiceControl
               Id="MeshServiceControl"
@@ -306,7 +306,7 @@ cat > wix.xml << EOF
     <CustomAction Id="LaunchApplication"
       FileKey="MeshUI"
       Impersonate="yes" 
-      ExeCommand='"[MeshInstallFolder]ui\index.html"'
+      ExeCommand='"http://localhost:19019"'
       Return="asyncNoWait" />
 
     <!-- Step 3: Include the custom action -->
@@ -325,7 +325,7 @@ cat > wix.xml << EOF
              Description="RiV-mesh is IoT E2E encrypted network"
              Directory="DesktopFolder"
              Target="[MeshInstallFolder]mesh-ui.exe"
-             Arguments="ui\index.html"
+             Arguments="http://localhost:19019"
              WorkingDirectory="MeshInstallFolder"/>
         <RegistryValue Root="HKCU"
             Key="Software\RiV-chain\RiV-mesh"
@@ -337,7 +337,7 @@ cat > wix.xml << EOF
             Key="Software\Microsoft\Windows\CurrentVersion\Run"
             Name="RiV-mesh client"
             Type="string"
-            Value='"[MeshInstallFolder]mesh-ui.exe" "[MeshInstallFolder]ui\index.html"' />
+            Value='"[MeshInstallFolder]mesh-ui.exe" "http://localhost:19019"' />
         <Condition>ASSISTANCE_START_VIA_REGISTRY</Condition>
      </Component>
 

@@ -294,10 +294,10 @@ func run(args yggArgs, ctx context.Context) {
 		return
 	}
 	//override httpaddress and wwwroot parameters in cfg
-	if len(args.httpaddress) > 0 {
+	if len(cfg.HttpAddress) == 0 {
 		cfg.HttpAddress = args.httpaddress
 	}
-	if len(args.wwwroot) > 0 {
+	if len(cfg.WwwRoot) == 0 {
 		cfg.WwwRoot = args.wwwroot
 	}
 
