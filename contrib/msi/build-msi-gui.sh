@@ -110,8 +110,9 @@ else
   exit 1
 fi
 
-PKG_UI_ASSETS_ZIP=$(pwd)/ui
-( cd "$PKGUIFOLDER" && zip -q -r "$PKG_UI_ASSETS_ZIP" * )
+PKG_UI_ASSETS_ZIP=$(pwd)/ui.zip
+7z a "$PKG_UI_ASSETS_ZIP" 
+( cd "$PKGUIFOLDER" && 7z a "$PKG_UI_ASSETS_ZIP" * )
 
 if [ $PKGNAME != "master" ]; then
   PKGDISPLAYNAME="RiV-mesh Network (${PKGNAME} branch)"
