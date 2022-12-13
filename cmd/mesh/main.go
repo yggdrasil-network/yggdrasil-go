@@ -294,8 +294,12 @@ func run(args yggArgs, ctx context.Context) {
 		return
 	}
 	//override httpaddress and wwwroot parameters in cfg
-	cfg.HttpAddress = args.httpaddress
-	cfg.WwwRoot = args.wwwroot
+	if len(args.httpaddress) > 0 {
+		cfg.HttpAddress = args.httpaddress
+	}
+	if len(args.wwwroot) > 0 {
+		cfg.WwwRoot = args.wwwroot
+	}
 
 	// Setup the RiV-mesh node itself.
 	{
@@ -349,10 +353,10 @@ func run(args yggArgs, ctx context.Context) {
 		options := []multicast.SetupOption{}
 		for _, intf := range cfg.MulticastInterfaces {
 			options = append(options, multicast.MulticastInterface{
-				Regex: regexp.MustCompile(intf.Regex),
-				Beacon: intf.Beacon,
-				Listen: intf.Listen,
-				Port: intf.Port,
+				Regex:    regexp.MustCompile(intf.Regex),
+				Beacon:   intf.Beacon,
+				Listen:   intf.Listen,
+				Port:     intf.Port,
 				Priority: uint8(intf.Priority),
 			})
 		}
