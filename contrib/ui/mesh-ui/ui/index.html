@@ -137,7 +137,7 @@
       message.innerHTML = text;
 
       info.classList.remove("is-hidden");
-      var button_info_close = document.getElementById("info_close");
+      var button_info_close = document.getElementById("info_win_close");
       button_info_close.onclick = function () {
         message.value = "";
         info.classList.add("is-hidden");
@@ -330,7 +330,7 @@
   <div class="container hero is-fullheight">
     <div class="box is-hidden" id="notification_window">
       <div style="z-index: 9;" class="notification is-primary">
-        <button class="delete" id="info_close"></button>
+        <button class="delete" id="info_win_close"></button>
         <p style="padding:3px; max-height: 250px; overflow-y: auto;" id="info_window"></p>
         <div style="padding-left:100px; padding-top:15px;" class="field is-grouped">
           <p class="control">
@@ -470,6 +470,13 @@
     </div>
 
 
+    <div style="margin-left: 100px; margin-right: 100px;">
+      <div class="notification is-primary is-hidden" id="notification_info">
+        <button class="delete" id="info_close"></button>
+        <p id="info_text"></p>
+      </div>
+    </div>
+
     <footer class="is-flex-align-items-flex-end" style="margin-top: auto">
       <hr style="margin: 0px;background-color: #5d656d;">
       <div id="version" class="content has-text-left" style="padding: 10px;padding-left: 50px;">
@@ -477,13 +484,6 @@
       </div>
     </footer>
                       
-  </div>
-
-  <div class="is-hidden" style="margin-left: 100px; margin-right: 100px;">
-    <div class="notification is-primary is-hidden" id="notification_info">
-      <button class="delete" id="info_close1"></button>
-      <p id="info_text"></p>
-    </div>
   </div>
 
   <div class="is-hidden">
