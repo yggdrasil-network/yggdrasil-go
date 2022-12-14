@@ -31,6 +31,7 @@ func (t *linkMPATH) tcpContext(network, address string, c syscall.RawConn) error
 	return nil
 }
 
+//nolint:unused
 func (t *linkMPATH) getControl(sintf string) func(string, string, syscall.RawConn) error {
 	return func(network, address string, c syscall.RawConn) error {
 		var err error

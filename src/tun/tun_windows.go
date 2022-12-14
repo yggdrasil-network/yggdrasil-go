@@ -6,9 +6,9 @@ package tun
 import (
 	"bytes"
 	"errors"
-	"time"
 	"log"
 	"net"
+	"time"
 
 	"github.com/RiV-chain/RiV-mesh/src/defaults"
 	"golang.org/x/sys/windows"
@@ -43,7 +43,7 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 				if i > 8 {
 					return err
 				} else {
-					time.Sleep(time.Duration(2 * i) * time.Second)
+					time.Sleep(time.Duration(2*i) * time.Second)
 				}
 			} else {
 				break

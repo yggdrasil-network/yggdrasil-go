@@ -94,8 +94,8 @@ func MaximumMTU() uint64 {
 func New(core *core.Core, log core.Logger, opts ...SetupOption) (*TunAdapter, error) {
 	tun := &TunAdapter{
 		core: core,
-		rwc: ipv6rwc.NewReadWriteCloser(core),
-		log: log,
+		rwc:  ipv6rwc.NewReadWriteCloser(core),
+		log:  log,
 	}
 	for _, opt := range opts {
 		tun._applyOption(opt)

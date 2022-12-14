@@ -54,8 +54,8 @@ fi
 chmod 755 /etc/mesh.conf
 if command -v systemctl >/dev/null; then
   systemctl daemon-reload || echo -n "daemon not reloaded!"
-  systemctl enable mesh || echo -n "systemctl enable failed!"
-  systemctl restart mesh || echo -n "systemctl restart failed!"
+  systemctl enable fvapp-mesh || echo -n "systemctl enable failed!"
+  systemctl restart fvapp-mesh || echo -n "systemctl restart failed!"
 fi
 
 exit 0

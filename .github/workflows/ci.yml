@@ -60,6 +60,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      - name: Install webkit2gtk-4.0
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libwebkit2gtk-4.0-dev
+          version: 1.0
+
       - name: Set up Go
         uses: actions/setup-go@v3
         with:

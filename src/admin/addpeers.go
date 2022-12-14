@@ -1,14 +1,12 @@
 package admin
 
 import (
-
 	"fmt"
-	
 )
 
 type AddPeersRequest struct {
-	Uri  string   `json:"uri"`
-	Intf string   `json:"intf"`
+	Uri  string `json:"uri"`
+	Intf string `json:"intf"`
 }
 
 type AddPeersResponse struct {
@@ -17,12 +15,12 @@ type AddPeersResponse struct {
 
 func (a *AdminSocket) addPeersHandler(req *AddPeersRequest, res *AddPeersResponse) error {
 	// Set sane defaults
-	err:=a.core.AddPeer(req.Uri, req.Intf)
+	err := a.core.AddPeer(req.Uri, req.Intf)
 	if err != nil {
-		fmt.Println("adding peer error %s", err)
+		fmt.Printf("adding peer error %s\n", err)
 		return err
 	} else {
-		fmt.Println("added peer %s", req.Uri)
+		fmt.Printf("added peer %s\n", req.Uri)
 		res.List = append(res.List, req.Uri)
 	}
 

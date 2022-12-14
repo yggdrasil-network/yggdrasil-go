@@ -11,7 +11,6 @@ import (
 
 	iwt "github.com/Arceliar/ironwood/types"
 	"github.com/Arceliar/phony"
-
 	//"github.com/RiV-chain/RiV-mesh/src/address"
 )
 
