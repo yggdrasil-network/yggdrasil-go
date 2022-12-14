@@ -287,7 +287,7 @@ func (a *AdminSocket) StartHttpServer(nc *config.NodeConfig) {
 		}
 		l, e := net.Listen("tcp4", u.Host)
 		if e != nil {
-			a.log.Errorln("%s\n", e)
+			a.log.Errorf("Http server start error: %s\n", e)
 		} else {
 			a.log.Infof("Http server is listening on %s and is supplied from %s %s\n", nc.HttpAddress, docFs, nc.WwwRoot)
 		}
