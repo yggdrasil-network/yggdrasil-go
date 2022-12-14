@@ -1,0 +1,73 @@
+.container-ip {
+  display: flex;
+  border: 1px solid #5d656d;
+  border-radius: 4px;
+  margin: 10px;
+}
+
+.push-right {
+  margin-left: auto;
+}
+
+.item {
+  padding: 10px;
+  /*border: 1px solid #5d656d;*/
+}
+
+.overflow-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.column {
+  max-height: 350px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.over {
+  overflow: auto;
+}
+
+.container {
+  position: relative;
+}
+
+.box {
+  width: 100%;
+  height: 100px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: rgba(0, 0, 0, 0.0);
+}
+
+.stack-top {
+  z-index: 9;
+  margin: 10px;
+  /* for demo purpose  */
+  background: rgba(255, 0, 0, 1);
+}
+
+table {
+  table-layout: fixed;
+}
+
+thead tr th:first-child,
+tbody tr td:first-child {
+  width: 50px;
+}
+
+th,
+td {
+  padding: 5px;
+}
+
+img {
+  display: block;
+}
+
+html, body { 
+  height: 100vh; 
+}
