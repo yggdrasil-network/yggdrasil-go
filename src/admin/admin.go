@@ -210,7 +210,7 @@ func (a *AdminSocket) SetupAdminHandlers() {
 		req := &AddPeersRequest{}
 		res := &AddPeersResponse{}
 
-		fmt.Println("json addpeers request %s", string(in[:]))
+		fmt.Printf("json addpeers request %s\n", string(in[:]))
 
 		if err := json.Unmarshal(in, &req); err != nil {
 			return nil, err
@@ -222,7 +222,10 @@ func (a *AdminSocket) SetupAdminHandlers() {
 		return res, nil
 	})
 	_ = a.AddHandler("removePeers", "Remove all peers from this node", []string{}, func(in json.RawMessage) (interface{}, error) {
-		a.core.RemovePeers()
+		err := a.core.RemovePeers()
+		if err != nil {
+			fmt.Printf("RemovePeers() error %s\n", err)
+		}
 		res := &AddPeersResponse{}
 		return res, nil
 	})
