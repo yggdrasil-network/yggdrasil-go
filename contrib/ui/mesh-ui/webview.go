@@ -119,10 +119,6 @@ func main() {
 		}
 	}
 
-	w.Bind("onLoad", func() {
-		log.Println("page loaded")
-		go run(w)
-	})
 	w.Bind("savePeers", func(peer_list string) {
 		//log.Println("peers saved ", peer_list)
 		var peers []string
@@ -176,14 +172,6 @@ func check(peer string) int64 {
 	return d.Milliseconds()
 }
 
-func run(w webview.WebView) {
-	get_self(w)
-	get_peers(w)
-	_ = time.AfterFunc(10*time.Second, func() {
-		run(w)
-	})
-}
-
 func add_peers(uri string) {
 	_, err := run_command_with_arg("addpeers", "uri="+uri)
 	if err != nil {
@@ -193,55 +181,6 @@ func add_peers(uri string) {
 
 func remove_peers() {
 	run_command("removepeers")
-}
-
-func get_self(w webview.WebView) {
-
-	res := &admin.GetSelfResponse{}
-	out := run_command("getSelf")
-	if err := json.Unmarshal(out, &res); err != nil {
-		go setFieldValue(w, "ipv6", err.Error())
-		return
-	}
-	//found ipv6
-	fmt.Printf("IPv6: %s\n", res.IPAddress)
-	go setFieldValue(w, "ipv6", res.IPAddress)
-	go setFieldValue(w, "pub_key", res.PublicKey)
-	go setFieldValue(w, "priv_key", res.PrivateKey)
-	go setFieldValue(w, "version", fmt.Sprintf("v%v/%v", res.BuildVersion, uiVersion))
-	//found subnet
-	fmt.Printf("Subnet: %s\n", res.Subnet)
-	go setFieldValue(w, "subnet", res.Subnet)
-	out = run_command("getPeers")
-	//go setFieldValue(w, "peers", string(out))
-}
-
-func get_peers(w webview.WebView) {
-
-	res := &admin.GetPeersResponse{}
-	out := run_command("getPeers")
-	if err := json.Unmarshal(out, &res); err != nil {
-		go setFieldValue(w, "peers", err.Error())
-		return
-	}
-
-	var m []string
-	for _, s := range res.Peers {
-		m = append(m, s.Remote)
-	}
-	for k := range m {
-		// Loop
-		fmt.Println(k)
-	}
-	inner_html := strings.Join(m[:], "<br>")
-	strings.Join(m[:], "<br>")
-	go setFieldValue(w, "peers", inner_html)
-}
-
-func setFieldValue(p webview.WebView, id string, value string) {
-	p.Dispatch(func() {
-		p.Eval("setFieldValue('" + id + "','" + value + "');")
-	})
 }
 
 func setPingValue(p webview.WebView, peer string, value string) {

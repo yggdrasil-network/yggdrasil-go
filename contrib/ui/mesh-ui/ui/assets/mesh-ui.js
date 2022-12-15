@@ -1,15 +1,6 @@
 var $ = id => document.getElementById(id)
 var $$ = clazz => document.getElementsByClassName(clazz)
 
-function setFieldValue(id, value) {
-  //console.log(`setFieldValue(${id}, ${value})`);
-  if (id === 'peers') {
-    return;
-  }
-  var field = $(id);
-  field.innerHTML = value;
-}
-
 function setPingValue(peer, value) {
   var cellText;
   var peerCell = $(peer);
@@ -294,6 +285,23 @@ ui.lookupCountryCodeByAddress = (address) => {
         return ui._allPeers[c][peer].countryCode;
 }
 
+ui.getSelfInfo = () =>
+  fetch('api/getself')
+    .then((response) => response.json())
+
+ui.updateSelfInfo = () =>
+  ui.getSelfInfo()
+    .then((info) => {
+      $("ipv6").innerText = info.address;
+      $("pub_key").innerText = info.key;
+      $("priv_key").innerText = info.private_key;
+      $("ipv6").innerText = info.address;
+      $("version").innerText = info.build_version;
+    }).catch((error) => {
+      $("ipv6").innerText = error.message;
+    });
+
+
 function main() {
 
   fetch('country.json')
@@ -302,8 +310,12 @@ function main() {
 
   window.addEventListener("load", () => {
     $("showAllPeersBtn").addEventListener("click", ui.showAllPeers);
+
     ui.getAllPeers().then(() => ui.updateConnectedPeers());
     setInterval(ui.updateConnectedPeers, 5000);
+
+    ui.updateSelfInfo();
+    setInterval(ui.updateSelfInfo, 5000);
   });
 }
 
