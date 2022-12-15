@@ -303,7 +303,7 @@ function main() {
   window.addEventListener("load", () => {
     $("showAllPeersBtn").addEventListener("click", ui.showAllPeers);
     ui.getAllPeers().then(() => ui.updateConnectedPeers());
-    //setInterval(ui.updateConnectedPeers, 5000);
+    setInterval(ui.updateConnectedPeers, 5000);
   });
 }
 
