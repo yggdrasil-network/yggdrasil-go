@@ -71,3 +71,11 @@ img {
 html, body { 
   height: 100vh; 
 }
+
+td.fi {
+  height: 30px;
+}
+
+.peer-connected-fl {
+  width: 3em;
+}

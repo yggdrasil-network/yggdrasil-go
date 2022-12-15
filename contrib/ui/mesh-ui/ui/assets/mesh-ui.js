@@ -1,26 +1,28 @@
+var $ = id => document.getElementById(id)
+var $$ = clazz => document.getElementsByClassName(clazz)
+
 function setFieldValue(id, value) {
   //console.log(`setFieldValue(${id}, ${value})`);
-  if(id === 'peers') {
-    const reg =/%[^\]]*/gm;
-    value = value.replace(reg,"");
+  if (id === 'peers') {
+    return;
   }
-  var field = document.getElementById(id);
+  var field = $(id);
   field.innerHTML = value;
 }
 
 function setPingValue(peer, value) {
   var cellText;
-  var peerCell = document.getElementById(peer);
-  var peerTable = document.getElementById("peer_list");
+  var peerCell = $(peer);
+  var peerTable = $("peer_list");
   if (value === "-1") {
-    var peerAddress = document.getElementById("label_" + peer);
+    var peerAddress = $("label_" + peer);
     peerAddress.style.color = "rgba(250,250,250,.5)";
   } else {
 
     cellText = document.createTextNode(value);
     peerCell.appendChild(cellText);
 
-    var peerCellTime = document.getElementById("time_" + peer);
+    var peerCellTime = $("time_" + peer);
     var cellTextTime = document.createTextNode("ms");
     peerCellTime.appendChild(cellTextTime);
   }
@@ -42,7 +44,6 @@ function moveRowToOrderPos(table, col, row) {
     tb.deleteRow(row.rowIndex);
     tb.insertBefore(row, tr[i]);
   }
-
 }
 
 function openTab(element, tabName) {
@@ -50,19 +51,19 @@ function openTab(element, tabName) {
   var i, tabContent, tabLinks;
 
   // Get all elements with class="content" and hide them
-  tabContent = document.getElementsByClassName("tab here");
+  tabContent = $$("tab here");
   for (i = 0; i < tabContent.length; i++) {
     tabContent[i].className = "tab here is-hidden";
   }
 
   // Get all elements with class="tab" and remove the class "is-active"
-  tabLinks = document.getElementsByClassName("tab is-active");
+  tabLinks = $$("tab is-active");
   for (i = 0; i < tabLinks.length; i++) {
     tabLinks[i].className = "tab";
   }
 
   // Show the current tab, and add an "is-active" class to the button that opened the tab
-  document.getElementById(tabName).className = "tab here";
+  $(tabName).className = "tab here";
   element.parentElement.className = "tab is-active";
   //refreshRecordsList();
 }
@@ -105,12 +106,12 @@ function copy2clipboard(text) {
 }
 
 function showInfo(text) {
-  var info = document.getElementById("notification_info");
-  var message = document.getElementById("info_text");
+  var info = $("notification_info");
+  var message = $("info_text");
   message.innerHTML = text;
 
   info.className = "notification is-primary";
-  var button = document.getElementById("info_close");
+  var button = $("info_close");
   button.onclick = function () {
     message.value = "";
     info.className = "notification is-primary is-hidden";
@@ -119,24 +120,24 @@ function showInfo(text) {
 }
 
 function showWindow(text) {
-  var info = document.getElementById("notification_window");
-  var message = document.getElementById("info_window");
+  var info = $("notification_window");
+  var message = $("info_window");
   message.innerHTML = text;
 
   info.classList.remove("is-hidden");
-  var button_info_close = document.getElementById("info_win_close");
+  var button_info_close = $("info_win_close");
   button_info_close.onclick = function () {
     message.value = "";
     info.classList.add("is-hidden");
-    //document.getElementById("peer_list").remove();
+    //$("peer_list").remove();
   };
-  var button_window_close = document.getElementById("window_close");
+  var button_window_close = $("window_close");
   button_window_close.onclick = function () {
     message.value = "";
     info.classList.add("is-hidden");
-    //document.getElementById("peer_list").remove();
+    //$("peer_list").remove();
   };
-  var button_window_save = document.getElementById("window_save");
+  var button_window_save = $("window_save");
   button_window_save.onclick = function () {
     message.value = "";
     info.classList.add("is-hidden");
@@ -151,20 +152,8 @@ function showWindow(text) {
       }
     }
     savePeers(JSON.stringify(peer_list));
-    //document.getElementById("peer_list").remove();
+    //$("peer_list").remove();
   };
-}
-
-function getPeerList() {
-  var xhr = new XMLHttpRequest();
-  xhr.open("GET", 'https://map.rivchain.org/rest/peers.json', false);
-  xhr.send(null);
-  if (xhr.status === 200) {
-    const peerList = JSON.parse(xhr.responseText);
-    var peers = add_table(peerList);
-    //start peers test
-    ping(JSON.stringify(peers));
-  }
 }
 
 function add_table(peerList) {
@@ -182,15 +171,13 @@ function add_table(peerList) {
   // creating all cells
   for (var c in peerList) {
     let counter = 1;
-    flag = document.getElementById("flag_" + c.slice(0, -3).replace(/ /g, "_"));
-    for (peer in peerList[c]) {
+    for (let peer in peerList[c]) {
       peers.push(peer);
       // creates a table row
       var row = document.createElement("tr");
       row.className = "is-hidden";
       var imgElement = document.createElement("td");
-      clone = flag.cloneNode(false);
-      imgElement.appendChild(clone);
+      imgElement.className = "fi fi-" + ui.lookupCountryCodeByAddress(peer);
       var peerAddress = document.createElement("td");
       var cellText = document.createTextNode(peer);
       peerAddress.appendChild(cellText);
@@ -227,10 +214,97 @@ function togglePrivKeyVisibility() {
   if (this.classList.contains("fa-eye")) {
     this.classList.remove("fa-eye");
     this.classList.add("fa-eye-slash");
-    document.getElementById("priv_key_visible").innerHTML = document.getElementById("priv_key").innerHTML;
+    $("priv_key_visible").innerHTML = $("priv_key").innerHTML;
   } else {
     this.classList.remove("fa-eye-slash");
     this.classList.add("fa-eye");
-    document.getElementById("priv_key_visible").innerHTML = "••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••";
+    $("priv_key_visible").innerHTML = "••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••";
   }
 }
+
+
+var ui = {
+  countries: []
+};
+
+ui.getAllPeers = () => {
+  if(! ("_allPeersPromise" in ui)) {
+    ui._allPeersPromise = new Promise((resolve, reject) => {
+        if("_allPeers" in ui) resolve(ui._allPeers);
+        else fetch('https://map.rivchain.org/rest/peers.json')
+          .then((response) => response.json())
+          .then((data) => {
+            // add country code to each peer
+            for (var c in data) {
+              let country = c.slice(0, -3);
+              let filtered = ui.countries.find((entry) => entry.name.toLowerCase() == country);
+              //let flagFile = filtered ? filtered["flag_4x3"] : "";
+              let flagCode = filtered ? filtered["code"] : "";
+              for (let peer in data[c]) {
+                data[c][peer].countryCode = flagCode;
+              }
+            }            
+            ui._allPeers = data;
+            resolve(ui._allPeers);          
+          })
+          .catch(reject);
+    }).finally(() => delete ui._allPeersPromise);
+  }
+  return ui._allPeersPromise;
+};
+
+ui.showAllPeers = () =>
+  ui.getAllPeers()
+    .then((peerList) => {
+      var peers = add_table(peerList);
+      //start peers test
+      ping(JSON.stringify(peers));
+    }).catch((error) => {
+      console.error(error);
+    });
+
+
+ui.getConnectedPeers = () =>
+  fetch('api/getpeers')
+    .then((response) => response.json())
+
+ui.updateConnectedPeers = () =>
+  ui.getConnectedPeers()
+    .then((cont) => {
+      $("peers").innerText = "";
+      const regexStrip = /%[^\]]*/gm;
+      const regexMulticast  = /:\/\/\[fe80::/;
+      cont.peers.forEach(peer => {
+        let row = $("peers").appendChild(document.createElement('div'));
+        let flag =  row.appendChild(document.createElement("span"));
+        if(peer["remote"].match(regexMulticast))
+          flag.className = "fa fa-thin fa-share-nodes peer-connected-fl";
+        else
+          flag.className = "fi fi-" + ui.lookupCountryCodeByAddress(peer["remote"]) + " peer-connected-fl";
+        row.append(peer["remote"].replace(regexStrip, ""));
+      });
+    }).catch((error) => {
+      $("peers").innerText = error.message;
+    });
+
+ui.lookupCountryCodeByAddress = (address) => {
+  for (var c in ui._allPeers)
+    for (let peer in ui._allPeers[c])
+      if(peer == address) 
+        return ui._allPeers[c][peer].countryCode;
+}
+
+function main() {
+
+  fetch('country.json')
+    .then((response) => response.json())
+    .then((data) => { ui.countries = data });
+
+  window.addEventListener("load", () => {
+    $("showAllPeersBtn").addEventListener("click", ui.showAllPeers);
+    ui.getAllPeers().then(() => ui.updateConnectedPeers());
+    //setInterval(ui.updateConnectedPeers, 5000);
+  });
+}
+
+main();
