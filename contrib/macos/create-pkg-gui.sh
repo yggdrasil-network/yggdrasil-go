@@ -54,7 +54,7 @@ cp contrib/macos/mesh.plist pkgbuild/root/Library/LaunchDaemons
 cat > pkgbuild/root/Applications/RiV-mesh.app/Contents/MacOS/open-mesh-ui << EOF
 #!/usr/bin/env bash
 
-exec /Applications/RiV-mesh.app/Contents/MacOS/mesh-ui http://localhost:19019 1>/tmp/mesh-ui.stdout.log 2>/tmp/mesh-ui.stderr.log
+exec /Applications/RiV-mesh.app/Contents/MacOS/mesh-ui 1>/tmp/mesh-ui.stdout.log 2>/tmp/mesh-ui.stderr.log
 EOF
 
 # Create the postinstall script

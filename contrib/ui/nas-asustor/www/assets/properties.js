@@ -13,7 +13,7 @@ var ed = {
 		var d = new Date();
 		d.setTime(d.getTime() + (10 * 60 * 1000));
 		document.cookie = "access_key=" + btoa( "user=" + encodeURIComponent($('#nasInputUser').val()) + ";pwd=" + encodeURIComponent($('#nasInputPassword').val()))+ "; expires=" + d.toUTCString() + "; path=/";
-		$.ajax({url: "api/getself"}).done(function () {
+		$.ajax({url: "api/self"}).done(function () {
 			window.location.reload();
 		}).fail(function () {
 			ed.nasLogoutCall();

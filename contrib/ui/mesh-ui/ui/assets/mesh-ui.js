@@ -120,13 +120,13 @@ function showWindow(text) {
   button_info_close.onclick = function () {
     message.value = "";
     info.classList.add("is-hidden");
-    //$("peer_list").remove();
+    $("peer_list").remove();
   };
   var button_window_close = $("window_close");
   button_window_close.onclick = function () {
     message.value = "";
     info.classList.add("is-hidden");
-    //$("peer_list").remove();
+    $("peer_list").remove();
   };
   var button_window_save = $("window_save");
   button_window_save.onclick = function () {
@@ -142,8 +142,18 @@ function showWindow(text) {
         peer_list.push(peerURL);
       }
     }
-    savePeers(JSON.stringify(peer_list));
-    //$("peer_list").remove();
+    fetch('api/peers', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Riv-Save-Config': 'true',
+        },
+        body: JSON.stringify({"peers": peer_list}),
+      })
+      .catch((error) => {
+        console.error('Error:', error);
+      });    
+    $("peer_list").remove();
   };
 }
 
@@ -249,32 +259,44 @@ ui.showAllPeers = () =>
     .then((peerList) => {
       var peers = add_table(peerList);
       //start peers test
-      ping(JSON.stringify(peers));
+      fetch('api/ping', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(peers)
+      })
+      .catch((error) => {
+        console.error('Error:', error);
+      });    
     }).catch((error) => {
       console.error(error);
     });
 
 
 ui.getConnectedPeers = () =>
-  fetch('api/getpeers')
+  fetch('api/peers')
     .then((response) => response.json())
+
+ui.updateConnectedPeersHandler = (cont) => {
+  $("peers").innerText = "";
+  const regexStrip = /%[^\]]*/gm;
+  const regexMulticast  = /:\/\/\[fe80::/;
+  cont.peers.forEach(peer => {
+    let row = $("peers").appendChild(document.createElement('div'));
+    let flag =  row.appendChild(document.createElement("span"));
+    if(peer["remote"].match(regexMulticast))
+      flag.className = "fa fa-thin fa-share-nodes peer-connected-fl";
+    else
+      flag.className = "fi fi-" + ui.lookupCountryCodeByAddress(peer["remote"]) + " peer-connected-fl";
+    row.append(peer["remote"].replace(regexStrip, ""));
+  });
+}
 
 ui.updateConnectedPeers = () =>
   ui.getConnectedPeers()
-    .then((cont) => {
-      $("peers").innerText = "";
-      const regexStrip = /%[^\]]*/gm;
-      const regexMulticast  = /:\/\/\[fe80::/;
-      cont.peers.forEach(peer => {
-        let row = $("peers").appendChild(document.createElement('div'));
-        let flag =  row.appendChild(document.createElement("span"));
-        if(peer["remote"].match(regexMulticast))
-          flag.className = "fa fa-thin fa-share-nodes peer-connected-fl";
-        else
-          flag.className = "fi fi-" + ui.lookupCountryCodeByAddress(peer["remote"]) + " peer-connected-fl";
-        row.append(peer["remote"].replace(regexStrip, ""));
-      });
-    }).catch((error) => {
+    .then(ui.updateConnectedPeersHandler)
+    .catch((error) => {
       $("peers").innerText = error.message;
     });
 
@@ -286,7 +308,7 @@ ui.lookupCountryCodeByAddress = (address) => {
 }
 
 ui.getSelfInfo = () =>
-  fetch('api/getself')
+  fetch('api/self')
     .then((response) => response.json())
 
 ui.updateSelfInfo = () =>
@@ -301,6 +323,7 @@ ui.updateSelfInfo = () =>
       $("ipv6").innerText = error.message;
     });
 
+ui.sse = new EventSource('/api/sse');
 
 function main() {
 
@@ -315,7 +338,17 @@ function main() {
     setInterval(ui.updateConnectedPeers, 5000);
 
     ui.updateSelfInfo();
-    setInterval(ui.updateSelfInfo, 5000);
+    //setInterval(ui.updateSelfInfo, 5000);
+
+    ui.sse.addEventListener("ping", (e) => {
+      let data = JSON.parse(e.data);
+      setPingValue(data.peer, data.value);
+    })
+    
+    ui.sse.addEventListener("peers", (e) => {
+      ui.updateConnectedPeersHandler(JSON.parse(e.data));
+    })
+    
   });
 }
 

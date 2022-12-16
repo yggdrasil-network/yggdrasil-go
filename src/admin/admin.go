@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"sort"
+	"strconv"
 
 	"archive/zip"
 	"strings"
@@ -22,13 +23,20 @@ import (
 
 // TODO: Add authentication
 
+type ServerEvent struct {
+	event string
+	data  string
+}
+
 type AdminSocket struct {
-	core     *core.Core
-	log      core.Logger
-	listener net.Listener
-	handlers map[string]handler
-	done     chan struct{}
-	config   struct {
+	core              *core.Core
+	log               core.Logger
+	listener          net.Listener
+	handlers          map[string]handler
+	done              chan struct{}
+	serverEvents      chan ServerEvent
+	serverEventNextId int
+	config            struct {
 		listenaddr ListenAddress
 	}
 }
@@ -103,6 +111,7 @@ func New(c *core.Core, log core.Logger, opts ...SetupOption) (*AdminSocket, erro
 		return res, nil
 	})
 	a.done = make(chan struct{})
+	a.serverEvents = make(chan ServerEvent)
 	go a.listen()
 	return a, a.core.SetAdmin(a)
 }
@@ -247,33 +256,139 @@ func (a *AdminSocket) StartHttpServer(nc *config.NodeConfig) {
 		http.HandleFunc("/api", func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "Following methods are allowed: getself, getpeers. litening"+u.Host)
 		})
-		http.HandleFunc("/api/getself", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Add("Content-Type", "application/json")
-			req := &GetSelfRequest{}
-			res := &GetSelfResponse{}
-			if err := a.getSelfHandler(req, res); err != nil {
-				http.Error(w, err.Error(), 503)
+		http.HandleFunc("/api/self", func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				w.Header().Add("Content-Type", "application/json")
+				req := &GetSelfRequest{}
+				res := &GetSelfResponse{}
+				if err := a.getSelfHandler(req, res); err != nil {
+					http.Error(w, err.Error(), 503)
+				}
+				b, err := json.Marshal(res)
+				if err != nil {
+					http.Error(w, err.Error(), 503)
+				}
+				fmt.Fprint(w, string(b[:]))
+			default:
+				http.Error(w, "Method Not Allowed", 405)
 			}
-			b, err := json.Marshal(res)
-			if err != nil {
-				http.Error(w, err.Error(), 503)
-			}
-			fmt.Fprint(w, string(b[:]))
 		})
-		http.HandleFunc("/api/getpeers", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Add("Content-Type", "application/json")
-			req := &GetPeersRequest{}
-			res := &GetPeersResponse{}
+		http.HandleFunc("/api/peers", func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				w.Header().Add("Content-Type", "application/json")
+				req := &GetPeersRequest{}
+				res := &GetPeersResponse{}
 
-			if err := a.getPeersHandler(req, res); err != nil {
-				http.Error(w, err.Error(), 503)
+				if err := a.getPeersHandler(req, res); err != nil {
+					http.Error(w, err.Error(), 503)
+				}
+				b, err := json.Marshal(res)
+				if err != nil {
+					http.Error(w, err.Error(), 503)
+				}
+				fmt.Fprint(w, string(b[:]))
+			case "POST":
+				req := &AddPeersRequest{}
+				res := &AddPeersResponse{}
+
+				err := json.NewDecoder(r.Body).Decode(&req)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+
+				if err := a.addPeersHandler(req, res); err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				b, err := json.Marshal(res)
+				if err != nil {
+					http.Error(w, err.Error(), 503)
+				}
+				w.Header().Add("Content-Type", "application/json")
+				fmt.Fprint(w, string(b[:]))
+			case "PUT":
+				err := a.core.RemovePeers()
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+
+				req := &AddPeersRequest{}
+				res := &AddPeersResponse{}
+
+				err = json.NewDecoder(r.Body).Decode(&req)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+
+				if err := a.addPeersHandler(req, res); err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				b, err := json.Marshal(res)
+				if err != nil {
+					http.Error(w, err.Error(), 503)
+				}
+				w.Header().Add("Content-Type", "application/json")
+				fmt.Fprint(w, string(b[:]))
+				//TODO save peers
+				//				saveHeaders := r.Header["Riv-Save-Config"]
+				//				if len(saveHeaders) > 0 && saveHeaders[0] == "true" {
+				//					nc.Peers =
+				//				}
+			case "DELETE":
+				err := a.core.RemovePeers()
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+				http.Error(w, "No content", http.StatusNoContent)
+			default:
+				http.Error(w, "Method Not Allowed", 405)
 			}
-			b, err := json.Marshal(res)
-			if err != nil {
-				http.Error(w, err.Error(), 503)
-			}
-			fmt.Fprint(w, string(b[:]))
 		})
+		http.HandleFunc("/api/ping", func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "POST":
+				peer_list := []string{}
+
+				err := json.NewDecoder(r.Body).Decode(&peer_list)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+
+				go a.ping(peer_list)
+				http.Error(w, "Accepted", http.StatusAccepted)
+			default:
+				http.Error(w, "Method Not Allowed", 405)
+			}
+		})
+
+		http.HandleFunc("/api/sse", func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				w.Header().Add("Content-Type", "text/event-stream")
+			Loop:
+				for {
+					select {
+					case v := <-a.serverEvents:
+						fmt.Fprintln(w, "id:", a.serverEventNextId)
+						fmt.Fprintln(w, "event:", v.event)
+						fmt.Fprintln(w, "data:", v.data)
+						fmt.Fprintln(w) //end of event
+						a.serverEventNextId += 1
+					default:
+						break Loop
+					}
+				}
+			default:
+				http.Error(w, "Method Not Allowed", 405)
+			}
+		})
+
 		var docFs = ""
 		pakReader, err := zip.OpenReader(nc.WwwRoot)
 		if err == nil {
@@ -298,6 +413,29 @@ func (a *AdminSocket) StartHttpServer(nc *config.NodeConfig) {
 			a.log.Errorln(http.Serve(l, nil))
 		}()
 	}
+}
+
+func (a *AdminSocket) ping(peers []string) {
+	for _, u := range peers {
+		go func(u string) {
+			data, _ := json.Marshal(map[string]string{"peer": u, "value": strconv.FormatInt(check(u), 10)})
+			a.serverEvents <- ServerEvent{event: "ping", data: string(data)}
+		}(u)
+	}
+}
+
+func check(peer string) int64 {
+	u, e := url.Parse(peer)
+	if e != nil {
+		return -1
+	}
+	t := time.Now()
+	_, err := net.DialTimeout("tcp", u.Host, 5*time.Second)
+	if err != nil {
+		return -1
+	}
+	d := time.Since(t)
+	return d.Milliseconds()
 }
 
 // IsStarted returns true if the module has been started.
