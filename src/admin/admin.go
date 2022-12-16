@@ -19,6 +19,7 @@ import (
 
 	"github.com/RiV-chain/RiV-mesh/src/config"
 	"github.com/RiV-chain/RiV-mesh/src/core"
+	"github.com/RiV-chain/RiV-mesh/src/defaults"
 )
 
 // TODO: Add authentication
@@ -246,7 +247,7 @@ func (a *AdminSocket) SetupAdminHandlers() {
 }
 
 // Start runs http server
-func (a *AdminSocket) StartHttpServer(nc *config.NodeConfig) {
+func (a *AdminSocket) StartHttpServer(configFn string, nc *config.NodeConfig) {
 	if nc.HttpAddress != "none" && nc.HttpAddress != "" && nc.WwwRoot != "none" && nc.WwwRoot != "" {
 		u, err := url.Parse(nc.HttpAddress)
 		if err != nil {
@@ -275,6 +276,46 @@ func (a *AdminSocket) StartHttpServer(nc *config.NodeConfig) {
 			}
 		})
 		http.HandleFunc("/api/peers", func(w http.ResponseWriter, r *http.Request) {
+			var handleDelete = func() error {
+				err := a.core.RemovePeers()
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+				}
+				return err
+			}
+			var handlePost = func() error {
+				var peers []string
+				err := json.NewDecoder(r.Body).Decode(&peers)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return err
+				}
+
+				for _, peer := range peers {
+					if err := a.core.AddPeer(peer, ""); err != nil {
+						http.Error(w, err.Error(), http.StatusBadRequest)
+						return err
+					}
+				}
+
+				if len(configFn) > 0 {
+					saveHeaders := r.Header["Riv-Save-Config"]
+					if len(saveHeaders) > 0 && saveHeaders[0] == "true" {
+						cfg, err := defaults.ReadConfig(configFn)
+						if err == nil {
+							cfg.Peers = peers
+							err := defaults.WriteConfig(configFn, cfg)
+							if err != nil {
+								a.log.Errorln("Config file read error:", err)
+							}
+						} else {
+							a.log.Errorln("Config file read error:", err)
+						}
+					}
+				}
+				return nil
+			}
+
 			switch r.Method {
 			case "GET":
 				w.Header().Add("Content-Type", "application/json")
@@ -290,61 +331,17 @@ func (a *AdminSocket) StartHttpServer(nc *config.NodeConfig) {
 				}
 				fmt.Fprint(w, string(b[:]))
 			case "POST":
-				req := &AddPeersRequest{}
-				res := &AddPeersResponse{}
-
-				err := json.NewDecoder(r.Body).Decode(&req)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusBadRequest)
-					return
-				}
-
-				if err := a.addPeersHandler(req, res); err != nil {
-					http.Error(w, err.Error(), http.StatusBadRequest)
-					return
-				}
-				b, err := json.Marshal(res)
-				if err != nil {
-					http.Error(w, err.Error(), 503)
-				}
-				w.Header().Add("Content-Type", "application/json")
-				fmt.Fprint(w, string(b[:]))
+				handlePost()
 			case "PUT":
-				err := a.core.RemovePeers()
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
+				if handleDelete() == nil {
+					if handlePost() == nil {
+						http.Error(w, "No content", http.StatusNoContent)
+					}
 				}
-
-				req := &AddPeersRequest{}
-				res := &AddPeersResponse{}
-
-				err = json.NewDecoder(r.Body).Decode(&req)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusBadRequest)
-					return
-				}
-
-				if err := a.addPeersHandler(req, res); err != nil {
-					http.Error(w, err.Error(), http.StatusBadRequest)
-					return
-				}
-				b, err := json.Marshal(res)
-				if err != nil {
-					http.Error(w, err.Error(), 503)
-				}
-				w.Header().Add("Content-Type", "application/json")
-				fmt.Fprint(w, string(b[:]))
-				//TODO save peers
-				//				saveHeaders := r.Header["Riv-Save-Config"]
-				//				if len(saveHeaders) > 0 && saveHeaders[0] == "true" {
-				//					nc.Peers =
-				//				}
 			case "DELETE":
-				err := a.core.RemovePeers()
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
+				if handleDelete() == nil {
+					http.Error(w, "No content", http.StatusNoContent)
 				}
-				http.Error(w, "No content", http.StatusNoContent)
 			default:
 				http.Error(w, "Method Not Allowed", 405)
 			}

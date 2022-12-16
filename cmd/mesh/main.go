@@ -1,14 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -17,13 +15,10 @@ import (
 	"sync"
 	"syscall"
 
-	"golang.org/x/text/encoding/unicode"
-
 	"github.com/gologme/log"
 	gsyslog "github.com/hashicorp/go-syslog"
 	"github.com/hjson/hjson-go"
 	"github.com/kardianos/minwinsvc"
-	"github.com/mitchellh/mapstructure"
 
 	//"github.com/RiV-chain/RiV-mesh/src/address"
 	"github.com/RiV-chain/RiV-mesh/src/admin"
@@ -42,77 +37,6 @@ type node struct {
 	tun       *tun.TunAdapter
 	multicast *multicast.Multicast
 	admin     *admin.AdminSocket
-}
-
-func readConfig(log *log.Logger, useconf bool, useconffile string, normaliseconf bool) *config.NodeConfig {
-	// Use a configuration file. If -useconf, the configuration will be read
-	// from stdin. If -useconffile, the configuration will be read from the
-	// filesystem.
-	var conf []byte
-	var err error
-	if useconffile != "" {
-		// Read the file from the filesystem
-		conf, err = os.ReadFile(useconffile)
-	} else {
-		// Read the file from stdin.
-		conf, err = io.ReadAll(os.Stdin)
-	}
-	if err != nil {
-		panic(err)
-	}
-	// If there's a byte order mark - which Windows 10 is now incredibly fond of
-	// throwing everywhere when it's converting things into UTF-16 for the hell
-	// of it - remove it and decode back down into UTF-8. This is necessary
-	// because hjson doesn't know what to do with UTF-16 and will panic
-	if bytes.Equal(conf[0:2], []byte{0xFF, 0xFE}) ||
-		bytes.Equal(conf[0:2], []byte{0xFE, 0xFF}) {
-		utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
-		decoder := utf.NewDecoder()
-		conf, err = decoder.Bytes(conf)
-		if err != nil {
-			panic(err)
-		}
-	}
-	// Generate a new configuration - this gives us a set of sane defaults -
-	// then parse the configuration we loaded above on top of it. The effect
-	// of this is that any configuration item that is missing from the provided
-	// configuration will use a sane default.
-	cfg := defaults.GenerateConfig()
-	var dat map[string]interface{}
-	if err := hjson.Unmarshal(conf, &dat); err != nil {
-		panic(err)
-	}
-	// Sanitise the config
-	confJson, err := json.Marshal(dat)
-	if err != nil {
-		panic(err)
-	}
-	if err := json.Unmarshal(confJson, &cfg); err != nil {
-		panic(err)
-	}
-	// Overlay our newly mapped configuration onto the autoconf node config that
-	// we generated above.
-	if err = mapstructure.Decode(dat, &cfg); err != nil {
-		panic(err)
-	}
-	return cfg
-}
-
-// Generates a new configuration and returns it in HJSON format. This is used
-// with -genconf.
-func doGenconf(isjson bool) string {
-	cfg := defaults.GenerateConfig()
-	var bs []byte
-	var err error
-	if isjson {
-		bs, err = json.MarshalIndent(cfg, "", "  ")
-	} else {
-		bs, err = hjson.Marshal(cfg)
-	}
-	if err != nil {
-		panic(err)
-	}
-	return string(bs)
 }
 
 func setLogLevel(loglevel string, logger *log.Logger) {
@@ -229,7 +153,10 @@ func run(args yggArgs, ctx context.Context) {
 		cfg = defaults.GenerateConfig()
 	case args.useconffile != "" || args.useconf:
 		// Read the configuration from either stdin or from the filesystem
-		cfg = readConfig(logger, args.useconf, args.useconffile, args.normaliseconf)
+		cfg, err = defaults.ReadConfig(args.useconffile)
+		if err != nil {
+			panic("Configuration file load error: " + err.Error())
+		}
 		// If the -normaliseconf option was specified then remarshal the above
 		// configuration and print it back to stdout. This lets the user update
 		// their configuration file with newly mapped names (like above) or to
@@ -249,7 +176,7 @@ func run(args yggArgs, ctx context.Context) {
 		}
 	case args.genconf:
 		// Generate a new configuration and print it to stdout.
-		fmt.Println(doGenconf(args.confjson))
+		fmt.Println(defaults.Genconf(args.confjson))
 		return
 	default:
 		// No flags were provided, therefore print the list of flags to stdout.
@@ -391,7 +318,7 @@ func run(args yggArgs, ctx context.Context) {
 	logger.Infof("Your IPv6 address is %s", address.String())
 	logger.Infof("Your IPv6 subnet is %s", subnet.String())
 	// Start HTTP server
-	n.admin.StartHttpServer(cfg)
+	n.admin.StartHttpServer(args.useconffile, cfg)
 	// Block until we are told to shut down.
 	<-ctx.Done()
 

@@ -4,6 +4,7 @@ var $$ = clazz => document.getElementsByClassName(clazz)
 function setPingValue(peer, value) {
   var cellText;
   var peerCell = $(peer);
+  if (!peerCell) return;
   var peerTable = $("peer_list");
   if (value === "-1") {
     var peerAddress = $("label_" + peer);
@@ -148,7 +149,7 @@ function showWindow(text) {
           'Content-Type': 'application/json',
           'Riv-Save-Config': 'true',
         },
-        body: JSON.stringify({"peers": peer_list}),
+        body: JSON.stringify(peer_list),
       })
       .catch((error) => {
         console.error('Error:', error);
@@ -315,6 +316,7 @@ ui.updateSelfInfo = () =>
   ui.getSelfInfo()
     .then((info) => {
       $("ipv6").innerText = info.address;
+      $("subnet").innerText = info.subnet;
       $("pub_key").innerText = info.key;
       $("priv_key").innerText = info.private_key;
       $("ipv6").innerText = info.address;

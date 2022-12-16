@@ -68,8 +68,13 @@ img {
   display: block;
 }
 
-html, body { 
-  height: 100vh; 
+html, body {
+  height: 100vh;
+}
+
+body {
+  max-width: 690px;
+  margin: auto;
 }
 
 td.fi {
