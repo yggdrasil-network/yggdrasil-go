@@ -17,6 +17,7 @@
 .overflow-ellipsis {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .column {
@@ -82,5 +83,6 @@ td.fi {
 }
 
 .peer-connected-fl {
-  width: 3em;
+  width: 2em;
+  background-position: 0;
 }

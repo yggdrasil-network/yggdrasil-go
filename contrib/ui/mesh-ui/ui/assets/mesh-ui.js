@@ -287,6 +287,7 @@ ui.updateConnectedPeersHandler = (cont) => {
                            .sort((a, b) => a.isMulticast > b.isMulticast);
   sorted.forEach(peer => {
     let row = $("peers").appendChild(document.createElement('div'));
+    row.className = "overflow-ellipsis"
     let flag =  row.appendChild(document.createElement("span"));
     if(peer.isMulticast)
       flag.className = "fa fa-thin fa-share-nodes peer-connected-fl";
