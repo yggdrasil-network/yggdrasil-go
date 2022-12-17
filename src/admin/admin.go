@@ -325,7 +325,7 @@ func (a *AdminSocket) StartHttpServer(configFn string, nc *config.NodeConfig) {
 				if err := a.getPeersHandler(req, res); err != nil {
 					http.Error(w, err.Error(), 503)
 				}
-				b, err := json.Marshal(res)
+				b, err := json.Marshal(res.Peers)
 				if err != nil {
 					http.Error(w, err.Error(), 503)
 				}

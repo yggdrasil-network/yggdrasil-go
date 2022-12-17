@@ -279,12 +279,12 @@ ui.getConnectedPeers = () =>
   fetch('api/peers')
     .then((response) => response.json())
 
-ui.updateConnectedPeersHandler = (cont) => {
+ui.updateConnectedPeersHandler = (peers) => {
   $("peers").innerText = "";
   const regexStrip = /%[^\]]*/gm;
   const regexMulticast  = /:\/\/\[fe80::/;
-  const sorted = cont.peers.map(peer => ({"url": peer["remote"], "isMulticast": peer["remote"].match(regexMulticast)}))
-                           .sort((a, b) => a.isMulticast > b.isMulticast);
+  const sorted = peers.map(peer => ({"url": peer["remote"], "isMulticast": peer["remote"].match(regexMulticast)}))
+                      .sort((a, b) => a.isMulticast > b.isMulticast);
   sorted.forEach(peer => {
     let row = $("peers").appendChild(document.createElement('div'));
     row.className = "overflow-ellipsis"
