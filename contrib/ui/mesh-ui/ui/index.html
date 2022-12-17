@@ -167,9 +167,18 @@
 
     <footer class="is-flex-align-items-flex-end" style="margin-top: auto">
       <hr style="margin: 0px;background-color: #5d656d;">
-      <div id="version" class="content has-text-left" style="padding: 10px;padding-left: 50px;">
-          v123456
-      </div>
+      <table class="content"><tr id="footer-row">
+          <td id="version" style="padding-left: 50px;">v123456</td>
+          <td style="width: 100%;"></td>
+          <td>↓&nbsp;<span id="dn_speed">? Bps</span></td>
+          <td>↑&nbsp;<span id="up_speed">? Bps</span></td>
+          <td id="status" style="padding-right: 20px;padding-left: 30px;">
+            <i id="st-connecting" class="status fas fa-solid fa-spinner fa-spin"></i>
+            <i id="st-connected" class="status fas fa-solid fa-circle-nodes is-hidden"></i>
+            <i id="st-multicast" class="status fas fa-solid fa-circle-check is-hidden"></i>
+            <i id="st-error" class="status fas fa-solid fa-circle-exclamation is-hidden"></i>
+          </td>
+      </tr></table>
     </footer>
                       
   </div>

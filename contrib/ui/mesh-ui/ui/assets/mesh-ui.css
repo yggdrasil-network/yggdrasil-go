@@ -55,8 +55,7 @@ table {
   table-layout: fixed;
 }
 
-thead tr th:first-child,
-tbody tr td:first-child {
+.big-flag {
   width: 50px;
 }
 
@@ -85,4 +84,9 @@ td.fi {
 .peer-connected-fl {
   width: 2em;
   background-position: 0;
+}
+
+#footer-row td {
+  padding: 10px;
+  white-space: nowrap;
 }

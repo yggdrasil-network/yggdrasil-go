@@ -179,7 +179,7 @@ function add_table(peerList) {
       var row = document.createElement("tr");
       row.className = "is-hidden";
       var imgElement = document.createElement("td");
-      imgElement.className = "fi fi-" + ui.lookupCountryCodeByAddress(peer);
+      imgElement.className = "big-flag fi fi-" + ui.lookupCountryCodeByAddress(peer);
       var peerAddress = document.createElement("td");
       var cellText = document.createTextNode(peer);
       peerAddress.appendChild(cellText);
@@ -224,6 +224,10 @@ function togglePrivKeyVisibility() {
   }
 }
 
+function humanReadableSpeed(speed) {
+  var i = speed == 0 ? 0 : Math.floor(Math.log(speed) / Math.log(1024));
+  return (speed / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + ['Bps', 'kBps', 'MBps', 'GBps', 'TBps'][i];
+}
 
 var ui = {
   countries: []
@@ -279,10 +283,10 @@ ui.getConnectedPeers = () =>
   fetch('api/peers')
     .then((response) => response.json())
 
+const regexMulticast  = /:\/\/\[fe80::/;
 ui.updateConnectedPeersHandler = (peers) => {
   $("peers").innerText = "";
   const regexStrip = /%[^\]]*/gm;
-  const regexMulticast  = /:\/\/\[fe80::/;
   const sorted = peers.map(peer => ({"url": peer["remote"], "isMulticast": peer["remote"].match(regexMulticast)}))
                       .sort((a, b) => a.isMulticast > b.isMulticast);
   sorted.forEach(peer => {
@@ -297,11 +301,47 @@ ui.updateConnectedPeersHandler = (peers) => {
   });
 }
 
+ui.updateStatus = peers => {
+  let status = "st-error";
+  if(peers) {
+    if(peers.length) {
+      const isNonMulticastExists = peers.filter(peer => !peer["remote"].match(regexMulticast)).length;
+      status = isNonMulticastExists ? "st-multicast" : "st-connected";
+    } else {
+      status = "st-connecting"
+    }
+  }
+  Array.from($$("status")).forEach(node => node.classList.add("is-hidden"));
+  $(status).classList.remove("is-hidden");
+}
+
+ui.updateSpeed = peers => {
+  if(peers) {
+    let rsbytes = {"bytes_recvd": peers.reduce((acc, peer) => acc + peer.bytes_recvd, 0),
+                   "bytes_sent":  peers.reduce((acc, peer) => acc + peer.bytes_sent, 0),
+                   "timestamp": Date.now()};
+    if("_rsbytes" in ui) {
+      $("dn_speed").innerText = humanReadableSpeed((rsbytes.bytes_recvd - ui._rsbytes.bytes_recvd) * 1000 / (rsbytes.timestamp - ui._rsbytes.timestamp));
+      $("up_speed").innerText = humanReadableSpeed((rsbytes.bytes_sent - ui._rsbytes.bytes_sent) * 1000 / (rsbytes.timestamp - ui._rsbytes.timestamp));
+    }
+    ui._rsbytes = rsbytes;
+  } else {
+    delete ui._rsbytes;
+    $("dn_speed").innerText = "? Bs";
+    $("up_speed").innerText = "? Bs";
+  }
+}
+
 ui.updateConnectedPeers = () =>
   ui.getConnectedPeers()
-    .then(ui.updateConnectedPeersHandler)
+    .then(peers => {ui.updateConnectedPeersHandler(peers);
+                    ui.updateStatus(peers);
+                    ui.updateSpeed(peers);
+                  })
     .catch((error) => {
       $("peers").innerText = error.message;
+      ui.updateStatus();
+      ui.updateSpeed();
     });
 
 ui.lookupCountryCodeByAddress = (address) => {
