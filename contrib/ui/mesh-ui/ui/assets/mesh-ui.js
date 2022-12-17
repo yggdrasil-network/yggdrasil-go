@@ -283,14 +283,16 @@ ui.updateConnectedPeersHandler = (cont) => {
   $("peers").innerText = "";
   const regexStrip = /%[^\]]*/gm;
   const regexMulticast  = /:\/\/\[fe80::/;
-  cont.peers.forEach(peer => {
+  const sorted = cont.peers.map(peer => ({"url": peer["remote"], "isMulticast": peer["remote"].match(regexMulticast)}))
+                           .sort((a, b) => a.isMulticast > b.isMulticast);
+  sorted.forEach(peer => {
     let row = $("peers").appendChild(document.createElement('div'));
     let flag =  row.appendChild(document.createElement("span"));
-    if(peer["remote"].match(regexMulticast))
+    if(peer.isMulticast)
       flag.className = "fa fa-thin fa-share-nodes peer-connected-fl";
     else
-      flag.className = "fi fi-" + ui.lookupCountryCodeByAddress(peer["remote"]) + " peer-connected-fl";
-    row.append(peer["remote"].replace(regexStrip, ""));
+      flag.className = "fi fi-" + ui.lookupCountryCodeByAddress(peer.url) + " peer-connected-fl";
+    row.append(peer.url.replace(regexStrip, ""));
   });
 }
 
