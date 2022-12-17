@@ -397,7 +397,15 @@ func (a *AdminSocket) StartHttpServer(configFn string, nc *config.NodeConfig) {
 			}
 		}
 		if docFs == "" {
-			http.Handle("/", http.FileServer(http.Dir(nc.WwwRoot)))
+			var nocache = func(fs http.Handler) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Add("Cache-Control", "no-cache, no-store, must-revalidate")
+					w.Header().Add("Pragma", "no-cache")
+					w.Header().Add("Expires", "0")
+					fs.ServeHTTP(w, r)
+				}
+			}
+			http.Handle("/", nocache(http.FileServer(http.Dir(nc.WwwRoot))))
 			docFs = "local fs"
 		}
 		l, e := net.Listen("tcp4", u.Host)
