@@ -11,11 +11,27 @@
   <link rel="stylesheet" href="assets/bulmaswatch.min.css" type="text/css">
   <link rel="stylesheet" href="assets/flag-icons.css" type="text/css">
   <link rel="stylesheet" href="assets/mesh-ui.css" type="text/css">
-  <script type="application/javascript" src="assets/mesh-ui.js"></script>
+  <script type="application/javascript" src="country.json"></script>
+  <!--script type="application/javascript" src="assets/mesh-ui.js"></script-->
+  <script>
+    var script = document.createElement('script');
+    //load polyfills + EC5 for IE or usual for rest
+    if (window.document.documentMode) {
+      script.src = "assets/polyfills.js";
+      script.onload = function () {
+        var ec5 = document.createElement('script');
+        ec5.src = "assets/mesh-ui-es5.js";
+        document.head.appendChild(ec5);
+      };
+    } else {
+      script.src = "assets/mesh-ui.js";
+    }
+    document.head.appendChild(script);
+  </script>
 </head>
 
-<body>
-  <div class="container hero is-fullheight">
+<body class="hero is-fullheight">
+  <div>
     <div class="box is-hidden" id="notification_window">
       <div style="z-index: 9;" class="notification is-primary">
         <button class="delete" id="info_win_close"></button>
@@ -53,7 +69,7 @@
                 preserveAspectRatio="xMidYMid meet" viewBox="0 0 42 42">
                 <path
                   d="M18.5 35.5l-8 2c-.48.04-1 .52-1 1v1c0 .5.47 1 1 1h20c.43 0 1-.41 1-1v-1c-.02-.52-.55-.98-1-1l-8-2h-4zm19-1c2.59 0 3-.529 3-3v-26c0-2.391-.55-3-3-3h-34c-2.43 0-3 .54-3 3v26c0 2.51.529 3 3 3h34zm-2-27v22h-30v-22h30z"
-                  fill="white" />
+                  fill="white" ></path>
               </svg>
             </span>
             <span>My Node</span>
@@ -67,8 +83,8 @@
                 style="-ms-transform: rotate(360deg); -webkit-transform: rotate(360deg); transform: rotate(360deg);"
                 preserveAspectRatio="xMidYMid meet" viewBox="0 0 32 32">
                 <g fill="none" stroke="white" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
-                  <path d="M5 15v15h22V15zm4 0C9 9 9 5 16 5s7 4 7 10m-7 5v3" />
-                  <circle cx="16" cy="24" r="1" />
+                  <path d="M5 15v15h22V15zm4 0C9 9 9 5 16 5s7 4 7 10m-7 5v3" ></path>
+                  <circle cx="16" cy="24" r="1" ></circle>
                 </g>
               </svg>
             </span>
@@ -82,10 +98,10 @@
                 focusable="false" width="1em" height="1em"
                 style="-ms-transform: rotate(360deg); -webkit-transform: rotate(360deg); transform: rotate(360deg);"
                 preserveAspectRatio="xMidYMid meet" viewBox="0 0 48 48">
-                <path fill="#2196F3" d="M37 40H11l-6 6V12c0-3.3 2.7-6 6-6h26c3.3 0 6 2.7 6 6v22c0 3.3-2.7 6-6 6z" />
+                <path fill="#2196F3" d="M37 40H11l-6 6V12c0-3.3 2.7-6 6-6h26c3.3 0 6 2.7 6 6v22c0 3.3-2.7 6-6 6z" ></path>
                 <g fill="#fff">
-                  <path d="M22 20h4v11h-4z" />
-                  <circle cx="24" cy="15" r="2" />
+                  <path d="M22 20h4v11h-4z" ></path>
+                  <circle cx="24" cy="15" r="2" ></circle>
                 </g>
               </svg>
             </span>
@@ -165,7 +181,8 @@
       </div>
     </div>
 
-    <footer class="is-flex-align-items-flex-end" style="margin-top: auto">
+  </div>
+    <footer>
       <hr style="margin: 0px;background-color: #5d656d;">
       <table class="content"><tr id="footer-row">
           <td id="version" style="padding-left: 50px;">v123456</td>
@@ -181,6 +198,4 @@
       </tr></table>
     </footer>
                       
-  </div>
-
 </html>

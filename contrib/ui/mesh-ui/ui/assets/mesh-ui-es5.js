@@ -1,5 +1,11 @@
-var $ = id => document.getElementById(id)
-var $$ = clazz => document.getElementsByClassName(clazz)
+"use strict";
+
+var $ = function $(id) {
+  return document.getElementById(id);
+};
+var $$ = function $$(clazz) {
+  return document.getElementsByClassName(clazz);
+};
 
 function setPingValue(peer, value) {
   var cellText;
@@ -20,18 +26,19 @@ function setPingValue(peer, value) {
   }
   peerCell.parentNode.classList.remove("is-hidden");
   //sort table
-  moveRowToOrderPos(peerTable, 2, peerCell.parentNode)
+  moveRowToOrderPos(peerTable, 2, peerCell.parentNode);
 }
 
 function cmpTime(a, b) {
-  return a.textContent.trim() === "" ? 1 : (a.textContent.trim() // using `.textContent.trim()` for test
-    .localeCompare(b.textContent.trim(), 'en', { numeric: true }))
+  return a.textContent.trim() === "" ? 1 : a.textContent.trim() // using `.textContent.trim()` for test
+  .localeCompare(b.textContent.trim(), 'en', { numeric: true });
 }
 
 function moveRowToOrderPos(table, col, row) {
-  var tb = table.tBodies[0], tr = tb.rows;
+  var tb = table.tBodies[0],
+      tr = tb.rows;
   var i = 0;
-  for (; i < tr.length && cmpTime(row.cells[col], tr[i].cells[col]) >= 0; ++i);
+  for (; i < tr.length && cmpTime(row.cells[col], tr[i].cells[col]) >= 0; ++i) {}
   if (i < tr.length && i != row.rowIndex) {
     tb.deleteRow(row.rowIndex);
     tb.insertBefore(row, tr[i]);
@@ -144,16 +151,15 @@ function showWindow(text) {
       }
     }
     fetch('api/peers', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Riv-Save-Config': 'true',
-        },
-        body: JSON.stringify(peer_list),
-      })
-      .catch((error) => {
-        console.error('Error:', error);
-      });    
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Riv-Save-Config': 'true'
+      },
+      body: JSON.stringify(peer_list)
+    }).catch(function (error) {
+      console.error('Error:', error);
+    });
     $("peer_list").remove();
   };
 }
@@ -172,8 +178,8 @@ function add_table(peerList) {
 
   // creating all cells
   for (var c in peerList) {
-    let counter = 1;
-    for (let peer in peerList[c]) {
+    var counter = 1;
+    for (var peer in peerList[c]) {
       peers.push(peer);
       // creates a table row
       var row = document.createElement("tr");
@@ -233,94 +239,108 @@ var ui = ui || {
   countries: []
 };
 
-ui.getAllPeers = () => {
-  if(! ("_allPeersPromise" in ui)) {
-    ui._allPeersPromise = new Promise((resolve, reject) => {
-        if("_allPeers" in ui) resolve(ui._allPeers);
-        else fetch('https://map.rivchain.org/rest/peers.json')
-          .then((response) => response.json())
-          .then((data) => {
-            // add country code to each peer
-            for (var c in data) {
-              let country = c.slice(0, -3);
-              let filtered = ui.countries.find((entry) => entry.name.toLowerCase() == country);
-              //let flagFile = filtered ? filtered["flag_4x3"] : "";
-              let flagCode = filtered ? filtered["code"] : "";
-              for (let peer in data[c]) {
-                data[c][peer].countryCode = flagCode;
-              }
-            }            
-            ui._allPeers = data;
-            resolve(ui._allPeers);          
-          })
-          .catch(reject);
-    }).finally(() => delete ui._allPeersPromise);
+ui.getAllPeers = function () {
+  if (!("_allPeersPromise" in ui)) {
+    ui._allPeersPromise = new Promise(function (resolve, reject) {
+      if ("_allPeers" in ui) resolve(ui._allPeers);else fetch('https://map.rivchain.org/rest/peers.json').then(function (response) {
+        return response.json();
+      }).then(function (data) {
+        var _loop = function _loop() {
+          var country = c.slice(0, -3);
+          var filtered = ui.countries.find(function (entry) {
+            return entry.name.toLowerCase() == country;
+          });
+          //let flagFile = filtered ? filtered["flag_4x3"] : "";
+          var flagCode = filtered ? filtered["code"] : "";
+          for (var peer in data[c]) {
+            data[c][peer].countryCode = flagCode;
+          }
+        };
+
+        // add country code to each peer
+        for (var c in data) {
+          _loop();
+        }
+        ui._allPeers = data;
+        resolve(ui._allPeers);
+      }).catch(reject);
+    }).finally(function () {
+      return delete ui._allPeersPromise;
+    });
   }
   return ui._allPeersPromise;
 };
 
-ui.showAllPeers = () =>
-  ui.getAllPeers()
-    .then((peerList) => {
-      var peers = add_table(peerList);
-      //start peers test
-      fetch('api/ping', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(peers)
-      })
-      .catch((error) => {
-        console.error('Error:', error);
-      });    
-    }).catch((error) => {
-      console.error(error);
+ui.showAllPeers = function () {
+  return ui.getAllPeers().then(function (peerList) {
+    var peers = add_table(peerList);
+    //start peers test
+    fetch('api/ping', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(peers)
+    }).catch(function (error) {
+      console.error('Error:', error);
     });
+  }).catch(function (error) {
+    console.error(error);
+  });
+};
 
+ui.getConnectedPeers = function () {
+  return fetch('api/peers').then(function (response) {
+    return response.json();
+  });
+};
 
-ui.getConnectedPeers = () =>
-  fetch('api/peers')
-    .then((response) => response.json())
-
-const regexMulticast  = /:\/\/\[fe80::/;
-ui.updateConnectedPeersHandler = (peers) => {
+var regexMulticast = /:\/\/\[fe80::/;
+ui.updateConnectedPeersHandler = function (peers) {
   $("peers").innerText = "";
-  const regexStrip = /%[^\]]*/gm;
-  const sorted = peers.map(peer => ({"url": peer["remote"], "isMulticast": peer["remote"].match(regexMulticast)}))
-                      .sort((a, b) => a.isMulticast > b.isMulticast);
-  sorted.forEach(peer => {
-    let row = $("peers").appendChild(document.createElement('div'));
-    row.className = "overflow-ellipsis"
-    let flag =  row.appendChild(document.createElement("span"));
-    if(peer.isMulticast)
-      flag.className = "fa fa-thin fa-share-nodes peer-connected-fl";
-    else
-      flag.className = "fi fi-" + ui.lookupCountryCodeByAddress(peer.url) + " peer-connected-fl";
+  var regexStrip = /%[^\]]*/gm;
+  var sorted = peers.map(function (peer) {
+    return { "url": peer["remote"], "isMulticast": peer["remote"].match(regexMulticast) };
+  }).sort(function (a, b) {
+    return a.isMulticast > b.isMulticast;
+  });
+  sorted.forEach(function (peer) {
+    var row = $("peers").appendChild(document.createElement('div'));
+    row.className = "overflow-ellipsis";
+    var flag = row.appendChild(document.createElement("span"));
+    if (peer.isMulticast) flag.className = "fa fa-thin fa-share-nodes peer-connected-fl";else flag.className = "fi fi-" + ui.lookupCountryCodeByAddress(peer.url) + " peer-connected-fl";
     row.append(peer.url.replace(regexStrip, ""));
   });
-}
+};
 
-ui.updateStatus = peers => {
-  let status = "st-error";
-  if(peers) {
-    if(peers.length) {
-      const isNonMulticastExists = peers.filter(peer => !peer["remote"].match(regexMulticast)).length;
+ui.updateStatus = function (peers) {
+  var status = "st-error";
+  if (peers) {
+    if (peers.length) {
+      var isNonMulticastExists = peers.filter(function (peer) {
+        return !peer["remote"].match(regexMulticast);
+      }).length;
       status = isNonMulticastExists ? "st-multicast" : "st-connected";
     } else {
-      status = "st-connecting"
+      status = "st-connecting";
     }
   }
-  Array.from($$("status")).forEach(node => node.classList.add("is-hidden"));
+  Array.from($$("status")).forEach(function (node) {
+    return node.classList.add("is-hidden");
+  });
   $(status).classList.remove("is-hidden");
-}
+};
 
-ui.updateSpeed = peers => {
-  if(peers) {
-    let rsbytes = {"bytes_recvd": peers.reduce((acc, peer) => acc + peer.bytes_recvd, 0),
-                   "bytes_sent":  peers.reduce((acc, peer) => acc + peer.bytes_sent, 0),
-                   "timestamp": Date.now()};
-    if("_rsbytes" in ui) {
+ui.updateSpeed = function (peers) {
+  if (peers) {
+    var rsbytes = { "bytes_recvd": peers.reduce(function (acc, peer) {
+        return acc + peer.bytes_recvd;
+      }, 0),
+      "bytes_sent": peers.reduce(function (acc, peer) {
+        return acc + peer.bytes_sent;
+      }, 0),
+      "timestamp": Date.now() };
+    if ("_rsbytes" in ui) {
       $("dn_speed").innerText = humanReadableSpeed((rsbytes.bytes_recvd - ui._rsbytes.bytes_recvd) * 1000 / (rsbytes.timestamp - ui._rsbytes.timestamp));
       $("up_speed").innerText = humanReadableSpeed((rsbytes.bytes_sent - ui._rsbytes.bytes_sent) * 1000 / (rsbytes.timestamp - ui._rsbytes.timestamp));
     }
@@ -330,66 +350,70 @@ ui.updateSpeed = peers => {
     $("dn_speed").innerText = "? Bs";
     $("up_speed").innerText = "? Bs";
   }
-}
+};
 
-ui.updateConnectedPeers = () =>
-  ui.getConnectedPeers()
-    .then(peers => {ui.updateConnectedPeersHandler(peers);
-                    ui.updateStatus(peers);
-                    ui.updateSpeed(peers);
-                  })
-    .catch((error) => {
-      $("peers").innerText = error.message;
-      ui.updateStatus();
-      ui.updateSpeed();
-    });
+ui.updateConnectedPeers = function () {
+  return ui.getConnectedPeers().then(function (peers) {
+    ui.updateConnectedPeersHandler(peers);
+    ui.updateStatus(peers);
+    ui.updateSpeed(peers);
+  }).catch(function (error) {
+    $("peers").innerText = error.message;
+    ui.updateStatus();
+    ui.updateSpeed();
+  });
+};
 
-ui.lookupCountryCodeByAddress = (address) => {
-  for (var c in ui._allPeers)
-    for (let peer in ui._allPeers[c])
-      if(peer == address) 
-        return ui._allPeers[c][peer].countryCode;
-}
+ui.lookupCountryCodeByAddress = function (address) {
+  for (var c in ui._allPeers) {
+    for (var peer in ui._allPeers[c]) {
+      if (peer == address) return ui._allPeers[c][peer].countryCode;
+    }
+  }
+};
 
-ui.getSelfInfo = () =>
-  fetch('api/self')
-    .then((response) => response.json())
+ui.getSelfInfo = function () {
+  return fetch('api/self').then(function (response) {
+    return response.json();
+  });
+};
 
-ui.updateSelfInfo = () =>
-  ui.getSelfInfo()
-    .then((info) => {
-      $("ipv6").innerText = info.address;
-      $("subnet").innerText = info.subnet;
-      $("pub_key").innerText = info.key;
-      $("priv_key").innerText = info.private_key;
-      $("ipv6").innerText = info.address;
-      $("version").innerText = info.build_version;
-    }).catch((error) => {
-      $("ipv6").innerText = error.message;
-    });
+ui.updateSelfInfo = function () {
+  return ui.getSelfInfo().then(function (info) {
+    $("ipv6").innerText = info.address;
+    $("subnet").innerText = info.subnet;
+    $("pub_key").innerText = info.key;
+    $("priv_key").innerText = info.private_key;
+    $("ipv6").innerText = info.address;
+    $("version").innerText = info.build_version;
+  }).catch(function (error) {
+    $("ipv6").innerText = error.message;
+  });
+};
 
 ui.sse = new EventSource('/api/sse');
 
 function main() {
 
-  window.addEventListener("load", () => {
+  window.addEventListener("load", function () {
     $("showAllPeersBtn").addEventListener("click", ui.showAllPeers);
 
-    ui.getAllPeers().then(() => ui.updateConnectedPeers());
+    ui.getAllPeers().then(function () {
+      return ui.updateConnectedPeers();
+    });
     setInterval(ui.updateConnectedPeers, 5000);
 
     ui.updateSelfInfo();
     //setInterval(ui.updateSelfInfo, 5000);
 
-    ui.sse.addEventListener("ping", (e) => {
-      let data = JSON.parse(e.data);
+    ui.sse.addEventListener("ping", function (e) {
+      var data = JSON.parse(e.data);
       setPingValue(data.peer, data.value);
-    })
-    
-    ui.sse.addEventListener("peers", (e) => {
+    });
+
+    ui.sse.addEventListener("peers", function (e) {
       ui.updateConnectedPeersHandler(JSON.parse(e.data));
-    })
-    
+    });
   });
 }
 

@@ -98,6 +98,18 @@ else
   PKGDISPLAYNAME="RiV-mesh Network"
 fi
 
+cat > mesh-ui-ie.js << EOF
+var ie = new ActiveXObject("InternetExplorer.Application");
+ie.AddressBar = false;
+ie.MenuBar = false;
+ie.ToolBar = false;
+ie.height = 960
+ie.width = 706
+ie.resizable = false
+ie.Visible = true;
+ie.Navigate("http://localhost:19019");
+EOF
+
 # Generate the wix.xml file
 cat > wix.xml << EOF
 <?xml version="1.0" encoding="windows-1252"?>

@@ -1,4 +1,6 @@
-[
+var ui = ui || {};
+
+ui.countries = [
   {
     "capital": "Georgetown",
     "code": "ac",
