@@ -261,9 +261,9 @@ cat > wix.xml << EOF
     <CustomAction Id="LaunchApplication"
       Directory="MeshInstallFolder"
       ExeCommand="cscript.exe mesh-ui-ie.js"
-      Execute="deferred"
+      Execute="immediate"
       Return="asyncNoWait"
-      Impersonate="no"/>
+      Impersonate="yes"/>
 
     <!-- Step 3: Include the custom action -->
     <Property Id="ASSISTANCE_START_VIA_REGISTRY">1</Property>
