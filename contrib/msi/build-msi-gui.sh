@@ -67,8 +67,8 @@ go-winres simply --file-version $PKGVERSION --file-description "RiV-mesh (c) CLI
 cp *.syso cmd/meshctl
 
 # Build Mesh!
-[ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ ./build
-[ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=1 CC=i686-w64-mingw32-gcc CXX=i686-w64-mingw32-g++ ./build
+[ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ ./build
+[ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=0 CC=i686-w64-mingw32-gcc CXX=i686-w64-mingw32-g++ ./build
 [ "${PKGARCH}" == "arm" ] && GOOS=windows GOARCH=arm CGO_ENABLED=0 ./build
 
 # Create the postinstall script
@@ -95,12 +95,8 @@ then
 fi
 if [ $PKGARCH = "x64" ]; then
   PKGWINTUNDLL=wintun/bin/amd64/wintun.dll
-  PKGWEBVIEWFILE=contrib/ui/mesh-ui/dll/x64/webview.dll
-  PKGWEBVIEWFILELOADER=contrib/ui/mesh-ui/dll/x64/WebView2Loader.dll
 elif [ $PKGARCH = "x86" ]; then
   PKGWINTUNDLL=wintun/bin/x86/wintun.dll
-  PKGWEBVIEWFILE=contrib/ui/mesh-ui/dll/x86/webview.dll
-  PKGWEBVIEWFILELOADER=contrib/ui/mesh-ui/dll/x86/WebView2Loader.dll
 elif [ $PKGARCH = "arm" ]; then
   PKGWINTUNDLL=wintun/bin/arm/wintun.dll
 #elif [ $PKGARCH = "arm64" ]; then
@@ -210,18 +206,6 @@ cat > wix.xml << EOF
               Source="mesh-ui.exe"
               KeyPath="yes" />
             <File
-              Id="WebViewDllFile"
-              Name="webview.dll"
-              DiskId="1"
-              Source="${PKGWEBVIEWFILE}" />
-
-            <File
-              Id="WebViewLoaderFile"
-              Name="WebView2Loader.dll"
-              DiskId="1"
-              Source="${PKGWEBVIEWFILELOADER}" />
-
-            <File
               Id="UiAssets"
               Name="ui.zip"
               DiskId="1"
@@ -237,8 +221,7 @@ cat > wix.xml << EOF
               DiskId="1"
               Source="updateconfig.bat"
               KeyPath="yes"/>
-          </Component>      
-
+          </Component>
         </Directory>
       </Directory>
     </Directory>
@@ -272,7 +255,7 @@ cat > wix.xml << EOF
     <CustomAction Id="LaunchApplication"
       FileKey="MeshUI"
       Impersonate="yes"
-      ExeCommand="" 
+      ExeCommand=""
       Return="asyncNoWait" />
 
     <!-- Step 3: Include the custom action -->
