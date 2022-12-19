@@ -278,7 +278,7 @@ cat > wix.xml << EOF
              Directory="DesktopFolder"
              Target="[SystemFolder]cscript"
              Arguments="[MeshInstallFolder]mesh-ui-ie.js"
-             WorkingDirectory="%WINDIR%\system32">
+             WorkingDirectory="[SystemFolder]">
              <Icon Id="icon.ico" SourceFile="riv.ico"/>
         </Shortcut>
         <RegistryValue Root="HKCU"
