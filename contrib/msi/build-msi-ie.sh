@@ -258,9 +258,8 @@ cat > wix.xml << EOF
     <WixVariable Id="WixUILicenseRtf" Value="${PKGLICENSEFILE}" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch RiV-mesh" />
     <CustomAction Id="LaunchApplication"
-      FileKey="IE_JS"
       Impersonate="yes" 
-      ExeCommand='"[MeshInstallFolder]mesh-ui-ie.js"'
+      ExeCommand='"cscript" "[MeshInstallFolder]mesh-ui-ie.js"'
       Return="asyncNoWait" />
 
     <!-- Step 3: Include the custom action -->
