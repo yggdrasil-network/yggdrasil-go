@@ -283,4 +283,4 @@ EOF
 CANDLEFLAGS="-nologo"
 LIGHTFLAGS="-nologo -spdb -sice:ICE71 -sice:ICE61"
 wixbin/candle $CANDLEFLAGS -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj -arch ${PKGARCH} wix.xml && \
-wixbin/light $LIGHTFLAGS -ext WixUtilExtension.dll -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}-win7-ie.msi ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj
+wixbin/light $LIGHTFLAGS -ext WixUIExtension -ext WixUtilExtension.dll -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}-win7-ie.msi ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj
