@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/RiV-chain/RiV-mesh/src/defaults"
-	"github.com/webview/webview"
+	"github.com/jchv/go-webview-selector"
 
 	"github.com/docopt/docopt-go"
 )
