@@ -47,13 +47,8 @@ github.com/hashicorp/go-syslog v1.0.0 h1:KaodqZuhUoZereWVIYmpUgZysurB1kBLX2j0MwM
 github.com/hashicorp/go-syslog v1.0.0/go.mod h1:qPfqrKkXGihmCqbJM2mZgkZGvKG1dFdvsLplgctolz4=
 github.com/hjson/hjson-go v3.1.0+incompatible h1:DY/9yE8ey8Zv22bY+mHV1uk2yRy0h8tKhZ77hEdi0Aw=
 github.com/hjson/hjson-go v3.1.0+incompatible/go.mod h1:qsetwF8NlsTsOTwZTApNlTCerV+b2GjYRRcIk4JMFio=
-github.com/jchv/go-webview-selector v0.0.0-20220126075917-13df59bce3cf h1:LfCNdIjo0pYj7ChAEkRZKPW/GKOzQLGqz/8CbDTxBvE=
-github.com/jchv/go-webview-selector v0.0.0-20220126075917-13df59bce3cf/go.mod h1:RfUO9QcPUZ27qVS+rq9SYhhjsVNiolWwaIQdNjqFUsQ=
-github.com/jchv/go-webview2 v0.0.0-20220126073738-2ea27096a5eb h1:oKKhiqJVbFqiPo+cj7zmY/R8AaOxgLQixUAOP/bKuRM=
-github.com/jchv/go-webview2 v0.0.0-20220126073738-2ea27096a5eb/go.mod h1:/BNVc0Sw3Wj6Sz9uSxPwhCEUhhWs92hPde75K2YV24A=
 github.com/jchv/go-webview2 v0.0.0-20221027045535-e2a104b55541 h1:a3nfcpypvn/2WUzZzmZ9Kc75nPOpCrYnV45zrlGcGJM=
 github.com/jchv/go-webview2 v0.0.0-20221027045535-e2a104b55541/go.mod h1:/BNVc0Sw3Wj6Sz9uSxPwhCEUhhWs92hPde75K2YV24A=
-github.com/jchv/go-winloader v0.0.0-20200815041850-dec1ee9a7fd5 h1:pdFFlHXY9tZXmJz+tRSm1DzYEH4ebha7cffmm607bMU=
 github.com/jchv/go-winloader v0.0.0-20200815041850-dec1ee9a7fd5/go.mod h1:alcuEEnZsY1WQsagKhZDsoPCRoOijYqhZvPwLG0kzVs=
 github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e h1:Q3+PugElBCf4PFpxhErSzU3/PY5sFL5Z6rfv4AbGAck=
 github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e/go.mod h1:alcuEEnZsY1WQsagKhZDsoPCRoOijYqhZvPwLG0kzVs=
