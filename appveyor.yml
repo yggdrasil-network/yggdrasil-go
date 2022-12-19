@@ -24,6 +24,8 @@ build_script:
 - c:\msys64\usr\bin\bash -lc "./contrib/msi/build-msi.sh x86"
 - c:\msys64\usr\bin\bash -lc "./contrib/msi/build-msi-gui.sh x64"
 - c:\msys64\usr\bin\bash -lc "./contrib/msi/build-msi-gui.sh x86"
+- c:\msys64\usr\bin\bash -lc "./contrib/msi/build-msi-ie.sh x64"
+- c:\msys64\usr\bin\bash -lc "./contrib/msi/build-msi-ie.sh x86"
 
 test: off
 
