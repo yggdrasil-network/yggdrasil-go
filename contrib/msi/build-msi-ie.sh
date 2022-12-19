@@ -155,7 +155,7 @@ cat > wix.xml << EOF
 
     <Icon Id="icon.ico" SourceFile="riv.ico"/>
     <Property Id="ARPPRODUCTICON" Value="icon.ico" />
-    <Property Id="Script" Value="[#cscript.exe]" />
+    <Property Id="WixShellExecTarget" Value="[#cscript.exe]" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="DesktopFolder"  SourceName="Desktop"/>
@@ -261,8 +261,8 @@ cat > wix.xml << EOF
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch RiV-mesh" />
     <CustomAction Id="LaunchApplication"
       BinaryKey="WixCA"
-      DllEntry="Script"
-      Impersonate="yes"/>
+      DllEntry="WixShellExec"
+      Impersonate="no"/>
 
     <!-- Step 3: Include the custom action -->
     <Property Id="ASSISTANCE_START_VIA_REGISTRY">1</Property>
