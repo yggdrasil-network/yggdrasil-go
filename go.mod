@@ -23,10 +23,11 @@ require (
 
 require gerace.dev/zipfs v0.2.0
 
+require github.com/webview/webview v0.0.0-20221218140943-9db4b8c3e9af // indirect
+
 require (
-	github.com/jchv/go-webview-selector v0.0.0-20220126075917-13df59bce3cf // indirect
-	github.com/jchv/go-webview2 v0.0.0-20220126073738-2ea27096a5eb // indirect
-	github.com/jchv/go-winloader v0.0.0-20200815041850-dec1ee9a7fd5 // indirect
+	github.com/jchv/go-webview2 v0.0.0-20221027045535-e2a104b55541 // indirect
+	github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e // indirect
 )
 
 require (
