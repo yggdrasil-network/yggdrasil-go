@@ -81,6 +81,11 @@ then
   curl -o wintun.zip https://www.wintun.net/builds/wintun-0.14.1.zip
   unzip wintun.zip
 fi
+
+PKG_UI_ASSETS_ZIP=$(pwd)/ui.zip
+( cd "$PKGUIFOLDER" && 7z a "$PKG_UI_ASSETS_ZIP" * )
+PKG_UI_ASSETS_ZIP=ui.zip
+
 if [ $PKGARCH = "x64" ]; then
   PKGWINTUNDLL=wintun/bin/amd64/wintun.dll
 elif [ $PKGARCH = "x86" ]; then
@@ -201,6 +206,16 @@ cat > wix.xml << EOF
               Source="meshctl.exe"
               KeyPath="yes"/>
           </Component>
+
+
+          <Component Id="UIExecutable" Guid="ef9f30e0-8274-4526-835b-51bc09b5b1b7">
+            <File
+              Id="UiAssets"
+              Name="ui.zip"
+              DiskId="1"
+              Source="${PKG_UI_ASSETS_ZIP}" />
+          </Component>
+
 
           <Component Id="ConfigScript" Guid="64a3733b-c98a-4732-85f3-20cd7da1a785">
             <File
