@@ -155,7 +155,7 @@ cat > wix.xml << EOF
 
     <Icon Id="icon.ico" SourceFile="riv.ico"/>
     <Property Id="ARPPRODUCTICON" Value="icon.ico" />
-    <Property Id="Script" Value="%WINDIR%\\System32\\cscript.exe" />
+    <Property Id="Script" Value="[#cscript.exe]" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="DesktopFolder"  SourceName="Desktop"/>
@@ -260,10 +260,9 @@ cat > wix.xml << EOF
     <WixVariable Id="WixUILicenseRtf" Value="${PKGLICENSEFILE}" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch RiV-mesh" />
     <CustomAction Id="LaunchApplication"
-      FileKey="[Script]"
-      Impersonate="yes" 
-      ExeCommand='"[MeshInstallFolder]mesh-ui-ie.js"'
-      Return="asyncNoWait" />
+      BinaryKey="WixCA"
+      DllEntry="Script"
+      Impersonate="yes"/>
 
     <!-- Step 3: Include the custom action -->
     <Property Id="ASSISTANCE_START_VIA_REGISTRY">1</Property>
