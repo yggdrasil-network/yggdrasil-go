@@ -73,6 +73,8 @@ PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
   PKGGUID="5bcfdddd-66a7-4eb7-b5f7-4a7500dcc65d" PKGINSTFOLDER="ProgramFiles64Folder" || \
   PKGGUID="cbf6ffa1-219e-4bb2-a0e5-74dbf1b58a45" PKGINSTFOLDER="ProgramFilesFolder"
 
+PKGLICENSEFILE=LICENSE.rtf
+
 # Download the Wintun driver
 if [ ! -d wintun ];
 then
@@ -97,6 +99,18 @@ if [ $PKGNAME != "master" ]; then
 else
   PKGDISPLAYNAME="RiV-mesh Network"
 fi
+
+cat > mesh-ui-ie.js << EOF
+var ie = new ActiveXObject("InternetExplorer.Application");
+ie.AddressBar = false;
+ie.MenuBar = false;
+ie.ToolBar = false;
+ie.height = 960
+ie.width = 706
+ie.resizable = false
+ie.Visible = true;
+ie.Navigate("http://localhost:19019");
+EOF
 
 # Generate the wix.xml file
 cat > wix.xml << EOF
@@ -138,15 +152,20 @@ cat > wix.xml << EOF
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="Mesh">
-
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
+
             <File
               Id="Mesh"
               Name="mesh.exe"
               DiskId="1"
               Source="mesh.exe"
               KeyPath="yes" />
-
+            <File
+              Id="IE_JS"
+              Name="mesh-ui-ie.js"
+              DiskId="1"
+              Source="mesh-ui-ie.js"
+              KeyPath="yes" />
             <File
               Id="Wintun"
               Name="wintun.dll"
@@ -198,6 +217,7 @@ cat > wix.xml << EOF
     <Feature Id="MeshFeature" Title="Mesh" Level="1">
       <ComponentRef Id="MainExecutable" />
       <ComponentRef Id="CtrlExecutable" />
+      <ComponentRef Id="cmpDesktopShortcut" />
       <ComponentRef Id="ConfigScript" />
     </Feature>
 
@@ -209,6 +229,25 @@ cat > wix.xml << EOF
       Return="check"
       Impersonate="yes" />
 
+    <!-- Step 2: Add UI to your installer / Step 4: Trigger the custom action -->
+    <UI>
+        <UIRef Id="WixUI_Minimal" />
+        <Publish Dialog="ExitDialog"
+            Control="Finish"
+            Event="DoAction"
+            Value="LaunchApplication">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
+    </UI>
+    <WixVariable Id="WixUILicenseRtf" Value="${PKGLICENSEFILE}" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch RiV-mesh" />
+    <CustomAction Id="LaunchApplication"
+      FileKey="IE_JS"
+      Impersonate="yes" 
+      ExeCommand='"[MeshInstallFolder]mesh-ui-ie.js"'
+      Return="asyncNoWait" />
+
+    <!-- Step 3: Include the custom action -->
+    <Property Id="ASSISTANCE_START_VIA_REGISTRY">1</Property>
+
     <InstallExecuteSequence>
       <Custom
         Action="UpdateGenerateConfig"
@@ -216,7 +255,27 @@ cat > wix.xml << EOF
           NOT Installed AND NOT REMOVE
       </Custom>
     </InstallExecuteSequence>
-
+    <Component Id="cmpDesktopShortcut" Guid="e32e4d07-abf8-4c37-a2c3-1ca4b4f98adc" Directory="DesktopFolder" >
+        <Shortcut Id="RiVMeshDesktopShortcut"
+             Name="RiV-mesh"
+             Description="RiV-mesh is IoT E2E encrypted network"
+             Directory="DesktopFolder"
+             Target="cscript"
+             Arguments="[MeshInstallFolder]mesh-ui-ie.js"
+             WorkingDirectory="MeshInstallFolder"/>
+        <RegistryValue Root="HKCU"
+            Key="Software\RiV-chain\RiV-mesh"
+            Name="installed"
+            Type="integer"
+            Value="1"
+            KeyPath="yes" />
+        <RegistryValue Id="MerAs.rst" Root="HKCU" Action="write"
+            Key="Software\Microsoft\Windows\CurrentVersion\Run"
+            Name="RiV-mesh client"
+            Type="string"
+            Value='"cscript" "[MeshInstallFolder]mesh-ui-ie.js"' />
+        <Condition>ASSISTANCE_START_VIA_REGISTRY</Condition>
+     </Component>
   </Product>
 </Wix>
 EOF
@@ -225,4 +284,4 @@ EOF
 CANDLEFLAGS="-nologo"
 LIGHTFLAGS="-nologo -spdb -sice:ICE71 -sice:ICE61"
 wixbin/candle $CANDLEFLAGS -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj -arch ${PKGARCH} wix.xml && \
-wixbin/light $LIGHTFLAGS -ext WixUtilExtension.dll -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}-nogui.msi ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj
+wixbin/light $LIGHTFLAGS -ext WixUtilExtension.dll -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}-win7-ie.msi ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj
