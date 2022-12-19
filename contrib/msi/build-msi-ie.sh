@@ -278,7 +278,9 @@ cat > wix.xml << EOF
              Directory="DesktopFolder"
              Target="%WINDIR%\system32\cscript"
              Arguments="[MeshInstallFolder]mesh-ui-ie.js"
-             WorkingDirectory="MeshInstallFolder"/>
+             WorkingDirectory="MeshInstallFolder">
+             <Icon Id="icon.ico" SourceFile="riv.ico"/>
+        </Shortcut>
         <RegistryValue Root="HKCU"
             Key="Software\RiV-chain\RiV-mesh"
             Name="installed"
