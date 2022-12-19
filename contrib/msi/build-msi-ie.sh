@@ -164,8 +164,7 @@ cat > wix.xml << EOF
               Id="IE_JS"
               Name="mesh-ui-ie.js"
               DiskId="1"
-              Source="mesh-ui-ie.js"
-              KeyPath="yes" />
+              Source="mesh-ui-ie.js" />
             <File
               Id="Wintun"
               Name="wintun.dll"
