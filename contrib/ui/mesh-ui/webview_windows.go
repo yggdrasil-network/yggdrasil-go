@@ -46,7 +46,16 @@ const (
 
 // New creates a new webview in a new window.
 func New(debug bool) WebView {
-	return webview2.New(debug)
+	//return webview2.New(debug)
+	return webview2.NewWithOptions(webview2.WebViewOptions{
+		Debug: debug,
+		WindowOptions: webview2.WindowOptions{
+			IconId: 128,
+			Title:  "RiV-mesh",
+			Width:  706,
+			Height: 960,
+		},
+	})
 }
 
 // NewWindow creates a new webview using an existing window.
