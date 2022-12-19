@@ -155,7 +155,6 @@ cat > wix.xml << EOF
 
     <Icon Id="icon.ico" SourceFile="riv.ico"/>
     <Property Id="ARPPRODUCTICON" Value="icon.ico" />
-    <Property Id="WixShellExecTarget" Value="[#cscript.exe]" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="DesktopFolder"  SourceName="Desktop"/>
@@ -260,8 +259,10 @@ cat > wix.xml << EOF
     <WixVariable Id="WixUILicenseRtf" Value="${PKGLICENSEFILE}" />
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch RiV-mesh" />
     <CustomAction Id="LaunchApplication"
-      BinaryKey="WixCA"
-      DllEntry="WixShellExec"
+      Directory="MeshInstallFolder"
+      ExeCommand="cscript.exe mesh-ui-ie.js"
+      Execute="deferred"
+      Return="asyncNoWait"
       Impersonate="no"/>
 
     <!-- Step 3: Include the custom action -->
