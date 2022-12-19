@@ -155,9 +155,11 @@ cat > wix.xml << EOF
 
     <Icon Id="icon.ico" SourceFile="riv.ico"/>
     <Property Id="ARPPRODUCTICON" Value="icon.ico" />
+    <Property Id="Script" Value="[SystemFolder]\\cscript.exe" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="DesktopFolder"  SourceName="Desktop"/>
+      <Directory Id="SystemFolder" Name="SystemFolder" />
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
@@ -259,7 +261,7 @@ cat > wix.xml << EOF
     <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch RiV-mesh" />
     <CustomAction Id="LaunchApplication"
       Impersonate="yes" 
-      ExeCommand='"cscript" "[MeshInstallFolder]mesh-ui-ie.js"'
+      ExeCommand='"[Script]" "[MeshInstallFolder]mesh-ui-ie.js"'
       Return="asyncNoWait" />
 
     <!-- Step 3: Include the custom action -->
@@ -277,7 +279,7 @@ cat > wix.xml << EOF
              Name="RiV-mesh"
              Description="RiV-mesh is IoT E2E encrypted network"
              Directory="DesktopFolder"
-             Target="cscript"
+             Target="[Script]"
              Arguments="[MeshInstallFolder]mesh-ui-ie.js"
              WorkingDirectory="MeshInstallFolder">
              <Icon Id="ShortcutIcon" SourceFile="riv.ico"/>
@@ -292,7 +294,7 @@ cat > wix.xml << EOF
             Key="Software\Microsoft\Windows\CurrentVersion\Run"
             Name="RiV-mesh client"
             Type="string"
-            Value='"cscript" "[MeshInstallFolder]mesh-ui-ie.js"' />
+            Value='"[Script]" "[MeshInstallFolder]mesh-ui-ie.js"' />
         <Condition>ASSISTANCE_START_VIA_REGISTRY</Condition>
      </Component>
   </Product>
