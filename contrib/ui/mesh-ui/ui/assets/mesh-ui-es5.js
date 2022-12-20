@@ -1,4 +1,5 @@
 "use strict";
+console.log("IE load fix");
 
 var $ = function $(id) {
   return document.getElementById(id);
