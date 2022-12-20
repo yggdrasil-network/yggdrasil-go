@@ -254,10 +254,16 @@ func (a *AdminSocket) StartHttpServer(configFn string, nc *config.NodeConfig) {
 			a.log.Errorln("An error occurred parsing http address:", err)
 			return
 		}
+		addNoCacheHeaders := func(w http.ResponseWriter) {
+			w.Header().Add("Cache-Control", "no-cache, no-store, must-revalidate")
+			w.Header().Add("Pragma", "no-cache")
+			w.Header().Add("Expires", "0")
+		}
 		http.HandleFunc("/api", func(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(w, "Following methods are allowed: getself, getpeers. litening"+u.Host)
 		})
 		http.HandleFunc("/api/self", func(w http.ResponseWriter, r *http.Request) {
+			addNoCacheHeaders(w)
 			switch r.Method {
 			case "GET":
 				w.Header().Add("Content-Type", "application/json")
@@ -316,6 +322,7 @@ func (a *AdminSocket) StartHttpServer(configFn string, nc *config.NodeConfig) {
 				return nil
 			}
 
+			addNoCacheHeaders(w)
 			switch r.Method {
 			case "GET":
 				w.Header().Add("Content-Type", "application/json")
@@ -365,6 +372,7 @@ func (a *AdminSocket) StartHttpServer(configFn string, nc *config.NodeConfig) {
 		})
 
 		http.HandleFunc("/api/sse", func(w http.ResponseWriter, r *http.Request) {
+			addNoCacheHeaders(w)
 			switch r.Method {
 			case "GET":
 				w.Header().Add("Content-Type", "text/event-stream")
@@ -399,9 +407,7 @@ func (a *AdminSocket) StartHttpServer(configFn string, nc *config.NodeConfig) {
 		if docFs == "" {
 			var nocache = func(fs http.Handler) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
-					w.Header().Add("Cache-Control", "no-cache, no-store, must-revalidate")
-					w.Header().Add("Pragma", "no-cache")
-					w.Header().Add("Expires", "0")
+					addNoCacheHeaders(w)
 					fs.ServeHTTP(w, r)
 				}
 			}

@@ -24,6 +24,12 @@ require (
 require gerace.dev/zipfs v0.2.0
 
 require (
+	github.com/jchv/go-webview-selector v0.0.0-20220126075917-13df59bce3cf // indirect
+	github.com/jchv/go-webview2 v0.0.0-20220126073738-2ea27096a5eb // indirect
+	github.com/jchv/go-winloader v0.0.0-20200815041850-dec1ee9a7fd5 // indirect
+)
+
+require (
 	github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/getlantern/context v0.0.0-20190109183933-c447772a6520 // indirect
@@ -39,7 +45,6 @@ require (
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
-	github.com/webview/webview v0.0.0-20210330151455-f540d88dde4e
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.19.1 // indirect

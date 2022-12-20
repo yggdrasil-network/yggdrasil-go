@@ -5,7 +5,7 @@
 # the system and within the PATH. This is ran currently by Appveyor or GitHub Actions (see
 # appveyor.yml in the repository root) for both x86 and x64.
 #
-# Author: Neil Alexander <neilalexander@users.noreply.github.com>
+# Author: Vadym Vikulin <vadym.vikulin@rivchain.org>
 
 # Get arch from command line if given
 PKGARCH=$1
@@ -69,9 +69,13 @@ EOF
 PKGNAME=$(sh contrib/semver/name.sh)
 PKGVERSION=$(sh contrib/msi/msversion.sh --bare)
 PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
+PKGUIFOLDER=contrib/ui/mesh-ui/ui/
+
 [ "${PKGARCH}" == "x64" ] && \
   PKGGUID="5bcfdddd-66a7-4eb7-b5f7-4a7500dcc65d" PKGINSTFOLDER="ProgramFiles64Folder" || \
   PKGGUID="cbf6ffa1-219e-4bb2-a0e5-74dbf1b58a45" PKGINSTFOLDER="ProgramFilesFolder"
+
+PKGLICENSEFILE=LICENSE.rtf
 
 # Download the Wintun driver
 if [ ! -d wintun ];
@@ -79,6 +83,11 @@ then
   curl -o wintun.zip https://www.wintun.net/builds/wintun-0.14.1.zip
   unzip wintun.zip
 fi
+
+PKG_UI_ASSETS_ZIP=$(pwd)/ui.zip
+( cd "$PKGUIFOLDER" && 7z a "$PKG_UI_ASSETS_ZIP" * )
+PKG_UI_ASSETS_ZIP=ui.zip
+
 if [ $PKGARCH = "x64" ]; then
   PKGWINTUNDLL=wintun/bin/amd64/wintun.dll
 elif [ $PKGARCH = "x86" ]; then
@@ -97,6 +106,18 @@ if [ $PKGNAME != "master" ]; then
 else
   PKGDISPLAYNAME="RiV-mesh Network"
 fi
+
+cat > mesh-ui-ie.js << EOF
+var ie = new ActiveXObject("InternetExplorer.Application");
+ie.AddressBar = false;
+ie.MenuBar = false;
+ie.ToolBar = false;
+ie.height = 960
+ie.width = 706
+ie.resizable = false
+ie.Visible = true;
+ie.Navigate("http://localhost:19019");
+EOF
 
 # Generate the wix.xml file
 cat > wix.xml << EOF
@@ -121,7 +142,7 @@ cat > wix.xml << EOF
       InstallScope="perMachine"
       Languages="1033"
       Compressed="yes"
-      SummaryCodepage="1252" />
+      SummaryCodepage="1252"/>
 
     <MajorUpgrade
       AllowDowngrades="yes" />
@@ -132,21 +153,25 @@ cat > wix.xml << EOF
       EmbedCab="yes"
       CompressionLevel="high" />
 
-    <Icon Id="icon.ico" SourceFile="riv.ico"/>
-    <Property Id="ARPPRODUCTICON" Value="icon.ico" />
+    <Icon Id="RiVIcon" SourceFile="riv.ico"/>
+    <Property Id="ARPPRODUCTICON" Value="RiVIcon" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
-
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
+
             <File
               Id="Mesh"
               Name="mesh.exe"
               DiskId="1"
               Source="mesh.exe"
               KeyPath="yes" />
-
+            <File
+              Id="IE_JS"
+              Name="mesh-ui-ie.js"
+              DiskId="1"
+              Source="mesh-ui-ie.js" />
             <File
               Id="Wintun"
               Name="wintun.dll"
@@ -163,7 +188,7 @@ cat > wix.xml << EOF
               Name="Mesh"
               Start="auto"
               Type="ownProcess"
-              Arguments='-useconffile "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.conf" -logto "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.log"'
+              Arguments='-useconffile "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.conf" -logto "%ALLUSERSPROFILE%\\RiV-mesh\\mesh.log" -httpaddress "http://localhost:19019" -wwwroot "[MeshInstallFolder]ui.zip"'
               Vital="yes" />
 
             <ServiceControl
@@ -183,6 +208,16 @@ cat > wix.xml << EOF
               KeyPath="yes"/>
           </Component>
 
+
+          <Component Id="UIExecutable" Guid="ef9f30e0-8274-4526-835b-51bc09b5b1b7">
+            <File
+              Id="UiAssets"
+              Name="ui.zip"
+              DiskId="1"
+              Source="${PKG_UI_ASSETS_ZIP}" />
+          </Component>
+
+
           <Component Id="ConfigScript" Guid="64a3733b-c98a-4732-85f3-20cd7da1a785">
             <File
               Id="Configbat"
@@ -193,13 +228,12 @@ cat > wix.xml << EOF
           </Component>
         </Directory>
       </Directory>
+ 			<Directory Id="ProgramMenuFolder">
+				<Directory Id="ApplicationProgramsFolder" Name="RiV-mesh"/>
+				<Directory Id="DesktopFolder" Name="Desktop"/>
+				<Directory Id="StartupFolder" Name="Startup"/>
+   		</Directory>
     </Directory>
-
-    <Feature Id="MeshFeature" Title="Mesh" Level="1">
-      <ComponentRef Id="MainExecutable" />
-      <ComponentRef Id="CtrlExecutable" />
-      <ComponentRef Id="ConfigScript" />
-    </Feature>
 
     <CustomAction
       Id="UpdateGenerateConfig"
@@ -209,6 +243,26 @@ cat > wix.xml << EOF
       Return="check"
       Impersonate="yes" />
 
+    <!-- Step 2: Add UI to your installer / Step 4: Trigger the custom action -->
+    <UI>
+        <UIRef Id="WixUI_Minimal" />
+        <Publish Dialog="ExitDialog"
+            Control="Finish"
+            Event="DoAction"
+            Value="LaunchApplication">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
+    </UI>
+    <WixVariable Id="WixUILicenseRtf" Value="${PKGLICENSEFILE}" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch RiV-mesh" />
+    <CustomAction Id="LaunchApplication"
+      Directory="MeshInstallFolder"
+      ExeCommand="cscript.exe mesh-ui-ie.js"
+      Execute="immediate"
+      Return="asyncNoWait"
+      Impersonate="yes"/>
+
+    <!-- Step 3: Include the custom action -->
+    <Property Id="ASSISTANCE_START_VIA_REGISTRY">1</Property>
+
     <InstallExecuteSequence>
       <Custom
         Action="UpdateGenerateConfig"
@@ -216,7 +270,46 @@ cat > wix.xml << EOF
           NOT Installed AND NOT REMOVE
       </Custom>
     </InstallExecuteSequence>
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="ApplicationShortcut" Guid="e32e4d07-abf8-4c37-a2c3-1ca4b4f98adc" >
+          <Shortcut Id="ApplicationStartMenuShortcut" 
+                    Name="RiV-mesh"
+                    Description="RiV-mesh is IoT E2E encrypted network"
+                    Target="[%WINDIR]\System32\cscript.exe"
+                    Arguments='"[MeshInstallFolder]mesh-ui-ie.js"'
+                    WorkingDirectory="MeshInstallFolder"
+                    Icon="RiVIcon"/>
+          <Shortcut Id="DesktopShortcut"
+              Name="RiV-mesh"
+              Description="RiV-mesh is IoT E2E encrypted network"
+              Directory="DesktopFolder"
+              Target="[%WINDIR]\System32\cscript.exe"
+              Arguments='"[MeshInstallFolder]mesh-ui-ie.js"'
+              WorkingDirectory="MeshInstallFolder"
+              Icon="RiVIcon"/>
+          <RemoveFolder Id="MeshInstallFolder" On="uninstall"/>
+          <RegistryValue Root="HKCU"
+              Key="Software\RiV-chain\RiV-mesh"
+              Name="installed"
+              Type="integer"
+              Value="1"
+              KeyPath="yes" />
+          <RegistryValue Id="MerAs.rst" Root="HKCU" Action="write"
+              Key="Software\Microsoft\Windows\CurrentVersion\Run"
+              Name="RiV-mesh client"
+              Type="string"
+              Value='"cscript.exe" "[MeshInstallFolder]mesh-ui-ie.js"' />
+          <Condition>ASSISTANCE_START_VIA_REGISTRY</Condition>
+      </Component>
+     </DirectoryRef>
 
+    <Feature Id="MeshFeature" Title="Mesh" Level="1">
+      <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="UIExecutable" />
+      <ComponentRef Id="CtrlExecutable" />
+      <ComponentRef Id="ApplicationShortcut" />
+      <ComponentRef Id="ConfigScript" />
+    </Feature>
   </Product>
 </Wix>
 EOF
@@ -225,4 +318,4 @@ EOF
 CANDLEFLAGS="-nologo"
 LIGHTFLAGS="-nologo -spdb -sice:ICE71 -sice:ICE61"
 wixbin/candle $CANDLEFLAGS -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj -arch ${PKGARCH} wix.xml && \
-wixbin/light $LIGHTFLAGS -ext WixUtilExtension.dll -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}-nogui.msi ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj
+wixbin/light $LIGHTFLAGS -ext WixUIExtension -ext WixUtilExtension.dll -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}-win7-ie.msi ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj
