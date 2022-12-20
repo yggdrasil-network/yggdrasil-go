@@ -275,14 +275,14 @@ cat > wix.xml << EOF
           <Shortcut Id="ApplicationStartMenuShortcut" 
                     Name="RiV-mesh"
                     Description="RiV-mesh is IoT E2E encrypted network"
-                    Target="cscript.exe"
+                    Target="[%WINDIR]\System32\cscript.exe"
                     Arguments="[MeshInstallFolder]mesh-ui-ie.js"
                     WorkingDirectory="MeshInstallFolder"/>
           <Shortcut Id="DesktopShortcut"
               Name="RiV-mesh"
               Description="RiV-mesh is IoT E2E encrypted network"
               Directory="DesktopFolder"
-              Target="cscript.exe"
+              Target="[%WINDIR]\System32\cscript.exe"
               Arguments="[MeshInstallFolder]mesh-ui-ie.js"
               WorkingDirectory="MeshInstallFolder"/>
           <RemoveFolder Id="MeshInstallFolder" On="uninstall"/>
