@@ -153,8 +153,8 @@ cat > wix.xml << EOF
       EmbedCab="yes"
       CompressionLevel="high" />
 
-    <Icon Id="icon.ico" SourceFile="riv.ico"/>
-    <Property Id="ARPPRODUCTICON" Value="icon.ico" />
+    <Icon Id="RiVIcon" SourceFile="riv.ico"/>
+    <Property Id="ARPPRODUCTICON" Value="RiVIcon" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
@@ -276,15 +276,17 @@ cat > wix.xml << EOF
                     Name="RiV-mesh"
                     Description="RiV-mesh is IoT E2E encrypted network"
                     Target="[%WINDIR]\System32\cscript.exe"
-                    Arguments="[MeshInstallFolder]mesh-ui-ie.js"
-                    WorkingDirectory="MeshInstallFolder"/>
+                    Arguments='"[MeshInstallFolder]mesh-ui-ie.js"'
+                    WorkingDirectory="MeshInstallFolder"
+                    Icon="RiVIcon"/>
           <Shortcut Id="DesktopShortcut"
               Name="RiV-mesh"
               Description="RiV-mesh is IoT E2E encrypted network"
               Directory="DesktopFolder"
               Target="[%WINDIR]\System32\cscript.exe"
-              Arguments="[MeshInstallFolder]mesh-ui-ie.js"
-              WorkingDirectory="MeshInstallFolder"/>
+              Arguments='"[MeshInstallFolder]mesh-ui-ie.js"'
+              WorkingDirectory="MeshInstallFolder"
+              Icon="RiVIcon"/>
           <RemoveFolder Id="MeshInstallFolder" On="uninstall"/>
           <RegistryValue Root="HKCU"
               Key="Software\RiV-chain\RiV-mesh"
