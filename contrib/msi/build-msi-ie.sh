@@ -232,14 +232,6 @@ cat > wix.xml << EOF
       </Directory>
     </Directory>
 
-    <Feature Id="MeshFeature" Title="Mesh" Level="1">
-      <ComponentRef Id="MainExecutable" />
-      <ComponentRef Id="UIExecutable" />
-      <ComponentRef Id="CtrlExecutable" />
-      <ComponentRef Id="cmpDesktopShortcut" />
-      <ComponentRef Id="ConfigScript" />
-    </Feature>
-
     <CustomAction
       Id="UpdateGenerateConfig"
       Directory="MeshInstallFolder"
@@ -275,35 +267,44 @@ cat > wix.xml << EOF
           NOT Installed AND NOT REMOVE
       </Custom>
     </InstallExecuteSequence>
-    <Component Id="cmpDesktopShortcut" Guid="e32e4d07-abf8-4c37-a2c3-1ca4b4f98adc" Directory="DesktopFolder" >
-        <Shortcut Id="RiVMeshDesktopShortcut"
-             Name="RiV-mesh"
-             Description="RiV-mesh is IoT E2E encrypted network"
-             Directory="DesktopFolder"
-             Target="cscript.exe"
-             Arguments="[MeshInstallFolder]mesh-ui-ie.js"
-             WorkingDirectory="MeshInstallFolder"
-             Advertise="yes"/>
-        <Shortcut Id="ApplicationStartMenuShortcut" 
-                  Name="RiV-mesh"
-                  Description="RiV-mesh is IoT E2E encrypted network"
-                  Target="cscript.exe"
-                  Arguments="[MeshInstallFolder]mesh-ui-ie.js"
-                  WorkingDirectory="MeshInstallFolder"
-                  Advertise="yes"/>
-        <RegistryValue Root="HKCU"
-            Key="Software\RiV-chain\RiV-mesh"
-            Name="installed"
-            Type="integer"
-            Value="1"
-            KeyPath="yes" />
-        <RegistryValue Id="MerAs.rst" Root="HKCU" Action="write"
-            Key="Software\Microsoft\Windows\CurrentVersion\Run"
-            Name="RiV-mesh client"
-            Type="string"
-            Value='"cscript.exe" "[MeshInstallFolder]mesh-ui-ie.js"' />
-        <Condition>ASSISTANCE_START_VIA_REGISTRY</Condition>
-     </Component>
+    <DirectoryRef Id="MeshInstallFolder">
+      <Component Id="cmpDesktopShortcut" Guid="e32e4d07-abf8-4c37-a2c3-1ca4b4f98adc" >
+          <Shortcut Id="RiVMeshDesktopShortcut"
+              Name="RiV-mesh"
+              Description="RiV-mesh is IoT E2E encrypted network"
+              Directory="DesktopFolder"
+              Target="cscript.exe"
+              Arguments="[MeshInstallFolder]mesh-ui-ie.js"
+              WorkingDirectory="MeshInstallFolder"/>
+          <Shortcut Id="ApplicationStartMenuShortcut" 
+                    Name="RiV-mesh"
+                    Description="RiV-mesh is IoT E2E encrypted network"
+                    Target="cscript.exe"
+                    Arguments="[MeshInstallFolder]mesh-ui-ie.js"
+                    WorkingDirectory="MeshInstallFolder"/>
+          <RemoveFolder Id="MeshInstallFolder" On="uninstall"/>
+          <RegistryValue Root="HKCU"
+              Key="Software\RiV-chain\RiV-mesh"
+              Name="installed"
+              Type="integer"
+              Value="1"
+              KeyPath="yes" />
+          <RegistryValue Id="MerAs.rst" Root="HKCU" Action="write"
+              Key="Software\Microsoft\Windows\CurrentVersion\Run"
+              Name="RiV-mesh client"
+              Type="string"
+              Value='"cscript.exe" "[MeshInstallFolder]mesh-ui-ie.js"' />
+          <Condition>ASSISTANCE_START_VIA_REGISTRY</Condition>
+      </Component>
+     </DirectoryRef>
+
+    <Feature Id="MeshFeature" Title="Mesh" Level="1">
+      <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="UIExecutable" />
+      <ComponentRef Id="CtrlExecutable" />
+      <ComponentRef Id="cmpDesktopShortcut" />
+      <ComponentRef Id="ConfigScript" />
+    </Feature>
   </Product>
 </Wix>
 EOF
