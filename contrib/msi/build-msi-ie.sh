@@ -264,7 +264,7 @@ cat > wix.xml << EOF
     <Property Id="ASSISTANCE_START_VIA_REGISTRY">1</Property>
 
     <InstallExecuteSequence>
-      <CustomSystemFolder
+      <Custom
         Action="UpdateGenerateConfig"
         Before="StartServices">
           NOT Installed AND NOT REMOVE
