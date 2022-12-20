@@ -142,7 +142,7 @@ cat > wix.xml << EOF
       InstallScope="perMachine"
       Languages="1033"
       Compressed="yes"
-      SummaryCodepage="1252" />
+      SummaryCodepage="1252"/>
 
     <MajorUpgrade
       AllowDowngrades="yes" />
@@ -157,8 +157,6 @@ cat > wix.xml << EOF
     <Property Id="ARPPRODUCTICON" Value="icon.ico" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
-      <Directory Id="DesktopFolder"  SourceName="Desktop"/>
-      <Directory Id="SystemFolder" Name="SystemFolder" />
       <Directory Id="${PKGINSTFOLDER}" Name="PFiles">
         <Directory Id="MeshInstallFolder" Name="RiV-mesh">
           <Component Id="MainExecutable" Guid="c2119231-2aa3-4962-867a-9759c87beb24">
@@ -230,6 +228,11 @@ cat > wix.xml << EOF
           </Component>
         </Directory>
       </Directory>
+ 			<Directory Id="ProgramMenuFolder">
+				<Directory Id="ApplicationProgramsFolder" Name="RiV-mesh"/>
+				<Directory Id="DesktopFolder" Name="Desktop"/>
+				<Directory Id="StartupFolder" Name="Startup"/>
+   		</Directory>
     </Directory>
 
     <CustomAction
@@ -261,27 +264,27 @@ cat > wix.xml << EOF
     <Property Id="ASSISTANCE_START_VIA_REGISTRY">1</Property>
 
     <InstallExecuteSequence>
-      <Custom
+      <CustomSystemFolder
         Action="UpdateGenerateConfig"
         Before="StartServices">
           NOT Installed AND NOT REMOVE
       </Custom>
     </InstallExecuteSequence>
-    <DirectoryRef Id="MeshInstallFolder">
-      <Component Id="cmpDesktopShortcut" Guid="e32e4d07-abf8-4c37-a2c3-1ca4b4f98adc" >
-          <Shortcut Id="RiVMeshDesktopShortcut"
-              Name="RiV-mesh"
-              Description="RiV-mesh is IoT E2E encrypted network"
-              Directory="DesktopFolder"
-              Target="cscript.exe"
-              Arguments="[MeshInstallFolder]mesh-ui-ie.js"
-              WorkingDirectory="MeshInstallFolder"/>
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="ApplicationShortcut" Guid="e32e4d07-abf8-4c37-a2c3-1ca4b4f98adc" >
           <Shortcut Id="ApplicationStartMenuShortcut" 
                     Name="RiV-mesh"
                     Description="RiV-mesh is IoT E2E encrypted network"
                     Target="cscript.exe"
                     Arguments="[MeshInstallFolder]mesh-ui-ie.js"
                     WorkingDirectory="MeshInstallFolder"/>
+          <Shortcut Id="DesktopShortcut"
+              Name="RiV-mesh"
+              Description="RiV-mesh is IoT E2E encrypted network"
+              Directory="DesktopFolder"
+              Target="cscript.exe"
+              Arguments="[MeshInstallFolder]mesh-ui-ie.js"
+              WorkingDirectory="MeshInstallFolder"/>
           <RemoveFolder Id="MeshInstallFolder" On="uninstall"/>
           <RegistryValue Root="HKCU"
               Key="Software\RiV-chain\RiV-mesh"
@@ -302,7 +305,7 @@ cat > wix.xml << EOF
       <ComponentRef Id="MainExecutable" />
       <ComponentRef Id="UIExecutable" />
       <ComponentRef Id="CtrlExecutable" />
-      <ComponentRef Id="cmpDesktopShortcut" />
+      <ComponentRef Id="ApplicationShortcut" />
       <ComponentRef Id="ConfigScript" />
     </Feature>
   </Product>
