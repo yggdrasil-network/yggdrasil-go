@@ -100,6 +100,8 @@ github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f h1:p4VB7kIXpOQvV
 github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f/go.mod h1:DD4vA1DwXk04H54A1oHXtwZmA0grkVMdPxx/VGLCah0=
 github.com/webview/webview v0.0.0-20221218140943-9db4b8c3e9af h1:QO77Qt3ucuL5l8tFIAMXrLaDx4rYI9Nz89x+nrJwYJo=
 github.com/webview/webview v0.0.0-20221218140943-9db4b8c3e9af/go.mod h1:rpXAuuHgyEJb6kXcXldlkOjU6y4x+YcASKKXJNUhh0Y=
+github.com/webview/webview v0.0.0-20221220082822-77e021440a0f h1:whomWpMJmyN9uHtIjBIE2jmjN8ZccngNh3kCg4G16FA=
+github.com/webview/webview v0.0.0-20221220082822-77e021440a0f/go.mod h1:rpXAuuHgyEJb6kXcXldlkOjU6y4x+YcASKKXJNUhh0Y=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
 github.com/yuin/goldmark v1.4.0/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
