@@ -70,7 +70,7 @@ img {
 
 body {
   max-width: 690px;
-  min-width: 690px;
+  /* min-width: 690px; Fix for IE11, see RIVM-37*/
   margin: auto;
 }
 
