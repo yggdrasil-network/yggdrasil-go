@@ -1,4 +1,5 @@
 "use strict";
+console.log("IE load fix");
 
 var $ = function $(id) {
   return document.getElementById(id);
@@ -231,8 +232,9 @@ function togglePrivKeyVisibility() {
 }
 
 function humanReadableSpeed(speed) {
-  var i = speed == 0 ? 0 : Math.floor(Math.log(speed) / Math.log(1024));
-  return (speed / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + ['Bps', 'kBps', 'MBps', 'GBps', 'TBps'][i];
+  if (speed < 0) return "? B/s";
+  var i = speed < 1 ? 0 : Math.floor(Math.log(speed) / Math.log(1024));
+  return (speed / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + ['bps', 'kbps', 'Mbps', 'Gbps', 'Tbps'][i];
 }
 
 var ui = ui || {
@@ -347,8 +349,8 @@ ui.updateSpeed = function (peers) {
     ui._rsbytes = rsbytes;
   } else {
     delete ui._rsbytes;
-    $("dn_speed").innerText = "? Bs";
-    $("up_speed").innerText = "? Bs";
+    $("dn_speed").innerText = humanReadableSpeed(-1);
+    $("up_speed").innerText = humanReadableSpeed(-1);
   }
 };
 

@@ -275,6 +275,9 @@ func run(args yggArgs, ctx context.Context) {
 		}
 	}
 
+	// Start HTTP server
+	n.admin.StartHttpServer(args.useconffile, cfg)
+
 	// Setup the multicast module.
 	{
 		options := []multicast.SetupOption{}
@@ -317,8 +320,6 @@ func run(args yggArgs, ctx context.Context) {
 	logger.Infof("Your public key is %s", hex.EncodeToString(public[:]))
 	logger.Infof("Your IPv6 address is %s", address.String())
 	logger.Infof("Your IPv6 subnet is %s", subnet.String())
-	// Start HTTP server
-	n.admin.StartHttpServer(args.useconffile, cfg)
 	// Block until we are told to shut down.
 	<-ctx.Done()
 
