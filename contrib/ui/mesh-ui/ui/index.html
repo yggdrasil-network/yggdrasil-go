@@ -132,15 +132,20 @@
         </div>
 
         <div class="container-ip">
+          <div class="item">Coordinates</div>
+          <div id="coordinates" class="item push-right">N/A</div>
+          <div class="item">
+            <a class="fas fa-copy" onclick="copy2clipboard(document.getElementById('coordinates').innerHTML);"></a>
+          </div>
+        </div>
 
+        <div class="container-ip">
           <div class="item">Peers</div>
           <div id="peers" class="item over">
-
           </div>
           <div class="item push-right">
             <a id="showAllPeersBtn" class="fas fa-edit"></a>
           </div>
-
         </div>
 
       </div>

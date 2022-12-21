@@ -363,6 +363,7 @@ ui.updateConnectedPeers = function () {
     $("peers").innerText = error.message;
     ui.updateStatus();
     ui.updateSpeed();
+    ui.updateCoordsInfo();
   });
 };
 
@@ -384,10 +385,19 @@ ui.updateSelfInfo = function () {
   return ui.getSelfInfo().then(function (info) {
     $("ipv6").innerText = info.address;
     $("subnet").innerText = info.subnet;
+    $("coordinates").innerText = info.coords;
     $("pub_key").innerText = info.key;
     $("priv_key").innerText = info.private_key;
     $("ipv6").innerText = info.address;
     $("version").innerText = info.build_version;
+  }).catch(function (error) {
+    $("ipv6").innerText = error.message;
+  });
+};
+
+ui.updateCoordsInfo = function () {
+  return ui.getSelfInfo().then(function (info) {
+    $("coordinates").innerText = info.coords;
   }).catch(function (error) {
     $("ipv6").innerText = error.message;
   });
@@ -406,7 +416,6 @@ function main() {
     setInterval(ui.updateConnectedPeers, 5000);
 
     ui.updateSelfInfo();
-    //setInterval(ui.updateSelfInfo, 5000);
 
     ui.sse.addEventListener("ping", function (e) {
       var data = JSON.parse(e.data);

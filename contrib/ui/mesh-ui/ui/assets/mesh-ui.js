@@ -343,6 +343,7 @@ ui.updateConnectedPeers = () =>
       $("peers").innerText = error.message;
       ui.updateStatus();
       ui.updateSpeed();
+      ui.updateCoordsInfo();
     });
 
 ui.lookupCountryCodeByAddress = (address) => {
@@ -361,6 +362,7 @@ ui.updateSelfInfo = () =>
     .then((info) => {
       $("ipv6").innerText = info.address;
       $("subnet").innerText = info.subnet;
+      $("coordinates").innerText = info.coords;
       $("pub_key").innerText = info.key;
       $("priv_key").innerText = info.private_key;
       $("ipv6").innerText = info.address;
@@ -368,6 +370,14 @@ ui.updateSelfInfo = () =>
     }).catch((error) => {
       $("ipv6").innerText = error.message;
     });
+
+ui.updateCoordsInfo = function () {
+  return ui.getSelfInfo().then(function (info) {
+    $("coordinates").innerText = info.coords;
+  }).catch(function (error) {
+    $("ipv6").innerText = error.message;
+  });
+};
 
 ui.sse = new EventSource('/api/sse');
 
