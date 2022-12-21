@@ -389,7 +389,7 @@ ui.updateSelfInfo = function () {
   return ui.getSelfInfo().then(function (info) {
     $("ipv6").innerText = info.address;
     $("subnet").innerText = info.subnet;
-    $("coordinates").innerText = "".concat('[',replaceAll(info.coords, ',', ' '),']');
+    $("coordinates").innerText = replaceAll(JSON.stringify(info.coords), ',', ' ');
     $("pub_key").innerText = info.key;
     $("priv_key").innerText = info.private_key;
     $("ipv6").innerText = info.address;
