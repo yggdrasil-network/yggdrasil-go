@@ -338,7 +338,7 @@ func (a *AdminSocket) StartHttpServer(configFn string, nc *config.NodeConfig) {
 				}
 				fmt.Fprint(w, string(b[:]))
 			case "POST":
-				handlePost()
+				_ = handlePost()
 			case "PUT":
 				if handleDelete() == nil {
 					if handlePost() == nil {

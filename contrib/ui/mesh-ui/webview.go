@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/RiV-chain/RiV-mesh/src/defaults"
-	"github.com/jchv/go-webview-selector"
 
 	"github.com/docopt/docopt-go"
 )
@@ -37,10 +36,10 @@ func main() {
 		Console(false)
 	}
 	debug := true
-	w := webview.New(debug)
+	w := New(debug)
 	defer w.Destroy()
 	w.SetTitle("RiV-mesh")
-	w.SetSize(690, 920, webview.HintFixed)
+	w.SetSize(690, 920, HintFixed)
 
 	if confui.IndexHtml == "" {
 		confui.IndexHtml = defaults.GetHttpEndpoint("http://localhost:19019")

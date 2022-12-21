@@ -18,7 +18,7 @@ $(addprefix $(OUT_DIR)/,$(ALL_PLATFORMS)):
 linux-amd64: $(addprefix linux-amd64-,$(ALL_EXE))
 
 windows-amd64: $(addprefix windows-amd64-,$(ALL_EXE))
-windows-amd64-%: BUILD_ENV=CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
+#windows-amd64-%: BUILD_ENV=CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 
 macos-amd64: $(addprefix macos-amd64-,$(ALL_EXE))
 macos-amd64-%: BUILD_ENV=GO111MODULE=on
