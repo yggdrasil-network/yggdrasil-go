@@ -357,12 +357,16 @@ ui.getSelfInfo = () =>
   fetch('api/self')
     .then((response) => response.json())
 
+function replaceAll(string, search, replace) {
+  return string.split(search).join(replace);
+}
+
 ui.updateSelfInfo = () =>
   ui.getSelfInfo()
     .then((info) => {
       $("ipv6").innerText = info.address;
       $("subnet").innerText = info.subnet;
-      $("coordinates").innerText = info.coords;
+      $("coordinates").innerText = "".concat('[',replaceAll(info.coords, ',', ' '),']');
       $("pub_key").innerText = info.key;
       $("priv_key").innerText = info.private_key;
       $("ipv6").innerText = info.address;
