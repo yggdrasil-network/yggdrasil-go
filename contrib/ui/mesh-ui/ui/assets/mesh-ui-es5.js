@@ -393,7 +393,7 @@ ui.updateSelfInfo = function () {
 
 ui.updateCoordsInfo = function () {
   return ui.getSelfInfo().then(function (info) {
-    $("coordinates").innerText = info.coords;
+    $("coordinates").innerText = ''.concat('[',info.coords.join(' '),']');
   }).catch(function (error) {
     $("ipv6").innerText = error.message;
   });
