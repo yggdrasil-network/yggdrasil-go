@@ -381,15 +381,11 @@ ui.getSelfInfo = function () {
   });
 };
 
-function replaceAll(string, search, replace) {
-  return string.split(search).join(replace);
-}
-
 ui.updateSelfInfo = function () {
   return ui.getSelfInfo().then(function (info) {
     $("ipv6").innerText = info.address;
     $("subnet").innerText = info.subnet;
-    $("coordinates").innerText = replaceAll(JSON.stringify(info.coords), ',', ' ');
+    $("coordinates").innerText = ''.concat('[',info.coords.join(' '),']');
     $("pub_key").innerText = info.key;
     $("priv_key").innerText = info.private_key;
     $("ipv6").innerText = info.address;
