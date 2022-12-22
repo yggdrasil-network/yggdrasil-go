@@ -27,6 +27,9 @@ $(foreach platf, $(ALL_PLATFORMS), $(addprefix $(platf)-,$(ALL_EXE))):
 		$(MAKE) $(OUT_DIR)/$(call take,1,$@)-$(call take,2,$@)
 		GOOS=$(call take,1,$@) GOARCH=$(call take,2,$@) $(BUILD_ENV) ./build -g $(call take,3,$@) -b $(OUT_DIR)/$(call take,1,$@)-$(call take,2,$@)
 
+lint:
+		golangci-lint run
+		
 clean:
 
 help:
