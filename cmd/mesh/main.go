@@ -28,15 +28,17 @@ import (
 	"github.com/RiV-chain/RiV-mesh/src/core"
 	//"github.com/RiV-chain/RiV-mesh/src/ipv6rwc"
 	"github.com/RiV-chain/RiV-mesh/src/multicast"
+	"github.com/RiV-chain/RiV-mesh/src/restapi"
 	"github.com/RiV-chain/RiV-mesh/src/tun"
 	"github.com/RiV-chain/RiV-mesh/src/version"
 )
 
 type node struct {
-	core      *core.Core
-	tun       *tun.TunAdapter
-	multicast *multicast.Multicast
-	admin     *admin.AdminSocket
+	core        *core.Core
+	tun         *tun.TunAdapter
+	multicast   *multicast.Multicast
+	admin       *admin.AdminSocket
+	rest_server *restapi.RestServer
 }
 
 func setLogLevel(loglevel string, logger *log.Logger) {
@@ -127,6 +129,14 @@ func run(args yggArgs, ctx context.Context) {
 	default:
 		if logfd, err := os.OpenFile(args.logto, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
 			logger = log.New(logfd, "", log.Flags())
+			defer func() int {
+				if r := recover(); r != nil {
+					logger.Println("Fatal error:", r)
+					fmt.Print(logfd)
+					return 1
+				}
+				return 0
+			}()
 		}
 	}
 	if logger == nil {
@@ -262,6 +272,24 @@ func run(args yggArgs, ctx context.Context) {
 		}
 	}
 
+	// Setup the REST socket.
+	{
+		if n.rest_server, err = restapi.NewRestServer(restapi.RestServerCfg{
+			Core:          n.core,
+			Log:           logger,
+			ListenAddress: cfg.HttpAddress,
+			WwwRoot:       cfg.WwwRoot,
+			ConfigFn:      args.useconffile,
+		}); err != nil {
+			logger.Errorln(err)
+		} else {
+			err = n.rest_server.Serve()
+			if err != nil {
+				logger.Errorln(err)
+			}
+		}
+	}
+
 	// Setup the admin socket.
 	{
 		options := []admin.SetupOption{
@@ -274,9 +302,6 @@ func run(args yggArgs, ctx context.Context) {
 			n.admin.SetupAdminHandlers()
 		}
 	}
-
-	// Start HTTP server
-	n.admin.StartHttpServer(args.useconffile, cfg)
 
 	// Setup the multicast module.
 	{

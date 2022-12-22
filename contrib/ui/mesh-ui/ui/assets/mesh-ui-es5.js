@@ -234,7 +234,7 @@ function togglePrivKeyVisibility() {
 function humanReadableSpeed(speed) {
   if (speed < 0) return "? B/s";
   var i = speed < 1 ? 0 : Math.floor(Math.log(speed) / Math.log(1024));
-  return (speed / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + ['bps', 'kbps', 'Mbps', 'Gbps', 'Tbps'][i];
+  return (speed / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + ['B/s', 'kB/s', 'MB/s', 'GB/s', 'TB/s'][i];
 }
 
 var ui = ui || {
@@ -297,22 +297,22 @@ ui.getConnectedPeers = function () {
   });
 };
 
-var regexMulticast = /:\/\/\[fe80::/;
 ui.updateConnectedPeersHandler = function (peers) {
+  ui.updateStatus(peers);
+  ui.updateSpeed(peers);
+  ui.updateCoordsInfo();
   $("peers").innerText = "";
-  var regexStrip = /%[^\]]*/gm;
-  var sorted = peers.map(function (peer) {
-    return { "url": peer["remote"], "isMulticast": peer["remote"].match(regexMulticast) };
-  }).sort(function (a, b) {
-    return a.isMulticast > b.isMulticast;
-  });
-  sorted.forEach(function (peer) {
-    var row = $("peers").appendChild(document.createElement('div'));
-    row.className = "overflow-ellipsis";
-    var flag = row.appendChild(document.createElement("span"));
-    if (peer.isMulticast) flag.className = "fa fa-thin fa-share-nodes peer-connected-fl";else flag.className = "fi fi-" + ui.lookupCountryCodeByAddress(peer.url) + " peer-connected-fl";
-    row.append(peer.url.replace(regexStrip, ""));
-  });
+  if (peers) {
+    var regexStrip = /%[^\]]*/gm;
+    peers.forEach(function (peer) {
+      var row = $("peers").appendChild(document.createElement('div'));
+      row.className = "overflow-ellipsis";
+      var flag = row.appendChild(document.createElement("span"));
+      if (peer.multicast) flag.className = "fa fa-thin fa-share-nodes peer-connected-fl";
+      else flag.className = "fi fi-" + ui.lookupCountryCodeByAddress(peer.remote) + " peer-connected-fl";
+      row.append(peer.remote.replace(regexStrip, ""));
+    });
+  }
 };
 
 ui.updateStatus = function (peers) {
@@ -320,7 +320,7 @@ ui.updateStatus = function (peers) {
   if (peers) {
     if (peers.length) {
       var isNonMulticastExists = peers.filter(function (peer) {
-        return !peer["remote"].match(regexMulticast);
+        return !peer.multicast;
       }).length;
       status = isNonMulticastExists ? "st-multicast" : "st-connected";
     } else {
@@ -356,14 +356,10 @@ ui.updateSpeed = function (peers) {
 
 ui.updateConnectedPeers = function () {
   return ui.getConnectedPeers().then(function (peers) {
-    ui.updateConnectedPeersHandler(peers);
-    ui.updateStatus(peers);
-    ui.updateSpeed(peers);
+    return ui.updateConnectedPeersHandler(peers);
   }).catch(function (error) {
+    ui.updateConnectedPeersHandler();
     $("peers").innerText = error.message;
-    ui.updateStatus();
-    ui.updateSpeed();
-    ui.updateCoordsInfo();
   });
 };
 
@@ -413,7 +409,6 @@ function main() {
     ui.getAllPeers().then(function () {
       return ui.updateConnectedPeers();
     });
-    setInterval(ui.updateConnectedPeers, 5000);
 
     ui.updateSelfInfo();
 

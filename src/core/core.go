@@ -13,6 +13,7 @@ import (
 	iwt "github.com/Arceliar/ironwood/types"
 	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
+	signals "github.com/vorot93/golang-signals"
 
 	"github.com/RiV-chain/RiV-mesh/src/version"
 )
@@ -25,15 +26,16 @@ type Core struct {
 	// guarantee that it will be covered by the mutex
 	phony.Inbox
 	*iwe.PacketConn
-	ctx          context.Context
-	cancel       context.CancelFunc
-	secret       ed25519.PrivateKey
-	public       ed25519.PublicKey
-	links        links
-	proto        protoHandler
-	log          Logger
-	addPeerTimer *time.Timer
-	config       struct {
+	ctx                context.Context
+	cancel             context.CancelFunc
+	secret             ed25519.PrivateKey
+	public             ed25519.PublicKey
+	links              links
+	proto              protoHandler
+	log                Logger
+	addPeerTimer       *time.Timer
+	PeersChangedSignal signals.Signal
+	config             struct {
 		_peers             map[Peer]*linkInfo         // configurable after startup
 		_listeners         map[ListenAddress]struct{} // configurable after startup
 		nodeinfo           NodeInfo                   // immutable after startup

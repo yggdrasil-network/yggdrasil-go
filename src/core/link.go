@@ -199,6 +199,9 @@ func (intf *link) handler(dial *linkDial) error {
 	intf.links.core.log.Infof("Connected %s %s: %s, source %s",
 		dir, strings.ToUpper(intf.info.linkType), remoteStr, localStr)
 
+	time.AfterFunc(time.Millisecond*500, func() {
+		intf.links.core.PeersChangedSignal.Emit(nil)
+	})
 	err = intf.links.core.HandleConn(meta.key, intf.conn, intf.options.priority)
 	switch err {
 	case io.EOF, net.ErrClosed, nil:
@@ -208,6 +211,7 @@ func (intf *link) handler(dial *linkDial) error {
 		intf.links.core.log.Infof("Disconnected %s %s: %s, source %s; error: %s",
 			dir, strings.ToUpper(intf.info.linkType), remoteStr, localStr, err)
 	}
+	intf.links.core.PeersChangedSignal.Emit(nil)
 
 	if !intf.incoming && dial != nil {
 		// The connection was one that we dialled, so wait a second and try to

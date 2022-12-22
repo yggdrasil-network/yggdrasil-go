@@ -227,7 +227,7 @@ function togglePrivKeyVisibility() {
 function humanReadableSpeed(speed) {
   if (speed < 0) return "? B/s";
   var i = speed < 1 ? 0 : Math.floor(Math.log(speed) / Math.log(1024));
-  return (speed / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + ['bps', 'kbps', 'Mbps', 'Gbps', 'Tbps'][i];
+  return (speed / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + ['B/s', 'kB/s', 'MB/s', 'GB/s', 'TB/s'][i];
 }
 
 var ui = ui || {
@@ -284,29 +284,31 @@ ui.getConnectedPeers = () =>
   fetch('api/peers')
     .then((response) => response.json())
 
-const regexMulticast  = /:\/\/\[fe80::/;
 ui.updateConnectedPeersHandler = (peers) => {
+  ui.updateStatus(peers);
+  ui.updateSpeed(peers);
+  ui.updateCoordsInfo();
   $("peers").innerText = "";
-  const regexStrip = /%[^\]]*/gm;
-  const sorted = peers.map(peer => ({"url": peer["remote"], "isMulticast": peer["remote"].match(regexMulticast)}))
-                      .sort((a, b) => a.isMulticast > b.isMulticast);
-  sorted.forEach(peer => {
-    let row = $("peers").appendChild(document.createElement('div'));
-    row.className = "overflow-ellipsis"
-    let flag =  row.appendChild(document.createElement("span"));
-    if(peer.isMulticast)
-      flag.className = "fa fa-thin fa-share-nodes peer-connected-fl";
-    else
-      flag.className = "fi fi-" + ui.lookupCountryCodeByAddress(peer.url) + " peer-connected-fl";
-    row.append(peer.url.replace(regexStrip, ""));
-  });
+  if(peers) {
+    const regexStrip = /%[^\]]*/gm;
+    peers.forEach(peer => {
+      let row = $("peers").appendChild(document.createElement('div'));
+      row.className = "overflow-ellipsis"
+      let flag =  row.appendChild(document.createElement("span"));
+      if(peer.multicast)
+        flag.className = "fa fa-thin fa-share-nodes peer-connected-fl";
+      else
+        flag.className = "fi fi-" + ui.lookupCountryCodeByAddress(peer.remote) + " peer-connected-fl";
+      row.append(peer.remote.replace(regexStrip, ""));
+    });
+  }
 }
 
 ui.updateStatus = peers => {
   let status = "st-error";
   if(peers) {
     if(peers.length) {
-      const isNonMulticastExists = peers.filter(peer => !peer["remote"].match(regexMulticast)).length;
+      const isNonMulticastExists = peers.filter(peer => !peer.multicast).length;
       status = isNonMulticastExists ? "st-multicast" : "st-connected";
     } else {
       status = "st-connecting"
@@ -335,15 +337,10 @@ ui.updateSpeed = peers => {
 
 ui.updateConnectedPeers = () =>
   ui.getConnectedPeers()
-    .then(peers => {ui.updateConnectedPeersHandler(peers);
-                    ui.updateStatus(peers);
-                    ui.updateSpeed(peers);
-                  })
+    .then(peers => ui.updateConnectedPeersHandler(peers))
     .catch((error) => {
+      ui.updateConnectedPeersHandler();
       $("peers").innerText = error.message;
-      ui.updateStatus();
-      ui.updateSpeed();
-      ui.updateCoordsInfo();
     });
 
 ui.lookupCountryCodeByAddress = (address) => {
@@ -387,7 +384,6 @@ function main() {
     $("showAllPeersBtn").addEventListener("click", ui.showAllPeers);
 
     ui.getAllPeers().then(() => ui.updateConnectedPeers());
-    setInterval(ui.updateConnectedPeers, 5000);
 
     ui.updateSelfInfo();
     //setInterval(ui.updateSelfInfo, 5000);

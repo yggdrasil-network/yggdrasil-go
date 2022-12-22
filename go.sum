@@ -98,6 +98,8 @@ github.com/vishvananda/netlink v1.1.0/go.mod h1:cTgwzPIzzgDAYoQrMm0EdrjRUBkTqKYp
 github.com/vishvananda/netns v0.0.0-20191106174202-0a2b9b5464df/go.mod h1:JP3t17pCcGlemwknint6hfoeCVQrEMVwxRLRjXpq+BU=
 github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f h1:p4VB7kIXpOQvVn1ZaTIVp+3vuYAXFe3OJEvjbUYJLaA=
 github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f/go.mod h1:DD4vA1DwXk04H54A1oHXtwZmA0grkVMdPxx/VGLCah0=
+github.com/vorot93/golang-signals v0.0.0-20170221070717-d9e83421ce45 h1:hB/hkjwf3BQnZE6Wk3SBwMJz0NqnGdwXoNzHVSYb0N0=
+github.com/vorot93/golang-signals v0.0.0-20170221070717-d9e83421ce45/go.mod h1:dfjQkJsG5auteUbnfLIcU72Y/z8tj7DuW9fik8f2Zn0=
 github.com/webview/webview v0.0.0-20221218140943-9db4b8c3e9af h1:QO77Qt3ucuL5l8tFIAMXrLaDx4rYI9Nz89x+nrJwYJo=
 github.com/webview/webview v0.0.0-20221218140943-9db4b8c3e9af/go.mod h1:rpXAuuHgyEJb6kXcXldlkOjU6y4x+YcASKKXJNUhh0Y=
 github.com/webview/webview v0.0.0-20221220082822-77e021440a0f h1:whomWpMJmyN9uHtIjBIE2jmjN8ZccngNh3kCg4G16FA=
