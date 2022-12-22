@@ -24,7 +24,7 @@ import (
 
 type ServerEvent struct {
 	Event string
-	Data  string
+	Data  []byte
 }
 
 type RestServerCfg struct {
@@ -40,6 +40,7 @@ type RestServer struct {
 	listenUrl         *url.URL
 	serverEvents      chan ServerEvent
 	serverEventNextId int
+	updateTimer       *time.Timer
 	docFsType         string
 }
 
@@ -93,7 +94,7 @@ func NewRestServer(cfg RestServerCfg) (*RestServer, error) {
 		}
 
 		select {
-		case a.serverEvents <- ServerEvent{Event: "peers", Data: string(b)}:
+		case a.serverEvents <- ServerEvent{Event: "peers", Data: b}:
 		default:
 		}
 	})
@@ -281,23 +282,40 @@ func (a *RestServer) apiSseHandler(w http.ResponseWriter, r *http.Request) {
 			case v := <-a.serverEvents:
 				fmt.Fprintln(w, "id:", a.serverEventNextId)
 				fmt.Fprintln(w, "event:", v.Event)
-				fmt.Fprintln(w, "data:", v.Data)
+				fmt.Fprintln(w, "data:", string(v.Data))
 				fmt.Fprintln(w) //end of event
 				a.serverEventNextId += 1
 			default:
 				break Loop
 			}
 		}
+		if a.updateTimer != nil {
+			select {
+			case <-a.updateTimer.C:
+				go a.sendSseUpdate()
+				a.updateTimer.Reset(time.Second * 5)
+			default:
+			}
+		} else {
+			a.updateTimer = time.NewTimer(time.Second * 5)
+		}
 	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func (a *RestServer) sendSseUpdate() {
+	rx, tx := a.getPeersRxTxBytes()
+	a.serverEvents <- ServerEvent{Event: "rxtx", Data: []byte(fmt.Sprintf(`[{"bytes_recvd":%d,"bytes_sent":%d}]`, rx, tx))}
+	data, _ := json.Marshal(a.Core.GetSelf().Coords)
+	a.serverEvents <- ServerEvent{Event: "coord", Data: data}
 }
 
 func (a *RestServer) ping(peers []string) {
 	for _, u := range peers {
 		go func(u string) {
 			data, _ := json.Marshal(map[string]string{"peer": u, "value": strconv.FormatInt(check(u), 10)})
-			a.serverEvents <- ServerEvent{Event: "ping", Data: string(data)}
+			a.serverEvents <- ServerEvent{Event: "ping", Data: data}
 		}(u)
 	}
 }
@@ -314,4 +332,16 @@ func check(peer string) int64 {
 	}
 	d := time.Since(t)
 	return d.Milliseconds()
+}
+
+func (a *RestServer) getPeersRxTxBytes() (uint64, uint64) {
+	var rx uint64
+	var tx uint64
+
+	peers := a.Core.GetPeers()
+	for _, p := range peers {
+		rx += p.RXBytes
+		tx += p.TXBytes
+	}
+	return rx, tx
 }

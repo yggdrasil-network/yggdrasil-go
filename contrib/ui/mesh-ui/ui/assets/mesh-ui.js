@@ -286,8 +286,6 @@ ui.getConnectedPeers = () =>
 
 ui.updateConnectedPeersHandler = (peers) => {
   ui.updateStatus(peers);
-  ui.updateSpeed(peers);
-  ui.updateCoordsInfo();
   $("peers").innerText = "";
   if(peers) {
     const regexStrip = /%[^\]]*/gm;
@@ -368,16 +366,6 @@ ui.updateSelfInfo = () =>
       $("ipv6").innerText = error.message;
     });
 
-ui.updateCoordsInfo = function () {
-  return ui.getSelfInfo().then(function (info) {
-    $("coordinates").innerText = ''.concat('[',info.coords.join(' '),']');
-  }).catch(function (error) {
-    $("ipv6").innerText = error.message;
-  });
-};
-
-ui.sse = new EventSource('/api/sse');
-
 function main() {
 
   window.addEventListener("load", () => {
@@ -386,7 +374,8 @@ function main() {
     ui.getAllPeers().then(() => ui.updateConnectedPeers());
 
     ui.updateSelfInfo();
-    //setInterval(ui.updateSelfInfo, 5000);
+
+    ui.sse = new EventSource('/api/sse');
 
     ui.sse.addEventListener("ping", (e) => {
       let data = JSON.parse(e.data);
@@ -395,6 +384,15 @@ function main() {
     
     ui.sse.addEventListener("peers", (e) => {
       ui.updateConnectedPeersHandler(JSON.parse(e.data));
+    })
+    
+    ui.sse.addEventListener("rxtx", (e) => {
+      ui.updateSpeed(JSON.parse(e.data));
+    })
+    
+    ui.sse.addEventListener("coord", (e) => {
+      let coords = JSON.parse(e.data);
+      $("coordinates").innerText = ''.concat('[',coords.join(' '),']');
     })
     
   });
