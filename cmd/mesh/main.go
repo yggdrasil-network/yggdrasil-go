@@ -276,6 +276,9 @@ func run(args yggArgs, ctx context.Context) {
 			logger.Errorln(err)
 		} else {
 			err = n.rest_server.Serve()
+			if err != nil {
+				logger.Errorln(err)
+			}
 		}
 	}
 

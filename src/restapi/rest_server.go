@@ -97,7 +97,10 @@ func (a *RestServer) Serve() error {
 		a.Log.Infof("Http server is listening on %s and is supplied from %s %s\n", a.ListenAddress, a.docFsType, a.WwwRoot)
 	}
 	go func() {
-		a.Log.Errorln(http.Serve(l, nil))
+		err := http.Serve(l, nil)
+		if err != nil {
+			a.Log.Errorln(err)
+		}
 	}()
 	return nil
 }
@@ -216,7 +219,7 @@ func (a *RestServer) apiPeersHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		fmt.Fprint(w, string(b[:]))
 	case "POST":
-		handlePost()
+		_ = handlePost()
 	case "PUT":
 		if handleDelete() == nil {
 			if handlePost() == nil {
