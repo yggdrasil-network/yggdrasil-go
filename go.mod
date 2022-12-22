@@ -21,13 +21,14 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.4.12
 )
 
-require gerace.dev/zipfs v0.2.0
-
 require (
-	github.com/jchv/go-webview-selector v0.0.0-20220126075917-13df59bce3cf // indirect
-	github.com/jchv/go-webview2 v0.0.0-20220126073738-2ea27096a5eb // indirect
-	github.com/jchv/go-winloader v0.0.0-20200815041850-dec1ee9a7fd5 // indirect
+	gerace.dev/zipfs v0.2.0
+	github.com/jchv/go-webview2 v0.0.0-20221027045535-e2a104b55541
 )
+
+require github.com/webview/webview v0.0.0-20221220082822-77e021440a0f
+
+require github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e // indirect
 
 require (
 	github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815

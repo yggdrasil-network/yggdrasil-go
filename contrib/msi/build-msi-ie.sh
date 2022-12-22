@@ -84,9 +84,18 @@ then
   unzip wintun.zip
 fi
 
+cp riv.ico "$PKGUIFOLDER"/favicon.ico
 PKG_UI_ASSETS_ZIP=$(pwd)/ui.zip
 ( cd "$PKGUIFOLDER" && 7z a "$PKG_UI_ASSETS_ZIP" * )
 PKG_UI_ASSETS_ZIP=ui.zip
+
+#Build winres
+go-winres simply --icon riv.ico --file-version $PKGVERSION --file-description "RiV-mesh (c) service, 2022 RIV CHAIN" \
+--product-version $PKGVERSION --product-name "RiV-mesh" --copyright "Copyright (c) 2022, RIV CHAIN"
+cp *.syso cmd/mesh
+go-winres simply --file-version $PKGVERSION --file-description "RiV-mesh (c) CLI, 2022 RIV CHAIN" \
+--product-version $PKGVERSION --product-name "RiV-mesh" --copyright "Copyright (c) 2022, RIV CHAIN" --manifest cli
+cp *.syso cmd/meshctl
 
 if [ $PKGARCH = "x64" ]; then
   PKGWINTUNDLL=wintun/bin/amd64/wintun.dll
@@ -208,7 +217,6 @@ cat > wix.xml << EOF
               KeyPath="yes"/>
           </Component>
 
-
           <Component Id="UIExecutable" Guid="ef9f30e0-8274-4526-835b-51bc09b5b1b7">
             <File
               Id="UiAssets"
@@ -216,7 +224,6 @@ cat > wix.xml << EOF
               DiskId="1"
               Source="${PKG_UI_ASSETS_ZIP}" />
           </Component>
-
 
           <Component Id="ConfigScript" Guid="64a3733b-c98a-4732-85f3-20cd7da1a785">
             <File

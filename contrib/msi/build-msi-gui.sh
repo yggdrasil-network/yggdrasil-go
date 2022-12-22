@@ -106,6 +106,7 @@ else
   exit 1
 fi
 
+cp riv.ico "$PKGUIFOLDER"/favicon.ico
 PKG_UI_ASSETS_ZIP=$(pwd)/ui.zip
 ( cd "$PKGUIFOLDER" && 7z a "$PKG_UI_ASSETS_ZIP" * )
 PKG_UI_ASSETS_ZIP=ui.zip

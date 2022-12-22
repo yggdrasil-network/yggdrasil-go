@@ -70,7 +70,6 @@ img {
 
 body {
   max-width: 690px;
-  min-width: 690px;
   margin: auto;
 }
 
@@ -84,7 +83,7 @@ td.fi {
 }
 
 footer {
-  position:fixed;
+  position:-ms-device-fixed; /*works only in IE11 RIVM-37*/
   bottom:0;
   max-width: 690px;
   margin-top: auto;
