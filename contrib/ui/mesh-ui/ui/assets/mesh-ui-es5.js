@@ -234,7 +234,7 @@ function togglePrivKeyVisibility() {
 function humanReadableSpeed(speed) {
   if (speed < 0) return "? B/s";
   var i = speed < 1 ? 0 : Math.floor(Math.log(speed) / Math.log(1024));
-  return (speed / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + ['bps', 'kbps', 'Mbps', 'Gbps', 'Tbps'][i];
+  return (speed / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + ['B/s', 'kB/s', 'MB/s', 'GB/s', 'TB/s'][i];
 }
 
 var ui = ui || {
