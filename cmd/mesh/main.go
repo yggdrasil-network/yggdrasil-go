@@ -129,6 +129,14 @@ func run(args yggArgs, ctx context.Context) {
 	default:
 		if logfd, err := os.OpenFile(args.logto, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
 			logger = log.New(logfd, "", log.Flags())
+			defer func() int {
+				if r := recover(); r != nil {
+					logger.Println("Fatal error:", r)
+					fmt.Print(logfd)
+					return 1
+				}
+				return 0
+			}()
 		}
 	}
 	if logger == nil {
