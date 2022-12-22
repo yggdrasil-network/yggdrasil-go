@@ -5,39 +5,25 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"sort"
-	"strconv"
 
-	"archive/zip"
 	"strings"
 	"time"
 
-	"gerace.dev/zipfs"
-
-	"github.com/RiV-chain/RiV-mesh/src/config"
 	"github.com/RiV-chain/RiV-mesh/src/core"
-	"github.com/RiV-chain/RiV-mesh/src/defaults"
 )
 
 // TODO: Add authentication
 
-type ServerEvent struct {
-	event string
-	data  string
-}
-
 type AdminSocket struct {
-	core              *core.Core
-	log               core.Logger
-	listener          net.Listener
-	handlers          map[string]handler
-	done              chan struct{}
-	serverEvents      chan ServerEvent
-	serverEventNextId int
-	config            struct {
+	core     *core.Core
+	log      core.Logger
+	listener net.Listener
+	handlers map[string]handler
+	done     chan struct{}
+	config   struct {
 		listenaddr ListenAddress
 	}
 }
@@ -112,7 +98,6 @@ func New(c *core.Core, log core.Logger, opts ...SetupOption) (*AdminSocket, erro
 		return res, nil
 	})
 	a.done = make(chan struct{})
-	a.serverEvents = make(chan ServerEvent)
 	go a.listen()
 	return a, a.core.SetAdmin(a)
 }
@@ -244,209 +229,6 @@ func (a *AdminSocket) SetupAdminHandlers() {
 	//_ = a.AddHandler("debug_remoteGetSelf", []string{"key"}, t.proto.getSelfHandler)
 	//_ = a.AddHandler("debug_remoteGetPeers", []string{"key"}, t.proto.getPeersHandler)
 	//_ = a.AddHandler("debug_remoteGetDHT", []string{"key"}, t.proto.getDHTHandler)
-}
-
-// Start runs http server
-func (a *AdminSocket) StartHttpServer(configFn string, nc *config.NodeConfig) {
-	if nc.HttpAddress != "none" && nc.HttpAddress != "" && nc.WwwRoot != "none" && nc.WwwRoot != "" {
-		u, err := url.Parse(nc.HttpAddress)
-		if err != nil {
-			a.log.Errorln("An error occurred parsing http address:", err)
-			return
-		}
-		addNoCacheHeaders := func(w http.ResponseWriter) {
-			w.Header().Add("Cache-Control", "no-cache, no-store, must-revalidate")
-			w.Header().Add("Pragma", "no-cache")
-			w.Header().Add("Expires", "0")
-		}
-		http.HandleFunc("/api", func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, "Following methods are allowed: getself, getpeers. litening"+u.Host)
-		})
-		http.HandleFunc("/api/self", func(w http.ResponseWriter, r *http.Request) {
-			addNoCacheHeaders(w)
-			switch r.Method {
-			case "GET":
-				w.Header().Add("Content-Type", "application/json")
-				req := &GetSelfRequest{}
-				res := &GetSelfResponse{}
-				if err := a.getSelfHandler(req, res); err != nil {
-					http.Error(w, err.Error(), 503)
-				}
-				b, err := json.Marshal(res)
-				if err != nil {
-					http.Error(w, err.Error(), 503)
-				}
-				fmt.Fprint(w, string(b[:]))
-			default:
-				http.Error(w, "Method Not Allowed", 405)
-			}
-		})
-		http.HandleFunc("/api/peers", func(w http.ResponseWriter, r *http.Request) {
-			var handleDelete = func() error {
-				err := a.core.RemovePeers()
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-				}
-				return err
-			}
-			var handlePost = func() error {
-				var peers []string
-				err := json.NewDecoder(r.Body).Decode(&peers)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusBadRequest)
-					return err
-				}
-
-				for _, peer := range peers {
-					if err := a.core.AddPeer(peer, ""); err != nil {
-						http.Error(w, err.Error(), http.StatusBadRequest)
-						return err
-					}
-				}
-
-				if len(configFn) > 0 {
-					saveHeaders := r.Header["Riv-Save-Config"]
-					if len(saveHeaders) > 0 && saveHeaders[0] == "true" {
-						cfg, err := defaults.ReadConfig(configFn)
-						if err == nil {
-							cfg.Peers = peers
-							err := defaults.WriteConfig(configFn, cfg)
-							if err != nil {
-								a.log.Errorln("Config file read error:", err)
-							}
-						} else {
-							a.log.Errorln("Config file read error:", err)
-						}
-					}
-				}
-				return nil
-			}
-
-			addNoCacheHeaders(w)
-			switch r.Method {
-			case "GET":
-				w.Header().Add("Content-Type", "application/json")
-				req := &GetPeersRequest{}
-				res := &GetPeersResponse{}
-
-				if err := a.getPeersHandler(req, res); err != nil {
-					http.Error(w, err.Error(), 503)
-				}
-				b, err := json.Marshal(res.Peers)
-				if err != nil {
-					http.Error(w, err.Error(), 503)
-				}
-				fmt.Fprint(w, string(b[:]))
-			case "POST":
-				handlePost()
-			case "PUT":
-				if handleDelete() == nil {
-					if handlePost() == nil {
-						http.Error(w, "No content", http.StatusNoContent)
-					}
-				}
-			case "DELETE":
-				if handleDelete() == nil {
-					http.Error(w, "No content", http.StatusNoContent)
-				}
-			default:
-				http.Error(w, "Method Not Allowed", 405)
-			}
-		})
-		http.HandleFunc("/api/ping", func(w http.ResponseWriter, r *http.Request) {
-			switch r.Method {
-			case "POST":
-				peer_list := []string{}
-
-				err := json.NewDecoder(r.Body).Decode(&peer_list)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusBadRequest)
-					return
-				}
-
-				go a.ping(peer_list)
-				http.Error(w, "Accepted", http.StatusAccepted)
-			default:
-				http.Error(w, "Method Not Allowed", 405)
-			}
-		})
-
-		http.HandleFunc("/api/sse", func(w http.ResponseWriter, r *http.Request) {
-			addNoCacheHeaders(w)
-			switch r.Method {
-			case "GET":
-				w.Header().Add("Content-Type", "text/event-stream")
-			Loop:
-				for {
-					select {
-					case v := <-a.serverEvents:
-						fmt.Fprintln(w, "id:", a.serverEventNextId)
-						fmt.Fprintln(w, "event:", v.event)
-						fmt.Fprintln(w, "data:", v.data)
-						fmt.Fprintln(w) //end of event
-						a.serverEventNextId += 1
-					default:
-						break Loop
-					}
-				}
-			default:
-				http.Error(w, "Method Not Allowed", 405)
-			}
-		})
-
-		var docFs = ""
-		pakReader, err := zip.OpenReader(nc.WwwRoot)
-		if err == nil {
-			defer pakReader.Close()
-			fs, err := zipfs.NewZipFileSystem(&pakReader.Reader, zipfs.ServeIndexForMissing())
-			if err == nil {
-				http.Handle("/", http.FileServer(fs))
-				docFs = "zipfs"
-			}
-		}
-		if docFs == "" {
-			var nocache = func(fs http.Handler) http.HandlerFunc {
-				return func(w http.ResponseWriter, r *http.Request) {
-					addNoCacheHeaders(w)
-					fs.ServeHTTP(w, r)
-				}
-			}
-			http.Handle("/", nocache(http.FileServer(http.Dir(nc.WwwRoot))))
-			docFs = "local fs"
-		}
-		l, e := net.Listen("tcp4", u.Host)
-		if e != nil {
-			a.log.Errorf("Http server start error: %s\n", e)
-		} else {
-			a.log.Infof("Http server is listening on %s and is supplied from %s %s\n", nc.HttpAddress, docFs, nc.WwwRoot)
-		}
-		go func() {
-			a.log.Errorln(http.Serve(l, nil))
-		}()
-	}
-}
-
-func (a *AdminSocket) ping(peers []string) {
-	for _, u := range peers {
-		go func(u string) {
-			data, _ := json.Marshal(map[string]string{"peer": u, "value": strconv.FormatInt(check(u), 10)})
-			a.serverEvents <- ServerEvent{event: "ping", data: string(data)}
-		}(u)
-	}
-}
-
-func check(peer string) int64 {
-	u, e := url.Parse(peer)
-	if e != nil {
-		return -1
-	}
-	t := time.Now()
-	_, err := net.DialTimeout("tcp", u.Host, 5*time.Second)
-	if err != nil {
-		return -1
-	}
-	d := time.Since(t)
-	return d.Milliseconds()
 }
 
 // IsStarted returns true if the module has been started.
