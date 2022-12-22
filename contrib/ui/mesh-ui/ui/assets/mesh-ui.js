@@ -284,13 +284,10 @@ ui.getConnectedPeers = () =>
   fetch('api/peers')
     .then((response) => response.json())
 
-const regexMulticast  = /:\/\/\[fe80::/;
 ui.updateConnectedPeersHandler = (peers) => {
   $("peers").innerText = "";
   const regexStrip = /%[^\]]*/gm;
-  const sorted = peers.map(peer => ({"url": peer["remote"], "isMulticast": peer["remote"].match(regexMulticast)}))
-                      .sort((a, b) => a.isMulticast > b.isMulticast);
-  sorted.forEach(peer => {
+  peers.forEach(peer => {
     let row = $("peers").appendChild(document.createElement('div'));
     row.className = "overflow-ellipsis"
     let flag =  row.appendChild(document.createElement("span"));
@@ -306,7 +303,7 @@ ui.updateStatus = peers => {
   let status = "st-error";
   if(peers) {
     if(peers.length) {
-      const isNonMulticastExists = peers.filter(peer => !peer["remote"].match(regexMulticast)).length;
+      const isNonMulticastExists = peers.filter(peer => !peer.multicast).length;
       status = isNonMulticastExists ? "st-multicast" : "st-connected";
     } else {
       status = "st-connecting"

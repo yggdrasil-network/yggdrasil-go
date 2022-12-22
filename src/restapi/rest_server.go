@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"sort"
 	"strconv"
+	"strings"
 
 	"archive/zip"
 	"time"
@@ -197,11 +198,15 @@ func (a *RestServer) apiPeersHandler(w http.ResponseWriter, r *http.Request) {
 				"bytes_recvd": p.RXBytes,
 				"bytes_sent":  p.TXBytes,
 				"uptime":      p.Uptime.Seconds(),
+				"mulicast":    strings.Contains(p.Remote, "[fe80::"),
 			})
 		}
-		sort.SliceStable(response, func(i, j int) bool {
-			if response[i]["port"].(uint64) == response[j]["port"].(uint64) {
-				return response[i]["priority"].(uint64) < response[j]["priority"].(uint64)
+		sort.Slice(response, func(i, j int) bool {
+			if !response[i]["mulicast"].(bool) && response[j]["mulicast"].(bool) {
+				return true
+			}
+			if response[i]["priority"].(uint64) < response[j]["priority"].(uint64) {
+				return true
 			}
 			return response[i]["port"].(uint64) < response[j]["port"].(uint64)
 		})

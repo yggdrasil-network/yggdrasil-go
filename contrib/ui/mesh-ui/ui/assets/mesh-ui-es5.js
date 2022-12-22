@@ -297,16 +297,10 @@ ui.getConnectedPeers = function () {
   });
 };
 
-var regexMulticast = /:\/\/\[fe80::/;
 ui.updateConnectedPeersHandler = function (peers) {
   $("peers").innerText = "";
   var regexStrip = /%[^\]]*/gm;
-  var sorted = peers.map(function (peer) {
-    return { "url": peer["remote"], "isMulticast": peer["remote"].match(regexMulticast) };
-  }).sort(function (a, b) {
-    return a.isMulticast > b.isMulticast;
-  });
-  sorted.forEach(function (peer) {
+  peers.forEach(function (peer) {
     var row = $("peers").appendChild(document.createElement('div'));
     row.className = "overflow-ellipsis";
     var flag = row.appendChild(document.createElement("span"));
@@ -320,7 +314,7 @@ ui.updateStatus = function (peers) {
   if (peers) {
     if (peers.length) {
       var isNonMulticastExists = peers.filter(function (peer) {
-        return !peer["remote"].match(regexMulticast);
+        return !peer.multicast;
       }).length;
       status = isNonMulticastExists ? "st-multicast" : "st-connected";
     } else {
