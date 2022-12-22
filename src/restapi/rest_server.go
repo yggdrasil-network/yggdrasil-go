@@ -140,8 +140,8 @@ func (a *RestServer) apiSelfHandler(w http.ResponseWriter, r *http.Request) {
 			"key":           hex.EncodeToString(self.Key[:]),
 			"private_key":   hex.EncodeToString(self.PrivateKey[:]),
 			"address":       a.Core.Address().String(),
-			"coords":        snet.String(),
-			"subnet":        self.Coords,
+			"coords":        self.Coords,
+			"subnet":        snet.String(),
 		}
 		b, err := json.Marshal(result)
 		if err != nil {
