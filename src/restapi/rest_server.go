@@ -46,7 +46,7 @@ type RestServer struct {
 func NewRestServer(cfg RestServerCfg) (*RestServer, error) {
 	a := &RestServer{
 		RestServerCfg:     cfg,
-		serverEvents:      make(chan ServerEvent),
+		serverEvents:      make(chan ServerEvent, 10),
 		serverEventNextId: 0,
 	}
 	if cfg.ListenAddress == "none" || cfg.ListenAddress == "" {
@@ -85,6 +85,18 @@ func NewRestServer(cfg RestServerCfg) (*RestServer, error) {
 	http.HandleFunc("/api/ping", a.apiPingHandler)
 	http.HandleFunc("/api/sse", a.apiSseHandler)
 
+	var _ = a.Core.PeersChangedSignal.Connect(func(data interface{}) {
+		b, err := a.prepareGetPeers()
+		if err != nil {
+			a.Log.Errorf("get peers failed: %w", err)
+			return
+		}
+
+		select {
+		case a.serverEvents <- ServerEvent{Event: "peers", Data: string(b)}:
+		default:
+		}
+	})
 	return a, nil
 }
 
@@ -134,11 +146,42 @@ func (a *RestServer) apiSelfHandler(w http.ResponseWriter, r *http.Request) {
 		b, err := json.Marshal(result)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
 		}
 		fmt.Fprint(w, string(b[:]))
 	default:
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+func (a *RestServer) prepareGetPeers() ([]byte, error) {
+	peers := a.Core.GetPeers()
+	response := make([]map[string]interface{}, 0, len(peers))
+	for _, p := range peers {
+		addr := a.Core.AddrForKey(p.Key)
+		response = append(response, map[string]interface{}{
+			"address":     net.IP(addr[:]).String(),
+			"key":         hex.EncodeToString(p.Key),
+			"port":        p.Port,
+			"priority":    uint64(p.Priority), // can't be uint8 thanks to gobind
+			"coords":      p.Coords,
+			"remote":      p.Remote,
+			"bytes_recvd": p.RXBytes,
+			"bytes_sent":  p.TXBytes,
+			"uptime":      p.Uptime.Seconds(),
+			"multicast":   strings.Contains(p.Remote, "[fe80::"),
+		})
+	}
+	sort.Slice(response, func(i, j int) bool {
+		if !response[i]["multicast"].(bool) && response[j]["multicast"].(bool) {
+			return true
+		}
+		if response[i]["priority"].(uint64) < response[j]["priority"].(uint64) {
+			return true
+		}
+		return response[i]["port"].(uint64) < response[j]["port"].(uint64)
+	})
+	return json.Marshal(response)
 }
 
 func (a *RestServer) apiPeersHandler(w http.ResponseWriter, r *http.Request) {
@@ -186,36 +229,10 @@ func (a *RestServer) apiPeersHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		w.Header().Add("Content-Type", "application/json")
-
-		peers := a.Core.GetPeers()
-		response := make([]map[string]interface{}, 0, len(peers))
-		for _, p := range peers {
-			addr := a.Core.AddrForKey(p.Key)
-			response = append(response, map[string]interface{}{
-				"address":     net.IP(addr[:]).String(),
-				"key":         hex.EncodeToString(p.Key),
-				"port":        p.Port,
-				"priority":    uint64(p.Priority), // can't be uint8 thanks to gobind
-				"coords":      p.Coords,
-				"remote":      p.Remote,
-				"bytes_recvd": p.RXBytes,
-				"bytes_sent":  p.TXBytes,
-				"uptime":      p.Uptime.Seconds(),
-				"mulicast":    strings.Contains(p.Remote, "[fe80::"),
-			})
-		}
-		sort.Slice(response, func(i, j int) bool {
-			if !response[i]["mulicast"].(bool) && response[j]["mulicast"].(bool) {
-				return true
-			}
-			if response[i]["priority"].(uint64) < response[j]["priority"].(uint64) {
-				return true
-			}
-			return response[i]["port"].(uint64) < response[j]["port"].(uint64)
-		})
-		b, err := json.Marshal(response)
+		b, err := a.prepareGetPeers()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 		fmt.Fprint(w, string(b[:]))
 	case "POST":

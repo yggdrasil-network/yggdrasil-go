@@ -285,18 +285,22 @@ ui.getConnectedPeers = () =>
     .then((response) => response.json())
 
 ui.updateConnectedPeersHandler = (peers) => {
+  ui.updateStatus(peers);
+  ui.updateSpeed(peers);
   $("peers").innerText = "";
-  const regexStrip = /%[^\]]*/gm;
-  peers.forEach(peer => {
-    let row = $("peers").appendChild(document.createElement('div'));
-    row.className = "overflow-ellipsis"
-    let flag =  row.appendChild(document.createElement("span"));
-    if(peer.isMulticast)
-      flag.className = "fa fa-thin fa-share-nodes peer-connected-fl";
-    else
-      flag.className = "fi fi-" + ui.lookupCountryCodeByAddress(peer.url) + " peer-connected-fl";
-    row.append(peer.url.replace(regexStrip, ""));
-  });
+  if(peers) {
+    const regexStrip = /%[^\]]*/gm;
+    peers.forEach(peer => {
+      let row = $("peers").appendChild(document.createElement('div'));
+      row.className = "overflow-ellipsis"
+      let flag =  row.appendChild(document.createElement("span"));
+      if(peer.multicast)
+        flag.className = "fa fa-thin fa-share-nodes peer-connected-fl";
+      else
+        flag.className = "fi fi-" + ui.lookupCountryCodeByAddress(peer.remote) + " peer-connected-fl";
+      row.append(peer.remote.replace(regexStrip, ""));
+    });
+  }
 }
 
 ui.updateStatus = peers => {
@@ -332,14 +336,10 @@ ui.updateSpeed = peers => {
 
 ui.updateConnectedPeers = () =>
   ui.getConnectedPeers()
-    .then(peers => {ui.updateConnectedPeersHandler(peers);
-                    ui.updateStatus(peers);
-                    ui.updateSpeed(peers);
-                  })
+    .then(peers => ui.updateConnectedPeersHandler(peers))
     .catch((error) => {
+      ui.updateConnectedPeersHandler();
       $("peers").innerText = error.message;
-      ui.updateStatus();
-      ui.updateSpeed();
     });
 
 ui.lookupCountryCodeByAddress = (address) => {
@@ -374,7 +374,6 @@ function main() {
     $("showAllPeersBtn").addEventListener("click", ui.showAllPeers);
 
     ui.getAllPeers().then(() => ui.updateConnectedPeers());
-    setInterval(ui.updateConnectedPeers, 5000);
 
     ui.updateSelfInfo();
     //setInterval(ui.updateSelfInfo, 5000);

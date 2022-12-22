@@ -298,15 +298,20 @@ ui.getConnectedPeers = function () {
 };
 
 ui.updateConnectedPeersHandler = function (peers) {
+  ui.updateStatus(peers);
+  ui.updateSpeed(peers);
   $("peers").innerText = "";
-  var regexStrip = /%[^\]]*/gm;
-  peers.forEach(function (peer) {
-    var row = $("peers").appendChild(document.createElement('div'));
-    row.className = "overflow-ellipsis";
-    var flag = row.appendChild(document.createElement("span"));
-    if (peer.isMulticast) flag.className = "fa fa-thin fa-share-nodes peer-connected-fl";else flag.className = "fi fi-" + ui.lookupCountryCodeByAddress(peer.url) + " peer-connected-fl";
-    row.append(peer.url.replace(regexStrip, ""));
-  });
+  if (peers) {
+    var regexStrip = /%[^\]]*/gm;
+    peers.forEach(function (peer) {
+      var row = $("peers").appendChild(document.createElement('div'));
+      row.className = "overflow-ellipsis";
+      var flag = row.appendChild(document.createElement("span"));
+      if (peer.multicast) flag.className = "fa fa-thin fa-share-nodes peer-connected-fl";
+      else flag.className = "fi fi-" + ui.lookupCountryCodeByAddress(peer.remote) + " peer-connected-fl";
+      row.append(peer.remote.replace(regexStrip, ""));
+    });
+  }
 };
 
 ui.updateStatus = function (peers) {
@@ -350,13 +355,10 @@ ui.updateSpeed = function (peers) {
 
 ui.updateConnectedPeers = function () {
   return ui.getConnectedPeers().then(function (peers) {
-    ui.updateConnectedPeersHandler(peers);
-    ui.updateStatus(peers);
-    ui.updateSpeed(peers);
+    return ui.updateConnectedPeersHandler(peers);
   }).catch(function (error) {
+    ui.updateConnectedPeersHandler();
     $("peers").innerText = error.message;
-    ui.updateStatus();
-    ui.updateSpeed();
   });
 };
 
@@ -397,7 +399,6 @@ function main() {
     ui.getAllPeers().then(function () {
       return ui.updateConnectedPeers();
     });
-    setInterval(ui.updateConnectedPeers, 5000);
 
     ui.updateSelfInfo();
     //setInterval(ui.updateSelfInfo, 5000);
