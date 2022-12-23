@@ -26,12 +26,12 @@ require (
 	github.com/jchv/go-webview2 v0.0.0-20221027045535-e2a104b55541
 )
 
-require github.com/webview/webview v0.0.0-20221220082822-77e021440a0f
-
 require (
-	github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e // indirect
-	github.com/vorot93/golang-signals v0.0.0-20170221070717-d9e83421ce45 // indirect
+	github.com/vorot93/golang-signals v0.0.0-20170221070717-d9e83421ce45
+	github.com/webview/webview v0.0.0-20221220082822-77e021440a0f
 )
+
+require github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e // indirect
 
 require (
 	github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815
