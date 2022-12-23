@@ -46,7 +46,7 @@ cp contrib/ui/nas-synology-dsm6.0/package/* /tmp/$PKGFOLDER/ -r
 cp contrib/ui/nas-synology-dsm6.0/spk/* /tmp/$PKGNAME/ -r
 cp contrib/ui/nas-synology-dsm7.0/package/* /tmp/$PKGFOLDER/ -r
 cp contrib/ui/nas-synology-dsm7.0/spk/* /tmp/$PKGNAME/ -r
-cp contrib/ui/www/* /tmp/$PKGFOLDER/www/ -r
+cp -r contrib/ui/mesh-ui/ui/* /tmp/$PKGFOLDER/www/
 
 for res in 16 24 32 48 64 72 256; do
   resolution="${res}x${res}"

@@ -39,7 +39,7 @@ chmod 0775 /tmp/$PKGFOLDER/ -R
 
 echo "coping ui package..."
 cp contrib/ui/nas-asustor/* /tmp/$PKGFOLDER/ -r
-cp contrib/ui/www/* /tmp/$PKGFOLDER/www/ -r
+cp -r contrib/ui/mesh-ui/ui/* /tmp/$PKGFOLDER/www/
 
 echo "Converting icon for: 90x90"
 convert -colorspace sRGB ./riv.png -resize 90x90 PNG32:/tmp/$PKGFOLDER/CONTROL/icon.png
