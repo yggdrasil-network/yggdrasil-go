@@ -125,6 +125,8 @@ func addNoCacheHeaders(w http.ResponseWriter) {
 }
 
 func (a *RestServer) apiHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "*")
 	fmt.Fprintf(w, "Following methods are allowed: GET /api/self, getpeers. litening")
 }
 
