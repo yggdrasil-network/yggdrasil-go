@@ -45,7 +45,7 @@ chmod 0775 /tmp/$PKGFOLDER/ -R
 
 echo "coping ui package..."
 cp contrib/ui/nas-terramaster/mesh /tmp/$PKGFOLDER/ -r
-cp contrib/ui/www/* /tmp/$PKGFOLDER/mesh/usr/local/mesh/www -r
+cp -r contrib/ui/mesh-ui/ui/* /tmp/$PKGFOLDER/mesh/usr/local/mesh/www
 
 echo "Converting icon for: 120x120"
 convert -colorspace sRGB ./riv.png -resize 120x120 PNG32:/tmp/$PKGFOLDER/mesh/usr/www/images/icons/mesh.png
