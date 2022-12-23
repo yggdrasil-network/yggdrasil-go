@@ -63,7 +63,7 @@ chmod 0775 /tmp/$PKGFOLDER/ -R
 
 echo "coping ui package..."
 cp contrib/ui/nas-drobo/Content/* /tmp/$PKGFOLDER/ -r
-cp contrib/ui/www/* /tmp/$PKGFOLDER/www/ -r
+cp -r contrib/ui/mesh-ui/ui/* /tmp/$PKGFOLDER/www/
 
 cat > /tmp/$PKGFOLDER/version.txt << EOF
 $PKGVERSION

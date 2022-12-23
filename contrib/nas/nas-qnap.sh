@@ -45,7 +45,7 @@ chmod 0775 /tmp/$PKGFOLDER/ -R
 echo "coping ui package..."
 cp contrib/ui/nas-qnap/package/* /tmp/$PKGFOLDER/mesh -r
 cp contrib/ui/nas-qnap/au/* /tmp/$PKGFOLDER/mesh/shared -r
-cp contrib/ui/www/* /tmp/$PKGFOLDER/mesh/shared/www/ -r
+cp -r contrib/ui/mesh-ui/ui/* /tmp/$PKGFOLDER/mesh/shared/www/
 
 echo "Converting icon for: 64x64"
 convert -colorspace sRGB ./riv.png -resize 64x64 /tmp/$PKGFOLDER/mesh/icons/mesh.gif
