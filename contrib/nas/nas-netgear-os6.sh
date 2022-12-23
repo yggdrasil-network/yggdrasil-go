@@ -65,7 +65,7 @@ EOF
 
 echo "coping ui package..."
 cp contrib/ui/nas-netgear-os6/package/apps /tmp/$PKGNAME/ -r
-cp -r contrib/ui/mesh-ui/ui /tmp/$PKGNAME/apps/mesh/www/
+cp -r contrib/ui/mesh-ui/ui/* /tmp/$PKGNAME/apps/mesh/www/
 
 echo "coping postinstall, postrm, prerm scripts"
 cp contrib/ui/nas-netgear-os6/package/DEBIAN/* /tmp/$PKGNAME/DEBIAN/ -r
