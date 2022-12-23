@@ -201,7 +201,7 @@ func run(args yggArgs, ctx context.Context) {
 	// that neither -autoconf, -useconf or -useconffile were set above. Stop
 	// if we don't.
 	if cfg == nil {
-		return
+		panic("broken configuration")
 	}
 	n := &node{}
 	// Have we been asked for the node address yet? If so, print it and then stop.
@@ -229,13 +229,6 @@ func run(args yggArgs, ctx context.Context) {
 			fmt.Println(ipnet.String())
 		}
 		return
-	}
-	//override httpaddress and wwwroot parameters in cfg
-	if len(cfg.HttpAddress) == 0 {
-		cfg.HttpAddress = args.httpaddress
-	}
-	if len(cfg.WwwRoot) == 0 {
-		cfg.WwwRoot = args.wwwroot
 	}
 
 	// Setup the RiV-mesh node itself.
@@ -274,6 +267,14 @@ func run(args yggArgs, ctx context.Context) {
 
 	// Setup the REST socket.
 	{
+		//override httpaddress and wwwroot parameters in cfg
+		if len(cfg.HttpAddress) == 0 {
+			cfg.HttpAddress = args.httpaddress
+		}
+		if len(cfg.WwwRoot) == 0 {
+			cfg.WwwRoot = args.wwwroot
+		}
+
 		if n.rest_server, err = restapi.NewRestServer(restapi.RestServerCfg{
 			Core:          n.core,
 			Log:           logger,
