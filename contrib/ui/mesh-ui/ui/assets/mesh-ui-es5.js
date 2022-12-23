@@ -299,8 +299,6 @@ ui.getConnectedPeers = function () {
 
 ui.updateConnectedPeersHandler = function (peers) {
   ui.updateStatus(peers);
-  ui.updateSpeed(peers);
-  ui.updateCoordsInfo();
   $("peers").innerText = "";
   if (peers) {
     var regexStrip = /%[^\]]*/gm;
@@ -381,7 +379,7 @@ ui.updateSelfInfo = function () {
   return ui.getSelfInfo().then(function (info) {
     $("ipv6").innerText = info.address;
     $("subnet").innerText = info.subnet;
-    $("coordinates").innerText = ''.concat('[',info.coords.join(' '),']');
+    $("coordinates").innerText = ''.concat('[', info.coords.join(' '), ']');
     $("pub_key").innerText = info.key;
     $("priv_key").innerText = info.private_key;
     $("ipv6").innerText = info.address;
@@ -390,16 +388,6 @@ ui.updateSelfInfo = function () {
     $("ipv6").innerText = error.message;
   });
 };
-
-ui.updateCoordsInfo = function () {
-  return ui.getSelfInfo().then(function (info) {
-    $("coordinates").innerText = ''.concat('[',info.coords.join(' '),']');
-  }).catch(function (error) {
-    $("ipv6").innerText = error.message;
-  });
-};
-
-ui.sse = new EventSource('/api/sse');
 
 function main() {
 
@@ -412,6 +400,8 @@ function main() {
 
     ui.updateSelfInfo();
 
+    ui.sse = new EventSource('/api/sse');
+
     ui.sse.addEventListener("ping", function (e) {
       var data = JSON.parse(e.data);
       setPingValue(data.peer, data.value);
@@ -419,6 +409,15 @@ function main() {
 
     ui.sse.addEventListener("peers", function (e) {
       ui.updateConnectedPeersHandler(JSON.parse(e.data));
+    });
+
+    ui.sse.addEventListener("rxtx", function (e) {
+      ui.updateSpeed(JSON.parse(e.data));
+    });
+
+    ui.sse.addEventListener("coord", function (e) {
+      var coords = JSON.parse(e.data);
+      $("coordinates").innerText = ''.concat('[', coords.join(' '), ']');
     });
   });
 }

@@ -68,7 +68,7 @@ img {
   display: block;
 }
 
-body {
+body, #notification_windowx {
   max-width: 690px;
   margin: auto;
 }
@@ -94,11 +94,12 @@ footer {
   white-space: nowrap;
 }
 
-#version {
+#footer-row #version {
   padding-left: 20px;
+  padding-right: 20px;
 }
 
-#status {
+#footer-row #status {
   padding-right: 20px;
   padding-left: 20px;
 }
