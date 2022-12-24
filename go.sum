@@ -49,6 +49,8 @@ github.com/hjson/hjson-go v3.1.0+incompatible h1:DY/9yE8ey8Zv22bY+mHV1uk2yRy0h8t
 github.com/hjson/hjson-go v3.1.0+incompatible/go.mod h1:qsetwF8NlsTsOTwZTApNlTCerV+b2GjYRRcIk4JMFio=
 github.com/jchv/go-webview2 v0.0.0-20221027045535-e2a104b55541 h1:a3nfcpypvn/2WUzZzmZ9Kc75nPOpCrYnV45zrlGcGJM=
 github.com/jchv/go-webview2 v0.0.0-20221027045535-e2a104b55541/go.mod h1:/BNVc0Sw3Wj6Sz9uSxPwhCEUhhWs92hPde75K2YV24A=
+github.com/jchv/go-webview2 v0.0.0-20221223143126-dc24628cff85 h1:t6lhRbwURcdWgp8OsJlq6sOfWMOXP21YuiCicjutHv4=
+github.com/jchv/go-webview2 v0.0.0-20221223143126-dc24628cff85/go.mod h1:/BNVc0Sw3Wj6Sz9uSxPwhCEUhhWs92hPde75K2YV24A=
 github.com/jchv/go-winloader v0.0.0-20200815041850-dec1ee9a7fd5/go.mod h1:alcuEEnZsY1WQsagKhZDsoPCRoOijYqhZvPwLG0kzVs=
 github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e h1:Q3+PugElBCf4PFpxhErSzU3/PY5sFL5Z6rfv4AbGAck=
 github.com/jchv/go-winloader v0.0.0-20210711035445-715c2860da7e/go.mod h1:alcuEEnZsY1WQsagKhZDsoPCRoOijYqhZvPwLG0kzVs=

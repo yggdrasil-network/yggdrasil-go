@@ -23,7 +23,7 @@ require (
 
 require (
 	gerace.dev/zipfs v0.2.0
-	github.com/jchv/go-webview2 v0.0.0-20221027045535-e2a104b55541
+	github.com/jchv/go-webview2 v0.0.0-20221223143126-dc24628cff85
 )
 
 require (
