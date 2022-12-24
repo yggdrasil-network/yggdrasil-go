@@ -144,7 +144,7 @@ function showWindow(text) {
     //todo save peers
     var peers = document.querySelectorAll('*[id^="peer-"]');
     var peer_list = [];
-    for (i = 0; i < peers.length; ++i) {
+    for (var i = 0; i < peers.length; ++i) {
       var p = peers[i];
       if (p.checked) {
         var peerURL = p.parentElement.parentElement.children[1].innerText;
