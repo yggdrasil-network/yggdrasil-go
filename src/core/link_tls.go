@@ -47,34 +47,33 @@ func (l *links) newLinkTLS(tcp *linkTCP) *linkTLS {
 }
 
 func (l *linkTLS) dial(url *url.URL, options linkOptions, sintf, sni string) error {
-	addr, err := net.ResolveTCPAddr("tcp", url.Host)
+	dialers, err := l.tcp.dialersFor(url, options, sintf)
 	if err != nil {
 		return err
 	}
-	dialer, err := l.tcp.dialerFor(addr, sintf)
-	if err != nil {
-		return err
-	}
-	info := linkInfoFor("tls", sintf, tcpIDFor(dialer.LocalAddr, addr))
-	if l.links.isConnectedTo(info) {
+	if len(dialers) == 0 {
 		return nil
 	}
-	tlsconfig := l.config.Clone()
-	tlsconfig.ServerName = sni
-	tlsdialer := &tls.Dialer{
-		NetDialer: dialer,
-		Config:    tlsconfig,
+	for _, d := range dialers {
+		tlsconfig := l.config.Clone()
+		tlsconfig.ServerName = sni
+		tlsdialer := &tls.Dialer{
+			NetDialer: d.dialer,
+			Config:    tlsconfig,
+		}
+		var conn net.Conn
+		conn, err = tlsdialer.DialContext(l.core.ctx, "tcp", d.addr.String())
+		if err != nil {
+			continue
+		}
+		name := strings.TrimRight(strings.SplitN(url.String(), "?", 2)[0], "/")
+		dial := &linkDial{
+			url:   url,
+			sintf: sintf,
+		}
+		return l.handler(dial, name, d.info, conn, options, false, false)
 	}
-	conn, err := tlsdialer.DialContext(l.core.ctx, "tcp", addr.String())
-	if err != nil {
-		return err
-	}
-	name := strings.TrimRight(strings.SplitN(url.String(), "?", 2)[0], "/")
-	dial := &linkDial{
-		url:   url,
-		sintf: sintf,
-	}
-	return l.handler(dial, name, info, conn, options, false, false)
+	return fmt.Errorf("failed to connect via %d address(es), last error: %w", len(dialers), err)
 }
 
 func (l *linkTLS) listen(url *url.URL, sintf string) (*Listener, error) {
