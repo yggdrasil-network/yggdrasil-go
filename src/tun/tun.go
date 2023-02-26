@@ -107,7 +107,8 @@ func (tun *TunAdapter) _start() error {
 	}
 	tun.addr = tun.rwc.Address()
 	tun.subnet = tun.rwc.Subnet()
-	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
+	prefix := address.GetPrefix()
+	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(prefix)-1)
 	if tun.config.name == "none" || tun.config.name == "dummy" {
 		tun.log.Debugln("Not starting TUN as ifname is none or dummy")
 		tun.isEnabled = false
