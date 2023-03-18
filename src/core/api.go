@@ -98,7 +98,7 @@ func (c *Core) GetDHT() []DHTEntryInfo {
 		var info DHTEntryInfo
 		info.Key = d.Key
 		info.Port = d.Port
-		info.Rest = d.Rest
+		//info.Rest = d.Rest
 		dhts = append(dhts, info)
 	}
 	return dhts
@@ -110,7 +110,7 @@ func (c *Core) GetPaths() []PathEntryInfo {
 	for _, p := range ps {
 		var info PathEntryInfo
 		info.Key = p.Key
-		info.Path = p.Path
+		//info.Path = p.Path
 		paths = append(paths, info)
 	}
 	return paths
