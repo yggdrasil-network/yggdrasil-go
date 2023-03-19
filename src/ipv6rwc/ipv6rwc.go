@@ -177,7 +177,7 @@ func (k *keyStore) resetTimeout(info *keyInfo) {
 	})
 }
 
-func (k *keyStore) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte) {
+func (k *keyStore) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte) { // nolint:unused
 	if len(data) != 1+ed25519.SignatureSize {
 		return
 	}
@@ -206,7 +206,7 @@ func (k *keyStore) sendKeyLookup(partial ed25519.PublicKey) {
 	_ = bs
 }
 
-func (k *keyStore) sendKeyResponse(dest ed25519.PublicKey) {
+func (k *keyStore) sendKeyResponse(dest ed25519.PublicKey) { // nolint:unused
 	sig := ed25519.Sign(k.core.PrivateKey(), dest[:])
 	bs := append([]byte{typeKeyResponse}, sig...)
 	//_ = k.core.SendOutOfBand(dest, bs)

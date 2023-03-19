@@ -253,7 +253,7 @@ func (l *links) create(conn net.Conn, dial *linkDial, name string, info linkInfo
 	}
 	go func() {
 		if err := intf.handler(dial); err != nil {
-			//l.core.log.Errorf("Link handler %s error (%s): %s", name, conn.RemoteAddr(), err)
+			l.core.log.Errorf("Link handler %s error (%s): %s", name, conn.RemoteAddr(), err)
 		}
 	}()
 	return nil
