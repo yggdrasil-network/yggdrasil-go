@@ -57,10 +57,10 @@ func (k *keyStore) init(c *core.Core) {
 	k.core = c
 	k.address = *address.AddrForKey(k.core.PublicKey())
 	k.subnet = *address.SubnetForKey(k.core.PublicKey())
-	if err := k.core.SetOutOfBandHandler(k.oobHandler); err != nil {
+	/*if err := k.core.SetOutOfBandHandler(k.oobHandler); err != nil {
 		err = fmt.Errorf("tun.core.SetOutOfBandHander: %w", err)
 		panic(err)
-	}
+	}*/
 	k.keyToInfo = make(map[keyArray]*keyInfo)
 	k.addrToInfo = make(map[address.Address]*keyInfo)
 	k.addrBuffer = make(map[address.Address]*buffer)
@@ -202,13 +202,15 @@ func (k *keyStore) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte) {
 func (k *keyStore) sendKeyLookup(partial ed25519.PublicKey) {
 	sig := ed25519.Sign(k.core.PrivateKey(), partial[:])
 	bs := append([]byte{typeKeyLookup}, sig...)
-	_ = k.core.SendOutOfBand(partial, bs)
+	//_ = k.core.SendOutOfBand(partial, bs)
+	_ = bs
 }
 
 func (k *keyStore) sendKeyResponse(dest ed25519.PublicKey) {
 	sig := ed25519.Sign(k.core.PrivateKey(), dest[:])
 	bs := append([]byte{typeKeyResponse}, sig...)
-	_ = k.core.SendOutOfBand(dest, bs)
+	//_ = k.core.SendOutOfBand(dest, bs)
+	_ = bs
 }
 
 func (k *keyStore) readPC(p []byte) (int, error) {

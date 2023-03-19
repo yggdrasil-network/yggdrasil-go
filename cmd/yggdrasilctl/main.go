@@ -165,7 +165,7 @@ func run() int {
 		table.Append([]string{"Build version:", resp.BuildVersion})
 		table.Append([]string{"IPv6 address:", resp.IPAddress})
 		table.Append([]string{"IPv6 subnet:", resp.Subnet})
-		table.Append([]string{"Coordinates:", fmt.Sprintf("%v", resp.Coords)})
+		table.Append([]string{"Routing table size:", fmt.Sprintf("%d", resp.RoutingEntries)})
 		table.Append([]string{"Public key:", resp.PublicKey})
 		table.Render()
 
@@ -210,12 +210,12 @@ func run() int {
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
-		table.SetHeader([]string{"Public Key", "IP Address", "Path"})
+		table.SetHeader([]string{"Public Key", "IP Address", "Seq"})
 		for _, p := range resp.Paths {
 			table.Append([]string{
 				p.PublicKey,
 				p.IPAddress,
-				fmt.Sprintf("%v", p.Path),
+				fmt.Sprintf("%d", p.Sequence),
 			})
 		}
 		table.Render()

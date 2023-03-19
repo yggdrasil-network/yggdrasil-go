@@ -14,9 +14,8 @@ import (
 )
 
 type SelfInfo struct {
-	Key    ed25519.PublicKey
-	Root   ed25519.PublicKey
-	Coords []uint64
+	Key            ed25519.PublicKey
+	RoutingEntries uint64
 }
 
 type PeerInfo struct {
@@ -38,8 +37,8 @@ type DHTEntryInfo struct {
 }
 
 type PathEntryInfo struct {
-	Key  ed25519.PublicKey
-	Path []uint64
+	Key      ed25519.PublicKey
+	Sequence uint64
 }
 
 type SessionInfo struct {
@@ -53,13 +52,12 @@ func (c *Core) GetSelf() SelfInfo {
 	var self SelfInfo
 	s := c.PacketConn.PacketConn.Debug.GetSelf()
 	self.Key = s.Key
-	self.Root = s.Root
-	self.Coords = s.Coords
+	self.RoutingEntries = s.RoutingEntries
 	return self
 }
 
 func (c *Core) GetPeers() []PeerInfo {
-	var peers []PeerInfo
+	peers := []PeerInfo{}
 	names := make(map[net.Conn]string)
 	phony.Block(&c.links, func() {
 		for _, info := range c.links._links {
@@ -74,17 +72,18 @@ func (c *Core) GetPeers() []PeerInfo {
 		var info PeerInfo
 		info.Key = p.Key
 		info.Root = p.Root
-		info.Coords = p.Coords
 		info.Port = p.Port
 		info.Priority = p.Priority
-		info.Remote = p.Conn.RemoteAddr().String()
-		if name := names[p.Conn]; name != "" {
-			info.Remote = name
-		}
-		if linkconn, ok := p.Conn.(*linkConn); ok {
-			info.RXBytes = atomic.LoadUint64(&linkconn.rx)
-			info.TXBytes = atomic.LoadUint64(&linkconn.tx)
-			info.Uptime = time.Since(linkconn.up)
+		if p.Conn != nil {
+			info.Remote = p.Conn.RemoteAddr().String()
+			if linkconn, ok := p.Conn.(*linkConn); ok {
+				info.RXBytes = atomic.LoadUint64(&linkconn.rx)
+				info.TXBytes = atomic.LoadUint64(&linkconn.tx)
+				info.Uptime = time.Since(linkconn.up)
+			}
+			if name := names[p.Conn]; name != "" {
+				info.Remote = name
+			}
 		}
 		peers = append(peers, info)
 	}
@@ -110,6 +109,7 @@ func (c *Core) GetPaths() []PathEntryInfo {
 	for _, p := range ps {
 		var info PathEntryInfo
 		info.Key = p.Key
+		info.Sequence = p.Sequence
 		//info.Path = p.Path
 		paths = append(paths, info)
 	}

@@ -3,7 +3,6 @@ package mobile
 import (
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"net"
 	"regexp"
 
@@ -193,7 +192,8 @@ func (m *Yggdrasil) GetPublicKeyString() string {
 
 // GetCoordsString gets the node's coordinates
 func (m *Yggdrasil) GetCoordsString() string {
-	return fmt.Sprintf("%v", m.core.GetSelf().Coords)
+	return "N/A"
+	// return fmt.Sprintf("%v", m.core.GetSelf().Coords)
 }
 
 func (m *Yggdrasil) GetPeersJSON() (result string) {

@@ -126,8 +126,8 @@ func (p *protoHandler) sendGetSelfRequest(key keyArray, callback func([]byte)) {
 func (p *protoHandler) _handleGetSelfRequest(key keyArray) {
 	self := p.core.GetSelf()
 	res := map[string]string{
-		"key":    hex.EncodeToString(self.Key[:]),
-		"coords": fmt.Sprintf("%v", self.Coords),
+		"key":             hex.EncodeToString(self.Key[:]),
+		"routing_entries": fmt.Sprintf("%v", self.RoutingEntries),
 	}
 	bs, err := json.Marshal(res) // FIXME this puts keys in base64, not hex
 	if err != nil {

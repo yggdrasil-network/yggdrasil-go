@@ -20,7 +20,6 @@ type PeerEntry struct {
 	PublicKey string   `json:"key"`
 	Port      uint64   `json:"port"`
 	Priority  uint64   `json:"priority"`
-	Coords    []uint64 `json:"coords"`
 	Remote    string   `json:"remote"`
 	RXBytes   DataUnit `json:"bytes_recvd"`
 	TXBytes   DataUnit `json:"bytes_sent"`
@@ -37,7 +36,6 @@ func (a *AdminSocket) getPeersHandler(req *GetPeersRequest, res *GetPeersRespons
 			PublicKey: hex.EncodeToString(p.Key),
 			Port:      p.Port,
 			Priority:  uint64(p.Priority), // can't be uint8 thanks to gobind
-			Coords:    p.Coords,
 			Remote:    p.Remote,
 			RXBytes:   DataUnit(p.RXBytes),
 			TXBytes:   DataUnit(p.TXBytes),
