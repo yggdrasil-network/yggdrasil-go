@@ -18,8 +18,10 @@ type GetDHTResponse struct {
 type DHTEntry struct {
 	IPAddress string `json:"address"`
 	PublicKey string `json:"key"`
-	Port      uint64 `json:"port"`
-	Rest      uint64 `json:"rest"`
+	Parent    string `json:"parent"`
+	Sequence  uint64 `json:"sequence"`
+	//Port      uint64 `json:"port"`
+	//Rest      uint64 `json:"rest"`
 }
 
 func (a *AdminSocket) getDHTHandler(req *GetDHTRequest, res *GetDHTResponse) error {
@@ -30,8 +32,10 @@ func (a *AdminSocket) getDHTHandler(req *GetDHTRequest, res *GetDHTResponse) err
 		res.DHT = append(res.DHT, DHTEntry{
 			IPAddress: net.IP(addr[:]).String(),
 			PublicKey: hex.EncodeToString(d.Key[:]),
-			Port:      d.Port,
-			Rest:      d.Rest,
+			Parent:    hex.EncodeToString(d.Parent[:]),
+			Sequence:  d.Sequence,
+			//Port:      d.Port,
+			//Rest:      d.Rest,
 		})
 	}
 	sort.SliceStable(res.DHT, func(i, j int) bool {

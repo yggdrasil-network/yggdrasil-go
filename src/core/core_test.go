@@ -75,7 +75,7 @@ func WaitConnected(nodeA, nodeB *Core) bool {
 				return true
 			}
 		*/
-		if len(nodeA.GetPaths()) > 1 && len(nodeB.GetPaths()) > 1 {
+		if len(nodeA.GetDHT()) > 1 && len(nodeB.GetDHT()) > 1 {
 			return true
 		}
 	}

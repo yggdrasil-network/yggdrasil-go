@@ -1,5 +1,7 @@
 package admin
 
+/*
+
 import (
 	"encoding/hex"
 	"net"
@@ -38,3 +40,5 @@ func (a *AdminSocket) getPathsHandler(req *GetPathsRequest, res *GetPathsRespons
 	})
 	return nil
 }
+
+*/

@@ -31,15 +31,19 @@ type PeerInfo struct {
 }
 
 type DHTEntryInfo struct {
-	Key  ed25519.PublicKey
-	Port uint64
-	Rest uint64
+	Key      ed25519.PublicKey
+	Parent   ed25519.PublicKey
+	Sequence uint64
+	//Port uint64
+	//Rest uint64
 }
 
+/*
 type PathEntryInfo struct {
 	Key      ed25519.PublicKey
 	Sequence uint64
 }
+*/
 
 type SessionInfo struct {
 	Key     ed25519.PublicKey
@@ -96,13 +100,16 @@ func (c *Core) GetDHT() []DHTEntryInfo {
 	for _, d := range ds {
 		var info DHTEntryInfo
 		info.Key = d.Key
-		info.Port = d.Port
+		info.Parent = d.Parent
+		info.Sequence = d.Sequence
+		//info.Port = d.Port
 		//info.Rest = d.Rest
 		dhts = append(dhts, info)
 	}
 	return dhts
 }
 
+/*
 func (c *Core) GetPaths() []PathEntryInfo {
 	var paths []PathEntryInfo
 	ps := c.PacketConn.PacketConn.Debug.GetPaths()
@@ -115,6 +122,7 @@ func (c *Core) GetPaths() []PathEntryInfo {
 	}
 	return paths
 }
+*/
 
 func (c *Core) GetSessions() []SessionInfo {
 	var sessions []SessionInfo
