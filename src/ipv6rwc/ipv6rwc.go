@@ -35,9 +35,9 @@ type keyStore struct {
 	mutex        sync.Mutex
 	keyToInfo    map[keyArray]*keyInfo
 	addrToInfo   map[address.Address]*keyInfo
-	addrBuffer   map[address.Address]*buffer
+	//addrBuffer   map[address.Address]*buffer
 	subnetToInfo map[address.Subnet]*keyInfo
-	subnetBuffer map[address.Subnet]*buffer
+	//subnetBuffer map[address.Subnet]*buffer
 	mtu          uint64
 }
 
@@ -63,9 +63,9 @@ func (k *keyStore) init(c *core.Core) {
 	}*/
 	k.keyToInfo = make(map[keyArray]*keyInfo)
 	k.addrToInfo = make(map[address.Address]*keyInfo)
-	k.addrBuffer = make(map[address.Address]*buffer)
+	//k.addrBuffer = make(map[address.Address]*buffer)
 	k.subnetToInfo = make(map[address.Subnet]*keyInfo)
-	k.subnetBuffer = make(map[address.Subnet]*buffer)
+	//k.subnetBuffer = make(map[address.Subnet]*buffer)
 	k.mtu = 1280 // Default to something safe, expect user to set this
 }
 
@@ -76,25 +76,33 @@ func (k *keyStore) sendToAddress(addr address.Address, bs []byte) {
 		k.mutex.Unlock()
 		_, _ = k.core.WriteTo(bs, iwt.Addr(info.key[:]))
 	} else {
-		var buf *buffer
-		if buf = k.addrBuffer[addr]; buf == nil {
-			buf = new(buffer)
-			k.addrBuffer[addr] = buf
-		}
-		msg := append([]byte(nil), bs...)
-		buf.packet = msg
-		if buf.timeout != nil {
-			buf.timeout.Stop()
-		}
-		buf.timeout = time.AfterFunc(keyStoreTimeout, func() {
-			k.mutex.Lock()
-			defer k.mutex.Unlock()
-			if nbuf := k.addrBuffer[addr]; nbuf == buf {
-				delete(k.addrBuffer, addr)
+		/*
+			var buf *buffer
+			if buf = k.addrBuffer[addr]; buf == nil {
+				buf = new(buffer)
+				k.addrBuffer[addr] = buf
 			}
-		})
+			msg := append([]byte(nil), bs...)
+			buf.packet = msg
+			if buf.timeout != nil {
+				buf.timeout.Stop()
+			}
+			buf.timeout = time.AfterFunc(keyStoreTimeout, func() {
+				k.mutex.Lock()
+				defer k.mutex.Unlock()
+				if nbuf := k.addrBuffer[addr]; nbuf == buf {
+					delete(k.addrBuffer, addr)
+				}
+			})
+			k.mutex.Unlock()
+			k.sendKeyLookup(addr.GetKey())
+		*/
 		k.mutex.Unlock()
-		k.sendKeyLookup(addr.GetKey())
+		key := k.core.GetKeyFor(addr.GetKey())
+		info := k.update(key)
+		if info.address == addr {
+			_, _ = k.core.WriteTo(bs, iwt.Addr(info.key[:]))
+		}
 	}
 }
 
@@ -105,25 +113,33 @@ func (k *keyStore) sendToSubnet(subnet address.Subnet, bs []byte) {
 		k.mutex.Unlock()
 		_, _ = k.core.WriteTo(bs, iwt.Addr(info.key[:]))
 	} else {
-		var buf *buffer
-		if buf = k.subnetBuffer[subnet]; buf == nil {
-			buf = new(buffer)
-			k.subnetBuffer[subnet] = buf
-		}
-		msg := append([]byte(nil), bs...)
-		buf.packet = msg
-		if buf.timeout != nil {
-			buf.timeout.Stop()
-		}
-		buf.timeout = time.AfterFunc(keyStoreTimeout, func() {
-			k.mutex.Lock()
-			defer k.mutex.Unlock()
-			if nbuf := k.subnetBuffer[subnet]; nbuf == buf {
-				delete(k.subnetBuffer, subnet)
+		/*
+			var buf *buffer
+			if buf = k.subnetBuffer[subnet]; buf == nil {
+				buf = new(buffer)
+				k.subnetBuffer[subnet] = buf
 			}
-		})
+			msg := append([]byte(nil), bs...)
+			buf.packet = msg
+			if buf.timeout != nil {
+				buf.timeout.Stop()
+			}
+			buf.timeout = time.AfterFunc(keyStoreTimeout, func() {
+				k.mutex.Lock()
+				defer k.mutex.Unlock()
+				if nbuf := k.subnetBuffer[subnet]; nbuf == buf {
+					delete(k.subnetBuffer, subnet)
+				}
+			})
+			k.mutex.Unlock()
+			k.sendKeyLookup(subnet.GetKey())
+		*/
 		k.mutex.Unlock()
-		k.sendKeyLookup(subnet.GetKey())
+		key := k.core.GetKeyFor(subnet.GetKey())
+		info := k.update(key)
+		if info.subnet == subnet {
+			_, _ = k.core.WriteTo(bs, iwt.Addr(info.key[:]))
+		}
 	}
 }
 
@@ -141,6 +157,7 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 		k.keyToInfo[info.key] = info
 		k.addrToInfo[info.address] = info
 		k.subnetToInfo[info.subnet] = info
+		/*
 		if buf := k.addrBuffer[info.address]; buf != nil {
 			packets = append(packets, buf.packet)
 			delete(k.addrBuffer, info.address)
@@ -149,6 +166,7 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 			packets = append(packets, buf.packet)
 			delete(k.subnetBuffer, info.subnet)
 		}
+		*/
 	}
 	k.resetTimeout(info)
 	k.mutex.Unlock()
@@ -177,6 +195,7 @@ func (k *keyStore) resetTimeout(info *keyInfo) {
 	})
 }
 
+/*
 func (k *keyStore) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte) { // nolint:unused
 	if len(data) != 1+ed25519.SignatureSize {
 		return
@@ -198,6 +217,7 @@ func (k *keyStore) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte) { /
 		}
 	}
 }
+*/
 
 func (k *keyStore) sendKeyLookup(partial ed25519.PublicKey) {
 	sig := ed25519.Sign(k.core.PrivateKey(), partial[:])
