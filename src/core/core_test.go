@@ -70,7 +70,12 @@ func WaitConnected(nodeA, nodeB *Core) bool {
 	// It may take up to 3 seconds, but let's wait 5.
 	for i := 0; i < 50; i++ {
 		time.Sleep(100 * time.Millisecond)
-		if len(nodeA.GetPeers()) > 0 && len(nodeB.GetPeers()) > 0 {
+		/*
+			if len(nodeA.GetPeers()) > 0 && len(nodeB.GetPeers()) > 0 {
+				return true
+			}
+		*/
+		if len(nodeA.GetPaths()) > 1 && len(nodeB.GetPaths()) > 1 {
 			return true
 		}
 	}

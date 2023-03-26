@@ -31,16 +31,16 @@ const (
 type keyArray [ed25519.PublicKeySize]byte
 
 type keyStore struct {
-	core         *core.Core
-	address      address.Address
-	subnet       address.Subnet
-	mutex        sync.Mutex
-	keyToInfo    map[keyArray]*keyInfo
-	addrToInfo   map[address.Address]*keyInfo
+	core       *core.Core
+	address    address.Address
+	subnet     address.Subnet
+	mutex      sync.Mutex
+	keyToInfo  map[keyArray]*keyInfo
+	addrToInfo map[address.Address]*keyInfo
 	//addrBuffer   map[address.Address]*buffer
 	subnetToInfo map[address.Subnet]*keyInfo
 	//subnetBuffer map[address.Subnet]*buffer
-	mtu          uint64
+	mtu uint64
 }
 
 type keyInfo struct {
@@ -162,14 +162,14 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 		k.addrToInfo[info.address] = info
 		k.subnetToInfo[info.subnet] = info
 		/*
-		if buf := k.addrBuffer[info.address]; buf != nil {
-			packets = append(packets, buf.packet)
-			delete(k.addrBuffer, info.address)
-		}
-		if buf := k.subnetBuffer[info.subnet]; buf != nil {
-			packets = append(packets, buf.packet)
-			delete(k.subnetBuffer, info.subnet)
-		}
+			if buf := k.addrBuffer[info.address]; buf != nil {
+				packets = append(packets, buf.packet)
+				delete(k.addrBuffer, info.address)
+			}
+			if buf := k.subnetBuffer[info.subnet]; buf != nil {
+				packets = append(packets, buf.packet)
+				delete(k.subnetBuffer, info.subnet)
+			}
 		*/
 	}
 	k.resetTimeout(info)
