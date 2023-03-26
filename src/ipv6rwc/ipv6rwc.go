@@ -19,12 +19,14 @@ import (
 
 const keyStoreTimeout = 2 * time.Minute
 
+/*
 // Out-of-band packet types
 const (
 	typeKeyDummy = iota // nolint:deadcode,varcheck
 	typeKeyLookup
 	typeKeyResponse
 )
+*/
 
 type keyArray [ed25519.PublicKeySize]byte
 
@@ -48,10 +50,12 @@ type keyInfo struct {
 	timeout *time.Timer // From calling a time.AfterFunc to do cleanup
 }
 
+/*
 type buffer struct {
 	packet  []byte
 	timeout *time.Timer
 }
+*/
 
 func (k *keyStore) init(c *core.Core) {
 	k.core = c
@@ -219,6 +223,7 @@ func (k *keyStore) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte) { /
 }
 */
 
+/*
 func (k *keyStore) sendKeyLookup(partial ed25519.PublicKey) {
 	sig := ed25519.Sign(k.core.PrivateKey(), partial[:])
 	bs := append([]byte{typeKeyLookup}, sig...)
@@ -232,6 +237,7 @@ func (k *keyStore) sendKeyResponse(dest ed25519.PublicKey) { // nolint:unused
 	//_ = k.core.SendOutOfBand(dest, bs)
 	_ = bs
 }
+*/
 
 func (k *keyStore) readPC(p []byte) (int, error) {
 	buf := make([]byte, k.core.MTU(), 65535)
