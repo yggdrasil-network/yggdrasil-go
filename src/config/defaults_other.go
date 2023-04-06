@@ -1,7 +1,7 @@
 //go:build !linux && !darwin && !windows && !openbsd && !freebsd
 // +build !linux,!darwin,!windows,!openbsd,!freebsd
 
-package defaults
+package config
 
 // Sane defaults for the other platforms. The "default" options may be
 // may be replaced by the running configuration.

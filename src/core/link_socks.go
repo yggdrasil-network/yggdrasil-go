@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/url"
@@ -20,37 +21,22 @@ func (l *links) newLinkSOCKS() *linkSOCKS {
 	return lt
 }
 
-func (l *linkSOCKS) dial(url *url.URL, options linkOptions) error {
-	info := linkInfoFor("socks", "", url.Path)
-	if l.links.isConnectedTo(info) {
-		return nil
+func (l *linkSOCKS) dial(url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
+	var proxyAuth *proxy.Auth
+	if url.User != nil && url.User.Username() != "" {
+		proxyAuth = &proxy.Auth{
+			User: url.User.Username(),
+		}
+		proxyAuth.Password, _ = url.User.Password()
 	}
-	proxyAuth := &proxy.Auth{}
-	proxyAuth.User = url.User.Username()
-	proxyAuth.Password, _ = url.User.Password()
 	dialer, err := proxy.SOCKS5("tcp", url.Host, proxyAuth, proxy.Direct)
 	if err != nil {
-		return fmt.Errorf("failed to configure proxy")
+		return nil, fmt.Errorf("failed to configure proxy")
 	}
 	pathtokens := strings.Split(strings.Trim(url.Path, "/"), "/")
-	conn, err := dialer.Dial("tcp", pathtokens[0])
-	if err != nil {
-		return err
-	}
-	dial := &linkDial{
-		url: url,
-	}
-	return l.handler(dial, info, conn, options, false)
+	return dialer.Dial("tcp", pathtokens[0])
 }
 
-func (l *linkSOCKS) handler(dial *linkDial, info linkInfo, conn net.Conn, options linkOptions, incoming bool) error {
-	return l.links.create(
-		conn,              // connection
-		dial,              // connection URL
-		dial.url.String(), // connection name
-		info,              // connection info
-		incoming,          // not incoming
-		false,             // not forced
-		options,           // connection options
-	)
+func (l *linkSOCKS) listen(ctx context.Context, url *url.URL, _ string) (net.Listener, error) {
+	return nil, fmt.Errorf("SOCKS listener not supported")
 }

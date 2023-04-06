@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"sync/atomic"
 	"time"
 
+	"github.com/Arceliar/ironwood/network"
 	"github.com/Arceliar/phony"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 )
@@ -19,15 +19,19 @@ type SelfInfo struct {
 }
 
 type PeerInfo struct {
-	Key      ed25519.PublicKey
-	Root     ed25519.PublicKey
-	Coords   []uint64
-	Port     uint64
-	Priority uint8
-	Remote   string
-	RXBytes  uint64
-	TXBytes  uint64
-	Uptime   time.Duration
+	URI           string
+	Up            bool
+	Inbound       bool
+	LastError     error
+	LastErrorTime time.Time
+	Key           ed25519.PublicKey
+	Root          ed25519.PublicKey
+	Coords        []uint64
+	Port          uint64
+	Priority      uint8
+	RXBytes       uint64
+	TXBytes       uint64
+	Uptime        time.Duration
 }
 
 type TreeEntryInfo struct {
@@ -61,35 +65,39 @@ func (c *Core) GetSelf() SelfInfo {
 
 func (c *Core) GetPeers() []PeerInfo {
 	peers := []PeerInfo{}
-	names := make(map[net.Conn]string)
+	conns := map[net.Conn]network.DebugPeerInfo{}
+	iwpeers := c.PacketConn.PacketConn.Debug.GetPeers()
+	for _, p := range iwpeers {
+		conns[p.Conn] = p
+	}
+
 	phony.Block(&c.links, func() {
-		for _, info := range c.links._links {
-			if info == nil {
-				continue
+		for info, state := range c.links._links {
+			var peerinfo PeerInfo
+			var conn net.Conn
+			phony.Block(state, func() {
+				peerinfo.URI = info.uri
+				peerinfo.LastError = state._err
+				peerinfo.LastErrorTime = state._errtime
+				if c := state._conn; c != nil {
+					conn = c
+					peerinfo.Up = true
+					peerinfo.Inbound = info.linkType == linkTypeIncoming
+					peerinfo.RXBytes = c.rx
+					peerinfo.TXBytes = c.tx
+					peerinfo.Uptime = time.Since(c.up)
+				}
+			})
+			if p, ok := conns[conn]; ok {
+				peerinfo.Key = p.Key
+				peerinfo.Root = p.Root
+				peerinfo.Port = p.Port
+				peerinfo.Priority = p.Priority
 			}
-			names[info.conn] = info.lname
+			peers = append(peers, peerinfo)
 		}
 	})
-	ps := c.PacketConn.PacketConn.Debug.GetPeers()
-	for _, p := range ps {
-		var info PeerInfo
-		info.Key = p.Key
-		info.Root = p.Root
-		info.Port = p.Port
-		info.Priority = p.Priority
-		if p.Conn != nil {
-			info.Remote = p.Conn.RemoteAddr().String()
-			if linkconn, ok := p.Conn.(*linkConn); ok {
-				info.RXBytes = atomic.LoadUint64(&linkconn.rx)
-				info.TXBytes = atomic.LoadUint64(&linkconn.tx)
-				info.Uptime = time.Since(linkconn.up)
-			}
-			if name := names[p.Conn]; name != "" {
-				info.Remote = name
-			}
-		}
-		peers = append(peers, info)
-	}
+
 	return peers
 }
 
@@ -139,16 +147,7 @@ func (c *Core) GetSessions() []SessionInfo {
 // parsed from a string of the form e.g. "tcp://a.b.c.d:e". In the case of a
 // link-local address, the interface should be provided as the second argument.
 func (c *Core) Listen(u *url.URL, sintf string) (*Listener, error) {
-	switch u.Scheme {
-	case "tcp":
-		return c.links.tcp.listen(u, sintf)
-	case "tls":
-		return c.links.tls.listen(u, sintf)
-	case "unix":
-		return c.links.unix.listen(u, sintf)
-	default:
-		return nil, fmt.Errorf("unrecognised scheme %q", u.Scheme)
-	}
+	return c.links.listen(u, sintf)
 }
 
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128
@@ -187,49 +186,34 @@ func (c *Core) SetLogger(log Logger) {
 //
 // This adds the peer to the peer list, so that they will be called again if the
 // connection drops.
-func (c *Core) AddPeer(uri string, sourceInterface string) error {
-	var known bool
-	phony.Block(c, func() {
-		_, known = c.config._peers[Peer{uri, sourceInterface}]
-	})
-	if known {
-		return fmt.Errorf("peer already configured")
-	}
-	u, err := url.Parse(uri)
-	if err != nil {
-		return err
-	}
-	info, err := c.links.call(u, sourceInterface, nil)
-	if err != nil {
-		return err
-	}
-	phony.Block(c, func() {
-		c.config._peers[Peer{uri, sourceInterface}] = &info
-	})
-	return nil
+func (c *Core) AddPeer(u *url.URL, sintf string) error {
+	return c.links.add(u, sintf, linkTypePersistent)
 }
 
 // RemovePeer removes a peer. The peer should be specified in URI format, see AddPeer.
 // The peer is not disconnected immediately.
 func (c *Core) RemovePeer(uri string, sourceInterface string) error {
-	var err error
-	phony.Block(c, func() {
-		peer := Peer{uri, sourceInterface}
-		linkInfo, ok := c.config._peers[peer]
-		if !ok {
-			err = fmt.Errorf("peer not configured")
-			return
-		}
-		if ok && linkInfo != nil {
-			c.links.Act(nil, func() {
-				if link := c.links._links[*linkInfo]; link != nil {
-					_ = link.close()
-				}
-			})
-		}
-		delete(c.config._peers, peer)
-	})
-	return err
+	return fmt.Errorf("not implemented yet")
+	/*
+		var err error
+		phony.Block(c, func() {
+			peer := Peer{uri, sourceInterface}
+			linkInfo, ok := c.config._peers[peer]
+			if !ok {
+				err = fmt.Errorf("peer not configured")
+				return
+			}
+			if ok && linkInfo != nil {
+				c.links.Act(nil, func() {
+					if link := c.links._links[*linkInfo]; link != nil {
+						_ = link.conn.Close()
+					}
+				})
+			}
+			delete(c.config._peers, peer)
+		})
+		return err
+	*/
 }
 
 // CallPeer calls a peer once. This should be specified in the peer URI format,
@@ -241,8 +225,7 @@ func (c *Core) RemovePeer(uri string, sourceInterface string) error {
 // This does not add the peer to the peer list, so if the connection drops, the
 // peer will not be called again automatically.
 func (c *Core) CallPeer(u *url.URL, sintf string) error {
-	_, err := c.links.call(u, sintf, nil)
-	return err
+	return c.links.add(u, sintf, linkTypeEphemeral)
 }
 
 func (c *Core) PublicKey() ed25519.PublicKey {
