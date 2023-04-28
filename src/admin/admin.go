@@ -350,6 +350,7 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 			if resp.Response, err = json.Marshal(res); err != nil {
 				return fmt.Errorf("Failed to marshal response: %w", err)
 			}
+			resp.Request = buf
 			resp.Status = "success"
 			return nil
 		}(); err != nil {
