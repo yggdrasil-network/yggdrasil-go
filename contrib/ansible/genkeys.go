@@ -1,7 +1,5 @@
 /*
-
 This file generates crypto keys for [ansible-yggdrasil](https://github.com/jcgruenhage/ansible-yggdrasil/)
-
 */
 package main
 

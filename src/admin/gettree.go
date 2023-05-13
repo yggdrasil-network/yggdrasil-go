@@ -9,13 +9,13 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 )
 
-type GetDHTRequest struct{}
+type GetTreeRequest struct{}
 
-type GetDHTResponse struct {
-	DHT []DHTEntry `json:"dht"`
+type GetTreeResponse struct {
+	Tree []TreeEntry `json:"tree"`
 }
 
-type DHTEntry struct {
+type TreeEntry struct {
 	IPAddress string `json:"address"`
 	PublicKey string `json:"key"`
 	Parent    string `json:"parent"`
@@ -24,12 +24,12 @@ type DHTEntry struct {
 	//Rest      uint64 `json:"rest"`
 }
 
-func (a *AdminSocket) getDHTHandler(req *GetDHTRequest, res *GetDHTResponse) error {
-	dht := a.core.GetDHT()
-	res.DHT = make([]DHTEntry, 0, len(dht))
-	for _, d := range dht {
+func (a *AdminSocket) getTreeHandler(req *GetTreeRequest, res *GetTreeResponse) error {
+	tree := a.core.GetTree()
+	res.Tree = make([]TreeEntry, 0, len(tree))
+	for _, d := range tree {
 		addr := address.AddrForKey(d.Key)
-		res.DHT = append(res.DHT, DHTEntry{
+		res.Tree = append(res.Tree, TreeEntry{
 			IPAddress: net.IP(addr[:]).String(),
 			PublicKey: hex.EncodeToString(d.Key[:]),
 			Parent:    hex.EncodeToString(d.Parent[:]),
@@ -38,8 +38,8 @@ func (a *AdminSocket) getDHTHandler(req *GetDHTRequest, res *GetDHTResponse) err
 			//Rest:      d.Rest,
 		})
 	}
-	sort.SliceStable(res.DHT, func(i, j int) bool {
-		return strings.Compare(res.DHT[i].PublicKey, res.DHT[j].PublicKey) < 0
+	sort.SliceStable(res.Tree, func(i, j int) bool {
+		return strings.Compare(res.Tree[i].PublicKey, res.Tree[j].PublicKey) < 0
 	})
 	return nil
 }

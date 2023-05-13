@@ -21,8 +21,8 @@ const (
 	typeDebugGetSelfResponse
 	typeDebugGetPeersRequest
 	typeDebugGetPeersResponse
-	typeDebugGetDHTRequest
-	typeDebugGetDHTResponse
+	typeDebugGetTreeRequest
+	typeDebugGetTreeResponse
 )
 
 type reqInfo struct {
@@ -40,7 +40,7 @@ type protoHandler struct {
 
 	selfRequests  map[keyArray]*reqInfo
 	peersRequests map[keyArray]*reqInfo
-	dhtRequests   map[keyArray]*reqInfo
+	treeRequests  map[keyArray]*reqInfo
 }
 
 func (p *protoHandler) init(core *Core) {
@@ -49,7 +49,7 @@ func (p *protoHandler) init(core *Core) {
 
 	p.selfRequests = make(map[keyArray]*reqInfo)
 	p.peersRequests = make(map[keyArray]*reqInfo)
-	p.dhtRequests = make(map[keyArray]*reqInfo)
+	p.treeRequests = make(map[keyArray]*reqInfo)
 }
 
 // Common functions
@@ -89,10 +89,10 @@ func (p *protoHandler) _handleDebug(key keyArray, bs []byte) {
 		p._handleGetPeersRequest(key)
 	case typeDebugGetPeersResponse:
 		p._handleGetPeersResponse(key, bs[1:])
-	case typeDebugGetDHTRequest:
-		p._handleGetDHTRequest(key)
-	case typeDebugGetDHTResponse:
-		p._handleGetDHTResponse(key, bs[1:])
+	case typeDebugGetTreeRequest:
+		p._handleGetTreeRequest(key)
+	case typeDebugGetTreeResponse:
+		p._handleGetTreeResponse(key, bs[1:])
 	}
 }
 
@@ -188,47 +188,47 @@ func (p *protoHandler) _handleGetPeersResponse(key keyArray, bs []byte) {
 	}
 }
 
-// Get DHT
+// Get Tree
 
-func (p *protoHandler) sendGetDHTRequest(key keyArray, callback func([]byte)) {
+func (p *protoHandler) sendGetTreeRequest(key keyArray, callback func([]byte)) {
 	p.Act(nil, func() {
-		if info := p.dhtRequests[key]; info != nil {
+		if info := p.treeRequests[key]; info != nil {
 			info.timer.Stop()
-			delete(p.dhtRequests, key)
+			delete(p.treeRequests, key)
 		}
 		info := new(reqInfo)
 		info.callback = callback
 		info.timer = time.AfterFunc(time.Minute, func() {
 			p.Act(nil, func() {
-				if p.dhtRequests[key] == info {
-					delete(p.dhtRequests, key)
+				if p.treeRequests[key] == info {
+					delete(p.treeRequests, key)
 				}
 			})
 		})
-		p.dhtRequests[key] = info
-		p._sendDebug(key, typeDebugGetDHTRequest, nil)
+		p.treeRequests[key] = info
+		p._sendDebug(key, typeDebugGetTreeRequest, nil)
 	})
 }
 
-func (p *protoHandler) _handleGetDHTRequest(key keyArray) {
-	dinfos := p.core.GetDHT()
+func (p *protoHandler) _handleGetTreeRequest(key keyArray) {
+	dinfos := p.core.GetTree()
 	var bs []byte
 	for _, dinfo := range dinfos {
 		tmp := append(bs, dinfo.Key[:]...)
-		const responseOverhead = 2 // 1 debug type, 1 getdht type
+		const responseOverhead = 2 // 1 debug type, 1 gettree type
 		if uint64(len(tmp))+responseOverhead > p.core.MTU() {
 			break
 		}
 		bs = tmp
 	}
-	p._sendDebug(key, typeDebugGetDHTResponse, bs)
+	p._sendDebug(key, typeDebugGetTreeResponse, bs)
 }
 
-func (p *protoHandler) _handleGetDHTResponse(key keyArray, bs []byte) {
-	if info := p.dhtRequests[key]; info != nil {
+func (p *protoHandler) _handleGetTreeResponse(key keyArray, bs []byte) {
+	if info := p.treeRequests[key]; info != nil {
 		info.timer.Stop()
 		info.callback(bs)
-		delete(p.dhtRequests, key)
+		delete(p.treeRequests, key)
 	}
 }
 
@@ -322,16 +322,16 @@ func (p *protoHandler) getPeersHandler(in json.RawMessage) (interface{}, error) 
 	}
 }
 
-// Admin socket stuff for "Get DHT"
+// Admin socket stuff for "Get Tree"
 
-type DebugGetDHTRequest struct {
+type DebugGetTreeRequest struct {
 	Key string `json:"key"`
 }
 
-type DebugGetDHTResponse map[string]interface{}
+type DebugGetTreeResponse map[string]interface{}
 
-func (p *protoHandler) getDHTHandler(in json.RawMessage) (interface{}, error) {
-	var req DebugGetDHTRequest
+func (p *protoHandler) getTreeHandler(in json.RawMessage) (interface{}, error) {
+	var req DebugGetTreeRequest
 	if err := json.Unmarshal(in, &req); err != nil {
 		return nil, err
 	}
@@ -343,7 +343,7 @@ func (p *protoHandler) getDHTHandler(in json.RawMessage) (interface{}, error) {
 	}
 	copy(key[:], kbs)
 	ch := make(chan []byte, 1)
-	p.sendGetDHTRequest(key, func(info []byte) {
+	p.sendGetTreeRequest(key, func(info []byte) {
 		ch <- info
 	})
 	timer := time.NewTimer(6 * time.Second)
@@ -367,7 +367,7 @@ func (p *protoHandler) getDHTHandler(in json.RawMessage) (interface{}, error) {
 			return nil, err
 		}
 		ip := net.IP(address.AddrForKey(kbs)[:])
-		res := DebugGetDHTResponse{ip.String(): msg}
+		res := DebugGetTreeResponse{ip.String(): msg}
 		return res, nil
 	}
 }

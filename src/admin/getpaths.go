@@ -1,7 +1,5 @@
 package admin
 
-/*
-
 import (
 	"encoding/hex"
 	"net"
@@ -19,9 +17,10 @@ type GetPathsResponse struct {
 }
 
 type PathEntry struct {
-	IPAddress string `json:"address"`
-	PublicKey string `json:"key"`
-	Sequence  uint64 `json:"sequence"`
+	IPAddress string   `json:"address"`
+	PublicKey string   `json:"key"`
+	Path      []uint64 `json:"path"`
+	Sequence  uint64   `json:"sequence"`
 }
 
 func (a *AdminSocket) getPathsHandler(req *GetPathsRequest, res *GetPathsResponse) error {
@@ -32,6 +31,7 @@ func (a *AdminSocket) getPathsHandler(req *GetPathsRequest, res *GetPathsRespons
 		res.Paths = append(res.Paths, PathEntry{
 			IPAddress: net.IP(addr[:]).String(),
 			PublicKey: hex.EncodeToString(p.Key),
+			Path:      p.Path,
 			Sequence:  p.Sequence,
 		})
 	}
@@ -40,5 +40,3 @@ func (a *AdminSocket) getPathsHandler(req *GetPathsRequest, res *GetPathsRespons
 	})
 	return nil
 }
-
-*/

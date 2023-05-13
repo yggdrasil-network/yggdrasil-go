@@ -189,41 +189,40 @@ func run() int {
 		}
 		table.Render()
 
-	case "getdht":
-		var resp admin.GetDHTResponse
+	case "gettree":
+		var resp admin.GetTreeResponse
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
 		//table.SetHeader([]string{"Public Key", "IP Address", "Port", "Rest"})
 		table.SetHeader([]string{"Public Key", "IP Address", "Parent", "Sequence"})
-		for _, dht := range resp.DHT {
+		for _, tree := range resp.Tree {
 			table.Append([]string{
-				dht.PublicKey,
-				dht.IPAddress,
-				dht.Parent,
-				fmt.Sprintf("%d", dht.Sequence),
+				tree.PublicKey,
+				tree.IPAddress,
+				tree.Parent,
+				fmt.Sprintf("%d", tree.Sequence),
 				//fmt.Sprintf("%d", dht.Port),
 				//fmt.Sprintf("%d", dht.Rest),
 			})
 		}
 		table.Render()
 
-		/*
-			case "getpaths":
-				var resp admin.GetPathsResponse
-				if err := json.Unmarshal(recv.Response, &resp); err != nil {
-					panic(err)
-				}
-				table.SetHeader([]string{"Public Key", "IP Address", "Seq"})
-				for _, p := range resp.Paths {
-					table.Append([]string{
-						p.PublicKey,
-						p.IPAddress,
-						fmt.Sprintf("%d", p.Sequence),
-					})
-				}
-				table.Render()
-		*/
+	case "getpaths":
+		var resp admin.GetPathsResponse
+		if err := json.Unmarshal(recv.Response, &resp); err != nil {
+			panic(err)
+		}
+		table.SetHeader([]string{"Public Key", "IP Address", "Path", "Seq"})
+		for _, p := range resp.Paths {
+			table.Append([]string{
+				p.PublicKey,
+				p.IPAddress,
+				fmt.Sprintf("%v", p.Path),
+				fmt.Sprintf("%d", p.Sequence),
+			})
+		}
+		table.Render()
 
 	case "getsessions":
 		var resp admin.GetSessionsResponse
