@@ -145,22 +145,20 @@ func (a *AdminSocket) SetupAdminHandlers() {
 			return res, nil
 		},
 	)
-	/*
-		_ = a.AddHandler(
-			"getPaths", "Show established paths through this node", []string{},
-			func(in json.RawMessage) (interface{}, error) {
-				req := &GetPathsRequest{}
-				res := &GetPathsResponse{}
-				if err := json.Unmarshal(in, &req); err != nil {
-					return nil, err
-				}
-				if err := a.getPathsHandler(req, res); err != nil {
-					return nil, err
-				}
-				return res, nil
-			},
-		)
-	*/
+	_ = a.AddHandler(
+		"getPaths", "Show established paths through this node", []string{},
+		func(in json.RawMessage) (interface{}, error) {
+			req := &GetPathsRequest{}
+			res := &GetPathsResponse{}
+			if err := json.Unmarshal(in, &req); err != nil {
+				return nil, err
+			}
+			if err := a.getPathsHandler(req, res); err != nil {
+				return nil, err
+			}
+			return res, nil
+		},
+	)
 	_ = a.AddHandler(
 		"getSessions", "Show established traffic sessions with remote nodes", []string{},
 		func(in json.RawMessage) (interface{}, error) {
