@@ -104,20 +104,6 @@ func (l *linkTCP) listen(ctx context.Context, url *url.URL, sintf string) (net.L
 	return l.listenconfig.Listen(ctx, "tcp", hostport)
 }
 
-// Returns the address of the listener.
-func (l *linkTCP) getAddr() *net.TCPAddr {
-	// TODO: Fix this, because this will currently only give a single address
-	// to multicast.go, which obviously is not great, but right now multicast.go
-	// doesn't have the ability to send more than one address in a packet either
-	var addr *net.TCPAddr
-	phony.Block(l, func() {
-		for li := range l._listeners {
-			addr = li.listener.Addr().(*net.TCPAddr)
-		}
-	})
-	return addr
-}
-
 func (l *linkTCP) dialerFor(dst *net.TCPAddr, sintf string) (*net.Dialer, error) {
 	if dst.IP.IsLinkLocalUnicast() {
 		if sintf != "" {

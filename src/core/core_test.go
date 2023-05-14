@@ -39,20 +39,28 @@ func CreateAndConnectTwo(t testing.TB, verbose bool) (nodeA *Core, nodeB *Core) 
 	}
 
 	logger := GetLoggerWithPrefix("", false)
+	logger.EnableLevel("debug")
 
-	if nodeA, err = New(cfgA.Certificate, logger, ListenAddress("tcp://127.0.0.1:0")); err != nil {
+	if nodeA, err = New(cfgA.Certificate, logger); err != nil {
 		t.Fatal(err)
 	}
-	if nodeB, err = New(cfgB.Certificate, logger, ListenAddress("tcp://127.0.0.1:0")); err != nil {
+	if nodeB, err = New(cfgB.Certificate, logger); err != nil {
 		t.Fatal(err)
 	}
 
-	u, err := url.Parse("tcp://" + nodeA.links.tcp.getAddr().String())
+	nodeAListenURL, err := url.Parse("tcp://localhost:0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = nodeB.CallPeer(u, "")
+	nodeAListener, err := nodeA.Listen(nodeAListenURL, "")
 	if err != nil {
+		t.Fatal(err)
+	}
+	nodeAURL, err := url.Parse("tcp://" + nodeAListener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = nodeB.CallPeer(nodeAURL, ""); err != nil {
 		t.Fatal(err)
 	}
 
