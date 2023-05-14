@@ -9,7 +9,7 @@ func TestStartYggdrasil(t *testing.T) {
 	}
 	t.Log("Address:", ygg.GetAddressString())
 	t.Log("Subnet:", ygg.GetSubnetString())
-	t.Log("Coords:", ygg.GetCoordsString())
+	t.Log("Routing entries:", ygg.GetRoutingEntries())
 	if err := ygg.Stop(); err != nil {
 		t.Fatalf("Failed to stop Yggdrasil: %s", err)
 	}

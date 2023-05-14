@@ -190,10 +190,9 @@ func (m *Yggdrasil) GetPublicKeyString() string {
 	return hex.EncodeToString(m.core.GetSelf().Key)
 }
 
-// GetCoordsString gets the node's coordinates
-func (m *Yggdrasil) GetCoordsString() string {
-	return "N/A"
-	// return fmt.Sprintf("%v", m.core.GetSelf().Coords)
+// GetRoutingEntries gets the number of entries in the routing table
+func (m *Yggdrasil) GetRoutingEntries() int {
+	return int(m.core.GetSelf().RoutingEntries)
 }
 
 func (m *Yggdrasil) GetPeersJSON() (result string) {
@@ -219,8 +218,16 @@ func (m *Yggdrasil) GetPeersJSON() (result string) {
 	}
 }
 
-func (m *Yggdrasil) GetDHTJSON() (result string) {
-	if res, err := json.Marshal(m.core.GetDHT()); err == nil {
+func (m *Yggdrasil) GetPathsJSON() (result string) {
+	if res, err := json.Marshal(m.core.GetPaths()); err == nil {
+		return string(res)
+	} else {
+		return "{}"
+	}
+}
+
+func (m *Yggdrasil) GetTreeJSON() (result string) {
+	if res, err := json.Marshal(m.core.GetTree()); err == nil {
 		return string(res)
 	} else {
 		return "{}"
