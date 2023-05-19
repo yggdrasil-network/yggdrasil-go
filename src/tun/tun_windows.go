@@ -9,7 +9,7 @@ import (
 	"log"
 	"net"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"golang.org/x/sys/windows"
 
 	wgtun "golang.zx2c4.com/wireguard/tun"
@@ -22,7 +22,7 @@ import (
 // Configures the TUN adapter with the correct IPv6 address and MTU.
 func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 	if ifname == "auto" {
-		ifname = defaults.GetDefaults().DefaultIfName
+		ifname = config.GetDefaults().DefaultIfName
 	}
 	return elevate.DoAsSystem(func() error {
 		var err error
