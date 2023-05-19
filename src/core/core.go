@@ -13,10 +13,12 @@ import (
 	"time"
 
 	iwe "github.com/Arceliar/ironwood/encrypted"
+	iwn "github.com/Arceliar/ironwood/network"
 	iwt "github.com/Arceliar/ironwood/types"
 	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 )
 
@@ -93,7 +95,15 @@ func New(cert *tls.Certificate, logger Logger, opts ...SetupOption) (*Core, erro
 	if c.config.tls, err = c.generateTLSConfig(cert); err != nil {
 		return nil, fmt.Errorf("error generating TLS config: %w", err)
 	}
-	if c.PacketConn, err = iwe.NewPacketConn(c.secret); err != nil {
+	keyXform := func(key ed25519.PublicKey) ed25519.PublicKey {
+		return address.SubnetForKey(key).GetKey()
+	}
+	if c.PacketConn, err = iwe.NewPacketConn(
+		c.secret,
+		iwn.WithBloomTransform(keyXform),
+		iwn.WithPeerMaxMessageSize(65535*2),
+		iwn.WithPathNotify(c.doPathNotify),
+	); err != nil {
 		return nil, fmt.Errorf("error creating encryption: %w", err)
 	}
 	address, subnet := c.Address(), c.Subnet()
@@ -215,6 +225,14 @@ func (c *Core) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 		n -= 1
 	}
 	return
+}
+
+func (c *Core) doPathNotify(key ed25519.PublicKey) {
+	c.Act(nil, func() {
+		if c.pathNotify != nil {
+			c.pathNotify(key)
+		}
+	})
 }
 
 func (c *Core) SetPathNotify(notify func(ed25519.PublicKey)) {
