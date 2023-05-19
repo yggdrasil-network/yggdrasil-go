@@ -176,9 +176,9 @@ func run() int {
 		}
 		table.SetHeader([]string{"URI", "State", "Dir", "IP Address", "Uptime", "RX", "TX", "Pr", "Last Error"})
 		for _, peer := range resp.Peers {
-			state, lasterr, dir := "Up", "(none)", "Out"
+			state, lasterr, dir := "Up", "-", "Out"
 			if !peer.Up {
-				state, lasterr = "Down", fmt.Sprintf("%s (%s ago)", peer.LastError, peer.LastErrorTime.Round(time.Second))
+				state, lasterr = "Down", fmt.Sprintf("%s ago: %s", peer.LastErrorTime.Round(time.Second), peer.LastError)
 			}
 			if peer.Inbound {
 				dir = "In"
