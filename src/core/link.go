@@ -152,7 +152,12 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 		sintf:    sintf,
 		linkType: linkType,
 	}
-	if state, ok := l._links[info]; ok {
+	var state *link
+	var ok bool
+	phony.Block(l, func() {
+		state, ok = l._links[info]
+	})
+	if ok && state != nil {
 		select {
 		case state.kick <- struct{}{}:
 		default:
@@ -164,7 +169,7 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 	// in progress (if any), any error details and a context that
 	// lets the link be cancelled later.
 	ctx, cancel := context.WithCancel(l.core.ctx)
-	state := &link{
+	state = &link{
 		info:      info,
 		linkProto: strings.ToUpper(u.Scheme),
 		ctx:       ctx,
@@ -327,8 +332,12 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 				_ = conn.Close()
 				continue
 			}
-			state := l._links[info]
-			if state == nil {
+			var state *link
+			var ok bool
+			phony.Block(l, func() {
+				state = l._links[info]
+			})
+			if !ok || state == nil {
 				state = &link{
 					info: info,
 				}
