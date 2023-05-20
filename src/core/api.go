@@ -71,31 +71,32 @@ func (c *Core) GetPeers() []PeerInfo {
 		conns[p.Conn] = p
 	}
 
-	phony.Block(&c.links, func() {
-		for info, state := range c.links._links {
-			var peerinfo PeerInfo
-			var conn net.Conn
-			phony.Block(state, func() {
-				peerinfo.URI = info.uri
-				peerinfo.LastError = state._err
-				peerinfo.LastErrorTime = state._errtime
-				if c := state._conn; c != nil {
-					conn = c
-					peerinfo.Up = true
-					peerinfo.Inbound = info.linkType == linkTypeIncoming
-					peerinfo.RXBytes = c.rx
-					peerinfo.TXBytes = c.tx
-					peerinfo.Uptime = time.Since(c.up)
-				}
-			})
-			if p, ok := conns[conn]; ok {
-				peerinfo.Key = p.Key
-				peerinfo.Root = p.Root
-				peerinfo.Port = p.Port
-				peerinfo.Priority = p.Priority
+	c.links.links.Range(func(key, value any) bool {
+		info := key.(linkInfo)
+		state := value.(*link)
+		var peerinfo PeerInfo
+		var conn net.Conn
+		phony.Block(state, func() {
+			peerinfo.URI = info.uri
+			peerinfo.LastError = state._err
+			peerinfo.LastErrorTime = state._errtime
+			if c := state._conn; c != nil {
+				conn = c
+				peerinfo.Up = true
+				peerinfo.Inbound = info.linkType == linkTypeIncoming
+				peerinfo.RXBytes = c.rx
+				peerinfo.TXBytes = c.tx
+				peerinfo.Uptime = time.Since(c.up)
 			}
-			peers = append(peers, peerinfo)
+		})
+		if p, ok := conns[conn]; ok {
+			peerinfo.Key = p.Key
+			peerinfo.Root = p.Root
+			peerinfo.Port = p.Port
+			peerinfo.Priority = p.Priority
 		}
+		peers = append(peers, peerinfo)
+		return true
 	})
 
 	return peers

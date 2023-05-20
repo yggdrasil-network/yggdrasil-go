@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -28,13 +29,12 @@ const (
 )
 
 type links struct {
-	phony.Inbox
-	core   *Core
-	tcp    *linkTCP           // TCP interface support
-	tls    *linkTLS           // TLS interface support
-	unix   *linkUNIX          // UNIX interface support
-	socks  *linkSOCKS         // SOCKS interface support
-	_links map[linkInfo]*link // *link is nil if connection in progress
+	core  *Core
+	tcp   *linkTCP   // TCP interface support
+	tls   *linkTLS   // TLS interface support
+	unix  *linkUNIX  // UNIX interface support
+	socks *linkSOCKS // SOCKS interface support
+	links sync.Map   // map[linkInfo]*link // *link is nil if connection in progress
 }
 
 type linkProtocol interface {
@@ -92,7 +92,6 @@ func (l *links) init(c *Core) error {
 	l.tls = l.newLinkTLS(l.tcp)
 	l.unix = l.newLinkUNIX()
 	l.socks = l.newLinkSOCKS()
-	l._links = make(map[linkInfo]*link)
 
 	var listeners []ListenAddress
 	phony.Block(c, func() {
@@ -124,15 +123,11 @@ func (l *links) shutdown() {
 }
 
 func (l *links) isConnectedTo(info linkInfo) bool {
-	var isConnected bool
-	phony.Block(l, func() {
-		link, ok := l._links[info]
-		if !ok {
-			return
-		}
-		isConnected = link._conn != nil
-	})
-	return isConnected
+	li, ok := l.links.Load(info)
+	if !ok || li == nil {
+		return false
+	}
+	return li.(*link)._conn != nil
 }
 
 type linkError string
@@ -152,12 +147,12 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 		sintf:    sintf,
 		linkType: linkType,
 	}
+
 	var state *link
-	var ok bool
-	phony.Block(l, func() {
-		state, ok = l._links[info]
-	})
-	if ok && state != nil {
+	if s, ok := l.links.Load(info); ok {
+		state = s.(*link)
+	}
+	if state != nil {
 		select {
 		case state.kick <- struct{}{}:
 		default:
@@ -201,9 +196,7 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 
 	// Store the state of the link, try to connect and then run
 	// the handler.
-	phony.Block(l, func() {
-		l._links[info] = state
-	})
+	l.links.Store(info, state)
 
 	// Track how many consecutive connection failures we have had,
 	// as we will back off exponentially rather than hammering the
@@ -234,9 +227,7 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 	// then the loop will run endlessly, using backoffs as needed.
 	// Otherwise the loop will end, cleaning up the link entry.
 	go func() {
-		defer phony.Block(l, func() {
-			delete(l._links, info)
-		})
+		l.links.Delete(info)
 		for {
 			conn, err := l.connect(u, info, options)
 			if err != nil {
@@ -333,11 +324,10 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 				continue
 			}
 			var state *link
-			var ok bool
-			phony.Block(l, func() {
-				state = l._links[info]
-			})
-			if !ok || state == nil {
+			if s, ok := l.links.Load(info); ok {
+				state = s.(*link)
+			}
+			if state == nil {
 				state = &link{
 					info: info,
 				}
@@ -352,9 +342,7 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 				state._err = nil
 				state.linkProto = strings.ToUpper(u.Scheme)
 			})
-			phony.Block(l, func() {
-				l._links[info] = state
-			})
+			l.links.Store(info, state)
 			if err = l.handler(&info, options, lc); err != nil && err != io.EOF {
 				l.core.log.Debugf("Link %s error: %s\n", u.Host, err)
 			}
@@ -364,9 +352,7 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 					state._errtime = time.Now()
 				}
 			})
-			phony.Block(l, func() {
-				delete(l._links, info)
-			})
+			l.links.Delete(info)
 		}
 	}()
 	return li, nil
