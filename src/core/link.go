@@ -322,51 +322,47 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 			if err != nil {
 				continue
 			}
-			pu := *u
-			pu.Host = conn.RemoteAddr().String()
-			lu := urlForLinkInfo(pu)
-			info := linkInfo{
-				uri:      lu.String(),
-				sintf:    sintf,
-				linkType: linkTypeEphemeral, // TODO: should be incoming
-			}
-			if l.isConnectedTo(info) {
-				_ = conn.Close()
-				continue
-			}
-			l.RLock()
-			state, ok := l._links[info]
-			l.RUnlock()
-			if !ok || state == nil {
-				state = &link{
-					info: info,
+			go func(conn net.Conn) {
+				defer conn.Close()
+				pu := *u
+				pu.Host = conn.RemoteAddr().String()
+				lu := urlForLinkInfo(pu)
+				info := linkInfo{
+					uri:      lu.String(),
+					sintf:    sintf,
+					linkType: linkTypeEphemeral, // TODO: should be incoming
 				}
-			}
-			lc := &linkConn{
-				Conn: conn,
-				up:   time.Now(),
-			}
-			var options linkOptions
-			phony.Block(state, func() {
-				state._conn = lc
-				state._err = nil
-				state.linkProto = strings.ToUpper(u.Scheme)
-			})
-			l.Lock()
-			l._links[info] = state
-			l.Unlock()
-			if err = l.handler(&info, options, lc); err != nil && err != io.EOF {
-				l.core.log.Debugf("Link %s error: %s\n", u.Host, err)
-			}
-			phony.Block(state, func() {
-				state._conn = nil
-				if state._err = err; state._err != nil {
-					state._errtime = time.Now()
+				if l.isConnectedTo(info) {
+					return
 				}
-			})
-			l.Lock()
-			delete(l._links, info)
-			l.Unlock()
+				l.RLock()
+				state, ok := l._links[info]
+				l.RUnlock()
+				if !ok || state == nil {
+					state = &link{
+						info: info,
+					}
+				}
+				lc := &linkConn{
+					Conn: conn,
+					up:   time.Now(),
+				}
+				var options linkOptions
+				phony.Block(state, func() {
+					state._conn = lc
+					state._err = nil
+					state.linkProto = strings.ToUpper(u.Scheme)
+				})
+				l.Lock()
+				l._links[info] = state
+				l.Unlock()
+				if err = l.handler(&info, options, lc); err != nil && err != io.EOF {
+					l.core.log.Debugf("Link %s error: %s\n", u.Host, err)
+				}
+				l.Lock()
+				delete(l._links, info)
+				l.Unlock()
+			}(conn)
 		}
 	}()
 	return li, nil
