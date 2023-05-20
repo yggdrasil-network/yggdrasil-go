@@ -9,6 +9,7 @@ import (
 	"io"
 	"math"
 	"net"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
@@ -146,8 +147,9 @@ const ErrLinkUnrecognisedSchema = linkError("link schema unknown")
 func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 	// Generate the link info and see whether we think we already
 	// have an open peering to this peer.
+	lu := urlForLinkInfo(*u)
 	info := linkInfo{
-		uri:      u.String(),
+		uri:      lu.String(),
 		sintf:    sintf,
 		linkType: linkType,
 	}
@@ -322,10 +324,11 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 			}
 			pu := *u
 			pu.Host = conn.RemoteAddr().String()
+			lu := urlForLinkInfo(pu)
 			info := linkInfo{
-				uri:      pu.String(),
+				uri:      lu.String(),
 				sintf:    sintf,
-				linkType: linkTypeIncoming,
+				linkType: linkTypeEphemeral, // TODO: should be incoming
 			}
 			if l.isConnectedTo(info) {
 				_ = conn.Close()
@@ -478,6 +481,21 @@ func (l *links) handler(info *linkInfo, options linkOptions, conn net.Conn) erro
 			dir, remoteStr, localStr, err)
 	}
 	return nil
+}
+
+func urlForLinkInfo(u url.URL) url.URL {
+	u.RawQuery = ""
+	if host, _, err := net.SplitHostPort(u.Host); err == nil {
+		if addr, err := netip.ParseAddr(host); err == nil {
+			// For peers that look like multicast peers (i.e.
+			// link-local addresses), we will ignore the port number,
+			// otherwise we might open multiple connections to them.
+			if addr.IsLinkLocalUnicast() {
+				u.Host = fmt.Sprintf("[%s]", addr.String())
+			}
+		}
+	}
+	return u
 }
 
 type linkConn struct {
