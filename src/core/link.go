@@ -29,12 +29,13 @@ const (
 )
 
 type links struct {
-	core  *Core
-	tcp   *linkTCP   // TCP interface support
-	tls   *linkTLS   // TLS interface support
-	unix  *linkUNIX  // UNIX interface support
-	socks *linkSOCKS // SOCKS interface support
-	links sync.Map   // map[linkInfo]*link // *link is nil if connection in progress
+	core         *Core
+	tcp          *linkTCP           // TCP interface support
+	tls          *linkTLS           // TLS interface support
+	unix         *linkUNIX          // UNIX interface support
+	socks        *linkSOCKS         // SOCKS interface support
+	sync.RWMutex                    // Protects the below
+	_links       map[linkInfo]*link // *link is nil if connection in progress
 }
 
 type linkProtocol interface {
@@ -92,6 +93,7 @@ func (l *links) init(c *Core) error {
 	l.tls = l.newLinkTLS(l.tcp)
 	l.unix = l.newLinkUNIX()
 	l.socks = l.newLinkSOCKS()
+	l._links = make(map[linkInfo]*link)
 
 	var listeners []ListenAddress
 	phony.Block(c, func() {
@@ -123,11 +125,13 @@ func (l *links) shutdown() {
 }
 
 func (l *links) isConnectedTo(info linkInfo) bool {
-	li, ok := l.links.Load(info)
-	if !ok || li == nil {
+	l.RLock()
+	link, ok := l._links[info]
+	l.RUnlock()
+	if !ok {
 		return false
 	}
-	return li.(*link)._conn != nil
+	return link._conn != nil
 }
 
 type linkError string
@@ -147,12 +151,10 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 		sintf:    sintf,
 		linkType: linkType,
 	}
-
-	var state *link
-	if s, ok := l.links.Load(info); ok {
-		state = s.(*link)
-	}
-	if state != nil {
+	l.RLock()
+	state, ok := l._links[info]
+	l.RUnlock()
+	if ok && state != nil {
 		select {
 		case state.kick <- struct{}{}:
 		default:
@@ -196,7 +198,9 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 
 	// Store the state of the link, try to connect and then run
 	// the handler.
-	l.links.Store(info, state)
+	l.Lock()
+	l._links[info] = state
+	l.Unlock()
 
 	// Track how many consecutive connection failures we have had,
 	// as we will back off exponentially rather than hammering the
@@ -227,7 +231,11 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 	// then the loop will run endlessly, using backoffs as needed.
 	// Otherwise the loop will end, cleaning up the link entry.
 	go func() {
-		l.links.Delete(info)
+		defer func() {
+			l.Lock()
+			defer l.Unlock()
+			delete(l._links, info)
+		}()
 		for {
 			conn, err := l.connect(u, info, options)
 			if err != nil {
@@ -323,11 +331,10 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 				_ = conn.Close()
 				continue
 			}
-			var state *link
-			if s, ok := l.links.Load(info); ok {
-				state = s.(*link)
-			}
-			if state == nil {
+			l.RLock()
+			state, ok := l._links[info]
+			l.RUnlock()
+			if !ok || state == nil {
 				state = &link{
 					info: info,
 				}
@@ -342,7 +349,9 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 				state._err = nil
 				state.linkProto = strings.ToUpper(u.Scheme)
 			})
-			l.links.Store(info, state)
+			l.Lock()
+			l._links[info] = state
+			l.Unlock()
 			if err = l.handler(&info, options, lc); err != nil && err != io.EOF {
 				l.core.log.Debugf("Link %s error: %s\n", u.Host, err)
 			}
@@ -352,7 +361,9 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 					state._errtime = time.Now()
 				}
 			})
-			l.links.Delete(info)
+			l.Lock()
+			delete(l._links, info)
+			l.Unlock()
 		}
 	}()
 	return li, nil

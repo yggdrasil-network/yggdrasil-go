@@ -71,9 +71,9 @@ func (c *Core) GetPeers() []PeerInfo {
 		conns[p.Conn] = p
 	}
 
-	c.links.links.Range(func(key, value any) bool {
-		info := key.(linkInfo)
-		state := value.(*link)
+	c.links.RLock()
+	defer c.links.RUnlock()
+	for info, state := range c.links._links {
 		var peerinfo PeerInfo
 		var conn net.Conn
 		phony.Block(state, func() {
@@ -96,8 +96,7 @@ func (c *Core) GetPeers() []PeerInfo {
 			peerinfo.Priority = p.Priority
 		}
 		peers = append(peers, peerinfo)
-		return true
-	})
+	}
 
 	return peers
 }
