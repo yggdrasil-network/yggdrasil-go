@@ -30,7 +30,7 @@ type PeerInfo struct {
 	Uptime   time.Duration
 }
 
-type DHTEntryInfo struct {
+type TreeEntryInfo struct {
 	Key      ed25519.PublicKey
 	Parent   ed25519.PublicKey
 	Sequence uint64
@@ -38,12 +38,11 @@ type DHTEntryInfo struct {
 	//Rest uint64
 }
 
-/*
 type PathEntryInfo struct {
 	Key      ed25519.PublicKey
+	Path     []uint64
 	Sequence uint64
 }
-*/
 
 type SessionInfo struct {
 	Key     ed25519.PublicKey
@@ -94,22 +93,21 @@ func (c *Core) GetPeers() []PeerInfo {
 	return peers
 }
 
-func (c *Core) GetDHT() []DHTEntryInfo {
-	var dhts []DHTEntryInfo
-	ds := c.PacketConn.PacketConn.Debug.GetDHT()
-	for _, d := range ds {
-		var info DHTEntryInfo
-		info.Key = d.Key
-		info.Parent = d.Parent
-		info.Sequence = d.Sequence
+func (c *Core) GetTree() []TreeEntryInfo {
+	var trees []TreeEntryInfo
+	ts := c.PacketConn.PacketConn.Debug.GetTree()
+	for _, t := range ts {
+		var info TreeEntryInfo
+		info.Key = t.Key
+		info.Parent = t.Parent
+		info.Sequence = t.Sequence
 		//info.Port = d.Port
 		//info.Rest = d.Rest
-		dhts = append(dhts, info)
+		trees = append(trees, info)
 	}
-	return dhts
+	return trees
 }
 
-/*
 func (c *Core) GetPaths() []PathEntryInfo {
 	var paths []PathEntryInfo
 	ps := c.PacketConn.PacketConn.Debug.GetPaths()
@@ -117,12 +115,11 @@ func (c *Core) GetPaths() []PathEntryInfo {
 		var info PathEntryInfo
 		info.Key = p.Key
 		info.Sequence = p.Sequence
-		//info.Path = p.Path
+		info.Path = p.Path
 		paths = append(paths, info)
 	}
 	return paths
 }
-*/
 
 func (c *Core) GetSessions() []SessionInfo {
 	var sessions []SessionInfo
@@ -282,8 +279,8 @@ func (c *Core) SetAdmin(a AddHandler) error {
 		return err
 	}
 	if err := a.AddHandler(
-		"debug_remoteGetDHT", "Debug use only", []string{"key"},
-		c.proto.getDHTHandler,
+		"debug_remoteGetTree", "Debug use only", []string{"key"},
+		c.proto.getTreeHandler,
 	); err != nil {
 		return err
 	}

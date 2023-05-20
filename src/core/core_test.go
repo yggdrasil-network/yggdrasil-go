@@ -75,7 +75,8 @@ func WaitConnected(nodeA, nodeB *Core) bool {
 				return true
 			}
 		*/
-		if len(nodeA.GetDHT()) > 1 && len(nodeB.GetDHT()) > 1 {
+		if len(nodeA.GetTree()) > 1 && len(nodeB.GetTree()) > 1 {
+		  time.Sleep(3*time.Second) // FIXME hack, there's still stuff happening internally
 			return true
 		}
 	}

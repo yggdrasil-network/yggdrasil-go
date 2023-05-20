@@ -31,16 +31,16 @@ const (
 type keyArray [ed25519.PublicKeySize]byte
 
 type keyStore struct {
-	core       *core.Core
-	address    address.Address
-	subnet     address.Subnet
-	mutex      sync.Mutex
-	keyToInfo  map[keyArray]*keyInfo
-	addrToInfo map[address.Address]*keyInfo
-	//addrBuffer   map[address.Address]*buffer
+	core         *core.Core
+	address      address.Address
+	subnet       address.Subnet
+	mutex        sync.Mutex
+	keyToInfo    map[keyArray]*keyInfo
+	addrToInfo   map[address.Address]*keyInfo
+	addrBuffer   map[address.Address]*buffer
 	subnetToInfo map[address.Subnet]*keyInfo
-	//subnetBuffer map[address.Subnet]*buffer
-	mtu uint64
+	subnetBuffer map[address.Subnet]*buffer
+	mtu          uint64
 }
 
 type keyInfo struct {
@@ -50,12 +50,10 @@ type keyInfo struct {
 	timeout *time.Timer // From calling a time.AfterFunc to do cleanup
 }
 
-/*
 type buffer struct {
 	packet  []byte
 	timeout *time.Timer
 }
-*/
 
 func (k *keyStore) init(c *core.Core) {
 	k.core = c
@@ -65,11 +63,14 @@ func (k *keyStore) init(c *core.Core) {
 		err = fmt.Errorf("tun.core.SetOutOfBandHander: %w", err)
 		panic(err)
 	}*/
+	k.core.SetPathNotify(func(key ed25519.PublicKey) {
+		k.update(key)
+	})
 	k.keyToInfo = make(map[keyArray]*keyInfo)
 	k.addrToInfo = make(map[address.Address]*keyInfo)
-	//k.addrBuffer = make(map[address.Address]*buffer)
+	k.addrBuffer = make(map[address.Address]*buffer)
 	k.subnetToInfo = make(map[address.Subnet]*keyInfo)
-	//k.subnetBuffer = make(map[address.Subnet]*buffer)
+	k.subnetBuffer = make(map[address.Subnet]*buffer)
 	k.mtu = 1280 // Default to something safe, expect user to set this
 }
 
@@ -80,33 +81,25 @@ func (k *keyStore) sendToAddress(addr address.Address, bs []byte) {
 		k.mutex.Unlock()
 		_, _ = k.core.WriteTo(bs, iwt.Addr(info.key[:]))
 	} else {
-		/*
-			var buf *buffer
-			if buf = k.addrBuffer[addr]; buf == nil {
-				buf = new(buffer)
-				k.addrBuffer[addr] = buf
-			}
-			msg := append([]byte(nil), bs...)
-			buf.packet = msg
-			if buf.timeout != nil {
-				buf.timeout.Stop()
-			}
-			buf.timeout = time.AfterFunc(keyStoreTimeout, func() {
-				k.mutex.Lock()
-				defer k.mutex.Unlock()
-				if nbuf := k.addrBuffer[addr]; nbuf == buf {
-					delete(k.addrBuffer, addr)
-				}
-			})
-			k.mutex.Unlock()
-			k.sendKeyLookup(addr.GetKey())
-		*/
-		k.mutex.Unlock()
-		key := k.core.GetKeyFor(addr.GetKey())
-		info := k.update(key)
-		if info.address == addr {
-			_, _ = k.core.WriteTo(bs, iwt.Addr(info.key[:]))
+		var buf *buffer
+		if buf = k.addrBuffer[addr]; buf == nil {
+			buf = new(buffer)
+			k.addrBuffer[addr] = buf
 		}
+		msg := append([]byte(nil), bs...)
+		buf.packet = msg
+		if buf.timeout != nil {
+			buf.timeout.Stop()
+		}
+		buf.timeout = time.AfterFunc(keyStoreTimeout, func() {
+			k.mutex.Lock()
+			defer k.mutex.Unlock()
+			if nbuf := k.addrBuffer[addr]; nbuf == buf {
+				delete(k.addrBuffer, addr)
+			}
+		})
+		k.mutex.Unlock()
+		k.sendKeyLookup(addr.GetKey())
 	}
 }
 
@@ -117,33 +110,25 @@ func (k *keyStore) sendToSubnet(subnet address.Subnet, bs []byte) {
 		k.mutex.Unlock()
 		_, _ = k.core.WriteTo(bs, iwt.Addr(info.key[:]))
 	} else {
-		/*
-			var buf *buffer
-			if buf = k.subnetBuffer[subnet]; buf == nil {
-				buf = new(buffer)
-				k.subnetBuffer[subnet] = buf
-			}
-			msg := append([]byte(nil), bs...)
-			buf.packet = msg
-			if buf.timeout != nil {
-				buf.timeout.Stop()
-			}
-			buf.timeout = time.AfterFunc(keyStoreTimeout, func() {
-				k.mutex.Lock()
-				defer k.mutex.Unlock()
-				if nbuf := k.subnetBuffer[subnet]; nbuf == buf {
-					delete(k.subnetBuffer, subnet)
-				}
-			})
-			k.mutex.Unlock()
-			k.sendKeyLookup(subnet.GetKey())
-		*/
-		k.mutex.Unlock()
-		key := k.core.GetKeyFor(subnet.GetKey())
-		info := k.update(key)
-		if info.subnet == subnet {
-			_, _ = k.core.WriteTo(bs, iwt.Addr(info.key[:]))
+		var buf *buffer
+		if buf = k.subnetBuffer[subnet]; buf == nil {
+			buf = new(buffer)
+			k.subnetBuffer[subnet] = buf
 		}
+		msg := append([]byte(nil), bs...)
+		buf.packet = msg
+		if buf.timeout != nil {
+			buf.timeout.Stop()
+		}
+		buf.timeout = time.AfterFunc(keyStoreTimeout, func() {
+			k.mutex.Lock()
+			defer k.mutex.Unlock()
+			if nbuf := k.subnetBuffer[subnet]; nbuf == buf {
+				delete(k.subnetBuffer, subnet)
+			}
+		})
+		k.mutex.Unlock()
+		k.sendKeyLookup(subnet.GetKey())
 	}
 }
 
@@ -161,16 +146,14 @@ func (k *keyStore) update(key ed25519.PublicKey) *keyInfo {
 		k.keyToInfo[info.key] = info
 		k.addrToInfo[info.address] = info
 		k.subnetToInfo[info.subnet] = info
-		/*
-			if buf := k.addrBuffer[info.address]; buf != nil {
-				packets = append(packets, buf.packet)
-				delete(k.addrBuffer, info.address)
-			}
-			if buf := k.subnetBuffer[info.subnet]; buf != nil {
-				packets = append(packets, buf.packet)
-				delete(k.subnetBuffer, info.subnet)
-			}
-		*/
+		if buf := k.addrBuffer[info.address]; buf != nil {
+			packets = append(packets, buf.packet)
+			delete(k.addrBuffer, info.address)
+		}
+		if buf := k.subnetBuffer[info.subnet]; buf != nil {
+			packets = append(packets, buf.packet)
+			delete(k.subnetBuffer, info.subnet)
+		}
 	}
 	k.resetTimeout(info)
 	k.mutex.Unlock()
@@ -223,14 +206,17 @@ func (k *keyStore) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte) { /
 }
 */
 
-/*
 func (k *keyStore) sendKeyLookup(partial ed25519.PublicKey) {
-	sig := ed25519.Sign(k.core.PrivateKey(), partial[:])
-	bs := append([]byte{typeKeyLookup}, sig...)
-	//_ = k.core.SendOutOfBand(partial, bs)
-	_ = bs
+	/*
+		sig := ed25519.Sign(k.core.PrivateKey(), partial[:])
+		bs := append([]byte{typeKeyLookup}, sig...)
+		//_ = k.core.SendOutOfBand(partial, bs)
+		_ = bs
+	*/
+	k.core.SendLookup(partial)
 }
 
+/*
 func (k *keyStore) sendKeyResponse(dest ed25519.PublicKey) { // nolint:unused
 	sig := ed25519.Sign(k.core.PrivateKey(), dest[:])
 	bs := append([]byte{typeKeyResponse}, sig...)

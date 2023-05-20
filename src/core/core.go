@@ -10,10 +10,12 @@ import (
 	"time"
 
 	iwe "github.com/Arceliar/ironwood/encrypted"
+	iwn "github.com/Arceliar/ironwood/network"
 	iwt "github.com/Arceliar/ironwood/types"
 	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 )
 
@@ -40,6 +42,7 @@ type Core struct {
 		nodeinfoPrivacy    NodeInfoPrivacy            // immutable after startup
 		_allowedPublicKeys map[[32]byte]struct{}      // configurable after startup
 	}
+	pathNotify func(ed25519.PublicKey)
 }
 
 func New(secret ed25519.PrivateKey, logger Logger, opts ...SetupOption) (*Core, error) {
@@ -61,7 +64,14 @@ func New(secret ed25519.PrivateKey, logger Logger, opts ...SetupOption) (*Core, 
 	copy(c.secret, secret)
 	c.public = secret.Public().(ed25519.PublicKey)
 	var err error
-	if c.PacketConn, err = iwe.NewPacketConn(c.secret); err != nil {
+	keyXform := func(key ed25519.PublicKey) ed25519.PublicKey {
+		return address.SubnetForKey(key).GetKey()
+	}
+	if c.PacketConn, err = iwe.NewPacketConn(c.secret,
+		iwn.WithBloomTransform(keyXform),
+		iwn.WithPeerMaxMessageSize(65535*2),
+		iwn.WithPathNotify(c.doPathNotify),
+	); err != nil {
 		return nil, fmt.Errorf("error creating encryption: %w", err)
 	}
 	c.config._peers = map[Peer]*linkInfo{}
@@ -151,11 +161,15 @@ func (c *Core) _close() error {
 
 func (c *Core) MTU() uint64 {
 	const sessionTypeOverhead = 1
-	return c.PacketConn.MTU() - sessionTypeOverhead
+	MTU := c.PacketConn.MTU() - sessionTypeOverhead
+	if MTU > 65535 {
+		MTU = 65535
+	}
+	return MTU
 }
 
 func (c *Core) ReadFrom(p []byte) (n int, from net.Addr, err error) {
-	buf := make([]byte, c.PacketConn.MTU(), 65535)
+	buf := make([]byte, c.PacketConn.MTU())
 	for {
 		bs := buf
 		n, from, err = c.PacketConn.ReadFrom(bs)
@@ -197,6 +211,20 @@ func (c *Core) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 		n -= 1
 	}
 	return
+}
+
+func (c *Core) doPathNotify(key ed25519.PublicKey) {
+	c.Act(nil, func() {
+		if c.pathNotify != nil {
+			c.pathNotify(key)
+		}
+	})
+}
+
+func (c *Core) SetPathNotify(notify func(ed25519.PublicKey)) {
+	c.Act(nil, func() {
+		c.pathNotify = notify
+	})
 }
 
 type Logger interface {

@@ -132,35 +132,33 @@ func (a *AdminSocket) SetupAdminHandlers() {
 		},
 	)
 	_ = a.AddHandler(
-		"getDHT", "Show known DHT entries", []string{},
+		"getTree", "Show known Tree entries", []string{},
 		func(in json.RawMessage) (interface{}, error) {
-			req := &GetDHTRequest{}
-			res := &GetDHTResponse{}
+			req := &GetTreeRequest{}
+			res := &GetTreeResponse{}
 			if err := json.Unmarshal(in, &req); err != nil {
 				return nil, err
 			}
-			if err := a.getDHTHandler(req, res); err != nil {
+			if err := a.getTreeHandler(req, res); err != nil {
 				return nil, err
 			}
 			return res, nil
 		},
 	)
-	/*
-		_ = a.AddHandler(
-			"getPaths", "Show established paths through this node", []string{},
-			func(in json.RawMessage) (interface{}, error) {
-				req := &GetPathsRequest{}
-				res := &GetPathsResponse{}
-				if err := json.Unmarshal(in, &req); err != nil {
-					return nil, err
-				}
-				if err := a.getPathsHandler(req, res); err != nil {
-					return nil, err
-				}
-				return res, nil
-			},
-		)
-	*/
+	_ = a.AddHandler(
+		"getPaths", "Show established paths through this node", []string{},
+		func(in json.RawMessage) (interface{}, error) {
+			req := &GetPathsRequest{}
+			res := &GetPathsResponse{}
+			if err := json.Unmarshal(in, &req); err != nil {
+				return nil, err
+			}
+			if err := a.getPathsHandler(req, res); err != nil {
+				return nil, err
+			}
+			return res, nil
+		},
+	)
 	_ = a.AddHandler(
 		"getSessions", "Show established traffic sessions with remote nodes", []string{},
 		func(in json.RawMessage) (interface{}, error) {
