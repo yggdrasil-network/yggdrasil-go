@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/Arceliar/ironwood/network"
-	"github.com/Arceliar/phony"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 )
 
@@ -76,19 +75,19 @@ func (c *Core) GetPeers() []PeerInfo {
 	for info, state := range c.links._links {
 		var peerinfo PeerInfo
 		var conn net.Conn
-		phony.Block(state, func() {
-			peerinfo.URI = info.uri
-			peerinfo.LastError = state._err
-			peerinfo.LastErrorTime = state._errtime
-			if c := state._conn; c != nil {
-				conn = c
-				peerinfo.Up = true
-				peerinfo.Inbound = info.linkType == linkTypeIncoming
-				peerinfo.RXBytes = c.rx
-				peerinfo.TXBytes = c.tx
-				peerinfo.Uptime = time.Since(c.up)
-			}
-		})
+		state.RLock()
+		peerinfo.URI = info.uri
+		peerinfo.LastError = state._err
+		peerinfo.LastErrorTime = state._errtime
+		if c := state._conn; c != nil {
+			conn = c
+			peerinfo.Up = true
+			peerinfo.Inbound = state.linkType == linkTypeIncoming
+			peerinfo.RXBytes = c.rx
+			peerinfo.TXBytes = c.tx
+			peerinfo.Uptime = time.Since(c.up)
+		}
+		state.RUnlock()
 		if p, ok := conns[conn]; ok {
 			peerinfo.Key = p.Key
 			peerinfo.Root = p.Root
