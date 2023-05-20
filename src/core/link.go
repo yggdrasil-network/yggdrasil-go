@@ -121,16 +121,6 @@ func (l *links) shutdown() {
 	})
 }
 
-func (l *links) isConnectedTo(info linkInfo) bool {
-	l.RLock()
-	link, ok := l._links[info]
-	l.RUnlock()
-	if !ok {
-		return false
-	}
-	return link._conn != nil
-}
-
 type linkError string
 
 func (e linkError) Error() string { return string(e) }
@@ -147,30 +137,6 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 	info := linkInfo{
 		uri:   lu.String(),
 		sintf: sintf,
-	}
-
-	// If we think we're already connected to this peer, load up
-	// the existing peer state. Try to kick the peer if possible,
-	// which will cause an immediate connection attempt if it is
-	// backing off for some reason.
-	l.RLock()
-	state, ok := l._links[info]
-	l.RUnlock()
-	if ok && state != nil {
-		select {
-		case state.kick <- struct{}{}:
-		default:
-		}
-		return ErrLinkAlreadyConfigured
-	}
-
-	// Create the link entry. This will contain the connection
-	// in progress (if any), any error details and a context that
-	// lets the link be cancelled later.
-	state = &link{
-		linkType:  linkType,
-		linkProto: strings.ToUpper(u.Scheme),
-		kick:      make(chan struct{}),
 	}
 
 	// Collect together the link options, these are global options
@@ -196,8 +162,31 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 		options.priority = uint8(pi)
 	}
 
-	// Store the state of the link so that it can be queried later.
+	// If we think we're already connected to this peer, load up
+	// the existing peer state. Try to kick the peer if possible,
+	// which will cause an immediate connection attempt if it is
+	// backing off for some reason.
 	l.Lock()
+	state, ok := l._links[info]
+	if ok && state != nil {
+		select {
+		case state.kick <- struct{}{}:
+		default:
+		}
+		l.Unlock()
+		return ErrLinkAlreadyConfigured
+	}
+
+	// Create the link entry. This will contain the connection
+	// in progress (if any), any error details and a context that
+	// lets the link be cancelled later.
+	state = &link{
+		linkType:  linkType,
+		linkProto: strings.ToUpper(u.Scheme),
+		kick:      make(chan struct{}),
+	}
+
+	// Store the state of the link so that it can be queried later.
 	l._links[info] = state
 	l.Unlock()
 
@@ -374,17 +363,15 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 					sintf: sintf,
 				}
 
+				// If there's an existing link state for this link, get it.
 				// If this node is already connected to us, just drop the
 				// connection. This prevents duplicate peerings.
-				if l.isConnectedTo(info) {
+				l.Lock()
+				state, ok := l._links[info]
+				if ok && state != nil && state._conn != nil {
+					l.Unlock()
 					return
 				}
-
-				// If there's an existing link state for this link, get it.
-				// Otherwise just create a new one.
-				l.RLock()
-				state, ok := l._links[info]
-				l.RUnlock()
 				if !ok || state == nil {
 					state = &link{
 						linkType:  linkTypeIncoming,
@@ -410,7 +397,6 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 				state.Unlock()
 
 				// Store the state of the link so that it can be queried later.
-				l.Lock()
 				l._links[info] = state
 				l.Unlock()
 
