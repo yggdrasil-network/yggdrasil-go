@@ -84,7 +84,9 @@ func GenerateConfig() *NodeConfig {
 	cfg.IfName = defaults.DefaultIfName
 	cfg.IfMTU = defaults.DefaultIfMTU
 	cfg.NodeInfoPrivacy = false
-
+	if err := cfg.postprocessConfig(); err != nil {
+		panic(err)
+	}
 	return cfg
 }
 
@@ -122,6 +124,10 @@ func (cfg *NodeConfig) UnmarshalHJSON(b []byte) error {
 	if err := hjson.Unmarshal(b, cfg); err != nil {
 		return err
 	}
+	return cfg.postprocessConfig()
+}
+
+func (cfg *NodeConfig) postprocessConfig() error {
 	if cfg.PrivateKeyPath != "" {
 		cfg.PrivateKey = nil
 		f, err := os.ReadFile(cfg.PrivateKeyPath)
