@@ -35,10 +35,10 @@ type AdminSocketRequest struct {
 }
 
 type AdminSocketResponse struct {
-	Status   string          `json:"status"`
-	Error    string          `json:"error,omitempty"`
-	Request  json.RawMessage `json:"request"`
-	Response json.RawMessage `json:"response"`
+	Status   string             `json:"status"`
+	Error    string             `json:"error,omitempty"`
+	Request  AdminSocketRequest `json:"request"`
+	Response json.RawMessage    `json:"response"`
 }
 
 type handler struct {
@@ -309,18 +309,22 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 
 	defer conn.Close()
 
-	defer func() {
-		r := recover()
-		if r != nil {
-			a.log.Debugln("Admin socket error:", r)
-			if err := encoder.Encode(&ErrorResponse{
-				Error: "Check your syntax and input types",
-			}); err != nil {
-				a.log.Debugln("Admin socket JSON encode error:", err)
+	/*
+		defer func() {
+			r := recover()
+			if r != nil {
+				fmt.Println("ERROR:", r)
+				a.log.Debugln("Admin socket error:", r)
+				if err := encoder.Encode(&ErrorResponse{
+					Error: "Check your syntax and input types",
+				}); err != nil {
+					fmt.Println("ERROR 2:", err)
+					a.log.Debugln("Admin socket JSON encode error:", err)
+				}
+				conn.Close()
 			}
-			conn.Close()
-		}
-	}()
+		}()
+	*/
 
 	for {
 		var err error
@@ -335,6 +339,7 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 			if err = json.Unmarshal(buf, &req); err != nil {
 				return fmt.Errorf("Failed to unmarshal request")
 			}
+			resp.Request = req
 			if req.Name == "" {
 				return fmt.Errorf("No request specified")
 			}

@@ -2,7 +2,6 @@ package core
 
 import (
 	"bytes"
-	"crypto/ed25519"
 	"math/rand"
 	"net/url"
 	"os"
@@ -10,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gologme/log"
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 )
 
 // GetLoggerWithPrefix creates a new logger instance with prefix.
@@ -29,27 +29,38 @@ func GetLoggerWithPrefix(prefix string, verbose bool) *log.Logger {
 // Verbosity flag is passed to logger.
 func CreateAndConnectTwo(t testing.TB, verbose bool) (nodeA *Core, nodeB *Core) {
 	var err error
-	var skA, skB ed25519.PrivateKey
-	if _, skA, err = ed25519.GenerateKey(nil); err != nil {
+
+	cfgA, cfgB := config.GenerateConfig(), config.GenerateConfig()
+	if err = cfgA.GenerateSelfSignedCertificate(); err != nil {
 		t.Fatal(err)
 	}
-	if _, skB, err = ed25519.GenerateKey(nil); err != nil {
-		t.Fatal(err)
-	}
-	logger := GetLoggerWithPrefix("", false)
-	if nodeA, err = New(skA, logger, ListenAddress("tcp://127.0.0.1:0")); err != nil {
-		t.Fatal(err)
-	}
-	if nodeB, err = New(skB, logger, ListenAddress("tcp://127.0.0.1:0")); err != nil {
+	if err = cfgB.GenerateSelfSignedCertificate(); err != nil {
 		t.Fatal(err)
 	}
 
-	u, err := url.Parse("tcp://" + nodeA.links.tcp.getAddr().String())
+	logger := GetLoggerWithPrefix("", false)
+	logger.EnableLevel("debug")
+
+	if nodeA, err = New(cfgA.Certificate, logger); err != nil {
+		t.Fatal(err)
+	}
+	if nodeB, err = New(cfgB.Certificate, logger); err != nil {
+		t.Fatal(err)
+	}
+
+	nodeAListenURL, err := url.Parse("tcp://localhost:0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = nodeB.CallPeer(u, "")
+	nodeAListener, err := nodeA.Listen(nodeAListenURL, "")
 	if err != nil {
+		t.Fatal(err)
+	}
+	nodeAURL, err := url.Parse("tcp://" + nodeAListener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = nodeB.CallPeer(nodeAURL, ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -76,7 +87,7 @@ func WaitConnected(nodeA, nodeB *Core) bool {
 			}
 		*/
 		if len(nodeA.GetTree()) > 1 && len(nodeB.GetTree()) > 1 {
-		  time.Sleep(3*time.Second) // FIXME hack, there's still stuff happening internally
+			time.Sleep(3 * time.Second) // FIXME hack, there's still stuff happening internally
 			return true
 		}
 	}

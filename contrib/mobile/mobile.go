@@ -11,7 +11,6 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
@@ -44,16 +43,12 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 	logger.EnableLevel("error")
 	logger.EnableLevel("warn")
 	logger.EnableLevel("info")
-	m.config = defaults.GenerateConfig()
-	if err := json.Unmarshal(configjson, &m.config); err != nil {
+	m.config = config.GenerateConfig()
+	if err := m.config.UnmarshalHJSON(configjson); err != nil {
 		return err
 	}
 	// Setup the Yggdrasil node itself.
 	{
-		sk, err := hex.DecodeString(m.config.PrivateKey)
-		if err != nil {
-			panic(err)
-		}
 		options := []core.SetupOption{}
 		for _, peer := range m.config.Peers {
 			options = append(options, core.Peer{URI: peer})
@@ -70,7 +65,11 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 			}
 			options = append(options, core.AllowedPublicKey(k[:]))
 		}
-		m.core, err = core.New(sk[:], logger, options...)
+		for _, root := range m.config.RootCertificates {
+			options = append(options, core.RootCertificate(*root))
+		}
+		var err error
+		m.core, err = core.New(m.config.Certificate, logger, options...)
 		if err != nil {
 			panic(err)
 		}
@@ -165,7 +164,7 @@ func (m *Yggdrasil) RetryPeersNow() {
 
 // GenerateConfigJSON generates mobile-friendly configuration in JSON format
 func GenerateConfigJSON() []byte {
-	nc := defaults.GenerateConfig()
+	nc := config.GenerateConfig()
 	nc.IfName = "none"
 	if json, err := json.Marshal(nc); err == nil {
 		return json

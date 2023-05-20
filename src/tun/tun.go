@@ -14,8 +14,8 @@ import (
 	"golang.zx2c4.com/wireguard/tun"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 )
 
@@ -43,7 +43,7 @@ type TunAdapter struct {
 }
 
 // Gets the maximum supported MTU for the platform based on the defaults in
-// defaults.GetDefaults().
+// config.GetDefaults().
 func getSupportedMTU(mtu uint64) uint64 {
 	if mtu < 1280 {
 		return 1280
@@ -72,20 +72,20 @@ func (tun *TunAdapter) MTU() uint64 {
 
 // DefaultName gets the default TUN interface name for your platform.
 func DefaultName() string {
-	return defaults.GetDefaults().DefaultIfName
+	return config.GetDefaults().DefaultIfName
 }
 
 // DefaultMTU gets the default TUN interface MTU for your platform. This can
 // be as high as MaximumMTU(), depending on platform, but is never lower than 1280.
 func DefaultMTU() uint64 {
-	return defaults.GetDefaults().DefaultIfMTU
+	return config.GetDefaults().DefaultIfMTU
 }
 
 // MaximumMTU returns the maximum supported TUN interface MTU for your
 // platform. This can be as high as 65535, depending on platform, but is never
 // lower than 1280.
 func MaximumMTU() uint64 {
-	return defaults.GetDefaults().MaximumIfMTU
+	return config.GetDefaults().MaximumIfMTU
 }
 
 // Init initialises the TUN module. You must have acquired a Listener from
