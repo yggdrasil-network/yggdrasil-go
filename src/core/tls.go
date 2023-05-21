@@ -17,6 +17,7 @@ func (c *Core) generateTLSConfig(cert *tls.Certificate) (*tls.Config, error) {
 		VerifyConnection:      c.verifyTLSConnection,
 		InsecureSkipVerify:    true,
 		MinVersion:            tls.VersionTLS13,
+		NextProtos:            []string{"yggdrasil/0.5"},
 	}
 	return config, nil
 }
