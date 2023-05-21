@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net"
 	"net/url"
 	"time"
@@ -53,12 +52,10 @@ func (l *links) newLinkQUIC() *linkQUIC {
 func (l *linkQUIC) dial(url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
 	qc, err := quic.DialAddrEarly(url.Host, l.tlsconfig, l.quicconfig)
 	if err != nil {
-		fmt.Println("Dial error:", err)
 		return nil, err
 	}
 	qs, err := qc.OpenStream()
 	if err != nil {
-		fmt.Println("Stream error:", err)
 		return nil, err
 	}
 	return &linkQUICStream{
