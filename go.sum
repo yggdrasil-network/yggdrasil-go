@@ -1,5 +1,5 @@
-github.com/Arceliar/ironwood v0.0.0-20230515022317-31b976732ebe h1:u69sr6Y9jqu6sk43Yyt+izLnLGgqCw3OYh2HU+jYUBw=
-github.com/Arceliar/ironwood v0.0.0-20230515022317-31b976732ebe/go.mod h1:MIfrhR4b+U6gurd5pln622Zwaf2kzpIvXcnvRZMvlRI=
+github.com/Arceliar/ironwood v0.0.0-20230521174855-fdfa6326d125 h1:l2elyrosw63mTqZzwR0Nv8vPZWZC/0Hvwl8Iuva5htM=
+github.com/Arceliar/ironwood v0.0.0-20230521174855-fdfa6326d125/go.mod h1:5x7fWW0mshe9WQ1lvSMmmHBYC3BeHH9gpwW5tz7cbfw=
 github.com/Arceliar/phony v0.0.0-20220903101357-530938a4b13d h1:UK9fsWbWqwIQkMCz1CP+v5pGbsGoWAw6g4AyvMpm1EM=
 github.com/Arceliar/phony v0.0.0-20220903101357-530938a4b13d/go.mod h1:BCnxhRf47C/dy/e/D2pmB8NkB3dQVIrkD98b220rx5Q=
 github.com/VividCortex/ewma v1.1.1/go.mod h1:2Tkkvm3sRDVXaiyucHiACn4cqf7DpdyLvmxzcbUokwA=
