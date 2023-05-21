@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"time"
 
 	"github.com/Arceliar/phony"
 	"github.com/quic-go/quic-go"
@@ -41,7 +42,9 @@ func (l *links) newLinkQUIC() *linkQUIC {
 		links:     l,
 		tlsconfig: l.core.config.tls.Clone(),
 		quicconfig: &quic.Config{
-			KeepAlivePeriod: 0,
+			MaxIdleTimeout:  time.Minute,
+			KeepAlivePeriod: time.Second * 20,
+			TokenStore:      quic.NewLRUTokenStore(255, 255),
 		},
 	}
 	return lt
