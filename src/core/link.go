@@ -268,8 +268,6 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 			// Clear the error state.
 			state.Lock()
 			state._conn = lc
-			state._err = nil
-			state._errtime = time.Time{}
 			state.Unlock()
 
 			// Give the connection to the handler. The handler will block
@@ -368,9 +366,17 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 				// connection. This prevents duplicate peerings.
 				l.Lock()
 				state, ok := l._links[info]
-				if ok && state != nil && state._conn != nil {
-					l.Unlock()
-					return
+				if ok && state != nil {
+					switch {
+					case state._conn != nil:
+						// We are already connected to something.
+					case state._conn == nil && state._errtime == time.Time{}:
+						// We aren't connected yet, but the fact that there
+						// is no last error suggests we haven't yet attempted
+						// an outbound connection at all.
+						l.Unlock()
+						return
+					}
 				}
 				if !ok || state == nil {
 					state = &link{
