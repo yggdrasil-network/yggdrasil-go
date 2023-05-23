@@ -267,6 +267,11 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 			// Update the link state with our newly wrapped connection.
 			// Clear the error state.
 			state.Lock()
+			if state._conn != nil {
+				// If a peering has come up in this time, abort this one.
+				state.Unlock()
+				return
+			}
 			state._conn = lc
 			state.Unlock()
 
@@ -366,24 +371,20 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 				// connection. This prevents duplicate peerings.
 				l.Lock()
 				state, ok := l._links[info]
-				if ok && state != nil {
-					switch {
-					case state._conn != nil:
-						// We are already connected to something.
-					case state._conn == nil && state._errtime == time.Time{}:
-						// We aren't connected yet, but the fact that there
-						// is no last error suggests we haven't yet attempted
-						// an outbound connection at all.
-						l.Unlock()
-						return
-					}
-				}
 				if !ok || state == nil {
 					state = &link{
 						linkType:  linkTypeIncoming,
 						linkProto: strings.ToUpper(u.Scheme),
 						kick:      make(chan struct{}),
 					}
+				}
+				state.Lock()
+				if state._conn != nil {
+					// If a connection has come up in this time, abort
+					// this one.
+					state.Unlock()
+					l.Unlock()
+					return
 				}
 
 				// The linkConn wrapper allows us to track the number of
@@ -396,7 +397,6 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 
 				// Update the link state with our newly wrapped connection.
 				// Clear the error state.
-				state.Lock()
 				state._conn = lc
 				state._err = nil
 				state._errtime = time.Time{}
