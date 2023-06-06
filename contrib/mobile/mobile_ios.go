@@ -15,6 +15,8 @@ void Log(const char *text) {
 import "C"
 import (
 	"unsafe"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/tun"
 )
 
 type MobileLogger struct {
@@ -25,4 +27,14 @@ func (nsl MobileLogger) Write(p []byte) (n int, err error) {
 	cstr := (*C.char)(unsafe.Pointer(&p[0]))
 	C.Log(cstr)
 	return len(p), nil
+}
+
+func (m *Yggdrasil) TakeOverTUN(fd int32) error {
+	options := []tun.SetupOption{
+		tun.FileDescriptor(fd),
+		tun.InterfaceMTU(m.iprwc.MTU()),
+	}
+	var err error
+	m.tun, err = tun.New(m.iprwc, m.logger, options...)
+	return err
 }

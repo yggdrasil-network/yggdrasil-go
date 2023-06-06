@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"regexp"
+	"runtime/debug"
 
 	"github.com/gologme/log"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
+	"github.com/yggdrasil-network/yggdrasil-go/src/tun"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 
 	_ "golang.org/x/mobile/bind"
@@ -30,7 +32,9 @@ type Yggdrasil struct {
 	iprwc     *ipv6rwc.ReadWriteCloser
 	config    *config.NodeConfig
 	multicast *multicast.Multicast
+	tun       *tun.TunAdapter // optional
 	log       MobileLogger
+	logger    *log.Logger
 }
 
 // StartAutoconfigure starts a node with a randomly generated config
@@ -41,10 +45,12 @@ func (m *Yggdrasil) StartAutoconfigure() error {
 // StartJSON starts a node with the given JSON config. You can get JSON config
 // (rather than HJSON) by using the GenerateConfigJSON() function
 func (m *Yggdrasil) StartJSON(configjson []byte) error {
-	logger := log.New(m.log, "", 0)
-	logger.EnableLevel("error")
-	logger.EnableLevel("warn")
-	logger.EnableLevel("info")
+	debug.SetMemoryLimit(1024 * 1024 * 40)
+
+	m.logger = log.New(m.log, "", 0)
+	m.logger.EnableLevel("error")
+	m.logger.EnableLevel("warn")
+	m.logger.EnableLevel("info")
 	m.config = defaults.GenerateConfig()
 	if err := json.Unmarshal(configjson, &m.config); err != nil {
 		return err
@@ -71,7 +77,7 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 			}
 			options = append(options, core.AllowedPublicKey(k[:]))
 		}
-		m.core, err = core.New(sk[:], logger, options...)
+		m.core, err = core.New(sk[:], m.logger, options...)
 		if err != nil {
 			panic(err)
 		}
@@ -90,9 +96,9 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 				Priority: uint8(intf.Priority),
 			})
 		}
-		m.multicast, err = multicast.New(m.core, logger, options...)
+		m.multicast, err = multicast.New(m.core, m.logger, options...)
 		if err != nil {
-			logger.Errorln("An error occurred starting multicast:", err)
+			m.logger.Errorln("An error occurred starting multicast:", err)
 		}
 	}
 
@@ -154,6 +160,11 @@ func (m *Yggdrasil) Stop() error {
 	logger.Infof("Stop the mobile Yggdrasil instance %s", "")
 	if err := m.multicast.Stop(); err != nil {
 		return err
+	}
+	if m.tun != nil {
+		if err := m.tun.Stop(); err != nil {
+			return err
+		}
 	}
 	m.core.Stop()
 	return nil
