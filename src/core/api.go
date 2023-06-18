@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"sync/atomic"
 	"time"
+
+	"github.com/Arceliar/phony"
 
 	"github.com/Arceliar/ironwood/network"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
@@ -70,32 +73,30 @@ func (c *Core) GetPeers() []PeerInfo {
 		conns[p.Conn] = p
 	}
 
-	c.links.RLock()
-	defer c.links.RUnlock()
-	for info, state := range c.links._links {
-		var peerinfo PeerInfo
-		var conn net.Conn
-		state.RLock()
-		peerinfo.URI = info.uri
-		peerinfo.LastError = state._err
-		peerinfo.LastErrorTime = state._errtime
-		if c := state._conn; c != nil {
-			conn = c
-			peerinfo.Up = true
-			peerinfo.Inbound = state.linkType == linkTypeIncoming
-			peerinfo.RXBytes = c.rx
-			peerinfo.TXBytes = c.tx
-			peerinfo.Uptime = time.Since(c.up)
+	phony.Block(&c.links, func() {
+		for info, state := range c.links._links {
+			var peerinfo PeerInfo
+			var conn net.Conn
+			peerinfo.URI = info.uri
+			peerinfo.LastError = state._err
+			peerinfo.LastErrorTime = state._errtime
+			if c := state._conn; c != nil {
+				conn = c
+				peerinfo.Up = true
+				peerinfo.Inbound = state.linkType == linkTypeIncoming
+				peerinfo.RXBytes = atomic.LoadUint64(&c.rx)
+				peerinfo.TXBytes = atomic.LoadUint64(&c.tx)
+				peerinfo.Uptime = time.Since(c.up)
+			}
+			if p, ok := conns[conn]; ok {
+				peerinfo.Key = p.Key
+				peerinfo.Root = p.Root
+				peerinfo.Port = p.Port
+				peerinfo.Priority = p.Priority
+			}
+			peers = append(peers, peerinfo)
 		}
-		state.RUnlock()
-		if p, ok := conns[conn]; ok {
-			peerinfo.Key = p.Key
-			peerinfo.Root = p.Root
-			peerinfo.Port = p.Port
-			peerinfo.Priority = p.Priority
-		}
-		peers = append(peers, peerinfo)
-	}
+	})
 
 	return peers
 }
