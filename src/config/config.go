@@ -151,7 +151,14 @@ func (cfg *NodeConfig) postprocessConfig() error {
 			return err
 		}
 	}
-	if cfg.Certificate == nil {
+	switch {
+	case cfg.Certificate == nil:
+		// No self-signed certificate has been generated yet.
+		fallthrough
+	case !bytes.Equal(cfg.Certificate.PrivateKey.(ed25519.PrivateKey), cfg.PrivateKey):
+		// A self-signed certificate was generated but the private
+		// key has changed since then, possibly because a new config
+		// was parsed.
 		if err := cfg.GenerateSelfSignedCertificate(); err != nil {
 			return err
 		}
