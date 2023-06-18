@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/url"
 	"time"
@@ -337,7 +338,8 @@ func (m *Multicast) _announce() {
 			break
 		}
 	}
-	m._timer = time.AfterFunc(time.Second, func() {
+	annInterval := time.Second + time.Microsecond*(time.Duration(rand.Intn(1048576))) // Randomize delay
+	m._timer = time.AfterFunc(annInterval, func() {
 		m.Act(nil, m._announce)
 	})
 }
