@@ -8,6 +8,7 @@ package tun
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net"
 
 	"github.com/Arceliar/phony"
@@ -21,22 +22,29 @@ import (
 
 type MTU uint16
 
+type ReadWriteCloser interface {
+	io.ReadWriteCloser
+	Address() address.Address
+	Subnet() address.Subnet
+	MaxMTU() uint64
+	SetMTU(uint64)
+}
+
 // TunAdapter represents a running TUN interface and extends the
 // yggdrasil.Adapter type. In order to use the TUN adapter with Yggdrasil, you
 // should pass this object to the yggdrasil.SetRouterAdapter() function before
 // calling yggdrasil.Start().
 type TunAdapter struct {
-	rwc         *ipv6rwc.ReadWriteCloser
+	rwc         ReadWriteCloser
 	log         core.Logger
 	addr        address.Address
 	subnet      address.Subnet
 	mtu         uint64
 	iface       tun.Device
 	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
-	//mutex        sync.RWMutex // Protects the below
-	isOpen    bool
-	isEnabled bool // Used by the writer to drop sessionTraffic if not enabled
-	config    struct {
+	isOpen      bool
+	isEnabled   bool // Used by the writer to drop sessionTraffic if not enabled
+	config      struct {
 		name InterfaceName
 		mtu  InterfaceMTU
 	}
