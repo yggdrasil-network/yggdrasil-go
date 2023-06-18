@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"encoding/binary"
+	"io"
 )
 
 // This is the version-specific metadata exchanged at the start of a connection.
@@ -44,6 +45,7 @@ func version_getBaseMetadata() version_metadata {
 func (m *version_metadata) encode() []byte {
 	bs := make([]byte, 0, 64)
 	bs = append(bs, 'm', 'e', 't', 'a')
+	bs = append(bs, 0, 0) // Remaining message length
 
 	bs = binary.BigEndian.AppendUint16(bs, metaVersionMajor)
 	bs = binary.BigEndian.AppendUint16(bs, 2)
@@ -61,16 +63,25 @@ func (m *version_metadata) encode() []byte {
 	bs = binary.BigEndian.AppendUint16(bs, 1)
 	bs = append(bs, m.priority)
 
+	binary.BigEndian.PutUint16(bs[4:6], uint16(len(bs)-6))
 	return bs
 }
 
 // Decodes version metadata from its wire format into the struct.
-func (m *version_metadata) decode(bs []byte) bool {
-	meta := [4]byte{'m', 'e', 't', 'a'}
-	if !bytes.Equal(bs[:4], meta[:]) {
+func (m *version_metadata) decode(r io.Reader) bool {
+	bh := [6]byte{}
+	if _, err := io.ReadFull(r, bh[:]); err != nil {
 		return false
 	}
-	for bs = bs[4:]; len(bs) >= 4; {
+	meta := [4]byte{'m', 'e', 't', 'a'}
+	if !bytes.Equal(bh[:4], meta[:]) {
+		return false
+	}
+	bs := make([]byte, binary.BigEndian.Uint16(bh[4:6]))
+	if _, err := io.ReadFull(r, bs); err != nil {
+		return false
+	}
+	for len(bs) >= 4 {
 		op := binary.BigEndian.Uint16(bs[:2])
 		oplen := binary.BigEndian.Uint16(bs[2:4])
 		if bs = bs[4:]; len(bs) < int(oplen) {
