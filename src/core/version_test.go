@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"math/rand"
 	"reflect"
@@ -22,7 +23,7 @@ func TestVersionRoundtrip(t *testing.T) {
 		test.publicKey = make(ed25519.PublicKey, ed25519.PublicKeySize)
 		rand.Read(test.publicKey)
 
-		encoded := test.encode()
+		encoded := bytes.NewBuffer(test.encode())
 		decoded := &version_metadata{}
 		if !decoded.decode(encoded) {
 			t.Fatalf("failed to decode")

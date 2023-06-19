@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -485,22 +484,19 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn) e
 	case err == nil && n != len(metaBytes):
 		return fmt.Errorf("incomplete handshake send")
 	}
-	if _, err = io.ReadFull(conn, metaBytes); err != nil {
-		return fmt.Errorf("read handshake: %w", err)
-	}
-	if err = conn.SetDeadline(time.Time{}); err != nil {
-		return fmt.Errorf("failed to clear handshake deadline: %w", err)
-	}
 	meta = version_metadata{}
 	base := version_getBaseMetadata()
-	if !meta.decode(metaBytes) {
-		return errors.New("failed to decode metadata")
+	if !meta.decode(conn) {
+		return conn.Close()
 	}
 	if !meta.check() {
 		return fmt.Errorf("remote node incompatible version (local %s, remote %s)",
 			fmt.Sprintf("%d.%d", base.majorVer, base.minorVer),
 			fmt.Sprintf("%d.%d", meta.majorVer, meta.minorVer),
 		)
+	}
+	if err = conn.SetDeadline(time.Time{}); err != nil {
+		return fmt.Errorf("failed to clear handshake deadline: %w", err)
 	}
 	// Check if the remote side matches the keys we expected. This is a bit of a weak
 	// check - in future versions we really should check a signature or something like that.
