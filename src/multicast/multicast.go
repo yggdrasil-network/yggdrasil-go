@@ -1,6 +1,7 @@
 package multicast
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"fmt"
@@ -30,8 +31,10 @@ type Multicast struct {
 	_interfaces map[string]*interfaceInfo
 	_timer      *time.Timer
 	config      struct {
-		_groupAddr  GroupAddress
-		_interfaces map[MulticastInterface]struct{}
+		_discriminator      []byte
+		_discriminatorMatch func([]byte) bool
+		_groupAddr          GroupAddress
+		_interfaces         map[MulticastInterface]struct{}
 	}
 }
 
@@ -321,8 +324,11 @@ func (m *Multicast) _announce() {
 			}
 			addr := linfo.listener.Addr().(*net.TCPAddr)
 			adv := multicastAdvertisement{
-				PublicKey: m.core.PublicKey(),
-				Port:      uint16(addr.Port),
+				MajorVersion:  core.ProtocolVersionMajor,
+				MinorVersion:  core.ProtocolVersionMinor,
+				PublicKey:     m.core.PublicKey(),
+				Port:          uint16(addr.Port),
+				Discriminator: m.config._discriminator,
 			}
 			msg, err := adv.MarshalBinary()
 			if err != nil {
@@ -373,7 +379,16 @@ func (m *Multicast) listen() {
 		if err := adv.UnmarshalBinary(bs[:n]); err != nil {
 			continue
 		}
-		if adv.PublicKey.Equal(m.core.PublicKey()) {
+		switch {
+		case adv.MajorVersion != core.ProtocolVersionMajor:
+			continue
+		case adv.MinorVersion != core.ProtocolVersionMinor:
+			continue
+		case adv.PublicKey.Equal(m.core.PublicKey()):
+			continue
+		case m.config._discriminatorMatch == nil && !bytes.Equal(adv.Discriminator, m.config._discriminator):
+			continue
+		case m.config._discriminatorMatch != nil && !m.config._discriminatorMatch(adv.Discriminator):
 			continue
 		}
 		from := fromAddr.(*net.UDPAddr)
