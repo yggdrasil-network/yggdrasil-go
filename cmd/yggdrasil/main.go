@@ -135,6 +135,7 @@ func main() {
 		if *getaddr || *getsnet {
 			fmt.Println("\nError: You need to specify some config data using -useconf or -useconffile.")
 		}
+		return
 	}
 
 	privateKey := ed25519.PrivateKey(cfg.PrivateKey)
