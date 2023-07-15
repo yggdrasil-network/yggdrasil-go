@@ -479,6 +479,7 @@ func (l *links) connect(u *url.URL, info linkInfo, options linkOptions) (net.Con
 func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn) error {
 	meta := version_getBaseMetadata()
 	meta.publicKey = l.core.public
+	meta.priority = options.priority
 	metaBytes := meta.encode()
 	if err := conn.SetDeadline(time.Now().Add(time.Second * 6)); err != nil {
 		return fmt.Errorf("failed to set handshake deadline: %w", err)
@@ -536,10 +537,14 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn) e
 	remoteAddr := net.IP(address.AddrForKey(meta.publicKey)[:]).String()
 	remoteStr := fmt.Sprintf("%s@%s", remoteAddr, conn.RemoteAddr())
 	localStr := conn.LocalAddr()
+	priority := options.priority
+	if meta.priority > priority {
+		priority = meta.priority
+	}
 	l.core.log.Infof("Connected %s: %s, source %s",
 		dir, remoteStr, localStr)
 
-	err = l.core.HandleConn(meta.publicKey, conn, options.priority)
+	err = l.core.HandleConn(meta.publicKey, conn, priority)
 	switch err {
 	case io.EOF, net.ErrClosed, nil:
 		l.core.log.Infof("Disconnected %s: %s, source %s",
