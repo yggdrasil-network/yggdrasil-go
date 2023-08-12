@@ -68,7 +68,7 @@ func (l *linkTCP) dialersFor(url *url.URL, info linkInfo) ([]*tcpDialer, error) 
 	return dialers, nil
 }
 
-func (l *linkTCP) dial(url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
+func (l *linkTCP) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
 	if l.core.isTLSOnly() {
 		return nil, fmt.Errorf("TCP peer prohibited in TLS-only mode")
 	}
@@ -81,7 +81,7 @@ func (l *linkTCP) dial(url *url.URL, info linkInfo, options linkOptions) (net.Co
 	}
 	for _, d := range dialers {
 		var conn net.Conn
-		conn, err = d.dialer.DialContext(l.core.ctx, "tcp", d.addr.String())
+		conn, err = d.dialer.DialContext(ctx, "tcp", d.addr.String())
 		if err != nil {
 			l.core.log.Warnf("Failed to connect to %s: %s", d.addr, err)
 			continue

@@ -33,7 +33,7 @@ func (l *links) newLinkTLS(tcp *linkTCP) *linkTLS {
 	return lt
 }
 
-func (l *linkTLS) dial(url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
+func (l *linkTLS) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
 	dialers, err := l.tcp.dialersFor(url, info)
 	if err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func (l *linkTLS) dial(url *url.URL, info linkInfo, options linkOptions) (net.Co
 			Config:    tlsconfig,
 		}
 		var conn net.Conn
-		conn, err = tlsdialer.DialContext(l.core.ctx, "tcp", d.addr.String())
+		conn, err = tlsdialer.DialContext(ctx, "tcp", d.addr.String())
 		if err != nil {
 			continue
 		}

@@ -3,7 +3,7 @@ package core
 import (
 	"bytes"
 	"crypto/ed25519"
-	"math/rand"
+	"crypto/rand"
 	"reflect"
 	"testing"
 )
@@ -21,7 +21,7 @@ func TestVersionRoundtrip(t *testing.T) {
 		// Generate a random public key for each time, since it is
 		// a required field.
 		test.publicKey = make(ed25519.PublicKey, ed25519.PublicKeySize)
-		rand.Read(test.publicKey)
+		_, _ = rand.Read(test.publicKey)
 
 		encoded := bytes.NewBuffer(test.encode())
 		decoded := &version_metadata{}

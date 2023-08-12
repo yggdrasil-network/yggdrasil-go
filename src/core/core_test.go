@@ -2,7 +2,7 @@ package core
 
 import (
 	"bytes"
-	"math/rand"
+	"crypto/rand"
 	"net/url"
 	"os"
 	"testing"
@@ -146,7 +146,7 @@ func TestCore_Start_Transfer(t *testing.T) {
 
 	// Send
 	msg := make([]byte, msgLen)
-	rand.Read(msg[40:])
+	_, _ = rand.Read(msg[40:])
 	msg[0] = 0x60
 	copy(msg[8:24], nodeB.Address())
 	copy(msg[24:40], nodeA.Address())
@@ -178,7 +178,7 @@ func BenchmarkCore_Start_Transfer(b *testing.B) {
 
 	// Send
 	msg := make([]byte, msgLen)
-	rand.Read(msg[40:])
+	_, _ = rand.Read(msg[40:])
 	msg[0] = 0x60
 	copy(msg[8:24], nodeB.Address())
 	copy(msg[24:40], nodeA.Address())

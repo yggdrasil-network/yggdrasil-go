@@ -32,12 +32,12 @@ func (l *links) newLinkUNIX() *linkUNIX {
 	return lt
 }
 
-func (l *linkUNIX) dial(url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
+func (l *linkUNIX) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
 	addr, err := net.ResolveUnixAddr("unix", url.Path)
 	if err != nil {
 		return nil, err
 	}
-	return l.dialer.DialContext(l.core.ctx, "unix", addr.String())
+	return l.dialer.DialContext(ctx, "unix", addr.String())
 }
 
 func (l *linkUNIX) listen(ctx context.Context, url *url.URL, _ string) (net.Listener, error) {

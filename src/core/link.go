@@ -40,7 +40,7 @@ type links struct {
 }
 
 type linkProtocol interface {
-	dial(url *url.URL, info linkInfo, options linkOptions) (net.Conn, error)
+	dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error)
 	listen(ctx context.Context, url *url.URL, sintf string) (net.Listener, error)
 }
 
@@ -473,7 +473,7 @@ func (l *links) connect(u *url.URL, info linkInfo, options linkOptions) (net.Con
 	default:
 		return nil, ErrLinkUnrecognisedSchema
 	}
-	return dialer.dial(u, info, options)
+	return dialer.dial(l.core.ctx, u, info, options)
 }
 
 func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn) error {

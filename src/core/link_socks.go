@@ -21,7 +21,7 @@ func (l *links) newLinkSOCKS() *linkSOCKS {
 	return lt
 }
 
-func (l *linkSOCKS) dial(url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
+func (l *linkSOCKS) dial(_ context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
 	var proxyAuth *proxy.Auth
 	if url.User != nil && url.User.Username() != "" {
 		proxyAuth = &proxy.Auth{
