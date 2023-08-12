@@ -47,7 +47,7 @@ type links struct {
 
 type linkProtocol interface {
 	dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error)
-	listen(ctx context.Context, url *url.URL, sintf string) (net.Listener, error)
+	listen(ctx context.Context, url *url.URL, sintf string, options linkOptions) (net.Listener, error)
 }
 
 // linkInfo is used as a map key
@@ -75,6 +75,7 @@ type linkOptions struct {
 	tlsSNI            string
 	password          []byte
 	maxBackoff        time.Duration
+	multipath         bool
 }
 
 type Listener struct {
@@ -156,6 +157,7 @@ const ErrLinkMaxBackoffInvalid = linkError("max backoff duration invalid")
 const ErrLinkSNINotSupported = linkError("SNI not supported on this link type")
 const ErrLinkNoSuitableIPs = linkError("peer has no suitable addresses")
 const ErrLinkToSelf = linkError("node cannot connect to self")
+const ErrLinkMultipathInvalid = linkError("multipath invalid")
 
 func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 	if _, err := l.dialerFor(u); err != nil {
@@ -211,6 +213,17 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 				return
 			}
 			options.maxBackoff = d
+		}
+		if p := u.Query().Get("multipath"); p != "" {
+			switch p {
+			case "true", "1":
+				options.multipath = true
+			case "false", "0":
+				options.multipath = false
+			default:
+				retErr = ErrLinkMultipathInvalid
+				return
+			}
 		}
 		// SNI headers must contain hostnames and not IP addresses, so we must make sure
 		// that we do not populate the SNI with an IP literal. We do this by splitting
@@ -463,7 +476,36 @@ func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) 
 		ctxcancel()
 		return nil, ErrLinkUnrecognisedSchema
 	}
-	listener, err := protocol.listen(ctx, u, sintf)
+
+	var options linkOptions
+	if p := u.Query().Get("priority"); p != "" {
+		pi, err := strconv.ParseUint(p, 10, 8)
+		if err != nil {
+			ctxcancel()
+			return nil, ErrLinkPriorityInvalid
+		}
+		options.priority = uint8(pi)
+	}
+	if p := u.Query().Get("password"); p != "" {
+		if len(p) > blake2b.Size {
+			ctxcancel()
+			return nil, ErrLinkPasswordInvalid
+		}
+		options.password = []byte(p)
+	}
+	if p := u.Query().Get("multipath"); p != "" {
+		switch p {
+		case "true", "1":
+			options.multipath = true
+		case "false", "0":
+			options.multipath = false
+		default:
+			ctxcancel()
+			return nil, ErrLinkMultipathInvalid
+		}
+	}
+
+	listener, err := protocol.listen(ctx, u, sintf, options)
 	if err != nil {
 		ctxcancel()
 		return nil, err
@@ -479,21 +521,6 @@ func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) 
 		listener: listener,
 		ctx:      ctx,
 		Cancel:   cancel,
-	}
-
-	var options linkOptions
-	if p := u.Query().Get("priority"); p != "" {
-		pi, err := strconv.ParseUint(p, 10, 8)
-		if err != nil {
-			return nil, ErrLinkPriorityInvalid
-		}
-		options.priority = uint8(pi)
-	}
-	if p := u.Query().Get("password"); p != "" {
-		if len(p) > blake2b.Size {
-			return nil, ErrLinkPasswordInvalid
-		}
-		options.password = []byte(p)
 	}
 
 	phony.Block(l, func() {
