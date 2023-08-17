@@ -6,6 +6,7 @@ package tun
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 
@@ -48,6 +49,11 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 		}
 		return nil
 	})
+}
+
+// Configures the "utun" adapter from an existing file descriptor.
+func (tun *TunAdapter) setupFD(fd int32, addr string, mtu uint64) error {
+	return fmt.Errorf("setup via FD not supported on this platform")
 }
 
 // Sets the MTU of the TUN adapter.
