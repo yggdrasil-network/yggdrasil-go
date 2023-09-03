@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"regexp"
-	"runtime/debug"
 
 	"github.com/gologme/log"
 
@@ -45,7 +44,7 @@ func (m *Yggdrasil) StartAutoconfigure() error {
 // StartJSON starts a node with the given JSON config. You can get JSON config
 // (rather than HJSON) by using the GenerateConfigJSON() function
 func (m *Yggdrasil) StartJSON(configjson []byte) error {
-	debug.SetMemoryLimit(1024 * 1024 * 40)
+	setMemLimitIfPossible()
 
 	m.logger = log.New(m.log, "", 0)
 	m.logger.EnableLevel("error")
