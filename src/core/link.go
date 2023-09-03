@@ -308,9 +308,8 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 				if linkType == linkTypePersistent {
 					if backoffNow() {
 						continue
-					} else {
-						return
 					}
+					return
 				} else {
 					break
 				}
