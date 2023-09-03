@@ -44,6 +44,7 @@ type TunAdapter struct {
 	isOpen      bool
 	isEnabled   bool // Used by the writer to drop sessionTraffic if not enabled
 	config      struct {
+    fd   int32
 		name InterfaceName
 		mtu  InterfaceMTU
 	}
@@ -126,7 +127,13 @@ func (tun *TunAdapter) _start() error {
 	if tun.rwc.MaxMTU() < mtu {
 		mtu = tun.rwc.MaxMTU()
 	}
-	if err := tun.setup(string(tun.config.name), addr, mtu); err != nil {
+	var err error
+	if tun.config.fd > 0 {
+		err = tun.setupFD(tun.config.fd, addr, mtu)
+	} else {
+		err = tun.setup(string(tun.config.name), addr, mtu)
+	}
+	if err != nil {
 		return err
 	}
 	if tun.MTU() != mtu {
