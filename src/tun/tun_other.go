@@ -1,5 +1,5 @@
-//go:build !linux && !darwin && !windows && !openbsd && !freebsd && !mobile
-// +build !linux,!darwin,!windows,!openbsd,!freebsd,!mobile
+//go:build !linux && !darwin && !ios && !android && !windows && !openbsd && !freebsd && !mobile
+// +build !linux,!darwin,!ios,!android,!windows,!openbsd,!freebsd,!mobile
 
 package tun
 

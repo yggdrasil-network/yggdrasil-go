@@ -1,5 +1,5 @@
-//go:build !mobile
-// +build !mobile
+//go:build linux || android
+// +build linux android
 
 package tun
 
