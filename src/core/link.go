@@ -251,15 +251,13 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 						// the next connection.
 						if backoffNow() {
 							continue
-						} else {
-							return
 						}
-					} else {
-						// Ephemeral and incoming connections don't remain
-						// after a connection failure, so exit out of the
-						// loop and clean up the link entry.
-						break
+						return
 					}
+					// Ephemeral and incoming connections don't remain
+					// after a connection failure, so exit out of the
+					// loop and clean up the link entry.
+					break
 				}
 
 				// The linkConn wrapper allows us to track the number of
@@ -310,9 +308,8 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 						continue
 					}
 					return
-				} else {
-					break
 				}
+				break
 			}
 		}()
 	})
