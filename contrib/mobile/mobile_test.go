@@ -1,9 +1,21 @@
 package mobile
 
-import "testing"
+import (
+	"os"
+	"testing"
+
+	"github.com/gologme/log"
+)
 
 func TestStartYggdrasil(t *testing.T) {
-	ygg := &Yggdrasil{}
+	logger := log.New(os.Stdout, "", 0)
+	logger.EnableLevel("error")
+	logger.EnableLevel("warn")
+	logger.EnableLevel("info")
+
+	ygg := &Yggdrasil{
+		logger: logger,
+	}
 	if err := ygg.StartAutoconfigure(); err != nil {
 		t.Fatalf("Failed to start Yggdrasil: %s", err)
 	}
