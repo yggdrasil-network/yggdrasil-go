@@ -76,6 +76,9 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 			}
 			options = append(options, core.AllowedPublicKey(k[:]))
 		}
+		for _, lAddr := range m.config.Listen {
+			options = append(options, core.ListenAddress(lAddr))
+		}
 		m.core, err = core.New(sk[:], m.logger, options...)
 		if err != nil {
 			panic(err)
