@@ -7,6 +7,39 @@ import (
 	"testing"
 )
 
+func TestVersionPasswordAuth(t *testing.T) {
+	for _, tt := range []struct {
+		password1 []byte // The password on node 1
+		password2 []byte // The password on node 2
+		allowed   bool   // Should the connection have been allowed?
+	}{
+		{nil, nil, true},                      // Allow:  No passwords (both nil)
+		{nil, []byte(""), true},               // Allow:  No passwords (mixed nil and empty string)
+		{nil, []byte("foo"), false},           // Reject: One node has a password, the other doesn't
+		{[]byte("foo"), []byte(""), false},    // Reject: One node has a password, the other doesn't
+		{[]byte("foo"), []byte("foo"), true},  // Allow:  Same password
+		{[]byte("foo"), []byte("bar"), false}, // Reject: Different passwords
+	} {
+		pk1, sk1, err := ed25519.GenerateKey(nil)
+		if err != nil {
+			t.Fatalf("Node 1 failed to generate key: %s", err)
+		}
+
+		metadata1 := &version_metadata{
+			publicKey: pk1,
+		}
+		encoded, err := metadata1.encode(sk1, tt.password1)
+		if err != nil {
+			t.Fatalf("Node 1 failed to encode metadata: %s", err)
+		}
+
+		var decoded version_metadata
+		if allowed := decoded.decode(bytes.NewBuffer(encoded), tt.password2); allowed != tt.allowed {
+			t.Fatalf("Permutation %q -> %q should have been %v but was %v", tt.password1, tt.password2, tt.allowed, allowed)
+		}
+	}
+}
+
 func TestVersionRoundtrip(t *testing.T) {
 	for _, password := range [][]byte{
 		nil, []byte(""), []byte("foo"),
