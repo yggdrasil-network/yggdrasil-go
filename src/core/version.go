@@ -8,7 +8,10 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"encoding/binary"
+	"fmt"
 	"io"
+
+	"golang.org/x/crypto/blake2b"
 )
 
 // This is the version-specific metadata exchanged at the start of a connection.
@@ -26,6 +29,8 @@ const (
 	ProtocolVersionMinor uint16 = 5
 )
 
+// Once a major/minor version is released, it is not safe to change any of these
+// (including their ordering), it is only safe to add new ones.
 const (
 	metaVersionMajor uint16 = iota // uint16
 	metaVersionMinor               // uint16
@@ -42,7 +47,7 @@ func version_getBaseMetadata() version_metadata {
 }
 
 // Encodes version metadata into its wire format.
-func (m *version_metadata) encode() []byte {
+func (m *version_metadata) encode(privateKey ed25519.PrivateKey, password []byte) ([]byte, error) {
 	bs := make([]byte, 0, 64)
 	bs = append(bs, 'm', 'e', 't', 'a')
 	bs = append(bs, 0, 0) // Remaining message length
@@ -63,12 +68,26 @@ func (m *version_metadata) encode() []byte {
 	bs = binary.BigEndian.AppendUint16(bs, 1)
 	bs = append(bs, m.priority)
 
+	hasher, err := blake2b.New512(password)
+	if err != nil {
+		return nil, err
+	}
+	n, err := hasher.Write(m.publicKey)
+	if err != nil {
+		return nil, err
+	}
+	if n != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("hash writer only wrote %d bytes", n)
+	}
+	hash := hasher.Sum(nil)
+	bs = append(bs, ed25519.Sign(privateKey, hash)...)
+
 	binary.BigEndian.PutUint16(bs[4:6], uint16(len(bs)-6))
-	return bs
+	return bs, nil
 }
 
 // Decodes version metadata from its wire format into the struct.
-func (m *version_metadata) decode(r io.Reader) bool {
+func (m *version_metadata) decode(r io.Reader, password []byte) bool {
 	bh := [6]byte{}
 	if _, err := io.ReadFull(r, bh[:]); err != nil {
 		return false
@@ -81,6 +100,10 @@ func (m *version_metadata) decode(r io.Reader) bool {
 	if _, err := io.ReadFull(r, bs); err != nil {
 		return false
 	}
+
+	sig := bs[len(bs)-ed25519.SignatureSize:]
+	bs = bs[:len(bs)-ed25519.SignatureSize]
+
 	for len(bs) >= 4 {
 		op := binary.BigEndian.Uint16(bs[:2])
 		oplen := binary.BigEndian.Uint16(bs[2:4])
@@ -103,7 +126,17 @@ func (m *version_metadata) decode(r io.Reader) bool {
 		}
 		bs = bs[oplen:]
 	}
-	return true
+
+	hasher, err := blake2b.New512(password)
+	if err != nil {
+		return false
+	}
+	n, err := hasher.Write(m.publicKey)
+	if err != nil || n != ed25519.PublicKeySize {
+		return false
+	}
+	hash := hasher.Sum(nil)
+	return ed25519.Verify(m.publicKey, hash, sig)
 }
 
 // Checks that the "meta" bytes and the version numbers are the expected values.
