@@ -67,7 +67,7 @@ func main() {
 
 	case "syslog":
 		if syslogger, err := gsyslog.NewLogger(gsyslog.LOG_NOTICE, "DAEMON", version.BuildName()); err == nil {
-			logger = log.New(syslogger, "", log.Flags())
+			logger = log.New(syslogger, "", log.Flags() &^ (log.Ldate | log.Ltime))
 		}
 
 	default:
