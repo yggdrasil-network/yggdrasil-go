@@ -13,11 +13,11 @@ func TestMulticastAdvertisementRoundTrip(t *testing.T) {
 	}
 
 	orig := multicastAdvertisement{
-		MajorVersion:  1,
-		MinorVersion:  2,
-		PublicKey:     pk,
-		Port:          3,
-		Discriminator: sk, // any bytes will do
+		MajorVersion: 1,
+		MinorVersion: 2,
+		PublicKey:    pk,
+		Port:         3,
+		Hash:         sk, // any bytes will do
 	}
 
 	ob, err := orig.MarshalBinary()

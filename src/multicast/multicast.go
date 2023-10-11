@@ -3,6 +3,7 @@ package multicast
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
 	"math/rand"
@@ -14,6 +15,7 @@ import (
 	"github.com/gologme/log"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
+	"golang.org/x/crypto/blake2b"
 	"golang.org/x/net/ipv6"
 )
 
@@ -31,10 +33,8 @@ type Multicast struct {
 	_interfaces map[string]*interfaceInfo
 	_timer      *time.Timer
 	config      struct {
-		_discriminator      []byte
-		_discriminatorMatch func([]byte) bool
-		_groupAddr          GroupAddress
-		_interfaces         map[MulticastInterface]struct{}
+		_groupAddr  GroupAddress
+		_interfaces map[MulticastInterface]struct{}
 	}
 }
 
@@ -45,6 +45,8 @@ type interfaceInfo struct {
 	listen   bool
 	port     uint16
 	priority uint8
+	password []byte
+	hash     []byte
 }
 
 type listenerInfo struct {
@@ -178,6 +180,7 @@ func (m *Multicast) _getAllowedInterfaces() map[string]*interfaceInfo {
 		return nil
 	}
 	// Work out which interfaces to announce on
+	pk := m.core.PublicKey()
 	for _, iface := range allifaces {
 		switch {
 		case iface.Flags&net.FlagUp == 0:
@@ -196,12 +199,23 @@ func (m *Multicast) _getAllowedInterfaces() map[string]*interfaceInfo {
 			if !ifcfg.Regex.MatchString(iface.Name) {
 				continue
 			}
+			hasher, err := blake2b.New512([]byte(ifcfg.Password))
+			if err != nil {
+				continue
+			}
+			if n, err := hasher.Write(pk); err != nil {
+				continue
+			} else if n != ed25519.PublicKeySize {
+				continue
+			}
 			interfaces[iface.Name] = &interfaceInfo{
 				iface:    iface,
 				beacon:   ifcfg.Beacon,
 				listen:   ifcfg.Listen,
 				port:     ifcfg.Port,
 				priority: ifcfg.Priority,
+				password: []byte(ifcfg.Password),
+				hash:     hasher.Sum(nil),
 			}
 			break
 		}
@@ -298,10 +312,13 @@ func (m *Multicast) _announce() {
 			var linfo *listenerInfo
 			if _, ok := m._listeners[iface.Name]; !ok {
 				// No listener was found - let's create one
-				urlString := fmt.Sprintf("tls://[%s]:%d", addrIP, info.port)
-				u, err := url.Parse(urlString)
-				if err != nil {
-					panic(err)
+				v := &url.Values{}
+				v.Add("priority", fmt.Sprintf("%d", info.priority))
+				v.Add("password", string(info.password))
+				u := &url.URL{
+					Scheme:   "tls",
+					Host:     net.JoinHostPort(addrIP.String(), fmt.Sprintf("%d", info.port)),
+					RawQuery: v.Encode(),
 				}
 				if li, err := m.core.Listen(u, iface.Name); err == nil {
 					m.log.Debugln("Started multicasting on", iface.Name)
@@ -324,11 +341,11 @@ func (m *Multicast) _announce() {
 			}
 			addr := linfo.listener.Addr().(*net.TCPAddr)
 			adv := multicastAdvertisement{
-				MajorVersion:  core.ProtocolVersionMajor,
-				MinorVersion:  core.ProtocolVersionMinor,
-				PublicKey:     m.core.PublicKey(),
-				Port:          uint16(addr.Port),
-				Discriminator: m.config._discriminator,
+				MajorVersion: core.ProtocolVersionMajor,
+				MinorVersion: core.ProtocolVersionMinor,
+				PublicKey:    m.core.PublicKey(),
+				Port:         uint16(addr.Port),
+				Hash:         info.hash,
 			}
 			msg, err := adv.MarshalBinary()
 			if err != nil {
@@ -356,6 +373,7 @@ func (m *Multicast) listen() {
 		panic(err)
 	}
 	bs := make([]byte, 2048)
+	hb := make([]byte, 0, blake2b.Size) // Reused to reduce hash allocations
 	for {
 		n, rcm, fromAddr, err := m.sock.ReadFrom(bs)
 		if err != nil {
@@ -386,10 +404,6 @@ func (m *Multicast) listen() {
 			continue
 		case adv.PublicKey.Equal(m.core.PublicKey()):
 			continue
-		case m.config._discriminatorMatch == nil && !bytes.Equal(adv.Discriminator, m.config._discriminator):
-			continue
-		case m.config._discriminatorMatch != nil && !m.config._discriminatorMatch(adv.Discriminator):
-			continue
 		}
 		from := fromAddr.(*net.UDPAddr)
 		from.Port = int(adv.Port)
@@ -398,9 +412,22 @@ func (m *Multicast) listen() {
 			interfaces = m._interfaces
 		})
 		if info, ok := interfaces[from.Zone]; ok && info.listen {
+			hasher, err := blake2b.New512(info.password)
+			if err != nil {
+				continue
+			}
+			if n, err := hasher.Write(adv.PublicKey); err != nil {
+				continue
+			} else if n != ed25519.PublicKeySize {
+				continue
+			}
+			if !bytes.Equal(hasher.Sum(hb[:0]), adv.Hash) {
+				continue
+			}
 			v := &url.Values{}
 			v.Add("key", hex.EncodeToString(adv.PublicKey))
 			v.Add("priority", fmt.Sprintf("%d", info.priority))
+			v.Add("password", string(info.password))
 			u := &url.URL{
 				Scheme:   "tls",
 				Host:     from.String(),

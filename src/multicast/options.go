@@ -8,10 +8,6 @@ func (m *Multicast) _applyOption(opt SetupOption) {
 		m.config._interfaces[v] = struct{}{}
 	case GroupAddress:
 		m.config._groupAddr = v
-	case Discriminator:
-		m.config._discriminator = append(m.config._discriminator[:0], v...)
-	case DiscriminatorMatch:
-		m.config._discriminatorMatch = v
 	}
 }
 
@@ -25,13 +21,10 @@ type MulticastInterface struct {
 	Listen   bool
 	Port     uint16
 	Priority uint8
+	Password string
 }
 
 type GroupAddress string
-type Discriminator []byte
-type DiscriminatorMatch func([]byte) bool
 
 func (a MulticastInterface) isSetupOption() {}
 func (a GroupAddress) isSetupOption()       {}
-func (a Discriminator) isSetupOption()      {}
-func (a DiscriminatorMatch) isSetupOption() {}

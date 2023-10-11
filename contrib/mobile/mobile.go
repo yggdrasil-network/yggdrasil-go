@@ -88,6 +88,7 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 				Listen:   intf.Listen,
 				Port:     intf.Port,
 				Priority: uint8(intf.Priority),
+				Password: intf.Password,
 			})
 		}
 		m.multicast, err = multicast.New(m.core, m.logger, options...)

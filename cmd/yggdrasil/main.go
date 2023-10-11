@@ -230,6 +230,7 @@ func main() {
 				Listen:   intf.Listen,
 				Port:     intf.Port,
 				Priority: uint8(intf.Priority),
+				Password: intf.Password,
 			})
 		}
 		if n.multicast, err = multicast.New(n.core, logger, options...); err != nil {
