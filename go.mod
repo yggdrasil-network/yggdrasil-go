@@ -13,9 +13,9 @@ require (
 	github.com/mitchellh/mapstructure v1.4.1
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/mobile v0.0.0-20221110043201-43a038452099
-	golang.org/x/net v0.7.0
-	golang.org/x/sys v0.5.0
-	golang.org/x/text v0.7.0
+	golang.org/x/net v0.17.0
+	golang.org/x/sys v0.13.0
+	golang.org/x/text v0.13.0
 	golang.zx2c4.com/wireguard v0.0.0-20211017052713-f87e87af0d9a
 	golang.zx2c4.com/wireguard/windows v0.4.12
 )
@@ -23,9 +23,9 @@ require (
 require (
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
-	golang.org/x/crypto v0.0.0-20221012134737-56aed061732a // indirect
-	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
-	golang.org/x/tools v0.1.12 // indirect
+	golang.org/x/crypto v0.14.0 // indirect
+	golang.org/x/mod v0.8.0 // indirect
+	golang.org/x/tools v0.6.0 // indirect
 )
 
 require (
