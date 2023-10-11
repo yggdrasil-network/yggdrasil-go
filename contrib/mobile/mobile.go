@@ -42,8 +42,8 @@ func (m *Yggdrasil) StartAutoconfigure() error {
 // StartJSON starts a node with the given JSON config. You can get JSON config
 // (rather than HJSON) by using the GenerateConfigJSON() function
 func (m *Yggdrasil) StartJSON(configjson []byte) error {
-  setMemLimitIfPossible()
-  
+	setMemLimitIfPossible()
+
 	logger := log.New(m.log, "", 0)
 	logger.EnableLevel("error")
 	logger.EnableLevel("warn")
@@ -69,9 +69,6 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 				panic(err)
 			}
 			options = append(options, core.AllowedPublicKey(k[:]))
-		}
-		for _, root := range m.config.RootCertificates {
-			options = append(options, core.RootCertificate(*root))
 		}
 		var err error
 		m.core, err = core.New(m.config.Certificate, logger, options...)

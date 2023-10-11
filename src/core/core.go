@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -39,8 +38,7 @@ type Core struct {
 	log          Logger
 	addPeerTimer *time.Timer
 	config       struct {
-		tls   *tls.Config    // immutable after startup
-		roots *x509.CertPool // immutable after startup
+		tls *tls.Config // immutable after startup
 		//_peers             map[Peer]*linkInfo         // configurable after startup
 		_listeners         map[ListenAddress]struct{} // configurable after startup
 		nodeinfo           NodeInfo                   // immutable after startup
@@ -110,9 +108,6 @@ func New(cert *tls.Certificate, logger Logger, opts ...SetupOption) (*Core, erro
 	c.log.Infof("Your public key is %s", hex.EncodeToString(c.public))
 	c.log.Infof("Your IPv6 address is %s", address.String())
 	c.log.Infof("Your IPv6 subnet is %s", subnet.String())
-	if c.config.roots != nil {
-		c.log.Println("Yggdrasil is running in TLS-only mode")
-	}
 	c.proto.init(c)
 	if err := c.links.init(c); err != nil {
 		return nil, fmt.Errorf("error initialising links: %w", err)
@@ -167,10 +162,6 @@ func (c *Core) _close() error {
 		c.addPeerTimer = nil
 	}
 	return err
-}
-
-func (c *Core) isTLSOnly() bool {
-	return c.config.roots != nil
 }
 
 func (c *Core) MTU() uint64 {

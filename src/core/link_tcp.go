@@ -69,9 +69,6 @@ func (l *linkTCP) dialersFor(url *url.URL, info linkInfo) ([]*tcpDialer, error) 
 }
 
 func (l *linkTCP) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
-	if l.core.isTLSOnly() {
-		return nil, fmt.Errorf("TCP peer prohibited in TLS-only mode")
-	}
 	dialers, err := l.dialersFor(url, info)
 	if err != nil {
 		return nil, err
@@ -92,9 +89,6 @@ func (l *linkTCP) dial(ctx context.Context, url *url.URL, info linkInfo, options
 }
 
 func (l *linkTCP) listen(ctx context.Context, url *url.URL, sintf string) (net.Listener, error) {
-	if l.core.isTLSOnly() {
-		return nil, fmt.Errorf("TCP listener prohibited in TLS-only mode")
-	}
 	hostport := url.Host
 	if sintf != "" {
 		if host, port, err := net.SplitHostPort(hostport); err == nil {

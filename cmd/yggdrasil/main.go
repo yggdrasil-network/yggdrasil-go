@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/ed25519"
-	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -45,8 +44,6 @@ func main() {
 	useconffile := flag.String("useconffile", "", "read HJSON/JSON config from specified file path")
 	normaliseconf := flag.Bool("normaliseconf", false, "use in combination with either -useconf or -useconffile, outputs your configuration normalised")
 	exportkey := flag.Bool("exportkey", false, "use in combination with either -useconf or -useconffile, outputs your private key in PEM format")
-	exportcsr := flag.Bool("exportcsr", false, "use in combination with either -useconf or -useconffile, outputs your self-signed certificate request in PEM format")
-	exportcert := flag.Bool("exportcert", false, "use in combination with either -useconf or -useconffile, outputs your self-signed certificate in PEM format")
 	confjson := flag.Bool("json", false, "print configuration from -genconf or -normaliseconf as JSON instead of HJSON")
 	autoconf := flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
 	ver := flag.Bool("version", false, "prints the version of this build")
@@ -177,29 +174,9 @@ func main() {
 		}
 		fmt.Println(string(pem))
 		return
-
-	case *exportcsr:
-		pem, err := cfg.GenerateCertificateSigningRequest()
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println(string(pem))
-		return
-
-	case *exportcert:
-		pem, err := cfg.MarshalPEMCertificate()
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println(string(pem))
-		return
 	}
 
 	n := &node{}
-
-	// Track certificate fingerprints for configured roots, so
-	// that we can match them using the multicast discriminator.
-	fingerprints := map[[20]byte]struct{}{}
 
 	// Setup the Yggdrasil node itself.
 	{
@@ -217,10 +194,6 @@ func main() {
 			for _, peer := range peers {
 				options = append(options, core.Peer{URI: peer, SourceInterface: intf})
 			}
-		}
-		for _, root := range cfg.RootCertificates {
-			options = append(options, core.RootCertificate(*root))
-			fingerprints[sha1.Sum(root.Raw[:])] = struct{}{}
 		}
 		for _, allowed := range cfg.AllowedPublicKeys {
 			k, err := hex.DecodeString(allowed)
@@ -258,29 +231,6 @@ func main() {
 				Port:     intf.Port,
 				Priority: uint8(intf.Priority),
 			})
-		}
-		if len(fingerprints) > 0 {
-			var matcher multicast.DiscriminatorMatch = func(b []byte) bool {
-				// Break apart the discriminator into 20-byte chunks and
-				// see whether any of them match the configured root CA
-				// fingerprints. If any of them match, we'll return true.
-				var f [20]byte
-				for len(b) >= len(f) {
-					b = b[copy(f[:], b):]
-					if _, ok := fingerprints[f]; ok {
-						return true
-					}
-				}
-				return false
-			}
-			// Populate our own discriminator with the fingerprints of our
-			// configured root CAs.
-			var discriminator multicast.Discriminator
-			for f := range fingerprints {
-				discriminator = append(discriminator, f[:]...)
-			}
-			options = append(options, matcher)
-			options = append(options, discriminator)
 		}
 		if n.multicast, err = multicast.New(n.core, logger, options...); err != nil {
 			panic(err)
