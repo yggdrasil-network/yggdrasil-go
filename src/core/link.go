@@ -17,6 +17,7 @@ import (
 
 	"github.com/Arceliar/phony"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"golang.org/x/crypto/blake2b"
 )
 
 type linkType int
@@ -65,6 +66,7 @@ type linkOptions struct {
 	pinnedEd25519Keys map[keyArray]struct{}
 	priority          uint8
 	tlsSNI            string
+	password          []byte
 }
 
 type Listener struct {
@@ -129,6 +131,7 @@ func (e linkError) Error() string { return string(e) }
 const ErrLinkAlreadyConfigured = linkError("peer is already configured")
 const ErrLinkPriorityInvalid = linkError("priority value is invalid")
 const ErrLinkPinnedKeyInvalid = linkError("pinned public key is invalid")
+const ErrLinkPasswordInvalid = linkError("password is invalid")
 const ErrLinkUnrecognisedSchema = linkError("link schema unknown")
 
 func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
@@ -165,6 +168,13 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 				return
 			}
 			options.priority = uint8(pi)
+		}
+		if p := u.Query().Get("password"); p != "" {
+			if len(p) > blake2b.Size {
+				retErr = ErrLinkPasswordInvalid
+				return
+			}
+			options.password = []byte(p)
 		}
 
 		// If we think we're already connected to this peer, load up
@@ -351,6 +361,12 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 		}
 		options.priority = uint8(pi)
 	}
+	if p := u.Query().Get("password"); p != "" {
+		if len(p) > blake2b.Size {
+			return nil, ErrLinkPasswordInvalid
+		}
+		options.password = []byte(p)
+	}
 
 	go func() {
 		l.core.log.Printf("%s listener started on %s", strings.ToUpper(u.Scheme), listener.Addr())
@@ -476,7 +492,10 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn) e
 	meta := version_getBaseMetadata()
 	meta.publicKey = l.core.public
 	meta.priority = options.priority
-	metaBytes := meta.encode()
+	metaBytes, err := meta.encode(l.core.secret, options.password)
+	if err != nil {
+		return fmt.Errorf("failed to generate handshake: %w", err)
+	}
 	if err := conn.SetDeadline(time.Now().Add(time.Second * 6)); err != nil {
 		return fmt.Errorf("failed to set handshake deadline: %w", err)
 	}
@@ -489,7 +508,7 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn) e
 	}
 	meta = version_metadata{}
 	base := version_getBaseMetadata()
-	if !meta.decode(conn) {
+	if !meta.decode(conn, options.password) {
 		return conn.Close()
 	}
 	if !meta.check() {
