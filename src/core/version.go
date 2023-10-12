@@ -101,6 +101,9 @@ func (m *version_metadata) decode(r io.Reader, password []byte) bool {
 		return false
 	}
 
+	if len(bs) < ed25519.SignatureSize {
+		return false
+	}
 	sig := bs[len(bs)-ed25519.SignatureSize:]
 	bs = bs[:len(bs)-ed25519.SignatureSize]
 
