@@ -1,9 +1,9 @@
-//go:build openbsd
-// +build openbsd
+//go:build darwin
+// +build darwin
 
-package defaults
+package config
 
-// Sane defaults for the BSD platforms. The "default" options may be
+// Sane defaults for the macOS/Darwin platform. The "default" options may be
 // may be replaced by the running configuration.
 func getDefaults() platformDefaultParameters {
 	return platformDefaultParameters{
@@ -15,12 +15,13 @@ func getDefaults() platformDefaultParameters {
 
 		// Multicast interfaces
 		DefaultMulticastInterfaces: []MulticastInterfaceConfig{
-			{Regex: ".*", Beacon: true, Listen: true},
+			{Regex: "en.*", Beacon: true, Listen: true},
+			{Regex: "bridge.*", Beacon: true, Listen: true},
 		},
 
 		// TUN
-		MaximumIfMTU:  16384,
-		DefaultIfMTU:  16384,
-		DefaultIfName: "tun0",
+		MaximumIfMTU:  65535,
+		DefaultIfMTU:  65535,
+		DefaultIfName: "auto",
 	}
 }

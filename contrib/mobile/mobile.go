@@ -3,7 +3,6 @@ package mobile
 import (
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"net"
 	"regexp"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
 	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tun"
@@ -46,20 +44,16 @@ func (m *Yggdrasil) StartAutoconfigure() error {
 func (m *Yggdrasil) StartJSON(configjson []byte) error {
 	setMemLimitIfPossible()
 
-	m.logger = log.New(m.log, "", 0)
-	m.logger.EnableLevel("error")
-	m.logger.EnableLevel("warn")
-	m.logger.EnableLevel("info")
-	m.config = defaults.GenerateConfig()
-	if err := json.Unmarshal(configjson, &m.config); err != nil {
+	logger := log.New(m.log, "", 0)
+	logger.EnableLevel("error")
+	logger.EnableLevel("warn")
+	logger.EnableLevel("info")
+	m.config = config.GenerateConfig()
+	if err := m.config.UnmarshalHJSON(configjson); err != nil {
 		return err
 	}
 	// Setup the Yggdrasil node itself.
 	{
-		sk, err := hex.DecodeString(m.config.PrivateKey)
-		if err != nil {
-			panic(err)
-		}
 		options := []core.SetupOption{}
 		for _, peer := range m.config.Peers {
 			options = append(options, core.Peer{URI: peer})
@@ -76,7 +70,8 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 			}
 			options = append(options, core.AllowedPublicKey(k[:]))
 		}
-		m.core, err = core.New(sk[:], m.logger, options...)
+		var err error
+		m.core, err = core.New(m.config.Certificate, logger, options...)
 		if err != nil {
 			panic(err)
 		}
@@ -93,6 +88,7 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 				Listen:   intf.Listen,
 				Port:     intf.Port,
 				Priority: uint8(intf.Priority),
+				Password: intf.Password,
 			})
 		}
 		m.multicast, err = multicast.New(m.core, m.logger, options...)
@@ -176,7 +172,7 @@ func (m *Yggdrasil) RetryPeersNow() {
 
 // GenerateConfigJSON generates mobile-friendly configuration in JSON format
 func GenerateConfigJSON() []byte {
-	nc := defaults.GenerateConfig()
+	nc := config.GenerateConfig()
 	nc.IfName = "none"
 	if json, err := json.Marshal(nc); err == nil {
 		return json
@@ -201,9 +197,9 @@ func (m *Yggdrasil) GetPublicKeyString() string {
 	return hex.EncodeToString(m.core.GetSelf().Key)
 }
 
-// GetCoordsString gets the node's coordinates
-func (m *Yggdrasil) GetCoordsString() string {
-	return fmt.Sprintf("%v", m.core.GetSelf().Coords)
+// GetRoutingEntries gets the number of entries in the routing table
+func (m *Yggdrasil) GetRoutingEntries() int {
+	return int(m.core.GetSelf().RoutingEntries)
 }
 
 func (m *Yggdrasil) GetPeersJSON() (result string) {
@@ -229,8 +225,16 @@ func (m *Yggdrasil) GetPeersJSON() (result string) {
 	}
 }
 
-func (m *Yggdrasil) GetDHTJSON() (result string) {
-	if res, err := json.Marshal(m.core.GetDHT()); err == nil {
+func (m *Yggdrasil) GetPathsJSON() (result string) {
+	if res, err := json.Marshal(m.core.GetPaths()); err == nil {
+		return string(res)
+	} else {
+		return "{}"
+	}
+}
+
+func (m *Yggdrasil) GetTreeJSON() (result string) {
+	if res, err := json.Marshal(m.core.GetTree()); err == nil {
 		return string(res)
 	} else {
 		return "{}"

@@ -165,7 +165,7 @@ func run() int {
 		table.Append([]string{"Build version:", resp.BuildVersion})
 		table.Append([]string{"IPv6 address:", resp.IPAddress})
 		table.Append([]string{"IPv6 subnet:", resp.Subnet})
-		table.Append([]string{"Coordinates:", fmt.Sprintf("%v", resp.Coords)})
+		table.Append([]string{"Routing table size:", fmt.Sprintf("%d", resp.RoutingEntries)})
 		table.Append([]string{"Public key:", resp.PublicKey})
 		table.Render()
 
@@ -174,33 +174,49 @@ func run() int {
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
-		table.SetHeader([]string{"Port", "Public Key", "IP Address", "Uptime", "RX", "TX", "Pr", "URI"})
+		table.SetHeader([]string{"URI", "State", "Dir", "IP Address", "Uptime", "RX", "TX", "Pr", "Last Error"})
 		for _, peer := range resp.Peers {
+			state, lasterr, dir := "Up", "-", "Out"
+			if !peer.Up {
+				state, lasterr = "Down", fmt.Sprintf("%s ago: %s", peer.LastErrorTime.Round(time.Second), peer.LastError)
+			}
+			if peer.Inbound {
+				dir = "In"
+			}
+			uri, err := url.Parse(peer.URI)
+			if err != nil {
+				panic(err)
+			}
+			uri.RawQuery = ""
 			table.Append([]string{
-				fmt.Sprintf("%d", peer.Port),
-				peer.PublicKey,
+				uri.String(),
+				state,
+				dir,
 				peer.IPAddress,
 				(time.Duration(peer.Uptime) * time.Second).String(),
 				peer.RXBytes.String(),
 				peer.TXBytes.String(),
 				fmt.Sprintf("%d", peer.Priority),
-				peer.Remote,
+				lasterr,
 			})
 		}
 		table.Render()
 
-	case "getdht":
-		var resp admin.GetDHTResponse
+	case "gettree":
+		var resp admin.GetTreeResponse
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
-		table.SetHeader([]string{"Public Key", "IP Address", "Port", "Rest"})
-		for _, dht := range resp.DHT {
+		//table.SetHeader([]string{"Public Key", "IP Address", "Port", "Rest"})
+		table.SetHeader([]string{"Public Key", "IP Address", "Parent", "Sequence"})
+		for _, tree := range resp.Tree {
 			table.Append([]string{
-				dht.PublicKey,
-				dht.IPAddress,
-				fmt.Sprintf("%d", dht.Port),
-				fmt.Sprintf("%d", dht.Rest),
+				tree.PublicKey,
+				tree.IPAddress,
+				tree.Parent,
+				fmt.Sprintf("%d", tree.Sequence),
+				//fmt.Sprintf("%d", dht.Port),
+				//fmt.Sprintf("%d", dht.Rest),
 			})
 		}
 		table.Render()
@@ -210,12 +226,13 @@ func run() int {
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
-		table.SetHeader([]string{"Public Key", "IP Address", "Path"})
+		table.SetHeader([]string{"Public Key", "IP Address", "Path", "Seq"})
 		for _, p := range resp.Paths {
 			table.Append([]string{
 				p.PublicKey,
 				p.IPAddress,
 				fmt.Sprintf("%v", p.Path),
+				fmt.Sprintf("%d", p.Sequence),
 			})
 		}
 		table.Render()

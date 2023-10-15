@@ -32,70 +32,14 @@ func (l *links) newLinkUNIX() *linkUNIX {
 	return lt
 }
 
-func (l *linkUNIX) dial(url *url.URL, options linkOptions, _ string) error {
-	info := linkInfoFor("unix", "", url.Path)
-	if l.links.isConnectedTo(info) {
-		return nil
-	}
+func (l *linkUNIX) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
 	addr, err := net.ResolveUnixAddr("unix", url.Path)
 	if err != nil {
-		return err
-	}
-	conn, err := l.dialer.DialContext(l.core.ctx, "unix", addr.String())
-	if err != nil {
-		return err
-	}
-	dial := &linkDial{
-		url: url,
-	}
-	return l.handler(dial, url.String(), info, conn, options, false)
-}
-
-func (l *linkUNIX) listen(url *url.URL, _ string) (*Listener, error) {
-	ctx, cancel := context.WithCancel(l.core.ctx)
-	listener, err := l.listener.Listen(ctx, "unix", url.Path)
-	if err != nil {
-		cancel()
 		return nil, err
 	}
-	entry := &Listener{
-		Listener: listener,
-		closed:   make(chan struct{}),
-	}
-	phony.Block(l, func() {
-		l._listeners[entry] = cancel
-	})
-	l.core.log.Printf("UNIX listener started on %s", listener.Addr())
-	go func() {
-		defer phony.Block(l, func() {
-			delete(l._listeners, entry)
-		})
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				cancel()
-				break
-			}
-			info := linkInfoFor("unix", "", url.String())
-			if err = l.handler(nil, url.String(), info, conn, linkOptionsForListener(url), true); err != nil {
-				l.core.log.Errorln("Failed to create inbound link:", err)
-			}
-		}
-		_ = listener.Close()
-		close(entry.closed)
-		l.core.log.Printf("UNIX listener stopped on %s", listener.Addr())
-	}()
-	return entry, nil
+	return l.dialer.DialContext(ctx, "unix", addr.String())
 }
 
-func (l *linkUNIX) handler(dial *linkDial, name string, info linkInfo, conn net.Conn, options linkOptions, incoming bool) error {
-	return l.links.create(
-		conn,     // connection
-		dial,     // connection URL
-		name,     // connection name
-		info,     // connection info
-		incoming, // not incoming
-		false,    // not forced
-		options,  // connection options
-	)
+func (l *linkUNIX) listen(ctx context.Context, url *url.URL, _ string) (net.Listener, error) {
+	return l.listener.Listen(ctx, "unix", url.Path)
 }

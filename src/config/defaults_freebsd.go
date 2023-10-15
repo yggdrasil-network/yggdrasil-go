@@ -1,17 +1,17 @@
-//go:build windows
-// +build windows
+//go:build freebsd
+// +build freebsd
 
-package defaults
+package config
 
-// Sane defaults for the Windows platform. The "default" options may be
+// Sane defaults for the BSD platforms. The "default" options may be
 // may be replaced by the running configuration.
 func getDefaults() platformDefaultParameters {
 	return platformDefaultParameters{
 		// Admin
-		DefaultAdminListen: "tcp://localhost:9001",
+		DefaultAdminListen: "unix:///var/run/yggdrasil.sock",
 
 		// Configuration (used for yggdrasilctl)
-		DefaultConfigFile: "C:\\Program Files\\Yggdrasil\\yggdrasil.conf",
+		DefaultConfigFile: "/usr/local/etc/yggdrasil.conf",
 
 		// Multicast interfaces
 		DefaultMulticastInterfaces: []MulticastInterfaceConfig{
@@ -19,8 +19,8 @@ func getDefaults() platformDefaultParameters {
 		},
 
 		// TUN
-		MaximumIfMTU:  65535,
-		DefaultIfMTU:  65535,
-		DefaultIfName: "Yggdrasil",
+		MaximumIfMTU:  32767,
+		DefaultIfMTU:  32767,
+		DefaultIfName: "/dev/tun0",
 	}
 }

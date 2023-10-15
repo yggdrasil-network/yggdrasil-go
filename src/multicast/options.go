@@ -21,6 +21,7 @@ type MulticastInterface struct {
 	Listen   bool
 	Port     uint16
 	Priority uint8
+	Password string
 }
 
 type GroupAddress string

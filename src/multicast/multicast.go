@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/url"
 	"time"
@@ -15,6 +15,7 @@ import (
 	"github.com/gologme/log"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
+	"golang.org/x/crypto/blake2b"
 	"golang.org/x/net/ipv6"
 )
 
@@ -44,6 +45,8 @@ type interfaceInfo struct {
 	listen   bool
 	port     uint16
 	priority uint8
+	password []byte
+	hash     []byte
 }
 
 type listenerInfo struct {
@@ -177,6 +180,7 @@ func (m *Multicast) _getAllowedInterfaces() map[string]*interfaceInfo {
 		return nil
 	}
 	// Work out which interfaces to announce on
+	pk := m.core.PublicKey()
 	for _, iface := range allifaces {
 		switch {
 		case iface.Flags&net.FlagUp == 0:
@@ -195,12 +199,23 @@ func (m *Multicast) _getAllowedInterfaces() map[string]*interfaceInfo {
 			if !ifcfg.Regex.MatchString(iface.Name) {
 				continue
 			}
+			hasher, err := blake2b.New512([]byte(ifcfg.Password))
+			if err != nil {
+				continue
+			}
+			if n, err := hasher.Write(pk); err != nil {
+				continue
+			} else if n != ed25519.PublicKeySize {
+				continue
+			}
 			interfaces[iface.Name] = &interfaceInfo{
 				iface:    iface,
 				beacon:   ifcfg.Beacon,
 				listen:   ifcfg.Listen,
 				port:     ifcfg.Port,
 				priority: ifcfg.Priority,
+				password: []byte(ifcfg.Password),
+				hash:     hasher.Sum(nil),
 			}
 			break
 		}
@@ -248,7 +263,7 @@ func (m *Multicast) _announce() {
 		// It's possible that the link-local listener address has changed so if
 		// that is the case then we should clean up the interface listener
 		found := false
-		listenaddr, err := net.ResolveTCPAddr("tcp6", info.listener.Listener.Addr().String())
+		listenaddr, err := net.ResolveTCPAddr("tcp6", info.listener.Addr().String())
 		if err != nil {
 			stop()
 			continue
@@ -295,12 +310,15 @@ func (m *Multicast) _announce() {
 			}
 			// Try and see if we already have a TCP listener for this interface
 			var linfo *listenerInfo
-			if nfo, ok := m._listeners[iface.Name]; !ok || nfo.listener.Listener == nil {
+			if _, ok := m._listeners[iface.Name]; !ok {
 				// No listener was found - let's create one
-				urlString := fmt.Sprintf("tls://[%s]:%d", addrIP, info.port)
-				u, err := url.Parse(urlString)
-				if err != nil {
-					panic(err)
+				v := &url.Values{}
+				v.Add("priority", fmt.Sprintf("%d", info.priority))
+				v.Add("password", string(info.password))
+				u := &url.URL{
+					Scheme:   "tls",
+					Host:     net.JoinHostPort(addrIP.String(), fmt.Sprintf("%d", info.port)),
+					RawQuery: v.Encode(),
 				}
 				if li, err := m.core.Listen(u, iface.Name); err == nil {
 					m.log.Debugln("Started multicasting on", iface.Name)
@@ -321,17 +339,21 @@ func (m *Multicast) _announce() {
 			if time.Since(linfo.time) < linfo.interval {
 				continue
 			}
-			// Get the listener details and construct the multicast beacon
-			lladdr := linfo.listener.Listener.Addr().String()
-			if a, err := net.ResolveTCPAddr("tcp6", lladdr); err == nil {
-				a.Zone = ""
-				destAddr.Zone = iface.Name
-				msg := append([]byte(nil), m.core.GetSelf().Key...)
-				msg = append(msg, a.IP...)
-				pbs := make([]byte, 2)
-				binary.BigEndian.PutUint16(pbs, uint16(a.Port))
-				msg = append(msg, pbs...)
-				_, _ = m.sock.WriteTo(msg, nil, destAddr)
+			addr := linfo.listener.Addr().(*net.TCPAddr)
+			adv := multicastAdvertisement{
+				MajorVersion: core.ProtocolVersionMajor,
+				MinorVersion: core.ProtocolVersionMinor,
+				PublicKey:    m.core.PublicKey(),
+				Port:         uint16(addr.Port),
+				Hash:         info.hash,
+			}
+			msg, err := adv.MarshalBinary()
+			if err != nil {
+				continue
+			}
+			destAddr.Zone = iface.Name
+			if _, err = m.sock.WriteTo(msg, nil, destAddr); err != nil {
+				m.log.Warn("Failed to send multicast beacon:", err)
 			}
 			if linfo.interval.Seconds() < 15 {
 				linfo.interval += time.Second
@@ -339,7 +361,8 @@ func (m *Multicast) _announce() {
 			break
 		}
 	}
-	m._timer = time.AfterFunc(time.Second, func() {
+	annInterval := time.Second + time.Microsecond*(time.Duration(rand.Intn(1048576))) // Randomize delay
+	m._timer = time.AfterFunc(annInterval, func() {
 		m.Act(nil, m._announce)
 	})
 }
@@ -350,8 +373,9 @@ func (m *Multicast) listen() {
 		panic(err)
 	}
 	bs := make([]byte, 2048)
+	hb := make([]byte, 0, blake2b.Size) // Reused to reduce hash allocations
 	for {
-		nBytes, rcm, fromAddr, err := m.sock.ReadFrom(bs)
+		n, rcm, fromAddr, err := m.sock.ReadFrom(bs)
 		if err != nil {
 			if !m.IsStarted() {
 				return
@@ -369,40 +393,45 @@ func (m *Multicast) listen() {
 				continue
 			}
 		}
-		if nBytes < ed25519.PublicKeySize {
+		var adv multicastAdvertisement
+		if err := adv.UnmarshalBinary(bs[:n]); err != nil {
 			continue
 		}
-		var key ed25519.PublicKey
-		key = append(key, bs[:ed25519.PublicKeySize]...)
-		if bytes.Equal(key, m.core.GetSelf().Key) {
-			continue // don't bother trying to peer with self
-		}
-		begin := ed25519.PublicKeySize
-		end := nBytes - 2
-		if end <= begin {
-			continue // malformed address
-		}
-		ip := bs[begin:end]
-		port := binary.BigEndian.Uint16(bs[end:nBytes])
-		anAddr := net.TCPAddr{IP: ip, Port: int(port)}
-		addr, err := net.ResolveTCPAddr("tcp6", anAddr.String())
-		if err != nil {
+		switch {
+		case adv.MajorVersion != core.ProtocolVersionMajor:
+			continue
+		case adv.MinorVersion != core.ProtocolVersionMinor:
+			continue
+		case adv.PublicKey.Equal(m.core.PublicKey()):
 			continue
 		}
 		from := fromAddr.(*net.UDPAddr)
-		if !from.IP.Equal(addr.IP) {
-			continue
-		}
+		from.Port = int(adv.Port)
 		var interfaces map[string]*interfaceInfo
 		phony.Block(m, func() {
 			interfaces = m._interfaces
 		})
 		if info, ok := interfaces[from.Zone]; ok && info.listen {
-			addr.Zone = ""
-			pin := fmt.Sprintf("/?key=%s&priority=%d", hex.EncodeToString(key), info.priority)
-			u, err := url.Parse("tls://" + addr.String() + pin)
+			hasher, err := blake2b.New512(info.password)
 			if err != nil {
-				m.log.Debugln("Call from multicast failed, parse error:", addr.String(), err)
+				continue
+			}
+			if n, err := hasher.Write(adv.PublicKey); err != nil {
+				continue
+			} else if n != ed25519.PublicKeySize {
+				continue
+			}
+			if !bytes.Equal(hasher.Sum(hb[:0]), adv.Hash) {
+				continue
+			}
+			v := &url.Values{}
+			v.Add("key", hex.EncodeToString(adv.PublicKey))
+			v.Add("priority", fmt.Sprintf("%d", info.priority))
+			v.Add("password", string(info.password))
+			u := &url.URL{
+				Scheme:   "tls",
+				Host:     from.String(),
+				RawQuery: v.Encode(),
 			}
 			if err := m.core.CallPeer(u, from.Zone); err != nil {
 				m.log.Debugln("Call from multicast failed:", err)

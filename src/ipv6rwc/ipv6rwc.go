@@ -19,12 +19,14 @@ import (
 
 const keyStoreTimeout = 2 * time.Minute
 
+/*
 // Out-of-band packet types
 const (
 	typeKeyDummy = iota // nolint:deadcode,varcheck
 	typeKeyLookup
 	typeKeyResponse
 )
+*/
 
 type keyArray [ed25519.PublicKeySize]byte
 
@@ -57,10 +59,13 @@ func (k *keyStore) init(c *core.Core) {
 	k.core = c
 	k.address = *address.AddrForKey(k.core.PublicKey())
 	k.subnet = *address.SubnetForKey(k.core.PublicKey())
-	if err := k.core.SetOutOfBandHandler(k.oobHandler); err != nil {
+	/*if err := k.core.SetOutOfBandHandler(k.oobHandler); err != nil {
 		err = fmt.Errorf("tun.core.SetOutOfBandHander: %w", err)
 		panic(err)
-	}
+	}*/
+	k.core.SetPathNotify(func(key ed25519.PublicKey) {
+		k.update(key)
+	})
 	k.keyToInfo = make(map[keyArray]*keyInfo)
 	k.addrToInfo = make(map[address.Address]*keyInfo)
 	k.addrBuffer = make(map[address.Address]*buffer)
@@ -177,7 +182,8 @@ func (k *keyStore) resetTimeout(info *keyInfo) {
 	})
 }
 
-func (k *keyStore) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte) {
+/*
+func (k *keyStore) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte) { // nolint:unused
 	if len(data) != 1+ed25519.SignatureSize {
 		return
 	}
@@ -198,18 +204,26 @@ func (k *keyStore) oobHandler(fromKey, toKey ed25519.PublicKey, data []byte) {
 		}
 	}
 }
+*/
 
 func (k *keyStore) sendKeyLookup(partial ed25519.PublicKey) {
-	sig := ed25519.Sign(k.core.PrivateKey(), partial[:])
-	bs := append([]byte{typeKeyLookup}, sig...)
-	_ = k.core.SendOutOfBand(partial, bs)
+	/*
+		sig := ed25519.Sign(k.core.PrivateKey(), partial[:])
+		bs := append([]byte{typeKeyLookup}, sig...)
+		//_ = k.core.SendOutOfBand(partial, bs)
+		_ = bs
+	*/
+	k.core.SendLookup(partial)
 }
 
-func (k *keyStore) sendKeyResponse(dest ed25519.PublicKey) {
+/*
+func (k *keyStore) sendKeyResponse(dest ed25519.PublicKey) { // nolint:unused
 	sig := ed25519.Sign(k.core.PrivateKey(), dest[:])
 	bs := append([]byte{typeKeyResponse}, sig...)
-	_ = k.core.SendOutOfBand(dest, bs)
+	//_ = k.core.SendOutOfBand(dest, bs)
+	_ = bs
 }
+*/
 
 func (k *keyStore) readPC(p []byte) (int, error) {
 	buf := make([]byte, k.core.MTU(), 65535)

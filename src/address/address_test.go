@@ -3,13 +3,13 @@ package address
 import (
 	"bytes"
 	"crypto/ed25519"
-	"math/rand"
+	"crypto/rand"
 	"testing"
 )
 
 func TestAddress_Address_IsValid(t *testing.T) {
 	var address Address
-	rand.Read(address[:])
+	_, _ = rand.Read(address[:])
 
 	address[0] = 0
 
@@ -32,7 +32,7 @@ func TestAddress_Address_IsValid(t *testing.T) {
 
 func TestAddress_Subnet_IsValid(t *testing.T) {
 	var subnet Subnet
-	rand.Read(subnet[:])
+	_, _ = rand.Read(subnet[:])
 
 	subnet[0] = 0
 
