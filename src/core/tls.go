@@ -8,7 +8,7 @@ import (
 func (c *Core) generateTLSConfig(cert *tls.Certificate) (*tls.Config, error) {
 	config := &tls.Config{
 		Certificates: []tls.Certificate{*cert},
-		ClientAuth:   tls.RequireAnyClientCert,
+		ClientAuth:   tls.NoClientCert,
 		GetClientCertificate: func(cri *tls.CertificateRequestInfo) (*tls.Certificate, error) {
 			return cert, nil
 		},
