@@ -374,7 +374,7 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
-				continue
+				return
 			}
 			go func(conn net.Conn) {
 				defer conn.Close()
