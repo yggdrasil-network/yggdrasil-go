@@ -70,6 +70,9 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 			}
 			options = append(options, core.AllowedPublicKey(k[:]))
 		}
+		for _, lAddr := range m.config.Listen {
+			options = append(options, core.ListenAddress(lAddr))
+		}
 		var err error
 		m.core, err = core.New(m.config.Certificate, logger, options...)
 		if err != nil {
