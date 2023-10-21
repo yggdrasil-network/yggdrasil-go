@@ -2,12 +2,18 @@ package core
 
 import (
 	"crypto/ed25519"
+	"fmt"
+	"net/url"
 )
 
-func (c *Core) _applyOption(opt SetupOption) {
+func (c *Core) _applyOption(opt SetupOption) (err error) {
 	switch v := opt.(type) {
 	case Peer:
-		c.config._peers[v] = nil
+		u, err := url.Parse(v.URI)
+		if err != nil {
+			return fmt.Errorf("unable to parse peering URI: %w", err)
+		}
+		return c.links.add(u, v.SourceInterface, linkTypePersistent)
 	case ListenAddress:
 		c.config._listeners[v] = struct{}{}
 	case NodeInfo:
@@ -19,6 +25,7 @@ func (c *Core) _applyOption(opt SetupOption) {
 		copy(pk[:], v)
 		c.config._allowedPublicKeys[pk] = struct{}{}
 	}
+	return
 }
 
 type SetupOption interface {

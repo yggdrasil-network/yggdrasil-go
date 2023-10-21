@@ -143,13 +143,13 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	tun.log.Infof("Interface IPv6: %s", addr)
 	tun.log.Infof("Interface MTU: %d", ir.ifru_mtu)
 
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(darwin_SIOCAIFADDR_IN6), uintptr(unsafe.Pointer(&ar))); errno != 0 {
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(darwin_SIOCAIFADDR_IN6), uintptr(unsafe.Pointer(&ar))); errno != 0 { // nolint:staticcheck
 		err = errno
 		tun.log.Errorf("Error in darwin_SIOCAIFADDR_IN6: %v", errno)
 		return err
 	}
 
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(unix.SIOCSIFMTU), uintptr(unsafe.Pointer(&ir))); errno != 0 {
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(unix.SIOCSIFMTU), uintptr(unsafe.Pointer(&ir))); errno != 0 { // nolint:staticcheck
 		err = errno
 		tun.log.Errorf("Error in SIOCSIFMTU: %v", errno)
 		return err

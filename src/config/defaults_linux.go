@@ -1,9 +1,9 @@
-//go:build darwin
-// +build darwin
+//go:build linux
+// +build linux
 
-package defaults
+package config
 
-// Sane defaults for the macOS/Darwin platform. The "default" options may be
+// Sane defaults for the Linux platform. The "default" options may be
 // may be replaced by the running configuration.
 func getDefaults() platformDefaultParameters {
 	return platformDefaultParameters{
@@ -15,8 +15,7 @@ func getDefaults() platformDefaultParameters {
 
 		// Multicast interfaces
 		DefaultMulticastInterfaces: []MulticastInterfaceConfig{
-			{Regex: "en.*", Beacon: true, Listen: true},
-			{Regex: "bridge.*", Beacon: true, Listen: true},
+			{Regex: ".*", Beacon: true, Listen: true},
 		},
 
 		// TUN

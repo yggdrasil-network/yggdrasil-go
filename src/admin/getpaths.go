@@ -20,6 +20,7 @@ type PathEntry struct {
 	IPAddress string   `json:"address"`
 	PublicKey string   `json:"key"`
 	Path      []uint64 `json:"path"`
+	Sequence  uint64   `json:"sequence"`
 }
 
 func (a *AdminSocket) getPathsHandler(req *GetPathsRequest, res *GetPathsResponse) error {
@@ -31,6 +32,7 @@ func (a *AdminSocket) getPathsHandler(req *GetPathsRequest, res *GetPathsRespons
 			IPAddress: net.IP(addr[:]).String(),
 			PublicKey: hex.EncodeToString(p.Key),
 			Path:      p.Path,
+			Sequence:  p.Sequence,
 		})
 	}
 	sort.SliceStable(res.Paths, func(i, j int) bool {
