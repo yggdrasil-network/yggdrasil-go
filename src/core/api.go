@@ -3,7 +3,6 @@ package core
 import (
 	"crypto/ed25519"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/url"
 	"sync/atomic"
@@ -192,28 +191,8 @@ func (c *Core) AddPeer(u *url.URL, sintf string) error {
 
 // RemovePeer removes a peer. The peer should be specified in URI format, see AddPeer.
 // The peer is not disconnected immediately.
-func (c *Core) RemovePeer(uri string, sourceInterface string) error {
-	return fmt.Errorf("not implemented yet")
-	/*
-		var err error
-		phony.Block(c, func() {
-			peer := Peer{uri, sourceInterface}
-			linkInfo, ok := c.config._peers[peer]
-			if !ok {
-				err = fmt.Errorf("peer not configured")
-				return
-			}
-			if ok && linkInfo != nil {
-				c.links.Act(nil, func() {
-					if link := c.links._links[*linkInfo]; link != nil {
-						_ = link.conn.Close()
-					}
-				})
-			}
-			delete(c.config._peers, peer)
-		})
-		return err
-	*/
+func (c *Core) RemovePeer(u *url.URL, sintf string) error {
+	return c.links.remove(u, sintf, linkTypePersistent)
 }
 
 // CallPeer calls a peer once. This should be specified in the peer URI format,
