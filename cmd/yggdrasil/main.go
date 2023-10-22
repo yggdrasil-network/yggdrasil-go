@@ -67,7 +67,7 @@ func main() {
 
 	case "syslog":
 		if syslogger, err := gsyslog.NewLogger(gsyslog.LOG_NOTICE, "DAEMON", version.BuildName()); err == nil {
-			logger = log.New(syslogger, "", log.Flags() &^ (log.Ldate | log.Ltime))
+			logger = log.New(syslogger, "", log.Flags()&^(log.Ldate|log.Ltime))
 		}
 
 	default:
@@ -205,6 +205,10 @@ func main() {
 		if n.core, err = core.New(cfg.Certificate, logger, options...); err != nil {
 			panic(err)
 		}
+		address, subnet := n.core.Address(), n.core.Subnet()
+		logger.Infof("Your public key is %s", hex.EncodeToString(n.core.PublicKey()))
+		logger.Infof("Your IPv6 address is %s", address.String())
+		logger.Infof("Your IPv6 subnet is %s", subnet.String())
 	}
 
 	// Setup the admin socket.

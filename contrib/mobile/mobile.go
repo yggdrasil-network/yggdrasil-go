@@ -78,6 +78,10 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 		if err != nil {
 			panic(err)
 		}
+		address, subnet := m.core.Address(), m.core.Subnet()
+		logger.Infof("Your public key is %s", hex.EncodeToString(m.core.PublicKey()))
+		logger.Infof("Your IPv6 address is %s", address.String())
+		logger.Infof("Your IPv6 subnet is %s", subnet.String())
 	}
 
 	// Setup the multicast module.

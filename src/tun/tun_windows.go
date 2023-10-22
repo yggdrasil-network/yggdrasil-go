@@ -35,9 +35,11 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 			return err
 		}
 		tun.iface = iface
-		if err = tun.setupAddress(addr); err != nil {
-			tun.log.Errorln("Failed to set up TUN address:", err)
-			return err
+		if addr != "" {
+			if err = tun.setupAddress(addr); err != nil {
+				tun.log.Errorln("Failed to set up TUN address:", err)
+				return err
+			}
 		}
 		if err = tun.setupMTU(getSupportedMTU(mtu)); err != nil {
 			tun.log.Errorln("Failed to set up TUN MTU:", err)

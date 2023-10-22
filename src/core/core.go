@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/tls"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
@@ -104,10 +103,6 @@ func New(cert *tls.Certificate, logger Logger, opts ...SetupOption) (*Core, erro
 	); err != nil {
 		return nil, fmt.Errorf("error creating encryption: %w", err)
 	}
-	address, subnet := c.Address(), c.Subnet()
-	c.log.Infof("Your public key is %s", hex.EncodeToString(c.public))
-	c.log.Infof("Your IPv6 address is %s", address.String())
-	c.log.Infof("Your IPv6 subnet is %s", subnet.String())
 	c.proto.init(c)
 	if err := c.links.init(c); err != nil {
 		return nil, fmt.Errorf("error initialising links: %w", err)
@@ -140,7 +135,14 @@ func New(cert *tls.Certificate, logger Logger, opts ...SetupOption) (*Core, erro
 }
 
 func (c *Core) RetryPeersNow() {
-	// TODO: figure out a way to retrigger peer connections.
+	phony.Block(&c.links, func() {
+		for _, l := range c.links._links {
+			select {
+			case l.kick <- struct{}{}:
+			default:
+			}
+		}
+	})
 }
 
 // Stop shuts down the Yggdrasil node.
