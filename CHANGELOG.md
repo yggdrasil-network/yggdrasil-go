@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.5.0] - Release Candidate 3
+
+### Fixed
+
+* Restored `removePeer` admin socket endpoint
+* Fixed the `RetryPeersNow` API call for mobile
+
 ## [0.5.0] - Release Candidate 2
 
 ### Fixed
