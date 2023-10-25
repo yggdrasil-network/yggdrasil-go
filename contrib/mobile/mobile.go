@@ -48,6 +48,7 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 	logger.EnableLevel("error")
 	logger.EnableLevel("warn")
 	logger.EnableLevel("info")
+	m.logger = logger
 	m.config = config.GenerateConfig()
 	if err := m.config.UnmarshalHJSON(configjson); err != nil {
 		return err
@@ -87,6 +88,7 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 	// Setup the multicast module.
 	if len(m.config.MulticastInterfaces) > 0 {
 		var err error
+		logger.Infof("Initializing multicast %s", "")
 		options := []multicast.SetupOption{}
 		for _, intf := range m.config.MulticastInterfaces {
 			options = append(options, multicast.MulticastInterface{
@@ -98,9 +100,10 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 				Password: intf.Password,
 			})
 		}
+		logger.Infof("Starting multicast %s", "")
 		m.multicast, err = multicast.New(m.core, m.logger, options...)
 		if err != nil {
-			m.logger.Errorln("An error occurred starting multicast:", err)
+			logger.Errorln("An error occurred starting multicast:", err)
 		}
 	}
 
@@ -159,15 +162,20 @@ func (m *Yggdrasil) RecvBuffer(buf []byte) (int, error) {
 func (m *Yggdrasil) Stop() error {
 	logger := log.New(m.log, "", 0)
 	logger.EnableLevel("info")
-	logger.Infof("Stop the mobile Yggdrasil instance %s", "")
-	if err := m.multicast.Stop(); err != nil {
-		return err
+	logger.Infof("Stopping the mobile Yggdrasil instance %s", "")
+	if m.multicast != nil {
+	    logger.Infof("Stopping multicast %s", "")
+        if err := m.multicast.Stop(); err != nil {
+            return err
+        }
 	}
+	logger.Infof("Stopping TUN device %s", "")
 	if m.tun != nil {
 		if err := m.tun.Stop(); err != nil {
 			return err
 		}
 	}
+	logger.Infof("Stopping Yggdrasil core %s", "")
 	m.core.Stop()
 	return nil
 }
