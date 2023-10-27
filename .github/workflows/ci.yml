@@ -119,6 +119,32 @@ jobs:
       - name: Unit tests
         run: go test -v ./...
 
+  build-freebsd:
+    strategy:
+      fail-fast: false
+      matrix:
+        goversion: ["1.20", "1.21"]
+        goos:
+          - freebsd
+          - openbsd
+
+    name: Build (Cross ${{ matrix.goos }}, Go ${{ matrix.goversion }})
+    needs: [lint]
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.goversion }}
+
+      - name: Build Yggdrasil
+        run: go build -v ./...
+        env:
+          GOOS: ${{ matrix.goos }}
+
   tests-ok:
     name: All tests passed
     needs: [lint, codeql, build-linux, build-windows, build-macos]

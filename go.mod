@@ -10,7 +10,7 @@ require (
 	github.com/hashicorp/go-syslog v1.0.0
 	github.com/hjson/hjson-go/v4 v4.3.0
 	github.com/kardianos/minwinsvc v1.0.2
-	github.com/quic-go/quic-go v0.39.0
+	github.com/quic-go/quic-go v0.39.3
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/crypto v0.14.0
 	golang.org/x/mobile v0.0.0-20231006135142-2b44d11868fe
