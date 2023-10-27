@@ -1,13 +1,13 @@
 [Unit]
-Description=yggdrasil default config generator
-ConditionPathExists=|!/etc/yggdrasil.conf
-ConditionFileNotEmpty=|!/etc/yggdrasil.conf
+Description=Yggdrasil default config generator
+ConditionPathExists=|!/etc/yggdrasil/yggdrasil.conf
+ConditionFileNotEmpty=|!/etc/yggdrasil/yggdrasil.conf
 Wants=local-fs.target
 After=local-fs.target
 
 [Service]
 Type=oneshot
 Group=yggdrasil
-StandardOutput=file:/etc/yggdrasil.conf
-ExecStart=/usr/bin/yggdrasil -genconf
-ExecStartPost=/usr/bin/chmod 0640 /etc/yggdrasil.conf
+ExecStartPre=/usr/bin/mkdir -p /etc/yggdrasil
+ExecStart=/usr/bin/yggdrasil -genconf > /etc/yggdrasil/yggdrasil.conf
+ExecStartPost=/usr/bin/chmod -R 0640 /etc/yggdrasil
