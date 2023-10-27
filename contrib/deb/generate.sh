@@ -21,8 +21,8 @@ if [ $PKGBRANCH = "master" ]; then
   PKGREPLACES=yggdrasil-develop
 fi
 
-LDFLAGS="-X github.com/yggdrasil-network/yggdrasil-go/src/config.defaultConfig=/etc/yggdrasil/yggdrasil.conf"
-LDFLAGS="${LDFLAGS} -X github.com/yggdrasil-network/yggdrasil-go/src/config.defaultAdminListen=unix://var/run/yggdrasil/yggdrasil.sock"
+export LDFLAGS="-X github.com/yggdrasil-network/yggdrasil-go/src/config.defaultConfig=/etc/yggdrasil/yggdrasil.conf"
+export LDFLAGS="${LDFLAGS} -X github.com/yggdrasil-network/yggdrasil-go/src/config.defaultAdminListen=unix://var/run/yggdrasil/yggdrasil.sock"
 
 if [ $PKGARCH = "amd64" ]; then GOARCH=amd64 GOOS=linux ./build
 elif [ $PKGARCH = "i386" ]; then GOARCH=386 GOOS=linux ./build

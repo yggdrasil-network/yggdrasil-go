@@ -113,6 +113,7 @@ func main() {
 		_ = f.Close()
 
 	case *genconf:
+		cfg.AdminListen = ""
 		var bs []byte
 		if *confjson {
 			bs, err = json.MarshalIndent(cfg, "", "  ")
