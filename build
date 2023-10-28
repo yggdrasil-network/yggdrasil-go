@@ -6,7 +6,7 @@ PKGSRC=${PKGSRC:-github.com/yggdrasil-network/yggdrasil-go/src/version}
 PKGNAME=${PKGNAME:-$(sh contrib/semver/name.sh)}
 PKGVER=${PKGVER:-$(sh contrib/semver/version.sh --bare)}
 
-LDFLAGS="${LDFLAGS} -X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
+LDFLAGS="-X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
 ARGS="-v"
 
 while getopts "utc:l:dro:p" option

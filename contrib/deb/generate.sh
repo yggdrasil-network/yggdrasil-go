@@ -21,16 +21,16 @@ if [ $PKGBRANCH = "master" ]; then
   PKGREPLACES=yggdrasil-develop
 fi
 
-export LDFLAGS="-X github.com/yggdrasil-network/yggdrasil-go/src/config.defaultConfig=/etc/yggdrasil/yggdrasil.conf"
-export LDFLAGS="${LDFLAGS} -X github.com/yggdrasil-network/yggdrasil-go/src/config.defaultAdminListen=unix:///var/run/yggdrasil/yggdrasil.sock"
+GOLDFLAGS="-X github.com/yggdrasil-network/yggdrasil-go/src/config.defaultConfig=/etc/yggdrasil/yggdrasil.conf"
+GOLDFLAGS="${GOLDFLAGS} -X github.com/yggdrasil-network/yggdrasil-go/src/config.defaultAdminListen=unix:///var/run/yggdrasil/yggdrasil.sock"
 
-if [ $PKGARCH = "amd64" ]; then GOARCH=amd64 GOOS=linux ./build
-elif [ $PKGARCH = "i386" ]; then GOARCH=386 GOOS=linux ./build
-elif [ $PKGARCH = "mipsel" ]; then GOARCH=mipsle GOOS=linux ./build
-elif [ $PKGARCH = "mips" ]; then GOARCH=mips64 GOOS=linux ./build
-elif [ $PKGARCH = "armhf" ]; then GOARCH=arm GOOS=linux GOARM=6 ./build
-elif [ $PKGARCH = "arm64" ]; then GOARCH=arm64 GOOS=linux ./build
-elif [ $PKGARCH = "armel" ]; then GOARCH=arm GOOS=linux GOARM=5 ./build
+if [ $PKGARCH = "amd64" ]; then GOARCH=amd64 GOOS=linux ./build -l "${GOLDFLAGS}"
+elif [ $PKGARCH = "i386" ]; then GOARCH=386 GOOS=linux ./build -l "${GOLDFLAGS}"
+elif [ $PKGARCH = "mipsel" ]; then GOARCH=mipsle GOOS=linux ./build -l "${GOLDFLAGS}"
+elif [ $PKGARCH = "mips" ]; then GOARCH=mips64 GOOS=linux ./build -l "${GOLDFLAGS}"
+elif [ $PKGARCH = "armhf" ]; then GOARCH=arm GOOS=linux GOARM=6 ./build -l "${GOLDFLAGS}"
+elif [ $PKGARCH = "arm64" ]; then GOARCH=arm64 GOOS=linux ./build -l "${GOLDFLAGS}"
+elif [ $PKGARCH = "armel" ]; then GOARCH=arm GOOS=linux GOARM=5 ./build -l "${GOLDFLAGS}"
 else
   echo "Specify PKGARCH=amd64,i386,mips,mipsel,armhf,arm64,armel"
   exit 1
