@@ -130,7 +130,8 @@ EOF
 
 cp yggdrasil /tmp/$PKGNAME/usr/bin/
 cp yggdrasilctl /tmp/$PKGNAME/usr/bin/
-cp contrib/systemd/*.service /tmp/$PKGNAME/usr/lib/systemd/system/
+cp contrib/systemd/yggdrasil-default-config.service.debian /tmp/$PKGNAME/usr/lib/systemd/system/yggdrasil-default-config.service
+cp contrib/systemd/yggdrasil.service.debian /tmp/$PKGNAME/usr/lib/systemd/system/yggdrasil.service
 
 tar --no-xattrs -czvf /tmp/$PKGNAME/data.tar.gz -C /tmp/$PKGNAME/ \
   usr/bin/yggdrasil usr/bin/yggdrasilctl \
