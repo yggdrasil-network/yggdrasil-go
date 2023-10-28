@@ -13,7 +13,15 @@ func (c *Core) _applyOption(opt SetupOption) (err error) {
 		if err != nil {
 			return fmt.Errorf("unable to parse peering URI: %w", err)
 		}
-		return c.links.add(u, v.SourceInterface, linkTypePersistent)
+		err = c.links.add(u, v.SourceInterface, linkTypePersistent)
+		switch err {
+		case ErrLinkAlreadyConfigured:
+			// Don't return this error, otherwise we'll panic at startup
+			// if there are multiple of the same peer configured
+			return nil
+		default:
+			return err
+		}
 	case ListenAddress:
 		c.config._listeners[v] = struct{}{}
 	case NodeInfo:
