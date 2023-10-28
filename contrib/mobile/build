@@ -37,7 +37,7 @@ if [ $IOS ]; then
   echo "Building framework for iOS"
   go get golang.org/x/mobile/bind
   gomobile bind \
-    -target ios -tags mobile -o Yggdrasil.xcframework \
+    -target ios,macos -tags mobile -o Yggdrasil.xcframework \
     -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
     ./contrib/mobile ./src/config;
 fi

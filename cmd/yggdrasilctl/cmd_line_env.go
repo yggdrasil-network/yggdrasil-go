@@ -7,10 +7,10 @@ import (
 	"log"
 	"os"
 
-	"github.com/hjson/hjson-go"
+	"github.com/hjson/hjson-go/v4"
 	"golang.org/x/text/encoding/unicode"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 )
 
 type CmdLineEnv struct {
@@ -21,7 +21,7 @@ type CmdLineEnv struct {
 
 func newCmdLineEnv() CmdLineEnv {
 	var cmdLineEnv CmdLineEnv
-	cmdLineEnv.endpoint = defaults.GetDefaults().DefaultAdminListen
+	cmdLineEnv.endpoint = config.GetDefaults().DefaultAdminListen
 	return cmdLineEnv
 }
 
@@ -38,10 +38,9 @@ func (cmdLineEnv *CmdLineEnv) parseFlagsAndArgs() {
 		fmt.Println("Examples:")
 		fmt.Println("  - ", os.Args[0], "list")
 		fmt.Println("  - ", os.Args[0], "getPeers")
-		fmt.Println("  - ", os.Args[0], "-v getSelf")
 		fmt.Println("  - ", os.Args[0], "setTunTap name=auto mtu=1500 tap_mode=false")
-		fmt.Println("  - ", os.Args[0], "-endpoint=tcp://localhost:9001 getDHT")
-		fmt.Println("  - ", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getDHT")
+		fmt.Println("  - ", os.Args[0], "-endpoint=tcp://localhost:9001 getPeers")
+		fmt.Println("  - ", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getPeers")
 	}
 
 	server := flag.String("endpoint", cmdLineEnv.endpoint, "Admin socket endpoint")
@@ -58,31 +57,31 @@ func (cmdLineEnv *CmdLineEnv) parseFlagsAndArgs() {
 
 func (cmdLineEnv *CmdLineEnv) setEndpoint(logger *log.Logger) {
 	if cmdLineEnv.server == cmdLineEnv.endpoint {
-		if config, err := os.ReadFile(defaults.GetDefaults().DefaultConfigFile); err == nil {
-			if bytes.Equal(config[0:2], []byte{0xFF, 0xFE}) ||
-				bytes.Equal(config[0:2], []byte{0xFE, 0xFF}) {
+		if cfg, err := os.ReadFile(config.GetDefaults().DefaultConfigFile); err == nil {
+			if bytes.Equal(cfg[0:2], []byte{0xFF, 0xFE}) ||
+				bytes.Equal(cfg[0:2], []byte{0xFE, 0xFF}) {
 				utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
 				decoder := utf.NewDecoder()
-				config, err = decoder.Bytes(config)
+				cfg, err = decoder.Bytes(cfg)
 				if err != nil {
 					panic(err)
 				}
 			}
 			var dat map[string]interface{}
-			if err := hjson.Unmarshal(config, &dat); err != nil {
+			if err := hjson.Unmarshal(cfg, &dat); err != nil {
 				panic(err)
 			}
 			if ep, ok := dat["AdminListen"].(string); ok && (ep != "none" && ep != "") {
 				cmdLineEnv.endpoint = ep
-				logger.Println("Found platform default config file", defaults.GetDefaults().DefaultConfigFile)
+				logger.Println("Found platform default config file", config.GetDefaults().DefaultConfigFile)
 				logger.Println("Using endpoint", cmdLineEnv.endpoint, "from AdminListen")
 			} else {
 				logger.Println("Configuration file doesn't contain appropriate AdminListen option")
-				logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
+				logger.Println("Falling back to platform default", config.GetDefaults().DefaultAdminListen)
 			}
 		} else {
-			logger.Println("Can't open config file from default location", defaults.GetDefaults().DefaultConfigFile)
-			logger.Println("Falling back to platform default", defaults.GetDefaults().DefaultAdminListen)
+			logger.Println("Can't open config file from default location", config.GetDefaults().DefaultConfigFile)
+			logger.Println("Falling back to platform default", config.GetDefaults().DefaultAdminListen)
 		}
 	} else {
 		cmdLineEnv.endpoint = cmdLineEnv.server

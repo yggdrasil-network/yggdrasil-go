@@ -1,5 +1,5 @@
-//go:build !mobile
-// +build !mobile
+//go:build darwin || ios
+// +build darwin ios
 
 package tun
 
@@ -7,6 +7,7 @@ package tun
 
 import (
 	"encoding/binary"
+	"os"
 	"strconv"
 	"strings"
 	"unsafe"
@@ -31,7 +32,35 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 	} else {
 		tun.mtu = 0
 	}
-	return tun.setupAddress(addr)
+	if addr != "" {
+		return tun.setupAddress(addr)
+	}
+	return nil
+}
+
+// Configures the "utun" adapter from an existing file descriptor.
+func (tun *TunAdapter) setupFD(fd int32, addr string, mtu uint64) error {
+	dfd, err := unix.Dup(int(fd))
+	if err != nil {
+		return err
+	}
+	err = unix.SetNonblock(dfd, true)
+	if err != nil {
+		unix.Close(dfd)
+		return err
+	}
+	iface, err := wgtun.CreateTUNFromFile(os.NewFile(uintptr(dfd), "/dev/tun"), 0)
+	if err != nil {
+		unix.Close(dfd)
+		return err
+	}
+	tun.iface = iface
+	if m, err := iface.MTU(); err == nil {
+		tun.mtu = getSupportedMTU(uint64(m))
+	} else {
+		tun.mtu = 0
+	}
+	return nil // tun.setupAddress(addr)
 }
 
 const (
@@ -117,13 +146,13 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	tun.log.Infof("Interface IPv6: %s", addr)
 	tun.log.Infof("Interface MTU: %d", ir.ifru_mtu)
 
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(darwin_SIOCAIFADDR_IN6), uintptr(unsafe.Pointer(&ar))); errno != 0 {
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(darwin_SIOCAIFADDR_IN6), uintptr(unsafe.Pointer(&ar))); errno != 0 { // nolint:staticcheck
 		err = errno
 		tun.log.Errorf("Error in darwin_SIOCAIFADDR_IN6: %v", errno)
 		return err
 	}
 
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(unix.SIOCSIFMTU), uintptr(unsafe.Pointer(&ir))); errno != 0 {
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(unix.SIOCSIFMTU), uintptr(unsafe.Pointer(&ir))); errno != 0 { // nolint:staticcheck
 		err = errno
 		tun.log.Errorf("Error in SIOCSIFMTU: %v", errno)
 		return err

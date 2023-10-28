@@ -1,5 +1,5 @@
-//go:build !linux && !darwin && !windows && !openbsd && !freebsd && !mobile
-// +build !linux,!darwin,!windows,!openbsd,!freebsd,!mobile
+//go:build !linux && !darwin && !ios && !android && !windows && !openbsd && !freebsd && !mobile
+// +build !linux,!darwin,!ios,!android,!windows,!openbsd,!freebsd,!mobile
 
 package tun
 
@@ -7,6 +7,8 @@ package tun
 // If your platform supports tun devices, you could try configuring it manually
 
 import (
+	"fmt"
+
 	wgtun "golang.zx2c4.com/wireguard/tun"
 )
 
@@ -22,7 +24,15 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 	} else {
 		tun.mtu = 0
 	}
-	return tun.setupAddress(addr)
+	if addr != "" {
+		return tun.setupAddress(addr)
+	}
+	return nil
+}
+
+// Configures the "utun" adapter from an existing file descriptor.
+func (tun *TunAdapter) setupFD(fd int32, addr string, mtu uint64) error {
+	return fmt.Errorf("setup via FD not supported on this platform")
 }
 
 // We don't know how to set the IPv6 address on an unknown platform, therefore

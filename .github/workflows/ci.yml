@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/setup-go@v3
         with:
-          go-version: 1.19
+          go-version: 1.21
       - uses: actions/checkout@v3
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
@@ -51,7 +51,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        goversion: ["1.17", "1.18", "1.19"]
+        goversion: ["1.20", "1.21"]
 
     name: Build & Test (Linux, Go ${{ matrix.goversion }})
     needs: [lint]
@@ -75,7 +75,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        goversion: ["1.17", "1.18", "1.19"]
+        goversion: ["1.20", "1.21"]
 
     name: Build & Test (Windows, Go ${{ matrix.goversion }})
     needs: [lint]
@@ -99,7 +99,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        goversion: ["1.17", "1.18", "1.19"]
+        goversion: ["1.20", "1.21"]
 
     name: Build & Test (macOS, Go ${{ matrix.goversion }})
     needs: [lint]
@@ -118,6 +118,32 @@ jobs:
 
       - name: Unit tests
         run: go test -v ./...
+
+  build-freebsd:
+    strategy:
+      fail-fast: false
+      matrix:
+        goversion: ["1.20", "1.21"]
+        goos:
+          - freebsd
+          - openbsd
+
+    name: Build (Cross ${{ matrix.goos }}, Go ${{ matrix.goversion }})
+    needs: [lint]
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.goversion }}
+
+      - name: Build Yggdrasil
+        run: go build -v ./...
+        env:
+          GOOS: ${{ matrix.goos }}
 
   tests-ok:
     name: All tests passed

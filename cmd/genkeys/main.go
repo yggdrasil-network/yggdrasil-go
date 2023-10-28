@@ -1,5 +1,4 @@
 /*
-
 This file generates crypto keys.
 It prints out a new set of keys each time if finds a "better" one.
 By default, "better" means a higher NodeID (-> higher IP address).
@@ -8,7 +7,6 @@ This is because the IP address format can compress leading 1s in the address, to
 If run with the "-sig" flag, it generates signing keys instead.
 A "better" signing key means one with a higher TreeID.
 This only matters if it's high enough to make you the root of the tree.
-
 */
 package main
 
@@ -18,6 +16,7 @@ import (
 	"fmt"
 	"net"
 	"runtime"
+	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 )
@@ -29,6 +28,8 @@ type keySet struct {
 
 func main() {
 	threads := runtime.GOMAXPROCS(0)
+	fmt.Println("Threads:", threads)
+	start := time.Now()
 	var currentBest ed25519.PublicKey
 	newKeys := make(chan keySet, threads)
 	for i := 0; i < threads; i++ {
@@ -38,7 +39,7 @@ func main() {
 		newKey := <-newKeys
 		if isBetter(currentBest, newKey.pub) || len(currentBest) == 0 {
 			currentBest = newKey.pub
-			fmt.Println("-----")
+			fmt.Println("-----", time.Since(start))
 			fmt.Println("Priv:", hex.EncodeToString(newKey.priv))
 			fmt.Println("Pub:", hex.EncodeToString(newKey.pub))
 			addr := address.AddrForKey(newKey.pub)

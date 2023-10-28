@@ -1,9 +1,9 @@
-//go:build linux
-// +build linux
+//go:build openbsd
+// +build openbsd
 
-package defaults
+package config
 
-// Sane defaults for the Linux platform. The "default" options may be
+// Sane defaults for the BSD platforms. The "default" options may be
 // may be replaced by the running configuration.
 func getDefaults() platformDefaultParameters {
 	return platformDefaultParameters{
@@ -19,8 +19,8 @@ func getDefaults() platformDefaultParameters {
 		},
 
 		// TUN
-		MaximumIfMTU:  65535,
-		DefaultIfMTU:  65535,
-		DefaultIfName: "auto",
+		MaximumIfMTU:  16384,
+		DefaultIfMTU:  16384,
+		DefaultIfName: "tun0",
 	}
 }

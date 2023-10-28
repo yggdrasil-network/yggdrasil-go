@@ -1,11 +1,13 @@
-//go:build !mobile
-// +build !mobile
+//go:build linux || android
+// +build linux android
 
 package tun
 
 // The linux platform specific tun parts
 
 import (
+	"fmt"
+
 	"github.com/vishvananda/netlink"
 	wgtun "golang.zx2c4.com/wireguard/tun"
 )
@@ -25,7 +27,15 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 	} else {
 		tun.mtu = 0
 	}
-	return tun.setupAddress(addr)
+	if addr != "" {
+		return tun.setupAddress(addr)
+	}
+	return nil
+}
+
+// Configures the "utun" adapter from an existing file descriptor.
+func (tun *TunAdapter) setupFD(fd int32, addr string, mtu uint64) error {
+	return fmt.Errorf("setup via FD not supported on this platform")
 }
 
 // Configures the TUN adapter with the correct IPv6 address and MTU. Netlink

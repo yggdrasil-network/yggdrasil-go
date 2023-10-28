@@ -5,6 +5,7 @@ package tun
 
 import (
 	"encoding/binary"
+	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -85,7 +86,15 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 	} else {
 		tun.mtu = 0
 	}
-	return tun.setupAddress(addr)
+	if addr != "" {
+		return tun.setupAddress(addr)
+	}
+	return nil
+}
+
+// Configures the "utun" adapter from an existing file descriptor.
+func (tun *TunAdapter) setupFD(fd int32, addr string, mtu uint64) error {
+	return fmt.Errorf("setup via FD not supported on this platform")
 }
 
 func (tun *TunAdapter) setupAddress(addr string) error {

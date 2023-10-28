@@ -8,42 +8,50 @@ package tun
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net"
 
 	"github.com/Arceliar/phony"
 	"golang.zx2c4.com/wireguard/tun"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
-	"github.com/yggdrasil-network/yggdrasil-go/src/defaults"
-	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 )
 
 type MTU uint16
+
+type ReadWriteCloser interface {
+	io.ReadWriteCloser
+	Address() address.Address
+	Subnet() address.Subnet
+	MaxMTU() uint64
+	SetMTU(uint64)
+}
 
 // TunAdapter represents a running TUN interface and extends the
 // yggdrasil.Adapter type. In order to use the TUN adapter with Yggdrasil, you
 // should pass this object to the yggdrasil.SetRouterAdapter() function before
 // calling yggdrasil.Start().
 type TunAdapter struct {
-	rwc         *ipv6rwc.ReadWriteCloser
+	rwc         ReadWriteCloser
 	log         core.Logger
 	addr        address.Address
 	subnet      address.Subnet
 	mtu         uint64
 	iface       tun.Device
 	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
-	//mutex        sync.RWMutex // Protects the below
-	isOpen    bool
-	isEnabled bool // Used by the writer to drop sessionTraffic if not enabled
-	config    struct {
+	isOpen      bool
+	isEnabled   bool // Used by the writer to drop sessionTraffic if not enabled
+	config      struct {
+		fd   int32
 		name InterfaceName
 		mtu  InterfaceMTU
 	}
 }
 
 // Gets the maximum supported MTU for the platform based on the defaults in
-// defaults.GetDefaults().
+// config.GetDefaults().
 func getSupportedMTU(mtu uint64) uint64 {
 	if mtu < 1280 {
 		return 1280
@@ -72,25 +80,25 @@ func (tun *TunAdapter) MTU() uint64 {
 
 // DefaultName gets the default TUN interface name for your platform.
 func DefaultName() string {
-	return defaults.GetDefaults().DefaultIfName
+	return config.GetDefaults().DefaultIfName
 }
 
 // DefaultMTU gets the default TUN interface MTU for your platform. This can
 // be as high as MaximumMTU(), depending on platform, but is never lower than 1280.
 func DefaultMTU() uint64 {
-	return defaults.GetDefaults().DefaultIfMTU
+	return config.GetDefaults().DefaultIfMTU
 }
 
 // MaximumMTU returns the maximum supported TUN interface MTU for your
 // platform. This can be as high as 65535, depending on platform, but is never
 // lower than 1280.
 func MaximumMTU() uint64 {
-	return defaults.GetDefaults().MaximumIfMTU
+	return config.GetDefaults().MaximumIfMTU
 }
 
 // Init initialises the TUN module. You must have acquired a Listener from
 // the Yggdrasil core before this point and it must not be in use elsewhere.
-func New(rwc *ipv6rwc.ReadWriteCloser, log core.Logger, opts ...SetupOption) (*TunAdapter, error) {
+func New(rwc ReadWriteCloser, log core.Logger, opts ...SetupOption) (*TunAdapter, error) {
 	tun := &TunAdapter{
 		rwc: rwc,
 		log: log,
@@ -107,7 +115,11 @@ func (tun *TunAdapter) _start() error {
 	}
 	tun.addr = tun.rwc.Address()
 	tun.subnet = tun.rwc.Subnet()
-	addr := fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(address.GetPrefix())-1)
+	prefix := address.GetPrefix()
+	var addr string
+	if tun.addr.IsValid() {
+		addr = fmt.Sprintf("%s/%d", net.IP(tun.addr[:]).String(), 8*len(prefix[:])-1)
+	}
 	if tun.config.name == "none" || tun.config.name == "dummy" {
 		tun.log.Debugln("Not starting TUN as ifname is none or dummy")
 		tun.isEnabled = false
@@ -118,7 +130,13 @@ func (tun *TunAdapter) _start() error {
 	if tun.rwc.MaxMTU() < mtu {
 		mtu = tun.rwc.MaxMTU()
 	}
-	if err := tun.setup(string(tun.config.name), addr, mtu); err != nil {
+	var err error
+	if tun.config.fd > 0 {
+		err = tun.setupFD(tun.config.fd, addr, mtu)
+	} else {
+		err = tun.setup(string(tun.config.name), addr, mtu)
+	}
+	if err != nil {
 		return err
 	}
 	if tun.MTU() != mtu {
