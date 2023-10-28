@@ -216,6 +216,9 @@ func main() {
 		options := []admin.SetupOption{
 			admin.ListenAddress(cfg.AdminListen),
 		}
+		if cfg.LogLookups {
+			options = append(options, admin.LogLookups{})
+		}
 		if n.admin, err = admin.New(n.core, logger, options...); err != nil {
 			panic(err)
 		}

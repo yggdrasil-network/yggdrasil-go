@@ -164,10 +164,10 @@ func (m *Yggdrasil) Stop() error {
 	logger.EnableLevel("info")
 	logger.Infof("Stopping the mobile Yggdrasil instance %s", "")
 	if m.multicast != nil {
-	    logger.Infof("Stopping multicast %s", "")
-        if err := m.multicast.Stop(); err != nil {
-            return err
-        }
+		logger.Infof("Stopping multicast %s", "")
+		if err := m.multicast.Stop(); err != nil {
+			return err
+		}
 	}
 	logger.Infof("Stopping TUN device %s", "")
 	if m.tun != nil {
