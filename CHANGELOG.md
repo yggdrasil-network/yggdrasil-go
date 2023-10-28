@@ -26,22 +26,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
-## [0.5.0] - Release Candidate 3
-
-### Fixed
-
-* Restored `removePeer` admin socket endpoint
-* Fixed the `RetryPeersNow` API call for mobile
-
-## [0.5.0] - Release Candidate 2
-
-### Fixed
-
-* A bug which could result in high CPU usage after a network interface change has been fixed
-* TLS listeners no longer require a TLS client certificate, as it is not necessary
-* A panic in the mobile wrapper has been fixed when getting peers JSON
-
-## [0.5.0] - Release Candidate 1
+## [0.5.0] - 2023-10-28
 
 ### Added
 
