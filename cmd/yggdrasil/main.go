@@ -156,6 +156,7 @@ func main() {
 		return
 
 	case *normaliseconf:
+		cfg.AdminListen = ""
 		var bs []byte
 		if *confjson {
 			bs, err = json.MarshalIndent(cfg, "", "  ")
