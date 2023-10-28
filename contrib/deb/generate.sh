@@ -41,7 +41,7 @@ echo "Building $PKGFILE"
 mkdir -p /tmp/$PKGNAME/
 mkdir -p /tmp/$PKGNAME/debian/
 mkdir -p /tmp/$PKGNAME/usr/bin/
-mkdir -p /tmp/$PKGNAME/usr/lib/systemd/system/
+mkdir -p /tmp/$PKGNAME/lib/systemd/system/
 
 cat > /tmp/$PKGNAME/debian/changelog << EOF
 Please see https://github.com/yggdrasil-network/yggdrasil-go/
@@ -71,7 +71,7 @@ EOF
 cat > /tmp/$PKGNAME/debian/install << EOF
 usr/bin/yggdrasil usr/bin
 usr/bin/yggdrasilctl usr/bin
-usr/lib/systemd/system/*.service usr/lib/systemd/system
+lib/systemd/system/*.service lib/systemd/system
 EOF
 cat > /tmp/$PKGNAME/debian/postinst << EOF
 #!/bin/sh
@@ -130,13 +130,13 @@ EOF
 
 cp yggdrasil /tmp/$PKGNAME/usr/bin/
 cp yggdrasilctl /tmp/$PKGNAME/usr/bin/
-cp contrib/systemd/yggdrasil-default-config.service.debian /tmp/$PKGNAME/usr/lib/systemd/system/yggdrasil-default-config.service
-cp contrib/systemd/yggdrasil.service.debian /tmp/$PKGNAME/usr/lib/systemd/system/yggdrasil.service
+cp contrib/systemd/yggdrasil-default-config.service.debian /tmp/$PKGNAME/lib/systemd/system/yggdrasil-default-config.service
+cp contrib/systemd/yggdrasil.service.debian /tmp/$PKGNAME/lib/systemd/system/yggdrasil.service
 
 tar --no-xattrs -czvf /tmp/$PKGNAME/data.tar.gz -C /tmp/$PKGNAME/ \
   usr/bin/yggdrasil usr/bin/yggdrasilctl \
-  usr/lib/systemd/system/yggdrasil.service \
-  usr/lib/systemd/system/yggdrasil-default-config.service
+  lib/systemd/system/yggdrasil.service \
+  lib/systemd/system/yggdrasil-default-config.service
 tar --no-xattrs -czvf /tmp/$PKGNAME/control.tar.gz -C /tmp/$PKGNAME/debian .
 echo 2.0 > /tmp/$PKGNAME/debian-binary
 
