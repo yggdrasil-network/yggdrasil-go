@@ -21,6 +21,9 @@ if [ $PKGBRANCH = "master" ]; then
   PKGREPLACES=yggdrasil-develop
 fi
 
+export LDFLAGS="-X github.com/yggdrasil-network/yggdrasil-go/src/config.defaultConfig=/etc/yggdrasil/yggdrasil.conf"
+export LDFLAGS="${LDFLAGS} -X github.com/yggdrasil-network/yggdrasil-go/src/config.defaultAdminListen=unix://var/run/yggdrasil/yggdrasil.sock"
+
 if [ $PKGARCH = "amd64" ]; then GOARCH=amd64 GOOS=linux ./build
 elif [ $PKGARCH = "i386" ]; then GOARCH=386 GOOS=linux ./build
 elif [ $PKGARCH = "mipsel" ]; then GOARCH=mipsle GOOS=linux ./build
@@ -38,7 +41,7 @@ echo "Building $PKGFILE"
 mkdir -p /tmp/$PKGNAME/
 mkdir -p /tmp/$PKGNAME/debian/
 mkdir -p /tmp/$PKGNAME/usr/bin/
-mkdir -p /tmp/$PKGNAME/etc/systemd/system/
+mkdir -p /tmp/$PKGNAME/usr/lib/systemd/system/
 
 cat > /tmp/$PKGNAME/debian/changelog << EOF
 Please see https://github.com/yggdrasil-network/yggdrasil-go/
@@ -68,35 +71,52 @@ EOF
 cat > /tmp/$PKGNAME/debian/install << EOF
 usr/bin/yggdrasil usr/bin
 usr/bin/yggdrasilctl usr/bin
-etc/systemd/system/*.service etc/systemd/system
+usr/lib/systemd/system/*.service usr/lib/systemd/system
 EOF
 cat > /tmp/$PKGNAME/debian/postinst << EOF
 #!/bin/sh
 
+systemctl daemon-reload
+
 if ! getent group yggdrasil 2>&1 > /dev/null; then
-  groupadd --system --force yggdrasil || echo "Failed to create group 'yggdrasil' - please create it manually and reinstall"
+  groupadd --system --force yggdrasil
 fi
 
-if [ -f /etc/yggdrasil.conf ];
+if [ ! -d /etc/yggdrasil ];
+then
+    mkdir -p /etc/yggdrasil
+    chown root:yggdrasil /etc/yggdrasil
+    chmod 750 /etc/yggdrasil
+fi
+
+if [ ! -f /etc/yggdrasil/yggdrasil.conf ];
+then
+    test -f /etc/yggdrasil.conf && mv /etc/yggdrasil.conf /etc/yggdrasil/yggdrasil.conf
+fi
+
+if [ -f /etc/yggdrasil/yggdrasil.conf ];
 then
   mkdir -p /var/backups
   echo "Backing up configuration file to /var/backups/yggdrasil.conf.`date +%Y%m%d`"
-  cp /etc/yggdrasil.conf /var/backups/yggdrasil.conf.`date +%Y%m%d`
-  echo "Normalising and updating /etc/yggdrasil.conf"
-  /usr/bin/yggdrasil -useconf -normaliseconf < /var/backups/yggdrasil.conf.`date +%Y%m%d` > /etc/yggdrasil.conf
-  chgrp yggdrasil /etc/yggdrasil.conf
+  cp /etc/yggdrasil/yggdrasil.conf /var/backups/yggdrasil.conf.`date +%Y%m%d`
 
-  if command -v systemctl >/dev/null; then
-    systemctl daemon-reload >/dev/null || true
-    systemctl enable yggdrasil || true
-    systemctl start yggdrasil || true
-  fi
+  echo "Normalising and updating /etc/yggdrasil/yggdrasil.conf"
+  /usr/bin/yggdrasil -useconf -normaliseconf < /var/backups/yggdrasil.conf.`date +%Y%m%d` > /etc/yggdrasil/yggdrasil.conf
+  
+  chown root:yggdrasil /etc/yggdrasil/yggdrasil.conf
+  chmod 640 /etc/yggdrasil/yggdrasil.conf
 else
-  echo "Generating initial configuration file /etc/yggdrasil.conf"
-  echo "Please familiarise yourself with this file before starting Yggdrasil"
-  sh -c 'umask 0027 && /usr/bin/yggdrasil -genconf > /etc/yggdrasil.conf'
-  chgrp yggdrasil /etc/yggdrasil.conf
+  echo "Generating initial configuration file /etc/yggdrasil/yggdrasil.conf"
+  /usr/bin/yggdrasil -genconf > /etc/yggdrasil/yggdrasil.conf
+
+  chown root:yggdrasil /etc/yggdrasil/yggdrasil.conf
+  chmod 640 /etc/yggdrasil/yggdrasil.conf
 fi
+
+systemctl enable yggdrasil
+systemctl restart yggdrasil
+
+exit 0
 EOF
 cat > /tmp/$PKGNAME/debian/prerm << EOF
 #!/bin/sh
@@ -110,13 +130,14 @@ EOF
 
 cp yggdrasil /tmp/$PKGNAME/usr/bin/
 cp yggdrasilctl /tmp/$PKGNAME/usr/bin/
-cp contrib/systemd/*.service /tmp/$PKGNAME/etc/systemd/system/
+cp contrib/systemd/yggdrasil-default-config.service.debian /tmp/$PKGNAME/usr/lib/systemd/system/yggdrasil-default-config.service
+cp contrib/systemd/yggdrasil.service.debian /tmp/$PKGNAME/usr/lib/systemd/system/yggdrasil.service
 
-tar -czvf /tmp/$PKGNAME/data.tar.gz -C /tmp/$PKGNAME/ \
+tar --no-xattrs -czvf /tmp/$PKGNAME/data.tar.gz -C /tmp/$PKGNAME/ \
   usr/bin/yggdrasil usr/bin/yggdrasilctl \
-  etc/systemd/system/yggdrasil.service \
-  etc/systemd/system/yggdrasil-default-config.service
-tar -czvf /tmp/$PKGNAME/control.tar.gz -C /tmp/$PKGNAME/debian .
+  usr/lib/systemd/system/yggdrasil.service \
+  usr/lib/systemd/system/yggdrasil-default-config.service
+tar --no-xattrs -czvf /tmp/$PKGNAME/control.tar.gz -C /tmp/$PKGNAME/debian .
 echo 2.0 > /tmp/$PKGNAME/debian-binary
 
 ar -r $PKGFILE \
