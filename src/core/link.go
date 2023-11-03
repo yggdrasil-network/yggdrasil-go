@@ -179,6 +179,22 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 			}
 			options.password = []byte(p)
 		}
+		// SNI headers must contain hostnames and not IP addresses, so we must make sure
+		// that we do not populate the SNI with an IP literal. We do this by splitting
+		// the host-port combo from the query option and then seeing if it parses to an
+		// IP address successfully or not.
+		if sni := u.Query().Get("sni"); sni != "" {
+			if net.ParseIP(sni) == nil {
+				options.tlsSNI = sni
+			}
+		}
+		// If the SNI is not configured still because the above failed then we'll try
+		// again but this time we'll use the host part of the peering URI instead.
+		if options.tlsSNI == "" {
+			if host, _, err := net.SplitHostPort(u.Host); err == nil && net.ParseIP(host) == nil {
+				options.tlsSNI = host
+			}
+		}
 
 		// If we think we're already connected to this peer, load up
 		// the existing peer state. Try to kick the peer if possible,
@@ -497,24 +513,8 @@ func (l *links) connect(ctx context.Context, u *url.URL, info linkInfo, options 
 	case "tcp":
 		dialer = l.tcp
 	case "tls":
-		// SNI headers must contain hostnames and not IP addresses, so we must make sure
-		// that we do not populate the SNI with an IP literal. We do this by splitting
-		// the host-port combo from the query option and then seeing if it parses to an
-		// IP address successfully or not.
-		if sni := u.Query().Get("sni"); sni != "" {
-			if net.ParseIP(sni) == nil {
-				options.tlsSNI = sni
-			}
-		}
-		// If the SNI is not configured still because the above failed then we'll try
-		// again but this time we'll use the host part of the peering URI instead.
-		if options.tlsSNI == "" {
-			if host, _, err := net.SplitHostPort(u.Host); err == nil && net.ParseIP(host) == nil {
-				options.tlsSNI = host
-			}
-		}
 		dialer = l.tls
-	case "socks":
+	case "socks", "sockstls":
 		dialer = l.socks
 	case "unix":
 		dialer = l.unix

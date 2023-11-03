@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/url"
@@ -34,7 +35,16 @@ func (l *linkSOCKS) dial(_ context.Context, url *url.URL, info linkInfo, options
 		return nil, fmt.Errorf("failed to configure proxy")
 	}
 	pathtokens := strings.Split(strings.Trim(url.Path, "/"), "/")
-	return dialer.Dial("tcp", pathtokens[0])
+	conn, err := dialer.Dial("tcp", pathtokens[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial: %w", err)
+	}
+	if url.Scheme == "sockstls" {
+		tlsconfig := l.tls.config.Clone()
+		tlsconfig.ServerName = options.tlsSNI
+		conn = tls.Client(conn, tlsconfig)
+	}
+	return conn, nil
 }
 
 func (l *linkSOCKS) listen(ctx context.Context, url *url.URL, _ string) (net.Listener, error) {
