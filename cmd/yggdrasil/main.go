@@ -136,8 +136,7 @@ func main() {
 		return
 	}
 
-	privateKey := ed25519.PrivateKey(cfg.PrivateKey)
-	publicKey := privateKey.Public().(ed25519.PublicKey)
+	publicKey := ed25519.PublicKey(cfg.PublicKey)
 
 	switch {
 	case *getaddr:

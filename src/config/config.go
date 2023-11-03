@@ -42,6 +42,7 @@ import (
 type NodeConfig struct {
 	PrivateKey          KeyBytes                   `comment:"Your private key. DO NOT share this with anyone!"`
 	PrivateKeyPath      string                     `json:",omitempty"`
+	PublicKey           KeyBytes                   `comment:"Your public key. This is safe to share."`
 	Certificate         *tls.Certificate           `json:"-"`
 	Peers               []string                   `comment:"List of connection strings for outbound peer connections in URI format,\ne.g. tls://a.b.c.d:e or socks://a.b.c.d:e/f.g.h.i:j. These connections\nwill obey the operating system routing table, therefore you should\nuse this section when you may connect via different interfaces."`
 	InterfacePeers      map[string][]string        `comment:"List of connection strings for outbound peer connections in URI format,\narranged by source interface, e.g. { \"eth0\": [ \"tls://a.b.c.d:e\" ] }.\nNote that SOCKS peerings will NOT be affected by this option and should\ngo in the \"Peers\" section instead."`
@@ -128,7 +129,8 @@ func (cfg *NodeConfig) UnmarshalHJSON(b []byte) error {
 
 func (cfg *NodeConfig) postprocessConfig() error {
 	if cfg.PrivateKeyPath != "" {
-		cfg.PrivateKey = nil
+		cfg.PrivateKey = cfg.PrivateKey[:0]
+		cfg.PublicKey = cfg.PublicKey[:0]
 		f, err := os.ReadFile(cfg.PrivateKeyPath)
 		if err != nil {
 			return err
@@ -137,6 +139,13 @@ func (cfg *NodeConfig) postprocessConfig() error {
 			return err
 		}
 	}
+	if len(cfg.PrivateKey) < ed25519.SeedSize {
+		return fmt.Errorf("private key is not long enough")
+	}
+	privateKey := ed25519.NewKeyFromSeed(cfg.PrivateKey[:ed25519.SeedSize])
+	publicKey := privateKey.Public().(ed25519.PublicKey)
+	cfg.PrivateKey = append(cfg.PrivateKey[:0], privateKey[:ed25519.SeedSize]...)
+	cfg.PublicKey = append(cfg.PublicKey[:0], publicKey...)
 	switch {
 	case cfg.Certificate == nil:
 		// No self-signed certificate has been generated yet.
@@ -173,7 +182,7 @@ func (cfg *NodeConfig) GenerateSelfSignedCertificate() error {
 }
 
 func (cfg *NodeConfig) MarshalPEMCertificate() ([]byte, error) {
-	privateKey := ed25519.PrivateKey(cfg.PrivateKey)
+	privateKey := ed25519.NewKeyFromSeed(cfg.PrivateKey[:ed25519.SeedSize])
 	publicKey := privateKey.Public().(ed25519.PublicKey)
 
 	cert := &x509.Certificate{
@@ -201,15 +210,17 @@ func (cfg *NodeConfig) MarshalPEMCertificate() ([]byte, error) {
 }
 
 func (cfg *NodeConfig) NewPrivateKey() {
-	_, spriv, err := ed25519.GenerateKey(nil)
+	spub, spriv, err := ed25519.GenerateKey(nil)
 	if err != nil {
 		panic(err)
 	}
-	cfg.PrivateKey = KeyBytes(spriv)
+	cfg.PrivateKey = append(cfg.PrivateKey[:0], spriv[:ed25519.SeedSize]...)
+	cfg.PublicKey = append(cfg.PublicKey[:0], spub...)
 }
 
 func (cfg *NodeConfig) MarshalPEMPrivateKey() ([]byte, error) {
-	b, err := x509.MarshalPKCS8PrivateKey(ed25519.PrivateKey(cfg.PrivateKey))
+	privateKey := ed25519.NewKeyFromSeed(cfg.PrivateKey[:ed25519.SeedSize])
+	b, err := x509.MarshalPKCS8PrivateKey(privateKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal PKCS8 key: %w", err)
 	}
