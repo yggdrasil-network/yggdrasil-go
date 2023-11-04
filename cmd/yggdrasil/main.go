@@ -48,8 +48,9 @@ func main() {
 	autoconf := flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
 	ver := flag.Bool("version", false, "prints the version of this build")
 	logto := flag.String("logto", "stdout", "file path to log to, \"syslog\" or \"stdout\"")
-	getaddr := flag.Bool("address", false, "returns the IPv6 address as derived from the supplied configuration")
-	getsnet := flag.Bool("subnet", false, "returns the IPv6 subnet as derived from the supplied configuration")
+	getaddr := flag.Bool("address", false, "use in combination with either -useconf or -useconffile, outputs your IPv6 address")
+	getsnet := flag.Bool("subnet", false, "use in combination with either -useconf or -useconffile, outputs your IPv6 subnet")
+	getpkey := flag.Bool("publickey", false, "use in combination with either -useconf or -useconffile, outputs your public key")
 	loglevel := flag.String("loglevel", "info", "loglevel to enable")
 	flag.Parse()
 
@@ -153,6 +154,10 @@ func main() {
 			Mask: net.CIDRMask(len(snet)*8, 128),
 		}
 		fmt.Println(ipnet.String())
+		return
+
+	case *getpkey:
+		fmt.Println(hex.EncodeToString(publicKey))
 		return
 
 	case *normaliseconf:
