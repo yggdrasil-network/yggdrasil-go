@@ -7,6 +7,7 @@ package tun
 
 import (
 	"encoding/binary"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -24,7 +25,7 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 	}
 	iface, err := wgtun.CreateTUN(ifname, int(mtu))
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to create TUN: %w", err)
 	}
 	tun.iface = iface
 	if m, err := iface.MTU(); err == nil {
@@ -42,17 +43,17 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 func (tun *TunAdapter) setupFD(fd int32, addr string, mtu uint64) error {
 	dfd, err := unix.Dup(int(fd))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to duplicate FD: %w", err)
 	}
 	err = unix.SetNonblock(dfd, true)
 	if err != nil {
 		unix.Close(dfd)
-		return err
+		return fmt.Errorf("failed to set FD as non-blocking: %w", err)
 	}
 	iface, err := wgtun.CreateTUNFromFile(os.NewFile(uintptr(dfd), "/dev/tun"), 0)
 	if err != nil {
 		unix.Close(dfd)
-		return err
+		return fmt.Errorf("failed to create TUN from FD: %w", err)
 	}
 	tun.iface = iface
 	if m, err := iface.MTU(); err == nil {
@@ -111,7 +112,7 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 
 	if fd, err = unix.Socket(unix.AF_INET6, unix.SOCK_DGRAM, 0); err != nil {
 		tun.log.Printf("Create AF_SYSTEM socket failed: %v.", err)
-		return err
+		return fmt.Errorf("failed to open AF_SYSTEM: %w", err)
 	}
 
 	var ar in6_aliasreq
@@ -149,13 +150,13 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(darwin_SIOCAIFADDR_IN6), uintptr(unsafe.Pointer(&ar))); errno != 0 { // nolint:staticcheck
 		err = errno
 		tun.log.Errorf("Error in darwin_SIOCAIFADDR_IN6: %v", errno)
-		return err
+		return fmt.Errorf("failed to call SIOCAIFADDR_IN6: %w", err)
 	}
 
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(unix.SIOCSIFMTU), uintptr(unsafe.Pointer(&ir))); errno != 0 { // nolint:staticcheck
 		err = errno
 		tun.log.Errorf("Error in SIOCSIFMTU: %v", errno)
-		return err
+		return fmt.Errorf("failed to call SIOCSIFMTU: %w", err)
 	}
 
 	return err
