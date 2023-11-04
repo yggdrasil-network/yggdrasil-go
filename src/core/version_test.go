@@ -34,7 +34,7 @@ func TestVersionPasswordAuth(t *testing.T) {
 		}
 
 		var decoded version_metadata
-		if allowed := decoded.decode(bytes.NewBuffer(encoded), tt.password2); allowed != tt.allowed {
+		if allowed := decoded.decode(bytes.NewBuffer(encoded), tt.password2) == nil; allowed != tt.allowed {
 			t.Fatalf("Permutation %q -> %q should have been %v but was %v", tt.password1, tt.password2, tt.allowed, allowed)
 		}
 	}
@@ -67,8 +67,8 @@ func TestVersionRoundtrip(t *testing.T) {
 			}
 			encoded := bytes.NewBuffer(meta)
 			decoded := &version_metadata{}
-			if !decoded.decode(encoded, password) {
-				t.Fatalf("failed to decode")
+			if err := decoded.decode(encoded, password); err != nil {
+				t.Fatalf("failed to decode: %s", err)
 			}
 			if !reflect.DeepEqual(test, decoded) {
 				t.Fatalf("round-trip failed\nwant: %+v\n got: %+v", test, decoded)

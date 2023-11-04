@@ -87,22 +87,22 @@ func (m *version_metadata) encode(privateKey ed25519.PrivateKey, password []byte
 }
 
 // Decodes version metadata from its wire format into the struct.
-func (m *version_metadata) decode(r io.Reader, password []byte) bool {
+func (m *version_metadata) decode(r io.Reader, password []byte) error {
 	bh := [6]byte{}
 	if _, err := io.ReadFull(r, bh[:]); err != nil {
-		return false
+		return err
 	}
 	meta := [4]byte{'m', 'e', 't', 'a'}
 	if !bytes.Equal(bh[:4], meta[:]) {
-		return false
+		return fmt.Errorf("invalid handshake preamble")
 	}
-	bs := make([]byte, binary.BigEndian.Uint16(bh[4:6]))
+	hl := binary.BigEndian.Uint16(bh[4:6])
+	if hl < ed25519.SignatureSize {
+		return fmt.Errorf("invalid handshake length")
+	}
+	bs := make([]byte, hl)
 	if _, err := io.ReadFull(r, bs); err != nil {
-		return false
-	}
-
-	if len(bs) < ed25519.SignatureSize {
-		return false
+		return err
 	}
 	sig := bs[len(bs)-ed25519.SignatureSize:]
 	bs = bs[:len(bs)-ed25519.SignatureSize]
@@ -132,14 +132,17 @@ func (m *version_metadata) decode(r io.Reader, password []byte) bool {
 
 	hasher, err := blake2b.New512(password)
 	if err != nil {
-		return false
+		return fmt.Errorf("invalid password supplied")
 	}
 	n, err := hasher.Write(m.publicKey)
 	if err != nil || n != ed25519.PublicKeySize {
-		return false
+		return fmt.Errorf("failed to generate hash")
 	}
 	hash := hasher.Sum(nil)
-	return ed25519.Verify(m.publicKey, hash, sig)
+	if !ed25519.Verify(m.publicKey, hash, sig) {
+		return fmt.Errorf("password is incorrect")
+	}
+	return nil
 }
 
 // Checks that the "meta" bytes and the version numbers are the expected values.

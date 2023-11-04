@@ -546,8 +546,9 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn) e
 	}
 	meta = version_metadata{}
 	base := version_getBaseMetadata()
-	if !meta.decode(conn, options.password) {
-		return conn.Close()
+	if err := meta.decode(conn, options.password); err != nil {
+		_ = conn.Close()
+		return err
 	}
 	if !meta.check() {
 		return fmt.Errorf("remote node incompatible version (local %s, remote %s)",
