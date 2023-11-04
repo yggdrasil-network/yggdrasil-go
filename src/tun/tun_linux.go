@@ -19,7 +19,7 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 	}
 	iface, err := wgtun.CreateTUN(ifname, int(mtu))
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to create TUN: %w", err)
 	}
 	tun.iface = iface
 	if mtu, err := iface.MTU(); err == nil {
@@ -45,20 +45,20 @@ func (tun *TunAdapter) setupFD(fd int32, addr string, mtu uint64) error {
 func (tun *TunAdapter) setupAddress(addr string) error {
 	nladdr, err := netlink.ParseAddr(addr)
 	if err != nil {
-		return err
+		return fmt.Errorf("couldn't parse address %q: %w", addr, err)
 	}
 	nlintf, err := netlink.LinkByName(tun.Name())
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to find link by name: %w", err)
 	}
 	if err := netlink.AddrAdd(nlintf, nladdr); err != nil {
-		return err
+		return fmt.Errorf("failed to add address to link: %w", err)
 	}
 	if err := netlink.LinkSetMTU(nlintf, int(tun.mtu)); err != nil {
-		return err
+		return fmt.Errorf("failed to set link MTU: %w", err)
 	}
 	if err := netlink.LinkSetUp(nlintf); err != nil {
-		return err
+		return fmt.Errorf("failed to bring link up: %w", err)
 	}
 	// Friendly output
 	tun.log.Infof("Interface name: %s", tun.Name())

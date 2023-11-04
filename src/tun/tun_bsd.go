@@ -78,7 +78,7 @@ type in6_ifreq_lifetime struct {
 func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 	iface, err := wgtun.CreateTUN(ifname, int(mtu))
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to create TUN: %w", err)
 	}
 	tun.iface = iface
 	if mtu, err := iface.MTU(); err == nil {

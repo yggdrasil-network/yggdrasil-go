@@ -16,7 +16,7 @@ import (
 func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 	iface, err := wgtun.CreateTUN(ifname, mtu)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to create TUN: %w", err)
 	}
 	tun.iface = iface
 	if mtu, err := iface.MTU(); err == nil {
