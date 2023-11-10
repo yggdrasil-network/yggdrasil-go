@@ -26,6 +26,25 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.5.2] - 2023-11-06
+
+### Added
+
+* New `-publickey` command line option that prints the derived public key from a configuration file
+* Support for connecting to TLS peers via SOCKS with the new `sockstls://` link schema
+
+### Changed
+
+* Stabilise tree parent selection algorithm
+* Improved logging when the TUN interface fails to set up
+
+### Fixed
+
+* Fixed a panic that could occur when a connection reaches an inconsistent error state
+* The admin socket will now report more peering handshake error conditions in `getPeers`
+* Yggdrasil will no longer panic at startup when duplicate peers are configured
+* The `build` script will no longer incorrectly import `LDFLAGS` from the environment
+
 ## [0.5.1] - 2023-10-28
 
 ### Fixed
