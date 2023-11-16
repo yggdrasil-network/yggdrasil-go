@@ -322,6 +322,15 @@ func ReadConfig(conf []byte) *NodeConfig {
 			}
 		}
 	}
+	// Ensure PublicKey and PrivateKey are KeyBytes
+	if privatekey, ok := dat["PrivateKey"]; ok {
+		if privstr, err := hex.DecodeString(privatekey.(string)); err == nil {
+			priv := ed25519.PrivateKey(privstr)
+			pub := priv.Public().(ed25519.PublicKey)
+			dat["PrivateKey"] = KeyBytes(priv[:])
+			dat["PublicKey"] = KeyBytes(pub[:])
+		}
+	}
 	// Sanitise the config
 	confJson, err := json.Marshal(dat)
 	if err != nil {
