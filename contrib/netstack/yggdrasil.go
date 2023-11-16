@@ -7,11 +7,11 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 
-	"inet.af/netstack/tcpip"
-	"inet.af/netstack/tcpip/buffer"
-	"inet.af/netstack/tcpip/header"
-	"inet.af/netstack/tcpip/network/ipv6"
-	"inet.af/netstack/tcpip/stack"
+	"gvisor.dev/gvisor/pkg/buffer"
+	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/header"
+	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
+	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
 
 type YggdrasilNIC struct {

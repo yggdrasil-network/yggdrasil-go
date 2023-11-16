@@ -8,13 +8,13 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 
-	"inet.af/netstack/tcpip"
-	"inet.af/netstack/tcpip/adapters/gonet"
-	"inet.af/netstack/tcpip/network/ipv6"
-	"inet.af/netstack/tcpip/stack"
-	"inet.af/netstack/tcpip/transport/icmp"
-	"inet.af/netstack/tcpip/transport/tcp"
-	"inet.af/netstack/tcpip/transport/udp"
+	"gvisor.dev/gvisor/pkg/tcpip"
+	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
+	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
+	"gvisor.dev/gvisor/pkg/tcpip/stack"
+	"gvisor.dev/gvisor/pkg/tcpip/transport/icmp"
+	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
+	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 )
 
 type YggdrasilNetstack struct {
