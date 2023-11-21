@@ -235,7 +235,9 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 		// The caller should check the return value to decide whether
 		// or not to give up trying.
 		backoffNow := func() bool {
-			backoff++
+			if backoff < 14 { // Cap at roughly 4.5 hours maximum.
+				backoff++
+			}
 			duration := time.Second * time.Duration(math.Exp2(float64(backoff)))
 			select {
 			case <-state.kick:
