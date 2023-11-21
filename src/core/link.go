@@ -249,6 +249,12 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 			}
 		}
 
+		// resetBackoff is called by the connection handler when the
+		// handshake has successfully completed.
+		resetBackoff := func() {
+			backoff = 0
+		}
+
 		// The goroutine is responsible for attempting the connection
 		// and then running the handler. If the connection is persistent
 		// then the loop will run endlessly, using backoffs as needed.
@@ -325,10 +331,8 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 
 				// Give the connection to the handler. The handler will block
 				// for the lifetime of the connection.
-				if err = l.handler(linkType, options, lc); err != nil && err != io.EOF {
+				if err = l.handler(linkType, options, lc, resetBackoff); err != nil && err != io.EOF {
 					l.core.log.Debugf("Link %s error: %s\n", info.uri, err)
-				} else {
-					backoff = 0
 				}
 
 				// The handler has stopped running so the connection is dead,
@@ -491,7 +495,7 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 
 				// Give the connection to the handler. The handler will block
 				// for the lifetime of the connection.
-				if err = l.handler(linkTypeIncoming, options, lc); err != nil && err != io.EOF {
+				if err = l.handler(linkTypeIncoming, options, lc, nil); err != nil && err != io.EOF {
 					l.core.log.Debugf("Link %s error: %s\n", u.Host, err)
 				}
 
@@ -529,7 +533,7 @@ func (l *links) connect(ctx context.Context, u *url.URL, info linkInfo, options 
 	return dialer.dial(ctx, u, info, options)
 }
 
-func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn) error {
+func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, success func()) error {
 	meta := version_getBaseMetadata()
 	meta.publicKey = l.core.public
 	meta.priority = options.priority
@@ -600,6 +604,9 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn) e
 	}
 	l.core.log.Infof("Connected %s: %s, source %s",
 		dir, remoteStr, localStr)
+	if success != nil {
+		success()
+	}
 
 	err = l.core.HandleConn(meta.publicKey, conn, priority)
 	switch err {
