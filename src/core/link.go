@@ -61,7 +61,7 @@ type link struct {
 	// The remaining fields can only be modified safely from within the links actor
 	_conn    *linkConn // Connected link, if any, nil if not connected
 	_err     error     // Last error on the connection, if any
-	_errtime time.Time // Last time an error occured
+	_errtime time.Time // Last time an error occurred
 }
 
 type linkOptions struct {

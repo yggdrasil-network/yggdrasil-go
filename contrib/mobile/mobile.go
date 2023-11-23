@@ -53,7 +53,7 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 	if err := m.config.UnmarshalHJSON(configjson); err != nil {
 		return err
 	}
-	// Setup the Yggdrasil node itself.
+	// Set up the Yggdrasil node itself.
 	{
 		options := []core.SetupOption{}
 		for _, peer := range m.config.Peers {
@@ -85,7 +85,7 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 		logger.Infof("Your IPv6 subnet is %s", subnet.String())
 	}
 
-	// Setup the multicast module.
+	// Set up the multicast module.
 	if len(m.config.MulticastInterfaces) > 0 {
 		var err error
 		logger.Infof("Initializing multicast %s", "")
