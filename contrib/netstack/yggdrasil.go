@@ -43,11 +43,9 @@ func (s *YggdrasilNetstack) NewYggdrasilNIC(ygg *core.Core) tcpip.Error {
 				break
 			}
 			pkb := stack.NewPacketBuffer(stack.PacketBufferOptions{
-				Data: buffer.NewVectorisedView(rx, []buffer.View{
-					buffer.NewViewFromBytes(nic.readBuf[:rx]),
-				}),
+				Payload: buffer.MakeWithData(nic.readBuf[:rx]),
 			})
-			nic.dispatcher.DeliverNetworkPacket("", "", ipv6.ProtocolNumber, pkb)
+			nic.dispatcher.DeliverNetworkPacket(ipv6.ProtocolNumber, pkb)
 		}
 	}()
 	_, snet, err := net.ParseCIDR("0200::/7")
@@ -55,8 +53,8 @@ func (s *YggdrasilNetstack) NewYggdrasilNIC(ygg *core.Core) tcpip.Error {
 		return &tcpip.ErrBadAddress{}
 	}
 	subnet, err := tcpip.NewSubnet(
-		tcpip.Address(string(snet.IP)),
-		tcpip.AddressMask(string(snet.Mask)),
+		tcpip.AddrFromSlice(snet.IP.To16()),
+		tcpip.MaskFrom(string(snet.Mask)),
 	)
 	if err != nil {
 		return &tcpip.ErrBadAddress{}
@@ -71,7 +69,7 @@ func (s *YggdrasilNetstack) NewYggdrasilNIC(ygg *core.Core) tcpip.Error {
 			1,
 			tcpip.ProtocolAddress{
 				Protocol:          ipv6.ProtocolNumber,
-				AddressWithPrefix: tcpip.Address(ip).WithPrefix(),
+				AddressWithPrefix: tcpip.AddrFromSlice(ip.To16()).WithPrefix(),
 			},
 			stack.AddressProperties{},
 		); err != nil {
@@ -95,31 +93,25 @@ func (*YggdrasilNIC) LinkAddress() tcpip.LinkAddress { return "" }
 
 func (*YggdrasilNIC) Wait() {}
 
-func (e *YggdrasilNIC) WritePacket(
-	_ stack.RouteInfo,
-	_ tcpip.NetworkProtocolNumber,
-	pkt *stack.PacketBuffer,
-) tcpip.Error {
-	vv := buffer.NewVectorisedView(pkt.Size(), pkt.Views())
-	n, err := vv.Read(e.writeBuf)
-	if err != nil {
-		log.Println(err)
-		return &tcpip.ErrAborted{}
-	}
-	_, err = e.ipv6rwc.Write(e.writeBuf[:n])
-	if err != nil {
-		log.Println(err)
-		return &tcpip.ErrAborted{}
-	}
-	return nil
-}
-
 func (e *YggdrasilNIC) WritePackets(
-	stack.RouteInfo,
-	stack.PacketBufferList,
-	tcpip.NetworkProtocolNumber,
+	list stack.PacketBufferList,
 ) (int, tcpip.Error) {
-	panic("not implemented")
+	var i int = 0
+	for i, pkt := range list.AsSlice() {
+		vv := pkt.ToView()
+		n, err := vv.Read(e.writeBuf)
+		if err != nil {
+			log.Println(err)
+			return i-1, &tcpip.ErrAborted{}
+		}
+		_, err = e.ipv6rwc.Write(e.writeBuf[:n])
+		if err != nil {
+			log.Println(err)
+			return i-1, &tcpip.ErrAborted{}
+		}
+	}
+
+	return i, nil
 }
 
 func (e *YggdrasilNIC) WriteRawPacket(*stack.PacketBuffer) tcpip.Error {
@@ -130,7 +122,11 @@ func (*YggdrasilNIC) ARPHardwareType() header.ARPHardwareType {
 	return header.ARPHardwareNone
 }
 
-func (e *YggdrasilNIC) AddHeader(tcpip.LinkAddress, tcpip.LinkAddress, tcpip.NetworkProtocolNumber, *stack.PacketBuffer) {
+func (e *YggdrasilNIC) AddHeader(*stack.PacketBuffer) {
+}
+
+func (e *YggdrasilNIC) ParseHeader(*stack.PacketBuffer) bool {
+	return true
 }
 
 func (e *YggdrasilNIC) Close() error {

@@ -41,9 +41,14 @@ func CreateYggdrasilNetstack(ygg *core.Core) (*YggdrasilNetstack, error) {
 }
 
 func convertToFullAddr(ip net.IP, port int) (tcpip.FullAddress, tcpip.NetworkProtocolNumber, error) {
+	addr := tcpip.Address{}
+	ip16 := ip.To16()
+	if ip16 != nil {
+		addr = tcpip.AddrFromSlice(ip16)
+	}
 	return tcpip.FullAddress{
 		NIC:  1,
-		Addr: tcpip.Address(ip),
+		Addr: addr,
 		Port: uint16(port),
 	}, ipv6.ProtocolNumber, nil
 }

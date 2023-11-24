@@ -1,12 +1,10 @@
 package main
 
 import (
-	"crypto/ed25519"
-	"encoding/hex"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,13 +12,10 @@ import (
 	"github.com/gologme/log"
 	gsyslog "github.com/hashicorp/go-syslog"
 	"github.com/hjson/hjson-go"
-	"github.com/things-go/go-socks5"
 
-	"github.com/yggdrasil-network/yggdrasil-go/cmd/yggstack/types"
-	"github.com/yggdrasil-network/yggdrasil-go/contrib/netstack"
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/setup"
+	"github.com/yggdrasil-network/yggdrasil-go/src/types"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
 
@@ -33,7 +28,11 @@ func main() {
 	socks := flag.String("socks", "", "address to listen on for SOCKS, i.e. :1080")
 	nameserver := flag.String("nameserver", "", "the Yggdrasil IPv6 address to use as a DNS server for SOCKS")
 	flag.Var(&expose, "exposetcp", "TCP ports to expose to the network, e.g. 22, 2022:22, 22:192.168.1.1:2022")
+
 	args := setup.ParseArguments()
+
+	// Catch interrupts from the operating system to exit gracefully.
+	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
 	// Create a new logger that logs output to stdout.
 	var logger *log.Logger
@@ -104,95 +103,21 @@ func main() {
 	n := setup.NewNode(cfg, logger)
 	n.SetLogLevel(args.LogLevel)
 
-	// Have we been asked for the node address yet? If so, print it and then stop.
-	getNodeKey := func() ed25519.PublicKey {
-		if pubkey, err := hex.DecodeString(cfg.PrivateKey); err == nil {
-			return ed25519.PrivateKey(pubkey).Public().(ed25519.PublicKey)
-		}
-		return nil
-	}
-	switch {
-	case args.GetAddr:
-		if key := getNodeKey(); key != nil {
-			addr := address.AddrForKey(key)
-			ip := net.IP(addr[:])
-			fmt.Println(ip.String())
-		}
-		return
-	case args.GetSubnet:
-		if key := getNodeKey(); key != nil {
-			snet := address.SubnetForKey(key)
-			ipnet := net.IPNet{
-				IP:   append(snet[:], 0, 0, 0, 0, 0, 0, 0, 0),
-				Mask: net.CIDRMask(len(snet)*8, 128),
-			}
-			fmt.Println(ipnet.String())
-		}
-		return
-	default:
-	}
-
-	// Now start Yggdrasil - this starts the DHT, router, switch and other core
+	// Now start Yggdrasil - this starts the router, switch and other core
 	// components needed for Yggdrasil to operate
 	if err = n.Run(args); err != nil {
 		logger.Fatalln(err)
 	}
 
-	// Make some nice output that tells us what our IPv6 address and subnet are.
-	// This is just logged to stdout for the user.
-	address := n.Address()
-	subnet := n.Subnet()
-	public := n.GetSelf().Key
-	publicstr := hex.EncodeToString(public[:])
-	logger.Infof("Your public key is %s", publicstr)
-	logger.Infof("Your IPv6 address is %s", address.String())
-	logger.Infof("Your IPv6 subnet is %s", subnet.String())
-	logger.Infof("Your Yggstack resolver name is %s%s", publicstr, types.NameMappingSuffix)
-
-	s, err := netstack.CreateYggdrasilNetstack(&n.Core)
+	// Create Yggdrasil netstack
+	err = n.SetupNetstack(socks, nameserver, &expose)
 	if err != nil {
 		logger.Fatalln(err)
 	}
 
-	if *socks != "" {
-		resolver := types.NewNameResolver(s, *nameserver)
-		server := socks5.NewServer(
-			socks5.WithDial(s.DialContext),
-			socks5.WithResolver(resolver),
-		)
-		go server.ListenAndServe("tcp", *socks) // nolint:errcheck
-	}
+	// Block until we are told to shut down.
+	<-ctx.Done()
 
-	for _, mapping := range expose {
-		go func(mapping types.TCPMapping) {
-			listener, err := s.ListenTCP(mapping.Listen)
-			if err != nil {
-				panic(err)
-			}
-			logger.Infof("Mapping Yggdrasil port %d to %s", mapping.Listen.Port, mapping.Mapped)
-			for {
-				c, err := listener.Accept()
-				if err != nil {
-					panic(err)
-				}
-				r, err := net.DialTCP("tcp", nil, mapping.Mapped)
-				if err != nil {
-					logger.Errorf("Failed to connect to %s: %s", mapping.Mapped, err)
-					_ = c.Close()
-					continue
-				}
-				types.ProxyTCP(n.MTU(), c, r)
-			}
-		}(mapping)
-	}
-
-	term := make(chan os.Signal, 1)
-	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
-
-	select {
-	case <-n.Done():
-	case <-term:
-	}
-
+	// Shut down the node.
 	n.Close()
 }

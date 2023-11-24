@@ -14,6 +14,9 @@ import (
 	"strings"
 
 	"github.com/gologme/log"
+	"github.com/things-go/go-socks5"
+
+	"github.com/yggdrasil-network/yggdrasil-go/contrib/netstack"
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
@@ -21,6 +24,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tun"
+	"github.com/yggdrasil-network/yggdrasil-go/src/types"
 	"golang.org/x/text/encoding/unicode"
 )
 
@@ -138,9 +142,11 @@ func (n *Node) Run(args Arguments) error {
 			return err
 		}
 		address, subnet := n.core.Address(), n.core.Subnet()
-		n.logger.Infof("Your public key is %s", hex.EncodeToString(n.core.PublicKey()))
+		publicstr := hex.EncodeToString(n.core.PublicKey())
+		n.logger.Infof("Your public key is %s", publicstr)
 		n.logger.Infof("Your IPv6 address is %s", address.String())
 		n.logger.Infof("Your IPv6 subnet is %s", subnet.String())
+		n.logger.Infof("Your Yggstack resolver name is %s%s", publicstr, types.NameMappingSuffix)
 	}
 
 	// Setup the admin socket.
@@ -223,6 +229,51 @@ func (n *Node) SetupTun() error {
 
 	if n.admin != nil && n.tun != nil {
 		n.tun.SetupAdminHandlers(n.admin)
+	}
+
+	return nil
+}
+
+func (n *Node) SetupNetstack(socks *string, nameserver *string, expose *types.TCPMappings) error {
+	s, err := netstack.CreateYggdrasilNetstack(n.core)
+	if err != nil {
+		return err
+	}
+
+	// Create SOCKS server
+	if socks != nil && nameserver != nil && *socks != "" {
+		resolver := types.NewNameResolver(s, *nameserver)
+		server := socks5.NewServer(
+			socks5.WithDial(s.DialContext),
+			socks5.WithResolver(resolver),
+		)
+		go server.ListenAndServe("tcp", *socks) // nolint:errcheck
+	}
+
+	// Create TCP mappings
+	if expose != nil {
+		for _, mapping := range *expose {
+			go func(mapping types.TCPMapping) {
+				listener, err := s.ListenTCP(mapping.Listen)
+				if err != nil {
+					panic(err)
+				}
+				n.logger.Infof("Mapping Yggdrasil port %d to %s", mapping.Listen.Port, mapping.Mapped)
+				for {
+					c, err := listener.Accept()
+					if err != nil {
+						panic(err)
+					}
+					r, err := net.DialTCP("tcp", nil, mapping.Mapped)
+					if err != nil {
+						n.logger.Errorf("Failed to connect to %s: %s", mapping.Mapped, err)
+						_ = c.Close()
+						continue
+					}
+					types.ProxyTCP(n.core.MTU(), c, r)
+				}
+			}(mapping)
+		}
 	}
 
 	return nil
