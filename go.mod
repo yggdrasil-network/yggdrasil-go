@@ -1,6 +1,8 @@
 module github.com/yggdrasil-network/yggdrasil-go
 
-go 1.20
+go 1.21.1
+
+toolchain go1.21.4
 
 require (
 	github.com/Arceliar/ironwood v0.0.0-20231110040415-4972641b0b94
@@ -14,7 +16,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/quic-go/quic-go v0.39.3
 	github.com/things-go/go-socks5 v0.0.4
-	github.com/vishvananda/netlink v1.1.0
+	github.com/vishvananda/netlink v1.1.1-0.20211118161826-650dca95af54
 	golang.org/x/crypto v0.14.0
 	golang.org/x/mobile v0.0.0-20231006135142-2b44d11868fe
 	golang.org/x/net v0.17.0
@@ -22,23 +24,23 @@ require (
 	golang.org/x/text v0.13.0
 	golang.zx2c4.com/wireguard v0.0.0-20230223181233-21636207a675
 	golang.zx2c4.com/wireguard/windows v0.5.3
-	inet.af/netstack v0.0.0-20220214151720-7585b01ddccf
+	gvisor.dev/gvisor v0.0.0-20231123021541-3a1da430f081
 )
 
 require (
 	github.com/bits-and-blooms/bitset v1.5.0 // indirect
 	github.com/bits-and-blooms/bloom/v3 v3.3.1 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
-	github.com/google/btree v1.0.1 // indirect
+	github.com/google/btree v1.1.2 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/onsi/ginkgo/v2 v2.9.5 // indirect
 	github.com/quic-go/qtls-go1-20 v0.3.4 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	go.uber.org/mock v0.3.0 // indirect
-	golang.org/x/exp v0.0.0-20221205204356-47842c84f3db // indirect
+	golang.org/x/exp v0.0.0-20230725093048-515e97ebf090 // indirect
 	golang.org/x/mod v0.13.0 // indirect
-	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
+	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.14.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 )
