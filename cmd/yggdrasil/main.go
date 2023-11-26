@@ -216,9 +216,9 @@ func main() {
 			panic(err)
 		}
 		address, subnet := n.core.Address(), n.core.Subnet()
-		logger.Infof("Your public key is %s", hex.EncodeToString(n.core.PublicKey()))
-		logger.Infof("Your IPv6 address is %s", address.String())
-		logger.Infof("Your IPv6 subnet is %s", subnet.String())
+		logger.Printf("Your public key is %s", hex.EncodeToString(n.core.PublicKey()))
+		logger.Printf("Your IPv6 address is %s", address.String())
+		logger.Printf("Your IPv6 subnet is %s", subnet.String())
 	}
 
 	// Setup the admin socket.

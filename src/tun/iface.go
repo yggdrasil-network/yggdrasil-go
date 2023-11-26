@@ -29,7 +29,7 @@ func (tun *TunAdapter) write() {
 		bs := buf[TUN_OFFSET_BYTES:]
 		n, err := tun.rwc.Read(bs)
 		if err != nil {
-			tun.log.Errorln("Exiting tun writer due to core read error:", err)
+			tun.log.Errorln("Exiting TUN writer due to core read error:", err)
 			return
 		}
 		if !tun.isEnabled {

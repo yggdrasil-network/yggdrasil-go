@@ -432,8 +432,8 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 	}
 
 	go func() {
-		l.core.log.Printf("%s listener started on %s", strings.ToUpper(u.Scheme), listener.Addr())
-		defer l.core.log.Printf("%s listener stopped on %s", strings.ToUpper(u.Scheme), listener.Addr())
+		l.core.log.Infof("%s listener started on %s", strings.ToUpper(u.Scheme), listener.Addr())
+		defer l.core.log.Infof("%s listener stopped on %s", strings.ToUpper(u.Scheme), listener.Addr())
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
