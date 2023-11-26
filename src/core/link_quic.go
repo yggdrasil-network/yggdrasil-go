@@ -24,7 +24,7 @@ type linkQUICStream struct {
 }
 
 type linkQUICListener struct {
-	*quic.EarlyListener
+	*quic.Listener
 	ch <-chan *linkQUICStream
 }
 
@@ -50,11 +50,11 @@ func (l *links) newLinkQUIC() *linkQUIC {
 }
 
 func (l *linkQUIC) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
-	qc, err := quic.DialAddrEarly(ctx, url.Host, l.tlsconfig, l.quicconfig)
+	qc, err := quic.DialAddr(ctx, url.Host, l.tlsconfig, l.quicconfig)
 	if err != nil {
 		return nil, err
 	}
-	qs, err := qc.OpenStream()
+	qs, err := qc.OpenStreamSync(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -65,14 +65,14 @@ func (l *linkQUIC) dial(ctx context.Context, url *url.URL, info linkInfo, option
 }
 
 func (l *linkQUIC) listen(ctx context.Context, url *url.URL, _ string) (net.Listener, error) {
-	ql, err := quic.ListenAddrEarly(url.Host, l.tlsconfig, l.quicconfig)
+	ql, err := quic.ListenAddr(url.Host, l.tlsconfig, l.quicconfig)
 	if err != nil {
 		return nil, err
 	}
 	ch := make(chan *linkQUICStream)
 	lql := &linkQUICListener{
-		EarlyListener: ql,
-		ch:            ch,
+		Listener: ql,
+		ch:       ch,
 	}
 	go func() {
 		for {
