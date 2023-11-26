@@ -243,10 +243,14 @@ func (n *Node) SetupNetstack(socks *string, nameserver *string, expose *types.TC
 	// Create SOCKS server
 	if socks != nil && nameserver != nil && *socks != "" {
 		resolver := types.NewNameResolver(s, *nameserver)
-		server := socks5.NewServer(
+		socksOptions := []socks5.Option{
 			socks5.WithDial(s.DialContext),
 			socks5.WithResolver(resolver),
-		)
+		}
+		if n.logger.GetLevel("debug") {
+			socksOptions = append(socksOptions, socks5.WithLogger(n.logger))
+		}
+		server := socks5.NewServer(socksOptions...)
 		go server.ListenAndServe("tcp", *socks) // nolint:errcheck
 	}
 
