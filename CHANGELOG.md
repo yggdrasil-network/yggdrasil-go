@@ -26,6 +26,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.5.3] - 2023-11-26
+
+### Fixed
+
+* Fixed a data race from buffered pathfinder traffic
+* Fix a bug where the next-hop selection may not take shortcuts through treespace
+* Backoffs are now reset correctly when a successful handshake is completed
+* Backoffs will no longer exceed roughly 4.5 hours when peers are down for a long time
+* The `-normaliseconf` option will now work correctly with `PrivateKeyPath`
+* Improved the reliability of QUIC peering setup by disabling 0-RTT
+
 ## [0.5.2] - 2023-11-06
 
 ### Added
