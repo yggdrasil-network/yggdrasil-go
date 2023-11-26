@@ -40,8 +40,8 @@ import (
 // options that are necessary for an Yggdrasil node to run. You will need to
 // supply one of these structs to the Yggdrasil core when starting a node.
 type NodeConfig struct {
-	PrivateKey          KeyBytes                   `comment:"Your private key. DO NOT share this with anyone!"`
-	PrivateKeyPath      string                     `json:",omitempty"`
+	PrivateKey          KeyBytes                   `json:",omitempty" comment:"Your private key. DO NOT share this with anyone!"`
+	PrivateKeyPath      string                     `json:",omitempty" comment:"The path to your private key file in PEM format."`
 	Certificate         *tls.Certificate           `json:"-"`
 	Peers               []string                   `comment:"List of connection strings for outbound peer connections in URI format,\ne.g. tls://a.b.c.d:e or socks://a.b.c.d:e/f.g.h.i:j. These connections\nwill obey the operating system routing table, therefore you should\nuse this section when you may connect via different interfaces."`
 	InterfacePeers      map[string][]string        `comment:"List of connection strings for outbound peer connections in URI format,\narranged by source interface, e.g. { \"eth0\": [ \"tls://a.b.c.d:e\" ] }.\nNote that SOCKS peerings will NOT be affected by this option and should\ngo in the \"Peers\" section instead."`

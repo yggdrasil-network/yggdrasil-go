@@ -162,6 +162,9 @@ func main() {
 
 	case *normaliseconf:
 		cfg.AdminListen = ""
+		if cfg.PrivateKeyPath != "" {
+			cfg.PrivateKey = nil
+		}
 		var bs []byte
 		if *confjson {
 			bs, err = json.MarshalIndent(cfg, "", "  ")
