@@ -3,7 +3,7 @@ module github.com/yggdrasil-network/yggdrasil-go
 go 1.20
 
 require (
-	github.com/Arceliar/ironwood v0.0.0-20231126105342-ad38416a77c8
+	github.com/Arceliar/ironwood v0.0.0-20231127131626-465b82dfb5bd
 	github.com/Arceliar/phony v0.0.0-20220903101357-530938a4b13d
 	github.com/cheggaaa/pb/v3 v3.1.4
 	github.com/gologme/log v1.3.0
