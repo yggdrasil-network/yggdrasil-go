@@ -26,6 +26,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.5.4] - 2023-11-27
+
+### Fixed
+
+* Fixed a crash that could happen when calculating the size of bloom filters during encoding
+
 ## [0.5.3] - 2023-11-26
 
 ### Fixed
