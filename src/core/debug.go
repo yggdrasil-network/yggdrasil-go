@@ -12,6 +12,8 @@ func init() {
 	envVarName := "PPROFLISTEN"
 	if hostPort := os.Getenv(envVarName); hostPort != "" {
 		fmt.Fprintf(os.Stderr, "DEBUG: Starting pprof on %s\n", hostPort)
-		go fmt.Println(http.ListenAndServe(hostPort, nil))
+		go func() {
+			fmt.Fprintf(os.Stderr, "DEBUG: %s", http.ListenAndServe(hostPort, nil))
+		}()
 	}
 }
