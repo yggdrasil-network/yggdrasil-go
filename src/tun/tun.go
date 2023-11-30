@@ -10,9 +10,10 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"github.com/Arceliar/phony"
-	"golang.zx2c4.com/wireguard/tun"
+	wgtun "golang.zx2c4.com/wireguard/tun"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
@@ -39,7 +40,7 @@ type TunAdapter struct {
 	addr        address.Address
 	subnet      address.Subnet
 	mtu         uint64
-	iface       tun.Device
+	iface       wgtun.Device
 	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
 	isOpen      bool
 	isEnabled   bool // Used by the writer to drop sessionTraffic if not enabled
@@ -60,6 +61,20 @@ func getSupportedMTU(mtu uint64) uint64 {
 		return MaximumMTU()
 	}
 	return mtu
+}
+
+func waitForTUNUp(ch <-chan wgtun.Event) bool {
+	t := time.After(time.Second * 5)
+	for {
+		select {
+		case ev := <-ch:
+			if ev == wgtun.EventUp {
+				return true
+			}
+		case <-t:
+			return false
+		}
+	}
 }
 
 // Name returns the name of the adapter, e.g. "tun0". On Windows, this may

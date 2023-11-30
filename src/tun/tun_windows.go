@@ -34,6 +34,9 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 		if iface, err = wgtun.CreateTUNWithRequestedGUID(ifname, &guid, int(mtu)); err != nil {
 			return err
 		}
+		if !waitForTUNUp(iface.Events()) {
+			return fmt.Errorf("TUN did not come up in time")
+		}
 		tun.iface = iface
 		if addr != "" {
 			if err = tun.setupAddress(addr); err != nil {
