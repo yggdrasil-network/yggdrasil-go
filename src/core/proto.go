@@ -251,15 +251,16 @@ func (p *protoHandler) getSelfHandler(in json.RawMessage) (interface{}, error) {
 	if kbs, err = hex.DecodeString(req.Key); err != nil {
 		return nil, err
 	}
+	if len(kbs) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("invalid public key length")
+	}
 	copy(key[:], kbs)
 	ch := make(chan []byte, 1)
 	p.sendGetSelfRequest(key, func(info []byte) {
 		ch <- info
 	})
-	timer := time.NewTimer(6 * time.Second)
-	defer timer.Stop()
 	select {
-	case <-timer.C:
+	case <-time.After(6 * time.Second):
 		return nil, errors.New("timeout")
 	case info := <-ch:
 		var msg json.RawMessage
@@ -291,15 +292,16 @@ func (p *protoHandler) getPeersHandler(in json.RawMessage) (interface{}, error) 
 	if kbs, err = hex.DecodeString(req.Key); err != nil {
 		return nil, err
 	}
+	if len(kbs) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("invalid public key length")
+	}
 	copy(key[:], kbs)
 	ch := make(chan []byte, 1)
 	p.sendGetPeersRequest(key, func(info []byte) {
 		ch <- info
 	})
-	timer := time.NewTimer(6 * time.Second)
-	defer timer.Stop()
 	select {
-	case <-timer.C:
+	case <-time.After(6 * time.Second):
 		return nil, errors.New("timeout")
 	case info := <-ch:
 		ks := make(map[string][]string)
@@ -341,15 +343,16 @@ func (p *protoHandler) getTreeHandler(in json.RawMessage) (interface{}, error) {
 	if kbs, err = hex.DecodeString(req.Key); err != nil {
 		return nil, err
 	}
+	if len(kbs) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("invalid public key length")
+	}
 	copy(key[:], kbs)
 	ch := make(chan []byte, 1)
 	p.sendGetTreeRequest(key, func(info []byte) {
 		ch <- info
 	})
-	timer := time.NewTimer(6 * time.Second)
-	defer timer.Stop()
 	select {
-	case <-timer.C:
+	case <-time.After(6 * time.Second):
 		return nil, errors.New("timeout")
 	case info := <-ch:
 		ks := make(map[string][]string)
