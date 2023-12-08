@@ -49,13 +49,13 @@ func chuser(user string) error {
 
 	if g != nil {
 		gid, _ := strconv.ParseUint(g.Gid, 10, 32)
-		err := syscall.Setgid(int(gid))
+		err := syscall.Setgid(int(uint32(gid)))
 		if err != nil {
 			return fmt.Errorf("failed to setgid %d: %v", gid, err)
 		}
 	} else if u != nil {
 		gid, _ := strconv.ParseUint(u.Gid, 10, 32)
-		err := syscall.Setgid(int(gid))
+		err := syscall.Setgid(int(uint32(gid)))
 		if err != nil {
 			return fmt.Errorf("failed to setgid %d: %v", gid, err)
 		}
@@ -63,7 +63,7 @@ func chuser(user string) error {
 
 	if u != nil {
 		uid, _ := strconv.ParseUint(u.Uid, 10, 32)
-		err := syscall.Setuid(int(uid))
+		err := syscall.Setuid(int(uint32(uid)))
 		if err != nil {
 			return fmt.Errorf("failed to setuid %d: %v", uid, err)
 		}
