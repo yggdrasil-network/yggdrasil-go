@@ -12,11 +12,11 @@ require (
 	github.com/kardianos/minwinsvc v1.0.2
 	github.com/quic-go/quic-go v0.39.3
 	github.com/vishvananda/netlink v1.1.0
-	golang.org/x/crypto v0.14.0
+	golang.org/x/crypto v0.17.0
 	golang.org/x/mobile v0.0.0-20231006135142-2b44d11868fe
 	golang.org/x/net v0.17.0
-	golang.org/x/sys v0.13.0
-	golang.org/x/text v0.13.0
+	golang.org/x/sys v0.15.0
+	golang.org/x/text v0.14.0
 	golang.zx2c4.com/wireguard v0.0.0-20230223181233-21636207a675
 	golang.zx2c4.com/wireguard/windows v0.5.3
 )
