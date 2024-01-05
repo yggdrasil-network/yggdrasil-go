@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net"
 	"net/url"
 	"time"
@@ -77,18 +78,22 @@ func (l *linkQUIC) listen(ctx context.Context, url *url.URL, _ string) (net.List
 	go func() {
 		for {
 			qc, err := ql.Accept(ctx)
-			if err != nil {
+			switch err {
+			case context.Canceled, context.DeadlineExceeded:
 				ql.Close()
+				fallthrough
+			case quic.ErrServerClosed:
 				return
-			}
-			qs, err := qc.AcceptStream(ctx)
-			if err != nil {
-				ql.Close()
-				return
-			}
-			ch <- &linkQUICStream{
-				Connection: qc,
-				Stream:     qs,
+			case nil:
+				qs, err := qc.AcceptStream(ctx)
+				if err != nil {
+					_ = qc.CloseWithError(1, fmt.Sprintf("stream error: %s", err))
+					continue
+				}
+				ch <- &linkQUICStream{
+					Connection: qc,
+					Stream:     qs,
+				}
 			}
 		}
 	}()
