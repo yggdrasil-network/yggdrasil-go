@@ -56,10 +56,16 @@ func (a *AdminSocket) getPeersHandler(req *GetPeersRequest, res *GetPeersRespons
 		res.Peers = append(res.Peers, peer)
 	}
 	sort.Slice(res.Peers, func(i, j int) bool {
-		if res.Peers[i].Port == res.Peers[j].Port {
-			return res.Peers[i].Priority < res.Peers[j].Priority
+		if res.Peers[i].Inbound == res.Peers[j].Inbound {
+			if res.Peers[i].PublicKey == res.Peers[j].PublicKey {
+				if res.Peers[i].Priority == res.Peers[j].Priority {
+					return res.Peers[i].Uptime > res.Peers[j].Uptime
+				}
+				return res.Peers[i].Priority < res.Peers[j].Priority
+			}
+			return res.Peers[i].PublicKey < res.Peers[j].PublicKey
 		}
-		return res.Peers[i].Port < res.Peers[j].Port
+		return !res.Peers[i].Inbound && res.Peers[j].Inbound
 	})
 	return nil
 }
