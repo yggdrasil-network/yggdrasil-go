@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	"net/netip"
 	"net/url"
@@ -27,6 +26,9 @@ const (
 	linkTypeEphemeral                  // Multicast discovered
 	linkTypeIncoming                   // Incoming connection
 )
+
+const defaultBackoffLimit = time.Second << 12 // 1h8m16s
+const minimumBackoffLimit = time.Second * 30
 
 type links struct {
 	phony.Inbox
@@ -69,6 +71,7 @@ type linkOptions struct {
 	priority          uint8
 	tlsSNI            string
 	password          []byte
+	maxBackoff        time.Duration
 }
 
 type Listener struct {
@@ -136,6 +139,7 @@ const ErrLinkPriorityInvalid = linkError("priority value is invalid")
 const ErrLinkPinnedKeyInvalid = linkError("pinned public key is invalid")
 const ErrLinkPasswordInvalid = linkError("password is invalid")
 const ErrLinkUnrecognisedSchema = linkError("link schema unknown")
+const ErrLinkMaxBackoffInvalid = linkError("max backoff duration invalid")
 
 func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 	var retErr error
@@ -150,7 +154,9 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 
 		// Collect together the link options, these are global options
 		// that are not specific to any given protocol.
-		var options linkOptions
+		options := linkOptions{
+			maxBackoff: defaultBackoffLimit,
+		}
 		for _, pubkey := range u.Query()["key"] {
 			sigPub, err := hex.DecodeString(pubkey)
 			if err != nil {
@@ -178,6 +184,14 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 				return
 			}
 			options.password = []byte(p)
+		}
+		if p := u.Query().Get("maxbackoff"); p != "" {
+			d, err := time.ParseDuration(p)
+			if err != nil || d < minimumBackoffLimit {
+				retErr = ErrLinkMaxBackoffInvalid
+				return
+			}
+			options.maxBackoff = d
 		}
 		// SNI headers must contain hostnames and not IP addresses, so we must make sure
 		// that we do not populate the SNI with an IP literal. We do this by splitting
@@ -235,10 +249,13 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 		// The caller should check the return value to decide whether
 		// or not to give up trying.
 		backoffNow := func() bool {
-			if backoff < 14 { // Cap at roughly 4.5 hours maximum.
+			if backoff < 32 {
 				backoff++
 			}
-			duration := time.Second * time.Duration(math.Exp2(float64(backoff)))
+			duration := time.Second << backoff
+			if duration > options.maxBackoff {
+				duration = options.maxBackoff
+			}
 			select {
 			case <-state.kick:
 				return true
