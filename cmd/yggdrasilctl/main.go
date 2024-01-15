@@ -183,13 +183,13 @@ func run() int {
 			if peer.Inbound {
 				dir = "In"
 			}
-			uri, err := url.Parse(peer.URI)
-			if err != nil {
-				panic(err)
+			uristring := peer.URI
+			if uri, err := url.Parse(peer.URI); err == nil {
+				uri.RawQuery = ""
+				uristring = uri.String()
 			}
-			uri.RawQuery = ""
 			table.Append([]string{
-				uri.String(),
+				uristring,
 				state,
 				dir,
 				peer.IPAddress,
