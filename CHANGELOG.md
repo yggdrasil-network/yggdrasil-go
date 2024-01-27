@@ -26,6 +26,27 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.5.5] - 2024-01-27
+
+### Added
+
+* A new peer option `?maxbackoff=X` has been added to control the maximum backoff time for a given peer, supports duration values like `5m`, `1h` etc
+
+### Changed
+
+* The maximum backoff period for failing peer connections has been reduced to just over 1 hour, compared to 4.5 hours before
+* The `getPeers` endpoint now sorts peers in a more stable fashion
+* Upgrade dependencies
+
+### Fixed
+
+* A bug where QUIC listeners could stop listening for incoming connections unexpectedly has been fixed
+* The priority tiebreak between multiple peerings to the same node has been fixed
+* Peer connection ordering is no longer sensitive to poor system time resolution
+* The admin socket now verifies the length of input public keys
+* The `PPROFLISTEN` environment variable has been fixed and now starts the pprof listener correctly
+* A panic in `getPeers` has been fixed when using abstract UNIX sockets on Linux
+
 ## [0.5.4] - 2023-11-27
 
 ### Fixed
