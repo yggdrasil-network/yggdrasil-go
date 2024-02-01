@@ -22,6 +22,7 @@ type version_metadata struct {
 	minorVer  uint16
 	publicKey ed25519.PublicKey
 	priority  uint8
+	cost      uint8
 }
 
 const (
@@ -36,6 +37,7 @@ const (
 	metaVersionMinor               // uint16
 	metaPublicKey                  // [32]byte
 	metaPriority                   // uint8
+	metaCost                       // uint8
 )
 
 // Gets a base metadata with no keys set, but with the correct version numbers.
@@ -64,9 +66,17 @@ func (m *version_metadata) encode(privateKey ed25519.PrivateKey, password []byte
 	bs = binary.BigEndian.AppendUint16(bs, ed25519.PublicKeySize)
 	bs = append(bs, m.publicKey[:]...)
 
-	bs = binary.BigEndian.AppendUint16(bs, metaPriority)
-	bs = binary.BigEndian.AppendUint16(bs, 1)
-	bs = append(bs, m.priority)
+	if m.priority > 0 {
+		bs = binary.BigEndian.AppendUint16(bs, metaPriority)
+		bs = binary.BigEndian.AppendUint16(bs, 1)
+		bs = append(bs, m.priority)
+	}
+
+	if m.cost > 0 {
+		bs = binary.BigEndian.AppendUint16(bs, metaCost)
+		bs = binary.BigEndian.AppendUint16(bs, 1)
+		bs = append(bs, m.cost)
+	}
 
 	hasher, err := blake2b.New512(password)
 	if err != nil {
@@ -126,6 +136,9 @@ func (m *version_metadata) decode(r io.Reader, password []byte) error {
 
 		case metaPriority:
 			m.priority = bs[0]
+
+		case metaCost:
+			m.cost = bs[0]
 		}
 		bs = bs[oplen:]
 	}

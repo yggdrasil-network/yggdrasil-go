@@ -24,6 +24,7 @@ type PeerEntry struct {
 	PublicKey     string        `json:"key"`
 	Port          uint64        `json:"port"`
 	Priority      uint64        `json:"priority"`
+	Cost          uint64        `json:"cost"`
 	RXBytes       DataUnit      `json:"bytes_recvd,omitempty"`
 	TXBytes       DataUnit      `json:"bytes_sent,omitempty"`
 	Uptime        float64       `json:"uptime,omitempty"`
@@ -41,6 +42,7 @@ func (a *AdminSocket) getPeersHandler(_ *GetPeersRequest, res *GetPeersResponse)
 			Up:       p.Up,
 			Inbound:  p.Inbound,
 			Priority: uint64(p.Priority), // can't be uint8 thanks to gobind
+			Cost:     uint64(p.Cost),     // can't be uint8 thanks to gobind
 			URI:      p.URI,
 			RXBytes:  DataUnit(p.RXBytes),
 			TXBytes:  DataUnit(p.TXBytes),

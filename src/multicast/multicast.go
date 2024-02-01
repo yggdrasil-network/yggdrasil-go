@@ -45,6 +45,7 @@ type interfaceInfo struct {
 	listen   bool
 	port     uint16
 	priority uint8
+	cost     uint8
 	password []byte
 	hash     []byte
 }
@@ -214,6 +215,7 @@ func (m *Multicast) _getAllowedInterfaces() map[string]*interfaceInfo {
 				listen:   ifcfg.Listen,
 				port:     ifcfg.Port,
 				priority: ifcfg.Priority,
+				cost:     ifcfg.Cost,
 				password: []byte(ifcfg.Password),
 				hash:     hasher.Sum(nil),
 			}
@@ -314,6 +316,7 @@ func (m *Multicast) _announce() {
 				// No listener was found - let's create one
 				v := &url.Values{}
 				v.Add("priority", fmt.Sprintf("%d", info.priority))
+				v.Add("cost", fmt.Sprintf("%d", info.cost))
 				v.Add("password", string(info.password))
 				u := &url.URL{
 					Scheme:   "tls",
@@ -428,6 +431,7 @@ func (m *Multicast) listen() {
 			v := &url.Values{}
 			v.Add("key", hex.EncodeToString(adv.PublicKey))
 			v.Add("priority", fmt.Sprintf("%d", info.priority))
+			v.Add("cost", fmt.Sprintf("%d", info.cost))
 			v.Add("password", string(info.password))
 			u := &url.URL{
 				Scheme:   "tls",
