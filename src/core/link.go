@@ -69,6 +69,7 @@ type link struct {
 type linkOptions struct {
 	pinnedEd25519Keys map[keyArray]struct{}
 	priority          uint8
+	cost              uint8
 	tlsSNI            string
 	password          []byte
 	maxBackoff        time.Duration
@@ -136,6 +137,7 @@ func (e linkError) Error() string { return string(e) }
 const ErrLinkAlreadyConfigured = linkError("peer is already configured")
 const ErrLinkNotConfigured = linkError("peer is not configured")
 const ErrLinkPriorityInvalid = linkError("priority value is invalid")
+const ErrLinkCostInvalid = linkError("cost value is invalid")
 const ErrLinkPinnedKeyInvalid = linkError("pinned public key is invalid")
 const ErrLinkPasswordInvalid = linkError("password is invalid")
 const ErrLinkUnrecognisedSchema = linkError("link schema unknown")
@@ -177,6 +179,14 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 				return
 			}
 			options.priority = uint8(pi)
+		}
+		if p := u.Query().Get("cost"); p != "" {
+			c, err := strconv.ParseUint(p, 10, 8)
+			if err != nil {
+				retErr = ErrLinkCostInvalid
+				return
+			}
+			options.cost = uint8(c)
 		}
 		if p := u.Query().Get("password"); p != "" {
 			if len(p) > blake2b.Size {
@@ -441,6 +451,13 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 		}
 		options.priority = uint8(pi)
 	}
+	if p := u.Query().Get("cost"); p != "" {
+		c, err := strconv.ParseUint(p, 10, 8)
+		if err != nil {
+			return nil, ErrLinkCostInvalid
+		}
+		options.cost = uint8(c)
+	}
 	if p := u.Query().Get("password"); p != "" {
 		if len(p) > blake2b.Size {
 			return nil, ErrLinkPasswordInvalid
@@ -556,6 +573,7 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, s
 	meta := version_getBaseMetadata()
 	meta.publicKey = l.core.public
 	meta.priority = options.priority
+	meta.cost = options.cost
 	metaBytes, err := meta.encode(l.core.secret, options.password)
 	if err != nil {
 		return fmt.Errorf("failed to generate handshake: %w", err)
@@ -617,9 +635,12 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, s
 	remoteAddr := net.IP(address.AddrForKey(meta.publicKey)[:]).String()
 	remoteStr := fmt.Sprintf("%s@%s", remoteAddr, conn.RemoteAddr())
 	localStr := conn.LocalAddr()
-	priority := options.priority
+	cost, priority := options.cost, options.priority
 	if meta.priority > priority {
 		priority = meta.priority
+	}
+	if meta.cost > cost {
+		cost = meta.cost
 	}
 	l.core.log.Infof("Connected %s: %s, source %s",
 		dir, remoteStr, localStr)
@@ -627,7 +648,7 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, s
 		success()
 	}
 
-	err = l.core.HandleConn(meta.publicKey, conn, priority)
+	err = l.core.HandleConn(meta.publicKey, conn, cost, priority)
 	switch err {
 	case io.EOF, net.ErrClosed, nil:
 		l.core.log.Infof("Disconnected %s: %s, source %s",

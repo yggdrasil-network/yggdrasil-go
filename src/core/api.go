@@ -30,6 +30,7 @@ type PeerInfo struct {
 	Coords        []uint64
 	Port          uint64
 	Priority      uint8
+	Cost          uint8
 	RXBytes       uint64
 	TXBytes       uint64
 	Uptime        time.Duration
@@ -92,6 +93,7 @@ func (c *Core) GetPeers() []PeerInfo {
 				peerinfo.Root = p.Root
 				peerinfo.Port = p.Port
 				peerinfo.Priority = p.Priority
+				peerinfo.Cost = p.Cost
 			}
 			peers = append(peers, peerinfo)
 		}
