@@ -95,7 +95,7 @@ func (c *Core) GetPeers() []PeerInfo {
 				peerinfo.Port = p.Port
 				peerinfo.Priority = p.Priority
 				peerinfo.Latency = p.Latency
-				peerinfo.Cost = p.Cost
+				peerinfo.Cost = uint8(p.Cost)
 			}
 			peers = append(peers, peerinfo)
 		}
