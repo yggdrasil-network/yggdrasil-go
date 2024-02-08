@@ -62,6 +62,7 @@ type MulticastInterfaceConfig struct {
 	Listen   bool
 	Port     uint16
 	Priority uint64 // really uint8, but gobind won't export it
+	Cost     uint16 // really uint8, but gobind won't export it
 	Password string
 }
 

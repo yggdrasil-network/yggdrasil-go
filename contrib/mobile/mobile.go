@@ -97,6 +97,7 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 				Listen:   intf.Listen,
 				Port:     intf.Port,
 				Priority: uint8(intf.Priority),
+				Cost:     uint8(intf.Cost),
 				Password: intf.Password,
 			})
 		}
