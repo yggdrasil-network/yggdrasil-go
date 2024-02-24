@@ -187,4 +187,4 @@ cat > wix.xml << EOF
 EOF
 
 # Generate the MSI
-wixl -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.msi -arch ${PKGARCH} wix.xml
+wixl --output ${PKGNAME}-${PKGVERSION}-${PKGARCH}.msi --arch ${PKGARCH} wix.xml
