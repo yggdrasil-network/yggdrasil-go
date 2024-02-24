@@ -1,6 +1,9 @@
 name: Packages
 
 on:
+  push:
+  pull_request:
+  release:
   workflow_dispatch:
 
 concurrency:
