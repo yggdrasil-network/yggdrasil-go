@@ -9,33 +9,17 @@
 
 # Get arch from command line if given
 PKGARCH=$1
-if [ "${PKGARCH}" == "" ];
+if [ "${PKGARCH}" = "" ];
 then
   echo "tell me the architecture: x86, x64, arm or arm64"
   exit 1
 fi
 
-# Download the wix tools!
-if [ ! -d wixbin ];
-then
-  curl -LO https://wixtoolset.org/downloads/v3.14.0.3910/wix314-binaries.zip
-  if [ `md5sum wix314-binaries.zip | cut -f 1 -d " "` != "34f655cf108086838dd5a76d4318063b" ];
-  then
-    echo "wix package didn't match expected checksum"
-    exit 1
-  fi
-  mkdir -p wixbin
-  unzip -o wix314-binaries.zip -d wixbin || (
-    echo "failed to unzip WiX"
-    exit 1
-  )
-fi
-
 # Build Yggdrasil!
-[ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 ./build
-[ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=0 ./build
-[ "${PKGARCH}" == "arm" ] && GOOS=windows GOARCH=arm CGO_ENABLED=0 ./build
-[ "${PKGARCH}" == "arm64" ] && GOOS=windows GOARCH=arm64 CGO_ENABLED=0 ./build
+[ "${PKGARCH}" = "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 ./build
+[ "${PKGARCH}" = "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=0 ./build
+[ "${PKGARCH}" = "arm" ] && GOOS=windows GOARCH=arm CGO_ENABLED=0 ./build
+[ "${PKGARCH}" = "arm64" ] && GOOS=windows GOARCH=arm64 CGO_ENABLED=0 ./build
 
 # Create the postinstall script
 cat > updateconfig.bat << EOF
@@ -53,7 +37,7 @@ EOF
 PKGNAME=$(sh contrib/semver/name.sh)
 PKGVERSION=$(sh contrib/msi/msversion.sh --bare)
 PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
-([ "${PKGARCH}" == "x64" ] || [ "${PKGARCH}" == "arm64" ]) && \
+([ "${PKGARCH}" = "x64" ] || [ "${PKGARCH}" = "arm64" ]) && \
   PKGGUID="77757838-1a23-40a5-a720-c3b43e0260cc" PKGINSTFOLDER="ProgramFiles64Folder" || \
   PKGGUID="54a3294e-a441-4322-aefb-3bb40dd022bb" PKGINSTFOLDER="ProgramFilesFolder"
 
@@ -203,7 +187,4 @@ cat > wix.xml << EOF
 EOF
 
 # Generate the MSI
-CANDLEFLAGS="-nologo"
-LIGHTFLAGS="-nologo -spdb -sice:ICE71 -sice:ICE61"
-wixbin/candle $CANDLEFLAGS -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj -arch ${PKGARCH} wix.xml && \
-wixbin/light $LIGHTFLAGS -ext WixUtilExtension.dll -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.msi ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj
+wixl -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.msi -arch ${PKGARCH} wix.xml
