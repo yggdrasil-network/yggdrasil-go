@@ -3,7 +3,7 @@ module github.com/yggdrasil-network/yggdrasil-go
 go 1.20
 
 require (
-	github.com/Arceliar/ironwood v0.0.0-20240115190409-ddd1fa67c018
+	github.com/Arceliar/ironwood v0.0.0-20240321132619-86dcce58a105
 	github.com/Arceliar/phony v0.0.0-20220903101357-530938a4b13d
 	github.com/cheggaaa/pb/v3 v3.1.4
 	github.com/gologme/log v1.3.0
@@ -22,8 +22,8 @@ require (
 )
 
 require (
-	github.com/bits-and-blooms/bitset v1.5.0 // indirect
-	github.com/bits-and-blooms/bloom/v3 v3.3.1 // indirect
+	github.com/bits-and-blooms/bitset v1.10.0 // indirect
+	github.com/bits-and-blooms/bloom/v3 v3.7.0 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
