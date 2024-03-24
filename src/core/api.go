@@ -30,6 +30,7 @@ type PeerInfo struct {
 	Coords        []uint64
 	Port          uint64
 	Priority      uint8
+	Multipath     bool
 	RXBytes       uint64
 	TXBytes       uint64
 	Uptime        time.Duration
@@ -86,6 +87,7 @@ func (c *Core) GetPeers() []PeerInfo {
 				peerinfo.RXBytes = atomic.LoadUint64(&c.rx)
 				peerinfo.TXBytes = atomic.LoadUint64(&c.tx)
 				peerinfo.Uptime = time.Since(c.up)
+				peerinfo.Multipath = isMPTCP(c)
 			}
 			if p, ok := conns[conn]; ok {
 				peerinfo.Key = p.Key

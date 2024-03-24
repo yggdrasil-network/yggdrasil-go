@@ -27,6 +27,7 @@ func (l *links) newLinkTCP() *linkTCP {
 		_listeners: map[*Listener]context.CancelFunc{},
 	}
 	lt.listenconfig.Control = lt.tcpContext
+	setMPTCPForListener(lt.listenconfig)
 	return lt
 }
 
@@ -112,6 +113,7 @@ func (l *linkTCP) dialerFor(dst *net.TCPAddr, sintf string) (*net.Dialer, error)
 		KeepAlive: -1,
 		Control:   l.tcpContext,
 	}
+	setMPTCPForDialer(dialer)
 	if sintf != "" {
 		dialer.Control = l.getControl(sintf)
 		ief, err := net.InterfaceByName(sintf)

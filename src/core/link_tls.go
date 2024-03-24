@@ -30,6 +30,7 @@ func (l *links) newLinkTLS(tcp *linkTCP) *linkTLS {
 		config:     l.core.config.tls.Clone(),
 		_listeners: map[*Listener]context.CancelFunc{},
 	}
+	setMPTCPForListener(lt.listener)
 	return lt
 }
 
