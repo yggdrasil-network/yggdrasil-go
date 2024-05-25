@@ -212,7 +212,7 @@ func (c *Core) ReadFrom(p []byte) (n int, from net.Addr, err error) {
 
 func (c *Core) WriteTo(p []byte, addr net.Addr) (n int, err error) {
 	buf := allocBytes(0)
-	defer freeBytes(buf)
+	defer func() { freeBytes(buf) }()
 	buf = append(buf, typeSessionTraffic)
 	buf = append(buf, p...)
 	n, err = c.PacketConn.WriteTo(buf, addr)
