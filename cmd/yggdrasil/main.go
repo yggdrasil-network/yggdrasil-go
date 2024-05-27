@@ -188,7 +188,7 @@ func main() {
 
 	n := &node{}
 
-	// Setup the Yggdrasil node itself.
+	// Set up the Yggdrasil node itself.
 	{
 		options := []core.SetupOption{
 			core.NodeInfo(cfg.NodeInfo),
@@ -221,7 +221,7 @@ func main() {
 		logger.Printf("Your IPv6 subnet is %s", subnet.String())
 	}
 
-	// Setup the admin socket.
+	// Set up the admin socket.
 	{
 		options := []admin.SetupOption{
 			admin.ListenAddress(cfg.AdminListen),
@@ -237,7 +237,7 @@ func main() {
 		}
 	}
 
-	// Setup the multicast module.
+	// Set up the multicast module.
 	{
 		options := []multicast.SetupOption{}
 		for _, intf := range cfg.MulticastInterfaces {
@@ -258,7 +258,7 @@ func main() {
 		}
 	}
 
-	// Setup the TUN module.
+	// Set up the TUN module.
 	{
 		options := []tun.SetupOption{
 			tun.InterfaceName(cfg.IfName),

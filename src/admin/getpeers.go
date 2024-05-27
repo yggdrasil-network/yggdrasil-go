@@ -27,8 +27,8 @@ type PeerEntry struct {
 	RXBytes       DataUnit      `json:"bytes_recvd,omitempty"`
 	TXBytes       DataUnit      `json:"bytes_sent,omitempty"`
 	Uptime        float64       `json:"uptime,omitempty"`
-	LastError     string        `json:"last_error,omitempty"`
 	LastErrorTime time.Duration `json:"last_error_time,omitempty"`
+	LastError     string        `json:"last_error,omitempty"`
 }
 
 func (a *AdminSocket) getPeersHandler(req *GetPeersRequest, res *GetPeersResponse) error {
