@@ -1,6 +1,6 @@
 module github.com/yggdrasil-network/yggdrasil-go
 
-go 1.20
+go 1.21
 
 require (
 	github.com/Arceliar/ironwood v0.0.0-20240525111224-8b482710326e
@@ -10,11 +10,11 @@ require (
 	github.com/hashicorp/go-syslog v1.0.0
 	github.com/hjson/hjson-go/v4 v4.4.0
 	github.com/kardianos/minwinsvc v1.0.2
-	github.com/quic-go/quic-go v0.40.1
+	github.com/quic-go/quic-go v0.44.0
 	github.com/vishvananda/netlink v1.1.0
 	golang.org/x/crypto v0.23.0
-	golang.org/x/mobile v0.0.0-20231006135142-2b44d11868fe
-	golang.org/x/net v0.21.0
+	golang.org/x/mobile v0.0.0-20240520174638-fa72addaaa1b
+	golang.org/x/net v0.25.0
 	golang.org/x/sys v0.20.0
 	golang.org/x/text v0.15.0
 	golang.zx2c4.com/wireguard v0.0.0-20230223181233-21636207a675
@@ -28,12 +28,12 @@ require (
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/onsi/ginkgo/v2 v2.9.5 // indirect
-	github.com/quic-go/qtls-go1-20 v0.4.1 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
-	go.uber.org/mock v0.3.0 // indirect
-	golang.org/x/exp v0.0.0-20221205204356-47842c84f3db // indirect
-	golang.org/x/mod v0.13.0 // indirect
-	golang.org/x/tools v0.14.0 // indirect
+	go.uber.org/mock v0.4.0 // indirect
+	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
+	golang.org/x/mod v0.17.0 // indirect
+	golang.org/x/sync v0.7.0 // indirect
+	golang.org/x/tools v0.21.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 )
 

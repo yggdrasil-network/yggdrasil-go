@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # This script generates an MSI file for Yggdrasil for a given architecture. It
-# needs to run on Windows within MSYS2 and Go 1.20 or later must be installed on
+# needs to run on Windows within MSYS2 and Go 1.21 or later must be installed on
 # the system and within the PATH. This is ran currently by GitHub Actions (see
 # the workflows in the repository).
 #

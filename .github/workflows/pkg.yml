@@ -23,9 +23,9 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: "1.20"
+          go-version: "stable"
 
       - name: Build package
         env:
@@ -54,9 +54,9 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: "1.20"
+          go-version: "stable"
 
       - name: Build package
         env:
@@ -85,9 +85,9 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: "1.20"
+          go-version: "stable"
 
       - name: Build package
         run: sh contrib/msi/build-msi.sh ${{ matrix.pkgarch }}
@@ -120,9 +120,9 @@ jobs:
           path: vyatta-yggdrasil
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: "1.20"
+          go-version: "stable"
 
       - name: Build package
         env:
