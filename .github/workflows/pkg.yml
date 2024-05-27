@@ -18,7 +18,7 @@ jobs:
 
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -33,7 +33,7 @@ jobs:
         run: sh contrib/deb/generate.sh
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Debian package (${{ matrix.pkgarch }})
           path: "*.deb"
@@ -49,7 +49,7 @@ jobs:
 
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -64,7 +64,7 @@ jobs:
         run: sh contrib/macos/create-pkg.sh
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: macOS package (${{ matrix.pkgarch }})
           path: "*.pkg"
@@ -80,7 +80,7 @@ jobs:
 
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -93,7 +93,7 @@ jobs:
         run: sh contrib/msi/build-msi.sh ${{ matrix.pkgarch }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Windows package (${{ matrix.pkgarch }})
           path: "*.msi"
@@ -109,12 +109,12 @@ jobs:
 
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           path: yggdrasil
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           repository: neilalexander/vyatta-yggdrasil
           path: vyatta-yggdrasil
@@ -130,7 +130,7 @@ jobs:
         run: cd /home/runner/work/yggdrasil-go/yggdrasil-go/vyatta-yggdrasil && ./build-${{ matrix.pkgarch }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Router package (${{ matrix.pkgarch }})
           path: "/home/runner/work/yggdrasil-go/yggdrasil-go/vyatta-yggdrasil/*.deb"
