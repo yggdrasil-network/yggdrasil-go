@@ -16,20 +16,7 @@ then
 fi
 
 # Download the wix tools!
-if [ ! -d wixbin ];
-then
-  curl -LO https://wixtoolset.org/downloads/v3.14.0.3910/wix314-binaries.zip
-  if [ `md5sum wix314-binaries.zip | cut -f 1 -d " "` != "34f655cf108086838dd5a76d4318063b" ];
-  then
-    echo "wix package didn't match expected checksum"
-    exit 1
-  fi
-  mkdir -p wixbin
-  unzip -o wix314-binaries.zip -d wixbin || (
-    echo "failed to unzip WiX"
-    exit 1
-  )
-fi
+dotnet tool install --global wix --version 5.0.0
 
 # Build Yggdrasil!
 [ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 ./build
@@ -61,6 +48,11 @@ PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
 if [ ! -d wintun ];
 then
   curl -o wintun.zip https://www.wintun.net/builds/wintun-0.14.1.zip
+  if [ `sha256sum wintun.zip | cut -f 1 -d " "` != "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51" ];
+  then
+    echo "wintun package didn't match expected checksum"
+    exit 1
+  fi
   unzip wintun.zip
 fi
 if [ $PKGARCH = "x64" ]; then
@@ -101,7 +93,7 @@ cat > wix.xml << EOF
       Description="Yggdrasil Network Installer"
       Comments="Yggdrasil Network standalone router for Windows."
       Manufacturer="github.com/yggdrasil-network"
-      InstallerVersion="200"
+      InstallerVersion="500"
       InstallScope="perMachine"
       Languages="1033"
       Compressed="yes"
@@ -205,5 +197,5 @@ EOF
 # Generate the MSI
 CANDLEFLAGS="-nologo"
 LIGHTFLAGS="-nologo -spdb -sice:ICE71 -sice:ICE61"
-wixbin/candle $CANDLEFLAGS -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj -arch ${PKGARCH} wix.xml && \
-wixbin/light $LIGHTFLAGS -ext WixUtilExtension.dll -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.msi ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj
+candle $CANDLEFLAGS -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj -arch ${PKGARCH} wix.xml && \
+light $LIGHTFLAGS -ext WixUtilExtension.dll -out ${PKGNAME}-${PKGVERSION}-${PKGARCH}.msi ${PKGNAME}-${PKGVERSION}-${PKGARCH}.wixobj

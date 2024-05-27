@@ -89,6 +89,9 @@ jobs:
         with:
           go-version: "stable"
 
+      - name: Setup .NET Core SDK
+        uses: actions/setup-dotnet@v4
+
       - name: Build package
         run: sh contrib/msi/build-msi.sh ${{ matrix.pkgarch }}
 
