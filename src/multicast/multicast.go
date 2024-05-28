@@ -358,6 +358,7 @@ func (m *Multicast) _announce() {
 			if linfo.interval.Seconds() < 15 {
 				linfo.interval += time.Second
 			}
+			linfo.time = time.Now()
 			break
 		}
 	}
