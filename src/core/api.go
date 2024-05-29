@@ -33,6 +33,7 @@ type PeerInfo struct {
 	RXBytes       uint64
 	TXBytes       uint64
 	Uptime        time.Duration
+	Latency       time.Duration
 }
 
 type TreeEntryInfo struct {
@@ -92,6 +93,7 @@ func (c *Core) GetPeers() []PeerInfo {
 				peerinfo.Root = p.Root
 				peerinfo.Port = p.Port
 				peerinfo.Priority = p.Priority
+				peerinfo.Latency = p.Latency
 			}
 			peers = append(peers, peerinfo)
 		}
