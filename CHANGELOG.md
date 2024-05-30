@@ -44,7 +44,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 * Bloom filter hashing now works correctly on big-endian architectures
 * Incorrect buffer pool usage has been fixed, reducing memory allocations
 * The multicast beacon interval now backs off correctly, reducing the number of beacons sent
-* A denial-of-service vulnerabilty in the QUIC library has been fixed with a dependency update
+* A denial-of-service vulnerability in the QUIC library has been fixed with a dependency update
 
 ## [0.5.5] - 2024-01-27
 
