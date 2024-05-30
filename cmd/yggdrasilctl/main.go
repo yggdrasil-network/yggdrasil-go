@@ -174,11 +174,13 @@ func run() int {
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
-		table.SetHeader([]string{"URI", "State", "Dir", "IP Address", "Uptime", "RX", "TX", "Pr", "Last Error"})
+		table.SetHeader([]string{"URI", "State", "Dir", "IP Address", "Uptime", "RTT", "RX", "TX", "Pr", "Last Error"})
 		for _, peer := range resp.Peers {
-			state, lasterr, dir := "Up", "-", "Out"
+			state, lasterr, dir, rtt := "Up", "-", "Out", "-"
 			if !peer.Up {
 				state, lasterr = "Down", fmt.Sprintf("%s ago: %s", peer.LastErrorTime.Round(time.Second), peer.LastError)
+			} else if rttms := float64(peer.Latency.Microseconds()) / 1000; rttms > 0 {
+				rtt = fmt.Sprintf("%.02fms", rttms)
 			}
 			if peer.Inbound {
 				dir = "In"
@@ -194,6 +196,7 @@ func run() int {
 				dir,
 				peer.IPAddress,
 				(time.Duration(peer.Uptime) * time.Second).String(),
+				rtt,
 				peer.RXBytes.String(),
 				peer.TXBytes.String(),
 				fmt.Sprintf("%d", peer.Priority),

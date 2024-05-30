@@ -27,6 +27,7 @@ type PeerEntry struct {
 	RXBytes       DataUnit      `json:"bytes_recvd,omitempty"`
 	TXBytes       DataUnit      `json:"bytes_sent,omitempty"`
 	Uptime        float64       `json:"uptime,omitempty"`
+	Latency       time.Duration `json:"latency_ms,omitempty"`
 	LastErrorTime time.Duration `json:"last_error_time,omitempty"`
 	LastError     string        `json:"last_error,omitempty"`
 }
@@ -44,6 +45,9 @@ func (a *AdminSocket) getPeersHandler(req *GetPeersRequest, res *GetPeersRespons
 			RXBytes:  DataUnit(p.RXBytes),
 			TXBytes:  DataUnit(p.TXBytes),
 			Uptime:   p.Uptime.Seconds(),
+		}
+		if p.Latency > 0 {
+			peer.Latency = p.Latency
 		}
 		if addr := address.AddrForKey(p.Key); addr != nil {
 			peer.PublicKey = hex.EncodeToString(p.Key)
