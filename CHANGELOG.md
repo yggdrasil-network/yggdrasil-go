@@ -26,6 +26,26 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.5.6] - 2024-05-30
+
+* Go 1.21 is now required to build Yggdrasil
+
+### Added
+
+* The `getPeers` endpoint now reports the RTT/latency of directly connected peers
+
+### Changed
+
+* The tree parent selection algorithm now prefers the lowest latency peers instead of the most stable
+* Session key exchange logic has been changed to improve throughput and reduce occasional jitter
+
+### Fixed
+
+* Bloom filter hashing now works correctly on big-endian architectures
+* Incorrect buffer pool usage has been fixed, reducing memory allocations
+* The multicast beacon interval now backs off correctly, reducing the number of beacons sent
+* A denial-of-service vulnerabilty in the QUIC library has been fixed with a dependency update
+
 ## [0.5.5] - 2024-01-27
 
 ### Added
