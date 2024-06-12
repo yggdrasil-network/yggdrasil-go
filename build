@@ -28,11 +28,24 @@ if [ -z $TABLES ] && [ -z $DEBUG ]; then
   LDFLAGS="$LDFLAGS -s -w"
 fi
 
-for CMD in yggdrasil yggdrasilctl ; do
+LIBNAME="yggdrasillib"
+
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+  LIBNAME="$LIBNAME.so"
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+  LIBNAME="$LIBNAME.dylib"
+elif [[ "$OSTYPE" == "win32" ]]; then
+  LIBNAME="$LIBNAME.dll"
+fi
+
+for CMD in yggdrasil yggdrasilctl; do
   echo "Building: $CMD"
+
   go build $ARGS -ldflags="$LDFLAGS" -gcflags="$GCFLAGS" ./cmd/$CMD
 
   if [ $UPX ]; then
     upx --brute $CMD
   fi
 done
+
+go build -ldflags="$LDFLAGS" -buildmode=c-shared -o="$LIBNAME" ./cmd/yggdrasillib
