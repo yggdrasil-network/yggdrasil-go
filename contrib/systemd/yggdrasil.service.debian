@@ -6,6 +6,7 @@ After=network-online.target
 After=yggdrasil-default-config.service
 
 [Service]
+Type=notify
 Group=yggdrasil
 ProtectHome=true
 ProtectSystem=strict
