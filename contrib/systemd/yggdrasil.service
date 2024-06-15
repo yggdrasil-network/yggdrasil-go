@@ -6,6 +6,10 @@ After=network-online.target
 After=yggdrasil-default-config.service
 
 [Service]
+Type=notify
+# Allow forked off processes to send notifications.
+# Uncomment if e.g. yggdrasil is started by a script.
+#NotifyAccess=all
 Group=yggdrasil
 ProtectHome=true
 ProtectSystem=true
