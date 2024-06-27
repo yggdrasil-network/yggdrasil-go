@@ -36,7 +36,7 @@ type tcpDialer struct {
 	addr   *net.TCPAddr
 }
 
-func (l *linkTCP) dialersFor(url *url.URL, info linkInfo) ([]*tcpDialer, error) {
+func (l *linkTCP) dialersFor(url *url.URL, info linkInfo, options linkOptions) ([]*tcpDialer, error) {
 	host, p, err := net.SplitHostPort(url.Host)
 	if err != nil {
 		return nil, err
@@ -55,7 +55,7 @@ func (l *linkTCP) dialersFor(url *url.URL, info linkInfo) ([]*tcpDialer, error) 
 			IP:   ip,
 			Port: port,
 		}
-		dialer, err := l.dialerFor(addr, info.sintf)
+		dialer, err := l.dialerFor(addr, info.sintf, options.multipath)
 		if err != nil {
 			continue
 		}
@@ -69,7 +69,7 @@ func (l *linkTCP) dialersFor(url *url.URL, info linkInfo) ([]*tcpDialer, error) 
 }
 
 func (l *linkTCP) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
-	dialers, err := l.dialersFor(url, info)
+	dialers, err := l.dialersFor(url, info, options)
 	if err != nil {
 		return nil, err
 	}
@@ -88,17 +88,21 @@ func (l *linkTCP) dial(ctx context.Context, url *url.URL, info linkInfo, options
 	return nil, err
 }
 
-func (l *linkTCP) listen(ctx context.Context, url *url.URL, sintf string) (net.Listener, error) {
+func (l *linkTCP) listen(ctx context.Context, url *url.URL, sintf string, options linkOptions) (net.Listener, error) {
 	hostport := url.Host
 	if sintf != "" {
 		if host, port, err := net.SplitHostPort(hostport); err == nil {
 			hostport = fmt.Sprintf("[%s%%%s]:%s", host, sintf, port)
 		}
 	}
-	return l.listenconfig.Listen(ctx, "tcp", hostport)
+	lc := *l.listenconfig
+	if options.multipath {
+		setMPTCPForListener(&lc)
+	}
+	return lc.Listen(ctx, "tcp", hostport)
 }
 
-func (l *linkTCP) dialerFor(dst *net.TCPAddr, sintf string) (*net.Dialer, error) {
+func (l *linkTCP) dialerFor(dst *net.TCPAddr, sintf string, mptcp bool) (*net.Dialer, error) {
 	if dst.IP.IsLinkLocalUnicast() {
 		if sintf != "" {
 			dst.Zone = sintf
@@ -111,6 +115,9 @@ func (l *linkTCP) dialerFor(dst *net.TCPAddr, sintf string) (*net.Dialer, error)
 		Timeout:   time.Second * 5,
 		KeepAlive: -1,
 		Control:   l.tcpContext,
+	}
+	if mptcp {
+		setMPTCPForDialer(dialer)
 	}
 	if sintf != "" {
 		dialer.Control = l.getControl(sintf)

@@ -44,7 +44,7 @@ type links struct {
 
 type linkProtocol interface {
 	dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error)
-	listen(ctx context.Context, url *url.URL, sintf string) (net.Listener, error)
+	listen(ctx context.Context, url *url.URL, sintf string, options linkOptions) (net.Listener, error)
 }
 
 // linkInfo is used as a map key
@@ -72,6 +72,7 @@ type linkOptions struct {
 	tlsSNI            string
 	password          []byte
 	maxBackoff        time.Duration
+	multipath         bool
 }
 
 type Listener struct {
@@ -140,6 +141,7 @@ const ErrLinkPinnedKeyInvalid = linkError("pinned public key is invalid")
 const ErrLinkPasswordInvalid = linkError("password is invalid")
 const ErrLinkUnrecognisedSchema = linkError("link schema unknown")
 const ErrLinkMaxBackoffInvalid = linkError("max backoff duration invalid")
+const ErrLinkMultipathInvalid = linkError("multipath invalid")
 
 func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 	var retErr error
@@ -192,6 +194,17 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 				return
 			}
 			options.maxBackoff = d
+		}
+		if p := u.Query().Get("multipath"); p != "" {
+			switch p {
+			case "true", "1":
+				options.multipath = true
+			case "false", "0":
+				options.multipath = false
+			default:
+				retErr = ErrLinkMultipathInvalid
+				return
+			}
 		}
 		// SNI headers must contain hostnames and not IP addresses, so we must make sure
 		// that we do not populate the SNI with an IP literal. We do this by splitting
@@ -379,7 +392,7 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 	return retErr
 }
 
-func (l *links) remove(u *url.URL, sintf string, linkType linkType) error {
+func (l *links) remove(u *url.URL, sintf string, _ linkType) error {
 	var retErr error
 	phony.Block(l, func() {
 		// Generate the link info and see whether we think we already
@@ -422,7 +435,36 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 		cancel()
 		return nil, ErrLinkUnrecognisedSchema
 	}
-	listener, err := protocol.listen(ctx, u, sintf)
+
+	var options linkOptions
+	if p := u.Query().Get("priority"); p != "" {
+		pi, err := strconv.ParseUint(p, 10, 8)
+		if err != nil {
+			cancel()
+			return nil, ErrLinkPriorityInvalid
+		}
+		options.priority = uint8(pi)
+	}
+	if p := u.Query().Get("password"); p != "" {
+		if len(p) > blake2b.Size {
+			cancel()
+			return nil, ErrLinkPasswordInvalid
+		}
+		options.password = []byte(p)
+	}
+	if p := u.Query().Get("multipath"); p != "" {
+		switch p {
+		case "true", "1":
+			options.multipath = true
+		case "false", "0":
+			options.multipath = false
+		default:
+			cancel()
+			return nil, ErrLinkMultipathInvalid
+		}
+	}
+
+	listener, err := protocol.listen(ctx, u, sintf, options)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -431,21 +473,6 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 		listener: listener,
 		ctx:      ctx,
 		Cancel:   cancel,
-	}
-
-	var options linkOptions
-	if p := u.Query().Get("priority"); p != "" {
-		pi, err := strconv.ParseUint(p, 10, 8)
-		if err != nil {
-			return nil, ErrLinkPriorityInvalid
-		}
-		options.priority = uint8(pi)
-	}
-	if p := u.Query().Get("password"); p != "" {
-		if len(p) > blake2b.Size {
-			return nil, ErrLinkPasswordInvalid
-		}
-		options.password = []byte(p)
 	}
 
 	go func() {
@@ -567,7 +594,7 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, s
 	switch {
 	case err != nil:
 		return fmt.Errorf("write handshake: %w", err)
-	case err == nil && n != len(metaBytes):
+	case n != len(metaBytes):
 		return fmt.Errorf("incomplete handshake send")
 	}
 	meta = version_metadata{}
