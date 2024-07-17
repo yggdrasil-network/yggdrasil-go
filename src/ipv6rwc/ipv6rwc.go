@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
+	"github.com/yggdrasil-network/yggdrasil-go/src/tun"
 )
 
 const keyStoreTimeout = 2 * time.Minute
@@ -337,11 +339,40 @@ func (k *keyStore) MTU() uint64 {
 
 type ReadWriteCloser struct {
 	keyStore
+	ch    chan []byte
+	errch chan error
+}
+
+const bufPoolSize = tun.TUN_OFFSET_BYTES + 65535
+
+var bufPool = sync.Pool{
+	New: func() any {
+		b := [bufPoolSize]byte{}
+		return b[:]
+	},
 }
 
 func NewReadWriteCloser(c *core.Core) *ReadWriteCloser {
 	rwc := new(ReadWriteCloser)
 	rwc.init(c)
+	rwc.ch = make(chan []byte, tun.TUN_MAX_VECTOR)
+	rwc.errch = make(chan error, 1)
+	go func() {
+		for {
+			p := bufPool.Get().([]byte)[:bufPoolSize]
+			n, err := rwc.readPC(p[:])
+			if err != nil || n == 0 {
+				if err == nil {
+					err = io.EOF
+				}
+				rwc.errch <- err
+				close(rwc.errch)
+				close(rwc.ch)
+				return
+			}
+			rwc.ch <- p[:n]
+		}
+	}()
 	return rwc
 }
 
@@ -354,7 +385,32 @@ func (rwc *ReadWriteCloser) Subnet() address.Subnet {
 }
 
 func (rwc *ReadWriteCloser) Read(p []byte) (n int, err error) {
-	return rwc.readPC(p)
+	msg := <-rwc.ch
+	if msg == nil {
+		return 0, <-rwc.errch
+	}
+	return copy(p, msg), nil
+}
+
+func (rwc *ReadWriteCloser) ReadMany(b [][]byte, sizes []int, offset int) (c int, err error) {
+	var lb int
+	if c, lb = len(rwc.ch), len(b); c > lb {
+		c = lb
+	}
+	if c == 0 {
+		// If nothing is waiting yet then we should block
+		// for the next packet only.
+		c = 1
+	}
+	for i := 0; i < c; i++ {
+		msg := <-rwc.ch
+		if msg == nil {
+			return i, <-rwc.errch
+		}
+		sizes[i] = offset + copy(b[i][offset:], msg)
+		bufPool.Put(msg) // nolint:staticcheck
+	}
+	return
 }
 
 func (rwc *ReadWriteCloser) Write(p []byte) (n int, err error) {

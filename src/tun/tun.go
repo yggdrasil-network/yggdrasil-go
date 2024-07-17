@@ -24,6 +24,7 @@ type MTU uint16
 
 type ReadWriteCloser interface {
 	io.ReadWriteCloser
+	ReadMany([][]byte, []int, int) (int, error) // Vectorised reads
 	Address() address.Address
 	Subnet() address.Subnet
 	MaxMTU() uint64
