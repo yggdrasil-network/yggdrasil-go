@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/Arceliar/phony"
@@ -24,7 +25,6 @@ type MTU uint16
 
 type ReadWriteCloser interface {
 	io.ReadWriteCloser
-	ReadMany([][]byte, []int, int) (int, error) // Vectorised reads
 	Address() address.Address
 	Subnet() address.Subnet
 	MaxMTU() uint64
@@ -50,6 +50,7 @@ type TunAdapter struct {
 		name InterfaceName
 		mtu  InterfaceMTU
 	}
+	ch chan []byte
 }
 
 // Gets the maximum supported MTU for the platform based on the defaults in
@@ -161,6 +162,8 @@ func (tun *TunAdapter) _start() error {
 	tun.rwc.SetMTU(tun.MTU())
 	tun.isOpen = true
 	tun.isEnabled = true
+	tun.ch = make(chan []byte, tun.idealBatchSize())
+	go tun.queue()
 	go tun.read()
 	go tun.write()
 	return nil
@@ -193,4 +196,13 @@ func (tun *TunAdapter) _stop() error {
 		tun.iface.Close()
 	}
 	return nil
+}
+
+const bufPoolSize = TUN_OFFSET_BYTES + 65535
+
+var bufPool = sync.Pool{
+	New: func() any {
+		b := [bufPoolSize]byte{}
+		return b[:]
+	},
 }
