@@ -37,6 +37,8 @@ type links struct {
 	unix  *linkUNIX  // UNIX interface support
 	socks *linkSOCKS // SOCKS interface support
 	quic  *linkQUIC  // QUIC interface support
+	ws    *linkWS    // WS interface support
+	wss   *linkWSS   // WSS interface support
 	// _links can only be modified safely from within the links actor
 	_links map[linkInfo]*link // *link is nil if connection in progress
 }
@@ -97,6 +99,8 @@ func (l *links) init(c *Core) error {
 	l.unix = l.newLinkUNIX()
 	l.socks = l.newLinkSOCKS()
 	l.quic = l.newLinkQUIC()
+	l.ws = l.newLinkWS()
+	l.wss = l.newLinkWSS()
 	l._links = make(map[linkInfo]*link)
 
 	var listeners []ListenAddress
@@ -417,6 +421,10 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 		protocol = l.unix
 	case "quic":
 		protocol = l.quic
+	case "ws":
+		protocol = l.ws
+	case "wss":
+		protocol = l.wss
 	default:
 		cancel()
 		return nil, ErrLinkUnrecognisedSchema
@@ -545,6 +553,10 @@ func (l *links) connect(ctx context.Context, u *url.URL, info linkInfo, options 
 		dialer = l.unix
 	case "quic":
 		dialer = l.quic
+	case "ws":
+		dialer = l.ws
+	case "wss":
+		dialer = l.wss
 	default:
 		return nil, ErrLinkUnrecognisedSchema
 	}
