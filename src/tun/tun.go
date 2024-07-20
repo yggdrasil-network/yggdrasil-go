@@ -162,7 +162,7 @@ func (tun *TunAdapter) _start() error {
 	tun.rwc.SetMTU(tun.MTU())
 	tun.isOpen = true
 	tun.isEnabled = true
-	tun.ch = make(chan []byte, tun.idealBatchSize())
+	tun.ch = make(chan []byte, tun.iface.BatchSize())
 	go tun.queue()
 	go tun.read()
 	go tun.write()

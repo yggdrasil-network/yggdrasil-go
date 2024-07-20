@@ -1,17 +1,9 @@
 package tun
 
 const TUN_OFFSET_BYTES = 80 // sizeof(virtio_net_hdr)
-const TUN_MAX_VECTOR = 16
-
-func (tun *TunAdapter) idealBatchSize() int {
-	if b := tun.iface.BatchSize(); b <= TUN_MAX_VECTOR {
-		return b
-	}
-	return TUN_MAX_VECTOR
-}
 
 func (tun *TunAdapter) read() {
-	vs := tun.idealBatchSize()
+	vs := tun.iface.BatchSize()
 	bufs := make([][]byte, vs)
 	sizes := make([]int, vs)
 	for i := range bufs {
