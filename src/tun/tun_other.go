@@ -18,6 +18,9 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 	if err != nil {
 		return fmt.Errorf("failed to create TUN: %w", err)
 	}
+	if !waitForTUNUp(iface.Events()) {
+		return fmt.Errorf("TUN did not come up in time")
+	}
 	tun.iface = iface
 	if mtu, err := iface.MTU(); err == nil {
 		tun.mtu = getSupportedMTU(uint64(mtu))
