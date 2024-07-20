@@ -12,7 +12,7 @@ type RemovePeerRequest struct {
 
 type RemovePeerResponse struct{}
 
-func (a *AdminSocket) removePeerHandler(req *RemovePeerRequest, res *RemovePeerResponse) error {
+func (a *AdminSocket) removePeerHandler(req *RemovePeerRequest, _ *RemovePeerResponse) error {
 	u, err := url.Parse(req.Uri)
 	if err != nil {
 		return fmt.Errorf("unable to parse peering URI: %w", err)

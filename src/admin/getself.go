@@ -17,7 +17,7 @@ type GetSelfResponse struct {
 	Subnet         string `json:"subnet"`
 }
 
-func (a *AdminSocket) getSelfHandler(req *GetSelfRequest, res *GetSelfResponse) error {
+func (a *AdminSocket) getSelfHandler(_ *GetSelfRequest, res *GetSelfResponse) error {
 	self := a.core.GetSelf()
 	snet := a.core.Subnet()
 	res.BuildName = version.BuildName()

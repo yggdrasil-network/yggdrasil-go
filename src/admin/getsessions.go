@@ -23,7 +23,7 @@ type SessionEntry struct {
 	Uptime    float64  `json:"uptime"`
 }
 
-func (a *AdminSocket) getSessionsHandler(req *GetSessionsRequest, res *GetSessionsResponse) error {
+func (a *AdminSocket) getSessionsHandler(_ *GetSessionsRequest, res *GetSessionsResponse) error {
 	sessions := a.core.GetSessions()
 	res.Sessions = make([]SessionEntry, 0, len(sessions))
 	for _, s := range sessions {

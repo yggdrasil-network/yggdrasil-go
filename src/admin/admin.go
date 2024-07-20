@@ -201,10 +201,6 @@ func (a *AdminSocket) SetupAdminHandlers() {
 			return res, nil
 		},
 	)
-	//_ = a.AddHandler("getNodeInfo", []string{"key"}, t.proto.nodeinfo.nodeInfoAdminHandler)
-	//_ = a.AddHandler("debug_remoteGetSelf", []string{"key"}, t.proto.getSelfHandler)
-	//_ = a.AddHandler("debug_remoteGetPeers", []string{"key"}, t.proto.getPeersHandler)
-	//_ = a.AddHandler("debug_remoteGetDHT", []string{"key"}, t.proto.getDHTHandler)
 }
 
 // IsStarted returns true if the module has been started.
@@ -269,7 +265,6 @@ func (a *AdminSocket) listen() {
 		case "tcp":
 			a.listener, err = net.Listen("tcp", u.Host)
 		default:
-			// err = errors.New(fmt.Sprint("protocol not supported: ", u.Scheme))
 			a.listener, err = net.Listen("tcp", listenaddr)
 		}
 	} else {
@@ -308,23 +303,6 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 	encoder.SetIndent("", "  ")
 
 	defer conn.Close()
-
-	/*
-		defer func() {
-			r := recover()
-			if r != nil {
-				fmt.Println("ERROR:", r)
-				a.log.Debugln("Admin socket error:", r)
-				if err := encoder.Encode(&ErrorResponse{
-					Error: "Check your syntax and input types",
-				}); err != nil {
-					fmt.Println("ERROR 2:", err)
-					a.log.Debugln("Admin socket JSON encode error:", err)
-				}
-				conn.Close()
-			}
-		}()
-	*/
 
 	for {
 		var err error

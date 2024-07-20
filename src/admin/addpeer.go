@@ -12,7 +12,7 @@ type AddPeerRequest struct {
 
 type AddPeerResponse struct{}
 
-func (a *AdminSocket) addPeerHandler(req *AddPeerRequest, res *AddPeerResponse) error {
+func (a *AdminSocket) addPeerHandler(req *AddPeerRequest, _ *AddPeerResponse) error {
 	u, err := url.Parse(req.Uri)
 	if err != nil {
 		return fmt.Errorf("unable to parse peering URI: %w", err)

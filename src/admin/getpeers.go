@@ -32,7 +32,7 @@ type PeerEntry struct {
 	LastError     string        `json:"last_error,omitempty"`
 }
 
-func (a *AdminSocket) getPeersHandler(req *GetPeersRequest, res *GetPeersResponse) error {
+func (a *AdminSocket) getPeersHandler(_ *GetPeersRequest, res *GetPeersResponse) error {
 	peers := a.core.GetPeers()
 	res.Peers = make([]PeerEntry, 0, len(peers))
 	for _, p := range peers {

@@ -378,7 +378,7 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 	return retErr
 }
 
-func (l *links) remove(u *url.URL, sintf string, linkType linkType) error {
+func (l *links) remove(u *url.URL, sintf string, _ linkType) error {
 	var retErr error
 	phony.Block(l, func() {
 		// Generate the link info and see whether we think we already
@@ -566,7 +566,7 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, s
 	switch {
 	case err != nil:
 		return fmt.Errorf("write handshake: %w", err)
-	case err == nil && n != len(metaBytes):
+	case n != len(metaBytes):
 		return fmt.Errorf("incomplete handshake send")
 	}
 	meta = version_metadata{}

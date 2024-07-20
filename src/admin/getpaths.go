@@ -23,7 +23,7 @@ type PathEntry struct {
 	Sequence  uint64   `json:"sequence"`
 }
 
-func (a *AdminSocket) getPathsHandler(req *GetPathsRequest, res *GetPathsResponse) error {
+func (a *AdminSocket) getPathsHandler(_ *GetPathsRequest, res *GetPathsResponse) error {
 	paths := a.core.GetPaths()
 	res.Paths = make([]PathEntry, 0, len(paths))
 	for _, p := range paths {
