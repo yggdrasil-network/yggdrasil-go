@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
@@ -641,16 +640,6 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, s
 
 func urlForLinkInfo(u url.URL) url.URL {
 	u.RawQuery = ""
-	if host, _, err := net.SplitHostPort(u.Host); err == nil {
-		if addr, err := netip.ParseAddr(host); err == nil {
-			// For peers that look like multicast peers (i.e.
-			// link-local addresses), we will ignore the port number,
-			// otherwise we might open multiple connections to them.
-			if addr.IsLinkLocalUnicast() {
-				u.Host = fmt.Sprintf("[%s]", addr.String())
-			}
-		}
-	}
 	return u
 }
 
