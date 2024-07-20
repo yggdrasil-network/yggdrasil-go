@@ -403,7 +403,7 @@ func (m *Multicast) listen() {
 			continue
 		case adv.MinorVersion != core.ProtocolVersionMinor:
 			continue
-		case adv.PublicKey.Equal(m.core.PublicKey()):
+		case bytes.Compare(adv.PublicKey, m.core.PublicKey()) >= 0:
 			continue
 		}
 		from := fromAddr.(*net.UDPAddr)
