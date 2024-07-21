@@ -58,6 +58,11 @@ func (l *linkWSSListener) Close() error {
 }
 
 func (s *wssServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/h" {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+		return
+	}
 	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		Subprotocols: []string{"ygg-ws"},
 	})
