@@ -48,20 +48,19 @@ func (l *linkWSListener) Close() error {
 	if err := l.httpServer.Shutdown(l.ctx); err != nil {
 		return err
 	}
-
 	return l.listener.Close()
 }
 
 func (s *wsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/h" {
+	if r.URL.Path == "/health" {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 		return
 	}
+
 	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		Subprotocols: []string{"ygg-ws"},
 	})
-
 	if err != nil {
 		return
 	}
@@ -71,11 +70,8 @@ func (s *wsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	netconn := websocket.NetConn(s.ctx, c, websocket.MessageBinary)
-
-	ch := s.ch
-	ch <- &linkWSConn{
-		Conn: netconn,
+	s.ch <- &linkWSConn{
+		Conn: websocket.NetConn(s.ctx, c, websocket.MessageBinary),
 	}
 }
 
@@ -83,7 +79,6 @@ func (l *links) newLinkWS() *linkWS {
 	lt := &linkWS{
 		links: l,
 	}
-
 	return lt
 }
 
@@ -94,9 +89,8 @@ func (l *linkWS) dial(ctx context.Context, url *url.URL, info linkInfo, options 
 	if err != nil {
 		return nil, err
 	}
-	netconn := websocket.NetConn(ctx, wsconn, websocket.MessageBinary)
 	return &linkWSConn{
-		Conn: netconn,
+		Conn: websocket.NetConn(ctx, wsconn, websocket.MessageBinary),
 	}, nil
 }
 
@@ -113,6 +107,7 @@ func (l *linkWS) listen(ctx context.Context, url *url.URL, _ string) (net.Listen
 			ch:  ch,
 			ctx: ctx,
 		},
+		BaseContext:  func(_ net.Listener) context.Context { return ctx },
 		ReadTimeout:  time.Second * 10,
 		WriteTimeout: time.Second * 10,
 	}
@@ -123,6 +118,6 @@ func (l *linkWS) listen(ctx context.Context, url *url.URL, _ string) (net.Listen
 		httpServer: httpServer,
 		listener:   nl,
 	}
-	go lwl.httpServer.Serve(nl)
+	go lwl.httpServer.Serve(nl) // nolint:errcheck
 	return lwl, nil
 }

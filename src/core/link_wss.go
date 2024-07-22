@@ -21,9 +21,8 @@ type linkWSSConn struct {
 
 func (l *links) newLinkWSS() *linkWSS {
 	lwss := &linkWSS{
-		links:     l,
+		links: l,
 	}
-
 	return lwss
 }
 
@@ -34,9 +33,8 @@ func (l *linkWSS) dial(ctx context.Context, url *url.URL, info linkInfo, options
 	if err != nil {
 		return nil, err
 	}
-	netconn := websocket.NetConn(ctx, wsconn, websocket.MessageBinary)
 	return &linkWSSConn{
-		Conn: netconn,
+		Conn: websocket.NetConn(ctx, wsconn, websocket.MessageBinary),
 	}, nil
 }
 
