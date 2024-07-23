@@ -52,7 +52,7 @@ func (l *linkWSListener) Close() error {
 }
 
 func (s *wsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/health" {
+	if r.URL.Path == "/health" || r.URL.Path == "/healthz" {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("OK"))
 		return
