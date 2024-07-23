@@ -19,6 +19,7 @@ require (
 	golang.org/x/text v0.16.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	golang.zx2c4.com/wireguard/windows v0.5.3
+	nhooyr.io/websocket v1.8.11
 )
 
 require (
