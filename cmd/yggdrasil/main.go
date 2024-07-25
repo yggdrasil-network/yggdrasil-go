@@ -53,12 +53,12 @@ func main() {
 	getpkey := flag.Bool("publickey", false, "use in combination with either -useconf or -useconffile, outputs your public key")
 	loglevel := flag.String("loglevel", "info", "loglevel to enable")
 	flag.Parse()
-
+	
+	done := make(chan struct{})
+	defer close(done)
+	
 	// Catch interrupts from the operating system to exit gracefully.
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-
-	// Capture the service being stopped on Windows.
-	minwinsvc.SetOnExit(cancel)
 
 	// Create a new logger that logs output to stdout.
 	var logger *log.Logger
@@ -271,6 +271,14 @@ func main() {
 			n.tun.SetupAdminHandlers(n.admin)
 		}
 	}
+	
+	//Windows service shutdown
+	minwinsvc.SetOnExit(func() {
+		logger.Infof("Shutting down service ...")
+		cancel()
+		// Wait for all parts to shutdown properly
+		<-done
+	})
 
 	// Block until we are told to shut down.
 	<-ctx.Done()
