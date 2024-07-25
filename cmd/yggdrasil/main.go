@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
@@ -55,8 +56,9 @@ func main() {
 	
 	done := make(chan struct{})
 	defer close(done)
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	
+	// Catch interrupts from the operating system to exit gracefully.
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
 	// Create a new logger that logs output to stdout.
 	var logger *log.Logger
@@ -273,13 +275,13 @@ func main() {
 	//Windows service shutdown
 	minwinsvc.SetOnExit(func() {
 		logger.Infof("Shutting down service ...")
-		sigCh <- os.Interrupt
+		cancel()
 		// Wait for all parts to shutdown properly
 		<-done
 	})
 
 	// Block until we are told to shut down.
-	<-sigCh
+	<-ctx.Done()
 
 	// Shut down the node.
 	_ = n.admin.Stop()
