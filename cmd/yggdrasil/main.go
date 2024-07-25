@@ -11,7 +11,6 @@ import (
 	"os/signal"
 	"regexp"
 	"strings"
-	"sync"
 	"syscall"
 
 	"github.com/gologme/log"
@@ -37,11 +36,6 @@ type node struct {
 	admin     *admin.AdminSocket
 }
 
-var (
-	sigCh  = make(chan os.Signal, 1)
-	doneCh = make(chan struct{})
-)
-
 // The main function is responsible for configuring and starting Yggdrasil.
 func main() {
 	genconf := flag.Bool("genconf", false, "print a new config to stdout")
@@ -59,6 +53,9 @@ func main() {
 	loglevel := flag.String("loglevel", "info", "loglevel to enable")
 	flag.Parse()
 	
+	done := make(chan struct{})
+	defer close(done)
+	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
 	// Create a new logger that logs output to stdout.
@@ -273,52 +270,22 @@ func main() {
 		}
 	}
 	
-	//Windows service shutdown service
+	//Windows service shutdown
 	minwinsvc.SetOnExit(func() {
 		logger.Infof("Shutting down service ...")
 		sigCh <- os.Interrupt
 		// Wait for all parts to shutdown properly
-		<-doneCh
+		<-done
 	})
 
 	// Block until we are told to shut down.
 	<-sigCh
 
-	// Shut down the node using a wait group to synchronize
-	var wg sync.WaitGroup
-
-	wg.Add(3)
-
-	go func() {
-		defer wg.Done()
-		if err := n.admin.Stop(); err != nil {
-			logger.Errorf("Error stopping admin: %v", err)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		if err := n.multicast.Stop(); err != nil {
-			logger.Errorf("Error stopping multicast: %v", err)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		if err := n.tun.Stop(); err != nil {
-			logger.Errorf("Error stopping tun: %v", err)
-		}
-	}()
-
-	// Stop the core synchronously since it's not in a goroutine
+	// Shut down the node.
+	_ = n.admin.Stop()
+	_ = n.multicast.Stop()
+	_ = n.tun.Stop()
 	n.core.Stop()
-
-	// Wait for all goroutines to finish
-	wg.Wait()
-
-	// Notify that shutdown is complete
-	close(doneCh)
-	close(sigCh)
 }
 
 func setLogLevel(loglevel string, logger *log.Logger) {
