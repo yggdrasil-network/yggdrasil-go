@@ -28,14 +28,20 @@ if [ -z $TABLES ] && [ -z $DEBUG ]; then
   LDFLAGS="$LDFLAGS -s -w"
 fi
 
-LIBNAME="yggdrasillib"
 
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-  LIBNAME="$LIBNAME.so"
-elif [[ "$OSTYPE" == "darwin"* ]]; then
-  LIBNAME="$LIBNAME.dylib"
-elif [[ "$OSTYPE" == "win32" ]]; then
-  LIBNAME="$LIBNAME.dll"
+if [[ "$CGO_ENABLED" == "1" ]]; then
+  LIBNAME="yggdrasillib"
+  if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    LIBNAME="$LIBNAME.so"
+    echo "Building: $LIBNAME"
+  elif [[ "$OSTYPE" == "darwin"* ]]; then
+    LIBNAME="$LIBNAME.dylib"
+    echo "Building: $LIBNAME"
+  elif [[ "$OSTYPE" == "win32" ]]; then
+    LIBNAME="$LIBNAME.dll"
+    echo "Building: $LIBNAME"
+  fi
+  go build -ldflags="$LDFLAGS" -buildmode=c-shared -o="$LIBNAME" ./cmd/yggdrasillib
 fi
 
 for CMD in yggdrasil yggdrasilctl; do
@@ -48,4 +54,4 @@ for CMD in yggdrasil yggdrasilctl; do
   fi
 done
 
-go build -ldflags="$LDFLAGS" -buildmode=c-shared -o="$LIBNAME" ./cmd/yggdrasillib
+
