@@ -142,6 +142,12 @@ func (m *Multicast) _stop() error {
 	if m.sock != nil {
 		m.sock.Close()
 	}
+	for name, info := range m._listeners {
+		info.listener.Close()
+		m.log.Debugln("Stop multicasting on ", name)
+	}
+	clear(m._listeners)
+
 	return nil
 }
 
