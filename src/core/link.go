@@ -140,7 +140,7 @@ const ErrLinkAlreadyConfigured = linkError("peer is already configured")
 const ErrLinkNotConfigured = linkError("peer is not configured")
 const ErrLinkPriorityInvalid = linkError("priority value is invalid")
 const ErrLinkPinnedKeyInvalid = linkError("pinned public key is invalid")
-const ErrLinkPasswordInvalid = linkError("password is invalid")
+const ErrLinkPasswordInvalid = linkError("invalid password supplied")
 const ErrLinkUnrecognisedSchema = linkError("link schema unknown")
 const ErrLinkMaxBackoffInvalid = linkError("max backoff duration invalid")
 
@@ -363,9 +363,11 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 				_ = lc.Close()
 				phony.Block(l, func() {
 					state._conn = nil
-					if state._err = err; state._err != nil {
-						state._errtime = time.Now()
+					if err == nil {
+						err = fmt.Errorf("remote side closed the connection")
 					}
+					state._err = err
+					state._errtime = time.Now()
 				})
 
 				// If the link is persistently configured, back off if needed
@@ -647,7 +649,7 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, s
 		l.core.log.Infof("Disconnected %s: %s, source %s; error: %s",
 			dir, remoteStr, localStr, err)
 	}
-	return nil
+	return err
 }
 
 func urlForLinkInfo(u url.URL) url.URL {

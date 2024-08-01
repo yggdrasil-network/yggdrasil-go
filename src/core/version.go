@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"encoding/binary"
-	"fmt"
 	"io"
 
 	"golang.org/x/crypto/blake2b"
@@ -37,6 +36,16 @@ const (
 	metaPublicKey                  // [32]byte
 	metaPriority                   // uint8
 )
+
+type handshakeError string
+
+func (e handshakeError) Error() string { return string(e) }
+
+const ErrHandshakeInvalidPreamble = handshakeError("invalid handshake, remote side is not Yggdrasil")
+const ErrHandshakeInvalidLength = handshakeError("invalid handshake length, possible version mismatch")
+const ErrHandshakeInvalidPassword = handshakeError("invalid password supplied, check your config")
+const ErrHandshakeHashFailure = handshakeError("invalid hash length")
+const ErrHandshakeIncorrectPassword = handshakeError("password does not match remote side")
 
 // Gets a base metadata with no keys set, but with the correct version numbers.
 func version_getBaseMetadata() version_metadata {
@@ -77,7 +86,7 @@ func (m *version_metadata) encode(privateKey ed25519.PrivateKey, password []byte
 		return nil, err
 	}
 	if n != ed25519.PublicKeySize {
-		return nil, fmt.Errorf("hash writer only wrote %d bytes", n)
+		return nil, ErrHandshakeHashFailure
 	}
 	hash := hasher.Sum(nil)
 	bs = append(bs, ed25519.Sign(privateKey, hash)...)
@@ -94,11 +103,11 @@ func (m *version_metadata) decode(r io.Reader, password []byte) error {
 	}
 	meta := [4]byte{'m', 'e', 't', 'a'}
 	if !bytes.Equal(bh[:4], meta[:]) {
-		return fmt.Errorf("invalid handshake preamble")
+		return ErrHandshakeInvalidPreamble
 	}
 	hl := binary.BigEndian.Uint16(bh[4:6])
 	if hl < ed25519.SignatureSize {
-		return fmt.Errorf("invalid handshake length")
+		return ErrHandshakeInvalidLength
 	}
 	bs := make([]byte, hl)
 	if _, err := io.ReadFull(r, bs); err != nil {
@@ -132,15 +141,15 @@ func (m *version_metadata) decode(r io.Reader, password []byte) error {
 
 	hasher, err := blake2b.New512(password)
 	if err != nil {
-		return fmt.Errorf("invalid password supplied")
+		return ErrHandshakeInvalidPassword
 	}
 	n, err := hasher.Write(m.publicKey)
 	if err != nil || n != ed25519.PublicKeySize {
-		return fmt.Errorf("failed to generate hash")
+		return ErrHandshakeHashFailure
 	}
 	hash := hasher.Sum(nil)
 	if !ed25519.Verify(m.publicKey, hash, sig) {
-		return fmt.Errorf("password is incorrect")
+		return ErrHandshakeIncorrectPassword
 	}
 	return nil
 }
