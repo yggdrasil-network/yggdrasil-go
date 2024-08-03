@@ -4,7 +4,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"math"
 	osuser "os/user"
 	"strconv"
 	"strings"
@@ -51,11 +53,11 @@ func chuser(user string) error {
 		gid, _ := strconv.ParseUint(g.Gid, 10, 32)
 		var err error
 		if gid < math.MaxInt {
-				err = syscall.Setgid(int(gid))
+			err = syscall.Setgid(int(gid))
 		} else {
-				err = errors.New("gid too big")
+			err = errors.New("gid too big")
 		}
-		
+
 		if err != nil {
 			return fmt.Errorf("failed to setgid %d: %v", gid, err)
 		}
@@ -71,11 +73,11 @@ func chuser(user string) error {
 		uid, _ := strconv.ParseUint(u.Uid, 10, 32)
 		var err error
 		if uid < math.MaxInt {
-				err = syscall.Setuid(int(uid))
+			err = syscall.Setuid(int(uid))
 		} else {
-				err = errors.New("uid too big")
+			err = errors.New("uid too big")
 		}
-		
+
 		if err != nil {
 			return fmt.Errorf("failed to setuid %d: %v", uid, err)
 		}
