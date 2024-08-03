@@ -69,7 +69,13 @@ func chuser(user string) error {
 
 	if u != nil {
 		uid, _ := strconv.ParseUint(u.Uid, 10, 32)
-		err := syscall.Setuid(int(uint32(uid)))
+		var err error
+		if uid < math.MaxInt {
+				err = syscall.Setuid(int(uid))
+		} else {
+				err = errors.New("uid too big")
+		}
+		
 		if err != nil {
 			return fmt.Errorf("failed to setuid %d: %v", uid, err)
 		}
