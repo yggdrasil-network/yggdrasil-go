@@ -49,7 +49,13 @@ func chuser(user string) error {
 
 	if g != nil {
 		gid, _ := strconv.ParseUint(g.Gid, 10, 32)
-		err := syscall.Setgid(int(uint32(gid)))
+		var err error
+		if gid < math.MaxInt {
+				err = syscall.Setgid(int(gid))
+		} else {
+				err = errors.New("gid too big")
+		}
+		
 		if err != nil {
 			return fmt.Errorf("failed to setgid %d: %v", gid, err)
 		}
