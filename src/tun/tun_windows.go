@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"log"
 	"net/netip"
+	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"golang.org/x/sys/windows"
 
+	"golang.zx2c4.com/wintun"
 	wgtun "golang.zx2c4.com/wireguard/tun"
 	"golang.zx2c4.com/wireguard/windows/elevate"
 	"golang.zx2c4.com/wireguard/windows/tunnel/winipcfg"
@@ -31,14 +33,24 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 		if guid, err = windows.GUIDFromString("{8f59971a-7872-4aa6-b2eb-061fc4e9d0a7}"); err != nil {
 			return err
 		}
-		if iface, err = wgtun.CreateTUNWithRequestedGUID(ifname, &guid, int(mtu)); err != nil {
-			return err
+		tun.log.Printf("Creating TUN")
+		iface, err = wgtun.CreateTUNWithRequestedGUID(ifname, &guid, int(mtu))
+		if err != nil {
+			// Very rare condition, it will purge the old device and create new
+			tun.log.Printf("Error creatung TUN: '%s'", err)
+			wintun.Uninstall()
+			time.Sleep(3 * time.Second)
+			tun.log.Printf("Trying again")
+			iface, err = wgtun.CreateTUNWithRequestedGUID(ifname, &guid, int(mtu))
+			if err != nil {
+				return err
+			}
 		}
-		if !waitForTUNUp(iface.Events()) {
-			return fmt.Errorf("TUN did not come up in time")
-		}
+		tun.log.Printf("Waiting for TUN to come up")
+		time.Sleep(1 * time.Second)
 		tun.iface = iface
 		if addr != "" {
+			tun.log.Printf("Setting up address")
 			if err = tun.setupAddress(addr); err != nil {
 				tun.log.Errorln("Failed to set up TUN address:", err)
 				return err
@@ -51,6 +63,7 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 		if mtu, err := iface.MTU(); err == nil {
 			tun.mtu = uint64(mtu)
 		}
+		tun.log.Printf("TUN is set up successfully")
 		return nil
 	})
 }
