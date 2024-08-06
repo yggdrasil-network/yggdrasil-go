@@ -33,11 +33,10 @@ func (tun *TunAdapter) setup(ifname string, addr string, mtu uint64) error {
 		if guid, err = windows.GUIDFromString("{8f59971a-7872-4aa6-b2eb-061fc4e9d0a7}"); err != nil {
 			return err
 		}
-		tun.log.Printf("Creating TUN")
 		iface, err = wgtun.CreateTUNWithRequestedGUID(ifname, &guid, int(mtu))
 		if err != nil {
 			// Very rare condition, it will purge the old device and create new
-			tun.log.Printf("Error creatung TUN: '%s'", err)
+			tun.log.Printf("Error creating TUN: '%s'", err)
 			wintun.Uninstall()
 			time.Sleep(3 * time.Second)
 			tun.log.Printf("Trying again")
