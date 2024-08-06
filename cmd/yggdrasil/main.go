@@ -280,6 +280,10 @@ func main() {
 		<-done
 	})
 
+	if _, err = notifyStartupCompleted(); err != nil {
+		log.Warnln("Error while sending start up notification:", err)
+	}
+
 	// Block until we are told to shut down.
 	<-ctx.Done()
 
