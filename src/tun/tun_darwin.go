@@ -55,9 +55,6 @@ func (tun *TunAdapter) setupFD(fd int32, addr string, mtu uint64) error {
 		unix.Close(dfd)
 		return fmt.Errorf("failed to create TUN from FD: %w", err)
 	}
-	if !waitForTUNUp(iface.Events()) {
-		return fmt.Errorf("TUN did not come up in time")
-	}
 	tun.iface = iface
 	if m, err := iface.MTU(); err == nil {
 		tun.mtu = getSupportedMTU(uint64(m))
