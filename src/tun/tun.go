@@ -11,7 +11,6 @@ import (
 	"io"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/Arceliar/phony"
 	wgtun "golang.zx2c4.com/wireguard/tun"
@@ -63,20 +62,6 @@ func getSupportedMTU(mtu uint64) uint64 {
 		return MaximumMTU()
 	}
 	return mtu
-}
-
-func waitForTUNUp(ch <-chan wgtun.Event) bool {
-	t := time.After(time.Second * 5)
-	for {
-		select {
-		case ev := <-ch:
-			if ev == wgtun.EventUp {
-				return true
-			}
-		case <-t:
-			return false
-		}
-	}
 }
 
 // Name returns the name of the adapter, e.g. "tun0". On Windows, this may
