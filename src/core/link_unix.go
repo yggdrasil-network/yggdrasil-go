@@ -40,6 +40,6 @@ func (l *linkUNIX) dial(ctx context.Context, url *url.URL, info linkInfo, option
 	return l.dialer.DialContext(ctx, "unix", addr.String())
 }
 
-func (l *linkUNIX) listen(ctx context.Context, url *url.URL, _ string) (net.Listener, error) {
+func (l *linkUNIX) listen(ctx context.Context, url *url.URL, _ string, _ linkOptions) (net.Listener, error) {
 	return l.listener.Listen(ctx, "unix", url.Path)
 }
