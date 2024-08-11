@@ -14,6 +14,7 @@ import (
 type linkWS struct {
 	phony.Inbox
 	*links
+	listenconfig *net.ListenConfig
 }
 
 type linkWSConn struct {
@@ -78,6 +79,9 @@ func (s *wsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (l *links) newLinkWS() *linkWS {
 	lt := &linkWS{
 		links: l,
+		listenconfig: &net.ListenConfig{
+			KeepAlive: -1,
+		},
 	}
 	return lt
 }
@@ -95,7 +99,7 @@ func (l *linkWS) dial(ctx context.Context, url *url.URL, info linkInfo, options 
 }
 
 func (l *linkWS) listen(ctx context.Context, url *url.URL, _ string) (net.Listener, error) {
-	nl, err := net.Listen("tcp", url.Host)
+	nl, err := l.listenconfig.Listen(ctx, "tcp", url.Host)
 	if err != nil {
 		return nil, err
 	}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -40,7 +41,8 @@ type links struct {
 	ws    *linkWS    // WS interface support
 	wss   *linkWSS   // WSS interface support
 	// _links can only be modified safely from within the links actor
-	_links map[linkInfo]*link // *link is nil if connection in progress
+	_links     map[linkInfo]*link // *link is nil if connection in progress
+	_listeners map[*Listener]context.CancelFunc
 }
 
 type linkProtocol interface {
@@ -85,13 +87,6 @@ func (l *Listener) Addr() net.Addr {
 	return l.listener.Addr()
 }
 
-func (l *Listener) Close() error {
-	l.Cancel()
-	err := l.listener.Close()
-	<-l.ctx.Done()
-	return err
-}
-
 func (l *links) init(c *Core) error {
 	l.core = c
 	l.tcp = l.newLinkTCP()
@@ -102,32 +97,18 @@ func (l *links) init(c *Core) error {
 	l.ws = l.newLinkWS()
 	l.wss = l.newLinkWSS()
 	l._links = make(map[linkInfo]*link)
-
-	var listeners []ListenAddress
-	phony.Block(c, func() {
-		listeners = make([]ListenAddress, 0, len(c.config._listeners))
-		for listener := range c.config._listeners {
-			listeners = append(listeners, listener)
-		}
-	})
+	l._listeners = make(map[*Listener]context.CancelFunc)
 
 	return nil
 }
 
 func (l *links) shutdown() {
-	phony.Block(l.tcp, func() {
-		for l := range l.tcp._listeners {
-			_ = l.Close()
+	phony.Block(l, func() {
+		for listener := range l._listeners {
+			_ = listener.listener.Close()
 		}
-	})
-	phony.Block(l.tls, func() {
-		for l := range l.tls._listeners {
-			_ = l.Close()
-		}
-	})
-	phony.Block(l.unix, func() {
-		for l := range l.unix._listeners {
-			_ = l.Close()
+		for _, link := range l._links {
+			_ = link._conn.Close()
 		}
 	})
 }
@@ -457,11 +438,18 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 		options.password = []byte(p)
 	}
 
+	phony.Block(l, func() {
+		l._listeners[li] = cancel
+	})
+
 	go func() {
-		l.core.log.Infof("%s listener started on %s", strings.ToUpper(u.Scheme), listener.Addr())
-		defer l.core.log.Infof("%s listener stopped on %s", strings.ToUpper(u.Scheme), listener.Addr())
+		l.core.log.Infof("%s listener started on %s", strings.ToUpper(u.Scheme), li.listener.Addr())
+		defer l.core.log.Infof("%s listener stopped on %s", strings.ToUpper(u.Scheme), li.listener.Addr())
+		defer phony.Block(l, func() {
+			delete(l._listeners, li)
+		})
 		for {
-			conn, err := listener.Accept()
+			conn, err := li.listener.Accept()
 			if err != nil {
 				return
 			}
@@ -517,13 +505,22 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 					// Store the state of the link so that it can be queried later.
 					l._links[info] = state
 				})
+				defer phony.Block(l, func() {
+					if l._links[info] == state {
+						delete(l._links, info)
+					}
+				})
 				if lc == nil {
 					return
 				}
 
 				// Give the connection to the handler. The handler will block
 				// for the lifetime of the connection.
-				if err = l.handler(linkTypeIncoming, options, lc, nil); err != nil && err != io.EOF {
+				switch err = l.handler(linkTypeIncoming, options, lc, nil); {
+				case err == nil:
+				case errors.Is(err, io.EOF):
+				case errors.Is(err, net.ErrClosed):
+				default:
 					l.core.log.Debugf("Link %s error: %s\n", u.Host, err)
 				}
 
@@ -531,11 +528,6 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 				// try to close the underlying socket just in case and then
 				// drop the link state.
 				_ = lc.Close()
-				phony.Block(l, func() {
-					if l._links[info] == state {
-						delete(l._links, info)
-					}
-				})
 			}(conn)
 		}
 	}()
