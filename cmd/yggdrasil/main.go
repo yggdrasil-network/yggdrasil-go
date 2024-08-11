@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"syscall"
@@ -39,10 +40,11 @@ type node struct {
 }
 
 var (
-	cfg    *config.NodeConfig
-	logger *log.Logger
-	ctx    context.Context
-	cancel context.CancelFunc
+	cfg      *config.NodeConfig
+	logger   *log.Logger
+	ctx      context.Context
+	cancel   context.CancelFunc
+	rootpath string
 
 	rootCmd = &cobra.Command{
 		Use:   "yggdrasil",
@@ -63,95 +65,92 @@ var (
 		Annotations: map[string]string{"type": "setup"},
 	}
 
-	useconffileCmd = &cobra.Command{
-		Use:         "useconffile <path>",
-		Args:        cobra.ExactArgs(1),
-		Short:       "Read HJSON/JSON config from specified file path",
-		RunE:        cmdUseconffile,
-		Annotations: map[string]string{"type": "setup"},
-	}
-
 	addressCmd = &cobra.Command{
-		Use:         "address <path>",
-		Args:        cobra.ExactArgs(1),
+		Use:         "address",
 		Short:       "Outputs your IPv6 address",
 		RunE:        cmdAddress,
 		Annotations: map[string]string{"type": "setup"},
 	}
 
 	snetCmd = &cobra.Command{
-		Use:         "subnet <path>",
-		Args:        cobra.ExactArgs(1),
+		Use:         "subnet",
 		Short:       "Outputs your IPv6 subnet",
 		RunE:        cmdSnet,
 		Annotations: map[string]string{"type": "setup"},
 	}
 
 	pkeyCmd = &cobra.Command{
-		Use:         "publickey <path>",
-		Args:        cobra.ExactArgs(1),
+		Use:         "publickey",
 		Short:       "Outputs your public key",
 		RunE:        cmdPkey,
 		Annotations: map[string]string{"type": "setup"},
 	}
 
 	exportKeyCmd = &cobra.Command{
-		Use:         "exportkey <path>",
-		Args:        cobra.ExactArgs(1),
+		Use:         "exportkey",
 		Short:       "Outputs your private key in PEM format",
 		RunE:        cmdExportKey,
 		Annotations: map[string]string{"type": "setup"},
 	}
 
-	logtoCmd = &cobra.Command{
-		Use:         "logto <path>",
-		Args:        cobra.ExactArgs(1),
-		Short:       "File path to log to, \"syslog\" or \"stdout\"",
-		Run:         cmdLogto,
-		Annotations: map[string]string{"type": "setup"},
-	}
-
-	autoconfCmd = &cobra.Command{
-		Use:         "autoconf",
-		Short:       "Automatic mode (dynamic IP, peer with IPv6 neighbors)",
-		RunE:        cmdAutoconf,
-		Annotations: map[string]string{"type": "setup"},
-	}
-
-	useconfCmd = &cobra.Command{
-		Use:         "useconf",
-		Short:       "Read HJSON/JSON config from stdin",
-		RunE:        cmdUseconf,
-		Annotations: map[string]string{"type": "setup"},
-	}
-
 	normaliseconfCmd = &cobra.Command{
-		Use:         "normaliseconf <path>",
-		Args:        cobra.ExactArgs(1),
+		Use:         "normaliseconf",
 		Short:       "Outputs your configuration normalised",
 		RunE:        cmdNormaliseconf,
+		Annotations: map[string]string{"type": "setup"},
+	}
+
+	runCmd = &cobra.Command{
+		Use:         "run",
+		Short:       "Runs yggdrasil",
+		RunE:        cmdRun,
 		Annotations: map[string]string{"type": "setup"},
 	}
 )
 
 // The main function is responsible for configuring and starting Yggdrasil.
 func init() {
+	var err error
+	rootDir, err := os.Getwd()
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	rootpath = filepath.Join(rootDir, "yggdrasil.conf")
+	_, err = os.Stat(rootpath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			rootpath = ""
+		} else {
+			fmt.Print(err.Error())
+		}
+	}
+	//init cfg
 	cfg = config.GenerateConfig()
-	genconfCmd.Flags().BoolP("json", "j", false, "print configuration as JSON instead of HJSON")
-	normaliseconfCmd.Flags().BoolP("json", "j", false, "print configuration as JSON instead of HJSON")
-	autoconfCmd.AddCommand(logtoCmd)
-	useconffileCmd.AddCommand(logtoCmd)
-	useconfCmd.AddCommand(logtoCmd)
-	rootCmd.AddCommand(genconfCmd)
-	rootCmd.AddCommand(versionCmd)
-	rootCmd.AddCommand(useconffileCmd)
+
+	///tested
+	addressCmd.Flags().StringP("useconffile", "f", "", "Read HJSON/JSON config from specified file path")
 	rootCmd.AddCommand(addressCmd)
+	genconfCmd.Flags().BoolP("json", "j", false, "print configuration as JSON instead of HJSON")
+	rootCmd.AddCommand(genconfCmd)
+	snetCmd.Flags().StringP("useconffile", "f", "", "Read HJSON/JSON config from specified file path")
 	rootCmd.AddCommand(snetCmd)
+	pkeyCmd.Flags().StringP("useconffile", "f", "", "Read HJSON/JSON config from specified file path")
 	rootCmd.AddCommand(pkeyCmd)
+	rootCmd.AddCommand(versionCmd)
+	exportKeyCmd.Flags().StringP("useconffile", "f", "", "Read HJSON/JSON config from specified file path")
 	rootCmd.AddCommand(exportKeyCmd)
-	rootCmd.AddCommand(autoconfCmd)
-	rootCmd.AddCommand(useconfCmd)
+	normaliseconfCmd.Flags().StringP("useconffile", "f", "", "Read HJSON/JSON config from specified file path")
+	normaliseconfCmd.Flags().BoolP("json", "j", false, "print configuration as JSON instead of HJSON")
 	rootCmd.AddCommand(normaliseconfCmd)
+	///
+
+	runCmd.Flags().StringP("logto", "t", "", "File path to log to, \"syslog\" or \"stdout\"")
+	runCmd.Flags().StringP("loglevel", "l", "", "loglevel to enable")
+	runCmd.Flags().BoolP("useconf", "u", false, "Read HJSON/JSON config from stdin")
+	runCmd.Flags().StringP("useconffile", "f", "", "Read HJSON/JSON config from specified file path")
+	rootCmd.AddCommand(runCmd)
+
 }
 
 func main() {
@@ -185,41 +184,20 @@ func cmdVersion(cmd *cobra.Command, args []string) {
 	fmt.Println("Build version:", version.BuildVersion())
 }
 
-func cmdUseconffile(cmd *cobra.Command, args []string) (err error) {
-	useconffile := args[0]
-	err = ReadConfigFile(useconffile)
-	if err != nil {
-		return err
-	}
-	err = run()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func cmdAutoconf(cmd *cobra.Command, args []string) (err error) {
-	err = run()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func cmdUseconf(cmd *cobra.Command, args []string) (err error) {
-	if _, err := cfg.ReadFrom(os.Stdin); err != nil {
-		return err
-	}
-	err = run()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func cmdAddress(cmd *cobra.Command, args []string) (err error) {
-	useconffile := args[0]
-	err = ReadConfigFile(useconffile)
+	configFile, err := cmd.Flags().GetString("useconffile")
+	if err != nil {
+		fmt.Println(err)
+		//return
+	}
+	if configFile != "" {
+		rootpath = configFile
+	}
+	if rootpath == "" {
+		fmt.Println("No file configured")
+		return
+	}
+	err = ReadConfigFile(&rootpath)
 	if err != nil {
 		return err
 	}
@@ -232,8 +210,20 @@ func cmdAddress(cmd *cobra.Command, args []string) (err error) {
 }
 
 func cmdSnet(cmd *cobra.Command, args []string) (err error) {
-	useconffile := args[0]
-	err = ReadConfigFile(useconffile)
+	fmt.Println("Test")
+	configFile, err := cmd.Flags().GetString("useconffile")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if configFile != "" {
+		rootpath = configFile
+	}
+	if rootpath == "" {
+		fmt.Println("No file configured")
+		return
+	}
+	err = ReadConfigFile(&rootpath)
 	if err != nil {
 		return err
 	}
@@ -249,8 +239,19 @@ func cmdSnet(cmd *cobra.Command, args []string) (err error) {
 }
 
 func cmdPkey(cmd *cobra.Command, args []string) (err error) {
-	useconffile := args[0]
-	err = ReadConfigFile(useconffile)
+	configFile, err := cmd.Flags().GetString("useconffile")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if configFile != "" {
+		rootpath = configFile
+	}
+	if rootpath == "" {
+		fmt.Println("No file configured")
+		return
+	}
+	err = ReadConfigFile(&rootpath)
 	if err != nil {
 		return err
 	}
@@ -261,8 +262,19 @@ func cmdPkey(cmd *cobra.Command, args []string) (err error) {
 }
 
 func cmdExportKey(cmd *cobra.Command, args []string) (err error) {
-	useconffile := args[0]
-	err = ReadConfigFile(useconffile)
+	configFile, err := cmd.Flags().GetString("useconffile")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if configFile != "" {
+		rootpath = configFile
+	}
+	if rootpath == "" {
+		fmt.Println("No file configured")
+		return
+	}
+	err = ReadConfigFile(&rootpath)
 	if err != nil {
 		return err
 	}
@@ -274,8 +286,7 @@ func cmdExportKey(cmd *cobra.Command, args []string) (err error) {
 	return nil
 }
 
-func cmdLogto(cmd *cobra.Command, args []string) {
-	logto := args[0]
+func cmdLogto(logto string) {
 	switch logto {
 	case "stdout":
 		logger = log.New(os.Stdout, "", log.Flags())
@@ -297,8 +308,19 @@ func cmdNormaliseconf(cmd *cobra.Command, args []string) (err error) {
 	if err != nil {
 		return err
 	}
-	useconffile := args[0]
-	err = ReadConfigFile(useconffile)
+	configFile, err := cmd.Flags().GetString("useconffile")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	if configFile != "" {
+		rootpath = configFile
+	}
+	if rootpath == "" {
+		fmt.Println("No file configured")
+		return
+	}
+	err = ReadConfigFile(&rootpath)
 	if err != nil {
 		return err
 	}
@@ -319,7 +341,40 @@ func cmdNormaliseconf(cmd *cobra.Command, args []string) (err error) {
 	return nil
 }
 
-func run() (err error) {
+func cmdRun(cmd *cobra.Command, args []string) (err error) {
+	isUseConf, err := cmd.Flags().GetBool("useconf")
+	if err != nil {
+		logger.Error(err.Error())
+	}
+	if isUseConf {
+		if _, err := cfg.ReadFrom(os.Stdin); err != nil {
+			logger.Error(err.Error())
+			return err
+		}
+	} else {
+		configFile, err := cmd.Flags().GetString("useconffile")
+		if err != nil {
+			logger.Error(err.Error())
+		}
+		if configFile != "" {
+			rootpath = configFile
+		}
+		if rootpath != "" {
+			err = ReadConfigFile(&rootpath)
+			if err != nil {
+				logger.Error(err.Error())
+			}
+		}
+	}
+	logto, err := cmd.Flags().GetString("logto")
+	if err != nil {
+		logger.Error(err.Error())
+		return err
+	}
+	if logto != "" {
+		cmdLogto(logto)
+	}
+
 	ctx, cancel = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	// Capture the service being stopped on Windows.
 	minwinsvc.SetOnExit(cancel)
@@ -327,8 +382,19 @@ func run() (err error) {
 	if logger == nil {
 		logger = log.New(os.Stdout, "", log.Flags())
 		logger.Warnln("Logging defaulting to stdout")
+
 	}
-	setLogLevel("info", logger)
+	loglvl, err := cmd.Flags().GetString("loglevel")
+	if err != nil {
+		logger.Error(err.Error())
+		return err
+	}
+	if loglvl != "" {
+		setLogLevel(loglvl, logger)
+	} else {
+		setLogLevel("info", logger)
+	}
+
 	n := &node{}
 
 	// Set up the Yggdrasil node itself.
@@ -408,6 +474,7 @@ func run() (err error) {
 			tun.InterfaceMTU(cfg.IfMTU),
 		}
 		if n.tun, err = tun.New(ipv6rwc.NewReadWriteCloser(n.core), logger, options...); err != nil {
+			logger.Printf(err.Error())
 			panic(err)
 		}
 		if n.admin != nil && n.tun != nil {
@@ -455,8 +522,16 @@ func setLogLevel(loglevel string, logger *log.Logger) {
 	}
 }
 
-func ReadConfigFile(filepath string) error {
-	f, err := os.Open(filepath)
+func ReadConfigFile(filepath *string) (err error) {
+	_, err = os.Stat(*filepath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return err
+		} else {
+			fmt.Print(err.Error())
+		}
+	}
+	f, err := os.Open(*filepath)
 	if err != nil {
 		return err
 	}
