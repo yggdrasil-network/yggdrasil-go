@@ -5,7 +5,7 @@ WORKDIR /src
 
 ENV CGO_ENABLED=0
 
-RUN apk add --no-cache git curl && ./build && go build -o /src/genkeys cmd/genkeys/main.go
+RUN apk add git && ./build && go build -o /src/genkeys cmd/genkeys/main.go
 FROM docker.io/alpine
 
 COPY --from=builder /src/yggdrasil /usr/bin/yggdrasil
