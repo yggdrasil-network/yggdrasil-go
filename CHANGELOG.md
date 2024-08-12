@@ -26,6 +26,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.5.8] - 2024-08-12
+
+### Fixed
+
+* A bug which caused startup problems on Windows and FreeBSD should be fixed
+* Resolved some minor link state and listener management bugs during shutdown
+
 ## [0.5.7] - 2024-08-05
 
 ### Added
