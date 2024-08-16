@@ -14,6 +14,7 @@ import (
 
 	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
+	"github.com/wlynxg/anet"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 	"golang.org/x/crypto/blake2b"
@@ -148,7 +149,8 @@ func (m *Multicast) _stop() error {
 func (m *Multicast) _updateInterfaces() {
 	interfaces := m._getAllowedInterfaces()
 	for name, info := range interfaces {
-		addrs, err := info.iface.Addrs()
+		// 'anet' package is used here to avoid https://github.com/golang/go/issues/40569
+		addrs, err := anet.InterfaceAddrsByInterface(&info.iface)
 		if err != nil {
 			m.log.Warnf("Failed up get addresses for interface %s: %s", name, err)
 			delete(interfaces, name)
@@ -156,6 +158,7 @@ func (m *Multicast) _updateInterfaces() {
 		}
 		info.addrs = addrs
 		interfaces[name] = info
+		m.log.Debugf("Discovered addresses for interface %s: %s", name, addrs)
 	}
 	m._interfaces = interfaces
 }
@@ -174,10 +177,11 @@ func (m *Multicast) Interfaces() map[string]net.Interface {
 func (m *Multicast) _getAllowedInterfaces() map[string]*interfaceInfo {
 	interfaces := make(map[string]*interfaceInfo)
 	// Ask the system for network interfaces
-	allifaces, err := net.Interfaces()
+	// 'anet' package is used here to avoid https://github.com/golang/go/issues/40569
+	allifaces, err := anet.Interfaces()
 	if err != nil {
 		// Don't panic, since this may be from e.g. too many open files (from too much connection spam)
-		// TODO? log something
+		m.log.Debugf("Failed to get interfaces: %s", err)
 		return nil
 	}
 	// Work out which interfaces to announce on

@@ -12,6 +12,7 @@ require (
 	github.com/kardianos/minwinsvc v1.0.2
 	github.com/quic-go/quic-go v0.45.1
 	github.com/vishvananda/netlink v1.1.0
+	github.com/wlynxg/anet v0.0.4-0.20240806025826-e684438fc7c6
 	golang.org/x/crypto v0.25.0
 	golang.org/x/mobile v0.0.0-20240716161057-1ad2df20a8b6
 	golang.org/x/net v0.27.0
