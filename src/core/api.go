@@ -1,11 +1,8 @@
 package core
 
 import (
-	"bytes"
 	"crypto/ed25519"
-	"encoding/binary"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/url"
 	"sync/atomic"
@@ -250,32 +247,6 @@ func (c *Core) SetAdmin(a AddHandler) error {
 		c.proto.getTreeHandler,
 	); err != nil {
 		return err
-	}
-	return nil
-}
-
-func (peerinfo PeerInfo) GetCoordinates() *[]byte {
-	var coordsBlob []byte
-	if peerinfo.Coords != nil {
-		coordsBlob = make([]byte, len(peerinfo.Coords)*8)
-		for i, coord := range peerinfo.Coords {
-			binary.LittleEndian.PutUint64(coordsBlob[i*8:], coord)
-		}
-	}
-	return &coordsBlob
-}
-
-func (peerinfo PeerInfo) SetCoordinates(coords *[]byte) error {
-	if len(*coords)%8 != 0 {
-		return fmt.Errorf("length of byte slice must be a multiple of 8")
-	}
-	numUint64 := len(*coords) / 8
-	buf := bytes.NewReader(*coords)
-	for i := 0; i < numUint64; i++ {
-		err := binary.Read(buf, binary.LittleEndian, &peerinfo.Coords[i])
-		if err != nil {
-			return err
-		}
 	}
 	return nil
 }

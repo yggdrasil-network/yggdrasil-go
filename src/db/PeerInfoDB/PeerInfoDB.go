@@ -1,9 +1,7 @@
 package peerinfodb
 
 import (
-	"crypto/ed25519"
-	"crypto/x509"
-	"encoding/binary"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,19 +24,20 @@ func New() (*PeerInfoDBConfig, error) {
 	filePath := filepath.Join(dir, fileName)
 	schemas := []string{
 		`CREATE TABLE IF NOT EXISTS peer_infos (
+		Id INTEGER NOT NULL PRIMARY KEY,
 		uri TEXT,
-		up BOOLEAN,
-		inbound BOOLEAN,
-		last_error VARCHAR,
-		last_error_time TIMESTAMP,
-		key VARCHAR,
-		root VARCHAR,
-		coords VARCHAR,
+		up INTEGER,
+		inbound INTEGER,
+		last_error TEXT NULL,
+		last_error_time TIMESTAMP NULL,
+		key BLOB,
+		root BLOB,
+		coords BLOB,
 		port INT,
 		priority TINYINT,
 		Rxbytes BIGINT,
 		Txbytes BIGINT,
-		uptime BIGINT,
+		uptime INTEGER,
 		latency SMALLINT
 	);`}
 	dbcfg, err := db.New("sqlite3", &schemas, filePath)
@@ -52,132 +51,84 @@ func New() (*PeerInfoDBConfig, error) {
 	return cfg, nil
 }
 
-func (cfg *PeerInfoDBConfig) AddPeer(peer core.PeerInfo) (err error) {
-	var key, root []byte
-	if peer.Key != nil {
-		key, err = x509.MarshalPKIXPublicKey(peer.Key)
+func (cfg *PeerInfoDBConfig) Add(model *core.PeerInfoDB) (_ sql.Result, err error) {
+	query := "INSERT OR REPLACE INTO peer_infos (uri, up, inbound, last_error, last_error_time, key, root, coords, port, priority, Rxbytes, Txbytes, uptime, latency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	result, err := cfg.DbConfig.DB.Exec(query,
+		model.URI,
+		model.Up,
+		model.Inbound,
+		model.PeerErr,
+		model.LastErrorTime,
+		model.KeyBytes,
+		model.RootBytes,
+		model.CoordsBytes,
+		model.Port,
+		model.Priority,
+		model.RXBytes,
+		model.TXBytes,
+		model.Uptime,
+		model.Latency)
+	if err != nil {
+		return nil, err
+	}
+	LastInsertId, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+	model.Id = int(LastInsertId)
+	return result, nil
+}
+
+func (cfg *PeerInfoDBConfig) Remove(model *core.PeerInfoDB) (err error) {
+	_, err = cfg.DbConfig.DB.Exec("DELETE FROM peer_infos WHERE Id = ?",
+		model.Id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (cfg *PeerInfoDBConfig) Get(model *core.PeerInfoDB) (_ *sql.Rows, err error) {
+	rows, err := cfg.DbConfig.DB.Query(`
+			SELECT 
+				up, inbound, last_error, last_error_time, coords, port, 
+				priority, Rxbytes, Txbytes, uptime, latency, uri, key, root 
+			FROM 
+				peer_infos 
+			WHERE Id = ?`,
+		model.Id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		err = rows.Scan(&model.Up, &model.Inbound, &model.PeerErr, &model.LastErrorTime, &model.CoordsBytes,
+			&model.Port, &model.Priority, &model.RXBytes, &model.TXBytes, &model.Uptime, &model.Latency,
+			&model.URI, &model.KeyBytes, &model.RootBytes)
 		if err != nil {
-			return err
+			return rows, err
 		}
 	}
-	if peer.Root != nil {
-		root, err = x509.MarshalPKIXPublicKey(peer.Root)
-		if err != nil {
-			return err
-		}
-	}
-	var peerErr interface{}
-	if peer.LastError != nil {
-		peerErr = peer.LastError.Error()
-	} else {
-		peerErr = nil
-	}
-	var coordsBlob []byte
-	if peer.Coords != nil {
-		coordsBlob = make([]byte, len(peer.Coords)*8)
-		for i, coord := range peer.Coords {
-			binary.LittleEndian.PutUint64(coordsBlob[i*8:], coord)
-		}
-	}
-	if !cfg.DbConfig.DBIsOpened() {
-		return nil
-	}
-	_, err = cfg.DbConfig.DB.Exec(`
-    INSERT OR REPLACE INTO peer_infos 
-    (
-		uri,
-		up,
-		inbound,
-		last_error,
-		last_error_time,
-		key,
-		root,
-		coords,
-		port,
-		priority,
-		Rxbytes,
-		Txbytes,
-		uptime,
-		latency
-	) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		peer.URI, peer.Up, peer.Inbound, peerErr, peer.LastErrorTime, key, root, coordsBlob, peer.Port, peer.Priority, peer.RXBytes, peer.TXBytes, peer.Uptime, peer.Latency)
+
+	model.Coords, err = core.ConvertToUintSlise(model.CoordsBytes)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	publickey, err := core.ParsePKIXPublicKey(&model.KeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	model.Key = publickey
+	publicRoot, err := core.ParsePKIXPublicKey(&model.RootBytes)
+	if err != nil {
+		return nil, err
+	}
+	model.Root = publicRoot
+	model.LastError = core.ParseError(model.PeerErr)
+	return rows, nil
 }
 
-func (cfg *PeerInfoDBConfig) RemovePeer(peer core.PeerInfo) (err error) {
-	key, err := x509.MarshalPKIXPublicKey(peer.Key)
-	if err != nil {
-		return err
-	}
-	root, err := x509.MarshalPKIXPublicKey(peer.Root)
-	if err != nil {
-		return err
-	}
-	_, err = cfg.DbConfig.DB.Exec("DELETE FROM peer_infos WHERE uri = ? AND key = ? AND root = ?",
-		peer.URI, key, root)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (cfg *PeerInfoDBConfig) GetPeer(peer *core.PeerInfo) (err error) {
-	key, err := x509.MarshalPKIXPublicKey(peer.Key)
-	if err != nil {
-		return err
-	}
-	root, err := x509.MarshalPKIXPublicKey(peer.Root)
-	if err != nil {
-		return err
-	}
-	row := cfg.DbConfig.DB.QueryRow("SELECT * FROM peer_infos WHERE uri = ? AND key = ? AND root = ?",
-		peer.URI, key, root)
-	var coord []byte
-	var peerErr interface{}
-	err = row.Scan(&peer.URI, &peer.Up, &peer.Inbound, &peerErr, &peer.LastErrorTime, &key, &root, &coord, &peer.Port, &peer.Priority, &peer.RXBytes, &peer.TXBytes, &peer.Uptime, &peer.Latency)
-	if err != nil {
-		return err
-	}
-
-	parsedKey, err := x509.ParsePKCS8PrivateKey(key)
-	if err != nil {
-		return err
-	}
-	ParsedRoot, err := x509.ParsePKCS8PrivateKey(root)
-	if err != nil {
-		return err
-	}
-	peer.Key = parsedKey.(ed25519.PublicKey)
-	peer.Root = ParsedRoot.(ed25519.PublicKey)
-	return nil
-}
-
-func (cfg *PeerInfoDBConfig) UpdatePeer(peer core.PeerInfo) (err error) {
-	key, err := x509.MarshalPKIXPublicKey(peer.Key)
-	if err != nil {
-		return err
-	}
-	root, err := x509.MarshalPKIXPublicKey(peer.Root)
-	if err != nil {
-		return err
-	}
-	var peerErr interface{}
-	if peer.LastError != nil {
-		peerErr = peer.LastError.Error()
-	} else {
-		peerErr = nil
-	}
-	var coordsBlob []byte
-	if peer.Coords != nil {
-		coordsBlob = make([]byte, len(peer.Coords)*8)
-		for i, coord := range peer.Coords {
-			binary.LittleEndian.PutUint64(coordsBlob[i*8:], coord)
-		}
-	}
+func (cfg *PeerInfoDBConfig) Update(model *core.PeerInfoDB) (err error) {
 	_, err = cfg.DbConfig.DB.Exec(`UPDATE peer_infos 
 		SET 
 			up = ?, 
@@ -189,12 +140,15 @@ func (cfg *PeerInfoDBConfig) UpdatePeer(peer core.PeerInfo) (err error) {
 			priority = ?, 
 			RXBytes = RXBytes + ?, 
 			TXBytes = TXBytes + ?, 
-			uptime = ?, 
-			latency = ? 
+			uptime = uptime + ?, 
+			latency = ?,
+			uri = ?,
+			key = ?,
+			root = ?
 		WHERE 
-			uri = ? AND key = ? AND root = ?`,
-		peer.Up, peer.Inbound, peerErr, peer.LastErrorTime, coordsBlob, peer.Port, peer.Priority,
-		peer.RXBytes, peer.TXBytes, peer.Uptime, peer.Latency, peer.URI, key, root)
+			Id = ?`,
+		model.Up, model.Inbound, model.PeerErr, model.LastErrorTime, model.CoordsBytes, model.Port, model.Priority,
+		model.RXBytes, model.TXBytes, model.Uptime, model.Latency, model.URI, model.KeyBytes, model.RootBytes, model.Id)
 	if err != nil {
 		return err
 	}

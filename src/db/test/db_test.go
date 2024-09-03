@@ -1,11 +1,9 @@
 package db_test
 
 import (
-	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/x509"
-	"encoding/binary"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -20,33 +18,39 @@ import (
 )
 
 func TestPeerGetCoords(t *testing.T) {
-	peer := core.PeerInfo{
+	peerinfo := core.PeerInfo{
 		Coords: []uint64{1, 2, 3, 4},
 	}
+	peer := core.PeerInfoDB{
+		PeerInfo: peerinfo,
+	}
+
 	target := []byte{1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0}
-	var coordinates = peer.GetCoordinates()
-	if reflect.DeepEqual(target, coordinates) {
+	coordinates := core.ConvertToByteSlise(peer.Coords)
+	if !reflect.DeepEqual(target, coordinates) {
 		t.Error(fmt.Errorf("Not equal"))
 	}
 }
 
 func TestPeerSetCoords(t *testing.T) {
-	peer := core.PeerInfo{
-		Coords: []uint64{1, 2, 3, 4},
+	peerinfo := core.PeerInfo{}
+	peer := core.PeerInfoDB{
+		PeerInfo: peerinfo,
 	}
-	target := []byte{4, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0}
-	var coordinates = peer.SetCoordinates(&target)
-	if reflect.DeepEqual(target, coordinates) {
+	var err error
+	peer.CoordsBytes = []byte{4, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0}
+	peer.Coords, err = core.ConvertToUintSlise(peer.CoordsBytes)
+	require.NoError(t, err)
+	coords := []uint64{4, 3, 2, 1}
+	if !reflect.DeepEqual(coords, peer.Coords) {
 		t.Error(fmt.Errorf("Not equal"))
 	}
-	fmt.Print(peer.Coords)
 }
 
 func TestAddPeer(t *testing.T) {
 	mockDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer mockDB.Close()
-
 	cfg, err := peerinfodb.New()
 	require.NoError(t, err)
 	cfg.DbConfig.DB = mockDB
@@ -55,12 +59,11 @@ func TestAddPeer(t *testing.T) {
 	require.NoError(t, err)
 	rootPubKey, _, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
-
-	peer := core.PeerInfo{
+	peerinfo := core.PeerInfo{
 		URI:           "test.test",
 		Up:            true,
 		Inbound:       true,
-		LastError:     nil,
+		LastError:     errors.New("test"),
 		LastErrorTime: time.Now(),
 		Key:           pubkey,
 		Root:          rootPubKey,
@@ -72,28 +75,19 @@ func TestAddPeer(t *testing.T) {
 		Uptime:        3600,
 		Latency:       50.0,
 	}
+	peer, err := core.NewPeerInfoDB(peerinfo)
+	require.NoError(t, err)
 
-	pKey, err := x509.MarshalPKIXPublicKey(peer.Key)
-	require.NoError(t, err)
-	pKeyRoot, err := x509.MarshalPKIXPublicKey(peer.Root)
-	require.NoError(t, err)
-	var coordsBlob []byte
-	if peer.Coords != nil {
-		coordsBlob = make([]byte, len(peer.Coords)*8)
-		for i, coord := range peer.Coords {
-			binary.LittleEndian.PutUint64(coordsBlob[i*8:], coord)
-		}
-	}
 	mock.ExpectExec("INSERT OR REPLACE INTO peer_infos").
 		WithArgs(
 			peer.URI,
 			peer.Up,
 			peer.Inbound,
-			nil,
+			peer.PeerErr,
 			peer.LastErrorTime,
-			pKey,
-			pKeyRoot,
-			coordsBlob,
+			peer.KeyBytes,
+			peer.RootBytes,
+			peer.CoordsBytes,
 			peer.Port,
 			peer.Priority,
 			peer.RXBytes,
@@ -103,7 +97,7 @@ func TestAddPeer(t *testing.T) {
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	err = cfg.AddPeer(peer)
+	_, err = cfg.Add(peer)
 	require.NoError(t, err)
 
 	err = mock.ExpectationsWereMet()
@@ -114,7 +108,6 @@ func TestRemovePeer(t *testing.T) {
 	mockDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer mockDB.Close()
-
 	cfg, err := peerinfodb.New()
 	require.NoError(t, err)
 	cfg.DbConfig.DB = mockDB
@@ -124,11 +117,11 @@ func TestRemovePeer(t *testing.T) {
 	rootPubKey, _, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
-	peer := core.PeerInfo{
+	peerinfo := core.PeerInfo{
 		URI:           "test.test",
 		Up:            true,
 		Inbound:       true,
-		LastError:     nil,
+		LastError:     errors.New("test"),
 		LastErrorTime: time.Now(),
 		Key:           pubkey,
 		Root:          rootPubKey,
@@ -140,16 +133,14 @@ func TestRemovePeer(t *testing.T) {
 		Uptime:        3600,
 		Latency:       50.0,
 	}
+	peer, err := core.NewPeerInfoDB(peerinfo)
+	require.NoError(t, err)
 
-	pKey, err := x509.MarshalPKIXPublicKey(peer.Key)
-	require.NoError(t, err)
-	pKeyRoot, err := x509.MarshalPKIXPublicKey(peer.Root)
-	require.NoError(t, err)
-	mock.ExpectExec("DELETE FROM peer_infos WHERE uri = \\? AND key = \\? AND root = \\?").
-		WithArgs(peer.URI, pKey, pKeyRoot).
+	mock.ExpectExec("DELETE FROM peer_infos WHERE Id = \\?").
+		WithArgs(peer.Id).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	err = cfg.RemovePeer(peer)
+	err = cfg.Remove(peer)
 	require.NoError(t, err)
 
 	err = mock.ExpectationsWereMet()
@@ -170,11 +161,11 @@ func TestGetPeer(t *testing.T) {
 	rootPubKey, _, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 
-	peer := core.PeerInfo{
+	peerinfo := core.PeerInfo{
 		URI:           "test.test",
 		Up:            true,
 		Inbound:       true,
-		LastError:     nil,
+		LastError:     errors.New("test"),
 		LastErrorTime: time.Now(),
 		Key:           pubkey,
 		Root:          rootPubKey,
@@ -186,20 +177,21 @@ func TestGetPeer(t *testing.T) {
 		Uptime:        3600,
 		Latency:       50.0,
 	}
-
-	pKey, err := x509.MarshalPKIXPublicKey(peer.Key)
+	peer, err := core.NewPeerInfoDB(peerinfo)
 	require.NoError(t, err)
-	pKeyRoot, err := x509.MarshalPKIXPublicKey(peer.Root)
-	require.NoError(t, err)
-	var coords []byte
-	rows := sqlmock.NewRows([]string{"uri", "up", "Inbound", "LastError", "LastErrorTime", "Key", "Root", "Coords", "Port", "Priority", "Rxbytes", "Txbytes", "Uptime", "Latency"}).
-		AddRow(peer.URI, peer.Up, peer.Inbound, peer.LastError, peer.LastErrorTime, peer.Key, peer.Root, coords, peer.Port, peer.Priority, peer.RXBytes, peer.TXBytes, peer.Uptime, peer.Latency)
 
-	mock.ExpectQuery("SELECT * FROM peer_infos WHERE uri = ? AND key = ? AND root = ?").
-		WithArgs(peer.URI, pKey, pKeyRoot).
+	rows := sqlmock.NewRows([]string{"up", "inbound", "last_error", "last_error_time", "coords",
+		"port", "priority", "Rxbytes", "Txbytes", "uptime", "latency", "uri", "key", "root"}).
+		AddRow(peer.Up, peer.Inbound, peer.PeerErr, peer.LastErrorTime, peer.CoordsBytes,
+			peer.Port, peer.Priority, peer.RXBytes, peer.TXBytes, peer.Uptime, peer.Latency,
+			peer.URI, peer.KeyBytes, peer.RootBytes)
+
+	mock.ExpectQuery("SELECT (.+) FROM peer_infos WHERE Id = \\?").
+		WithArgs(peer.Id).
 		WillReturnRows(rows)
 
-	err = cfg.GetPeer(&peer)
+	_, err = cfg.Get(peer)
+	t.Log(err)
 	require.NoError(t, err)
 
 	err = mock.ExpectationsWereMet()
@@ -210,7 +202,6 @@ func TestUpdatePeer(t *testing.T) {
 	mockDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer mockDB.Close()
-
 	cfg, err := peerinfodb.New()
 	require.NoError(t, err)
 	cfg.DbConfig.DB = mockDB
@@ -219,12 +210,11 @@ func TestUpdatePeer(t *testing.T) {
 	require.NoError(t, err)
 	rootPubKey, _, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
-
-	peer := core.PeerInfo{
+	peerinfo := core.PeerInfo{
 		URI:           "test.test",
 		Up:            true,
 		Inbound:       true,
-		LastError:     nil,
+		LastError:     errors.New("test"),
 		LastErrorTime: time.Now(),
 		Key:           pubkey,
 		Root:          rootPubKey,
@@ -236,17 +226,7 @@ func TestUpdatePeer(t *testing.T) {
 		Uptime:        3600,
 		Latency:       50.0,
 	}
-
-	pKey, err := x509.MarshalPKIXPublicKey(peer.Key)
-	require.NoError(t, err)
-	pKeyRoot, err := x509.MarshalPKIXPublicKey(peer.Root)
-	var coordsBlob []byte
-	if peer.Coords != nil {
-		coordsBlob = make([]byte, len(peer.Coords)*8)
-		for i, coord := range peer.Coords {
-			binary.LittleEndian.PutUint64(coordsBlob[i*8:], coord)
-		}
-	}
+	peer, err := core.NewPeerInfoDB(peerinfo)
 	require.NoError(t, err)
 	mock.ExpectExec(`UPDATE peer_infos 
 		SET 
@@ -259,23 +239,25 @@ func TestUpdatePeer(t *testing.T) {
 			priority = \?, 
 			RXBytes = RXBytes \+ \?, 
 			TXBytes = TXBytes \+ \?, 
-			uptime = \?, 
-			latency = \? 
+			uptime = uptime \+ \?,
+			latency = \?,
+			uri = \?,
+			key = \?,
+			root = \?
 		WHERE 
-			uri = \? AND key = \? AND root = \?`).
+			Id = \?`).
 		WithArgs(
-			peer.Up, peer.Inbound, peer.LastError, peer.LastErrorTime, coordsBlob, peer.Port, peer.Priority,
-			peer.RXBytes, peer.TXBytes, peer.Uptime, peer.Latency, peer.URI, pKey, pKeyRoot).
+			peer.Up, peer.Inbound, peer.PeerErr, peer.LastErrorTime, peer.CoordsBytes, peer.Port, peer.Priority,
+			peer.RXBytes, peer.TXBytes, peer.Uptime, peer.Latency, peer.URI, peer.KeyBytes, peer.RootBytes, peer.Id).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	err = cfg.UpdatePeer(peer)
+	err = cfg.Update(peer)
 	require.NoError(t, err)
 
 	err = mock.ExpectationsWereMet()
 	require.NoError(t, err)
 }
 
-// One more test here
 func TestMain(t *testing.T) {
 	peerinfodb.Name = fmt.Sprintf(
 		"%s.%s",
@@ -297,7 +279,7 @@ func TestMain(t *testing.T) {
 	require.NoError(t, err)
 	rootPubKey, _, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
-	peer := core.PeerInfo{
+	peerinfo := core.PeerInfo{
 		URI:           "test.test",
 		Up:            true,
 		Inbound:       true,
@@ -313,14 +295,16 @@ func TestMain(t *testing.T) {
 		Uptime:        3600,
 		Latency:       50.0,
 	}
+	peer, err := core.NewPeerInfoDB(peerinfo)
+	require.NoError(t, err)
 
 	root2PubKey, _, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
-	peer2 := core.PeerInfo{
+	peerinfo2 := core.PeerInfo{
 		URI:           "new.test",
 		Up:            true,
 		Inbound:       true,
-		LastError:     nil,
+		LastError:     errors.New("test2"),
 		LastErrorTime: time.Now(),
 		Key:           pubkey,
 		Root:          root2PubKey,
@@ -332,9 +316,13 @@ func TestMain(t *testing.T) {
 		Uptime:        3600,
 		Latency:       50.0,
 	}
+	peer2, err := core.NewPeerInfoDB(peerinfo2)
+	require.NoError(t, err)
 
-	peerdb.AddPeer(peer)
-	peerdb.AddPeer(peer2)
+	_, err = peerdb.Add(peer)
+	require.NoError(t, err)
+	_, err = peerdb.Add(peer2)
+	require.NoError(t, err)
 	count, err := peerdb.Count()
 	require.NoError(t, err)
 	condition = func() bool {
@@ -342,29 +330,35 @@ func TestMain(t *testing.T) {
 	}
 	require.Condition(t, condition, "Expected count to be 2", count)
 
-	peerdb.RemovePeer(peer)
+	err = peerdb.Remove(peer)
+	require.NoError(t, err)
 	count, err = peerdb.Count()
 	require.NoError(t, err)
 	condition = func() bool {
 		return count == 1
 	}
+
 	require.Condition(t, condition, "Expected count to be 1", count)
 
 	peer2.Latency = 10
 	peer2.RXBytes = 1024
 	peer2.TXBytes = 1024
 	peer2.Port = 80
-	peerdb.UpdatePeer(peer2)
-	peerdb.GetPeer(&peer2)
+	err = peerdb.Update(peer2)
+	require.NoError(t, err)
+	_, err = peerdb.Get(peer2)
+	require.NoError(t, err)
+
 	condition = func() bool {
 		return peer2.Latency == 10 &&
 			peer2.RXBytes == 2048 &&
 			peer2.TXBytes == 3072 &&
-			peer2.Port == 80 && peer2.URI == "new.test" && bytes.Equal(peer.Key, pubkey)
+			peer2.Port == 80 && peer2.URI == "new.test" && peer2.Key.Equal(pubkey)
 	}
+
 	require.Condition(t, condition, "Inner exception")
 
-	peerdb.RemovePeer(peer2)
+	peerdb.Remove(peer2)
 	count, err = peerdb.Count()
 	require.NoError(t, err)
 
