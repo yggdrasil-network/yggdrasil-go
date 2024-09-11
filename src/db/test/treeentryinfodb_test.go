@@ -36,7 +36,7 @@ func TestSelectTreeEntryInfo(t *testing.T) {
 	require.NoError(t, err)
 
 	rows := sqlmock.NewRows([]string{"Sequence", "Key", "Parent"}).
-		AddRow(100, model.KeyBytes, model.ParentBytes)
+		AddRow(100, model.Key.GetPKIXPublicKeyBytes(), model.Parent.GetPKIXPublicKeyBytes())
 
 	mock.ExpectQuery("SELECT (.+) FROM tree_entry_info WHERE Id = \\?").
 		WithArgs(model.Id).
@@ -73,8 +73,8 @@ func TestInsertTreeEntryInfo(t *testing.T) {
 
 	mock.ExpectExec("INSERT INTO tree_entry_info").
 		WithArgs(
-			model.KeyBytes,
-			model.ParentBytes,
+			model.Key.GetPKIXPublicKeyBytes(),
+			model.Parent.GetPKIXPublicKeyBytes(),
 			model.Sequence,
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
@@ -146,8 +146,8 @@ func TestUpdateTreeEntryInfo(t *testing.T) {
 			Id = \?`).
 		WithArgs(
 			model.Sequence,
-			model.KeyBytes,
-			model.ParentBytes,
+			model.Key.GetPKIXPublicKeyBytes(),
+			model.Parent.GetPKIXPublicKeyBytes(),
 			model.Id,
 		).WillReturnResult(sqlmock.NewResult(1, 1))
 

@@ -36,7 +36,7 @@ func TestSelectPathEntryInfo(t *testing.T) {
 	require.NoError(t, err)
 
 	rows := sqlmock.NewRows([]string{"Sequence", "Key", "Path"}).
-		AddRow(100, model.KeyBytes, model.PathBytes)
+		AddRow(100, model.Key.GetPKIXPublicKeyBytes(), model.Path.ConvertToByteSliсe())
 
 	mock.ExpectQuery("SELECT (.+) FROM path_entry_info WHERE Id = \\?").
 		WithArgs(model.Id).
@@ -72,8 +72,8 @@ func TestInsertPathEntryInfo(t *testing.T) {
 	require.NoError(t, err)
 	mock.ExpectExec("INSERT INTO path_entry_info").
 		WithArgs(
-			model.KeyBytes,
-			model.PathBytes,
+			model.Key.GetPKIXPublicKeyBytes(),
+			model.Path.ConvertToByteSliсe(),
 			model.Sequence,
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
@@ -145,8 +145,8 @@ func TestUpdatePathEntryInfo(t *testing.T) {
 			Id = \?`).
 		WithArgs(
 			model.Sequence,
-			model.KeyBytes,
-			model.PathBytes,
+			model.Key.GetPKIXPublicKeyBytes(),
+			model.Path.ConvertToByteSliсe(),
 			model.Id,
 		).WillReturnResult(sqlmock.NewResult(1, 1))
 

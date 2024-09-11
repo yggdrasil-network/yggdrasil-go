@@ -57,11 +57,11 @@ func (cfg *PeerInfoDBConfig) Add(model *core.PeerInfoDB) (_ sql.Result, err erro
 		model.URI,
 		model.Up,
 		model.Inbound,
-		model.PeerErr,
+		model.Error.GetErrorMessage(),
 		model.LastErrorTime,
-		model.KeyBytes,
-		model.RootBytes,
-		model.CoordsBytes,
+		model.Key.GetPKIXPublicKeyBytes(),
+		model.Root.GetPKIXPublicKeyBytes(),
+		model.Coords.ConvertToByteSliсe(),
 		model.Port,
 		model.Priority,
 		model.RXBytes,
@@ -101,30 +101,22 @@ func (cfg *PeerInfoDBConfig) Get(model *core.PeerInfoDB) (_ *sql.Rows, err error
 		return nil, err
 	}
 	defer rows.Close()
+	var _key []byte
+	var _root []byte
+	var _err string
+	var _coords []byte
 	for rows.Next() {
-		err = rows.Scan(&model.Up, &model.Inbound, &model.PeerErr, &model.LastErrorTime, &model.CoordsBytes,
+		err = rows.Scan(&model.Up, &model.Inbound, &_err, &model.LastErrorTime, &_coords,
 			&model.Port, &model.Priority, &model.RXBytes, &model.TXBytes, &model.Uptime, &model.Latency,
-			&model.URI, &model.KeyBytes, &model.RootBytes)
+			&model.URI, &_key, &_root)
 		if err != nil {
 			return rows, err
 		}
 	}
-
-	model.Coords, err = core.ConvertToUintSlise(model.CoordsBytes)
-	if err != nil {
-		return nil, err
-	}
-	publickey, err := core.ParsePKIXPublicKey(&model.KeyBytes)
-	if err != nil {
-		return nil, err
-	}
-	model.Key = publickey
-	publicRoot, err := core.ParsePKIXPublicKey(&model.RootBytes)
-	if err != nil {
-		return nil, err
-	}
-	model.Root = publicRoot
-	model.LastError = core.ParseError(model.PeerErr)
+	model.Coords.ParseByteSliсe(_coords)
+	model.Key.ParsePKIXPublicKey(&_key)
+	model.Root.ParsePKIXPublicKey(&_root)
+	model.Error.ParseMessage(_err)
 	return rows, nil
 }
 
@@ -147,8 +139,8 @@ func (cfg *PeerInfoDBConfig) Update(model *core.PeerInfoDB) (err error) {
 			root = ?
 		WHERE 
 			Id = ?`,
-		model.Up, model.Inbound, model.PeerErr, model.LastErrorTime, model.CoordsBytes, model.Port, model.Priority,
-		model.RXBytes, model.TXBytes, model.Uptime, model.Latency, model.URI, model.KeyBytes, model.RootBytes, model.Id)
+		model.Up, model.Inbound, model.Error.GetErrorSqlError(), model.LastErrorTime, model.Coords.ConvertToByteSliсe(), model.Port, model.Priority,
+		model.RXBytes, model.TXBytes, model.Uptime, model.Latency, model.URI, model.Key.GetPKIXPublicKeyBytes(), model.Root.GetPKIXPublicKeyBytes(), model.Id)
 	if err != nil {
 		return err
 	}

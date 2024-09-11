@@ -12,52 +12,71 @@ import (
 
 type PeerInfoDB struct {
 	PeerInfo
-	Id          int
-	CoordsBytes []byte
-	KeyBytes    []byte
-	RootBytes   []byte
-	PeerErr     sql.NullString
+	Id            int
+	Coords        Blob
+	Key           PublicKeyContainer
+	Root          PublicKeyContainer
+	Error         ErrorContainer
+	LastErrorTime sql.NullTime
 }
 
 type SelfInfoDB struct {
 	SelfInfo
-	Id       int
-	KeyBytes []byte
+	Id  int
+	Key PublicKeyContainer
 }
 
 type TreeEntryInfoDB struct {
 	TreeEntryInfo
-	Id          int
-	KeyBytes    []byte
-	ParentBytes []byte
+	Id     int
+	Key    PublicKeyContainer
+	Parent PublicKeyContainer
 }
 
 type PathEntryInfoDB struct {
 	PathEntryInfo
-	Id        int
-	KeyBytes  []byte
-	PathBytes []byte
+	Id   int
+	Key  PublicKeyContainer
+	Path Blob
 }
 
 type SessionInfoDB struct {
 	SessionInfo
-	Id       int
-	KeyBytes []byte
+	Id  int
+	Key PublicKeyContainer
 }
 
 func NewPeerInfoDB(peerInfo PeerInfo) (_ *PeerInfoDB, err error) {
 	peer := &PeerInfoDB{
 		PeerInfo: peerInfo,
 	}
-	peer.PeerErr = MarshalError(peer.LastError)
-	peer.CoordsBytes = ConvertToByteSlise(peer.Coords)
-	peer.KeyBytes, err = MarshalPKIXPublicKey(&peer.Key)
-	if err != nil {
-		return nil, err
+	peer.Error = ErrorContainer{
+		_err: peerInfo.LastError,
 	}
-	peer.RootBytes, err = MarshalPKIXPublicKey(&peer.Root)
-	if err != nil {
-		return nil, err
+	peer.Error.ParseError(peerInfo.LastError)
+
+	peer.Coords = Blob{
+		_uint: peerInfo.Coords,
+	}
+	peer.Coords.ParseUint64Sliсe(peer.Coords._uint)
+
+	peer.Key = PublicKeyContainer{
+		_publicKey: peerInfo.Key,
+	}
+	publicKey := peer.Key.GetPKIXPublicKey()
+	peer.Key.MarshalPKIXPublicKey(&publicKey)
+
+	peer.Root = PublicKeyContainer{
+		_publicKey: peerInfo.Root,
+	}
+	publicKey = peer.Root.GetPKIXPublicKey()
+	peer.Root.MarshalPKIXPublicKey(&publicKey)
+	peer.LastErrorTime = sql.NullTime{}
+	if !peerInfo.LastErrorTime.IsZero() {
+		peer.LastErrorTime.Time = peerInfo.LastErrorTime
+		peer.LastErrorTime.Valid = true
+	} else {
+		peer.LastErrorTime.Valid = false
 	}
 	return peer, nil
 }
@@ -66,7 +85,11 @@ func NewSelfInfoDB(selfinfo SelfInfo) (_ *SelfInfoDB, err error) {
 	model := &SelfInfoDB{
 		SelfInfo: selfinfo,
 	}
-	model.KeyBytes, err = MarshalPKIXPublicKey(&model.Key)
+	model.Key = PublicKeyContainer{
+		_publicKey: selfinfo.Key,
+	}
+	publicKey := model.Key.GetPKIXPublicKey()
+	model.Key.MarshalPKIXPublicKey(&publicKey)
 	if err != nil {
 		return nil, err
 	}
@@ -77,14 +100,16 @@ func NewTreeEntryInfoDB(treeEntyInfo TreeEntryInfo) (_ *TreeEntryInfoDB, err err
 	model := &TreeEntryInfoDB{
 		TreeEntryInfo: treeEntyInfo,
 	}
-	model.KeyBytes, err = MarshalPKIXPublicKey(&model.Key)
-	if err != nil {
-		return nil, err
+	model.Key = PublicKeyContainer{
+		_publicKey: treeEntyInfo.Key,
 	}
-	model.ParentBytes, err = MarshalPKIXPublicKey(&model.Parent)
-	if err != nil {
-		return nil, err
+	publicKey := model.Key.GetPKIXPublicKey()
+	model.Key.MarshalPKIXPublicKey(&publicKey)
+	model.Parent = PublicKeyContainer{
+		_publicKey: treeEntyInfo.Parent,
 	}
+	publicKey = model.Parent.GetPKIXPublicKey()
+	model.Parent.MarshalPKIXPublicKey(&publicKey)
 	return model, nil
 }
 
@@ -92,12 +117,16 @@ func NewPathEntryInfoDB(PathEntryInfo PathEntryInfo) (_ *PathEntryInfoDB, err er
 	model := &PathEntryInfoDB{
 		PathEntryInfo: PathEntryInfo,
 	}
-	model.KeyBytes, err = MarshalPKIXPublicKey(&model.Key)
-	if err != nil {
-		return nil, err
+	model.Key = PublicKeyContainer{
+		_publicKey: PathEntryInfo.Key,
 	}
-	model.PathBytes = ConvertToByteSlise(model.Path)
+	publicKey := model.Key.GetPKIXPublicKey()
+	model.Key.MarshalPKIXPublicKey(&publicKey)
 
+	model.Path = Blob{
+		_uint: PathEntryInfo.Path,
+	}
+	model.Path.ParseUint64Sliсe(model.Path._uint)
 	return model, nil
 }
 
@@ -105,25 +134,146 @@ func NewSessionInfoDB(SessionInfo SessionInfo) (_ *SessionInfoDB, err error) {
 	model := &SessionInfoDB{
 		SessionInfo: SessionInfo,
 	}
-	model.KeyBytes, err = MarshalPKIXPublicKey(&model.Key)
-	if err != nil {
-		return nil, err
+	model.Key = PublicKeyContainer{
+		_publicKey: SessionInfo.Key,
 	}
+	publicKey := model.Key.GetPKIXPublicKey()
+	model.Key.MarshalPKIXPublicKey(&publicKey)
 	return model, nil
 }
 
-func ConvertToByteSlise(uintSlise []uint64) []byte {
-	var ByteSlise []byte
-	if uintSlise != nil {
-		ByteSlise = make([]byte, len(uintSlise)*8)
-		for i, coord := range uintSlise {
-			binary.LittleEndian.PutUint64(ByteSlise[i*8:], coord)
-		}
-	}
-	return ByteSlise
+type Blob struct {
+	_byte []byte
+	_uint []uint64
 }
 
-func ConvertToUintSlise(ByteSlise []byte) (_ []uint64, err error) {
+type PublicKeyContainer struct {
+	_byte      []byte
+	_publicKey ed25519.PublicKey
+}
+
+type ErrorContainer struct {
+	_ErrStr sql.NullString
+	_err    error
+}
+
+func (blob *PublicKeyContainer) GetPKIXPublicKeyBytes() []byte {
+	if blob._publicKey == nil {
+		return nil
+	}
+	result, err := MarshalPKIXPublicKey(&blob._publicKey)
+	if err != nil {
+		return nil
+	}
+	return result
+}
+
+func (blob *PublicKeyContainer) GetPKIXPublicKey() ed25519.PublicKey {
+	if blob._publicKey == nil {
+		return nil
+	}
+	return blob._publicKey
+}
+
+func (blob *PublicKeyContainer) ParsePKIXPublicKey(derBytes *[]byte) {
+	result, err := ParsePKIXPublicKey(derBytes)
+	if err != nil {
+		return
+	}
+	blob._byte = *derBytes
+	blob._publicKey = result
+}
+
+func (blob *PublicKeyContainer) MarshalPKIXPublicKey(PublicKey *ed25519.PublicKey) {
+	result, err := MarshalPKIXPublicKey(PublicKey)
+	if err != nil {
+		return
+	}
+	blob._publicKey = *PublicKey
+	blob._byte = result
+}
+
+func (blob *Blob) ConvertToUintSliсe() []uint64 {
+	if blob._byte == nil {
+		return nil
+	}
+	result, err := ConvertToUintSliсe(blob._byte)
+	if err != nil {
+		return nil
+	}
+	return result
+}
+
+func (blob *Blob) ConvertToByteSliсe() []byte {
+	if blob._uint == nil {
+		return nil
+	}
+	result := ConvertToByteSliсe(blob._uint)
+	return result
+}
+
+func (blob *Blob) ParseByteSliсe(slice []byte) {
+	result, err := ConvertToUintSliсe(slice)
+	if err != nil {
+		return
+	}
+	blob._byte = slice
+	blob._uint = result
+}
+
+func (blob *Blob) ParseUint64Sliсe(slice []uint64) {
+	blob._uint = slice
+	blob._byte = ConvertToByteSliсe(slice)
+}
+
+func (ErrorContainer *ErrorContainer) ParseError(err error) {
+	if err != nil {
+		ErrorContainer._ErrStr = sql.NullString{
+			String: err.Error(),
+			Valid:  true}
+		ErrorContainer._err = err
+	}
+}
+
+func (ErrorContainer *ErrorContainer) ParseMessage(message string) {
+	if message != "" {
+		ErrorContainer._ErrStr = sql.NullString{
+			String: message,
+			Valid:  true}
+		ErrorContainer._err = errors.New(message)
+	}
+}
+
+func (ErrorContainer *ErrorContainer) GetError() error {
+	if ErrorContainer._err != nil {
+		return ErrorContainer._err
+	}
+	return nil
+}
+
+func (ErrorContainer *ErrorContainer) GetErrorMessage() string {
+	if ErrorContainer._ErrStr.Valid {
+		return ErrorContainer._ErrStr.String
+	}
+	return ""
+}
+
+func (ErrorContainer *ErrorContainer) GetErrorSqlError() sql.NullString {
+	return ErrorContainer._ErrStr
+}
+
+func ConvertToByteSliсe(uintSlice []uint64) []byte {
+	var ByteSlice []byte
+	if uintSlice != nil {
+		ByteSlice = make([]byte, len(uintSlice)*8)
+		for i, coord := range uintSlice {
+			binary.LittleEndian.PutUint64(ByteSlice[i*8:], coord)
+		}
+	}
+	return ByteSlice
+}
+
+func ConvertToUintSliсe(ByteSlise []byte) (_ []uint64, err error) {
 	if len(ByteSlise)%8 != 0 {
 		return nil, fmt.Errorf("length of byte slice must be a multiple of 8")
 	}

@@ -37,7 +37,7 @@ func TestSelectSessionInfo(t *testing.T) {
 	require.NoError(t, err)
 
 	rows := sqlmock.NewRows([]string{"RXBytes", "TXBytes", "Duration", "Key"}).
-		AddRow(100, 200, 100, model.KeyBytes)
+		AddRow(100, 200, 100, model.Key.GetPKIXPublicKeyBytes())
 
 	mock.ExpectQuery("SELECT (.+) FROM session_info WHERE Id = \\?").
 		WithArgs(model.Id).
@@ -75,7 +75,7 @@ func TestInsertSessionInfo(t *testing.T) {
 
 	mock.ExpectExec("INSERT INTO session_info").
 		WithArgs(
-			model.KeyBytes,
+			model.Key.GetPKIXPublicKeyBytes(),
 			model.RXBytes,
 			model.TXBytes,
 			model.Uptime,
@@ -154,7 +154,7 @@ func TestUpdateSessionInfo(t *testing.T) {
 			model.RXBytes,
 			model.TXBytes,
 			model.Uptime,
-			model.KeyBytes,
+			model.Key.GetPKIXPublicKeyBytes(),
 			model.Id,
 		).WillReturnResult(sqlmock.NewResult(1, 1))
 

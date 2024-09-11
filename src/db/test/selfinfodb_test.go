@@ -34,7 +34,7 @@ func TestSelectSelfInfo(t *testing.T) {
 	require.NoError(t, err)
 
 	rows := sqlmock.NewRows([]string{"RoutingEntries", "Key"}).
-		AddRow(100, model.KeyBytes)
+		AddRow(100, model.Key.GetPKIXPublicKeyBytes())
 
 	mock.ExpectQuery("SELECT (.+) FROM self_info WHERE Id = \\?").
 		WithArgs(model.Id).
@@ -68,7 +68,7 @@ func TestInsertSelfInfo(t *testing.T) {
 	require.NoError(t, err)
 	mock.ExpectExec("INSERT OR REPLACE INTO self_info").
 		WithArgs(
-			model.KeyBytes,
+			model.Key.GetPKIXPublicKeyBytes(),
 			model.RoutingEntries,
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
@@ -136,7 +136,7 @@ func TestUpdateSelfInfo(t *testing.T) {
 			Id = \?`).
 		WithArgs(
 			model.RoutingEntries,
-			model.KeyBytes,
+			model.Key.GetPKIXPublicKeyBytes(),
 			model.Id,
 		).WillReturnResult(sqlmock.NewResult(1, 1))
 

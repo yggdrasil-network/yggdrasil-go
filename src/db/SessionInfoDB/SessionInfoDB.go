@@ -43,7 +43,7 @@ func New() (*SessionInfoDBConfig, error) {
 func (cfg *SessionInfoDBConfig) Add(model *core.SessionInfoDB) (_ sql.Result, err error) {
 	query := "INSERT INTO session_info (Key, RXBytes, TXBytes, Duration) VALUES (?, ?, ?, ?)"
 	result, err := cfg.DbConfig.DB.Exec(query,
-		model.KeyBytes,
+		model.Key.GetPKIXPublicKeyBytes(),
 		model.RXBytes,
 		model.TXBytes,
 		model.Uptime,
@@ -77,7 +77,7 @@ func (cfg *SessionInfoDBConfig) Update(model *core.SessionInfoDB) (err error) {
 		Key = ?
 	WHERE 
 		Id = ?`,
-		model.RXBytes, model.TXBytes, model.Uptime, model.KeyBytes, model.Id)
+		model.RXBytes, model.TXBytes, model.Uptime, model.Key.GetPKIXPublicKeyBytes(), model.Id)
 	if err != nil {
 		return err
 	}
@@ -92,11 +92,13 @@ func (cfg *SessionInfoDBConfig) Get(model *core.SessionInfoDB) (_ *sql.Rows, err
 		return nil, err
 	}
 	defer rows.Close()
+	var _key []byte
 	for rows.Next() {
-		err = rows.Scan(&model.RXBytes, &model.TXBytes, &model.Uptime, &model.KeyBytes)
+		err = rows.Scan(&model.RXBytes, &model.TXBytes, &model.Uptime, &_key)
 		if err != nil {
 			return nil, err
 		}
+		model.Key.ParsePKIXPublicKey(&_key)
 	}
 	return rows, nil
 }

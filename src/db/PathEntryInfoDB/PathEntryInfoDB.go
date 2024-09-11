@@ -43,8 +43,8 @@ func (cfg *PathEntryInfoDBConfig) Add(model *core.PathEntryInfoDB) (_ sql.Result
 	query := "INSERT INTO path_entry_info (Key, Path, Sequence) VALUES (?, ?, ?)"
 	result, err := cfg.DbConfig.DB.Exec(
 		query,
-		model.KeyBytes,
-		model.PathBytes,
+		model.Key.GetPKIXPublicKeyBytes(),
+		model.Path.ConvertToByteSliсe(),
 		model.Sequence)
 	if err != nil {
 		return nil, err
@@ -74,7 +74,7 @@ func (cfg *PathEntryInfoDBConfig) Update(model *core.PathEntryInfoDB) (err error
 		Path = ?
 	WHERE 
 		Id = ?`,
-		model.Sequence, model.KeyBytes, model.PathBytes, model.Id)
+		model.Sequence, model.Key.GetPKIXPublicKeyBytes(), model.Path.ConvertToByteSliсe(), model.Id)
 	if err != nil {
 		return err
 	}
@@ -89,11 +89,15 @@ func (cfg *PathEntryInfoDBConfig) Get(model *core.PathEntryInfoDB) (_ *sql.Rows,
 		return nil, err
 	}
 	defer rows.Close()
+	var _key []byte
+	var _path []byte
 	for rows.Next() {
-		err = rows.Scan(&model.Sequence, &model.KeyBytes, &model.PathBytes)
+		err = rows.Scan(&model.Sequence, &_key, &_path)
 		if err != nil {
 			return nil, err
 		}
+		model.Key.ParsePKIXPublicKey(&_key)
+		model.Path.ParseByteSliсe(_path)
 	}
 	return rows, nil
 }

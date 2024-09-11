@@ -41,7 +41,7 @@ func New() (*SelfInfoDBConfig, error) {
 func (cfg *SelfInfoDBConfig) Add(model *core.SelfInfoDB) (_ sql.Result, err error) {
 	query := "INSERT OR REPLACE INTO self_info (Key, RoutingEntries) VALUES (?, ?)"
 	result, err := cfg.DbConfig.DB.Exec(query,
-		model.KeyBytes,
+		model.Key.GetPKIXPublicKeyBytes(),
 		model.RoutingEntries)
 	if err != nil {
 		return nil, err
@@ -61,7 +61,7 @@ func (cfg *SelfInfoDBConfig) Update(model *core.SelfInfoDB) (err error) {
 		Key = ?
 	WHERE 
 		Id = ?`,
-		model.RoutingEntries, model.KeyBytes, model.Id)
+		model.RoutingEntries, model.Key.GetPKIXPublicKeyBytes(), model.Id)
 	if err != nil {
 		return err
 	}
@@ -84,11 +84,13 @@ func (cfg *SelfInfoDBConfig) Get(model *core.SelfInfoDB) (_ *sql.Rows, err error
 		return nil, err
 	}
 	defer rows.Close()
+	var _key []byte
 	for rows.Next() {
-		err = rows.Scan(&model.RoutingEntries, &model.KeyBytes)
+		err = rows.Scan(&model.RoutingEntries, &_key)
 		if err != nil {
 			return rows, err
 		}
+		model.Key.ParsePKIXPublicKey(&_key)
 	}
 	return rows, nil
 }

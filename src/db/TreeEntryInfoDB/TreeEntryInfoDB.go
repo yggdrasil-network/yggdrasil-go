@@ -42,8 +42,8 @@ func New() (*TreeEntryInfoDBConfig, error) {
 func (cfg *TreeEntryInfoDBConfig) Add(model *core.TreeEntryInfoDB) (_ sql.Result, err error) {
 	query := "INSERT INTO tree_entry_info (Key, Parent, Sequence) VALUES (?, ?, ?)"
 	result, err := cfg.DbConfig.DB.Exec(query,
-		model.KeyBytes,
-		model.ParentBytes,
+		model.Key.GetPKIXPublicKeyBytes(),
+		model.Parent.GetPKIXPublicKeyBytes(),
 		model.Sequence,
 	)
 	if err != nil {
@@ -74,7 +74,7 @@ func (cfg *TreeEntryInfoDBConfig) Update(model *core.TreeEntryInfoDB) (err error
 		Parent = ?
 	WHERE 
 		Id = ?`,
-		model.Sequence, model.KeyBytes, model.ParentBytes, model.Id)
+		model.Sequence, model.Key.GetPKIXPublicKeyBytes(), model.Parent.GetPKIXPublicKeyBytes(), model.Id)
 	if err != nil {
 		return err
 	}
@@ -89,11 +89,15 @@ func (cfg *TreeEntryInfoDBConfig) Get(model *core.TreeEntryInfoDB) (_ *sql.Rows,
 		return nil, err
 	}
 	defer rows.Close()
+	var _key []byte
+	var _path []byte
 	for rows.Next() {
-		err = rows.Scan(&model.Sequence, &model.KeyBytes, &model.ParentBytes)
+		err = rows.Scan(&model.Sequence, &_key, &_path)
 		if err != nil {
 			return nil, err
 		}
+		model.Key.ParsePKIXPublicKey(&_key)
+		model.Parent.ParsePKIXPublicKey(&_path)
 	}
 	return rows, nil
 }

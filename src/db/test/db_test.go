@@ -3,6 +3,7 @@ package db_test
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"database/sql"
 	"errors"
 	"fmt"
 	"reflect"
@@ -21,12 +22,11 @@ func TestPeerGetCoords(t *testing.T) {
 	peerinfo := core.PeerInfo{
 		Coords: []uint64{1, 2, 3, 4},
 	}
-	peer := core.PeerInfoDB{
-		PeerInfo: peerinfo,
-	}
+	peer, err := core.NewPeerInfoDB(peerinfo)
+	require.NoError(t, err)
 
 	target := []byte{1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0}
-	coordinates := core.ConvertToByteSlise(peer.Coords)
+	coordinates := peer.Coords.ConvertToByteSliсe()
 	if !reflect.DeepEqual(target, coordinates) {
 		t.Error(fmt.Errorf("Not equal"))
 	}
@@ -34,15 +34,12 @@ func TestPeerGetCoords(t *testing.T) {
 
 func TestPeerSetCoords(t *testing.T) {
 	peerinfo := core.PeerInfo{}
-	peer := core.PeerInfoDB{
-		PeerInfo: peerinfo,
-	}
-	var err error
-	peer.CoordsBytes = []byte{4, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0}
-	peer.Coords, err = core.ConvertToUintSlise(peer.CoordsBytes)
+	peer, err := core.NewPeerInfoDB(peerinfo)
+	require.NoError(t, err)
+	peer.Coords.ParseByteSliсe([]byte{4, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0})
 	require.NoError(t, err)
 	coords := []uint64{4, 3, 2, 1}
-	if !reflect.DeepEqual(coords, peer.Coords) {
+	if !reflect.DeepEqual(coords, peer.Coords.ConvertToUintSliсe()) {
 		t.Error(fmt.Errorf("Not equal"))
 	}
 }
@@ -83,11 +80,11 @@ func TestAddPeer(t *testing.T) {
 			peer.URI,
 			peer.Up,
 			peer.Inbound,
-			peer.PeerErr,
+			peer.Error.GetErrorMessage(),
 			peer.LastErrorTime,
-			peer.KeyBytes,
-			peer.RootBytes,
-			peer.CoordsBytes,
+			peer.Key.GetPKIXPublicKeyBytes(),
+			peer.Root.GetPKIXPublicKeyBytes(),
+			peer.Coords.ConvertToByteSliсe(),
 			peer.Port,
 			peer.Priority,
 			peer.RXBytes,
@@ -182,9 +179,9 @@ func TestGetPeer(t *testing.T) {
 
 	rows := sqlmock.NewRows([]string{"up", "inbound", "last_error", "last_error_time", "coords",
 		"port", "priority", "Rxbytes", "Txbytes", "uptime", "latency", "uri", "key", "root"}).
-		AddRow(peer.Up, peer.Inbound, peer.PeerErr, peer.LastErrorTime, peer.CoordsBytes,
+		AddRow(peer.Up, peer.Inbound, peer.Error.GetErrorMessage(), peer.LastErrorTime, peer.Coords.ConvertToByteSliсe(),
 			peer.Port, peer.Priority, peer.RXBytes, peer.TXBytes, peer.Uptime, peer.Latency,
-			peer.URI, peer.KeyBytes, peer.RootBytes)
+			peer.URI, peer.Key.GetPKIXPublicKeyBytes(), peer.Root.GetPKIXPublicKeyBytes())
 
 	mock.ExpectQuery("SELECT (.+) FROM peer_infos WHERE Id = \\?").
 		WithArgs(peer.Id).
@@ -247,8 +244,8 @@ func TestUpdatePeer(t *testing.T) {
 		WHERE 
 			Id = \?`).
 		WithArgs(
-			peer.Up, peer.Inbound, peer.PeerErr, peer.LastErrorTime, peer.CoordsBytes, peer.Port, peer.Priority,
-			peer.RXBytes, peer.TXBytes, peer.Uptime, peer.Latency, peer.URI, peer.KeyBytes, peer.RootBytes, peer.Id).
+			peer.Up, peer.Inbound, peer.Error.GetErrorMessage(), peer.LastErrorTime, peer.Coords.ConvertToByteSliсe(), peer.Port, peer.Priority,
+			peer.RXBytes, peer.TXBytes, peer.Uptime, peer.Latency, peer.URI, peer.Key.GetPKIXPublicKeyBytes(), peer.Root.GetPKIXPublicKeyBytes(), peer.Id).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
 	err = cfg.Update(peer)
@@ -297,7 +294,6 @@ func TestMain(t *testing.T) {
 	}
 	peer, err := core.NewPeerInfoDB(peerinfo)
 	require.NoError(t, err)
-
 	root2PubKey, _, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
 	peerinfo2 := core.PeerInfo{
@@ -318,7 +314,6 @@ func TestMain(t *testing.T) {
 	}
 	peer2, err := core.NewPeerInfoDB(peerinfo2)
 	require.NoError(t, err)
-
 	_, err = peerdb.Add(peer)
 	require.NoError(t, err)
 	_, err = peerdb.Add(peer2)
@@ -340,20 +335,40 @@ func TestMain(t *testing.T) {
 
 	require.Condition(t, condition, "Expected count to be 1", count)
 
-	peer2.Latency = 10
+	peer2.URI = "test"
+	peer2.Up = false
+	peer2.Inbound = false
+	peer2.Error.ParseMessage("Test")
+	peer2.LastErrorTime = sql.NullTime{}
+	peer2.Key.MarshalPKIXPublicKey(&root2PubKey)
+	peer2.Root.MarshalPKIXPublicKey(&pubkey)
+	peer2.Coords.ParseUint64Sliсe([]uint64{1, 1, 1, 1})
+	peer2.Port = 80
+	peer2.Priority = 2
 	peer2.RXBytes = 1024
 	peer2.TXBytes = 1024
-	peer2.Port = 80
+	peer2.Uptime = 1000
+	peer2.Latency = 10
 	err = peerdb.Update(peer2)
 	require.NoError(t, err)
 	_, err = peerdb.Get(peer2)
 	require.NoError(t, err)
 
 	condition = func() bool {
-		return peer2.Latency == 10 &&
+		return peer2.URI == "test" &&
+			peer2.Up == false &&
+			peer2.Inbound == false &&
+			peer2.Error.GetErrorMessage() == "Test" &&
+			peer2.LastErrorTime.Time.IsZero() &&
+			peer2.Key.GetPKIXPublicKey().Equal(root2PubKey) &&
+			peer2.Root.GetPKIXPublicKey().Equal(pubkey) &&
+			reflect.DeepEqual(peer2.Coords.ConvertToUintSliсe(), []uint64{1, 1, 1, 1}) &&
+			peer2.Port == 80 &&
+			peer2.Priority == 2 &&
 			peer2.RXBytes == 2048 &&
 			peer2.TXBytes == 3072 &&
-			peer2.Port == 80 && peer2.URI == "new.test" && peer2.Key.Equal(pubkey)
+			peer2.Uptime == 4600 &&
+			peer2.Latency == 10
 	}
 
 	require.Condition(t, condition, "Inner exception")
