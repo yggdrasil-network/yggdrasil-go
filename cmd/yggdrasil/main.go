@@ -40,6 +40,7 @@ type node struct {
 // The main function is responsible for configuring and starting Yggdrasil.
 func main() {
 	genconf := flag.Bool("genconf", false, "print a new config to stdout")
+	security := flag.Int("security", 0, "use in combination with either -genconf or -autoconf, generates a higher security address up to the security bits desired")
 	useconf := flag.Bool("useconf", false, "read HJSON/JSON config from stdin")
 	useconffile := flag.String("useconffile", "", "read HJSON/JSON config from specified file path")
 	normaliseconf := flag.Bool("normaliseconf", false, "use in combination with either -useconf or -useconffile, outputs your configuration normalised")
@@ -53,10 +54,10 @@ func main() {
 	getpkey := flag.Bool("publickey", false, "use in combination with either -useconf or -useconffile, outputs your public key")
 	loglevel := flag.String("loglevel", "info", "loglevel to enable")
 	flag.Parse()
-	
+
 	done := make(chan struct{})
 	defer close(done)
-	
+
 	// Catch interrupts from the operating system to exit gracefully.
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
@@ -87,6 +88,11 @@ func main() {
 	}
 
 	cfg := config.GenerateConfig()
+	if (*security > 0) {
+		// Checks if the security flag is set, and generates a key with that many security bits
+		newKey, _ := config.NewSecureKeyPair(*security)
+		cfg.PrivateKey = []byte(newKey)
+	}
 	var err error
 	switch {
 	case *ver:
@@ -271,7 +277,7 @@ func main() {
 			n.tun.SetupAdminHandlers(n.admin)
 		}
 	}
-	
+
 	//Windows service shutdown
 	minwinsvc.SetOnExit(func() {
 		logger.Infof("Shutting down service ...")
