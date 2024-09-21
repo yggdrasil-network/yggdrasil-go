@@ -15,8 +15,6 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tun"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
-
-	_ "golang.org/x/mobile/bind"
 )
 
 // Yggdrasil mobile package is meant to "plug the gap" for mobile support, as
