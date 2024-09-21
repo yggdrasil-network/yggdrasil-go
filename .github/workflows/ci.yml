@@ -20,7 +20,7 @@ jobs:
           go-version: stable
       - uses: actions/checkout@v4
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v6
         with:
           args: --issues-exit-code=1
 
