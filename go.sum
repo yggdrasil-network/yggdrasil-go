@@ -1,5 +1,5 @@
-github.com/Arceliar/ironwood v0.0.0-20240529054413-b8e59574e2b2 h1:SBdYBKeXYUUFef5wi2CMhYmXFVGiYaRpTvbki0Bu+JQ=
-github.com/Arceliar/ironwood v0.0.0-20240529054413-b8e59574e2b2/go.mod h1:6WP4799FX0OuWdENGQAh+0RXp9FLh0y7NZ7tM9cJyXk=
+github.com/Arceliar/ironwood v0.0.0-20240921214443-277f642d5db3 h1:OJ49qTfdw5MNkpnRraNEsVQbHahSvShh8Z9WYpZrYa0=
+github.com/Arceliar/ironwood v0.0.0-20240921214443-277f642d5db3/go.mod h1:6WP4799FX0OuWdENGQAh+0RXp9FLh0y7NZ7tM9cJyXk=
 github.com/Arceliar/phony v0.0.0-20220903101357-530938a4b13d h1:UK9fsWbWqwIQkMCz1CP+v5pGbsGoWAw6g4AyvMpm1EM=
 github.com/Arceliar/phony v0.0.0-20220903101357-530938a4b13d/go.mod h1:BCnxhRf47C/dy/e/D2pmB8NkB3dQVIrkD98b220rx5Q=
 github.com/VividCortex/ewma v1.2.0 h1:f58SaIzcDXrSy3kWaHNvuJgJ3Nmz59Zji6XoJR/q1ow=
@@ -83,8 +83,6 @@ golang.org/x/crypto v0.25.0 h1:ypSNr+bnYL2YhwoMt2zPxHFmbAN1KZs/njMG3hxUp30=
 golang.org/x/crypto v0.25.0/go.mod h1:T+wALwcMOSE0kXgUAnPAHqTLW+XHgcELELW8VaDgm/M=
 golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 h1:2dVuKD2vS7b0QIHQbpyTISPd0LeHDbnYEryqj5Q1ug8=
 golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56/go.mod h1:M4RDyNAINzryxdtnbRXRL/OHtkFuWGRjvuhBJpk2IlY=
-golang.org/x/mobile v0.0.0-20240716161057-1ad2df20a8b6 h1:/VlmIrkuLf2wzPjkZ8imSpckHoW7Y71h66dxbLHSpi8=
-golang.org/x/mobile v0.0.0-20240716161057-1ad2df20a8b6/go.mod h1:TCsc78+c4cqb8IKEosz2LwJ6YRNkIjMuAYeHYjchGDE=
 golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4/go.mod h1:jJ57K6gSWd91VN4djpZkiMVwK6gcyfeH4XE8wZrZaV4=
 golang.org/x/mod v0.8.0/go.mod h1:iBbtSCu2XBx23ZKBPSOrRkjjQPZFPuis4dIYUhu/chs=
 golang.org/x/mod v0.19.0 h1:fEdghXQSo20giMthA7cd28ZC+jts4amQ3YMXiP5oMQ8=
