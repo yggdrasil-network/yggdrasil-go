@@ -108,7 +108,9 @@ func (l *links) shutdown() {
 			_ = listener.listener.Close()
 		}
 		for _, link := range l._links {
-			_ = link._conn.Close()
+			if link._conn != nil {
+				_ = link._conn.Close()
+			}
 		}
 	})
 }
