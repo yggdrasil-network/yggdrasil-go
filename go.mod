@@ -6,6 +6,7 @@ require (
 	github.com/Arceliar/ironwood v0.0.0-20240921214443-277f642d5db3
 	github.com/Arceliar/phony v0.0.0-20220903101357-530938a4b13d
 	github.com/cheggaaa/pb/v3 v3.1.5
+	github.com/coder/websocket v1.8.12
 	github.com/gologme/log v1.3.0
 	github.com/hashicorp/go-syslog v1.0.0
 	github.com/hjson/hjson-go/v4 v4.4.0
@@ -20,7 +21,6 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	golang.zx2c4.com/wireguard/windows v0.5.3
-	nhooyr.io/websocket v1.8.17
 )
 
 require (

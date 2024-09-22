@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/Arceliar/phony"
-	"nhooyr.io/websocket"
+	"github.com/coder/websocket"
 )
 
 type linkWS struct {
