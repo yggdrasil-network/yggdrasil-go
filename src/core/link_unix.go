@@ -12,9 +12,8 @@ import (
 type linkUNIX struct {
 	phony.Inbox
 	*links
-	dialer     *net.Dialer
-	listener   *net.ListenConfig
-	_listeners map[*Listener]context.CancelFunc
+	dialer   *net.Dialer
+	listener *net.ListenConfig
 }
 
 func (l *links) newLinkUNIX() *linkUNIX {
@@ -27,7 +26,6 @@ func (l *links) newLinkUNIX() *linkUNIX {
 		listener: &net.ListenConfig{
 			KeepAlive: -1,
 		},
-		_listeners: map[*Listener]context.CancelFunc{},
 	}
 	return lt
 }

@@ -9,10 +9,12 @@ import (
 	"math/rand"
 	"net"
 	"net/url"
+	"sync/atomic"
 	"time"
 
 	"github.com/Arceliar/phony"
 	"github.com/gologme/log"
+	"github.com/wlynxg/anet"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 	"golang.org/x/crypto/blake2b"
@@ -28,7 +30,7 @@ type Multicast struct {
 	core        *core.Core
 	log         *log.Logger
 	sock        *ipv6.PacketConn
-	_isOpen     bool
+	running     atomic.Bool
 	_listeners  map[string]*listenerInfo
 	_interfaces map[string]*interfaceInfo
 	_timer      *time.Timer
@@ -79,7 +81,7 @@ func New(core *core.Core, log *log.Logger, opts ...SetupOption) (*Multicast, err
 }
 
 func (m *Multicast) _start() error {
-	if m._isOpen {
+	if !m.running.CompareAndSwap(false, true) {
 		return fmt.Errorf("multicast module is already started")
 	}
 	var anyEnabled bool
@@ -87,12 +89,14 @@ func (m *Multicast) _start() error {
 		anyEnabled = anyEnabled || intf.Beacon || intf.Listen
 	}
 	if !anyEnabled {
+		m.running.Store(false)
 		return nil
 	}
 	m.log.Debugln("Starting multicast module")
 	defer m.log.Debugln("Started multicast module")
 	addr, err := net.ResolveUDPAddr("udp", string(m.config._groupAddr))
 	if err != nil {
+		m.running.Store(false)
 		return err
 	}
 	listenString := fmt.Sprintf("[::]:%v", addr.Port)
@@ -101,6 +105,7 @@ func (m *Multicast) _start() error {
 	}
 	conn, err := lc.ListenPacket(context.Background(), "udp6", listenString)
 	if err != nil {
+		m.running.Store(false)
 		return err
 	}
 	m.sock = ipv6.NewPacketConn(conn)
@@ -108,7 +113,6 @@ func (m *Multicast) _start() error {
 		// Windows can't set this flag, so we need to handle it in other ways
 	}
 
-	m._isOpen = true
 	go m.listen()
 	m.Act(nil, m._multicastStarted)
 	m.Act(nil, m._announce)
@@ -118,11 +122,7 @@ func (m *Multicast) _start() error {
 
 // IsStarted returns true if the module has been started.
 func (m *Multicast) IsStarted() bool {
-	var isOpen bool
-	phony.Block(m, func() {
-		isOpen = m._isOpen
-	})
-	return isOpen
+	return m.running.Load()
 }
 
 // Stop stops the multicast module.
@@ -136,8 +136,10 @@ func (m *Multicast) Stop() error {
 }
 
 func (m *Multicast) _stop() error {
+	if !m.running.CompareAndSwap(true, false) {
+		return nil
+	}
 	m.log.Infoln("Stopping multicast module")
-	m._isOpen = false
 	if m.sock != nil {
 		m.sock.Close()
 	}
@@ -147,7 +149,8 @@ func (m *Multicast) _stop() error {
 func (m *Multicast) _updateInterfaces() {
 	interfaces := m._getAllowedInterfaces()
 	for name, info := range interfaces {
-		addrs, err := info.iface.Addrs()
+		// 'anet' package is used here to avoid https://github.com/golang/go/issues/40569
+		addrs, err := anet.InterfaceAddrsByInterface(&info.iface)
 		if err != nil {
 			m.log.Warnf("Failed up get addresses for interface %s: %s", name, err)
 			delete(interfaces, name)
@@ -155,6 +158,7 @@ func (m *Multicast) _updateInterfaces() {
 		}
 		info.addrs = addrs
 		interfaces[name] = info
+		m.log.Debugf("Discovered addresses for interface %s: %s", name, addrs)
 	}
 	m._interfaces = interfaces
 }
@@ -173,10 +177,11 @@ func (m *Multicast) Interfaces() map[string]net.Interface {
 func (m *Multicast) _getAllowedInterfaces() map[string]*interfaceInfo {
 	interfaces := make(map[string]*interfaceInfo)
 	// Ask the system for network interfaces
-	allifaces, err := net.Interfaces()
+	// 'anet' package is used here to avoid https://github.com/golang/go/issues/40569
+	allifaces, err := anet.Interfaces()
 	if err != nil {
 		// Don't panic, since this may be from e.g. too many open files (from too much connection spam)
-		// TODO? log something
+		m.log.Debugf("Failed to get interfaces: %s", err)
 		return nil
 	}
 	// Work out which interfaces to announce on
@@ -233,7 +238,7 @@ func (m *Multicast) AnnounceNow() {
 }
 
 func (m *Multicast) _announce() {
-	if !m._isOpen {
+	if !m.running.Load() {
 		return
 	}
 	m._updateInterfaces()
@@ -250,7 +255,7 @@ func (m *Multicast) _announce() {
 	for name, info := range m._listeners {
 		// Prepare our stop function!
 		stop := func() {
-			info.listener.Close()
+			info.listener.Cancel()
 			delete(m._listeners, name)
 			m.log.Debugln("No longer multicasting on", name)
 		}
@@ -376,6 +381,9 @@ func (m *Multicast) listen() {
 	bs := make([]byte, 2048)
 	hb := make([]byte, 0, blake2b.Size) // Reused to reduce hash allocations
 	for {
+		if !m.running.Load() {
+			return
+		}
 		n, rcm, fromAddr, err := m.sock.ReadFrom(bs)
 		if err != nil {
 			if !m.IsStarted() {

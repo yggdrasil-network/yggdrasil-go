@@ -31,7 +31,7 @@ import (
 )
 
 func (m *Multicast) _multicastStarted() {
-	if !m._isOpen {
+	if !m.running.Load() {
 		return
 	}
 	C.StopAWDLBrowsing()

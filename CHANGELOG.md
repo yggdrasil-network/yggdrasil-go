@@ -26,6 +26,32 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.5.8] - 2024-08-12
+
+### Fixed
+
+* A bug which caused startup problems on Windows and FreeBSD should be fixed
+* Resolved some minor link state and listener management bugs during shutdown
+
+## [0.5.7] - 2024-08-05
+
+### Added
+
+* WebSocket support for peerings, by using the new `ws://` scheme in `Listen` and `Peers`
+  * Additionally, the `wss://` scheme can be used to connect to a WebSocket peer behind a HTTPS reverse proxy
+
+### Changed
+
+* On Linux, the TUN adapter now uses vectorised reads/writes where possible, which should reduce the amount of CPU time spent on syscalls and potentially improve throughput
+* Link error handling has been improved and various link error messages have been rewritten to be clearer
+* Upgrade dependencies
+
+### Fixed
+
+* Multiple multicast connections to the same remote machine should now work correctly
+  * You may get two connections in some cases, one inbound and one outbound, this is known and will not cause problems
+* Running as a Windows service should be more reliable with service startup and shutdown bugs fixed
+
 ## [0.5.6] - 2024-05-30
 
 * Go 1.21 is now required to build Yggdrasil

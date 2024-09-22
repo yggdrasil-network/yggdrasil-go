@@ -13,10 +13,9 @@ import (
 type linkTLS struct {
 	phony.Inbox
 	*links
-	tcp        *linkTCP
-	listener   *net.ListenConfig
-	config     *tls.Config
-	_listeners map[*Listener]context.CancelFunc
+	tcp      *linkTCP
+	listener *net.ListenConfig
+	config   *tls.Config
 }
 
 func (l *links) newLinkTLS(tcp *linkTCP) *linkTLS {
@@ -27,8 +26,7 @@ func (l *links) newLinkTLS(tcp *linkTCP) *linkTLS {
 			Control:   tcp.tcpContext,
 			KeepAlive: -1,
 		},
-		config:     l.core.config.tls.Clone(),
-		_listeners: map[*Listener]context.CancelFunc{},
+		config: l.core.config.tls.Clone(),
 	}
 	return lt
 }
