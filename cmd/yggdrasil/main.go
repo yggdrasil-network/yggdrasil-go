@@ -54,10 +54,10 @@ func main() {
 	loglevel := flag.String("loglevel", "info", "loglevel to enable")
 	chuserto := flag.String("user", "", "user (and, optionally, group) to set UID/GID to")
 	flag.Parse()
-	
+
 	done := make(chan struct{})
 	defer close(done)
-	
+
 	// Catch interrupts from the operating system to exit gracefully.
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
@@ -272,7 +272,7 @@ func main() {
 			n.tun.SetupAdminHandlers(n.admin)
 		}
 	}
-	
+
 	//Windows service shutdown
 	minwinsvc.SetOnExit(func() {
 		logger.Infof("Shutting down service ...")
