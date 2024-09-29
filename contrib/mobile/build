@@ -7,6 +7,7 @@ set -ef
 PKGSRC=${PKGSRC:-github.com/yggdrasil-network/yggdrasil-go/src/version}
 PKGNAME=${PKGNAME:-$(sh contrib/semver/name.sh)}
 PKGVER=${PKGVER:-$(sh contrib/semver/version.sh --bare)}
+GOVER=$(go version | { read _ _ version _; echo ${version#go}; })
 
 LDFLAGS="-X $PKGSRC.buildName=$PKGNAME -X $PKGSRC.buildVersion=$PKGVER"
 ARGS="-v"
@@ -31,6 +32,15 @@ fi
 if [ ! $IOS ] && [ ! $ANDROID ]; then 
   echo "Must specify -a (Android), -i (iOS) or both"
   exit 1
+fi
+
+ver_le() {
+    printf "$1\n$2\n" | sort -VC
+}
+
+if [ $ANDROID ] && ver_le 1.23.0 $GOVER ; then
+    # github.com/wlynxg/anet library relies on //go:linkname
+    LDFLAGS="$LDFLAGS -checklinkname=0"
 fi
 
 if [ $IOS ]; then
