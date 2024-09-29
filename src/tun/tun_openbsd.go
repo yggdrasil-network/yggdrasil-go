@@ -35,38 +35,9 @@ type sockaddr_in6 struct {
 	sin6_scope_id uint32
 }
 
-/*
-from <netinet6/in6_var.h>
-struct  in6_ifreq {
- 277         char    ifr_name[IFNAMSIZ];
- 278         union {
- 279                 struct  sockaddr_in6 ifru_addr;
- 280                 struct  sockaddr_in6 ifru_dstaddr;
- 281                 int     ifru_flags;
- 282                 int     ifru_flags6;
- 283                 int     ifru_metric;
- 284                 caddr_t ifru_data;
- 285                 struct in6_addrlifetime ifru_lifetime;
- 286                 struct in6_ifstat ifru_stat;
- 287                 struct icmp6_ifstat ifru_icmp6stat;
- 288                 u_int32_t ifru_scope_id[16];
- 289         } ifr_ifru;
- 290 };
-*/
-
 type in6_ifreq_addr struct {
 	ifr_name  [syscall.IFNAMSIZ]byte
 	ifru_addr sockaddr_in6
-}
-
-type in6_ifreq_flags struct {
-	ifr_name [syscall.IFNAMSIZ]byte
-	flags    int
-}
-
-type in6_ifreq_lifetime struct {
-	ifr_name          [syscall.IFNAMSIZ]byte
-	ifru_addrlifetime in6_addrlifetime
 }
 
 // Configures the TUN adapter with the correct IPv6 address and MTU.
