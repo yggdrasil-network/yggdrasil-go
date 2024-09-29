@@ -6,7 +6,6 @@ package tun
 import (
 	"encoding/binary"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 	"syscall"
@@ -96,15 +95,6 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(sfd), uintptr(SIOCSIFADDR_IN6), uintptr(unsafe.Pointer(&ar))); errno != 0 {
 		err = errno
 		tun.log.Errorf("Error in SIOCSIFADDR_IN6: %v", errno)
-
-		// Fall back to ifconfig to set the address
-		cmd := exec.Command("ifconfig", tun.Name(), "inet6", addr)
-		tun.log.Warnf("Using ifconfig as fallback: %v", strings.Join(cmd.Args, " "))
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			tun.log.Errorf("SIOCSIFADDR_IN6 fallback failed: %v.", err)
-			tun.log.Traceln(string(output))
-		}
 	}
 
 	return nil
