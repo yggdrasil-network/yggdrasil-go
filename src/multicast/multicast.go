@@ -327,7 +327,7 @@ func (m *Multicast) _announce() {
 					Host:     net.JoinHostPort(addrIP.String(), fmt.Sprintf("%d", info.port)),
 					RawQuery: v.Encode(),
 				}
-				if li, err := m.core.Listen(u, iface.Name); err == nil {
+				if li, err := m.core.ListenLocal(u, iface.Name); err == nil {
 					m.log.Debugln("Started multicasting on", iface.Name)
 					// Store the listener so that we can stop it later if needed
 					linfo = &listenerInfo{listener: li, time: time.Now(), port: info.port}

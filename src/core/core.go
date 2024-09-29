@@ -127,7 +127,7 @@ func New(cert *tls.Certificate, logger Logger, opts ...SetupOption) (*Core, erro
 			c.log.Errorf("Invalid listener URI %q specified, ignoring\n", listenaddr)
 			continue
 		}
-		if _, err = c.links.listen(u, ""); err != nil {
+		if _, err = c.links.listen(u, "", false); err != nil {
 			c.log.Errorf("Failed to start listener %q: %s\n", listenaddr, err)
 		}
 	}

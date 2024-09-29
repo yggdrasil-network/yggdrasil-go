@@ -150,7 +150,14 @@ func (c *Core) GetSessions() []SessionInfo {
 // parsed from a string of the form e.g. "tcp://a.b.c.d:e". In the case of a
 // link-local address, the interface should be provided as the second argument.
 func (c *Core) Listen(u *url.URL, sintf string) (*Listener, error) {
-	return c.links.listen(u, sintf)
+	return c.links.listen(u, sintf, false)
+}
+
+// ListenLocal starts a listener, like the Listen function, but is used for
+// more trustworthy situations where you want to ignore AllowedPublicKeys, i.e.
+// with multicast listeners.
+func (c *Core) ListenLocal(u *url.URL, sintf string) (*Listener, error) {
+	return c.links.listen(u, sintf, true)
 }
 
 // Address gets the IPv6 address of the Yggdrasil node. This is always a /128
