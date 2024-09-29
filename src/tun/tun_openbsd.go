@@ -113,9 +113,9 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	ar.ifra_lifetime.ia6t_pltime = ND6_INFINITE_LIFETIME
 
 	// Set the interface address
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(sfd), uintptr(SIOCAIFADDR_IN6), uintptr(unsafe.Pointer(&ar))); errno != 0 {
-		err = errno
-		tun.log.Errorf("Error in SIOCAIFADDR_IN6: %v", errno)
+	if err = unix.IoctlSetInt(sfd, SIOCAIFADDR_IN6, int(uintptr(unsafe.Pointer(&ar)))); err != nil {
+		tun.log.Errorf("Error in SIOCAIFADDR_IN6: %v", err)
+		return err
 	}
 
 	return nil
