@@ -359,8 +359,9 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 					if backoffNow() {
 						continue
 					}
-					return
 				}
+				// Ephemeral or incoming connections don't reconnect.
+				return
 			}
 		}()
 	})
