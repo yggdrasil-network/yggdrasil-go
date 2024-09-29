@@ -25,6 +25,27 @@ func GetLoggerWithPrefix(prefix string, verbose bool) *log.Logger {
 	return l
 }
 
+func require_NoError(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func require_Equal[T comparable](t *testing.T, a, b T) {
+	t.Helper()
+	if a != b {
+		t.Fatalf("%v != %v", a, b)
+	}
+}
+
+func require_True(t *testing.T, a bool) {
+	t.Helper()
+	if !a {
+		t.Fatal("expected true")
+	}
+}
+
 // CreateAndConnectTwo creates two nodes. nodeB connects to nodeA.
 // Verbosity flag is passed to logger.
 func CreateAndConnectTwo(t testing.TB, verbose bool) (nodeA *Core, nodeB *Core) {
@@ -200,4 +221,70 @@ func BenchmarkCore_Start_Transfer(b *testing.B) {
 		}
 	}
 	<-done
+}
+
+func TestAllowedPublicKeys(t *testing.T) {
+	logger := GetLoggerWithPrefix("", false)
+	cfgA, cfgB := config.GenerateConfig(), config.GenerateConfig()
+	require_NoError(t, cfgA.GenerateSelfSignedCertificate())
+	require_NoError(t, cfgB.GenerateSelfSignedCertificate())
+
+	nodeA, err := New(cfgA.Certificate, logger, AllowedPublicKey("abcdef"))
+	require_NoError(t, err)
+	defer nodeA.Stop()
+
+	nodeB, err := New(cfgB.Certificate, logger)
+	require_NoError(t, err)
+	defer nodeB.Stop()
+
+	u, err := url.Parse("tcp://localhost:0")
+	require_NoError(t, err)
+
+	l, err := nodeA.Listen(u, "")
+	require_NoError(t, err)
+
+	u, err = url.Parse("tcp://" + l.Addr().String())
+	require_NoError(t, err)
+
+	require_NoError(t, nodeB.AddPeer(u, ""))
+
+	time.Sleep(time.Second)
+
+	peers := nodeB.GetPeers()
+	require_Equal(t, len(peers), 1)
+	require_True(t, !peers[0].Up)
+	require_True(t, peers[0].LastError != nil)
+}
+
+func TestAllowedPublicKeysLocal(t *testing.T) {
+	logger := GetLoggerWithPrefix("", false)
+	cfgA, cfgB := config.GenerateConfig(), config.GenerateConfig()
+	require_NoError(t, cfgA.GenerateSelfSignedCertificate())
+	require_NoError(t, cfgB.GenerateSelfSignedCertificate())
+
+	nodeA, err := New(cfgA.Certificate, logger, AllowedPublicKey("abcdef"))
+	require_NoError(t, err)
+	defer nodeA.Stop()
+
+	nodeB, err := New(cfgB.Certificate, logger)
+	require_NoError(t, err)
+	defer nodeB.Stop()
+
+	u, err := url.Parse("tcp://localhost:0")
+	require_NoError(t, err)
+
+	l, err := nodeA.ListenLocal(u, "")
+	require_NoError(t, err)
+
+	u, err = url.Parse("tcp://" + l.Addr().String())
+	require_NoError(t, err)
+
+	require_NoError(t, nodeB.AddPeer(u, ""))
+
+	time.Sleep(time.Second)
+
+	peers := nodeB.GetPeers()
+	require_Equal(t, len(peers), 1)
+	require_True(t, peers[0].Up)
+	require_True(t, peers[0].LastError == nil)
 }
