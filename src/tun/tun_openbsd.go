@@ -67,8 +67,8 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	var err error
 
 	// Create system socket
-	if sfd, err = unix.Socket(unix.AF_INET, unix.SOCK_DGRAM, 0); err != nil {
-		tun.log.Printf("Create AF_INET socket failed: %v.", err)
+	if sfd, err = unix.Socket(unix.AF_INET6, unix.SOCK_DGRAM, 0); err != nil {
+		tun.log.Printf("Create AF_INET6 socket failed: %v", err)
 		return err
 	}
 
