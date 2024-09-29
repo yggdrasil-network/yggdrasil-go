@@ -35,6 +35,15 @@ type sockaddr_in6 struct {
 	sin6_scope_id uint32
 }
 
+func (sa6 *sockaddr_in6) setSockaddr(addr [/*16*/]byte /* net.IP or net.IPMask */) {
+	sa6.sin6_len    = uint8(unsafe.Sizeof(*sa6))
+	sa6.sin6_family = unix.AF_INET6
+
+	for i := range sa6.sin6_addr {
+		sa6.sin6_addr[i] = addr[i]
+	}
+}
+
 type in6_aliasreq struct {
 	ifra_name       [syscall.IFNAMSIZ]byte
 	ifra_addr       sockaddr_in6
@@ -71,7 +80,7 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	var sfd int
 	var err error
 
-	ip, _, err := net.ParseCIDR(addr)
+	ip, prefix, err := net.ParseCIDR(addr)
 	if err != nil {
 		tun.log.Errorf("Error in ParseCIDR: %v", err)
 		return err
@@ -91,12 +100,11 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	// Create the address request
 	var ar in6_aliasreq
 	copy(ar.ifra_name[:], tun.Name())
-	ar.ifra_addr.sin6_len = uint8(unsafe.Sizeof(ar.ifra_addr))
-	ar.ifra_addr.sin6_family = unix.AF_INET6
 
-	for i := range in6_aliasreq.sin6_addr {
-		sa6.sin6_addr[i] = addr[i]
-	}
+	ar.ifra_addr.setSockaddr(ip)
+
+	prefixmask := net.CIDRMask(prefix.Mask.Size())
+	ar.ifra_prefixmask.setSockaddr(prefixmask)
 
 	// Set the interface address
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(sfd), uintptr(SIOCAIFADDR_IN6), uintptr(unsafe.Pointer(&ar))); errno != 0 {
