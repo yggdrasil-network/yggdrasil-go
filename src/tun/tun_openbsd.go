@@ -14,7 +14,10 @@ import (
 	wgtun "golang.zx2c4.com/wireguard/tun"
 )
 
-const SIOCAIFADDR_IN6 = 0x8080691a
+const (
+	SIOCAIFADDR_IN6       = 0x8080691a
+	ND6_INFINITE_LIFETIME = 0xffffffff
+)
 
 type in6_addrlifetime struct {
 	ia6t_expire    int64
@@ -105,6 +108,9 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 
 	prefixmask := net.CIDRMask(prefix.Mask.Size())
 	ar.ifra_prefixmask.setSockaddr(prefixmask)
+
+	ar.ifra_lifetime.ia6t_vltime = ND6_INFINITE_LIFETIME
+	ar.ifra_lifetime.ia6t_pltime = ND6_INFINITE_LIFETIME
 
 	// Set the interface address
 	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(sfd), uintptr(SIOCAIFADDR_IN6), uintptr(unsafe.Pointer(&ar))); errno != 0 {
