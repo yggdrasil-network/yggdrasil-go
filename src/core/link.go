@@ -422,7 +422,10 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 	li := &Listener{
 		listener: listener,
 		ctx:      ctx,
-		Cancel:   cancel,
+		Cancel: func() {
+			cancel()
+			_ = listener.Close()
+		},
 	}
 
 	var options linkOptions

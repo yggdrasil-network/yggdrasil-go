@@ -190,6 +190,8 @@ func (m *Multicast) _getAllowedInterfaces() map[string]*interfaceInfo {
 		switch {
 		case iface.Flags&net.FlagUp == 0:
 			continue // Ignore interfaces that are down
+		case iface.Flags&net.FlagRunning == 0:
+			continue // Ignore interfaces that are not running
 		case iface.Flags&net.FlagMulticast == 0:
 			continue // Ignore non-multicast interfaces
 		case iface.Flags&net.FlagPointToPoint != 0:
