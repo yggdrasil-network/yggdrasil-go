@@ -19,8 +19,8 @@ import (
 const SIOCSIFADDR_IN6 = (0x80000000) | ((288 & 0x1fff) << 16) | uint32(byte('i'))<<8 | 12
 
 type in6_addrlifetime struct {
-	ia6t_expire    float64
-	ia6t_preferred float64
+	ia6t_expire    int64
+	ia6t_preferred int64
 	ia6t_vltime    uint32
 	ia6t_pltime    uint32
 }
@@ -28,7 +28,7 @@ type in6_addrlifetime struct {
 type sockaddr_in6 struct {
 	sin6_len      uint8
 	sin6_family   uint8
-	sin6_port     uint8
+	sin6_port     uint16
 	sin6_flowinfo uint32
 	sin6_addr     [8]uint16
 	sin6_scope_id uint32
