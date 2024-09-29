@@ -16,7 +16,7 @@ import (
 	wgtun "golang.zx2c4.com/wireguard/tun"
 )
 
-const SIOCSIFADDR_IN6 = (0x80000000) | ((288 & 0x1fff) << 16) | uint32(byte('i'))<<8 | 12
+const SIOCAIFADDR_IN6 = 0x8080691a
 
 type in6_addrlifetime struct {
 	ia6t_expire    int64
@@ -34,9 +34,13 @@ type sockaddr_in6 struct {
 	sin6_scope_id uint32
 }
 
-type in6_ifreq_addr struct {
-	ifr_name  [syscall.IFNAMSIZ]byte
-	ifru_addr sockaddr_in6
+type in6_aliasreq struct {
+	ifra_name       [syscall.IFNAMSIZ]byte
+	ifra_addr       sockaddr_in6
+	ifra_dstaddr    sockaddr_in6
+	ifra_prefixmask sockaddr_in6
+	ifra_flags      int32
+	ifra_lifetime   in6_addrlifetime
 }
 
 // Configures the TUN adapter with the correct IPv6 address and MTU.
@@ -78,23 +82,22 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	tun.log.Infof("Interface MTU: %d", tun.mtu)
 
 	// Create the address request
-	// FIXME: I don't work!
-	var ar in6_ifreq_addr
-	copy(ar.ifr_name[:], tun.Name())
-	ar.ifru_addr.sin6_len = uint8(unsafe.Sizeof(ar.ifru_addr))
-	ar.ifru_addr.sin6_family = unix.AF_INET6
+	var ar in6_aliasreq
+	copy(ar.ifra_name[:], tun.Name())
+	ar.ifra_addr.sin6_len = uint8(unsafe.Sizeof(ar.ifra_addr))
+	ar.ifra_addr.sin6_family = unix.AF_INET6
 	parts := strings.Split(strings.Split(addr, "/")[0], ":")
 	for i := 0; i < 8; i++ {
 		addr, _ := strconv.ParseUint(parts[i], 16, 16)
 		b := make([]byte, 16)
 		binary.LittleEndian.PutUint16(b, uint16(addr))
-		ar.ifru_addr.sin6_addr[i] = uint16(binary.BigEndian.Uint16(b))
+		ar.ifra_addr.sin6_addr[i] = uint16(binary.BigEndian.Uint16(b))
 	}
 
 	// Set the interface address
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(sfd), uintptr(SIOCSIFADDR_IN6), uintptr(unsafe.Pointer(&ar))); errno != 0 {
+	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(sfd), uintptr(SIOCAIFADDR_IN6), uintptr(unsafe.Pointer(&ar))); errno != 0 {
 		err = errno
-		tun.log.Errorf("Error in SIOCSIFADDR_IN6: %v", errno)
+		tun.log.Errorf("Error in SIOCAIFADDR_IN6: %v", errno)
 	}
 
 	return nil
