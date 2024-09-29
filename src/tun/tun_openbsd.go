@@ -4,10 +4,8 @@
 package tun
 
 import (
-	"encoding/binary"
 	"fmt"
-	"strconv"
-	"strings"
+	"net"
 	"syscall"
 	"unsafe"
 
@@ -25,12 +23,15 @@ type in6_addrlifetime struct {
 	ia6t_pltime    uint32
 }
 
+// Match types from the net package, effectively being [16]byte for IPv6 addresses.
+type in6_addr [16]uint8
+
 type sockaddr_in6 struct {
 	sin6_len      uint8
 	sin6_family   uint8
 	sin6_port     uint16
 	sin6_flowinfo uint32
-	sin6_addr     [8]uint16
+	sin6_addr     in6_addr
 	sin6_scope_id uint32
 }
 
@@ -70,6 +71,12 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	var sfd int
 	var err error
 
+	ip, _, err := net.ParseCIDR(addr)
+	if err != nil {
+		tun.log.Errorf("Error in ParseCIDR: %v", err)
+		return err
+	}
+
 	// Create system socket
 	if sfd, err = unix.Socket(unix.AF_INET6, unix.SOCK_DGRAM, 0); err != nil {
 		tun.log.Printf("Create AF_INET6 socket failed: %v", err)
@@ -86,12 +93,9 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	copy(ar.ifra_name[:], tun.Name())
 	ar.ifra_addr.sin6_len = uint8(unsafe.Sizeof(ar.ifra_addr))
 	ar.ifra_addr.sin6_family = unix.AF_INET6
-	parts := strings.Split(strings.Split(addr, "/")[0], ":")
-	for i := 0; i < 8; i++ {
-		addr, _ := strconv.ParseUint(parts[i], 16, 16)
-		b := make([]byte, 16)
-		binary.LittleEndian.PutUint16(b, uint16(addr))
-		ar.ifra_addr.sin6_addr[i] = uint16(binary.BigEndian.Uint16(b))
+
+	for i := range in6_aliasreq.sin6_addr {
+		sa6.sin6_addr[i] = addr[i]
 	}
 
 	// Set the interface address
