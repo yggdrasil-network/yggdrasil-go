@@ -1,5 +1,5 @@
-//go:build openbsd || freebsd
-// +build openbsd freebsd
+//go:build freebsd
+// +build freebsd
 
 package tun
 
