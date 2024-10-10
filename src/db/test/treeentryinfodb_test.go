@@ -13,6 +13,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 
 	treeentryinfodb "github.com/yggdrasil-network/yggdrasil-go/src/db/TreeEntryInfoDB"
+	db "github.com/yggdrasil-network/yggdrasil-go/src/db/dbConfig"
 )
 
 func TestSelectTreeEntryInfo(t *testing.T) {
@@ -32,11 +33,11 @@ func TestSelectTreeEntryInfo(t *testing.T) {
 		Parent:   pubkey,
 		Sequence: 10,
 	}
-	model, err := core.NewTreeEntryInfoDB(entry)
+	model, err := db.NewTreeEntryInfoDB(entry)
 	require.NoError(t, err)
 
-	rows := sqlmock.NewRows([]string{"Sequence", "Key", "Parent"}).
-		AddRow(100, model.Key.GetPKIXPublicKeyBytes(), model.Parent.GetPKIXPublicKeyBytes())
+	rows := sqlmock.NewRows([]string{"Sequence", "Key", "Parent", "TreeId"}).
+		AddRow(100, model.Key.GetPKIXPublicKeyBytes(), model.Parent.GetPKIXPublicKeyBytes(), 1)
 
 	mock.ExpectQuery("SELECT (.+) FROM tree_entry_info WHERE Id = \\?").
 		WithArgs(model.Id).
@@ -68,7 +69,7 @@ func TestInsertTreeEntryInfo(t *testing.T) {
 		Parent:   pubkey,
 		Sequence: 10,
 	}
-	model, err := core.NewTreeEntryInfoDB(entry)
+	model, err := db.NewTreeEntryInfoDB(entry)
 	require.NoError(t, err)
 
 	mock.ExpectExec("INSERT INTO tree_entry_info").
@@ -76,6 +77,7 @@ func TestInsertTreeEntryInfo(t *testing.T) {
 			model.Key.GetPKIXPublicKeyBytes(),
 			model.Parent.GetPKIXPublicKeyBytes(),
 			model.Sequence,
+			model.TreeId,
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
@@ -103,7 +105,7 @@ func TestDeleteTreeEntryInfo(t *testing.T) {
 		Parent:   pubkey,
 		Sequence: 10,
 	}
-	model, err := core.NewTreeEntryInfoDB(entry)
+	model, err := db.NewTreeEntryInfoDB(entry)
 	require.NoError(t, err)
 	mock.ExpectExec("DELETE FROM tree_entry_info WHERE Id = \\?").
 		WithArgs(
@@ -134,20 +136,22 @@ func TestUpdateTreeEntryInfo(t *testing.T) {
 		Parent:   pubkey,
 		Sequence: 10,
 	}
-	model, err := core.NewTreeEntryInfoDB(entry)
+	model, err := db.NewTreeEntryInfoDB(entry)
 	require.NoError(t, err)
 	mock.ExpectExec(`
 		UPDATE tree_entry_info 
 		SET 
 			Sequence = \?,
 			Key = \?,
-			Parent = \?
+			Parent = \?,
+			TreeId = \?
 		WHERE 
 			Id = \?`).
 		WithArgs(
 			model.Sequence,
 			model.Key.GetPKIXPublicKeyBytes(),
 			model.Parent.GetPKIXPublicKeyBytes(),
+			model.TreeId,
 			model.Id,
 		).WillReturnResult(sqlmock.NewResult(1, 1))
 
@@ -184,7 +188,7 @@ func TestMainTreeEntryInfo(t *testing.T) {
 		Parent:   pubkey,
 		Sequence: 10,
 	}
-	model, err := core.NewTreeEntryInfoDB(entry)
+	model, err := db.NewTreeEntryInfoDB(entry)
 	require.NoError(t, err)
 
 	secondEntry := core.TreeEntryInfo{
@@ -192,7 +196,7 @@ func TestMainTreeEntryInfo(t *testing.T) {
 		Parent:   secondPubKey,
 		Sequence: 20,
 	}
-	secondModel, err := core.NewTreeEntryInfoDB(secondEntry)
+	secondModel, err := db.NewTreeEntryInfoDB(secondEntry)
 	require.NoError(t, err)
 
 	_, err = treeentryinfodb.Add(model)

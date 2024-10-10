@@ -13,6 +13,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 
 	sessioninfodb "github.com/yggdrasil-network/yggdrasil-go/src/db/SessionInfoDB"
+	db "github.com/yggdrasil-network/yggdrasil-go/src/db/dbConfig"
 )
 
 func TestSelectSessionInfo(t *testing.T) {
@@ -33,7 +34,7 @@ func TestSelectSessionInfo(t *testing.T) {
 		TXBytes: 10,
 		Uptime:  time.Hour,
 	}
-	model, err := core.NewSessionInfoDB(entry)
+	model, err := db.NewSessionInfoDB(entry)
 	require.NoError(t, err)
 
 	rows := sqlmock.NewRows([]string{"RXBytes", "TXBytes", "Duration", "Key"}).
@@ -70,7 +71,7 @@ func TestInsertSessionInfo(t *testing.T) {
 		TXBytes: 10,
 		Uptime:  time.Hour,
 	}
-	model, err := core.NewSessionInfoDB(entry)
+	model, err := db.NewSessionInfoDB(entry)
 	require.NoError(t, err)
 
 	mock.ExpectExec("INSERT INTO session_info").
@@ -107,7 +108,7 @@ func TestDeleteSessionInfo(t *testing.T) {
 		TXBytes: 10,
 		Uptime:  time.Hour,
 	}
-	model, err := core.NewSessionInfoDB(entry)
+	model, err := db.NewSessionInfoDB(entry)
 	require.NoError(t, err)
 	mock.ExpectExec("DELETE FROM session_info WHERE Id = \\?").
 		WithArgs(
@@ -139,7 +140,7 @@ func TestUpdateSessionInfo(t *testing.T) {
 		TXBytes: 10,
 		Uptime:  time.Hour,
 	}
-	model, err := core.NewSessionInfoDB(entry)
+	model, err := db.NewSessionInfoDB(entry)
 	require.NoError(t, err)
 	mock.ExpectExec(`
 		UPDATE session_info 
@@ -192,7 +193,7 @@ func TestMainSessionInfo(t *testing.T) {
 		TXBytes: 10,
 		Uptime:  time.Hour,
 	}
-	model, err := core.NewSessionInfoDB(entry)
+	model, err := db.NewSessionInfoDB(entry)
 	require.NoError(t, err)
 
 	secondEntry := core.SessionInfo{
@@ -201,7 +202,7 @@ func TestMainSessionInfo(t *testing.T) {
 		TXBytes: 10,
 		Uptime:  time.Hour,
 	}
-	secondModel, err := core.NewSessionInfoDB(secondEntry)
+	secondModel, err := db.NewSessionInfoDB(secondEntry)
 	require.NoError(t, err)
 
 	_, err = sessioninfodb.Add(model)

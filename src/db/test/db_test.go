@@ -16,13 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 	peerinfodb "github.com/yggdrasil-network/yggdrasil-go/src/db/PeerInfoDB"
+	db "github.com/yggdrasil-network/yggdrasil-go/src/db/dbConfig"
 )
 
 func TestPeerGetCoords(t *testing.T) {
 	peerinfo := core.PeerInfo{
 		Coords: []uint64{1, 2, 3, 4},
 	}
-	peer, err := core.NewPeerInfoDB(peerinfo)
+	peer, err := db.NewPeerInfoDB(peerinfo)
 	require.NoError(t, err)
 
 	target := []byte{1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0}
@@ -34,7 +35,7 @@ func TestPeerGetCoords(t *testing.T) {
 
 func TestPeerSetCoords(t *testing.T) {
 	peerinfo := core.PeerInfo{}
-	peer, err := core.NewPeerInfoDB(peerinfo)
+	peer, err := db.NewPeerInfoDB(peerinfo)
 	require.NoError(t, err)
 	peer.Coords.ParseByteSliсe([]byte{4, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0})
 	require.NoError(t, err)
@@ -72,7 +73,7 @@ func TestAddPeer(t *testing.T) {
 		Uptime:        3600,
 		Latency:       50.0,
 	}
-	peer, err := core.NewPeerInfoDB(peerinfo)
+	peer, err := db.NewPeerInfoDB(peerinfo)
 	require.NoError(t, err)
 
 	mock.ExpectExec("INSERT OR REPLACE INTO peer_infos").
@@ -130,7 +131,7 @@ func TestRemovePeer(t *testing.T) {
 		Uptime:        3600,
 		Latency:       50.0,
 	}
-	peer, err := core.NewPeerInfoDB(peerinfo)
+	peer, err := db.NewPeerInfoDB(peerinfo)
 	require.NoError(t, err)
 
 	mock.ExpectExec("DELETE FROM peer_infos WHERE Id = \\?").
@@ -174,7 +175,7 @@ func TestGetPeer(t *testing.T) {
 		Uptime:        3600,
 		Latency:       50.0,
 	}
-	peer, err := core.NewPeerInfoDB(peerinfo)
+	peer, err := db.NewPeerInfoDB(peerinfo)
 	require.NoError(t, err)
 
 	rows := sqlmock.NewRows([]string{"up", "inbound", "last_error", "last_error_time", "coords",
@@ -223,7 +224,7 @@ func TestUpdatePeer(t *testing.T) {
 		Uptime:        3600,
 		Latency:       50.0,
 	}
-	peer, err := core.NewPeerInfoDB(peerinfo)
+	peer, err := db.NewPeerInfoDB(peerinfo)
 	require.NoError(t, err)
 	mock.ExpectExec(`UPDATE peer_infos 
 		SET 
@@ -292,7 +293,7 @@ func TestMain(t *testing.T) {
 		Uptime:        3600,
 		Latency:       50.0,
 	}
-	peer, err := core.NewPeerInfoDB(peerinfo)
+	peer, err := db.NewPeerInfoDB(peerinfo)
 	require.NoError(t, err)
 	root2PubKey, _, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
@@ -312,7 +313,7 @@ func TestMain(t *testing.T) {
 		Uptime:        3600,
 		Latency:       50.0,
 	}
-	peer2, err := core.NewPeerInfoDB(peerinfo2)
+	peer2, err := db.NewPeerInfoDB(peerinfo2)
 	require.NoError(t, err)
 	_, err = peerdb.Add(peer)
 	require.NoError(t, err)

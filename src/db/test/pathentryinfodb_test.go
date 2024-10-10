@@ -13,6 +13,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 
 	pathentryinfodb "github.com/yggdrasil-network/yggdrasil-go/src/db/PathEntryInfoDB"
+	db "github.com/yggdrasil-network/yggdrasil-go/src/db/dbConfig"
 )
 
 func TestSelectPathEntryInfo(t *testing.T) {
@@ -32,7 +33,7 @@ func TestSelectPathEntryInfo(t *testing.T) {
 		Path:     []uint64{0, 0, 0},
 		Sequence: 100,
 	}
-	model, err := core.NewPathEntryInfoDB(entry)
+	model, err := db.NewPathEntryInfoDB(entry)
 	require.NoError(t, err)
 
 	rows := sqlmock.NewRows([]string{"Sequence", "Key", "Path"}).
@@ -68,7 +69,7 @@ func TestInsertPathEntryInfo(t *testing.T) {
 		Path:     []uint64{0, 0, 0},
 		Sequence: 100,
 	}
-	model, err := core.NewPathEntryInfoDB(entry)
+	model, err := db.NewPathEntryInfoDB(entry)
 	require.NoError(t, err)
 	mock.ExpectExec("INSERT INTO path_entry_info").
 		WithArgs(
@@ -102,7 +103,7 @@ func TestDeletePathEntryInfo(t *testing.T) {
 		Path:     []uint64{0, 0, 0},
 		Sequence: 100,
 	}
-	model, err := core.NewPathEntryInfoDB(entry)
+	model, err := db.NewPathEntryInfoDB(entry)
 	require.NoError(t, err)
 	mock.ExpectExec("DELETE FROM path_entry_info WHERE Id = \\?").
 		WithArgs(
@@ -133,7 +134,7 @@ func TestUpdatePathEntryInfo(t *testing.T) {
 		Path:     []uint64{0, 0, 0},
 		Sequence: 100,
 	}
-	model, err := core.NewPathEntryInfoDB(entry)
+	model, err := db.NewPathEntryInfoDB(entry)
 	require.NoError(t, err)
 	mock.ExpectExec(`
 		UPDATE path_entry_info 
@@ -183,7 +184,7 @@ func TestMainPathEntryInfo(t *testing.T) {
 		Path:     []uint64{0, 0, 0},
 		Sequence: 100,
 	}
-	model, err := core.NewPathEntryInfoDB(entry)
+	model, err := db.NewPathEntryInfoDB(entry)
 	require.NoError(t, err)
 
 	secondEntry := core.PathEntryInfo{
@@ -191,7 +192,7 @@ func TestMainPathEntryInfo(t *testing.T) {
 		Path:     []uint64{0, 0, 0},
 		Sequence: 100,
 	}
-	secondModel, err := core.NewPathEntryInfoDB(secondEntry)
+	secondModel, err := db.NewPathEntryInfoDB(secondEntry)
 	require.NoError(t, err)
 
 	_, err = pathentryinfodb.Add(model)

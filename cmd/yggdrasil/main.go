@@ -23,6 +23,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
+	database "github.com/yggdrasil-network/yggdrasil-go/src/db"
 	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
 	monitoring "github.com/yggdrasil-network/yggdrasil-go/src/monitoring"
 
@@ -128,7 +129,6 @@ func init() {
 	//init cfg
 	cfg = config.GenerateConfig()
 
-	///tested
 	addressCmd.Flags().StringP("useconffile", "f", "", "Read HJSON/JSON config from specified file path")
 	rootCmd.AddCommand(addressCmd)
 	genconfCmd.Flags().BoolP("json", "j", false, "print configuration as JSON instead of HJSON")
@@ -143,8 +143,9 @@ func init() {
 	normaliseconfCmd.Flags().StringP("useconffile", "f", "", "Read HJSON/JSON config from specified file path")
 	normaliseconfCmd.Flags().BoolP("json", "j", false, "print configuration as JSON instead of HJSON")
 	rootCmd.AddCommand(normaliseconfCmd)
-	///
 
+	runCmd.Flags().BoolP("db", "d", false, "Enable logging to the database")
+	runCmd.Flags().Int32P("setdbtimer", "s", 0, "Set the logging interval to the database in minutes")
 	runCmd.Flags().StringP("logto", "t", "", "File path to log to, \"syslog\" or \"stdout\"")
 	runCmd.Flags().StringP("loglevel", "l", "", "loglevel to enable")
 	runCmd.Flags().BoolP("useconf", "u", false, "Read HJSON/JSON config from stdin")
@@ -210,7 +211,6 @@ func cmdAddress(cmd *cobra.Command, args []string) (err error) {
 }
 
 func cmdSnet(cmd *cobra.Command, args []string) (err error) {
-	fmt.Println("Test")
 	configFile, err := cmd.Flags().GetString("useconffile")
 	if err != nil {
 		fmt.Println(err)
@@ -344,17 +344,16 @@ func cmdNormaliseconf(cmd *cobra.Command, args []string) (err error) {
 func cmdRun(cmd *cobra.Command, args []string) (err error) {
 	isUseConf, err := cmd.Flags().GetBool("useconf")
 	if err != nil {
-		logger.Error(err.Error())
+		fmt.Print(err.Error())
 	}
 	if isUseConf {
 		if _, err := cfg.ReadFrom(os.Stdin); err != nil {
-			logger.Error(err.Error())
-			return err
+			fmt.Print(err.Error())
 		}
 	} else {
 		configFile, err := cmd.Flags().GetString("useconffile")
 		if err != nil {
-			logger.Error(err.Error())
+			fmt.Print(err.Error())
 		}
 		if configFile != "" {
 			rootpath = configFile
@@ -362,19 +361,28 @@ func cmdRun(cmd *cobra.Command, args []string) (err error) {
 		if rootpath != "" {
 			err = ReadConfigFile(&rootpath)
 			if err != nil {
-				logger.Error(err.Error())
+				fmt.Print(err.Error())
 			}
 		}
 	}
 	logto, err := cmd.Flags().GetString("logto")
 	if err != nil {
-		logger.Error(err.Error())
-		return err
+		fmt.Print(err.Error())
 	}
 	if logto != "" {
 		cmdLogto(logto)
 	}
-
+	UseDB, err := cmd.Flags().GetBool("db")
+	if err != nil {
+		fmt.Print(err.Error())
+	}
+	min, err := cmd.Flags().GetInt32("setdbtimer")
+	if err != nil {
+		fmt.Print(err.Error())
+	}
+	if min > 0 {
+		database.Timer = int(min)
+	}
 	ctx, cancel = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	// Capture the service being stopped on Windows.
 	minwinsvc.SetOnExit(cancel)
@@ -387,7 +395,7 @@ func cmdRun(cmd *cobra.Command, args []string) (err error) {
 	loglvl, err := cmd.Flags().GetString("loglevel")
 	if err != nil {
 		logger.Error(err.Error())
-		return err
+		//return err
 	}
 	if loglvl != "" {
 		setLogLevel(loglvl, logger)
@@ -482,6 +490,19 @@ func cmdRun(cmd *cobra.Command, args []string) (err error) {
 		}
 	}
 
+	//Set up the DB module.
+	if UseDB {
+		db, err := database.OpenExistDb(logger, n.core)
+		if err != nil {
+			db, err = database.CreateDb(logger, n.core)
+			if err != nil {
+				logger.Printf(err.Error())
+				panic(err)
+			}
+		}
+		db.CreateTimer(ctx)
+		db.OnListen(ctx)
+	}
 	m, _ := monitoring.New(n.core, logger)
 
 	// Block until we are told to shut down.

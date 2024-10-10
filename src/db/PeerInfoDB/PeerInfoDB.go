@@ -6,9 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	_ "github.com/mattn/go-sqlite3"
-	"github.com/yggdrasil-network/yggdrasil-go/src/core"
-	"github.com/yggdrasil-network/yggdrasil-go/src/db"
+	db "github.com/yggdrasil-network/yggdrasil-go/src/db/dbConfig"
 )
 
 type PeerInfoDBConfig struct {
@@ -16,12 +14,20 @@ type PeerInfoDBConfig struct {
 	name     string
 }
 
-var Name = "PeerInfo"
+var (
+	Name = "PeerInfo"
+	Path = ""
+)
 
 func New() (*PeerInfoDBConfig, error) {
-	dir, _ := os.Getwd()
-	fileName := fmt.Sprintf("%s.db", Name)
-	filePath := filepath.Join(dir, fileName)
+	var path string
+	if Path == "" {
+		dir, _ := os.Getwd()
+		fileName := fmt.Sprintf("%s.db", Name)
+		path = filepath.Join(dir, fileName)
+	} else {
+		path = Path
+	}
 	schemas := []string{
 		`CREATE TABLE IF NOT EXISTS peer_infos (
 		Id INTEGER NOT NULL PRIMARY KEY,
@@ -38,9 +44,10 @@ func New() (*PeerInfoDBConfig, error) {
 		Rxbytes BIGINT,
 		Txbytes BIGINT,
 		uptime INTEGER,
-		latency SMALLINT
+		latency SMALLINT,
+		DateTime TEXT
 	);`}
-	dbcfg, err := db.New("sqlite3", &schemas, filePath)
+	dbcfg, err := db.New("sqlite3", &schemas, path)
 	if err != nil {
 		return nil, err
 	}
@@ -51,8 +58,34 @@ func New() (*PeerInfoDBConfig, error) {
 	return cfg, nil
 }
 
-func (cfg *PeerInfoDBConfig) Add(model *core.PeerInfoDB) (_ sql.Result, err error) {
-	query := "INSERT OR REPLACE INTO peer_infos (uri, up, inbound, last_error, last_error_time, key, root, coords, port, priority, Rxbytes, Txbytes, uptime, latency) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+func Open() (*PeerInfoDBConfig, error) {
+	var path string
+	if Path == "" {
+		dir, _ := os.Getwd()
+		fileName := fmt.Sprintf("%s.db", Name)
+		path = filepath.Join(dir, fileName)
+	} else {
+		path = Path
+	}
+	dbcfg, err := db.OpenIfExist("sqlite3", path)
+	if err != nil {
+		return nil, err
+	}
+	cfg := &PeerInfoDBConfig{
+		name:     Name,
+		DbConfig: dbcfg,
+	}
+	return cfg, nil
+}
+
+func (cfg *PeerInfoDBConfig) Add(model *db.PeerInfoDB) (_ sql.Result, err error) {
+	query := `
+			INSERT OR REPLACE INTO 
+				peer_infos 
+				(uri, up, inbound, last_error, last_error_time, key, root, 
+				coords, port, priority, Rxbytes, Txbytes, uptime, latency, DateTime) 
+			VALUES 
+				(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`
 	result, err := cfg.DbConfig.DB.Exec(query,
 		model.URI,
 		model.Up,
@@ -79,7 +112,7 @@ func (cfg *PeerInfoDBConfig) Add(model *core.PeerInfoDB) (_ sql.Result, err erro
 	return result, nil
 }
 
-func (cfg *PeerInfoDBConfig) Remove(model *core.PeerInfoDB) (err error) {
+func (cfg *PeerInfoDBConfig) Remove(model *db.PeerInfoDB) (err error) {
 	_, err = cfg.DbConfig.DB.Exec("DELETE FROM peer_infos WHERE Id = ?",
 		model.Id)
 	if err != nil {
@@ -88,7 +121,7 @@ func (cfg *PeerInfoDBConfig) Remove(model *core.PeerInfoDB) (err error) {
 	return nil
 }
 
-func (cfg *PeerInfoDBConfig) Get(model *core.PeerInfoDB) (_ *sql.Rows, err error) {
+func (cfg *PeerInfoDBConfig) Get(model *db.PeerInfoDB) (_ *sql.Rows, err error) {
 	rows, err := cfg.DbConfig.DB.Query(`
 			SELECT 
 				up, inbound, last_error, last_error_time, coords, port, 
@@ -120,7 +153,7 @@ func (cfg *PeerInfoDBConfig) Get(model *core.PeerInfoDB) (_ *sql.Rows, err error
 	return rows, nil
 }
 
-func (cfg *PeerInfoDBConfig) Update(model *core.PeerInfoDB) (err error) {
+func (cfg *PeerInfoDBConfig) Update(model *db.PeerInfoDB) (err error) {
 	_, err = cfg.DbConfig.DB.Exec(`UPDATE peer_infos 
 		SET 
 			up = ?, 

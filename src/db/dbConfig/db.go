@@ -1,4 +1,4 @@
-package core
+package db
 
 import (
 	"bytes"
@@ -8,10 +8,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 )
 
 type PeerInfoDB struct {
-	PeerInfo
+	core.PeerInfo
 	Id            int
 	Coords        Blob
 	Key           PublicKeyContainer
@@ -21,32 +23,33 @@ type PeerInfoDB struct {
 }
 
 type SelfInfoDB struct {
-	SelfInfo
+	core.SelfInfo
 	Id  int
 	Key PublicKeyContainer
 }
 
 type TreeEntryInfoDB struct {
-	TreeEntryInfo
+	core.TreeEntryInfo
 	Id     int
 	Key    PublicKeyContainer
 	Parent PublicKeyContainer
+	TreeId int
 }
 
 type PathEntryInfoDB struct {
-	PathEntryInfo
+	core.PathEntryInfo
 	Id   int
 	Key  PublicKeyContainer
 	Path Blob
 }
 
 type SessionInfoDB struct {
-	SessionInfo
+	core.SessionInfo
 	Id  int
 	Key PublicKeyContainer
 }
 
-func NewPeerInfoDB(peerInfo PeerInfo) (_ *PeerInfoDB, err error) {
+func NewPeerInfoDB(peerInfo core.PeerInfo) (_ *PeerInfoDB, err error) {
 	peer := &PeerInfoDB{
 		PeerInfo: peerInfo,
 	}
@@ -81,7 +84,7 @@ func NewPeerInfoDB(peerInfo PeerInfo) (_ *PeerInfoDB, err error) {
 	return peer, nil
 }
 
-func NewSelfInfoDB(selfinfo SelfInfo) (_ *SelfInfoDB, err error) {
+func NewSelfInfoDB(selfinfo core.SelfInfo) (_ *SelfInfoDB, err error) {
 	model := &SelfInfoDB{
 		SelfInfo: selfinfo,
 	}
@@ -96,7 +99,7 @@ func NewSelfInfoDB(selfinfo SelfInfo) (_ *SelfInfoDB, err error) {
 	return model, nil
 }
 
-func NewTreeEntryInfoDB(treeEntyInfo TreeEntryInfo) (_ *TreeEntryInfoDB, err error) {
+func NewTreeEntryInfoDB(treeEntyInfo core.TreeEntryInfo) (_ *TreeEntryInfoDB, err error) {
 	model := &TreeEntryInfoDB{
 		TreeEntryInfo: treeEntyInfo,
 	}
@@ -110,10 +113,11 @@ func NewTreeEntryInfoDB(treeEntyInfo TreeEntryInfo) (_ *TreeEntryInfoDB, err err
 	}
 	publicKey = model.Parent.GetPKIXPublicKey()
 	model.Parent.MarshalPKIXPublicKey(&publicKey)
+	model.TreeId = 0
 	return model, nil
 }
 
-func NewPathEntryInfoDB(PathEntryInfo PathEntryInfo) (_ *PathEntryInfoDB, err error) {
+func NewPathEntryInfoDB(PathEntryInfo core.PathEntryInfo) (_ *PathEntryInfoDB, err error) {
 	model := &PathEntryInfoDB{
 		PathEntryInfo: PathEntryInfo,
 	}
@@ -130,7 +134,7 @@ func NewPathEntryInfoDB(PathEntryInfo PathEntryInfo) (_ *PathEntryInfoDB, err er
 	return model, nil
 }
 
-func NewSessionInfoDB(SessionInfo SessionInfo) (_ *SessionInfoDB, err error) {
+func NewSessionInfoDB(SessionInfo core.SessionInfo) (_ *SessionInfoDB, err error) {
 	model := &SessionInfoDB{
 		SessionInfo: SessionInfo,
 	}

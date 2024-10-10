@@ -13,6 +13,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 
 	selfinfodb "github.com/yggdrasil-network/yggdrasil-go/src/db/SelfInfoDB"
+	db "github.com/yggdrasil-network/yggdrasil-go/src/db/dbConfig"
 )
 
 func TestSelectSelfInfo(t *testing.T) {
@@ -30,7 +31,7 @@ func TestSelectSelfInfo(t *testing.T) {
 	selfinfo := core.SelfInfo{
 		Key: pubkey,
 	}
-	model, err := core.NewSelfInfoDB(selfinfo)
+	model, err := db.NewSelfInfoDB(selfinfo)
 	require.NoError(t, err)
 
 	rows := sqlmock.NewRows([]string{"RoutingEntries", "Key"}).
@@ -64,7 +65,7 @@ func TestInsertSelfInfo(t *testing.T) {
 	selfinfo := core.SelfInfo{
 		Key: pubkey,
 	}
-	model, err := core.NewSelfInfoDB(selfinfo)
+	model, err := db.NewSelfInfoDB(selfinfo)
 	require.NoError(t, err)
 	mock.ExpectExec("INSERT OR REPLACE INTO self_info").
 		WithArgs(
@@ -95,7 +96,7 @@ func TestDeleteSelfInfo(t *testing.T) {
 	selfinfo := core.SelfInfo{
 		Key: pubkey,
 	}
-	model, err := core.NewSelfInfoDB(selfinfo)
+	model, err := db.NewSelfInfoDB(selfinfo)
 	require.NoError(t, err)
 	mock.ExpectExec("DELETE FROM self_info WHERE Id = \\?").
 		WithArgs(
@@ -125,7 +126,7 @@ func TestUpdateSelfInfo(t *testing.T) {
 		Key:            pubkey,
 		RoutingEntries: 100,
 	}
-	model, err := core.NewSelfInfoDB(selfinfo)
+	model, err := db.NewSelfInfoDB(selfinfo)
 	require.NoError(t, err)
 	mock.ExpectExec(`
 		UPDATE self_info 
@@ -172,14 +173,14 @@ func TestMainSelfInfo(t *testing.T) {
 		Key:            firstKey,
 		RoutingEntries: 100,
 	}
-	firstModel, err := core.NewSelfInfoDB(firstSelfinfo)
+	firstModel, err := db.NewSelfInfoDB(firstSelfinfo)
 	require.NoError(t, err)
 
 	secondSelfinfo := core.SelfInfo{
 		Key:            secondKey,
 		RoutingEntries: 200,
 	}
-	secondModel, err := core.NewSelfInfoDB(secondSelfinfo)
+	secondModel, err := db.NewSelfInfoDB(secondSelfinfo)
 	require.NoError(t, err)
 
 	_, err = selfinfodb.Add(firstModel)

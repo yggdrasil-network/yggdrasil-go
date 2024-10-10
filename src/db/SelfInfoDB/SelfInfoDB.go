@@ -6,8 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/yggdrasil-network/yggdrasil-go/src/core"
-	"github.com/yggdrasil-network/yggdrasil-go/src/db"
+	db "github.com/yggdrasil-network/yggdrasil-go/src/db/dbConfig"
 )
 
 type SelfInfoDBConfig struct {
@@ -15,19 +14,28 @@ type SelfInfoDBConfig struct {
 	name     string
 }
 
-var Name = "SelfInfo"
+var (
+	Name = "SelfInfo"
+	Path = ""
+)
 
 func New() (*SelfInfoDBConfig, error) {
-	dir, _ := os.Getwd()
-	fileName := fmt.Sprintf("%s.db", Name)
-	filePath := filepath.Join(dir, fileName)
+	var path string
+	if Path == "" {
+		dir, _ := os.Getwd()
+		fileName := fmt.Sprintf("%s.db", Name)
+		path = filepath.Join(dir, fileName)
+	} else {
+		path = Path
+	}
 	schemas := []string{
 		`CREATE TABLE IF NOT EXISTS self_info (
 			Id INTEGER NOT NULL PRIMARY KEY,
 			Key BLOB,
-			RoutingEntries INTEGER
+			RoutingEntries INTEGER,
+			DateTime TEXT
 		);`}
-	dbcfg, err := db.New("sqlite3", &schemas, filePath)
+	dbcfg, err := db.New("sqlite3", &schemas, path)
 	if err != nil {
 		return nil, err
 	}
@@ -38,8 +46,33 @@ func New() (*SelfInfoDBConfig, error) {
 	return cfg, nil
 }
 
-func (cfg *SelfInfoDBConfig) Add(model *core.SelfInfoDB) (_ sql.Result, err error) {
-	query := "INSERT OR REPLACE INTO self_info (Key, RoutingEntries) VALUES (?, ?)"
+func Open() (*SelfInfoDBConfig, error) {
+	var path string
+	if Path == "" {
+		dir, _ := os.Getwd()
+		fileName := fmt.Sprintf("%s.db", Name)
+		path = filepath.Join(dir, fileName)
+	} else {
+		path = Path
+	}
+	dbcfg, err := db.OpenIfExist("sqlite3", path)
+	if err != nil {
+		return nil, err
+	}
+	cfg := &SelfInfoDBConfig{
+		name:     Name,
+		DbConfig: dbcfg,
+	}
+	return cfg, nil
+}
+
+func (cfg *SelfInfoDBConfig) Add(model *db.SelfInfoDB) (_ sql.Result, err error) {
+	query := `
+			INSERT OR REPLACE INTO 
+				self_info 
+				(Key, RoutingEntries, DateTime) 
+			VALUES 
+				(?, ?, datetime('now'))`
 	result, err := cfg.DbConfig.DB.Exec(query,
 		model.Key.GetPKIXPublicKeyBytes(),
 		model.RoutingEntries)
@@ -54,7 +87,7 @@ func (cfg *SelfInfoDBConfig) Add(model *core.SelfInfoDB) (_ sql.Result, err erro
 	return result, nil
 }
 
-func (cfg *SelfInfoDBConfig) Update(model *core.SelfInfoDB) (err error) {
+func (cfg *SelfInfoDBConfig) Update(model *db.SelfInfoDB) (err error) {
 	_, err = cfg.DbConfig.DB.Exec(`UPDATE self_info 
 	SET 
 		RoutingEntries = ?,
@@ -68,7 +101,7 @@ func (cfg *SelfInfoDBConfig) Update(model *core.SelfInfoDB) (err error) {
 	return nil
 }
 
-func (cfg *SelfInfoDBConfig) Remove(model *core.SelfInfoDB) (err error) {
+func (cfg *SelfInfoDBConfig) Remove(model *db.SelfInfoDB) (err error) {
 	_, err = cfg.DbConfig.DB.Exec("DELETE FROM self_info WHERE Id = ?",
 		model.Id)
 	if err != nil {
@@ -77,7 +110,7 @@ func (cfg *SelfInfoDBConfig) Remove(model *core.SelfInfoDB) (err error) {
 	return nil
 }
 
-func (cfg *SelfInfoDBConfig) Get(model *core.SelfInfoDB) (_ *sql.Rows, err error) {
+func (cfg *SelfInfoDBConfig) Get(model *db.SelfInfoDB) (_ *sql.Rows, err error) {
 	rows, err := cfg.DbConfig.DB.Query("SELECT RoutingEntries, Key FROM self_info WHERE Id = ?",
 		model.Id)
 	if err != nil {

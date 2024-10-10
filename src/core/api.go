@@ -130,6 +130,22 @@ func (c *Core) GetPaths() []PathEntryInfo {
 	return paths
 }
 
+func (c *Core) GetMappedPaths() map[string]PathEntryInfo {
+	paths := make(map[string]PathEntryInfo)
+	ps := c.PacketConn.PacketConn.Debug.GetPaths()
+	for _, p := range ps {
+		info := PathEntryInfo{
+			Key:      p.Key,
+			Sequence: p.Sequence,
+			Path:     p.Path,
+		}
+		addr := address.AddrForKey(info.Key)
+		addrStr := net.IP(addr[:]).String()
+		paths[addrStr] = info
+	}
+	return paths
+}
+
 func (c *Core) GetSessions() []SessionInfo {
 	var sessions []SessionInfo
 	ss := c.PacketConn.Debug.GetSessions()
@@ -142,6 +158,63 @@ func (c *Core) GetSessions() []SessionInfo {
 		sessions = append(sessions, info)
 	}
 	return sessions
+}
+
+func (c *Core) GetMappedSessions() map[string]SessionInfo {
+	sessions := make(map[string]SessionInfo)
+	ss := c.PacketConn.Debug.GetSessions()
+	for _, s := range ss {
+		info := SessionInfo{
+			Key:     s.Key,
+			RXBytes: s.RX,
+			TXBytes: s.TX,
+			Uptime:  s.Uptime,
+		}
+		addr := address.AddrForKey(info.Key)
+		addrStr := net.IP(addr[:]).String()
+		sessions[addrStr] = info
+	}
+	return sessions
+}
+
+func (c *Core) GetMappedPeers() map[string]PeerInfo {
+	peers := make(map[string]PeerInfo)
+	conns := map[net.Conn]network.DebugPeerInfo{}
+	iwpeers := c.PacketConn.PacketConn.Debug.GetPeers()
+	for _, p := range iwpeers {
+		conns[p.Conn] = p
+	}
+
+	phony.Block(&c.links, func() {
+		for info, state := range c.links._links {
+			var conn net.Conn
+			peerinfo := PeerInfo{
+				URI:           info.uri,
+				LastError:     state._err,
+				LastErrorTime: state._errtime,
+			}
+			if c := state._conn; c != nil {
+				conn = c
+				peerinfo.Up = true
+				peerinfo.Inbound = state.linkType == linkTypeIncoming
+				peerinfo.RXBytes = atomic.LoadUint64(&c.rx)
+				peerinfo.TXBytes = atomic.LoadUint64(&c.tx)
+				peerinfo.Uptime = time.Since(c.up)
+			}
+			if p, ok := conns[conn]; ok {
+				peerinfo.Key = p.Key
+				peerinfo.Root = p.Root
+				peerinfo.Port = p.Port
+				peerinfo.Priority = p.Priority
+				peerinfo.Latency = p.Latency
+				addr := address.AddrForKey(peerinfo.Key)
+				addrStr := net.IP(addr[:]).String()
+				peers[addrStr] = peerinfo
+			}
+		}
+	})
+
+	return peers
 }
 
 // Listen starts a new listener (either TCP or TLS). The input should be a url.URL

@@ -2,6 +2,8 @@ package db
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
 	"os"
 	"path"
 )
@@ -21,11 +23,31 @@ func New(driver string, schemas *[]string, uri string) (*DbConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println(uri)
 	cfg := &DbConfig{
 		DB:     db,
 		Uri:    uri,
 		Name:   name,
 		Driver: driver,
+	}
+	return cfg, nil
+}
+
+func OpenIfExist(driver string, uri string) (*DbConfig, error) {
+	name := path.Base(uri)
+	cfg := &DbConfig{
+		Uri:    uri,
+		Name:   name,
+		Driver: driver,
+	}
+	fmt.Print(uri)
+	IsExist := cfg.DBIsExist()
+	if !IsExist {
+		return nil, errors.New("database does not exist")
+	}
+	err := cfg.OpenDb()
+	if !IsExist {
+		return nil, err
 	}
 	return cfg, nil
 }
