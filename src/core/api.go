@@ -207,10 +207,8 @@ func (c *Core) GetMappedPeers() map[string]PeerInfo {
 				peerinfo.Port = p.Port
 				peerinfo.Priority = p.Priority
 				peerinfo.Latency = p.Latency
-				addr := address.AddrForKey(peerinfo.Key)
-				addrStr := net.IP(addr[:]).String()
-				peers[addrStr] = peerinfo
 			}
+			peers[peerinfo.URI] = peerinfo
 		}
 	})
 

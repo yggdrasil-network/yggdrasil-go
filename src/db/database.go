@@ -54,41 +54,6 @@ func (db *databaseConfig) OnListen(ctx context.Context) {
 		peers := make(map[string]core.PeerInfo)
 		paths := make(map[string]core.PathEntryInfo)
 		for {
-			{
-				APIsessions := db.Api.GetMappedSessions()
-				APIpaths := db.Api.GetMappedPaths()
-				for key, session := range APIsessions {
-					if _, exist := sessions[key]; !exist {
-						db._pathCallBack(APIpaths[key])
-						db._sessionCallBack(session)
-					}
-					paths[key] = APIpaths[key]
-					sessions[key] = session
-				}
-				for key := range sessions {
-					if _, exist := APIsessions[key]; !exist {
-						db._pathCallBack(APIpaths[key])
-						db._sessionCallBack(sessions[key])
-						delete(sessions, key)
-						delete(paths, key)
-					}
-				}
-			}
-			{
-				APIpeers := db.Api.GetMappedPeers()
-				for key, peer := range APIpeers {
-					if _, exist := peers[key]; !exist {
-						db._peerCallBack(peer)
-					}
-					peers[key] = peer
-				}
-				for key := range peers {
-					if _, exist := APIpeers[key]; !exist {
-						db._peerCallBack(peers[key])
-						delete(peers, key)
-					}
-				}
-			}
 			select {
 			case <-ctx.Done():
 				_ = db.CloseDb()
@@ -96,6 +61,42 @@ func (db *databaseConfig) OnListen(ctx context.Context) {
 				db._sessionBackUp(sessions)
 				db._peerBackUp(peers)
 				db._papthBackUp(paths)
+			default:
+				{
+					APIsessions := db.Api.GetMappedSessions()
+					APIpaths := db.Api.GetMappedPaths()
+					for key, session := range APIsessions {
+						if _, exist := sessions[key]; !exist {
+							db._pathCallBack(APIpaths[key])
+							db._sessionCallBack(session)
+						}
+						paths[key] = APIpaths[key]
+						sessions[key] = session
+					}
+					for key := range sessions {
+						if _, exist := APIsessions[key]; !exist {
+							db._pathCallBack(APIpaths[key])
+							db._sessionCallBack(sessions[key])
+							delete(sessions, key)
+							delete(paths, key)
+						}
+					}
+				}
+				{
+					APIpeers := db.Api.GetMappedPeers()
+					for key, peer := range APIpeers {
+						if _, exist := peers[key]; !exist {
+							db._peerCallBack(peer)
+						}
+						peers[key] = peer
+					}
+					for key := range peers {
+						if _, exist := APIpeers[key]; !exist {
+							db._peerCallBack(peers[key])
+							delete(peers, key)
+						}
+					}
+				}
 			}
 		}
 	}()
@@ -286,7 +287,15 @@ func CreateDb(log core.Logger, core *core.Core) (_ *databaseConfig, err error) {
 	if err != nil {
 		return nil, err
 	}
+	err = treeentrydb.DbConfig.OpenDb()
+	if err != nil {
+		return nil, err
+	}
 	sessiondb, err := sessioninfodb.New()
+	if err != nil {
+		return nil, err
+	}
+	err = sessiondb.DbConfig.OpenDb()
 	if err != nil {
 		return nil, err
 	}
@@ -294,11 +303,23 @@ func CreateDb(log core.Logger, core *core.Core) (_ *databaseConfig, err error) {
 	if err != nil {
 		return nil, err
 	}
+	err = pathentry.DbConfig.OpenDb()
+	if err != nil {
+		return nil, err
+	}
 	selfinfodb, err := selfinfodb.New()
 	if err != nil {
 		return nil, err
 	}
+	err = selfinfodb.DbConfig.OpenDb()
+	if err != nil {
+		return nil, err
+	}
 	peerinfodb, err := peerinfodb.New()
+	if err != nil {
+		return nil, err
+	}
+	err = peerinfodb.DbConfig.OpenDb()
 	if err != nil {
 		return nil, err
 	}
