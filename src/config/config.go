@@ -30,6 +30,8 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/hjson/hjson-go/v4"
@@ -206,6 +208,41 @@ func (cfg *NodeConfig) NewPrivateKey() {
 		panic(err)
 	}
 	cfg.PrivateKey = KeyBytes(spriv)
+}
+
+func NewSecureKeyPair(bits int) (priv ed25519.PrivateKey, pub ed25519.PublicKey) {
+	// Generates a key pair with a prescribed number of security bits.
+	threads := runtime.GOMAXPROCS(0)
+	if (bits > 64) {
+		bits = 64
+		// Bounding the maximum number of security bits to the maximum public key length of 64.
+	}
+	type keySet struct {
+		priv ed25519.PrivateKey
+		pub  ed25519.PublicKey
+	}
+	expected :=  strings.Repeat("0", bits)
+	// Generates the expected security substring in advance
+	newKeys := make(chan keySet, threads)
+	for i := 0; i < threads; i++ {
+		go func(out chan<- keySet) {
+			for {
+				pub, priv, err := ed25519.GenerateKey(nil)
+				if err != nil {
+					panic(err)
+				}
+				if !(hex.EncodeToString(pub)[0:bits] == expected) {
+					// Checks if the public key contains the expected security substring
+					continue
+				}
+				out <- keySet{priv, pub}
+			}
+		}(newKeys)
+	}
+	for {
+		newKey := <-newKeys
+		return newKey.priv, newKey.pub
+	}
 }
 
 func (cfg *NodeConfig) MarshalPEMPrivateKey() ([]byte, error) {
