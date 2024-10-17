@@ -3,7 +3,7 @@ package admin
 import (
 	"encoding/hex"
 	"net"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
@@ -36,8 +36,8 @@ func (a *AdminSocket) getSessionsHandler(_ *GetSessionsRequest, res *GetSessions
 			Uptime:    s.Uptime.Seconds(),
 		})
 	}
-	sort.SliceStable(res.Sessions, func(i, j int) bool {
-		return strings.Compare(res.Sessions[i].PublicKey, res.Sessions[j].PublicKey) < 0
+	slices.SortStableFunc(res.Sessions, func(a, b SessionEntry) int {
+		return strings.Compare(a.PublicKey, b.PublicKey)
 	})
 	return nil
 }

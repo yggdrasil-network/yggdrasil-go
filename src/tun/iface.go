@@ -1,5 +1,11 @@
 package tun
 
+import (
+	"errors"
+
+	wgtun "golang.zx2c4.com/wireguard/tun"
+)
+
 const TUN_OFFSET_BYTES = 80 // sizeof(virtio_net_hdr)
 
 func (tun *TunAdapter) read() {
@@ -12,6 +18,10 @@ func (tun *TunAdapter) read() {
 	for {
 		n, err := tun.iface.Read(bufs, sizes, TUN_OFFSET_BYTES)
 		if err != nil {
+			if errors.Is(err, wgtun.ErrTooManySegments) {
+				tun.log.Debugln("TUN segments dropped: %v", err)
+				continue
+			}
 			tun.log.Errorln("Error reading TUN:", err)
 			return
 		}

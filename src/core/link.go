@@ -108,7 +108,9 @@ func (l *links) shutdown() {
 			_ = listener.listener.Close()
 		}
 		for _, link := range l._links {
-			_ = link._conn.Close()
+			if link._conn != nil {
+				_ = link._conn.Close()
+			}
 		}
 	})
 }
@@ -334,7 +336,7 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 
 				// Give the connection to the handler. The handler will block
 				// for the lifetime of the connection.
-				if err = l.handler(linkType, options, lc, resetBackoff); err != nil && err != io.EOF {
+				if err = l.handler(linkType, options, lc, resetBackoff, false); err != nil && err != io.EOF {
 					l.core.log.Debugf("Link %s error: %s\n", info.uri, err)
 				}
 
@@ -357,8 +359,9 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 					if backoffNow() {
 						continue
 					}
-					return
 				}
+				// Ephemeral or incoming connections don't reconnect.
+				return
 			}
 		}()
 	})
@@ -392,7 +395,7 @@ func (l *links) remove(u *url.URL, sintf string, _ linkType) error {
 	return retErr
 }
 
-func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
+func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) {
 	ctx, cancel := context.WithCancel(l.core.ctx)
 	var protocol linkProtocol
 	switch strings.ToLower(u.Scheme) {
@@ -420,7 +423,10 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 	li := &Listener{
 		listener: listener,
 		ctx:      ctx,
-		Cancel:   cancel,
+		Cancel: func() {
+			cancel()
+			_ = listener.Close()
+		},
 	}
 
 	var options linkOptions
@@ -516,7 +522,7 @@ func (l *links) listen(u *url.URL, sintf string) (*Listener, error) {
 
 				// Give the connection to the handler. The handler will block
 				// for the lifetime of the connection.
-				switch err = l.handler(linkTypeIncoming, options, lc, nil); {
+				switch err = l.handler(linkTypeIncoming, options, lc, nil, local); {
 				case err == nil:
 				case errors.Is(err, io.EOF):
 				case errors.Is(err, net.ErrClosed):
@@ -557,7 +563,7 @@ func (l *links) connect(ctx context.Context, u *url.URL, info linkInfo, options 
 	return dialer.dial(ctx, u, info, options)
 }
 
-func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, success func()) error {
+func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, success func(), local bool) error {
 	meta := version_getBaseMetadata()
 	meta.publicKey = l.core.public
 	meta.priority = options.priority
@@ -600,19 +606,21 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, s
 		}
 	}
 	// Check if we're authorized to connect to this key / IP
-	var allowed map[[32]byte]struct{}
-	phony.Block(l.core, func() {
-		allowed = l.core.config._allowedPublicKeys
-	})
-	isallowed := len(allowed) == 0
-	for k := range allowed {
-		if bytes.Equal(k[:], meta.publicKey) {
-			isallowed = true
-			break
+	if !local {
+		var allowed map[[32]byte]struct{}
+		phony.Block(l.core, func() {
+			allowed = l.core.config._allowedPublicKeys
+		})
+		isallowed := len(allowed) == 0
+		for k := range allowed {
+			if bytes.Equal(k[:], meta.publicKey) {
+				isallowed = true
+				break
+			}
 		}
-	}
-	if linkType == linkTypeIncoming && !isallowed {
-		return fmt.Errorf("node public key %q is not in AllowedPublicKeys", hex.EncodeToString(meta.publicKey))
+		if linkType == linkTypeIncoming && !isallowed {
+			return fmt.Errorf("node public key %q is not in AllowedPublicKeys", hex.EncodeToString(meta.publicKey))
+		}
 	}
 
 	dir := "outbound"

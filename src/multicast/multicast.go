@@ -190,6 +190,8 @@ func (m *Multicast) _getAllowedInterfaces() map[string]*interfaceInfo {
 		switch {
 		case iface.Flags&net.FlagUp == 0:
 			continue // Ignore interfaces that are down
+		case iface.Flags&net.FlagRunning == 0:
+			continue // Ignore interfaces that are not running
 		case iface.Flags&net.FlagMulticast == 0:
 			continue // Ignore non-multicast interfaces
 		case iface.Flags&net.FlagPointToPoint != 0:
@@ -325,7 +327,7 @@ func (m *Multicast) _announce() {
 					Host:     net.JoinHostPort(addrIP.String(), fmt.Sprintf("%d", info.port)),
 					RawQuery: v.Encode(),
 				}
-				if li, err := m.core.Listen(u, iface.Name); err == nil {
+				if li, err := m.core.ListenLocal(u, iface.Name); err == nil {
 					m.log.Debugln("Started multicasting on", iface.Name)
 					// Store the listener so that we can stop it later if needed
 					linfo = &listenerInfo{listener: li, time: time.Now(), port: info.port}

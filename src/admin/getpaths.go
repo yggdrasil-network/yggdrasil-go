@@ -3,7 +3,7 @@ package admin
 import (
 	"encoding/hex"
 	"net"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
@@ -35,8 +35,8 @@ func (a *AdminSocket) getPathsHandler(_ *GetPathsRequest, res *GetPathsResponse)
 			Sequence:  p.Sequence,
 		})
 	}
-	sort.SliceStable(res.Paths, func(i, j int) bool {
-		return strings.Compare(res.Paths[i].PublicKey, res.Paths[j].PublicKey) < 0
+	slices.SortStableFunc(res.Paths, func(a, b PathEntry) int {
+		return strings.Compare(a.PublicKey, b.PublicKey)
 	})
 	return nil
 }

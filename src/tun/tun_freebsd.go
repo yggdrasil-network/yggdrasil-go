@@ -1,5 +1,5 @@
-//go:build openbsd || freebsd
-// +build openbsd freebsd
+//go:build freebsd
+// +build freebsd
 
 package tun
 
@@ -54,11 +54,6 @@ struct  in6_ifreq {
  290 };
 */
 
-type in6_ifreq_mtu struct {
-	ifr_name [syscall.IFNAMSIZ]byte
-	ifru_mtu int
-}
-
 type in6_ifreq_addr struct {
 	ifr_name  [syscall.IFNAMSIZ]byte
 	ifru_addr sockaddr_in6
@@ -111,26 +106,6 @@ func (tun *TunAdapter) setupAddress(addr string) error {
 	tun.log.Infof("Interface name: %s", tun.Name())
 	tun.log.Infof("Interface IPv6: %s", addr)
 	tun.log.Infof("Interface MTU: %d", tun.mtu)
-
-	// Create the MTU request
-	var ir in6_ifreq_mtu
-	copy(ir.ifr_name[:], tun.Name())
-	ir.ifru_mtu = int(tun.mtu)
-
-	// Set the MTU
-	if _, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(sfd), uintptr(syscall.SIOCSIFMTU), uintptr(unsafe.Pointer(&ir))); errno != 0 {
-		err = errno
-		tun.log.Errorf("Error in SIOCSIFMTU: %v", errno)
-
-		// Fall back to ifconfig to set the MTU
-		cmd := exec.Command("ifconfig", tun.Name(), "mtu", string(tun.mtu))
-		tun.log.Warnf("Using ifconfig as fallback: %v", strings.Join(cmd.Args, " "))
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			tun.log.Errorf("SIOCSIFMTU fallback failed: %v.", err)
-			tun.log.Traceln(string(output))
-		}
-	}
 
 	// Create the address request
 	// FIXME: I don't work!

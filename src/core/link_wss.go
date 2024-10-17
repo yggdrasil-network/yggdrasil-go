@@ -7,7 +7,7 @@ import (
 	"net/url"
 
 	"github.com/Arceliar/phony"
-	"nhooyr.io/websocket"
+	"github.com/coder/websocket"
 )
 
 type linkWSS struct {
