@@ -38,7 +38,6 @@ func (cmdLineEnv *CmdLineEnv) parseFlagsAndArgs() {
 		fmt.Println("Examples:")
 		fmt.Println("  - ", os.Args[0], "list")
 		fmt.Println("  - ", os.Args[0], "getPeers")
-		fmt.Println("  - ", os.Args[0], "setTunTap name=auto mtu=1500 tap_mode=false")
 		fmt.Println("  - ", os.Args[0], "-endpoint=tcp://localhost:9001 getPeers")
 		fmt.Println("  - ", os.Args[0], "-endpoint=unix:///var/run/ygg.sock getPeers")
 	}
