@@ -26,6 +26,31 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.5.9] - 2024-10-19
+
+### Added
+
+* New command line option `-user` for changing the process UID/GID
+
+### Changed
+
+* The routing algorithm has been updated with RTT-aware link costing, which should prefer lower latency links over higher latency links where possible
+  * The calculated cost is an average of the link RTT, but newly established links are costed higher to begin with, such that unstable peerings can be avoided
+  * Link costs are only used where multiple next-hops are available and will be ignored if there is only one loop-free path to the destination
+  * This is protocol-compatible with existing v0.5.x nodes but will have the best results when peering with nodes that are also running the latest version
+  * The `getPeers` endpoint will now report the calculated link cost for each given peer
+* Upgrade dependencies
+
+### Fixed
+
+* Multicast discovery should now work again when building Yggdrasil as an Android framework
+* Multicast discovery will now correctly ignore interfaces that are not marked as running
+* Ephemeral links, such as those added by multicast, will no longer try to reconnect in a fast loop, fixing a high CPU issue
+* The TUN interface will no longer stop working when hitting a segment read error from vectorised reads
+* The `AllowedPublicKeys` option will once again no longer apply to multicast peerings, as was originally intended
+* A potential panic when shutting down peering links has been fixed
+* A redundant system call for setting MTU on OpenBSD has been removed
+
 ## [0.5.8] - 2024-08-12
 
 ### Fixed
