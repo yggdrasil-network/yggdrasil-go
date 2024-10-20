@@ -18,6 +18,8 @@ import (
 	"runtime"
 	"time"
 
+	"suah.dev/protect"
+
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 )
 
@@ -27,6 +29,10 @@ type keySet struct {
 }
 
 func main() {
+	if err := protect.Pledge("stdio"); err != nil {
+		panic(err)
+	}
+
 	threads := runtime.GOMAXPROCS(0)
 	fmt.Println("Threads:", threads)
 	start := time.Now()
