@@ -99,7 +99,34 @@ func (l *links) init(c *Core) error {
 	l._links = make(map[linkInfo]*link)
 	l._listeners = make(map[*Listener]context.CancelFunc)
 
+	l.Act(nil, l._updateAverages)
 	return nil
+}
+
+func (l *links) _updateAverages() {
+	select {
+	case <-l.core.ctx.Done():
+		return
+	default:
+	}
+
+	for _, l := range l._links {
+		if l._conn == nil {
+			continue
+		}
+		rx := atomic.LoadUint64(&l._conn.rx)
+		tx := atomic.LoadUint64(&l._conn.tx)
+		lastrx := atomic.LoadUint64(&l._conn.lastrx)
+		lasttx := atomic.LoadUint64(&l._conn.lasttx)
+		atomic.StoreUint64(&l._conn.rxrate, rx-lastrx)
+		atomic.StoreUint64(&l._conn.txrate, tx-lasttx)
+		atomic.StoreUint64(&l._conn.lastrx, rx)
+		atomic.StoreUint64(&l._conn.lasttx, tx)
+	}
+
+	time.AfterFunc(time.Second, func() {
+		l.Act(nil, l._updateAverages)
+	})
 }
 
 func (l *links) shutdown() {
@@ -699,9 +726,13 @@ func urlForLinkInfo(u url.URL) url.URL {
 type linkConn struct {
 	// tx and rx are at the beginning of the struct to ensure 64-bit alignment
 	// on 32-bit platforms, see https://pkg.go.dev/sync/atomic#pkg-note-BUG
-	rx uint64
-	tx uint64
-	up time.Time
+	rx     uint64
+	tx     uint64
+	rxrate uint64
+	txrate uint64
+	lastrx uint64
+	lasttx uint64
+	up     time.Time
 	net.Conn
 }
 

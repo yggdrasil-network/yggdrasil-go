@@ -28,6 +28,8 @@ type PeerEntry struct {
 	Cost          uint64        `json:"cost"`
 	RXBytes       DataUnit      `json:"bytes_recvd,omitempty"`
 	TXBytes       DataUnit      `json:"bytes_sent,omitempty"`
+	RXRate        DataUnit      `json:"rate_recvd,omitempty"`
+	TXRate        DataUnit      `json:"rate_sent,omitempty"`
 	Uptime        float64       `json:"uptime,omitempty"`
 	Latency       time.Duration `json:"latency_ms,omitempty"`
 	LastErrorTime time.Duration `json:"last_error_time,omitempty"`
@@ -47,6 +49,8 @@ func (a *AdminSocket) getPeersHandler(_ *GetPeersRequest, res *GetPeersResponse)
 			URI:      p.URI,
 			RXBytes:  DataUnit(p.RXBytes),
 			TXBytes:  DataUnit(p.TXBytes),
+			RXRate:   DataUnit(p.RXRate),
+			TXRate:   DataUnit(p.TXRate),
 			Uptime:   p.Uptime.Seconds(),
 		}
 		if p.Latency > 0 {

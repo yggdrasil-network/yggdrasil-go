@@ -356,13 +356,15 @@ type DataUnit uint64
 
 func (d DataUnit) String() string {
 	switch {
-	case d > 1024*1024*1024*1024:
-		return fmt.Sprintf("%2.ftb", float64(d)/1024/1024/1024/1024)
-	case d > 1024*1024*1024:
-		return fmt.Sprintf("%2.fgb", float64(d)/1024/1024/1024)
-	case d > 1024*1024:
-		return fmt.Sprintf("%2.fmb", float64(d)/1024/1024)
+	case d >= 1024*1024*1024*1024:
+		return fmt.Sprintf("%2.1fTB", float64(d)/1024/1024/1024/1024)
+	case d >= 1024*1024*1024:
+		return fmt.Sprintf("%2.1fGB", float64(d)/1024/1024/1024)
+	case d >= 1024*1024:
+		return fmt.Sprintf("%2.1fMB", float64(d)/1024/1024)
+	case d >= 100:
+		return fmt.Sprintf("%2.1fKB", float64(d)/1024)
 	default:
-		return fmt.Sprintf("%2.fkb", float64(d)/1024)
+		return fmt.Sprintf("%dB", d)
 	}
 }
