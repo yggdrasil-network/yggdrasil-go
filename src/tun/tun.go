@@ -125,6 +125,7 @@ func (tun *TunAdapter) _start() error {
 	if tun.config.name == "none" || tun.config.name == "dummy" {
 		tun.log.Debugln("Not starting TUN as ifname is none or dummy")
 		tun.isEnabled = false
+		go tun.queue()
 		go tun.write()
 		return nil
 	}
