@@ -14,6 +14,8 @@ import (
 	"strings"
 	"syscall"
 
+	"suah.dev/protect"
+
 	"github.com/gologme/log"
 	gsyslog "github.com/hashicorp/go-syslog"
 	"github.com/hjson/hjson-go/v4"
@@ -39,6 +41,20 @@ type node struct {
 
 // The main function is responsible for configuring and starting Yggdrasil.
 func main() {
+	// Not all operations are coverable with pledge(2), so immediately
+	// limit file system access with unveil(2), effectively preventing
+	// "proc exec" promises right from the start:
+	//
+	// - read arbitrary config file
+	// - create/write arbitrary log file
+	// - read/write/chmod/remove admin socket, if at all
+	if err := protect.Unveil("/", "rwc"); err != nil {
+		panic(fmt.Sprintf("unveil /: %v", err))
+	}
+	if err := protect.UnveilBlock(); err != nil {
+		panic(fmt.Sprintf("unveil: %v", err))
+	}
+
 	genconf := flag.Bool("genconf", false, "print a new config to stdout")
 	useconf := flag.Bool("useconf", false, "read HJSON/JSON config from stdin")
 	useconffile := flag.String("useconffile", "", "read HJSON/JSON config from specified file path")
