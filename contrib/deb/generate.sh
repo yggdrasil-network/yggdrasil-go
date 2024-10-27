@@ -50,11 +50,12 @@ echo 9 > /tmp/$PKGNAME/debian/compat
 cat > /tmp/$PKGNAME/debian/control << EOF
 Package: $PKGNAME
 Version: $PKGVERSION
-Section: contrib/net
-Priority: extra
+Section: golang
+Priority: optional
 Architecture: $PKGARCH
 Replaces: $PKGREPLACES
 Conflicts: $PKGREPLACES
+Depends: systemd
 Maintainer: Neil Alexander <neilalexander@users.noreply.github.com>
 Description: Yggdrasil Network
  Yggdrasil is an early-stage implementation of a fully end-to-end encrypted IPv6
@@ -102,7 +103,7 @@ then
 
   echo "Normalising and updating /etc/yggdrasil/yggdrasil.conf"
   /usr/bin/yggdrasil -useconf -normaliseconf < /var/backups/yggdrasil.conf.`date +%Y%m%d` > /etc/yggdrasil/yggdrasil.conf
-  
+
   chown root:yggdrasil /etc/yggdrasil/yggdrasil.conf
   chmod 640 /etc/yggdrasil/yggdrasil.conf
 else
