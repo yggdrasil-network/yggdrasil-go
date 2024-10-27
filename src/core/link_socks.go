@@ -23,6 +23,9 @@ func (l *links) newLinkSOCKS() *linkSOCKS {
 }
 
 func (l *linkSOCKS) dial(_ context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
+	if url.Scheme != "sockstls" && options.tlsSNI != "" {
+		return nil, ErrLinkSNINotSupported
+	}
 	var proxyAuth *proxy.Auth
 	if url.User != nil && url.User.Username() != "" {
 		proxyAuth = &proxy.Auth{

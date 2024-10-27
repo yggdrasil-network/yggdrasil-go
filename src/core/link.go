@@ -126,6 +126,7 @@ const ErrLinkPinnedKeyInvalid = linkError("pinned public key is invalid")
 const ErrLinkPasswordInvalid = linkError("invalid password supplied")
 const ErrLinkUnrecognisedSchema = linkError("link schema unknown")
 const ErrLinkMaxBackoffInvalid = linkError("max backoff duration invalid")
+const ErrLinkSNINotSupported = linkError("SNI not supported on this link type")
 
 func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 	var retErr error

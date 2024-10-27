@@ -31,6 +31,9 @@ func (l *links) newLinkUNIX() *linkUNIX {
 }
 
 func (l *linkUNIX) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
+	if options.tlsSNI != "" {
+		return nil, ErrLinkSNINotSupported
+	}
 	addr, err := net.ResolveUnixAddr("unix", url.Path)
 	if err != nil {
 		return nil, err

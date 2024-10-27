@@ -87,6 +87,9 @@ func (l *links) newLinkWS() *linkWS {
 }
 
 func (l *linkWS) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
+	if options.tlsSNI != "" {
+		return nil, ErrLinkSNINotSupported
+	}
 	wsconn, _, err := websocket.Dial(ctx, url.String(), &websocket.DialOptions{
 		Subprotocols: []string{"ygg-ws"},
 	})

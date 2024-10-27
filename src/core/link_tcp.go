@@ -67,6 +67,9 @@ func (l *linkTCP) dialersFor(url *url.URL, info linkInfo) ([]*tcpDialer, error) 
 }
 
 func (l *linkTCP) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
+	if options.tlsSNI != "" {
+		return nil, ErrLinkSNINotSupported
+	}
 	dialers, err := l.dialersFor(url, info)
 	if err != nil {
 		return nil, err
