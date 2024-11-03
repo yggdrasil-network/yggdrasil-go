@@ -49,7 +49,7 @@ func main() {
 	// - create/write arbitrary log file
 	// - read/write/chmod/remove admin socket, if at all
 	if err := protect.Unveil("/", "rwc"); err != nil {
-		panic(fmt.Sprintf("unveil /: %v", err))
+		panic(fmt.Sprintf("unveil: / rwc: %v", err))
 	}
 	if err := protect.UnveilBlock(); err != nil {
 		panic(fmt.Sprintf("unveil: %v", err))
