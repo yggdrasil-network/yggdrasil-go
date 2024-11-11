@@ -53,6 +53,9 @@ func chuser(user string) error {
 		gid, _ := strconv.ParseUint(g.Gid, 10, 32)
 		var err error
 		if gid < math.MaxInt {
+			if err := syscall.Setgroups([]int{int(gid)}); err != nil {
+				return fmt.Errorf("failed to setgroups %d: %v", gid, err)
+			}
 			err = syscall.Setgid(int(gid))
 		} else {
 			err = errors.New("gid too big")
@@ -63,6 +66,9 @@ func chuser(user string) error {
 		}
 	} else if u != nil {
 		gid, _ := strconv.ParseUint(u.Gid, 10, 32)
+		if err := syscall.Setgroups([]int{int(uint32(gid))}); err != nil {
+			return fmt.Errorf("failed to setgroups %d: %v", gid, err)
+		}
 		err := syscall.Setgid(int(uint32(gid)))
 		if err != nil {
 			return fmt.Errorf("failed to setgid %d: %v", gid, err)
