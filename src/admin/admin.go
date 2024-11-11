@@ -83,6 +83,52 @@ func New(c *core.Core, log core.Logger, opts ...SetupOption) (*AdminSocket, erro
 	if a.config.listenaddr == "none" || a.config.listenaddr == "" {
 		return nil, nil
 	}
+
+	listenaddr := string(a.config.listenaddr)
+	u, err := url.Parse(listenaddr)
+	if err == nil {
+		switch strings.ToLower(u.Scheme) {
+		case "unix":
+			if _, err := os.Stat(u.Path); err == nil {
+				a.log.Debugln("Admin socket", u.Path, "already exists, trying to clean up")
+				if _, err := net.DialTimeout("unix", u.Path, time.Second*2); err == nil || err.(net.Error).Timeout() {
+					a.log.Errorln("Admin socket", u.Path, "already exists and is in use by another process")
+					os.Exit(1)
+				} else {
+					if err := os.Remove(u.Path); err == nil {
+						a.log.Debugln(u.Path, "was cleaned up")
+					} else {
+						a.log.Errorln(u.Path, "already exists and was not cleaned up:", err)
+						os.Exit(1)
+					}
+				}
+			}
+			a.listener, err = net.Listen("unix", u.Path)
+			if err == nil {
+				switch u.Path[:1] {
+				case "@": // maybe abstract namespace
+				default:
+					if err := os.Chmod(u.Path, 0660); err != nil {
+						a.log.Warnln("WARNING:", u.Path, "may have unsafe permissions!")
+					}
+				}
+			}
+		case "tcp":
+			a.listener, err = net.Listen("tcp", u.Host)
+		default:
+			a.listener, err = net.Listen("tcp", listenaddr)
+		}
+	} else {
+		a.listener, err = net.Listen("tcp", listenaddr)
+	}
+	if err != nil {
+		a.log.Errorf("Admin socket failed to listen: %v", err)
+		os.Exit(1)
+	}
+	a.log.Infof("%s admin socket listening on %s",
+		strings.ToUpper(a.listener.Addr().Network()),
+		a.listener.Addr().String())
+
 	_ = a.AddHandler("list", "List available commands", []string{}, func(_ json.RawMessage) (interface{}, error) {
 		res := &ListResponse{}
 		for name, handler := range a.handlers {
@@ -233,50 +279,6 @@ func (a *AdminSocket) Stop() error {
 
 // listen is run by start and manages API connections.
 func (a *AdminSocket) listen() {
-	listenaddr := string(a.config.listenaddr)
-	u, err := url.Parse(listenaddr)
-	if err == nil {
-		switch strings.ToLower(u.Scheme) {
-		case "unix":
-			if _, err := os.Stat(u.Path); err == nil {
-				a.log.Debugln("Admin socket", u.Path, "already exists, trying to clean up")
-				if _, err := net.DialTimeout("unix", u.Path, time.Second*2); err == nil || err.(net.Error).Timeout() {
-					a.log.Errorln("Admin socket", u.Path, "already exists and is in use by another process")
-					os.Exit(1)
-				} else {
-					if err := os.Remove(u.Path); err == nil {
-						a.log.Debugln(u.Path, "was cleaned up")
-					} else {
-						a.log.Errorln(u.Path, "already exists and was not cleaned up:", err)
-						os.Exit(1)
-					}
-				}
-			}
-			a.listener, err = net.Listen("unix", u.Path)
-			if err == nil {
-				switch u.Path[:1] {
-				case "@": // maybe abstract namespace
-				default:
-					if err := os.Chmod(u.Path, 0660); err != nil {
-						a.log.Warnln("WARNING:", u.Path, "may have unsafe permissions!")
-					}
-				}
-			}
-		case "tcp":
-			a.listener, err = net.Listen("tcp", u.Host)
-		default:
-			a.listener, err = net.Listen("tcp", listenaddr)
-		}
-	} else {
-		a.listener, err = net.Listen("tcp", listenaddr)
-	}
-	if err != nil {
-		a.log.Errorf("Admin socket failed to listen: %v", err)
-		os.Exit(1)
-	}
-	a.log.Infof("%s admin socket listening on %s",
-		strings.ToUpper(a.listener.Addr().Network()),
-		a.listener.Addr().String())
 	defer a.listener.Close()
 	for {
 		conn, err := a.listener.Accept()
