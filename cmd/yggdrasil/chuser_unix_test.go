@@ -44,18 +44,14 @@ func TestInvalidUserid (t *testing.T) {
 	}
 }
 
-// Change to the current user by ID.
-func TestCurrentUserid (t *testing.T) {
+// Change to the current user by username and group ID.
+func TestCurrentUser (t *testing.T) {
 	usr, err := user.Current()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if usr.Uid != "0" {
-		t.Skip("setgroups(2): Only the superuser may set new groups.")
-	}
-
-	if err = chuser(usr.Uid); err != nil {
+	if err = chuser(usr.Username + ":" + usr.Gid, true /* skipSetGroupsForTests */); err != nil {
 		t.Fatal(err)
 	}
 }
