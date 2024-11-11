@@ -22,8 +22,8 @@ func chuser(input string) error {
 		uid, gid int
 	)
 
-	if usr, err = user.Lookup(givenUser); err != nil {
-		if usr, err = user.LookupId(givenUser); err != nil {
+	if usr, err = user.LookupId(givenUser); err != nil {
+		if usr, err = user.Lookup(givenUser); err != nil {
 			return err
 		}
 	}
@@ -32,8 +32,8 @@ func chuser(input string) error {
 	}
 
 	if givenGroup != "" {
-		if grp, err = user.LookupGroup(givenGroup); err != nil {
-			if grp, err = user.LookupGroupId(givenGroup); err != nil {
+		if grp, err = user.LookupGroupId(givenGroup); err != nil {
+			if grp, err = user.LookupGroup(givenGroup); err != nil {
 				return err
 			}
 		}
