@@ -46,11 +46,11 @@ func chuser(input string) error {
 	if err := unix.Setgroups([]int{gid}); err != nil {
 		return fmt.Errorf("setgroups: %d: %v", gid, err)
 	}
-	if err := unix.Setresgid(gid, gid, gid); err != nil {
-		return fmt.Errorf("setresgid: %d: %v", gid, err)
+	if err := unix.Setgid(gid); err != nil {
+		return fmt.Errorf("setgid: %d: %v", gid, err)
 	}
-	if err := unix.Setresuid(uid, uid, uid); err != nil {
-		return fmt.Errorf("setresuid: %d: %v", uid, err)
+	if err := unix.Setuid(uid); err != nil {
+		return fmt.Errorf("setuid: %d: %v", uid, err)
 	}
 
 	return nil
