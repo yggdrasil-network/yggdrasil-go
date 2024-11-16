@@ -191,9 +191,16 @@ func main() {
 
 	// Set up the Yggdrasil node itself.
 	{
+		iprange := net.IPNet{
+			IP:   net.ParseIP("200::"),
+			Mask: net.CIDRMask(7, 128),
+		}
 		options := []core.SetupOption{
 			core.NodeInfo(cfg.NodeInfo),
 			core.NodeInfoPrivacy(cfg.NodeInfoPrivacy),
+			core.PeerFilter(func(ip net.IP) bool {
+				return !iprange.Contains(ip)
+			}),
 		}
 		for _, addr := range cfg.Listen {
 			options = append(options, core.ListenAddress(addr))

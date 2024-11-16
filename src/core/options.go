@@ -3,6 +3,7 @@ package core
 import (
 	"crypto/ed25519"
 	"fmt"
+	"net"
 	"net/url"
 )
 
@@ -24,6 +25,8 @@ func (c *Core) _applyOption(opt SetupOption) (err error) {
 		}
 	case ListenAddress:
 		c.config._listeners[v] = struct{}{}
+	case PeerFilter:
+		c.config.peerFilter = v
 	case NodeInfo:
 		c.config.nodeinfo = v
 	case NodeInfoPrivacy:
@@ -48,9 +51,11 @@ type Peer struct {
 type NodeInfo map[string]interface{}
 type NodeInfoPrivacy bool
 type AllowedPublicKey ed25519.PublicKey
+type PeerFilter func(net.IP) bool
 
 func (a ListenAddress) isSetupOption()    {}
 func (a Peer) isSetupOption()             {}
 func (a NodeInfo) isSetupOption()         {}
 func (a NodeInfoPrivacy) isSetupOption()  {}
 func (a AllowedPublicKey) isSetupOption() {}
+func (a PeerFilter) isSetupOption()       {}

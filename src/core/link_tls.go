@@ -32,28 +32,26 @@ func (l *links) newLinkTLS(tcp *linkTCP) *linkTLS {
 }
 
 func (l *linkTLS) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
-	dialers, err := l.tcp.dialersFor(url, info)
-	if err != nil {
-		return nil, err
-	}
-	if len(dialers) == 0 {
-		return nil, nil
-	}
-	for _, d := range dialers {
-		tlsconfig := l.config.Clone()
-		tlsconfig.ServerName = options.tlsSNI
+	tlsconfig := l.config.Clone()
+	return l.links.findSuitableIP(url, func(hostname string, ip net.IP, port int) (net.Conn, error) {
+		tlsconfig.ServerName = hostname
+		if sni := options.tlsSNI; sni != "" {
+			tlsconfig.ServerName = sni
+		}
+		addr := &net.TCPAddr{
+			IP:   ip,
+			Port: port,
+		}
+		dialer, err := l.tcp.dialerFor(addr, info.sintf)
+		if err != nil {
+			return nil, err
+		}
 		tlsdialer := &tls.Dialer{
-			NetDialer: d.dialer,
+			NetDialer: dialer,
 			Config:    tlsconfig,
 		}
-		var conn net.Conn
-		conn, err = tlsdialer.DialContext(ctx, "tcp", d.addr.String())
-		if err != nil {
-			continue
-		}
-		return conn, nil
-	}
-	return nil, err
+		return tlsdialer.DialContext(ctx, "tcp", addr.String())
+	})
 }
 
 func (l *linkTLS) listen(ctx context.Context, url *url.URL, sintf string) (net.Listener, error) {

@@ -40,6 +40,7 @@ type Core struct {
 		tls *tls.Config // immutable after startup
 		//_peers             map[Peer]*linkInfo         // configurable after startup
 		_listeners         map[ListenAddress]struct{} // configurable after startup
+		peerFilter         func(ip net.IP) bool       // immutable after startup
 		nodeinfo           NodeInfo                   // immutable after startup
 		nodeinfoPrivacy    NodeInfoPrivacy            // immutable after startup
 		_allowedPublicKeys map[[32]byte]struct{}      // configurable after startup

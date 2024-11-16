@@ -127,6 +127,7 @@ const ErrLinkPasswordInvalid = linkError("invalid password supplied")
 const ErrLinkUnrecognisedSchema = linkError("link schema unknown")
 const ErrLinkMaxBackoffInvalid = linkError("max backoff duration invalid")
 const ErrLinkSNINotSupported = linkError("SNI not supported on this link type")
+const ErrLinkNoSuitableIPs = linkError("no suitable remote IPs")
 
 func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 	var retErr error
@@ -651,6 +652,43 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, s
 			dir, remoteStr, localStr, err)
 	}
 	return err
+}
+
+func (l *links) findSuitableIP(url *url.URL, fn func(hostname string, ip net.IP, port int) (net.Conn, error)) (net.Conn, error) {
+	host, p, err := net.SplitHostPort(url.Host)
+	if err != nil {
+		return nil, err
+	}
+	port, err := strconv.Atoi(p)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := net.LookupIP(host)
+	if err != nil {
+		return nil, err
+	}
+	var _ips [64]net.IP
+	ips := _ips[:0]
+	for _, ip := range resp {
+		if l.core.config.peerFilter != nil && !l.core.config.peerFilter(ip) {
+			continue
+		}
+		ips = append(ips, ip)
+	}
+	if len(ips) == 0 {
+		return nil, ErrLinkNoSuitableIPs
+	}
+	for _, ip := range ips {
+		var conn net.Conn
+		if conn, err = fn(host, ip, port); err != nil {
+			url := *url
+			url.RawQuery = ""
+			l.core.log.Debugln("Dialling", url.Redacted(), "reported error:", err)
+			continue
+		}
+		return conn, nil
+	}
+	return nil, err
 }
 
 func urlForLinkInfo(u url.URL) url.URL {

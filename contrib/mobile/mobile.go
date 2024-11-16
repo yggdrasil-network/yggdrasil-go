@@ -53,7 +53,15 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 	}
 	// Set up the Yggdrasil node itself.
 	{
-		options := []core.SetupOption{}
+		iprange := net.IPNet{
+			IP:   net.ParseIP("200::"),
+			Mask: net.CIDRMask(7, 128),
+		}
+		options := []core.SetupOption{
+			core.PeerFilter(func(ip net.IP) bool {
+				return !iprange.Contains(ip)
+			}),
+		}
 		for _, peer := range m.config.Peers {
 			options = append(options, core.Peer{URI: peer})
 		}
