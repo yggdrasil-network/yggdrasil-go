@@ -12,7 +12,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func chuser(input string, skipSetgroupsForTests ...any) error {
+func chuser(input string) error {
 	givenUser, givenGroup, _ := strings.Cut(input, ":")
 
 	var (
@@ -43,10 +43,8 @@ func chuser(input string, skipSetgroupsForTests ...any) error {
 		gid, _ = strconv.Atoi(usr.Gid)
 	}
 
-	if len(skipSetgroupsForTests) == 0 {
-		if err := unix.Setgroups([]int{gid}); err != nil {
-			return fmt.Errorf("setgroups: %d: %v", gid, err)
-		}
+	if err := unix.Setgroups([]int{gid}); err != nil {
+		return fmt.Errorf("setgroups: %d: %v", gid, err)
 	}
 	if err := unix.Setgid(gid); err != nil {
 		return fmt.Errorf("setgid: %d: %v", gid, err)
