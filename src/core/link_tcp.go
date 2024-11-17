@@ -27,12 +27,6 @@ func (l *links) newLinkTCP() *linkTCP {
 	return lt
 }
 
-type tcpDialer struct {
-	info   linkInfo
-	dialer *net.Dialer
-	addr   *net.TCPAddr
-}
-
 func (l *linkTCP) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
 	return l.links.findSuitableIP(url, func(hostname string, ip net.IP, port int) (net.Conn, error) {
 		addr := &net.TCPAddr{

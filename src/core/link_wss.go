@@ -59,7 +59,7 @@ func (l *linkWSS) dial(ctx context.Context, url *url.URL, info linkInfo, options
 		if err != nil {
 			return nil, err
 		}
-		return &linkWSConn{
+		return &linkWSSConn{
 			Conn: websocket.NetConn(ctx, wsconn, websocket.MessageBinary),
 		}, nil
 	})
