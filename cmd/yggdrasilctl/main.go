@@ -174,9 +174,9 @@ func run() int {
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
-		table.SetHeader([]string{"URI", "State", "Dir", "IP Address", "Uptime", "RTT", "RX", "TX", "Pr", "Cost", "Last Error"})
+		table.SetHeader([]string{"URI", "State", "Dir", "IP Address", "Uptime", "RTT", "RX", "TX", "Down", "Up", "Pr", "Cost", "Last Error"})
 		for _, peer := range resp.Peers {
-			state, lasterr, dir, rtt := "Up", "-", "Out", "-"
+			state, lasterr, dir, rtt, rxr, txr := "Up", "-", "Out", "-", "-", "-"
 			if !peer.Up {
 				state, lasterr = "Down", fmt.Sprintf("%s ago: %s", peer.LastErrorTime.Round(time.Second), peer.LastError)
 			} else if rttms := float64(peer.Latency.Microseconds()) / 1000; rttms > 0 {
@@ -190,6 +190,12 @@ func run() int {
 				uri.RawQuery = ""
 				uristring = uri.String()
 			}
+			if peer.RXRate > 0 {
+				rxr = peer.RXRate.String() + "/s"
+			}
+			if peer.TXRate > 0 {
+				txr = peer.TXRate.String() + "/s"
+			}
 			table.Append([]string{
 				uristring,
 				state,
@@ -199,6 +205,8 @@ func run() int {
 				rtt,
 				peer.RXBytes.String(),
 				peer.TXBytes.String(),
+				rxr,
+				txr,
 				fmt.Sprintf("%d", peer.Priority),
 				fmt.Sprintf("%d", peer.Cost),
 				lasterr,

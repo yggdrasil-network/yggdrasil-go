@@ -33,6 +33,8 @@ type PeerInfo struct {
 	Cost          uint64
 	RXBytes       uint64
 	TXBytes       uint64
+	RXRate        uint64
+	TXRate        uint64
 	Uptime        time.Duration
 	Latency       time.Duration
 }
@@ -87,6 +89,8 @@ func (c *Core) GetPeers() []PeerInfo {
 				peerinfo.Inbound = state.linkType == linkTypeIncoming
 				peerinfo.RXBytes = atomic.LoadUint64(&c.rx)
 				peerinfo.TXBytes = atomic.LoadUint64(&c.tx)
+				peerinfo.RXRate = atomic.LoadUint64(&c.rxrate)
+				peerinfo.TXRate = atomic.LoadUint64(&c.txrate)
 				peerinfo.Uptime = time.Since(c.up)
 			}
 			if p, ok := conns[conn]; ok {
