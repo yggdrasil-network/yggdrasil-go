@@ -8,7 +8,7 @@ package config
 func getDefaults() platformDefaultParameters {
 	return platformDefaultParameters{
 		// Admin
-		DefaultAdminListen: "unix:///var/run/yggdrasil.sock",
+		DefaultAdminListen: "tcp://localhost:9001",
 
 		// Configuration (used for yggdrasilctl)
 		DefaultConfigFile: "/etc/yggdrasil.conf",
@@ -17,6 +17,7 @@ func getDefaults() platformDefaultParameters {
 		DefaultMulticastInterfaces: []MulticastInterfaceConfig{
 			{Regex: "en.*", Beacon: true, Listen: true},
 			{Regex: "bridge.*", Beacon: true, Listen: true},
+			{Regex: "awdl0", Beacon: false, Listen: false},
 		},
 
 		// TUN
