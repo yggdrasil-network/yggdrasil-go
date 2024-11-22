@@ -154,7 +154,7 @@ const ErrLinkPasswordInvalid = linkError("invalid password supplied")
 const ErrLinkUnrecognisedSchema = linkError("link schema unknown")
 const ErrLinkMaxBackoffInvalid = linkError("max backoff duration invalid")
 const ErrLinkSNINotSupported = linkError("SNI not supported on this link type")
-const ErrLinkNoSuitableIPs = linkError("no suitable remote IPs")
+const ErrLinkNoSuitableIPs = linkError("peer has no suitable addresses")
 
 func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 	var retErr error
@@ -365,8 +365,12 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 
 				// Give the connection to the handler. The handler will block
 				// for the lifetime of the connection.
-				if err = l.handler(linkType, options, lc, resetBackoff, false); err != nil && err != io.EOF {
-					l.core.log.Debugf("Link %s error: %s\n", info.uri, err)
+				switch err = l.handler(linkType, options, lc, resetBackoff, false); {
+				case err == nil:
+				case errors.Is(err, io.EOF):
+				case errors.Is(err, net.ErrClosed):
+				default:
+					l.core.log.Debugf("Link %s error: %s\n", u.Host, err)
 				}
 
 				// The handler has stopped running so the connection is dead,
@@ -697,7 +701,16 @@ func (l *links) findSuitableIP(url *url.URL, fn func(hostname string, ip net.IP,
 	var _ips [64]net.IP
 	ips := _ips[:0]
 	for _, ip := range resp {
-		if l.core.config.peerFilter != nil && !l.core.config.peerFilter(ip) {
+		switch {
+		case ip.IsUnspecified():
+			continue
+		case ip.IsMulticast():
+			continue
+		case ip.IsLinkLocalMulticast():
+			continue
+		case ip.IsInterfaceLocalMulticast():
+			continue
+		case l.core.config.peerFilter != nil && !l.core.config.peerFilter(ip):
 			continue
 		}
 		ips = append(ips, ip)
