@@ -131,8 +131,8 @@ func (l *links) _updateAverages() {
 
 func (l *links) shutdown() {
 	phony.Block(l, func() {
-		for listener := range l._listeners {
-			_ = listener.listener.Close()
+		for _, cancel := range l._listeners {
+			cancel()
 		}
 		for _, link := range l._links {
 			if link._conn != nil {
@@ -429,7 +429,7 @@ func (l *links) remove(u *url.URL, sintf string, _ linkType) error {
 }
 
 func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) {
-	ctx, cancel := context.WithCancel(l.core.ctx)
+	ctx, ctxcancel := context.WithCancel(l.core.ctx)
 	var protocol linkProtocol
 	switch strings.ToLower(u.Scheme) {
 	case "tcp":
@@ -445,21 +445,25 @@ func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) 
 	case "wss":
 		protocol = l.wss
 	default:
-		cancel()
+		ctxcancel()
 		return nil, ErrLinkUnrecognisedSchema
 	}
 	listener, err := protocol.listen(ctx, u, sintf)
 	if err != nil {
-		cancel()
+		ctxcancel()
 		return nil, err
+	}
+	addr := listener.Addr()
+	cancel := func() {
+		ctxcancel()
+		if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+			l.core.log.Warnf("Error closing %s listener %s: %s", strings.ToUpper(u.Scheme), addr, err)
+		}
 	}
 	li := &Listener{
 		listener: listener,
 		ctx:      ctx,
-		Cancel: func() {
-			cancel()
-			_ = listener.Close()
-		},
+		Cancel:   cancel,
 	}
 
 	var options linkOptions
@@ -482,10 +486,11 @@ func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) 
 	})
 
 	go func() {
-		l.core.log.Infof("%s listener started on %s", strings.ToUpper(u.Scheme), li.listener.Addr())
-		defer l.core.log.Infof("%s listener stopped on %s", strings.ToUpper(u.Scheme), li.listener.Addr())
+		l.core.log.Infof("%s listener started on %s", strings.ToUpper(u.Scheme), addr)
 		defer phony.Block(l, func() {
+			cancel()
 			delete(l._listeners, li)
+			l.core.log.Infof("%s listener stopped on %s", strings.ToUpper(u.Scheme), addr)
 		})
 		for {
 			conn, err := li.listener.Accept()
