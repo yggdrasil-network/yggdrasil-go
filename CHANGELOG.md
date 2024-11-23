@@ -26,6 +26,31 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.5.10] - 2024-11-24
+
+### Added
+
+* The `getPeers` admin endpoint will now report the current transmit/receive rate for each given peer
+* The `getMulticastInterfaces` admin endpoint now reports much more useful information about each interface, rather than just a list of interface names
+
+### Changed
+
+* Minor tweaks to the routing algorithm:
+  * The next-hop selection will now prefer shorter paths when the costed distance is otherwise equal, tiebreaking on peering uptime to fall back to more stable paths
+  * Link cost calculations have been smoothed out, making the costs less sensitive to sudden spikes in latency
+* Reusable name lookup and peer connection logic across different peering types for more consistent behaviour
+* Some comments in the configuration file have been revised for clarity
+* Upgrade dependencies
+
+### Fixed
+
+* Nodes with `IfName` set to `none` will now correctly respond to debug RPC requests
+* The admin socket will now be created reliably before dropping privileges with `-user`
+* Clear supplementary groups when providing a group ID as well as a user ID to `-user`
+* SOCKS and WebSocket peerings should now use the correct source interface when specified in `InterfacePeers`
+* `Peers` and `InterfacePeers` addresses that are obviously invalid (such as unspecified or multicast addresses) will now be correctly ignored
+* Listeners should now shut down correctly, which should resolve issues where multicast listeners for specific interfaces would not come back up or would log errors
+
 ## [0.5.9] - 2024-10-19
 
 ### Added
