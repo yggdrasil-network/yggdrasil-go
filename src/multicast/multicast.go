@@ -156,7 +156,13 @@ func (m *Multicast) _updateInterfaces() {
 			delete(interfaces, name)
 			continue
 		}
-		info.addrs = addrs
+		for _, addr := range addrs {
+			addrIP, _, err := net.ParseCIDR(addr.String())
+			if err != nil || addrIP.To4() != nil || !addrIP.IsLinkLocalUnicast() {
+				continue
+			}
+			info.addrs = append(info.addrs, addr)
+		}
 		interfaces[name] = info
 		m.log.Debugf("Discovered addresses for interface %s: %s", name, addrs)
 	}
@@ -299,13 +305,9 @@ func (m *Multicast) _announce() {
 	for _, info := range m._interfaces {
 		iface := info.iface
 		for _, addr := range info.addrs {
-			addrIP, _, _ := net.ParseCIDR(addr.String())
-			// Ignore IPv4 addresses
-			if addrIP.To4() != nil {
-				continue
-			}
-			// Ignore non-link-local addresses
-			if !addrIP.IsLinkLocalUnicast() {
+			addrIP, _, err := net.ParseCIDR(addr.String())
+			// Ignore IPv4 addresses or non-link-local addresses
+			if err != nil || addrIP.To4() != nil || !addrIP.IsLinkLocalUnicast() {
 				continue
 			}
 			if info.listen {

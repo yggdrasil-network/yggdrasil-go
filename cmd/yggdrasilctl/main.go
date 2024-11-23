@@ -281,9 +281,21 @@ func run() int {
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
-		table.SetHeader([]string{"Interface"})
+		fmtBool := func(b bool) string {
+			if b {
+				return "Yes"
+			}
+			return "-"
+		}
+		table.SetHeader([]string{"Name", "Listen Address", "Beacon", "Listen", "Password"})
 		for _, p := range resp.Interfaces {
-			table.Append([]string{p})
+			table.Append([]string{
+				p.Name,
+				p.Address,
+				fmtBool(p.Beacon),
+				fmtBool(p.Listen),
+				fmtBool(p.Password),
+			})
 		}
 		table.Render()
 
