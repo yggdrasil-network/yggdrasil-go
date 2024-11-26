@@ -30,7 +30,7 @@ func main() {
 	bar := pb.StartNew(*keyTries*2 + *numHosts)
 
 	if *numHosts > *keyTries {
-		println("Can't generate less keys than hosts.")
+		println("Can't generate fewer keys than hosts.")
 		return
 	}
 
