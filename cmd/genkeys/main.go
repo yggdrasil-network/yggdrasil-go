@@ -13,12 +13,14 @@ package main
 import (
 	"crypto/ed25519"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"net"
 	"runtime"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 )
 
 type keySet struct {
@@ -27,23 +29,37 @@ type keySet struct {
 }
 
 func main() {
-	threads := runtime.GOMAXPROCS(0)
-	fmt.Println("Threads:", threads)
+	security := flag.Int("security", 0, "generates a key with a specific amount of security bits. defaults to 0 which continuously generates more keys")
+	flag.Parse()
+
 	start := time.Now()
-	var currentBest ed25519.PublicKey
-	newKeys := make(chan keySet, threads)
-	for i := 0; i < threads; i++ {
-		go doKeys(newKeys)
-	}
-	for {
-		newKey := <-newKeys
-		if isBetter(currentBest, newKey.pub) || len(currentBest) == 0 {
-			currentBest = newKey.pub
-			fmt.Println("-----", time.Since(start))
-			fmt.Println("Priv:", hex.EncodeToString(newKey.priv))
-			fmt.Println("Pub:", hex.EncodeToString(newKey.pub))
-			addr := address.AddrForKey(newKey.pub)
-			fmt.Println("IP:", net.IP(addr[:]).String())
+	if (*security > 0) {
+		// If higher than 0, generates a key with the set amount of security bits
+		var secureKey keySet
+		secureKey.priv, secureKey.pub = config.NewSecureKeyPair(*security)
+		fmt.Println("-----", time.Since(start))
+		fmt.Println("Priv:", hex.EncodeToString(secureKey.priv))
+		fmt.Println("Pub:", hex.EncodeToString(secureKey.pub))
+		addr := address.AddrForKey(secureKey.pub)
+		fmt.Println("IP:", net.IP(addr[:]).String())
+	} else {
+		threads := runtime.GOMAXPROCS(0)
+		fmt.Println("Threads:", threads)
+		var currentBest ed25519.PublicKey
+		newKeys := make(chan keySet, threads)
+		for i := 0; i < threads; i++ {
+			go doKeys(newKeys)
+		}
+		for {
+			newKey := <-newKeys
+			if isBetter(currentBest, newKey.pub) || len(currentBest) == 0 {
+				currentBest = newKey.pub
+				fmt.Println("-----", time.Since(start))
+				fmt.Println("Priv:", hex.EncodeToString(newKey.priv))
+				fmt.Println("Pub:", hex.EncodeToString(newKey.pub))
+				addr := address.AddrForKey(newKey.pub)
+				fmt.Println("IP:", net.IP(addr[:]).String())
+			}
 		}
 	}
 }
