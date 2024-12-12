@@ -35,6 +35,8 @@ func (l *linkTLS) dial(ctx context.Context, url *url.URL, info linkInfo, options
 	tlsconfig := l.config.Clone()
 	return l.links.findSuitableIP(url, func(hostname string, ip net.IP, port int) (net.Conn, error) {
 		tlsconfig.ServerName = hostname
+		tlsconfig.MinVersion = tls.VersionTLS12
+		tlsconfig.MaxVersion = tls.VersionTLS13
 		if sni := options.tlsSNI; sni != "" {
 			tlsconfig.ServerName = sni
 		}

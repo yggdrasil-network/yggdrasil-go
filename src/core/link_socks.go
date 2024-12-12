@@ -51,6 +51,8 @@ func (l *linkSOCKS) dial(_ context.Context, url *url.URL, info linkInfo, options
 		}
 		if url.Scheme == "sockstls" {
 			tlsconfig.ServerName = hostname
+			tlsconfig.MinVersion = tls.VersionTLS12
+			tlsconfig.MaxVersion = tls.VersionTLS13
 			if sni := options.tlsSNI; sni != "" {
 				tlsconfig.ServerName = sni
 			}

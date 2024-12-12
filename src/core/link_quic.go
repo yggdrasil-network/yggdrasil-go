@@ -54,6 +54,8 @@ func (l *linkQUIC) dial(ctx context.Context, url *url.URL, info linkInfo, option
 	tlsconfig := l.tlsconfig.Clone()
 	return l.links.findSuitableIP(url, func(hostname string, ip net.IP, port int) (net.Conn, error) {
 		tlsconfig.ServerName = hostname
+		tlsconfig.MinVersion = tls.VersionTLS12
+		tlsconfig.MaxVersion = tls.VersionTLS13
 		hostport := net.JoinHostPort(ip.String(), fmt.Sprintf("%d", port))
 		qc, err := quic.DialAddr(ctx, hostport, l.tlsconfig, l.quicconfig)
 		if err != nil {
