@@ -26,6 +26,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.5.11] - 2024-12-12
+
+### Added
+
+* Support for `unveil` and `pledge` on OpenBSD
+
+### Changed
+
+* The parent selection algorithm now only chooses a new parent if there is a larger cost benefit to doing so, which should help to stabilise the tree
+* The bloom filters are now repropagated periodically, to avoid nodes getting stuck with bad state
+
+### Fixed
+
+* A memory leak caused by missed cleanup of the peer response map has been fixed
+* Other bug fixes with bloom filter propagation for off-tree filters and zero vs one bits
+* TLS-based peering connections now support TLS 1.2 again
+
 ## [0.5.10] - 2024-11-24
 
 ### Added
