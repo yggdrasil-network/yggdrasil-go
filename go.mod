@@ -45,4 +45,5 @@ require (
 	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/vishvananda/netns v0.0.4 // indirect
+	suah.dev/protect v1.2.4
 )
