@@ -51,18 +51,23 @@ func (l *links) newLinkQUIC() *linkQUIC {
 }
 
 func (l *linkQUIC) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
-	qc, err := quic.DialAddr(ctx, url.Host, l.tlsconfig, l.quicconfig)
-	if err != nil {
-		return nil, err
-	}
-	qs, err := qc.OpenStreamSync(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &linkQUICStream{
-		Connection: qc,
-		Stream:     qs,
-	}, nil
+	tlsconfig := l.tlsconfig.Clone()
+	return l.links.findSuitableIP(url, func(hostname string, ip net.IP, port int) (net.Conn, error) {
+		tlsconfig.ServerName = hostname
+		hostport := net.JoinHostPort(ip.String(), fmt.Sprintf("%d", port))
+		qc, err := quic.DialAddr(ctx, hostport, l.tlsconfig, l.quicconfig)
+		if err != nil {
+			return nil, err
+		}
+		qs, err := qc.OpenStreamSync(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return &linkQUICStream{
+			Connection: qc,
+			Stream:     qs,
+		}, nil
+	})
 }
 
 func (l *linkQUIC) listen(ctx context.Context, url *url.URL, _ string) (net.Listener, error) {

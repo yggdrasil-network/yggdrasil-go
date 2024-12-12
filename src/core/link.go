@@ -99,13 +99,40 @@ func (l *links) init(c *Core) error {
 	l._links = make(map[linkInfo]*link)
 	l._listeners = make(map[*Listener]context.CancelFunc)
 
+	l.Act(nil, l._updateAverages)
 	return nil
+}
+
+func (l *links) _updateAverages() {
+	select {
+	case <-l.core.ctx.Done():
+		return
+	default:
+	}
+
+	for _, l := range l._links {
+		if l._conn == nil {
+			continue
+		}
+		rx := atomic.LoadUint64(&l._conn.rx)
+		tx := atomic.LoadUint64(&l._conn.tx)
+		lastrx := atomic.LoadUint64(&l._conn.lastrx)
+		lasttx := atomic.LoadUint64(&l._conn.lasttx)
+		atomic.StoreUint64(&l._conn.rxrate, rx-lastrx)
+		atomic.StoreUint64(&l._conn.txrate, tx-lasttx)
+		atomic.StoreUint64(&l._conn.lastrx, rx)
+		atomic.StoreUint64(&l._conn.lasttx, tx)
+	}
+
+	time.AfterFunc(time.Second, func() {
+		l.Act(nil, l._updateAverages)
+	})
 }
 
 func (l *links) shutdown() {
 	phony.Block(l, func() {
-		for listener := range l._listeners {
-			_ = listener.listener.Close()
+		for _, cancel := range l._listeners {
+			cancel()
 		}
 		for _, link := range l._links {
 			if link._conn != nil {
@@ -127,6 +154,7 @@ const ErrLinkPasswordInvalid = linkError("invalid password supplied")
 const ErrLinkUnrecognisedSchema = linkError("link schema unknown")
 const ErrLinkMaxBackoffInvalid = linkError("max backoff duration invalid")
 const ErrLinkSNINotSupported = linkError("SNI not supported on this link type")
+const ErrLinkNoSuitableIPs = linkError("peer has no suitable addresses")
 
 func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 	var retErr error
@@ -337,8 +365,12 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 
 				// Give the connection to the handler. The handler will block
 				// for the lifetime of the connection.
-				if err = l.handler(linkType, options, lc, resetBackoff, false); err != nil && err != io.EOF {
-					l.core.log.Debugf("Link %s error: %s\n", info.uri, err)
+				switch err = l.handler(linkType, options, lc, resetBackoff, false); {
+				case err == nil:
+				case errors.Is(err, io.EOF):
+				case errors.Is(err, net.ErrClosed):
+				default:
+					l.core.log.Debugf("Link %s error: %s\n", u.Host, err)
 				}
 
 				// The handler has stopped running so the connection is dead,
@@ -397,7 +429,7 @@ func (l *links) remove(u *url.URL, sintf string, _ linkType) error {
 }
 
 func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) {
-	ctx, cancel := context.WithCancel(l.core.ctx)
+	ctx, ctxcancel := context.WithCancel(l.core.ctx)
 	var protocol linkProtocol
 	switch strings.ToLower(u.Scheme) {
 	case "tcp":
@@ -413,21 +445,25 @@ func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) 
 	case "wss":
 		protocol = l.wss
 	default:
-		cancel()
+		ctxcancel()
 		return nil, ErrLinkUnrecognisedSchema
 	}
 	listener, err := protocol.listen(ctx, u, sintf)
 	if err != nil {
-		cancel()
+		ctxcancel()
 		return nil, err
+	}
+	addr := listener.Addr()
+	cancel := func() {
+		ctxcancel()
+		if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+			l.core.log.Warnf("Error closing %s listener %s: %s", strings.ToUpper(u.Scheme), addr, err)
+		}
 	}
 	li := &Listener{
 		listener: listener,
 		ctx:      ctx,
-		Cancel: func() {
-			cancel()
-			_ = listener.Close()
-		},
+		Cancel:   cancel,
 	}
 
 	var options linkOptions
@@ -450,10 +486,11 @@ func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) 
 	})
 
 	go func() {
-		l.core.log.Infof("%s listener started on %s", strings.ToUpper(u.Scheme), li.listener.Addr())
-		defer l.core.log.Infof("%s listener stopped on %s", strings.ToUpper(u.Scheme), li.listener.Addr())
+		l.core.log.Infof("%s listener started on %s", strings.ToUpper(u.Scheme), addr)
 		defer phony.Block(l, func() {
+			cancel()
 			delete(l._listeners, li)
+			l.core.log.Infof("%s listener stopped on %s", strings.ToUpper(u.Scheme), addr)
 		})
 		for {
 			conn, err := li.listener.Accept()
@@ -653,6 +690,52 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, s
 	return err
 }
 
+func (l *links) findSuitableIP(url *url.URL, fn func(hostname string, ip net.IP, port int) (net.Conn, error)) (net.Conn, error) {
+	host, p, err := net.SplitHostPort(url.Host)
+	if err != nil {
+		return nil, err
+	}
+	port, err := strconv.Atoi(p)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := net.LookupIP(host)
+	if err != nil {
+		return nil, err
+	}
+	var _ips [64]net.IP
+	ips := _ips[:0]
+	for _, ip := range resp {
+		switch {
+		case ip.IsUnspecified():
+			continue
+		case ip.IsMulticast():
+			continue
+		case ip.IsLinkLocalMulticast():
+			continue
+		case ip.IsInterfaceLocalMulticast():
+			continue
+		case l.core.config.peerFilter != nil && !l.core.config.peerFilter(ip):
+			continue
+		}
+		ips = append(ips, ip)
+	}
+	if len(ips) == 0 {
+		return nil, ErrLinkNoSuitableIPs
+	}
+	for _, ip := range ips {
+		var conn net.Conn
+		if conn, err = fn(host, ip, port); err != nil {
+			url := *url
+			url.RawQuery = ""
+			l.core.log.Debugln("Dialling", url.Redacted(), "reported error:", err)
+			continue
+		}
+		return conn, nil
+	}
+	return nil, err
+}
+
 func urlForLinkInfo(u url.URL) url.URL {
 	u.RawQuery = ""
 	return u
@@ -661,9 +744,13 @@ func urlForLinkInfo(u url.URL) url.URL {
 type linkConn struct {
 	// tx and rx are at the beginning of the struct to ensure 64-bit alignment
 	// on 32-bit platforms, see https://pkg.go.dev/sync/atomic#pkg-note-BUG
-	rx uint64
-	tx uint64
-	up time.Time
+	rx     uint64
+	tx     uint64
+	rxrate uint64
+	txrate uint64
+	lastrx uint64
+	lasttx uint64
+	up     time.Time
 	net.Conn
 }
 

@@ -17,6 +17,7 @@ func getDefaults() platformDefaultParameters {
 		DefaultMulticastInterfaces: []MulticastInterfaceConfig{
 			{Regex: "en.*", Beacon: true, Listen: true},
 			{Regex: "bridge.*", Beacon: true, Listen: true},
+			{Regex: "awdl0", Beacon: false, Listen: false},
 		},
 
 		// TUN

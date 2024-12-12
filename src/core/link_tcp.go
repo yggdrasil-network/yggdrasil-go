@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/Arceliar/phony"
@@ -28,65 +27,18 @@ func (l *links) newLinkTCP() *linkTCP {
 	return lt
 }
 
-type tcpDialer struct {
-	info   linkInfo
-	dialer *net.Dialer
-	addr   *net.TCPAddr
-}
-
-func (l *linkTCP) dialersFor(url *url.URL, info linkInfo) ([]*tcpDialer, error) {
-	host, p, err := net.SplitHostPort(url.Host)
-	if err != nil {
-		return nil, err
-	}
-	port, err := strconv.Atoi(p)
-	if err != nil {
-		return nil, err
-	}
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		return nil, err
-	}
-	dialers := make([]*tcpDialer, 0, len(ips))
-	for _, ip := range ips {
+func (l *linkTCP) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
+	return l.links.findSuitableIP(url, func(hostname string, ip net.IP, port int) (net.Conn, error) {
 		addr := &net.TCPAddr{
 			IP:   ip,
 			Port: port,
 		}
-		dialer, err := l.dialerFor(addr, info.sintf)
+		dialer, err := l.tcp.dialerFor(addr, info.sintf)
 		if err != nil {
-			continue
+			return nil, err
 		}
-		dialers = append(dialers, &tcpDialer{
-			info:   info,
-			dialer: dialer,
-			addr:   addr,
-		})
-	}
-	return dialers, nil
-}
-
-func (l *linkTCP) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
-	if options.tlsSNI != "" {
-		return nil, ErrLinkSNINotSupported
-	}
-	dialers, err := l.dialersFor(url, info)
-	if err != nil {
-		return nil, err
-	}
-	if len(dialers) == 0 {
-		return nil, nil
-	}
-	for _, d := range dialers {
-		var conn net.Conn
-		conn, err = d.dialer.DialContext(ctx, "tcp", d.addr.String())
-		if err != nil {
-			l.core.log.Warnf("Failed to connect to %s: %s", d.addr, err)
-			continue
-		}
-		return conn, nil
-	}
-	return nil, err
+		return dialer.DialContext(ctx, "tcp", addr.String())
+	})
 }
 
 func (l *linkTCP) listen(ctx context.Context, url *url.URL, sintf string) (net.Listener, error) {
