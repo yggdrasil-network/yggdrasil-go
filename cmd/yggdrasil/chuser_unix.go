@@ -17,7 +17,7 @@ func chuser(input string) error {
 	if givenUser == "" {
 		return fmt.Errorf("user is empty")
 	}
-	if strings.Index(input, ":") > -1 && givenGroup == "" {
+	if strings.Contains(input, ":") && givenGroup == "" {
 		return fmt.Errorf("group is empty")
 	}
 
