@@ -26,6 +26,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.5.12] - 2024-12-18
+
+* Go 1.22 is now required to build Yggdrasil
+
+### Changed
+
+* The `latency_ms` field in the admin socket `getPeers` response has been renamed to `latency`
+
+### Fixed
+
+* A timing regression which causes a higher level of idle protocol traffic on each peering has been fixed
+* The `-user` flag now correctly detects an empty user/group specification
+
 ## [0.5.11] - 2024-12-12
 
 ### Added
