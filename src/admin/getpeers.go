@@ -31,7 +31,7 @@ type PeerEntry struct {
 	RXRate        DataUnit      `json:"rate_recvd,omitempty"`
 	TXRate        DataUnit      `json:"rate_sent,omitempty"`
 	Uptime        float64       `json:"uptime,omitempty"`
-	Latency       time.Duration `json:"latency_ms,omitempty"`
+	Latency       time.Duration `json:"latency,omitempty"`
 	LastErrorTime time.Duration `json:"last_error_time,omitempty"`
 	LastError     string        `json:"last_error,omitempty"`
 }
