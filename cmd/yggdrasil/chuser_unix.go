@@ -14,6 +14,12 @@ import (
 
 func chuser(input string) error {
 	givenUser, givenGroup, _ := strings.Cut(input, ":")
+	if givenUser == "" {
+		return fmt.Errorf("user is empty")
+	}
+	if strings.Contains(input, ":") && givenGroup == "" {
+		return fmt.Errorf("group is empty")
+	}
 
 	var (
 		err      error

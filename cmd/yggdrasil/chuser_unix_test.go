@@ -4,33 +4,33 @@
 package main
 
 import (
-	"testing"
 	"os/user"
+	"testing"
 )
 
 // Usernames must not contain a number sign.
-func TestEmptyString (t *testing.T) {
+func TestEmptyString(t *testing.T) {
 	if chuser("") == nil {
 		t.Fatal("the empty string is not a valid user")
 	}
 }
 
 // Either omit delimiter and group, or omit both.
-func TestEmptyGroup (t *testing.T) {
+func TestEmptyGroup(t *testing.T) {
 	if chuser("0:") == nil {
 		t.Fatal("the empty group is not allowed")
 	}
 }
 
 // Either user only or user and group.
-func TestGroupOnly (t *testing.T) {
+func TestGroupOnly(t *testing.T) {
 	if chuser(":0") == nil {
 		t.Fatal("group only is not allowed")
 	}
 }
 
 // Usenames must not contain the number sign.
-func TestInvalidUsername (t *testing.T) {
+func TestInvalidUsername(t *testing.T) {
 	const username = "#user"
 	if chuser(username) == nil {
 		t.Fatalf("'%s' is not a valid username", username)
@@ -38,14 +38,14 @@ func TestInvalidUsername (t *testing.T) {
 }
 
 // User IDs must be non-negative.
-func TestInvalidUserid (t *testing.T) {
+func TestInvalidUserid(t *testing.T) {
 	if chuser("-1") == nil {
 		t.Fatal("User ID cannot be negative")
 	}
 }
 
 // Change to the current user by ID.
-func TestCurrentUserid (t *testing.T) {
+func TestCurrentUserid(t *testing.T) {
 	usr, err := user.Current()
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +61,7 @@ func TestCurrentUserid (t *testing.T) {
 }
 
 // Change to a common user by name.
-func TestCommonUsername (t *testing.T) {
+func TestCommonUsername(t *testing.T) {
 	usr, err := user.Current()
 	if err != nil {
 		t.Fatal(err)

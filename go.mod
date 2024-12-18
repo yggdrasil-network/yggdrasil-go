@@ -1,9 +1,9 @@
 module github.com/yggdrasil-network/yggdrasil-go
 
-go 1.21
+go 1.22
 
 require (
-	github.com/Arceliar/ironwood v0.0.0-20241210120540-9deb08d9f8f9
+	github.com/Arceliar/ironwood v0.0.0-20241213013129-743fe2fccbd3
 	github.com/Arceliar/phony v0.0.0-20220903101357-530938a4b13d
 	github.com/cheggaaa/pb/v3 v3.1.5
 	github.com/coder/websocket v1.8.12
@@ -11,7 +11,7 @@ require (
 	github.com/hashicorp/go-syslog v1.0.0
 	github.com/hjson/hjson-go/v4 v4.4.0
 	github.com/kardianos/minwinsvc v1.0.2
-	github.com/quic-go/quic-go v0.46.0
+	github.com/quic-go/quic-go v0.48.2
 	github.com/vishvananda/netlink v1.3.0
 	github.com/wlynxg/anet v0.0.5
 	golang.org/x/crypto v0.31.0
