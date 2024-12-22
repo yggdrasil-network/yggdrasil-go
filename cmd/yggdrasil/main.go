@@ -312,6 +312,21 @@ func main() {
 		}
 	}
 
+	// Promise final modes of operation.  At this point, if at all:
+	// - raw socket is created/open
+	// - admin socket is created/open
+	// - privileges are dropped to non-root user
+	//
+	// Peers, InterfacePeers, Listen can be UNIX sockets;
+	// Go's net.Listen.Close() deletes files on shutdown.
+	promises := []string{"stdio", "cpath", "inet", "unix", "dns"}
+	if len(cfg.MulticastInterfaces) > 0 {
+		promises = append(promises, "mcast")
+	}
+	if err := protect.Pledge(strings.Join(promises, " ")); err != nil {
+		panic(fmt.Sprintf("pledge: %v: %v", promises, err))
+	}
+
 	// Block until we are told to shut down.
 	<-ctx.Done()
 
