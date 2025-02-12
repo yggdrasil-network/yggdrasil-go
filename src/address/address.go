@@ -113,7 +113,7 @@ func SubnetForKey(publicKey ed25519.PublicKey) *Subnet {
 	return &snet
 }
 
-// GetKet returns the partial ed25519.PublicKey for the Address.
+// GetKey returns the partial ed25519.PublicKey for the Address.
 // This is used for key lookup.
 func (a *Address) GetKey() ed25519.PublicKey {
 	var key [ed25519.PublicKeySize]byte
@@ -141,7 +141,7 @@ func (a *Address) GetKey() ed25519.PublicKey {
 	return ed25519.PublicKey(key[:])
 }
 
-// GetKet returns the partial ed25519.PublicKey for the Subnet.
+// GetKey returns the partial ed25519.PublicKey for the Subnet.
 // This is used for key lookup.
 func (s *Subnet) GetKey() ed25519.PublicKey {
 	var addr Address
