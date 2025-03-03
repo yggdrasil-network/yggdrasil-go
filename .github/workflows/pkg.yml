@@ -102,6 +102,51 @@ jobs:
           path: "*.msi"
           if-no-files-found: error
 
+  build-zip-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        pkgarch: ["x64", "x86", "arm", "arm64"]
+
+    name: Package (Windows-zip, ${{ matrix.pkgarch }})
+
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+
+      - name: Setup .NET Core SDK
+        uses: actions/setup-dotnet@v4
+
+      - name: Get info
+        id: vars
+        run: | 
+          echo "PKGNAME=$(contrib/semver/name.sh)" >> $GITHUB_ENV
+          echo "PKGVERSION=$(contrib/msi/msversion.sh --bare)" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Build package
+        run: sh contrib/zip/build-zip.sh ${{ matrix.pkgarch }}
+
+      - name: Archive Release
+        uses: thedoctor0/zip-release@0.7.5
+        with:
+          type: 'zip'
+          filename: '${{ env.PKGNAME }}-${{ env.PKGVERSION }}-${{ matrix.pkgarch }}.zip'
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows zip package (${{ matrix.pkgarch }})
+          path: "*.zip"
+          if-no-files-found: error
+
   build-packages-router:
     strategy:
       fail-fast: false
