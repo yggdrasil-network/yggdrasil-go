@@ -1,6 +1,6 @@
 module github.com/yggdrasil-network/yggdrasil-go
 
-go 1.22
+go 1.22.0
 
 require (
 	github.com/Arceliar/ironwood v0.0.0-20241213013129-743fe2fccbd3
