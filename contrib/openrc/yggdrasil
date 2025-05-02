@@ -14,7 +14,7 @@ depend() {
 start_pre() {
 	if [ ! -f "${CONFFILE}" ]; then
 		ebegin "Generating new configuration file into ${CONFFILE}"
-		if ! eval ${command} -genconf > ${CONFFILE}; then
+		if ! (umask 037 && eval ${command} -genconf > ${CONFFILE}); then
 			eerror "Failed to generate configuration file"
 			exit 1
 		fi
