@@ -8,6 +8,7 @@ After=local-fs.target
 [Service]
 Type=oneshot
 Group=yggdrasil
+UMask=037
 ExecStartPre=/usr/bin/mkdir -p /etc/yggdrasil
 ExecStart=/usr/bin/yggdrasil -genconf > /etc/yggdrasil/yggdrasil.conf
 ExecStartPost=/usr/bin/chmod -R 0640 /etc/yggdrasil
