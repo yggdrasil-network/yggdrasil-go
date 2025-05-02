@@ -3,7 +3,7 @@
 CONFFILE="/etc/yggdrasil.conf"
 
 genconf() {
-	/usr/bin/yggdrasil -genconf > "$1"
+	(umask 037 && /usr/bin/yggdrasil -genconf > "$1")
 	return $?
 }
 
