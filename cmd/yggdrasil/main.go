@@ -63,7 +63,7 @@ func main() {
 	confjson := flag.Bool("json", false, "print configuration from -genconf or -normaliseconf as JSON instead of HJSON")
 	autoconf := flag.Bool("autoconf", false, "automatic mode (dynamic IP, peer with IPv6 neighbors)")
 	ver := flag.Bool("version", false, "prints the version of this build")
-	logto := flag.String("logto", "stdout", "file path to log to, \"syslog\" or \"stdout\"")
+	logto := flag.String("logto", "stdout", "file path to log to, \"syslog\", \"stdout\", or \"stderr\"")
 	getaddr := flag.Bool("address", false, "use in combination with either -useconf or -useconffile, outputs your IPv6 address")
 	getsnet := flag.Bool("subnet", false, "use in combination with either -useconf or -useconffile, outputs your IPv6 subnet")
 	getpkey := flag.Bool("publickey", false, "use in combination with either -useconf or -useconffile, outputs your public key")
@@ -82,6 +82,8 @@ func main() {
 	switch *logto {
 	case "stdout":
 		logger = log.New(os.Stdout, "", log.Flags())
+	case "stderr":
+		logger = log.New(os.Stderr, "", log.Flags())
 
 	case "syslog":
 		if syslogger, err := gsyslog.NewLogger(gsyslog.LOG_NOTICE, "DAEMON", version.BuildName()); err == nil {
