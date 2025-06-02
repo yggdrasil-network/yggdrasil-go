@@ -81,11 +81,9 @@ Documentation is available [on our website](https://yggdrasil-network.github.io)
 - [Frequently asked questions](https://yggdrasil-network.github.io/faq.html)
 - [Version changelog](CHANGELOG.md)
 
-## Community
+## Communities
 
-Feel free to join us on our [Matrix
-channel](https://matrix.to/#/#yggdrasil:matrix.org) at `#yggdrasil:matrix.org`
-or in the `#yggdrasil` IRC channel on [libera.chat](https://libera.chat).
+A number of IRC communities exist, including the `#yggdrasil` IRC channel on [libera.chat](https://libera.chat) and various others on [Yggdrasil-internal IRC networks](https://yggdrasil-network.github.io/services.html#irc).
 
 ## License
 
