@@ -16,7 +16,7 @@ jobs:
 
     name: Package (Debian, ${{ matrix.pkgarch }})
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -110,7 +110,7 @@ jobs:
 
     name: Package (Router, ${{ matrix.pkgarch }})
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
