@@ -28,7 +28,7 @@ const (
 )
 
 const defaultBackoffLimit = time.Second << 12 // 1h8m16s
-const minimumBackoffLimit = time.Second * 30
+const minimumBackoffLimit = time.Second * 5
 
 type links struct {
 	phony.Inbox
