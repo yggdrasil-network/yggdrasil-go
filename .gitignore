@@ -1,4 +1,6 @@
-yggdrasil
-yggdrasilctl
-yggdrasil.conf
 **/TODO
+/yggdrasil
+/yggdrasilctl
+/yggdrasil.conf
+/run
+/test
