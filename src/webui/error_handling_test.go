@@ -30,7 +30,7 @@ func TestWebUIServer_InvalidListenAddress(t *testing.T) {
 			// Start should fail for invalid addresses
 			err := server.Start()
 			if err == nil {
-				server.Stop() // Clean up if it somehow started
+				_ = server.Stop() // Clean up if it somehow started
 				t.Errorf("Expected Start() to fail for invalid address %s", addr)
 			}
 		})
@@ -56,7 +56,7 @@ func TestWebUIServer_PortAlreadyInUse(t *testing.T) {
 	// This should fail because port is already in use
 	err = server.Start()
 	if err == nil {
-		server.Stop()
+		_ = server.Stop()
 		t.Error("Expected Start() to fail when port is already in use")
 	}
 }
@@ -126,7 +126,7 @@ func TestWebUIServer_StopTwice(t *testing.T) {
 
 	// Start server
 	go func() {
-		server.Start()
+		_ = server.Start()
 	}()
 
 	time.Sleep(100 * time.Millisecond)
@@ -218,7 +218,7 @@ func TestWebUIServer_ContextCancellation(t *testing.T) {
 
 	// Start server
 	go func() {
-		server.Start()
+		_ = server.Start()
 	}()
 
 	time.Sleep(100 * time.Millisecond)
@@ -255,7 +255,7 @@ func TestWebUIServer_EmptyListenAddress(t *testing.T) {
 	// This might fail when trying to start
 	err := server.Start()
 	if err == nil {
-		server.Stop()
+		_ = server.Stop()
 		t.Log("Note: Server started with empty listen address")
 	} else {
 		t.Logf("Expected behavior: Start() failed with empty address: %v", err)
@@ -308,7 +308,7 @@ func TestWebUIServer_LargeNumberOfRequests(t *testing.T) {
 	})
 	mux.HandleFunc("/health", func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)
-		rw.Write([]byte("OK"))
+		_, _ = rw.Write([]byte("OK"))
 	})
 
 	server := httptest.NewServer(mux)

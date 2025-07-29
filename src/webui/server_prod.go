@@ -58,7 +58,7 @@ func serveFile(rw http.ResponseWriter, r *http.Request, log core.Logger) {
 
 	// Set headers and serve the file
 	rw.Header().Set("Content-Type", contentType)
-	rw.Write(data)
+	_, _ = rw.Write(data)
 
 	log.Debugf("Served file: %s (type: %s)", filePath, contentType)
 }

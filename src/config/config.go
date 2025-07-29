@@ -96,7 +96,7 @@ func GenerateConfig() *NodeConfig {
 	cfg.WebUI = WebUIConfig{
 		Enable: false,
 		Port:   9000,
-		Host:   "",
+		Host:   "127.0.0.1",
 	}
 	if err := cfg.postprocessConfig(); err != nil {
 		panic(err)

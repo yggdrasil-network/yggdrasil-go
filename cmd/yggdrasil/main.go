@@ -264,23 +264,6 @@ func main() {
 		}
 	}
 
-	// Set up the web UI server if enabled in config.
-	if cfg.WebUI.Enable {
-		var listenAddr string
-		if cfg.WebUI.Host == "" {
-			listenAddr = fmt.Sprintf(":%d", cfg.WebUI.Port)
-		} else {
-			listenAddr = fmt.Sprintf("%s:%d", cfg.WebUI.Host, cfg.WebUI.Port)
-		}
-
-		n.webui = webui.Server(listenAddr, logger)
-		go func() {
-			if err := n.webui.Start(); err != nil {
-				logger.Errorf("WebUI server error: %v", err)
-			}
-		}()
-	}
-
 	// Set up the multicast module.
 	{
 		options := []multicast.SetupOption{}
@@ -314,6 +297,23 @@ func main() {
 		if n.admin != nil && n.tun != nil {
 			n.tun.SetupAdminHandlers(n.admin)
 		}
+	}
+
+	// Set up the web UI server if enabled in config.
+	if cfg.WebUI.Enable {
+		var listenAddr string
+		if cfg.WebUI.Host == "" {
+			listenAddr = fmt.Sprintf(":%d", cfg.WebUI.Port)
+		} else {
+			listenAddr = fmt.Sprintf("%s:%d", cfg.WebUI.Host, cfg.WebUI.Port)
+		}
+
+		n.webui = webui.Server(listenAddr, logger)
+		go func() {
+			if err := n.webui.Start(); err != nil {
+				logger.Errorf("WebUI server error: %v", err)
+			}
+		}()
 	}
 
 	//Windows service shutdown

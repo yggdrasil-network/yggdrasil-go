@@ -1,7 +1,6 @@
 package webui
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -21,22 +20,6 @@ func createTestLogger() core.Logger {
 // Helper function to get available port for testing
 func getTestAddress() string {
 	return "127.0.0.1:0" // Let OS assign available port
-}
-
-// Helper function to wait for server to be ready
-func waitForServer(url string, timeout time.Duration) error {
-	client := &http.Client{Timeout: 1 * time.Second}
-	deadline := time.Now().Add(timeout)
-
-	for time.Now().Before(deadline) {
-		resp, err := client.Get(url)
-		if err == nil {
-			resp.Body.Close()
-			return nil
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	return fmt.Errorf("server not ready within timeout")
 }
 
 func TestWebUIServer_Creation(t *testing.T) {
@@ -123,7 +106,7 @@ func TestWebUIServer_HealthEndpoint(t *testing.T) {
 	})
 	mux.HandleFunc("/health", func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)
-		rw.Write([]byte("OK"))
+		_, _ = rw.Write([]byte("OK"))
 	})
 
 	server := httptest.NewServer(mux)
@@ -156,9 +139,9 @@ func TestWebUIServer_Timeouts(t *testing.T) {
 
 	// Start server
 	go func() {
-		server.Start()
+		_ = server.Start()
 	}()
-	defer server.Stop()
+	defer func() { _ = server.Stop() }()
 
 	// Wait for server to start
 	time.Sleep(200 * time.Millisecond)

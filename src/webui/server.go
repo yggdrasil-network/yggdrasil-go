@@ -35,7 +35,7 @@ func (w *WebUIServer) Start() error {
 	// Health check endpoint
 	mux.HandleFunc("/health", func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)
-		rw.Write([]byte("OK"))
+		_, _ = rw.Write([]byte("OK"))
 	})
 
 	w.server = &http.Server{

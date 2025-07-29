@@ -47,7 +47,7 @@ func TestWebUIServer_HealthEndpointDetails(t *testing.T) {
 	})
 	mux.HandleFunc("/health", func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)
-		rw.Write([]byte("OK"))
+		_, _ = rw.Write([]byte("OK"))
 	})
 
 	server := httptest.NewServer(mux)
@@ -109,7 +109,7 @@ func TestWebUIServer_NonExistentEndpoint(t *testing.T) {
 	})
 	mux.HandleFunc("/health", func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)
-		rw.Write([]byte("OK"))
+		_, _ = rw.Write([]byte("OK"))
 	})
 
 	server := httptest.NewServer(mux)
@@ -158,7 +158,7 @@ func TestWebUIServer_ContentTypes(t *testing.T) {
 	})
 	mux.HandleFunc("/health", func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)
-		rw.Write([]byte("OK"))
+		_, _ = rw.Write([]byte("OK"))
 	})
 
 	server := httptest.NewServer(mux)
@@ -188,7 +188,7 @@ func TestWebUIServer_HeaderSecurity(t *testing.T) {
 	})
 	mux.HandleFunc("/health", func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)
-		rw.Write([]byte("OK"))
+		_, _ = rw.Write([]byte("OK"))
 	})
 
 	server := httptest.NewServer(mux)
@@ -227,7 +227,7 @@ func TestWebUIServer_ConcurrentRequests(t *testing.T) {
 	})
 	mux.HandleFunc("/health", func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)
-		rw.Write([]byte("OK"))
+		_, _ = rw.Write([]byte("OK"))
 	})
 
 	server := httptest.NewServer(mux)

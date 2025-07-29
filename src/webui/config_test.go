@@ -164,11 +164,11 @@ func TestWebUIConfig_PortRanges(t *testing.T) {
 			if test.shouldWork {
 				// Try to start briefly to see if port is valid
 				go func() {
-					server.Start()
+					_ = server.Start()
 				}()
 
 				// Quick cleanup
-				server.Stop()
+				_ = server.Stop()
 			}
 		})
 	}
@@ -236,9 +236,9 @@ func TestWebUIConfig_Integration(t *testing.T) {
 
 	// Test that server can start with this config
 	go func() {
-		server.Start()
+		_ = server.Start()
 	}()
-	defer server.Stop()
+	defer func() { _ = server.Stop() }()
 
 	// Verify server properties match config
 	if server.listen != listenAddr {
