@@ -54,6 +54,7 @@ type NodeConfig struct {
 	LogLookups          bool                       `comment:"Log lookups for peers and nodes. This is useful for debugging and\nmonitoring the network. It is disabled by default."`
 	NodeInfoPrivacy     bool                       `comment:"By default, nodeinfo contains some defaults including the platform,\narchitecture and Yggdrasil version. These can help when surveying\nthe network and diagnosing network routing problems. Enabling\nnodeinfo privacy prevents this, so that only items specified in\n\"NodeInfo\" are sent back if specified."`
 	NodeInfo            map[string]interface{}     `comment:"Optional nodeinfo. This must be a { \"key\": \"value\", ... } map\nor set as null. This is entirely optional but, if set, is visible\nto the whole network on request."`
+	WebUI               WebUIConfig                `comment:"Web interface configuration for managing the node through a browser."`
 }
 
 type MulticastInterfaceConfig struct {
@@ -63,6 +64,12 @@ type MulticastInterfaceConfig struct {
 	Port     uint16 `comment:"Port to use for multicast peer discovery. If 0, a random port will be used."`
 	Priority uint64 `comment:"Priority for multicast peer discovery. The higher the priority, the more likely\nthis interface will be used for peer discovery. The default priority is 0."`
 	Password string `comment:"Password to use for multicast peer discovery. If empty, no password will be used."`
+}
+
+type WebUIConfig struct {
+	Enable bool   `comment:"Enable the web interface for managing the node through a browser."`
+	Port   uint16 `comment:"Port for the web interface. Default is 9000."`
+	Host   string `comment:"Host/IP address to bind the web interface to. Empty means all interfaces."`
 }
 
 // Generates default configuration and returns a pointer to the resulting
@@ -86,6 +93,11 @@ func GenerateConfig() *NodeConfig {
 	cfg.LogLookups = false
 	cfg.NodeInfoPrivacy = false
 	cfg.NodeInfo = map[string]interface{}{}
+	cfg.WebUI = WebUIConfig{
+		Enable: false,
+		Port:   9000,
+		Host:   "",
+	}
 	if err := cfg.postprocessConfig(); err != nil {
 		panic(err)
 	}
