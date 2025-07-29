@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     sudo \
     zsh \
+    locales \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -51,6 +52,9 @@ USER $USERNAME
 ENV SHELL=/bin/zsh
 RUN echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.zshrc \
     && echo 'export GO111MODULE=on' >> ~/.zshrc \
+    && echo 'export LANG=C.UTF-8' >> ~/.zshrc \
+    && echo 'export LC_ALL=C.UTF-8' >> ~/.zshrc \
+    && echo 'export LC_CTYPE=C.UTF-8' >> ~/.zshrc \
     && mkdir -p ~/.cache
 
 # Expose common ports that might be used by Yggdrasil

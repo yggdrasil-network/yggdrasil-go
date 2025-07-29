@@ -44,7 +44,7 @@
         "GOMODCACHE": "/home/vscode/.cache/go-mod"
     },
     // Post create command to set up the environment
-    "postCreateCommand": "mkdir -p /home/vscode/.cache/go-build /home/vscode/.cache/go-mod && cd /workspace && go mod download && go mod tidy",
+    "postCreateCommand": "mkdir -p /home/vscode/.cache/go-build /home/vscode/.cache/go-mod && cd /workspaces/yggdrasil-go && go mod download && go mod tidy",
     // Keep the container running
     "overrideCommand": false,
     // Use non-root user
