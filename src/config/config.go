@@ -40,29 +40,29 @@ import (
 // options that are necessary for an Yggdrasil node to run. You will need to
 // supply one of these structs to the Yggdrasil core when starting a node.
 type NodeConfig struct {
-	PrivateKey          KeyBytes                   `json:",omitempty" comment:"Your private key. DO NOT share this with anyone!"`
-	PrivateKeyPath      string                     `json:",omitempty" comment:"The path to your private key file in PEM format."`
+	PrivateKey          KeyBytes                   `comment:"Your private key. DO NOT share this with anyone!"`
+	PrivateKeyPath      string                     `comment:"The path to your private key file in PEM format."`
 	Certificate         *tls.Certificate           `json:"-"`
 	Peers               []string                   `comment:"List of outbound peer connection strings (e.g. tls://a.b.c.d:e or\nsocks://a.b.c.d:e/f.g.h.i:j). Connection strings can contain options,\nsee https://yggdrasil-network.github.io/configurationref.html#peers.\nYggdrasil has no concept of bootstrap nodes - all network traffic\nwill transit peer connections. Therefore make sure to only peer with\nnearby nodes that have good connectivity and low latency. Avoid adding\npeers to this list from distant countries as this will worsen your\nnode's connectivity and performance considerably."`
 	InterfacePeers      map[string][]string        `comment:"List of connection strings for outbound peer connections in URI format,\narranged by source interface, e.g. { \"eth0\": [ \"tls://a.b.c.d:e\" ] }.\nYou should only use this option if your machine is multi-homed and you\nwant to establish outbound peer connections on different interfaces.\nOtherwise you should use \"Peers\"."`
 	Listen              []string                   `comment:"Listen addresses for incoming connections. You will need to add\nlisteners in order to accept incoming peerings from non-local nodes.\nThis is not required if you wish to establish outbound peerings only.\nMulticast peer discovery will work regardless of any listeners set\nhere. Each listener should be specified in URI format as above, e.g.\ntls://0.0.0.0:0 or tls://[::]:0 to listen on all interfaces."`
-	AdminListen         string                     `json:",omitempty" comment:"Listen address for admin connections. Default is to listen for local\nconnections either on TCP/9001 or a UNIX socket depending on your\nplatform. Use this value for yggdrasilctl -endpoint=X. To disable\nthe admin socket, use the value \"none\" instead."`
+	AdminListen         string                     `comment:"Listen address for admin connections. Default is to listen for local\nconnections either on TCP/9001 or a UNIX socket depending on your\nplatform. Use this value for yggdrasilctl -endpoint=X. To disable\nthe admin socket, use the value \"none\" instead."`
 	MulticastInterfaces []MulticastInterfaceConfig `comment:"Configuration for which interfaces multicast peer discovery should be\nenabled on. Regex is a regular expression which is matched against an\ninterface name, and interfaces use the first configuration that they\nmatch against. Beacon controls whether or not your node advertises its\npresence to others, whereas Listen controls whether or not your node\nlistens out for and tries to connect to other advertising nodes. See\nhttps://yggdrasil-network.github.io/configurationref.html#multicastinterfaces\nfor more supported options."`
 	AllowedPublicKeys   []string                   `comment:"List of peer public keys to allow incoming peering connections\nfrom. If left empty/undefined then all connections will be allowed\nby default. This does not affect outgoing peerings, nor does it\naffect link-local peers discovered via multicast.\nWARNING: THIS IS NOT A FIREWALL and DOES NOT limit who can reach\nopen ports or services running on your machine!"`
 	IfName              string                     `comment:"Local network interface name for TUN adapter, or \"auto\" to select\nan interface automatically, or \"none\" to run without TUN."`
 	IfMTU               uint64                     `comment:"Maximum Transmission Unit (MTU) size for your local TUN interface.\nDefault is the largest supported size for your platform. The lowest\npossible value is 1280."`
-	LogLookups          bool                       `json:",omitempty"`
+	LogLookups          bool                       `comment:"Log lookups for peers and nodes. This is useful for debugging and\nmonitoring the network. It is disabled by default."`
 	NodeInfoPrivacy     bool                       `comment:"By default, nodeinfo contains some defaults including the platform,\narchitecture and Yggdrasil version. These can help when surveying\nthe network and diagnosing network routing problems. Enabling\nnodeinfo privacy prevents this, so that only items specified in\n\"NodeInfo\" are sent back if specified."`
 	NodeInfo            map[string]interface{}     `comment:"Optional nodeinfo. This must be a { \"key\": \"value\", ... } map\nor set as null. This is entirely optional but, if set, is visible\nto the whole network on request."`
 }
 
 type MulticastInterfaceConfig struct {
-	Regex    string
-	Beacon   bool
-	Listen   bool
-	Port     uint16 `json:",omitempty"`
-	Priority uint64 `json:",omitempty"` // really uint8, but gobind won't export it
-	Password string
+	Regex    string `comment:"Regular expression to match interface names. If an interface name matches this\nregular expression, the interface will be used for multicast peer discovery."`
+	Beacon   bool   `comment:"Whether to advertise this interface's presence to other nodes. If true, the\ninterface will be used for multicast peer discovery."`
+	Listen   bool   `comment:"Whether to listen for incoming peerings on this interface. If true, the\ninterface will be used for multicast peer discovery."`
+	Port     uint16 `comment:"Port to use for multicast peer discovery. If 0, a random port will be used."`
+	Priority uint64 `comment:"Priority for multicast peer discovery. The higher the priority, the more likely\nthis interface will be used for peer discovery. The default priority is 0."`
+	Password string `comment:"Password to use for multicast peer discovery. If empty, no password will be used."`
 }
 
 // Generates default configuration and returns a pointer to the resulting
@@ -74,6 +74,7 @@ func GenerateConfig() *NodeConfig {
 	// Create a node configuration and populate it.
 	cfg := new(NodeConfig)
 	cfg.NewPrivateKey()
+	cfg.PrivateKeyPath = ""
 	cfg.Listen = []string{}
 	cfg.AdminListen = defaults.DefaultAdminListen
 	cfg.Peers = []string{}
@@ -82,7 +83,9 @@ func GenerateConfig() *NodeConfig {
 	cfg.MulticastInterfaces = defaults.DefaultMulticastInterfaces
 	cfg.IfName = defaults.DefaultIfName
 	cfg.IfMTU = defaults.DefaultIfMTU
+	cfg.LogLookups = false
 	cfg.NodeInfoPrivacy = false
+	cfg.NodeInfo = map[string]interface{}{}
 	if err := cfg.postprocessConfig(); err != nil {
 		panic(err)
 	}

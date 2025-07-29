@@ -15,7 +15,14 @@ func getDefaults() platformDefaultParameters {
 
 		// Multicast interfaces
 		DefaultMulticastInterfaces: []MulticastInterfaceConfig{
-			{Regex: ".*", Beacon: true, Listen: true},
+			{
+				Regex:    ".*",
+				Beacon:   true,
+				Listen:   true,
+				Port:     0,  // 0 means random port
+				Priority: 0,  // 0 is highest priority
+				Password: "", // empty means no password required
+			},
 		},
 
 		// TUN
