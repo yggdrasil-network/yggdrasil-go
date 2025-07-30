@@ -29,5 +29,12 @@ window.translations.ru = {
     'network_settings_description': 'Параметры сетевого взаимодействия',
     'coming_soon': 'Функция в разработке...',
     'footer_text': 'Yggdrasil Network • Minimal WebUI v1.0',
-    'logout_confirm': 'Вы уверены, что хотите выйти?'
+    'logout_confirm': 'Вы уверены, что хотите выйти?',
+    'theme_light': 'Светлая тема',
+    'theme_dark': 'Темная тема',
+    'login_subtitle': 'Введите пароль для доступа к веб-интерфейсу',
+    'password_label': 'Пароль:',
+    'access_dashboard': 'Войти в панель',
+    'error_invalid_password': 'Неверный пароль. Попробуйте снова.',
+    'error_too_many_attempts': 'Слишком много неудачных попыток. Подождите 1 минуту перед повторной попыткой.'
 }; 

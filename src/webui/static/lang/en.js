@@ -29,5 +29,12 @@ window.translations.en = {
     'network_settings_description': 'Network interaction parameters',
     'coming_soon': 'Coming soon...',
     'footer_text': 'Yggdrasil Network • Minimal WebUI v1.0',
-    'logout_confirm': 'Are you sure you want to logout?'
+    'logout_confirm': 'Are you sure you want to logout?',
+    'theme_light': 'Light theme',
+    'theme_dark': 'Dark theme',
+    'login_subtitle': 'Enter password to access the web interface',
+    'password_label': 'Password:',
+    'access_dashboard': 'Access Dashboard',
+    'error_invalid_password': 'Invalid password. Please try again.',
+    'error_too_many_attempts': 'Too many failed attempts. Please wait 1 minute before trying again.'
 }; 

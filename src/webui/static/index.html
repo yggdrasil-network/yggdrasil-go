@@ -19,7 +19,10 @@
                     <p data-key="subtitle">Network mesh management dashboard</p>
                 </div>
                 <div class="header-actions">
-                    <div class="language-switcher">
+                    <div class="controls-group">
+                        <button onclick="toggleTheme()" class="theme-btn" id="theme-btn">
+                            <span class="theme-icon">🌙</span>
+                        </button>
                         <button onclick="switchLanguage('ru')" class="lang-btn" id="lang-ru">RU</button>
                         <button onclick="switchLanguage('en')" class="lang-btn" id="lang-en">EN</button>
                     </div>
@@ -126,6 +129,7 @@
 
     <script>
         let currentLanguage = localStorage.getItem('yggdrasil-language') || 'ru';
+        let currentTheme = localStorage.getItem('yggdrasil-theme') || 'light';
 
         function updateTexts() {
             const elements = document.querySelectorAll('[data-key]');
@@ -137,6 +141,28 @@
             });
         }
 
+        function toggleTheme() {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            localStorage.setItem('yggdrasil-theme', currentTheme);
+            applyTheme();
+        }
+
+        function applyTheme() {
+            const body = document.body;
+            const themeIcon = document.querySelector('.theme-icon');
+            const themeBtn = document.getElementById('theme-btn');
+
+            if (currentTheme === 'dark') {
+                body.setAttribute('data-theme', 'dark');
+                themeIcon.textContent = '☀️';
+                themeBtn.title = window.translations[currentLanguage]['theme_light'] || 'Light theme';
+            } else {
+                body.removeAttribute('data-theme');
+                themeIcon.textContent = '🌙';
+                themeBtn.title = window.translations[currentLanguage]['theme_dark'] || 'Dark theme';
+            }
+        }
+
         function switchLanguage(lang) {
             currentLanguage = lang;
             localStorage.setItem('yggdrasil-language', lang);
@@ -146,6 +172,7 @@
             document.getElementById('lang-' + lang).classList.add('active');
 
             updateTexts();
+            applyTheme(); // Update theme button tooltip
         }
 
         function logout() {
@@ -174,12 +201,14 @@
             event.target.closest('.nav-item').classList.add('active');
         }
 
-        // Initialize language on page load
+        // Initialize language and theme on page load
         document.addEventListener('DOMContentLoaded', function () {
             // Set active language button
             document.getElementById('lang-' + currentLanguage).classList.add('active');
             // Update all texts
             updateTexts();
+            // Apply saved theme
+            applyTheme();
         });
     </script>
 </body>
