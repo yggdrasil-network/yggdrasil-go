@@ -11,9 +11,6 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Oh My Zsh for better terminal experience
-RUN sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" --unattended
-
 # Install essential Go development tools only
 RUN go install golang.org/x/tools/gopls@latest \
     && go install github.com/go-delve/delve/cmd/dlv@latest \
@@ -47,15 +44,24 @@ RUN chown $USERNAME:$USERNAME /workspace
 COPY go.mod go.sum ./
 RUN go mod download && chown -R $USERNAME:$USERNAME /workspace
 
+# Install Oh My Zsh for better terminal experience
+RUN sh -c "ZSH=/usr/local/share/zsh/oh-my-zsh $(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" --unattended \
+    && ZSH_CUSTOM=/usr/local/share/zsh/oh-my-zsh/custom \
+    && git clone https://github.com/chrissicool/zsh-256color $ZSH_CUSTOM/plugins/zsh-256color \
+    && git clone https://github.com/zsh-users/zsh-autosuggestions $ZSH_CUSTOM/plugins/zsh-autosuggestions \
+    && git clone https://github.com/popstas/zsh-command-time.git $ZSH_CUSTOM/plugins/command-time
+
+# Setup zshrc
+COPY contrib/docker/devcontainer/zshrc /usr/local/share/zsh/.zshrc
+RUN rm -f /root/.zshrc \
+    && ln -s /usr/local/share/zsh/.zshrc /root/.zshrc \
+    && ln -s /usr/local/share/zsh/.zshrc /home/vscode/.zshrc
+
 # Set up shell environment for vscode user
 USER $USERNAME
+
+# Set up shell environment for vscode user
 ENV SHELL=/bin/zsh
-RUN echo 'export PATH=$PATH:$(go env GOPATH)/bin' >> ~/.zshrc \
-    && echo 'export GO111MODULE=on' >> ~/.zshrc \
-    && echo 'export LANG=C.UTF-8' >> ~/.zshrc \
-    && echo 'export LC_ALL=C.UTF-8' >> ~/.zshrc \
-    && echo 'export LC_CTYPE=C.UTF-8' >> ~/.zshrc \
-    && mkdir -p ~/.cache
 
 # Expose common ports that might be used by Yggdrasil
 EXPOSE 9001 9002 9003

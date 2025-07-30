@@ -1,0 +1,37 @@
+export ZSH="/usr/local/share/zsh/oh-my-zsh"
+
+ZSH_THEME="agnoster"
+CASE_SENSITIVE="true"
+zstyle ':omz:update' mode disabled  # disable automatic updates
+DISABLE_UNTRACKED_FILES_DIRTY="true"
+HIST_STAMPS="mm/dd/yyyy"
+plugins=(git zsh-256color zsh-autosuggestions command-time sudo)
+
+ZSH_DISABLE_COMPFIX=true
+ZSH_CACHE_DIR="$HOME/.cache/ohmyzsh"
+ZSH_COMPDUMP="${ZSH_CACHE_DIR}/.zcompdump-${HOST/.*/}-${ZSH_VERSION}"
+mkdir -p "$ZSH_CACHE_DIR"
+
+source $ZSH/oh-my-zsh.sh
+
+alias zshconfig="mate ~/.zshrc"
+alias ohmyzsh="mate ~/.oh-my-zsh"
+
+prompt_context() {
+  _bg=043
+  [[ $UID -eq 0 ]] && _bg=202
+  prompt_segment $_bg $CURRENT_FG "%m"
+}
+
+prompt_status() {
+  local -a symbols
+  [[ $RETVAL -ne 0 ]] && symbols+="%{%F{red}%}✘"
+  [[ $(jobs -l | wc -l) -gt 0 ]] && symbols+="%{%F{cyan}%}⚙"
+  [[ -n "$symbols" ]] && prompt_segment black default "$symbols"
+}
+
+export PATH=$PATH:$(go env GOPATH 2>/dev/null)/bin
+export GO111MODULE=on
+export LANG=C.UTF-8
+export LC_ALL=C.UTF-8
+export LC_CTYPE=C.UTF-8
