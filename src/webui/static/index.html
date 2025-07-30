@@ -7,9 +7,10 @@
     <title>Yggdrasil Web Interface</title>
     <link rel="stylesheet" href="static/style.css">
     <script src="static/api.js"></script>
+    <script src="static/main.js"></script>
     <script src="static/app.js"></script>
     <script src="static/lang/ru.js"></script>
-    <script srс="static/lang/en.js"></script>
+    <script src="static/lang/en.js"></script>
 </head>
 
 <body>
@@ -145,152 +146,7 @@
     <!-- Notifications container -->
     <div class="notifications-container" id="notifications-container"></div>
 
-    <script>
-        let currentLanguage = localStorage.getItem('yggdrasil-language') || 'ru';
-        let currentTheme = localStorage.getItem('yggdrasil-theme') || 'light';
 
-        function updateTexts() {
-            const elements = document.querySelectorAll('[data-key]');
-            elements.forEach(element => {
-                const key = element.getAttribute('data-key');
-                if (window.translations && window.translations[currentLanguage] && window.translations[currentLanguage][key]) {
-                    element.textContent = window.translations[currentLanguage][key];
-                }
-            });
-        }
-
-        function toggleTheme() {
-            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
-            applyTheme();
-            localStorage.setItem('yggdrasil-theme', currentTheme);
-        }
-
-        function applyTheme() {
-            document.documentElement.setAttribute('data-theme', currentTheme);
-            const themeBtn = document.getElementById('theme-btn');
-            if (themeBtn) {
-                const icon = themeBtn.querySelector('.theme-icon');
-                if (icon) {
-                    icon.textContent = currentTheme === 'light' ? '🌙' : '☀️';
-                }
-            }
-        }
-
-        function switchLanguage(lang) {
-            currentLanguage = lang;
-            localStorage.setItem('yggdrasil-language', lang);
-
-            // Update button states
-            document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById('lang-' + lang).classList.add('active');
-
-            // Update all texts
-            updateTexts();
-        }
-
-        function showSection(sectionName) {
-            // Hide all sections
-            const sections = document.querySelectorAll('.content-section');
-            sections.forEach(section => section.classList.remove('active'));
-
-            // Remove active class from all nav items
-            const navItems = document.querySelectorAll('.nav-item');
-            navItems.forEach(item => item.classList.remove('active'));
-
-            // Show selected section
-            const targetSection = document.getElementById(sectionName + '-section');
-            if (targetSection) {
-                targetSection.classList.add('active');
-            }
-
-            // Add active class to clicked nav item
-            event.target.closest('.nav-item').classList.add('active');
-        }
-
-        // Notification system (shared with app.js)
-        let notificationId = 0;
-
-        function showNotification(message, type = 'info', title = null, duration = 5000) {
-            const container = document.getElementById('notifications-container');
-            const id = ++notificationId;
-
-            const icons = {
-                success: '✅',
-                error: '❌',
-                warning: '⚠️',
-                info: 'ℹ️'
-            };
-
-            const titles = {
-                success: window.translations[currentLanguage]['notification_success'] || 'Success',
-                error: window.translations[currentLanguage]['notification_error'] || 'Error',
-                warning: window.translations[currentLanguage]['notification_warning'] || 'Warning',
-                info: window.translations[currentLanguage]['notification_info'] || 'Information'
-            };
-
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            notification.id = `notification-${id}`;
-
-            notification.innerHTML = `
-                <div class="notification-icon">${icons[type] || icons.info}</div>
-                <div class="notification-content">
-                    <div class="notification-title">${title || titles[type]}</div>
-                    <div class="notification-message">${message}</div>
-                </div>
-                <button class="notification-close" onclick="removeNotification(${id})">&times;</button>
-            `;
-
-            container.appendChild(notification);
-
-            // Auto remove after duration
-            if (duration > 0) {
-                setTimeout(() => {
-                    removeNotification(id);
-                }, duration);
-            }
-
-            return id;
-        }
-
-        function removeNotification(id) {
-            const notification = document.getElementById(`notification-${id}`);
-            if (notification) {
-                notification.classList.add('removing');
-                setTimeout(() => {
-                    if (notification.parentNode) {
-                        notification.parentNode.removeChild(notification);
-                    }
-                }, 300);
-            }
-        }
-
-        function showSuccess(message, title = null) {
-            return showNotification(message, 'success', title);
-        }
-
-        function showError(message, title = null) {
-            return showNotification(message, 'error', title);
-        }
-
-        function showWarning(message, title = null) {
-            return showNotification(message, 'warning', title);
-        }
-
-        function showInfo(message, title = null) {
-            return showNotification(message, 'info', title);
-        }
-
-        // Initialize language and theme on page load
-        document.addEventListener('DOMContentLoaded', function () {
-            // Set active language button
-            document.getElementById('lang-' + currentLanguage).classList.add('active');
-            // Update all texts
-            updateTexts();
-            // Apply saved theme
-            applyTheme();
-        });
-    </script>
 </body>
 
 </html>

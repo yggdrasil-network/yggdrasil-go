@@ -3,9 +3,9 @@
  * Integrates admin API with the user interface
  */
 
-// Global state
-let nodeInfo = null;
-let peersData = null;
+// Global state - expose to window for access from other scripts
+window.nodeInfo = null;
+window.peersData = null;
 let isLoading = false;
 
 /**
@@ -14,7 +14,7 @@ let isLoading = false;
 async function loadNodeInfo() {
     try {
         const info = await window.yggAPI.getSelf();
-        nodeInfo = info;
+        window.nodeInfo = info;
         updateNodeInfoDisplay(info);
         return info;
     } catch (error) {
@@ -30,7 +30,7 @@ async function loadNodeInfo() {
 async function loadPeers() {
     try {
         const data = await window.yggAPI.getPeers();
-        peersData = data;
+        window.peersData = data;
         updatePeersDisplay(data);
         return data;
     } catch (error) {
@@ -64,6 +64,13 @@ function updatePeersDisplay(data) {
     
     peersContainer.innerHTML = '';
     
+    // Always update peer counts, even if no peers
+    const peersCount = data.peers ? data.peers.length : 0;
+    const onlineCount = data.peers ? data.peers.filter(p => p.up).length : 0;
+    
+    updateElementText('peers-count', peersCount.toString());
+    updateElementText('peers-online', onlineCount.toString());
+    
     if (!data.peers || data.peers.length === 0) {
         peersContainer.innerHTML = '<div class="no-data">No peers connected</div>';
         return;
@@ -73,11 +80,11 @@ function updatePeersDisplay(data) {
         const peerElement = createPeerElement(peer);
         peersContainer.appendChild(peerElement);
     });
-    
-    // Update peer count
-    updateElementText('peers-count', data.peers.length.toString());
-    updateElementText('peers-online', data.peers.filter(p => p.up).length.toString());
 }
+
+// Expose update functions to window for access from other scripts
+window.updateNodeInfoDisplay = updateNodeInfoDisplay;
+window.updatePeersDisplay = updatePeersDisplay;
 
 /**
  * Create HTML element for a single peer
@@ -232,6 +239,11 @@ async function initializeApp() {
         }
         
         isLoading = true;
+        
+        // Initialize peer counts to 0 immediately to replace "Loading..." text
+        updateElementText('peers-count', '0');
+        updateElementText('peers-online', '0');
+        
         showInfo('Loading dashboard...');
         
         // Load initial data
