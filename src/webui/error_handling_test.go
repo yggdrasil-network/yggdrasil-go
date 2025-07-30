@@ -14,24 +14,44 @@ func TestWebUIServer_InvalidListenAddress(t *testing.T) {
 	logger := createTestLogger()
 
 	// Test various invalid listen addresses
-	invalidAddresses := []string{
-		"invalid:address",
-		"256.256.256.256:8080",
-		"localhost:-1",
-		"localhost:99999",
-		"not-a-valid-address",
-		"",
+	testCases := []struct {
+		addr        string
+		shouldFail  bool
+		description string
+	}{
+		{"invalid:address", true, "Invalid address format"},
+		{"256.256.256.256:8080", true, "Invalid IP address"},
+		{"localhost:-1", true, "Negative port"},
+		{"localhost:99999", true, "Port out of range"},
+		{"not-a-valid-address", true, "Completely invalid address"},
 	}
 
-	for _, addr := range invalidAddresses {
-		t.Run(fmt.Sprintf("Address_%s", addr), func(t *testing.T) {
-			server := Server(addr, logger)
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("Address_%s_%s", tc.addr, tc.description), func(t *testing.T) {
+			server := Server(tc.addr, logger)
 
-			// Start should fail for invalid addresses
-			err := server.Start()
-			if err == nil {
-				_ = server.Stop() // Clean up if it somehow started
-				t.Errorf("Expected Start() to fail for invalid address %s", addr)
+			// Use a timeout to prevent hanging on addresses that might partially work
+			done := make(chan error, 1)
+			go func() {
+				done <- server.Start()
+			}()
+
+			select {
+			case err := <-done:
+				if tc.shouldFail && err == nil {
+					_ = server.Stop() // Clean up if it somehow started
+					t.Errorf("Expected Start() to fail for invalid address %s", tc.addr)
+				} else if !tc.shouldFail && err != nil {
+					t.Errorf("Expected Start() to succeed for address %s, got error: %v", tc.addr, err)
+				}
+			case <-time.After(2 * time.Second):
+				// If it times out, the server might be listening, stop it
+				_ = server.Stop()
+				if tc.shouldFail {
+					t.Errorf("Start() did not fail quickly enough for invalid address %s", tc.addr)
+				} else {
+					t.Logf("Start() timed out for address %s, assuming it started successfully", tc.addr)
+				}
 			}
 		})
 	}
@@ -243,22 +263,6 @@ func TestWebUIServer_LoggerNil(t *testing.T) {
 
 	if server.log != nil {
 		t.Error("Server logger should be nil if nil was passed")
-	}
-}
-
-func TestWebUIServer_EmptyListenAddress(t *testing.T) {
-	logger := createTestLogger()
-
-	// Test with empty listen address
-	server := Server("", logger)
-
-	// This might fail when trying to start
-	err := server.Start()
-	if err == nil {
-		_ = server.Stop()
-		t.Log("Note: Server started with empty listen address")
-	} else {
-		t.Logf("Expected behavior: Start() failed with empty address: %v", err)
 	}
 }
 

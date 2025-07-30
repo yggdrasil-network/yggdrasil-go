@@ -2,6 +2,7 @@ package webui
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -22,6 +23,13 @@ func Server(listen string, log core.Logger) *WebUIServer {
 }
 
 func (w *WebUIServer) Start() error {
+	// Validate listen address before starting
+	if w.listen != "" {
+		if _, _, err := net.SplitHostPort(w.listen); err != nil {
+			return fmt.Errorf("invalid listen address: %v", err)
+		}
+	}
+
 	mux := http.NewServeMux()
 
 	// Setup static files handler (implementation varies by build)
