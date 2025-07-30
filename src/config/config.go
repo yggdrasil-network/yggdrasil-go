@@ -67,9 +67,10 @@ type MulticastInterfaceConfig struct {
 }
 
 type WebUIConfig struct {
-	Enable bool   `comment:"Enable the web interface for managing the node through a browser."`
-	Port   uint16 `comment:"Port for the web interface. Default is 9000."`
-	Host   string `comment:"Host/IP address to bind the web interface to. Empty means all interfaces."`
+	Enable   bool   `comment:"Enable the web interface for managing the node through a browser."`
+	Port     uint16 `comment:"Port for the web interface. Default is 9000."`
+	Host     string `comment:"Host/IP address to bind the web interface to. Empty means all interfaces."`
+	Password string `comment:"Password for accessing the web interface. If empty, no authentication is required."`
 }
 
 // Generates default configuration and returns a pointer to the resulting
@@ -94,9 +95,10 @@ func GenerateConfig() *NodeConfig {
 	cfg.NodeInfoPrivacy = false
 	cfg.NodeInfo = map[string]interface{}{}
 	cfg.WebUI = WebUIConfig{
-		Enable: false,
-		Port:   9000,
-		Host:   "127.0.0.1",
+		Enable:   false,
+		Port:     9000,
+		Host:     "127.0.0.1",
+		Password: "",
 	}
 	if err := cfg.postprocessConfig(); err != nil {
 		panic(err)

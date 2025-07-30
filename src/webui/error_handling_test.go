@@ -28,7 +28,7 @@ func TestWebUIServer_InvalidListenAddress(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("Address_%s_%s", tc.addr, tc.description), func(t *testing.T) {
-			server := Server(tc.addr, logger)
+			server := Server(tc.addr, "", logger)
 
 			// Use a timeout to prevent hanging on addresses that might partially work
 			done := make(chan error, 1)
@@ -71,7 +71,7 @@ func TestWebUIServer_PortAlreadyInUse(t *testing.T) {
 	usedPort := listener.Addr().(*net.TCPAddr).Port
 	conflictAddress := fmt.Sprintf("127.0.0.1:%d", usedPort)
 
-	server := Server(conflictAddress, logger)
+	server := Server(conflictAddress, "", logger)
 
 	// This should fail because port is already in use
 	err = server.Start()
@@ -85,8 +85,8 @@ func TestWebUIServer_DoubleStart(t *testing.T) {
 	logger := createTestLogger()
 
 	// Create two separate servers to test behavior
-	server1 := Server("127.0.0.1:0", logger)
-	server2 := Server("127.0.0.1:0", logger)
+	server1 := Server("127.0.0.1:0", "", logger)
+	server2 := Server("127.0.0.1:0", "", logger)
 
 	// Start first server
 	startDone1 := make(chan error, 1)
@@ -142,7 +142,7 @@ func TestWebUIServer_DoubleStart(t *testing.T) {
 
 func TestWebUIServer_StopTwice(t *testing.T) {
 	logger := createTestLogger()
-	server := Server("127.0.0.1:0", logger)
+	server := Server("127.0.0.1:0", "", logger)
 
 	// Start server
 	go func() {
@@ -176,7 +176,7 @@ func TestWebUIServer_GracefulShutdown(t *testing.T) {
 	addr := listener.Addr().String()
 	listener.Close() // Close so our server can use it
 
-	server := Server(addr, logger)
+	server := Server(addr, "", logger)
 
 	// Channel to track when Start() returns
 	startDone := make(chan error, 1)
@@ -230,7 +230,7 @@ func TestWebUIServer_GracefulShutdown(t *testing.T) {
 
 func TestWebUIServer_ContextCancellation(t *testing.T) {
 	logger := createTestLogger()
-	server := Server("127.0.0.1:0", logger)
+	server := Server("127.0.0.1:0", "", logger)
 
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
@@ -255,7 +255,7 @@ func TestWebUIServer_ContextCancellation(t *testing.T) {
 
 func TestWebUIServer_LoggerNil(t *testing.T) {
 	// Test server creation with nil logger
-	server := Server("127.0.0.1:0", nil)
+	server := Server("127.0.0.1:0", "", nil)
 
 	if server == nil {
 		t.Fatal("Server should be created even with nil logger")
@@ -271,7 +271,7 @@ func TestWebUIServer_RapidStartStop(t *testing.T) {
 
 	// Test rapid start/stop cycles with fewer iterations
 	for i := 0; i < 5; i++ {
-		server := Server("127.0.0.1:0", logger)
+		server := Server("127.0.0.1:0", "", logger)
 
 		// Start server
 		startDone := make(chan error, 1)
@@ -306,7 +306,7 @@ func TestWebUIServer_LargeNumberOfRequests(t *testing.T) {
 
 	// Use httptest.Server for more reliable testing
 	mux := http.NewServeMux()
-	setupStaticHandler(mux)
+	testServer := Server("127.0.0.1:0", "", createTestLogger()); setupStaticHandler(mux, testServer)
 	mux.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
 		serveFile(rw, r, logger)
 	})

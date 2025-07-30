@@ -18,15 +18,19 @@ import (
 var staticFiles embed.FS
 
 // setupStaticHandler configures static file serving for production (embedded files)
-func setupStaticHandler(mux *http.ServeMux) {
+func setupStaticHandler(mux *http.ServeMux, server *WebUIServer) {
 	// Get the embedded file system for static files
 	staticFS, err := fs.Sub(staticFiles, "static")
 	if err != nil {
 		panic("failed to get embedded static files: " + err.Error())
 	}
 
-	// Serve static files from embedded FS
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	// Serve static files from embedded FS - with auth
+	staticHandler := http.FileServer(http.FS(staticFS))
+	mux.HandleFunc("/static/", server.authMiddleware(func(rw http.ResponseWriter, r *http.Request) {
+		// Strip the /static/ prefix before serving
+		http.StripPrefix("/static/", staticHandler).ServeHTTP(rw, r)
+	}))
 }
 
 // serveFile serves any file from embedded files or returns 404 if not found

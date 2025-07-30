@@ -14,9 +14,12 @@ import (
 )
 
 // setupStaticHandler configures static file serving for development (files from disk)
-func setupStaticHandler(mux *http.ServeMux) {
-	// Serve static files from disk for development
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("src/webui/static/"))))
+func setupStaticHandler(mux *http.ServeMux, server *WebUIServer) {
+	// Serve static files from disk for development - with auth
+	staticHandler := http.StripPrefix("/static/", http.FileServer(http.Dir("src/webui/static/")))
+	mux.HandleFunc("/static/", server.authMiddleware(func(rw http.ResponseWriter, r *http.Request) {
+		staticHandler.ServeHTTP(rw, r)
+	}))
 }
 
 // serveFile serves any file from disk or returns 404 if not found

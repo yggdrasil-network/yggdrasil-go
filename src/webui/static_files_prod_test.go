@@ -59,7 +59,7 @@ func TestStaticFiles_ProdMode_SetupStaticHandler(t *testing.T) {
 	mux := http.NewServeMux()
 
 	// This should not panic
-	setupStaticHandler(mux)
+	testServer := Server("127.0.0.1:0", "", createTestLogger()); setupStaticHandler(mux, testServer)
 
 	server := httptest.NewServer(mux)
 	defer server.Close()

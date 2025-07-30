@@ -11,8 +11,15 @@
 <body>
     <div class="container">
         <header>
-            <h1>🌳 Yggdrasil Web Interface</h1>
-            <p>Network mesh management dashboard</p>
+            <div class="header-content">
+                <div>
+                    <h1>🌳 Yggdrasil Web Interface</h1>
+                    <p>Network mesh management dashboard</p>
+                </div>
+                <div class="header-actions">
+                    <button onclick="logout()" class="logout-btn">Logout</button>
+                </div>
+            </div>
         </header>
 
         <main>
@@ -50,6 +57,14 @@
             <p>Yggdrasil Network • Minimal WebUI v1.0</p>
         </footer>
     </div>
+
+    <script>
+        function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                window.location.href = '/auth/logout';
+            }
+        }
+    </script>
 </body>
 
 </html>

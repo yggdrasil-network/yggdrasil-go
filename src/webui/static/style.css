@@ -18,9 +18,20 @@ body {
 }
 
 header {
-    text-align: center;
     margin-bottom: 40px;
     color: white;
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    text-align: left;
+}
+
+.header-content > div:first-child {
+    text-align: center;
+    flex: 1;
 }
 
 header h1 {
@@ -32,6 +43,21 @@ header h1 {
 header p {
     font-size: 1.2rem;
     opacity: 0.9;
+}
+
+.logout-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.2s ease;
+}
+
+.logout-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
 }
 
 main {
@@ -120,6 +146,15 @@ footer {
 @media (max-width: 768px) {
     .container {
         padding: 10px;
+    }
+    
+    .header-content {
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .header-content > div:first-child {
+        text-align: center;
     }
     
     header h1 {

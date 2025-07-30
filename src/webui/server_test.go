@@ -26,7 +26,7 @@ func TestWebUIServer_Creation(t *testing.T) {
 	logger := createTestLogger()
 	listen := getTestAddress()
 
-	server := Server(listen, logger)
+	server := Server(listen, "", logger)
 
 	if server == nil {
 		t.Fatal("Server function returned nil")
@@ -49,7 +49,7 @@ func TestWebUIServer_StartStop(t *testing.T) {
 	logger := createTestLogger()
 	listen := getTestAddress()
 
-	server := Server(listen, logger)
+	server := Server(listen, "", logger)
 
 	// Start server in goroutine
 	errChan := make(chan error, 1)
@@ -86,7 +86,7 @@ func TestWebUIServer_StopWithoutStart(t *testing.T) {
 	logger := createTestLogger()
 	listen := getTestAddress()
 
-	server := Server(listen, logger)
+	server := Server(listen, "", logger)
 
 	// Stop server that was never started should not error
 	err := server.Stop()
@@ -100,7 +100,8 @@ func TestWebUIServer_HealthEndpoint(t *testing.T) {
 
 	// Create a test server using net/http/httptest for reliable testing
 	mux := http.NewServeMux()
-	setupStaticHandler(mux)
+	testServer := Server("127.0.0.1:0", "", logger)
+	setupStaticHandler(mux, testServer)
 	mux.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
 		serveFile(rw, r, logger)
 	})
@@ -135,7 +136,7 @@ func TestWebUIServer_HealthEndpoint(t *testing.T) {
 
 func TestWebUIServer_Timeouts(t *testing.T) {
 	logger := createTestLogger()
-	server := Server("127.0.0.1:0", logger)
+	server := Server("127.0.0.1:0", "", logger)
 
 	// Start server
 	go func() {
@@ -173,7 +174,7 @@ func TestWebUIServer_ConcurrentStartStop(t *testing.T) {
 
 	// Test concurrent start/stop operations with separate servers
 	for i := 0; i < 3; i++ {
-		server := Server("127.0.0.1:0", logger)
+		server := Server("127.0.0.1:0", "", logger)
 
 		// Start server
 		startDone := make(chan error, 1)

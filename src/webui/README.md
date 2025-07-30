@@ -7,7 +7,9 @@ This module provides a web interface for managing Yggdrasil node through a brows
 - ✅ HTTP web server with static files
 - ✅ Health check endpoint (`/health`)
 - ✅ Development and production build modes
-- ✅ Automatic binding to Yggdrasil IPv6 address
+- ✅ Custom session-based authentication
+- ✅ Beautiful login page (password-only)
+- ✅ Session management with automatic cleanup
 - ✅ IPv4 and IPv6 support
 - ✅ Path traversal attack protection
 
@@ -21,7 +23,7 @@ In the Yggdrasil configuration file:
     "Enable": true,
     "Port": 9000,
     "Host": "",
-    "BindYgg": false
+    "Password": "your_secure_password"
   }
 }
 ```
@@ -31,27 +33,20 @@ In the Yggdrasil configuration file:
 - **`Enable`** - enable/disable WebUI
 - **`Port`** - port for web interface (default 9000)
 - **`Host`** - IP address to bind to (empty means all interfaces)
-- **`BindYgg`** - automatically bind to Yggdrasil IPv6 address
+- **`Password`** - password for accessing the web interface (optional, if empty no authentication required)
 
 ## Usage
 
-### Standard mode
+### Without password authentication
 
 ```go
-server := webui.Server("127.0.0.1:9000", logger)
+server := webui.Server("127.0.0.1:9000", "", logger)
 ```
 
-### With core access
+### With password authentication
 
 ```go
-server := webui.ServerWithCore("127.0.0.1:9000", logger, coreInstance)
-```
-
-### Automatic Yggdrasil address binding
-
-```go
-server := webui.ServerForYggdrasil(9000, logger, coreInstance)
-// Automatically binds to [yggdrasil_ipv6]:9000
+server := webui.Server("127.0.0.1:9000", "your_password", logger)
 ```
 
 ### Starting the server
@@ -69,9 +64,12 @@ server.Stop()
 
 ## Endpoints
 
-- **`/`** - main page (index.html)
-- **`/health`** - health check (returns "OK")
-- **`/static/*`** - static files (CSS, JS, images)
+- **`/`** - main page (index.html) - requires authentication if password is set
+- **`/login.html`** - custom login page (only password required)
+- **`/auth/login`** - POST endpoint for authentication
+- **`/auth/logout`** - logout endpoint (clears session)
+- **`/health`** - health check (returns "OK") - no authentication required
+- **`/static/*`** - static files (CSS, JS, images) - requires authentication if password is set
 
 ## Build modes
 
@@ -89,6 +87,10 @@ server.Stop()
 - Configured HTTP timeouts
 - Header size limits
 - File MIME type validation
+- Custom session-based authentication (password protection)
+- HttpOnly and Secure cookies
+- Session expiration (24 hours)
+- Health check endpoint always accessible without authentication
 
 ## Testing
 

@@ -308,7 +308,12 @@ func main() {
 			listenAddr = fmt.Sprintf("%s:%d", cfg.WebUI.Host, cfg.WebUI.Port)
 		}
 
-		n.webui = webui.Server(listenAddr, logger)
+		n.webui = webui.Server(listenAddr, cfg.WebUI.Password, logger)
+		if cfg.WebUI.Password != "" {
+			logger.Infof("WebUI password authentication enabled")
+		} else {
+			logger.Warnf("WebUI running without password protection")
+		}
 		go func() {
 			if err := n.webui.Start(); err != nil {
 				logger.Errorf("WebUI server error: %v", err)

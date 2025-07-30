@@ -118,7 +118,7 @@ func TestWebUIConfig_Validation(t *testing.T) {
 
 				// Try to create server with this config
 				logger := createTestLogger()
-				server := Server(listenAddr, logger)
+				server := Server(listenAddr, "", logger)
 				if server == nil {
 					t.Error("Failed to create server with valid config")
 				}
@@ -152,7 +152,7 @@ func TestWebUIConfig_PortRanges(t *testing.T) {
 	for _, test := range portTests {
 		t.Run(test.description, func(t *testing.T) {
 			listenAddr := fmt.Sprintf("127.0.0.1:%d", test.port)
-			server := Server(listenAddr, logger)
+			server := Server(listenAddr, "", logger)
 
 			if server == nil {
 				t.Errorf("Failed to create server for %s", test.description)
@@ -207,7 +207,7 @@ func TestWebUIConfig_HostFormats(t *testing.T) {
 				t.Errorf("Expected %s, got %s", test.expected, listenAddr)
 			}
 
-			server := Server(listenAddr, logger)
+			server := Server(listenAddr, "", logger)
 			if server == nil {
 				t.Errorf("Failed to create server with %s", test.description)
 			}
@@ -228,7 +228,7 @@ func TestWebUIConfig_Integration(t *testing.T) {
 	listenAddr := fmt.Sprintf("%s:%d", cfg.WebUI.Host, cfg.WebUI.Port)
 
 	logger := createTestLogger()
-	server := Server(listenAddr, logger)
+	server := Server(listenAddr, "", logger)
 
 	if server == nil {
 		t.Fatal("Failed to create server from generated config")
@@ -303,7 +303,7 @@ func TestWebUIConfig_EdgeCases(t *testing.T) {
 			},
 			test: func(t *testing.T, cfg config.WebUIConfig) {
 				listenAddr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
-				server := Server(listenAddr, logger)
+				server := Server(listenAddr, "", logger)
 				if server == nil {
 					t.Error("Should be able to create server with max port")
 				}
@@ -318,7 +318,7 @@ func TestWebUIConfig_EdgeCases(t *testing.T) {
 			},
 			test: func(t *testing.T, cfg config.WebUIConfig) {
 				listenAddr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
-				server := Server(listenAddr, logger)
+				server := Server(listenAddr, "", logger)
 				// Server creation should not panic, even with invalid host
 				if server == nil {
 					t.Error("Server creation should not fail due to host format")
