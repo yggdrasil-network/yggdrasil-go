@@ -145,3 +145,143 @@ func TestHealthEndpointNoAuth(t *testing.T) {
 		t.Errorf("Expected 'OK', got '%s'", rr.Body.String())
 	}
 }
+
+func TestBruteForceProtection(t *testing.T) {
+	logger := log.New(nil, "test: ", log.Flags())
+	server := Server("127.0.0.1:0", "testpassword", logger)
+
+	// Test multiple failed attempts from same IP
+	clientIP := "192.168.1.100"
+
+	// First 3 attempts should be allowed but fail
+	for i := 1; i <= 3; i++ {
+		t.Run(fmt.Sprintf("Failed_attempt_%d", i), func(t *testing.T) {
+			loginData := `{"password":"wrongpassword"}`
+			req := httptest.NewRequest("POST", "/auth/login", strings.NewReader(loginData))
+			req.Header.Set("Content-Type", "application/json")
+			req.RemoteAddr = clientIP + ":12345"
+
+			rr := httptest.NewRecorder()
+			server.loginHandler(rr, req)
+
+			if rr.Code != http.StatusUnauthorized {
+				t.Errorf("Expected 401 for failed attempt %d, got %d", i, rr.Code)
+			}
+		})
+	}
+
+	// 4th attempt should be blocked
+	t.Run("Blocked_attempt", func(t *testing.T) {
+		loginData := `{"password":"wrongpassword"}`
+		req := httptest.NewRequest("POST", "/auth/login", strings.NewReader(loginData))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = clientIP + ":12345"
+
+		rr := httptest.NewRecorder()
+		server.loginHandler(rr, req)
+
+		if rr.Code != http.StatusTooManyRequests {
+			t.Errorf("Expected 429 for blocked attempt, got %d", rr.Code)
+		}
+	})
+
+	// Even correct password should be blocked during block period
+	t.Run("Correct_password_while_blocked", func(t *testing.T) {
+		loginData := `{"password":"testpassword"}`
+		req := httptest.NewRequest("POST", "/auth/login", strings.NewReader(loginData))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = clientIP + ":12345"
+
+		rr := httptest.NewRecorder()
+		server.loginHandler(rr, req)
+
+		if rr.Code != http.StatusTooManyRequests {
+			t.Errorf("Expected 429 even for correct password while blocked, got %d", rr.Code)
+		}
+	})
+}
+
+func TestBruteForceProtectionDifferentIPs(t *testing.T) {
+	logger := log.New(nil, "test: ", log.Flags())
+	server := Server("127.0.0.1:0", "testpassword", logger)
+
+	// Failed attempts from one IP shouldn't affect another IP
+	ip1 := "192.168.1.100"
+	ip2 := "192.168.1.101"
+
+	// Block first IP
+	for i := 1; i <= 3; i++ {
+		loginData := `{"password":"wrongpassword"}`
+		req := httptest.NewRequest("POST", "/auth/login", strings.NewReader(loginData))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = ip1 + ":12345"
+
+		rr := httptest.NewRecorder()
+		server.loginHandler(rr, req)
+
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("Expected 401 for failed attempt %d from IP1, got %d", i, rr.Code)
+		}
+	}
+
+	// Second IP should still be able to attempt login
+	t.Run("Different_IP_not_blocked", func(t *testing.T) {
+		loginData := `{"password":"wrongpassword"}`
+		req := httptest.NewRequest("POST", "/auth/login", strings.NewReader(loginData))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = ip2 + ":12345"
+
+		rr := httptest.NewRecorder()
+		server.loginHandler(rr, req)
+
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("Expected 401 for different IP (not blocked), got %d", rr.Code)
+		}
+	})
+}
+
+func TestSuccessfulLoginClearsFailedAttempts(t *testing.T) {
+	logger := log.New(nil, "test: ", log.Flags())
+	server := Server("127.0.0.1:0", "testpassword", logger)
+
+	clientIP := "192.168.1.100"
+
+	// Make 2 failed attempts
+	for i := 1; i <= 2; i++ {
+		loginData := `{"password":"wrongpassword"}`
+		req := httptest.NewRequest("POST", "/auth/login", strings.NewReader(loginData))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = clientIP + ":12345"
+
+		rr := httptest.NewRecorder()
+		server.loginHandler(rr, req)
+
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("Expected 401 for failed attempt %d, got %d", i, rr.Code)
+		}
+	}
+
+	// Successful login should clear failed attempts
+	t.Run("Successful_login_clears_attempts", func(t *testing.T) {
+		loginData := `{"password":"testpassword"}`
+		req := httptest.NewRequest("POST", "/auth/login", strings.NewReader(loginData))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = clientIP + ":12345"
+
+		rr := httptest.NewRecorder()
+		server.loginHandler(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("Expected 200 for correct password, got %d", rr.Code)
+		}
+
+		// Verify failed attempts were cleared
+		server.attemptsMux.RLock()
+		_, exists := server.failedAttempts[clientIP]
+		server.attemptsMux.RUnlock()
+
+		if exists {
+			t.Error("Failed attempts should be cleared after successful login")
+		}
+	})
+}

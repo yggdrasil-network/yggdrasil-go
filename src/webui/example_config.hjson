@@ -33,9 +33,13 @@
 // - Session-based authentication with secure cookies
 // - 24-hour session expiration
 // - Automatic session cleanup
+// - Brute force protection (3 failed attempts = 1 minute block)
+// - IP-based blocking with automatic cleanup
 //
 // Security recommendations:
 // - Use a strong, unique password (12+ characters)
 // - Bind to localhost (127.0.0.1) unless you need remote access
 // - Consider using HTTPS reverse proxy for production deployments
-// - Sessions are stored in memory and lost on server restart 
+// - Sessions are stored in memory and lost on server restart
+// - Failed login attempts are tracked per IP address
+// - If behind a reverse proxy, ensure X-Forwarded-For headers are set correctly 

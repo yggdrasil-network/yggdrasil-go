@@ -16,24 +16,39 @@ import (
 )
 
 type WebUIServer struct {
-	server      *http.Server
-	log         core.Logger
-	listen      string
-	password    string
-	sessions    map[string]time.Time // sessionID -> expiry time
-	sessionsMux sync.RWMutex
+	server         *http.Server
+	log            core.Logger
+	listen         string
+	password       string
+	sessions       map[string]time.Time // sessionID -> expiry time
+	sessionsMux    sync.RWMutex
+	failedAttempts map[string]*FailedLoginInfo // IP -> failed login info
+	attemptsMux    sync.RWMutex
 }
 
 type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+type FailedLoginInfo struct {
+	Count        int
+	LastAttempt  time.Time
+	BlockedUntil time.Time
+}
+
+const (
+	MaxFailedAttempts = 3
+	BlockDuration     = 1 * time.Minute
+	AttemptWindow     = 15 * time.Minute // Reset counter if no attempts in 15 minutes
+)
+
 func Server(listen string, password string, log core.Logger) *WebUIServer {
 	return &WebUIServer{
-		listen:   listen,
-		password: password,
-		log:      log,
-		sessions: make(map[string]time.Time),
+		listen:         listen,
+		password:       password,
+		log:            log,
+		sessions:       make(map[string]time.Time),
+		failedAttempts: make(map[string]*FailedLoginInfo),
 	}
 }
 
@@ -77,6 +92,89 @@ func (w *WebUIServer) createSession() string {
 	w.sessionsMux.Unlock()
 
 	return sessionID
+}
+
+// getClientIP extracts the real client IP from request
+func (w *WebUIServer) getClientIP(r *http.Request) string {
+	// Check for forwarded IP headers (for reverse proxies)
+	forwarded := r.Header.Get("X-Forwarded-For")
+	if forwarded != "" {
+		// Take the first IP in the chain
+		ips := strings.Split(forwarded, ",")
+		return strings.TrimSpace(ips[0])
+	}
+
+	realIP := r.Header.Get("X-Real-IP")
+	if realIP != "" {
+		return realIP
+	}
+
+	// Extract IP from RemoteAddr
+	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+	return ip
+}
+
+// isIPBlocked checks if an IP address is currently blocked
+func (w *WebUIServer) isIPBlocked(ip string) bool {
+	w.attemptsMux.RLock()
+	defer w.attemptsMux.RUnlock()
+
+	info, exists := w.failedAttempts[ip]
+	if !exists {
+		return false
+	}
+
+	return time.Now().Before(info.BlockedUntil)
+}
+
+// recordFailedAttempt records a failed login attempt for an IP
+func (w *WebUIServer) recordFailedAttempt(ip string) {
+	w.attemptsMux.Lock()
+	defer w.attemptsMux.Unlock()
+
+	now := time.Now()
+	info, exists := w.failedAttempts[ip]
+
+	if !exists {
+		info = &FailedLoginInfo{}
+		w.failedAttempts[ip] = info
+	}
+
+	// Reset counter if last attempt was too long ago
+	if now.Sub(info.LastAttempt) > AttemptWindow {
+		info.Count = 0
+	}
+
+	info.Count++
+	info.LastAttempt = now
+
+	// Block IP if too many failed attempts
+	if info.Count >= MaxFailedAttempts {
+		info.BlockedUntil = now.Add(BlockDuration)
+		w.log.Warnf("IP %s blocked for %v after %d failed login attempts", ip, BlockDuration, info.Count)
+	}
+}
+
+// clearFailedAttempts clears failed attempts for an IP (on successful login)
+func (w *WebUIServer) clearFailedAttempts(ip string) {
+	w.attemptsMux.Lock()
+	defer w.attemptsMux.Unlock()
+
+	delete(w.failedAttempts, ip)
+}
+
+// cleanupFailedAttempts removes old failed attempt records
+func (w *WebUIServer) cleanupFailedAttempts() {
+	w.attemptsMux.Lock()
+	defer w.attemptsMux.Unlock()
+
+	now := time.Now()
+	for ip, info := range w.failedAttempts {
+		// Remove if block period has expired and no recent attempts
+		if now.After(info.BlockedUntil) && now.Sub(info.LastAttempt) > AttemptWindow {
+			delete(w.failedAttempts, ip)
+		}
+	}
 }
 
 // cleanupExpiredSessions removes expired sessions
@@ -126,10 +224,19 @@ func (w *WebUIServer) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-// loginHandler handles password authentication
+// loginHandler handles password authentication with brute force protection
 func (w *WebUIServer) loginHandler(rw http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	clientIP := w.getClientIP(r)
+
+	// Check if IP is blocked
+	if w.isIPBlocked(clientIP) {
+		w.log.Warnf("Blocked login attempt from %s (IP is temporarily blocked)", clientIP)
+		http.Error(rw, "Too many failed attempts. Please try again later.", http.StatusTooManyRequests)
 		return
 	}
 
@@ -141,10 +248,14 @@ func (w *WebUIServer) loginHandler(rw http.ResponseWriter, r *http.Request) {
 
 	// Check password
 	if subtle.ConstantTimeCompare([]byte(loginReq.Password), []byte(w.password)) != 1 {
-		w.log.Debugf("Authentication failed for request from %s", r.RemoteAddr)
+		w.log.Debugf("Authentication failed for request from %s", clientIP)
+		w.recordFailedAttempt(clientIP)
 		http.Error(rw, "Invalid password", http.StatusUnauthorized)
 		return
 	}
+
+	// Successful login - clear any failed attempts
+	w.clearFailedAttempts(clientIP)
 
 	// Create session
 	sessionID := w.createSession()
@@ -160,7 +271,7 @@ func (w *WebUIServer) loginHandler(rw http.ResponseWriter, r *http.Request) {
 		MaxAge:   24 * 60 * 60, // 24 hours
 	})
 
-	w.log.Debugf("Successful authentication for request from %s", r.RemoteAddr)
+	w.log.Infof("Successful authentication for IP %s", clientIP)
 	rw.WriteHeader(http.StatusOK)
 }
 
@@ -196,12 +307,20 @@ func (w *WebUIServer) Start() error {
 		}
 	}
 
-	// Start session cleanup routine
+	// Start cleanup routines
 	go func() {
-		ticker := time.NewTicker(1 * time.Hour)
-		defer ticker.Stop()
-		for range ticker.C {
-			w.cleanupExpiredSessions()
+		sessionTicker := time.NewTicker(1 * time.Hour)
+		attemptsTicker := time.NewTicker(5 * time.Minute) // Clean failed attempts more frequently
+		defer sessionTicker.Stop()
+		defer attemptsTicker.Stop()
+
+		for {
+			select {
+			case <-sessionTicker.C:
+				w.cleanupExpiredSessions()
+			case <-attemptsTicker.C:
+				w.cleanupFailedAttempts()
+			}
 		}
 	}()
 

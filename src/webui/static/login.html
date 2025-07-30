@@ -63,6 +63,13 @@
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
+        .form-group input:disabled {
+            background-color: #f8f9fa;
+            border-color: #e9ecef;
+            color: #6c757d;
+            cursor: not-allowed;
+        }
+
         .login-button {
             width: 100%;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -144,8 +151,22 @@
                 if (response.ok) {
                     // Success - redirect to main page
                     window.location.href = '/';
+                } else if (response.status === 429) {
+                    // Too many requests - IP blocked
+                    errorMessage.textContent = 'Too many failed attempts. Please wait 1 minute before trying again.';
+                    errorMessage.style.display = 'block';
+                    document.getElementById('password').value = '';
+                    document.getElementById('password').disabled = true;
+
+                    // Re-enable after 1 minute
+                    setTimeout(() => {
+                        document.getElementById('password').disabled = false;
+                        document.getElementById('password').focus();
+                        errorMessage.style.display = 'none';
+                    }, 60000);
                 } else {
-                    // Show error message
+                    // Invalid password
+                    errorMessage.textContent = 'Invalid password. Please try again.';
                     errorMessage.style.display = 'block';
                     document.getElementById('password').value = '';
                     document.getElementById('password').focus();

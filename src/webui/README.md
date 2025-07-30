@@ -9,6 +9,7 @@ This module provides a web interface for managing Yggdrasil node through a brows
 - ✅ Development and production build modes
 - ✅ Custom session-based authentication
 - ✅ Beautiful login page (password-only)
+- ✅ **Brute force protection** with IP blocking
 - ✅ Session management with automatic cleanup
 - ✅ IPv4 and IPv6 support
 - ✅ Path traversal attack protection
@@ -90,6 +91,10 @@ server.Stop()
 - Custom session-based authentication (password protection)
 - HttpOnly and Secure cookies
 - Session expiration (24 hours)
+- **Brute force protection**: IP blocking after 3 failed attempts
+- **Temporary lockout**: 1-minute timeout for blocked IPs
+- Automatic cleanup of expired blocks and sessions
+- Real IP detection (supports X-Forwarded-For, X-Real-IP headers)
 - Health check endpoint always accessible without authentication
 
 ## Testing
