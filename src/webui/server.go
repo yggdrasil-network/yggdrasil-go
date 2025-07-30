@@ -201,8 +201,12 @@ func (w *WebUIServer) cleanupExpiredSessions() {
 // authMiddleware checks for valid session or redirects to login
 func (w *WebUIServer) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
-		// Skip authentication if no password is set
+		// If no password is set and user tries to access login page, redirect to main page
 		if w.password == "" {
+			if r.URL.Path == "/login.html" {
+				http.Redirect(rw, r, "/", http.StatusSeeOther)
+				return
+			}
 			next(rw, r)
 			return
 		}
