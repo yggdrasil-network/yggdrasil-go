@@ -80,19 +80,38 @@ header p {
     opacity: 0.9;
 }
 
+.sidebar-footer {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
 .logout-btn {
-    background: rgba(255, 255, 255, 0.2);
+    width: 100%;
+    background: rgba(220, 53, 69, 0.2);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    padding: 8px 16px;
-    border-radius: 6px;
+    border: 1px solid rgba(220, 53, 69, 0.3);
+    padding: 12px 16px;
+    border-radius: 10px;
     cursor: pointer;
     font-size: 14px;
-    transition: background 0.2s ease;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
 }
 
 .logout-btn:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(220, 53, 69, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(220, 53, 69, 0.2);
+}
+
+.logout-btn:before {
+    content: "🚪";
+    font-size: 16px;
 }
 
 .layout {
@@ -109,6 +128,9 @@ header p {
     padding: 20px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.1);
     border: 1px solid rgba(255, 255, 255, 0.18);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 .nav-menu {
@@ -259,8 +281,7 @@ footer {
     }
     
     .header-actions {
-        flex-direction: column;
-        gap: 10px;
+        justify-content: center;
     }
     
     .header-content > div:first-child {
@@ -279,6 +300,25 @@ footer {
     .sidebar {
         min-width: auto;
         order: 2;
+        flex-direction: row;
+        align-items: center;
+        padding: 15px;
+    }
+    
+    .sidebar-footer {
+        margin-top: 0;
+        margin-left: 15px;
+        padding-top: 0;
+        border-top: none;
+        border-left: 1px solid rgba(255, 255, 255, 0.2);
+        padding-left: 15px;
+    }
+    
+    .logout-btn {
+        width: auto;
+        min-width: 80px;
+        padding: 10px 12px;
+        font-size: 12px;
     }
     
     .nav-menu {
