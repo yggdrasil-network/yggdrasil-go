@@ -227,6 +227,179 @@ header p {
     font-size: 16px;
 }
 
+.action-btn {
+    background: var(--bg-nav-active);
+    color: var(--text-white);
+    border: 1px solid var(--bg-nav-active-border);
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    margin-top: 10px;
+}
+
+.action-btn:hover {
+    background: var(--bg-nav-active-border);
+    border-color: var(--bg-nav-active-border);
+    transform: translateY(-1px);
+}
+
+/* Notification system */
+.notifications-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    max-width: 350px;
+}
+
+.notification {
+    background: var(--bg-info-card);
+    border: 1px solid var(--border-card);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 12px var(--shadow-medium);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    animation: slideIn 0.3s ease-out;
+    position: relative;
+    overflow: hidden;
+}
+
+.notification::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--bg-nav-active);
+}
+
+.notification.success::before {
+    background: #28a745;
+}
+
+.notification.error::before {
+    background: #dc3545;
+}
+
+.notification.warning::before {
+    background: #ffc107;
+}
+
+.notification.info::before {
+    background: var(--bg-nav-active);
+}
+
+.notification-icon {
+    font-size: 20px;
+    line-height: 1;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.notification-content {
+    flex: 1;
+    color: var(--text-primary);
+}
+
+.notification-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+    font-size: 14px;
+    color: var(--text-body);
+}
+
+.notification-message {
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--text-body);
+}
+
+.notification-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 0;
+    margin-left: 8px;
+    transition: color 0.2s ease;
+}
+
+.notification-close:hover {
+    color: var(--text-primary);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+        max-height: 200px;
+        margin-bottom: 12px;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+        max-height: 0;
+        margin-bottom: 0;
+    }
+}
+
+.notification.removing {
+    animation: slideOut 0.3s ease-in forwards;
+}
+
+[data-theme="dark"] .notification {
+    background: var(--bg-sidebar);
+    border-color: var(--border-sidebar);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Mobile responsiveness for notifications */
+@media (max-width: 768px) {
+    .notifications-container {
+        bottom: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+    }
+    
+    .notification {
+        padding: 12px;
+        font-size: 14px;
+    }
+    
+    .notification-title {
+        font-size: 13px;
+    }
+    
+    .notification-message {
+        font-size: 12px;
+    }
+    
+    .notification-icon {
+        font-size: 18px;
+    }
+}
+
 .layout {
     display: flex;
     gap: 20px;
@@ -471,5 +644,176 @@ footer {
     
     .info-grid {
         grid-template-columns: 1fr;
+    }
+} 
+
+/* Peers container and list styles */
+.peers-container {
+    margin-top: 2rem;
+}
+
+.peers-container h3 {
+    color: var(--text-heading);
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+.peers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.peer-item {
+    background: var(--bg-info-card);
+    border: 1px solid var(--border-card);
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 2px 4px var(--shadow-light);
+    transition: all 0.2s;
+}
+
+.peer-item:hover {
+    border-color: var(--border-hover);
+    box-shadow: 0 4px 8px var(--shadow-medium);
+}
+
+.peer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.peer-address {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    color: var(--text-heading);
+    font-size: 0.9rem;
+}
+
+.peer-status {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.peer-status.status-online {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.peer-status.status-offline {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+[data-theme="dark"] .peer-status.status-online {
+    background: #155724;
+    color: #d4edda;
+}
+
+[data-theme="dark"] .peer-status.status-offline {
+    background: #721c24;
+    color: #f8d7da;
+}
+
+.peer-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.peer-uri {
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    word-break: break-all;
+}
+
+.peer-stats {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.peer-stats span {
+    background: var(--bg-nav-item);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid var(--border-card);
+}
+
+.peer-remove-btn {
+    background: var(--bg-logout);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    margin-top: 0.5rem;
+    align-self: flex-start;
+    transition: all 0.2s;
+}
+
+.peer-remove-btn:hover {
+    background: var(--bg-logout-hover);
+}
+
+.no-data {
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 2rem;
+}
+
+.loading {
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 1rem;
+}
+
+/* Status indicators */
+#node-key, #node-version, #node-address, #node-subnet, #routing-entries, #peers-count, #peers-online {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    color: var(--text-heading);
+}
+
+/* Copy button styling */
+button[onclick="copyNodeKey()"] {
+    background: var(--bg-nav-item);
+    border: 1px solid var(--border-card);
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.2s;
+}
+
+button[onclick="copyNodeKey()"]:hover {
+    background: var(--bg-nav-hover);
+    border-color: var(--border-hover);
+}
+
+/* Responsive design for peer items */
+@media (max-width: 768px) {
+    .peer-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .peer-stats {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .peer-address {
+        font-size: 0.8rem;
     }
 } 

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 )
 
@@ -24,6 +25,7 @@ type WebUIServer struct {
 	sessionsMux    sync.RWMutex
 	failedAttempts map[string]*FailedLoginInfo // IP -> failed login info
 	attemptsMux    sync.RWMutex
+	admin          *admin.AdminSocket // Admin socket reference for direct API calls
 }
 
 type LoginRequest struct {
@@ -49,7 +51,13 @@ func Server(listen string, password string, log core.Logger) *WebUIServer {
 		log:            log,
 		sessions:       make(map[string]time.Time),
 		failedAttempts: make(map[string]*FailedLoginInfo),
+		admin:          nil, // Will be set later via SetAdmin
 	}
+}
+
+// SetAdmin sets the admin socket reference for direct API calls
+func (w *WebUIServer) SetAdmin(admin *admin.AdminSocket) {
+	w.admin = admin
 }
 
 // generateSessionID creates a random session ID
@@ -299,6 +307,67 @@ func (w *WebUIServer) logoutHandler(rw http.ResponseWriter, r *http.Request) {
 	http.Redirect(rw, r, "/login.html", http.StatusSeeOther)
 }
 
+// adminAPIHandler handles direct admin API calls
+func (w *WebUIServer) adminAPIHandler(rw http.ResponseWriter, r *http.Request) {
+	if w.admin == nil {
+		http.Error(rw, "Admin API not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	// Extract command from URL path
+	// /api/admin/getSelf -> getSelf
+	path := strings.TrimPrefix(r.URL.Path, "/api/admin/")
+	command := strings.Split(path, "/")[0]
+
+	if command == "" {
+		// Return list of available commands
+		commands := w.admin.GetAvailableCommands()
+		rw.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(rw).Encode(map[string]interface{}{
+			"status":   "success",
+			"commands": commands,
+		})
+		return
+	}
+
+	var args map[string]interface{}
+	if r.Method == http.MethodPost {
+		if err := json.NewDecoder(r.Body).Decode(&args); err != nil {
+			args = make(map[string]interface{})
+		}
+	} else {
+		args = make(map[string]interface{})
+	}
+
+	// Call admin handler directly
+	result, err := w.callAdminHandler(command, args)
+	if err != nil {
+		rw.Header().Set("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(rw).Encode(map[string]interface{}{
+			"status": "error",
+			"error":  err.Error(),
+		})
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(rw).Encode(map[string]interface{}{
+		"status":   "success",
+		"response": result,
+	})
+}
+
+// callAdminHandler calls admin handlers directly without socket
+func (w *WebUIServer) callAdminHandler(command string, args map[string]interface{}) (interface{}, error) {
+	argsBytes, err := json.Marshal(args)
+	if err != nil {
+		argsBytes = []byte("{}")
+	}
+
+	return w.admin.CallHandler(command, argsBytes)
+}
+
 func (w *WebUIServer) Start() error {
 	// Validate listen address before starting
 	if w.listen != "" {
@@ -329,6 +398,9 @@ func (w *WebUIServer) Start() error {
 	// Authentication endpoints - no auth required
 	mux.HandleFunc("/auth/login", w.loginHandler)
 	mux.HandleFunc("/auth/logout", w.logoutHandler)
+
+	// Admin API endpoints - with auth
+	mux.HandleFunc("/api/admin/", w.authMiddleware(w.adminAPIHandler))
 
 	// Setup static files handler (implementation varies by build)
 	setupStaticHandler(mux, w)

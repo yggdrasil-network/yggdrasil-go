@@ -36,5 +36,12 @@ window.translations.ru = {
     'password_label': 'Пароль:',
     'access_dashboard': 'Войти в панель',
     'error_invalid_password': 'Неверный пароль. Попробуйте снова.',
-    'error_too_many_attempts': 'Слишком много неудачных попыток. Подождите 1 минуту перед повторной попыткой.'
+    'error_too_many_attempts': 'Слишком много неудачных попыток. Подождите 1 минуту перед повторной попыткой.',
+    'add_peer_btn': 'Добавить пир',
+    'notification_success': 'Успешно',
+    'notification_error': 'Ошибка',
+    'notification_warning': 'Предупреждение',
+    'notification_info': 'Информация',
+    'dashboard_loaded': 'Панель загружена успешно',
+    'welcome': 'Добро пожаловать'
 }; 

@@ -6,8 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Yggdrasil Web Interface</title>
     <link rel="stylesheet" href="static/style.css">
+    <script src="static/api.js"></script>
+    <script src="static/app.js"></script>
     <script src="static/lang/ru.js"></script>
-    <script src="static/lang/en.js"></script>
+    <script srс="static/lang/en.js"></script>
 </head>
 
 <body>
@@ -56,24 +58,36 @@
                 <div id="status-section" class="content-section active">
                     <div class="status-card">
                         <h2 data-key="status_title">Состояние узла</h2>
-                        <div class="status-indicator">
-                            <span class="status-dot active"></span>
-                            <span data-key="status_active">Активен</span>
-                        </div>
-                        <p data-key="status_description">WebUI запущен и доступен</p>
+                        <p data-key="status_description">Информация о текущем состоянии вашего узла Yggdrasil</p>
                     </div>
 
                     <div class="info-grid">
                         <div class="info-card">
-                            <h3 data-key="network_info">Сетевая информация</h3>
-                            <p><span data-key="address">Адрес</span>: 200:1234:5678:9abc::1</p>
-                            <p><span data-key="subnet">Подсеть</span>: 300:1234:5678:9abc::/64</p>
+                            <h3 data-key="node_info">Информация об узле</h3>
+                            <p><span data-key="public_key">Публичный ключ</span>: <span id="node-key"
+                                    data-key="loading">Загрузка...</span> <button onclick="copyNodeKey()"
+                                    style="margin-left: 8px; font-size: 12px;">📋</button></p>
+                            <p><span data-key="version">Версия</span>: <span id="node-version"
+                                    data-key="loading">Загрузка...</span></p>
+                            <p><span data-key="routing_entries">Записей маршрутизации</span>: <span id="routing-entries"
+                                    data-key="loading">Загрузка...</span></p>
+                            <span id="node-key-full" data-value="" style="display: none;"></span>
                         </div>
 
                         <div class="info-card">
-                            <h3 data-key="statistics">Статистика</h3>
-                            <p><span data-key="uptime">Время работы</span>: 2д 15ч 42м</p>
-                            <p><span data-key="connections">Активных соединений</span>: 3</p>
+                            <h3 data-key="network_info">Сетевая информация</h3>
+                            <p><span data-key="address">Адрес</span>: <span id="node-address"
+                                    data-key="loading">Загрузка...</span></p>
+                            <p><span data-key="subnet">Подсеть</span>: <span id="node-subnet"
+                                    data-key="loading">Загрузка...</span></p>
+                        </div>
+
+                        <div class="info-card">
+                            <h3 data-key="statistics">Статистика пиров</h3>
+                            <p><span data-key="total_peers">Всего пиров</span>: <span id="peers-count"
+                                    data-key="loading">Загрузка...</span></p>
+                            <p><span data-key="online_peers">Онлайн пиров</span>: <span id="peers-online"
+                                    data-key="loading">Загрузка...</span></p>
                         </div>
                     </div>
                 </div>
@@ -86,15 +100,16 @@
 
                     <div class="info-grid">
                         <div class="info-card">
-                            <h3 data-key="active_peers">Активные пиры</h3>
-                            <p data-key="active_connections">Количество активных соединений</p>
-                            <small data-key="coming_soon">Функция в разработке...</small>
-                        </div>
-
-                        <div class="info-card">
                             <h3 data-key="add_peer">Добавить пир</h3>
                             <p data-key="add_peer_description">Подключение к новому узлу</p>
-                            <small data-key="coming_soon">Функция в разработке...</small>
+                            <button onclick="addPeer()" class="action-btn" data-key="add_peer_btn">Добавить пир</button>
+                        </div>
+                    </div>
+
+                    <div class="peers-container">
+                        <h3 data-key="connected_peers">Подключенные пиры</h3>
+                        <div id="peers-list" class="peers-list">
+                            <div class="loading" data-key="loading">Загрузка...</div>
                         </div>
                     </div>
                 </div>
@@ -127,6 +142,9 @@
         </footer>
     </div>
 
+    <!-- Notifications container -->
+    <div class="notifications-container" id="notifications-container"></div>
+
     <script>
         let currentLanguage = localStorage.getItem('yggdrasil-language') || 'ru';
         let currentTheme = localStorage.getItem('yggdrasil-theme') || 'light';
@@ -143,23 +161,18 @@
 
         function toggleTheme() {
             currentTheme = currentTheme === 'light' ? 'dark' : 'light';
-            localStorage.setItem('yggdrasil-theme', currentTheme);
             applyTheme();
+            localStorage.setItem('yggdrasil-theme', currentTheme);
         }
 
         function applyTheme() {
-            const body = document.body;
-            const themeIcon = document.querySelector('.theme-icon');
+            document.documentElement.setAttribute('data-theme', currentTheme);
             const themeBtn = document.getElementById('theme-btn');
-
-            if (currentTheme === 'dark') {
-                body.setAttribute('data-theme', 'dark');
-                themeIcon.textContent = '☀️';
-                themeBtn.title = window.translations[currentLanguage]['theme_light'] || 'Light theme';
-            } else {
-                body.removeAttribute('data-theme');
-                themeIcon.textContent = '🌙';
-                themeBtn.title = window.translations[currentLanguage]['theme_dark'] || 'Dark theme';
+            if (themeBtn) {
+                const icon = themeBtn.querySelector('.theme-icon');
+                if (icon) {
+                    icon.textContent = currentTheme === 'light' ? '🌙' : '☀️';
+                }
             }
         }
 
@@ -167,19 +180,12 @@
             currentLanguage = lang;
             localStorage.setItem('yggdrasil-language', lang);
 
-            // Update active button
+            // Update button states
             document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById('lang-' + lang).classList.add('active');
 
+            // Update all texts
             updateTexts();
-            applyTheme(); // Update theme button tooltip
-        }
-
-        function logout() {
-            const confirmText = window.translations[currentLanguage]['logout_confirm'];
-            if (confirm(confirmText)) {
-                window.location.href = '/auth/logout';
-            }
         }
 
         function showSection(sectionName) {
@@ -199,6 +205,80 @@
 
             // Add active class to clicked nav item
             event.target.closest('.nav-item').classList.add('active');
+        }
+
+        // Notification system (shared with app.js)
+        let notificationId = 0;
+
+        function showNotification(message, type = 'info', title = null, duration = 5000) {
+            const container = document.getElementById('notifications-container');
+            const id = ++notificationId;
+
+            const icons = {
+                success: '✅',
+                error: '❌',
+                warning: '⚠️',
+                info: 'ℹ️'
+            };
+
+            const titles = {
+                success: window.translations[currentLanguage]['notification_success'] || 'Success',
+                error: window.translations[currentLanguage]['notification_error'] || 'Error',
+                warning: window.translations[currentLanguage]['notification_warning'] || 'Warning',
+                info: window.translations[currentLanguage]['notification_info'] || 'Information'
+            };
+
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.id = `notification-${id}`;
+
+            notification.innerHTML = `
+                <div class="notification-icon">${icons[type] || icons.info}</div>
+                <div class="notification-content">
+                    <div class="notification-title">${title || titles[type]}</div>
+                    <div class="notification-message">${message}</div>
+                </div>
+                <button class="notification-close" onclick="removeNotification(${id})">&times;</button>
+            `;
+
+            container.appendChild(notification);
+
+            // Auto remove after duration
+            if (duration > 0) {
+                setTimeout(() => {
+                    removeNotification(id);
+                }, duration);
+            }
+
+            return id;
+        }
+
+        function removeNotification(id) {
+            const notification = document.getElementById(`notification-${id}`);
+            if (notification) {
+                notification.classList.add('removing');
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }
+        }
+
+        function showSuccess(message, title = null) {
+            return showNotification(message, 'success', title);
+        }
+
+        function showError(message, title = null) {
+            return showNotification(message, 'error', title);
+        }
+
+        function showWarning(message, title = null) {
+            return showNotification(message, 'warning', title);
+        }
+
+        function showInfo(message, title = null) {
+            return showNotification(message, 'info', title);
         }
 
         // Initialize language and theme on page load

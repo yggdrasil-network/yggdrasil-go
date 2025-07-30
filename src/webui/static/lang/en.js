@@ -36,5 +36,12 @@ window.translations.en = {
     'password_label': 'Password:',
     'access_dashboard': 'Access Dashboard',
     'error_invalid_password': 'Invalid password. Please try again.',
-    'error_too_many_attempts': 'Too many failed attempts. Please wait 1 minute before trying again.'
+    'error_too_many_attempts': 'Too many failed attempts. Please wait 1 minute before trying again.',
+    'add_peer_btn': 'Add Peer',
+    'notification_success': 'Success',
+    'notification_error': 'Error',
+    'notification_warning': 'Warning',
+    'notification_info': 'Information',
+    'dashboard_loaded': 'Dashboard loaded successfully',
+    'welcome': 'Welcome'
 }; 

@@ -309,6 +309,12 @@ func main() {
 		}
 
 		n.webui = webui.Server(listenAddr, cfg.WebUI.Password, logger)
+
+		// Connect WebUI with AdminSocket for direct API access
+		if n.admin != nil {
+			n.webui.SetAdmin(n.admin)
+		}
+
 		if cfg.WebUI.Password != "" {
 			logger.Infof("WebUI password authentication enabled")
 		} else {
