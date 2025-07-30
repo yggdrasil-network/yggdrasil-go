@@ -37,7 +37,12 @@ function updateTexts() {
         }
         
         if (window.translations && window.translations[currentLanguage] && window.translations[currentLanguage][key]) {
-            element.textContent = window.translations[currentLanguage][key];
+            // Special handling for footer_text which contains HTML
+            if (key === 'footer_text') {
+                element.innerHTML = window.translations[currentLanguage][key];
+            } else {
+                element.textContent = window.translations[currentLanguage][key];
+            }
         }
     });
 }
@@ -71,9 +76,20 @@ function toggleTheme() {
  */
 function applyTheme() {
     document.documentElement.setAttribute('data-theme', currentTheme);
+    
+    // Update desktop theme button
     const themeBtn = document.getElementById('theme-btn');
     if (themeBtn) {
         const icon = themeBtn.querySelector('.theme-icon');
+        if (icon) {
+            icon.textContent = currentTheme === 'light' ? '🌙' : '☀️';
+        }
+    }
+    
+    // Update mobile theme button
+    const themeBtnMobile = document.getElementById('theme-btn-mobile');
+    if (themeBtnMobile) {
+        const icon = themeBtnMobile.querySelector('.theme-icon');
         if (icon) {
             icon.textContent = currentTheme === 'light' ? '🌙' : '☀️';
         }
@@ -88,9 +104,13 @@ function switchLanguage(lang) {
     currentLanguage = lang;
     localStorage.setItem('yggdrasil-language', lang);
 
-    // Update button states
+    // Update button states for both desktop and mobile
     document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
-    document.getElementById('lang-' + lang).classList.add('active');
+    const desktopBtn = document.getElementById('lang-' + lang);
+    const mobileBtn = document.getElementById('lang-' + lang + '-mobile');
+    
+    if (desktopBtn) desktopBtn.classList.add('active');
+    if (mobileBtn) mobileBtn.classList.add('active');
 
     // Update all texts
     updateTexts();
@@ -252,8 +272,12 @@ function showInfo(message, title = null) {
  * Initialize the application when DOM is loaded
  */
 function initializeMain() {
-    // Set active language button
-    document.getElementById('lang-' + currentLanguage).classList.add('active');
+    // Set active language button for both desktop and mobile
+    const desktopBtn = document.getElementById('lang-' + currentLanguage);
+    const mobileBtn = document.getElementById('lang-' + currentLanguage + '-mobile');
+    
+    if (desktopBtn) desktopBtn.classList.add('active');
+    if (mobileBtn) mobileBtn.classList.add('active');
     
     // Update all texts
     updateTexts();

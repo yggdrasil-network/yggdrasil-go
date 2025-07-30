@@ -51,6 +51,9 @@ function updateNodeInfoDisplay(info) {
     updateElementText('node-version', `${info.build_name} ${info.build_version}` || 'N/A');
     updateElementText('routing-entries', info.routing_entries || '0');
     
+    // Update footer version
+    updateElementText('footer-version', info.build_version || 'unknown');
+    
     // Update full key display (for copy functionality)
     updateElementData('node-key-full', info.key || '');
 }
@@ -243,8 +246,6 @@ async function initializeApp() {
         // Initialize peer counts to 0 immediately to replace "Loading..." text
         updateElementText('peers-count', '0');
         updateElementText('peers-online', '0');
-        
-        showInfo('Loading dashboard...');
         
         // Load initial data
         await Promise.all([loadNodeInfo(), loadPeers()]);

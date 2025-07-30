@@ -28,6 +28,7 @@
                         </button>
                         <button onclick="switchLanguage('ru')" class="lang-btn" id="lang-ru">RU</button>
                         <button onclick="switchLanguage('en')" class="lang-btn" id="lang-en">EN</button>
+                        <button onclick="logout()" class="logout-btn-header" data-key="logout"></button>
                     </div>
                 </div>
             </div>
@@ -49,10 +50,6 @@
                         <span class="nav-text" data-key="nav_config">Конфигурация</span>
                     </div>
                 </nav>
-
-                <div class="sidebar-footer">
-                    <button onclick="logout()" class="logout-btn" data-key="logout">Logout</button>
-                </div>
             </aside>
 
             <main class="main-content">
@@ -138,8 +135,19 @@
             </main>
         </div>
 
+        <div class="mobile-controls">
+            <div class="controls-group">
+                <button onclick="toggleTheme()" class="theme-btn" id="theme-btn-mobile">
+                    <span class="theme-icon">🌙</span>
+                </button>
+                <button onclick="switchLanguage('ru')" class="lang-btn" id="lang-ru-mobile">RU</button>
+                <button onclick="switchLanguage('en')" class="lang-btn" id="lang-en-mobile">EN</button>
+                <button onclick="logout()" class="logout-btn-header" data-key="logout"></button>
+            </div>
+        </div>
+
         <footer>
-            <p data-key="footer_text">Yggdrasil Network • Minimal WebUI v1.0</p>
+            <p data-key="footer_text"><strong>Yggdrasil Network</strong> • <span id="footer-version"></span></p>
         </footer>
     </div>
 

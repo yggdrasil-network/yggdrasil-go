@@ -37,7 +37,7 @@ window.translations.ru = {
     'network_settings': 'Сетевые настройки',
     'network_settings_description': 'Параметры сетевого взаимодействия',
     'coming_soon': 'Функция в разработке...',
-    'footer_text': 'Yggdrasil Network • Minimal WebUI v1.0',
+    'footer_text': '<strong>Yggdrasil Network</strong> • <span id="footer-version">loading...</span>',
     'logout_confirm': 'Вы уверены, что хотите выйти?',
     'theme_light': 'Светлая тема',
     'theme_dark': 'Темная тема',

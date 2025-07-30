@@ -17,6 +17,14 @@
     --bg-lang-btn-hover: rgba(255, 255, 255, 0.3);
     --bg-lang-btn-active: rgba(255, 255, 255, 0.4);
 
+    /* Status background colors */
+    --bg-success: #d4edda;
+    --bg-error: #f8d7da;
+    --bg-warning: #fff3cd;
+    --bg-success-dark: #28a745;
+    --bg-error-dark: #dc3545;
+    --bg-warning-dark: #ffc107;
+
     /* Border colors */
     --border-sidebar: #e0e0e0;
     --border-nav-item: #dee2e6;
@@ -26,6 +34,9 @@
     --border-footer: #dee2e6;
     --border-logout: #c82333;
     --border-lang: rgba(255, 255, 255, 0.3);
+    --border-success: #c3e6cb;
+    --border-error: #f5c6cb;
+    --border-warning: #ffeaa7;
 
     /* Text colors */
     --text-primary: #333;
@@ -34,6 +45,9 @@
     --text-heading: #343a40;
     --text-body: #495057;
     --text-muted: #6c757d;
+    --text-success: #155724;
+    --text-error: #721c24;
+    --text-warning: #856404;
 
     /* Shadow colors */
     --shadow-light: rgba(0, 0, 0, 0.1);
@@ -61,6 +75,14 @@
     --bg-lang-btn-hover: rgba(255, 255, 255, 0.1);
     --bg-lang-btn-active: rgba(255, 255, 255, 0.2);
 
+    /* Status background colors */
+    --bg-success: #155724;
+    --bg-error: #721c24;
+    --bg-warning: #856404;
+    --bg-success-dark: #28a745;
+    --bg-error-dark: #dc3545;
+    --bg-warning-dark: #ffc107;
+
     /* Border colors */
     --border-sidebar: #455a64;
     --border-nav-item: #546e7a;
@@ -70,6 +92,9 @@
     --border-footer: #546e7a;
     --border-logout: #c82333;
     --border-lang: rgba(255, 255, 255, 0.3);
+    --border-success: #c3e6cb;
+    --border-error: #f5c6cb;
+    --border-warning: #ffeaa7;
 
     /* Text colors */
     --text-primary: #333;
@@ -78,6 +103,9 @@
     --text-heading: #eceff1;
     --text-body: #cfd8dc;
     --text-muted: #b0bec5;
+    --text-success: #d4edda;
+    --text-error: #f8d7da;
+    --text-warning: #fff3cd;
 
     /* Shadow colors */
     --shadow-light: rgba(0, 0, 0, 0.2);
@@ -130,6 +158,7 @@ header {
     padding: 2px;
     border: 1px solid var(--border-lang);
     gap: 2px;
+    align-items: center;
 }
 
 .theme-btn {
@@ -177,6 +206,26 @@ header {
     background: var(--bg-lang-btn-active);
 }
 
+.logout-btn-header {
+    background: var(--bg-logout);
+    color: var(--text-white);
+    border: none;
+    padding: 6px 12px;
+    border-radius: 1px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: background 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 2px;
+}
+
+.logout-btn-header:hover {
+    background: var(--bg-logout-hover);
+}
+
 .header-content > div:first-child {
     text-align: center;
     flex: 1;
@@ -195,37 +244,7 @@ header p {
     opacity: 0.9;
 }
 
-.sidebar-footer {
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border-footer);
-}
 
-.logout-btn {
-    width: 100%;
-    background: var(--bg-logout);
-    color: var(--text-white);
-    border: 1px solid var(--border-logout);
-    padding: 10px 16px;
-    border-radius: 2px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 600;
-    transition: background 0.2s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-}
-
-.logout-btn:hover {
-    background: var(--bg-logout-hover);
-}
-
-.logout-btn:before {
-    content: "🚪";
-    font-size: 16px;
-}
 
 .action-btn {
     background: var(--bg-nav-active);
@@ -281,15 +300,15 @@ header p {
 }
 
 .notification.success::before {
-    background: #28a745;
+    background: var(--bg-success-dark);
 }
 
 .notification.error::before {
-    background: #dc3545;
+    background: var(--bg-error-dark);
 }
 
 .notification.warning::before {
-    background: #ffc107;
+    background: var(--bg-warning-dark);
 }
 
 .notification.info::before {
@@ -413,9 +432,6 @@ header p {
     padding: 20px;
     box-shadow: 0 2px 8px var(--shadow-heavy);
     border: 1px solid var(--border-sidebar);
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
 }
 
 .nav-menu {
@@ -476,24 +492,27 @@ header p {
 
 .status-card {
     background: var(--bg-status-card);
-    border-radius: 4px;
-    padding: 20px;
+    border-radius: 2px 2px 0px 0px;
+    padding: 10px;
     margin-bottom: 30px;
     text-align: center;
     box-shadow: 0 1px 4px var(--shadow-light);
-    border: 1px solid var(--border-card);
+    margin-top: -30px;
+    margin-left: -30px;
+    margin-right: -30px;
 }
 
 .status-card h2 {
     color: var(--text-heading);
     font-weight: 700;
-    margin-bottom: 15px;
+    margin-bottom: 5px;
     font-size: 1.3rem;
 }
 
 .status-card p {
     color: var(--text-body);
     font-weight: 500;
+    font-size: 0.7rem;
 }
 
 .status-indicator {
@@ -564,6 +583,10 @@ header p {
     letter-spacing: 0.5px;
 }
 
+.mobile-controls {
+    display: none;
+}
+
 footer {
     text-align: center;
     color: var(--text-white);
@@ -577,10 +600,15 @@ footer {
     
     .header-content {
         flex-direction: column;
-        gap: 20px;
+        gap: 15px;
     }
     
     .header-actions {
+        display: none;
+    }
+    
+    .controls-group {
+        flex-wrap: wrap;
         justify-content: center;
     }
     
@@ -589,7 +617,11 @@ footer {
     }
     
     header h1 {
-        font-size: 2rem;
+        font-size: 1.8rem;
+    }
+    
+    header p {
+        font-size: 1rem;
     }
     
     .layout {
@@ -597,53 +629,297 @@ footer {
         gap: 15px;
     }
     
+    .container {
+        display: flex;
+        flex-direction: column;
+    }
+    
     .sidebar {
         min-width: auto;
-        order: 2;
-        flex-direction: row;
-        align-items: center;
+        order: 1;
         padding: 15px;
     }
     
-    .sidebar-footer {
-        margin-top: 0;
-        margin-left: 15px;
-        padding-top: 0;
-        border-top: none;
-        border-left: 1px solid var(--border-footer);
-        padding-left: 15px;
-    }
-    
-    .logout-btn {
-        width: auto;
-        min-width: 80px;
-        padding: 10px 12px;
-        font-size: 12px;
-    }
-    
     .nav-menu {
+        display: flex;
         flex-direction: row;
-        overflow-x: auto;
         gap: 8px;
+        margin-bottom: 0;
+        justify-content: space-around;
     }
     
     .nav-item {
-        min-width: 120px;
         justify-content: center;
-        padding: 12px 15px;
+        padding: 12px;
+        min-height: 50px;
+        min-width: 50px;
+        flex: 1;
+        text-align: center;
     }
     
     .nav-text {
-        font-size: 14px;
+        display: none;
+    }
+    
+    .nav-icon {
+        font-size: 20px;
     }
     
     .main-content {
-        padding: 20px;
-        order: 1;
+        padding: 20px 15px;
+        order: 2;
+    }
+    
+    .status-card {
+        margin-left: -15px;
+        margin-right: -15px;
+        margin-top: -20px;
+        padding: 15px;
+    }
+    
+    .status-card h2 {
+        font-size: 1.1rem;
+    }
+    
+    .status-card p {
+        font-size: 0.75rem;
     }
     
     .info-grid {
         grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .info-card {
+        padding: 15px;
+    }
+    
+    .info-card h3 {
+        font-size: 1rem;
+        margin-bottom: 8px;
+    }
+    
+    .info-card p {
+        font-size: 0.9rem;
+        margin-bottom: 8px;
+        word-break: break-word;
+    }
+    
+    .info-card small {
+        font-size: 0.7rem;
+    }
+    
+    .peers-container {
+        margin-top: 1.5rem;
+    }
+    
+    .peer-item {
+        padding: 12px;
+    }
+    
+    .peer-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .peer-address {
+        font-size: 0.8rem;
+        word-break: break-all;
+    }
+    
+    .peer-status {
+        align-self: flex-start;
+        font-size: 0.75rem;
+        padding: 0.2rem 0.6rem;
+    }
+    
+    .peer-uri {
+        font-size: 0.75rem;
+    }
+    
+    .peer-stats {
+        flex-direction: column;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+    }
+    
+    .peer-stats span {
+        padding: 0.2rem 0.4rem;
+        font-size: 0.7rem;
+    }
+    
+    .peer-remove-btn {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.75rem;
+    }
+    
+    .mobile-controls {
+        display: flex;
+        justify-content: center;
+        margin: 0px 0px 20px 0px;
+        order: 3;
+    }
+    
+    footer {
+        order: 4;
+    }
+    
+    .mobile-controls .controls-group {
+        background: var(--bg-lang-switcher);
+        border-radius: 4px;
+        padding: 4px;
+        border: 1px solid var(--border-lang);
+        gap: 4px;
+    }
+}
+
+/* Additional mobile optimizations for very small screens */
+@media (max-width: 480px) {
+    .container {
+        padding: 8px;
+    }
+    
+    header h1 {
+        font-size: 1.6rem;
+        margin-bottom: 8px;
+    }
+    
+    header p {
+        font-size: 0.9rem;
+    }
+    
+    .mobile-controls .controls-group {
+        width: auto;
+        justify-content: center;
+    }
+    
+    .mobile-controls .theme-btn, 
+    .mobile-controls .lang-btn,
+    .mobile-controls .logout-btn-header {
+        padding: 8px 12px;
+        font-size: 11px;
+    }
+    
+    .mobile-controls .logout-btn-header:before {
+        font-size: 11px;
+    }
+    
+    .sidebar {
+        padding: 10px;
+    }
+    
+    .nav-menu {
+        gap: 6px;
+    }
+    
+    .nav-item {
+        padding: 10px;
+        min-height: 45px;
+        min-width: 45px;
+    }
+    
+    .nav-icon {
+        font-size: 18px;
+    }
+    
+    .main-content {
+        padding: 15px 10px;
+    }
+    
+    .status-card {
+        margin-left: -10px;
+        margin-right: -10px;
+        margin-top: -15px;
+        padding: 12px;
+    }
+    
+    .status-card h2 {
+        font-size: 1rem;
+    }
+    
+    .info-card {
+        padding: 12px;
+    }
+    
+    .info-card h3 {
+        font-size: 0.95rem;
+    }
+    
+    .info-card p {
+        font-size: 0.85rem;
+    }
+    
+    #node-key, #node-version, #node-address, #node-subnet, #routing-entries, #peers-count, #peers-online {
+        font-size: 0.8rem;
+        word-break: break-all;
+    }
+    
+    .peer-item {
+        padding: 10px;
+    }
+    
+    .peer-address {
+        font-size: 0.75rem;
+    }
+    
+    .notifications-container {
+        bottom: 8px;
+        right: 8px;
+        left: 8px;
+    }
+    
+    .notification {
+        padding: 10px;
+    }
+    
+    .notification-title {
+        font-size: 12px;
+    }
+    
+    .notification-message {
+        font-size: 11px;
+    }
+}
+
+/* Landscape orientation optimizations for mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+    .header-actions {
+        display: flex;
+        justify-content: center;
+    }
+    
+    .mobile-controls {
+        display: none;
+    }
+    
+    .layout {
+        flex-direction: row;
+    }
+    
+    .sidebar {
+        order: 1;
+        min-width: 200px;
+        max-width: 250px;
+    }
+    
+    .nav-menu {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+    
+    .nav-item {
+        padding: 8px 10px;
+        min-height: auto;
+    }
+    
+    .nav-text {
+        font-size: 12px;
+    }
+    
+    .main-content {
+        order: 2;
+        flex: 1;
     }
 } 
 
@@ -700,25 +976,25 @@ footer {
 }
 
 .peer-status.status-online {
-    background: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
+    background: var(--bg-success);
+    color: var(--text-success);
+    border: 1px solid var(--border-success);
 }
 
 .peer-status.status-offline {
-    background: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
+    background: var(--bg-error);
+    color: var(--text-error);
+    border: 1px solid var(--border-error);
 }
 
 [data-theme="dark"] .peer-status.status-online {
-    background: #155724;
-    color: #d4edda;
+    background: var(--bg-success);
+    color: var(--text-success);
 }
 
 [data-theme="dark"] .peer-status.status-offline {
-    background: #721c24;
-    color: #f8d7da;
+    background: var(--bg-error);
+    color: var(--text-error);
 }
 
 .peer-details {
@@ -750,7 +1026,7 @@ footer {
 
 .peer-remove-btn {
     background: var(--bg-logout);
-    color: white;
+    color: var(--text-white);
     border: none;
     padding: 0.5rem 1rem;
     border-radius: 4px;
@@ -802,18 +1078,4 @@ button[onclick="copyNodeKey()"]:hover {
 
 /* Responsive design for peer items */
 @media (max-width: 768px) {
-    .peer-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.5rem;
-    }
-    
-    .peer-stats {
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-    
-    .peer-address {
-        font-size: 0.8rem;
-    }
 } 

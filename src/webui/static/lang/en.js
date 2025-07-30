@@ -37,7 +37,7 @@ window.translations.en = {
     'network_settings': 'Network Settings',
     'network_settings_description': 'Network interaction parameters',
     'coming_soon': 'Coming soon...',
-    'footer_text': 'Yggdrasil Network • Minimal WebUI v1.0',
+    'footer_text': '<strong>Yggdrasil Network</strong> • <span id="footer-version"></span>',
     'logout_confirm': 'Are you sure you want to logout?',
     'theme_light': 'Light theme',
     'theme_dark': 'Dark theme',
