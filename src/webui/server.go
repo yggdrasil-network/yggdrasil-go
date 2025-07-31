@@ -63,7 +63,10 @@ func (w *WebUIServer) SetAdmin(admin *admin.AdminSocket) {
 // generateSessionID creates a random session ID
 func (w *WebUIServer) generateSessionID() string {
 	bytes := make([]byte, 32)
-	rand.Read(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback to timestamp-based ID if random generation fails
+		return hex.EncodeToString([]byte(fmt.Sprintf("%d", time.Now().UnixNano())))
+	}
 	return hex.EncodeToString(bytes)
 }
 
@@ -327,10 +330,12 @@ func (w *WebUIServer) adminAPIHandler(rw http.ResponseWriter, r *http.Request) {
 		// Return list of available commands
 		commands := w.admin.GetAvailableCommands()
 		rw.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(rw).Encode(map[string]interface{}{
+		if err := json.NewEncoder(rw).Encode(map[string]interface{}{
 			"status":   "success",
 			"commands": commands,
-		})
+		}); err != nil {
+			http.Error(rw, "Failed to encode response", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -348,18 +353,22 @@ func (w *WebUIServer) adminAPIHandler(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		rw.Header().Set("Content-Type", "application/json")
 		rw.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(rw).Encode(map[string]interface{}{
+		if encErr := json.NewEncoder(rw).Encode(map[string]interface{}{
 			"status": "error",
 			"error":  err.Error(),
-		})
+		}); encErr != nil {
+			http.Error(rw, "Failed to encode error response", http.StatusInternalServerError)
+		}
 		return
 	}
 
 	rw.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(rw).Encode(map[string]interface{}{
+	if err := json.NewEncoder(rw).Encode(map[string]interface{}{
 		"status":   "success",
 		"response": result,
-	})
+	}); err != nil {
+		http.Error(rw, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // callAdminHandler calls admin handlers directly without socket
