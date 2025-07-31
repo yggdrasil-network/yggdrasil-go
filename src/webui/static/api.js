@@ -15,12 +15,18 @@ class YggdrasilAPI {
      */
     async callAdmin(command, args = {}) {
         const url = command ? `${this.baseURL}/${command}` : this.baseURL;
+        
+        // Create AbortController for timeout functionality
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        
         const options = {
             method: Object.keys(args).length > 0 ? 'POST' : 'GET',
             headers: {
                 'Content-Type': 'application/json',
             },
-            credentials: 'same-origin' // Include session cookies
+            credentials: 'same-origin', // Include session cookies
+            signal: controller.signal
         };
 
         if (Object.keys(args).length > 0) {
@@ -29,6 +35,7 @@ class YggdrasilAPI {
 
         try {
             const response = await fetch(url, options);
+            clearTimeout(timeoutId); // Clear timeout on successful response
             
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -42,6 +49,13 @@ class YggdrasilAPI {
             
             return data.response || data.commands;
         } catch (error) {
+            clearTimeout(timeoutId); // Clear timeout on error
+            
+            if (error.name === 'AbortError') {
+                console.error(`API call timeout for ${command}:`, error);
+                throw new Error('Request timeout - service may be unavailable');
+            }
+            
             console.error(`API call failed for ${command}:`, error);
             throw error;
         }

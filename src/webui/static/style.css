@@ -114,6 +114,16 @@
     --shadow-heavy: rgba(0, 0, 0, 0.5);
 }
 
+/* Dark theme progress bar adjustments */
+[data-theme="dark"] .progress-timer-container {
+    background: rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .progress-timer-bar {
+    background: linear-gradient(90deg, #3498db, #27ae60);
+    box-shadow: 0 0 10px rgba(52, 152, 219, 0.3);
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -126,6 +136,24 @@ body {
     height: 100vh;
     color: var(--text-primary);
     overflow: hidden; /* Prevent body scroll */
+}
+
+/* Decorative progress bar */
+.progress-timer-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+    z-index: 1000;
+}
+
+.progress-timer-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #3498db, #2ecc71);
+    width: 100%;
+    box-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
 }
 
 .container {

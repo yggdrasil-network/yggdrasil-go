@@ -7,12 +7,22 @@
 window.nodeInfo = null;
 window.peersData = null;
 let isLoading = false;
+let isLoadingNodeInfo = false;
+let isLoadingPeers = false;
+
+
 
 /**
  * Load and display node information
  */
 async function loadNodeInfo() {
+    if (isLoadingNodeInfo) {
+        console.log('Node info request already in progress, skipping...');
+        return window.nodeInfo;
+    }
+    
     try {
+        isLoadingNodeInfo = true;
         const info = await window.yggAPI.getSelf();
         window.nodeInfo = info;
         updateNodeInfoDisplay(info);
@@ -21,6 +31,8 @@ async function loadNodeInfo() {
         console.error('Failed to load node info:', error);
         showError('Failed to load node information: ' + error.message);
         throw error;
+    } finally {
+        isLoadingNodeInfo = false;
     }
 }
 
@@ -28,7 +40,13 @@ async function loadNodeInfo() {
  * Load and display peers information
  */
 async function loadPeers() {
+    if (isLoadingPeers) {
+        console.log('Peers request already in progress, skipping...');
+        return window.peersData;
+    }
+    
     try {
+        isLoadingPeers = true;
         const data = await window.yggAPI.getPeers();
         window.peersData = data;
         updatePeersDisplay(data);
@@ -37,6 +55,8 @@ async function loadPeers() {
         console.error('Failed to load peers:', error);
         showError('Failed to load peers information: ' + error.message);
         throw error;
+    } finally {
+        isLoadingPeers = false;
     }
 }
 
@@ -99,6 +119,8 @@ function updatePeersDisplay(data) {
 // Expose update functions to window for access from other scripts
 window.updateNodeInfoDisplay = updateNodeInfoDisplay;
 window.updatePeersDisplay = updatePeersDisplay;
+
+
 
 // Expose copy functions to window for access from HTML onclick handlers
 window.copyNodeKey = copyNodeKey;
@@ -359,18 +381,23 @@ function copyPeerKey(key) {
     }
 }
 
+
+
 /**
  * Auto-refresh data
  */
 function startAutoRefresh() {
     // Refresh every 30 seconds
     setInterval(async () => {
-        if (!isLoading) {
+        // Only proceed if individual requests are not already in progress
+        if (!isLoadingNodeInfo && !isLoadingPeers) {
             try {
                 await Promise.all([loadNodeInfo(), loadPeers()]);
             } catch (error) {
                 console.error('Auto-refresh failed:', error);
             }
+        } else {
+            console.log('Skipping auto-refresh - requests already in progress');
         }
     }, 30000);
 }
