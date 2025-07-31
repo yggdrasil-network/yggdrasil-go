@@ -9,6 +9,7 @@
     <script src="static/api.js"></script>
     <script src="static/main.js"></script>
     <script src="static/app.js"></script>
+    <script src="static/modal.js"></script>
     <script src="static/lang/ru.js"></script>
     <script src="static/lang/en.js"></script>
 </head>
@@ -146,6 +147,21 @@
     <!-- Notifications container -->
     <div class="notifications-container" id="notifications-container"></div>
 
+    <!-- Modal System -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal-container" id="modal-container">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modal-title">Modal Title</h3>
+                <button class="modal-close-btn" id="modal-close-btn" onclick="closeModal()">✕</button>
+            </div>
+            <div class="modal-content" id="modal-content">
+                <!-- Modal content will be injected here -->
+            </div>
+            <div class="modal-footer" id="modal-footer">
+                <!-- Modal buttons will be injected here -->
+            </div>
+        </div>
+    </div>
 
 </body>
 

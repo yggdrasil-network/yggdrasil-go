@@ -170,17 +170,24 @@ function showSection(sectionName) {
 }
 
 /**
- * Logout function (placeholder)
+ * Logout function with modal confirmation
  */
 function logout() {
-    if (confirm('Are you sure you want to logout?')) {
-        // Clear stored preferences
-        localStorage.removeItem('yggdrasil-language');
-        localStorage.removeItem('yggdrasil-theme');
-        
-        // Redirect or refresh
-        window.location.reload();
-    }
+    showConfirmModal({
+        title: 'modal_confirm',
+        message: 'logout_confirm',
+        confirmText: 'modal_confirm_yes',
+        cancelText: 'modal_cancel',
+        type: 'danger',
+        onConfirm: () => {
+            // Clear stored preferences
+            localStorage.removeItem('yggdrasil-language');
+            localStorage.removeItem('yggdrasil-theme');
+            
+            // Redirect or refresh
+            window.location.reload();
+        }
+    });
 }
 
 // Notification system

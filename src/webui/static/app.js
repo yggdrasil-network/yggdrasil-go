@@ -239,29 +239,60 @@ function createPeerElement(peer) {
 }
 
 /**
- * Add a new peer
+ * Add a new peer with modal form
  */
 async function addPeer() {
-    const uri = prompt('Enter peer URI:\nExamples:\n• tcp://example.com:54321\n• tls://peer.yggdrasil.network:443');
-    if (!uri || uri.trim() === '') {
-        showWarning('Peer URI is required');
-        return;
-    }
-    
-    // Basic URI validation
-    if (!uri.includes('://')) {
-        showError('Invalid URI format. Must include protocol (tcp://, tls://, etc.)');
-        return;
-    }
-    
-    try {
-        showInfo('Adding peer...');
-        await window.yggAPI.addPeer(uri.trim());
-        showSuccess(`Peer added successfully: ${uri.trim()}`);
-        await loadPeers(); // Refresh peer list
-    } catch (error) {
-        showError('Failed to add peer: ' + error.message);
-    }
+    showModal({
+        title: 'add_peer',
+        content: 'add_peer_modal_description',
+        size: 'medium',
+        inputs: [
+            {
+                type: 'text',
+                name: 'peer_uri',
+                label: 'peer_uri_label',
+                placeholder: 'peer_uri_placeholder',
+                required: true,
+                help: 'peer_uri_help'
+            }
+        ],
+        buttons: [
+            {
+                text: 'modal_cancel',
+                type: 'secondary',
+                action: 'close'
+            },
+            {
+                text: 'add_peer_btn',
+                type: 'primary',
+                callback: async (formData) => {
+                    const uri = formData.peer_uri?.trim();
+                    
+                    if (!uri) {
+                        showWarning('Peer URI is required');
+                        return false; // Don't close modal
+                    }
+                    
+                    // Basic URI validation
+                    if (!uri.includes('://')) {
+                        showError('Invalid URI format. Must include protocol (tcp://, tls://, etc.)');
+                        return false; // Don't close modal
+                    }
+                    
+                    try {
+                        showInfo('Adding peer...');
+                        await window.yggAPI.addPeer(uri);
+                        showSuccess(`Peer added successfully: ${uri}`);
+                        await loadPeers(); // Refresh peer list
+                        return true; // Close modal
+                    } catch (error) {
+                        showError('Failed to add peer: ' + error.message);
+                        return false; // Don't close modal
+                    }
+                }
+            }
+        ]
+    });
 }
 
 /**

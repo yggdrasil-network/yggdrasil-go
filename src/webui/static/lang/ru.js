@@ -78,5 +78,25 @@ window.translations.ru = {
     'peer_quality_good': 'Хорошее',
     'peer_quality_fair': 'Приемлемое',
     'peer_quality_poor': 'Плохое',
-    'peer_quality_unknown': 'Неизвестно'
+    'peer_quality_unknown': 'Неизвестно',
+    
+    // Modal translations
+    'modal_close': 'Закрыть',
+    'modal_cancel': 'Отмена',
+    'modal_ok': 'ОК',
+    'modal_confirm': 'Подтверждение',
+    'modal_confirm_yes': 'Да',
+    'modal_confirm_message': 'Вы уверены?',
+    'modal_alert': 'Уведомление',
+    'modal_input': 'Ввод данных',
+    'modal_error': 'Ошибка',
+    'modal_success': 'Успешно',
+    'modal_warning': 'Предупреждение',
+    'modal_info': 'Информация',
+    
+    // Add peer modal
+    'add_peer_modal_description': 'Введите URI пира для подключения к новому узлу сети',
+    'peer_uri_label': 'URI пира',
+    'peer_uri_placeholder': 'tcp://example.com:54321',
+    'peer_uri_help': 'Примеры: tcp://example.com:54321, tls://peer.yggdrasil.network:443'
 }; 

@@ -78,5 +78,25 @@ window.translations.en = {
     'peer_quality_good': 'Good',
     'peer_quality_fair': 'Fair',
     'peer_quality_poor': 'Poor',
-    'peer_quality_unknown': 'Unknown'
+    'peer_quality_unknown': 'Unknown',
+    
+    // Modal translations
+    'modal_close': 'Close',
+    'modal_cancel': 'Cancel',
+    'modal_ok': 'OK',
+    'modal_confirm': 'Confirmation',
+    'modal_confirm_yes': 'Yes',
+    'modal_confirm_message': 'Are you sure?',
+    'modal_alert': 'Alert',
+    'modal_input': 'Input',
+    'modal_error': 'Error',
+    'modal_success': 'Success',
+    'modal_warning': 'Warning',
+    'modal_info': 'Information',
+    
+    // Add peer modal
+    'add_peer_modal_description': 'Enter peer URI to connect to a new network node',
+    'peer_uri_label': 'Peer URI',
+    'peer_uri_placeholder': 'tcp://example.com:54321',
+    'peer_uri_help': 'Examples: tcp://example.com:54321, tls://peer.yggdrasil.network:443'
 }; 
