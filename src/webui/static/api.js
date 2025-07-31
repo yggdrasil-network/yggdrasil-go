@@ -172,7 +172,93 @@ class YggdrasilUtils {
      * @returns {string} - Status text
      */
     static getPeerStatusText(up) {
+        const currentLang = window.getCurrentLanguage ? window.getCurrentLanguage() : 'en';
+        if (window.translations && window.translations[currentLang]) {
+            return up 
+                ? window.translations[currentLang]['peer_status_online'] || 'Online'
+                : window.translations[currentLang]['peer_status_offline'] || 'Offline';
+        }
         return up ? 'Online' : 'Offline';
+    }
+
+    /**
+     * Format latency to human readable format
+     * @param {number} latency - Latency in nanoseconds
+     * @returns {string} - Formatted latency
+     */
+    static formatLatency(latency) {
+        if (!latency || latency === 0) return 'N/A';
+        const ms = latency / 1000000;
+        if (ms < 1) return `${(latency / 1000).toFixed(0)}μs`;
+        if (ms < 1000) return `${ms.toFixed(1)}ms`;
+        return `${(ms / 1000).toFixed(2)}s`;
+    }
+
+    /**
+     * Get direction text and icon
+     * @param {boolean} inbound - Whether connection is inbound
+     * @returns {Object} - Object with text and icon
+     */
+    static getConnectionDirection(inbound) {
+        const currentLang = window.getCurrentLanguage ? window.getCurrentLanguage() : 'en';
+        let text;
+        if (window.translations && window.translations[currentLang]) {
+            text = inbound 
+                ? window.translations[currentLang]['peer_direction_inbound'] || 'Inbound'
+                : window.translations[currentLang]['peer_direction_outbound'] || 'Outbound';
+        } else {
+            text = inbound ? 'Inbound' : 'Outbound';
+        }
+        return {
+            text: text,
+            icon: inbound ? '↓' : '↑'
+        };
+    }
+
+    /**
+     * Format port number for display
+     * @param {number} port - Port number
+     * @returns {string} - Formatted port
+     */
+    static formatPort(port) {
+        return port ? `Port ${port}` : 'N/A';
+    }
+
+    /**
+     * Get quality indicator based on cost
+     * @param {number} cost - Connection cost
+     * @returns {Object} - Object with class and text
+     */
+    static getQualityIndicator(cost) {
+        const currentLang = window.getCurrentLanguage ? window.getCurrentLanguage() : 'en';
+        let text;
+        if (window.translations && window.translations[currentLang]) {
+            if (!cost || cost === 0) {
+                text = window.translations[currentLang]['peer_quality_unknown'] || 'Unknown';
+                return { class: 'quality-unknown', text: text };
+            }
+            if (cost <= 100) {
+                text = window.translations[currentLang]['peer_quality_excellent'] || 'Excellent';
+                return { class: 'quality-excellent', text: text };
+            }
+            if (cost <= 200) {
+                text = window.translations[currentLang]['peer_quality_good'] || 'Good';
+                return { class: 'quality-good', text: text };
+            }
+            if (cost <= 400) {
+                text = window.translations[currentLang]['peer_quality_fair'] || 'Fair';
+                return { class: 'quality-fair', text: text };
+            }
+            text = window.translations[currentLang]['peer_quality_poor'] || 'Poor';
+            return { class: 'quality-poor', text: text };
+        }
+        
+        // Fallback to English
+        if (!cost || cost === 0) return { class: 'quality-unknown', text: 'Unknown' };
+        if (cost <= 100) return { class: 'quality-excellent', text: 'Excellent' };
+        if (cost <= 200) return { class: 'quality-good', text: 'Good' };
+        if (cost <= 400) return { class: 'quality-fair', text: 'Fair' };
+        return { class: 'quality-poor', text: 'Poor' };
     }
 }
 

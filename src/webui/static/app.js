@@ -54,8 +54,10 @@ function updateNodeInfoDisplay(info) {
     // Update footer version
     updateElementText('footer-version', info.build_version || 'unknown');
     
-    // Update full key display (for copy functionality)
+    // Update full values for copy functionality
     updateElementData('node-key-full', info.key || '');
+    updateElementData('node-address', info.address || '');
+    updateElementData('node-subnet', info.subnet || '');
 }
 
 /**
@@ -75,7 +77,11 @@ function updatePeersDisplay(data) {
     updateElementText('peers-online', onlineCount.toString());
     
     if (!data.peers || data.peers.length === 0) {
-        peersContainer.innerHTML = '<div class="no-data">No peers connected</div>';
+        const currentLang = window.getCurrentLanguage ? window.getCurrentLanguage() : 'en';
+        const message = window.translations && window.translations[currentLang] 
+            ? window.translations[currentLang]['no_peers_connected'] || 'No peers connected'
+            : 'No peers connected';
+        peersContainer.innerHTML = `<div class="no-data">${message}</div>`;
         return;
     }
     
@@ -83,11 +89,23 @@ function updatePeersDisplay(data) {
         const peerElement = createPeerElement(peer);
         peersContainer.appendChild(peerElement);
     });
+    
+    // Update translations for newly added peer elements
+    if (typeof updateTexts === 'function') {
+        updateTexts();
+    }
 }
 
 // Expose update functions to window for access from other scripts
 window.updateNodeInfoDisplay = updateNodeInfoDisplay;
 window.updatePeersDisplay = updatePeersDisplay;
+
+// Expose copy functions to window for access from HTML onclick handlers
+window.copyNodeKey = copyNodeKey;
+window.copyNodeAddress = copyNodeAddress;
+window.copyNodeSubnet = copyNodeSubnet;
+window.copyPeerAddress = copyPeerAddress;
+window.copyPeerKey = copyPeerKey;
 
 /**
  * Create HTML element for a single peer
@@ -98,21 +116,101 @@ function createPeerElement(peer) {
     
     const statusClass = yggUtils.getPeerStatusClass(peer.up);
     const statusText = yggUtils.getPeerStatusText(peer.up);
+    const direction = yggUtils.getConnectionDirection(peer.inbound);
+    const quality = yggUtils.getQualityIndicator(peer.cost);
+    const uptimeText = peer.uptime ? yggUtils.formatDuration(peer.uptime) : 'N/A';
+    const latencyText = yggUtils.formatLatency(peer.latency);
+    
+    // Get translations for labels
+    const currentLang = window.getCurrentLanguage ? window.getCurrentLanguage() : 'en';
+    const t = window.translations && window.translations[currentLang] ? window.translations[currentLang] : {};
+    
+    const labels = {
+        connection: t['peer_connection'] || 'Connection',
+        performance: t['peer_performance'] || 'Performance',
+        traffic: t['peer_traffic'] || 'Traffic',
+        uptime: t['peer_uptime'] || 'Uptime',
+        port: t['peer_port'] || 'Port',
+        priority: t['peer_priority'] || 'Priority',
+        latency: t['peer_latency'] || 'Latency',
+        cost: t['peer_cost'] || 'Cost',
+        quality: t['peer_quality'] || 'Quality',
+        received: t['peer_received'] || '↓ Received',
+        sent: t['peer_sent'] || '↑ Sent',
+        total: t['peer_total'] || 'Total',
+        remove: t['peer_remove'] || 'Remove'
+    };
     
     div.innerHTML = `
         <div class="peer-header">
-            <div class="peer-address">${peer.address || 'N/A'}</div>
-            <div class="peer-status ${statusClass}">${statusText}</div>
+            <div class="peer-address-section">
+                <div class="peer-address copyable" onclick="copyPeerAddress('${peer.address || ''}')" data-key-title="copy_address_tooltip">${peer.address || 'N/A'}</div>
+                <div class="peer-key copyable" onclick="copyPeerKey('${peer.key || ''}')" data-key-title="copy_key_tooltip">${yggUtils.formatPublicKey(peer.key) || 'N/A'}</div>
+            </div>
+            <div class="peer-status-section">
+                <div class="peer-status ${statusClass}">${statusText}</div>
+                <div class="peer-direction ${peer.inbound ? 'inbound' : 'outbound'}" title="${direction.text}">
+                    ${direction.icon} ${direction.text}
+                </div>
+            </div>
         </div>
         <div class="peer-details">
             <div class="peer-uri" title="${peer.remote || 'N/A'}">${peer.remote || 'N/A'}</div>
-            <div class="peer-stats">
-                <span>↓ ${yggUtils.formatBytes(peer.bytes_recvd || 0)}</span>
-                <span>↑ ${yggUtils.formatBytes(peer.bytes_sent || 0)}</span>
-                ${peer.up && peer.latency ? `<span>RTT: ${(peer.latency / 1000000).toFixed(1)}ms</span>` : ''}
+            <div class="peer-info-grid">
+                <div class="peer-info-section">
+                    <div class="peer-info-title">${labels.connection}</div>
+                    <div class="peer-info-stats">
+                        <span class="info-item">
+                            <span class="info-label">${labels.uptime}:</span>
+                            <span class="info-value">${uptimeText}</span>
+                        </span>
+                        <span class="info-item">
+                            <span class="info-label">${labels.port}:</span>
+                            <span class="info-value">${peer.port || 'N/A'}</span>
+                        </span>
+                        <span class="info-item">
+                            <span class="info-label">${labels.priority}:</span>
+                            <span class="info-value">${peer.priority !== undefined ? peer.priority : 'N/A'}</span>
+                        </span>
+                    </div>
+                </div>
+                <div class="peer-info-section">
+                    <div class="peer-info-title">${labels.performance}</div>
+                    <div class="peer-info-stats">
+                        <span class="info-item">
+                            <span class="info-label">${labels.latency}:</span>
+                            <span class="info-value">${latencyText}</span>
+                        </span>
+                        <span class="info-item">
+                            <span class="info-label">${labels.cost}:</span>
+                            <span class="info-value">${peer.cost !== undefined ? peer.cost : 'N/A'}</span>
+                        </span>
+                        <span class="info-item quality-indicator">
+                            <span class="info-label">${labels.quality}:</span>
+                            <span class="info-value ${quality.class}">${quality.text}</span>
+                        </span>
+                    </div>
+                </div>
+                <div class="peer-info-section">
+                    <div class="peer-info-title">${labels.traffic}</div>
+                    <div class="peer-info-stats">
+                        <span class="info-item">
+                            <span class="info-label">${labels.received}:</span>
+                            <span class="info-value">${yggUtils.formatBytes(peer.bytes_recvd || 0)}</span>
+                        </span>
+                        <span class="info-item">
+                            <span class="info-label">${labels.sent}:</span>
+                            <span class="info-value">${yggUtils.formatBytes(peer.bytes_sent || 0)}</span>
+                        </span>
+                        <span class="info-item">
+                            <span class="info-label">${labels.total}:</span>
+                            <span class="info-value">${yggUtils.formatBytes((peer.bytes_recvd || 0) + (peer.bytes_sent || 0))}</span>
+                        </span>
+                    </div>
+                </div>
             </div>
         </div>
-        ${peer.remote ? `<button class="peer-remove-btn" onclick="removePeerConfirm('${peer.remote}')">Remove</button>` : ''}
+        ${peer.remote ? `<button class="peer-remove-btn" onclick="removePeerConfirm('${peer.remote}')">${labels.remove}</button>` : ''}
     `;
     
     return div;
@@ -193,7 +291,11 @@ function updateElementData(id, data) {
 async function copyToClipboard(text) {
     try {
         await navigator.clipboard.writeText(text);
-        showSuccess('Copied to clipboard');
+        const currentLang = window.getCurrentLanguage ? window.getCurrentLanguage() : 'en';
+        const message = window.translations && window.translations[currentLang] 
+            ? window.translations[currentLang]['copied_to_clipboard'] || 'Copied to clipboard'
+            : 'Copied to clipboard';
+        showSuccess(message);
     } catch (error) {
         console.error('Failed to copy:', error);
         showError('Failed to copy to clipboard');
@@ -210,6 +312,50 @@ function copyNodeKey() {
         if (key) {
             copyToClipboard(key);
         }
+    }
+}
+
+/**
+ * Copy node address to clipboard
+ */
+function copyNodeAddress() {
+    const element = document.getElementById('node-address');
+    if (element) {
+        const address = element.getAttribute('data-value') || element.textContent;
+        if (address && address !== 'N/A' && address !== 'Загрузка...') {
+            copyToClipboard(address);
+        }
+    }
+}
+
+/**
+ * Copy node subnet to clipboard
+ */
+function copyNodeSubnet() {
+    const element = document.getElementById('node-subnet');
+    if (element) {
+        const subnet = element.getAttribute('data-value') || element.textContent;
+        if (subnet && subnet !== 'N/A' && subnet !== 'Загрузка...') {
+            copyToClipboard(subnet);
+        }
+    }
+}
+
+/**
+ * Copy peer address to clipboard
+ */
+function copyPeerAddress(address) {
+    if (address && address !== 'N/A') {
+        copyToClipboard(address);
+    }
+}
+
+/**
+ * Copy peer key to clipboard
+ */
+function copyPeerKey(key) {
+    if (key && key !== 'N/A') {
+        copyToClipboard(key);
     }
 }
 
@@ -250,7 +396,11 @@ async function initializeApp() {
         // Load initial data
         await Promise.all([loadNodeInfo(), loadPeers()]);
         
-        showSuccess('Dashboard loaded successfully');
+        const currentLang = window.getCurrentLanguage ? window.getCurrentLanguage() : 'en';
+        const message = window.translations && window.translations[currentLang] 
+            ? window.translations[currentLang]['dashboard_loaded'] || 'Dashboard loaded successfully'
+            : 'Dashboard loaded successfully';
+        showSuccess(message);
         
         // Start auto-refresh
         startAutoRefresh();

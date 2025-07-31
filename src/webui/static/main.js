@@ -5,12 +5,15 @@
 
 // Global state variables
 let currentLanguage = localStorage.getItem('yggdrasil-language') || 'ru';
+
+// Export currentLanguage to window for access from other scripts
+window.getCurrentLanguage = () => currentLanguage;
 let currentTheme = localStorage.getItem('yggdrasil-theme') || 'light';
 
 // Elements that should not be overwritten by translations when they contain data
 const dataElements = [
     'node-key', 'node-version', 'routing-entries', 'node-address', 
-    'node-subnet', 'peers-count', 'peers-online'
+    'node-subnet', 'peers-count', 'peers-online', 'footer-version'
 ];
 
 /**
@@ -18,7 +21,7 @@ const dataElements = [
  */
 function hasDataContent(element) {
     const text = element.textContent.trim();
-    const loadingTexts = ['Loading...', 'Загрузка...', 'N/A', ''];
+    const loadingTexts = ['Loading...', 'Загрузка...', 'N/A', '', 'unknown'];
     return !loadingTexts.includes(text);
 }
 
@@ -39,10 +42,32 @@ function updateTexts() {
         if (window.translations && window.translations[currentLanguage] && window.translations[currentLanguage][key]) {
             // Special handling for footer_text which contains HTML
             if (key === 'footer_text') {
+                // Save current version value if it exists
+                const versionElement = document.getElementById('footer-version');
+                const currentVersion = versionElement ? versionElement.textContent : '';
+                
+                // Update footer text
                 element.innerHTML = window.translations[currentLanguage][key];
+                
+                // Restore version value if it was there
+                if (currentVersion && currentVersion !== '' && currentVersion !== 'unknown') {
+                    const newVersionElement = document.getElementById('footer-version');
+                    if (newVersionElement) {
+                        newVersionElement.textContent = currentVersion;
+                    }
+                }
             } else {
                 element.textContent = window.translations[currentLanguage][key];
             }
+        }
+    });
+    
+    // Handle title translations
+    const titleElements = document.querySelectorAll('[data-key-title]');
+    titleElements.forEach(element => {
+        const titleKey = element.getAttribute('data-key-title');
+        if (window.translations && window.translations[currentLanguage] && window.translations[currentLanguage][titleKey]) {
+            element.title = window.translations[currentLanguage][titleKey];
         }
     });
 }

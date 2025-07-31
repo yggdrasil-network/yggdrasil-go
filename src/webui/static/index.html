@@ -34,106 +34,93 @@
             </div>
         </header>
 
-        <div class="layout">
-            <aside class="sidebar">
-                <nav class="nav-menu">
-                    <div class="nav-item active" onclick="showSection('status')">
-                        <span class="nav-icon">📊</span>
-                        <span class="nav-text" data-key="nav_status">Состояние</span>
-                    </div>
-                    <div class="nav-item" onclick="showSection('peers')">
-                        <span class="nav-icon">🌐</span>
-                        <span class="nav-text" data-key="nav_peers">Пиры</span>
-                    </div>
-                    <div class="nav-item" onclick="showSection('config')">
-                        <span class="nav-icon">⚙️</span>
-                        <span class="nav-text" data-key="nav_config">Конфигурация</span>
-                    </div>
-                </nav>
-            </aside>
+        <aside class="sidebar">
+            <nav class="nav-menu">
+                <div class="nav-item active" onclick="showSection('status')">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-text" data-key="nav_status">Состояние</span>
+                </div>
+                <div class="nav-item" onclick="showSection('peers')">
+                    <span class="nav-icon">🌐</span>
+                    <span class="nav-text" data-key="nav_peers">Пиры</span>
+                </div>
+                <div class="nav-item" onclick="showSection('config')">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-text" data-key="nav_config">Конфигурация</span>
+                </div>
+            </nav>
+        </aside>
 
-            <main class="main-content">
-                <div id="status-section" class="content-section active">
-                    <div class="status-card">
-                        <h2 data-key="status_title">Состояние узла</h2>
-                        <p data-key="status_description">Информация о текущем состоянии вашего узла Yggdrasil</p>
+        <main class="main-content">
+            <div id="status-section" class="content-section active">
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h3 data-key="node_info">Информация об узле</h3>
+                        <p><span data-key="public_key">Публичный ключ</span>: <span id="node-key" class="copyable-field"
+                                data-key="loading" onclick="copyNodeKey()"
+                                data-key-title="copy_key_tooltip">Загрузка...</span></p>
+                        <p><span data-key="version">Версия</span>: <span id="node-version"
+                                data-key="loading">Загрузка...</span></p>
+                        <p><span data-key="routing_entries">Записей маршрутизации</span>: <span id="routing-entries"
+                                data-key="loading">Загрузка...</span></p>
+                        <span id="node-key-full" data-value="" style="display: none;"></span>
                     </div>
 
-                    <div class="info-grid">
-                        <div class="info-card">
-                            <h3 data-key="node_info">Информация об узле</h3>
-                            <p><span data-key="public_key">Публичный ключ</span>: <span id="node-key"
-                                    data-key="loading">Загрузка...</span> <button onclick="copyNodeKey()"
-                                    style="margin-left: 8px; font-size: 12px;">📋</button></p>
-                            <p><span data-key="version">Версия</span>: <span id="node-version"
-                                    data-key="loading">Загрузка...</span></p>
-                            <p><span data-key="routing_entries">Записей маршрутизации</span>: <span id="routing-entries"
-                                    data-key="loading">Загрузка...</span></p>
-                            <span id="node-key-full" data-value="" style="display: none;"></span>
-                        </div>
+                    <div class="info-card">
+                        <h3 data-key="network_info">Сетевая информация</h3>
+                        <p><span data-key="address">Адрес</span>: <span id="node-address" class="copyable-field"
+                                data-key="loading" onclick="copyNodeAddress()"
+                                data-key-title="copy_address_tooltip">Загрузка...</span>
+                        </p>
+                        <p><span data-key="subnet">Подсеть</span>: <span id="node-subnet" class="copyable-field"
+                                data-key="loading" onclick="copyNodeSubnet()"
+                                data-key-title="copy_address_tooltip">Загрузка...</span>
+                        </p>
+                    </div>
 
-                        <div class="info-card">
-                            <h3 data-key="network_info">Сетевая информация</h3>
-                            <p><span data-key="address">Адрес</span>: <span id="node-address"
-                                    data-key="loading">Загрузка...</span></p>
-                            <p><span data-key="subnet">Подсеть</span>: <span id="node-subnet"
-                                    data-key="loading">Загрузка...</span></p>
-                        </div>
+                    <div class="info-card">
+                        <h3 data-key="statistics">Статистика пиров</h3>
+                        <p><span data-key="total_peers">Всего пиров</span>: <span id="peers-count"
+                                data-key="loading">Загрузка...</span></p>
+                        <p><span data-key="online_peers">Онлайн пиров</span>: <span id="peers-online"
+                                data-key="loading">Загрузка...</span></p>
+                    </div>
+                </div>
+            </div>
 
-                        <div class="info-card">
-                            <h3 data-key="statistics">Статистика пиров</h3>
-                            <p><span data-key="total_peers">Всего пиров</span>: <span id="peers-count"
-                                    data-key="loading">Загрузка...</span></p>
-                            <p><span data-key="online_peers">Онлайн пиров</span>: <span id="peers-online"
-                                    data-key="loading">Загрузка...</span></p>
-                        </div>
+            <div id="peers-section" class="content-section">
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h3 data-key="add_peer">Добавить пир</h3>
+                        <p data-key="add_peer_description">Подключение к новому узлу</p>
+                        <button onclick="addPeer()" class="action-btn" data-key="add_peer_btn">Добавить пир</button>
                     </div>
                 </div>
 
-                <div id="peers-section" class="content-section">
-                    <div class="status-card">
-                        <h2 data-key="peers_title">Управление пирами</h2>
-                        <p data-key="peers_description">Просмотр и управление соединениями с пирами</p>
-                    </div>
-
-                    <div class="info-grid">
-                        <div class="info-card">
-                            <h3 data-key="add_peer">Добавить пир</h3>
-                            <p data-key="add_peer_description">Подключение к новому узлу</p>
-                            <button onclick="addPeer()" class="action-btn" data-key="add_peer_btn">Добавить пир</button>
-                        </div>
-                    </div>
-
-                    <div class="peers-container">
-                        <h3 data-key="connected_peers">Подключенные пиры</h3>
-                        <div id="peers-list" class="peers-list">
-                            <div class="loading" data-key="loading">Загрузка...</div>
-                        </div>
+                <div class="peers-container">
+                    <h3 data-key="connected_peers">Подключенные пиры</h3>
+                    <div id="peers-list" class="peers-list">
+                        <div class="loading" data-key="loading">Загрузка...</div>
                     </div>
                 </div>
+            </div>
 
-                <div id="config-section" class="content-section">
-                    <div class="status-card">
-                        <h2 data-key="config_title">Конфигурация</h2>
-                        <p data-key="config_description">Настройки узла и параметры сети</p>
+            <div id="config-section" class="content-section">
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h3 data-key="basic_settings">Основные настройки</h3>
+                        <p data-key="basic_settings_description">Базовая конфигурация узла</p>
+                        <small data-key="coming_soon">Функция в разработке...</small>
                     </div>
 
-                    <div class="info-grid">
-                        <div class="info-card">
-                            <h3 data-key="basic_settings">Основные настройки</h3>
-                            <p data-key="basic_settings_description">Базовая конфигурация узла</p>
-                            <small data-key="coming_soon">Функция в разработке...</small>
-                        </div>
-
-                        <div class="info-card">
-                            <h3 data-key="network_settings">Сетевые настройки</h3>
-                            <p data-key="network_settings_description">Параметры сетевого взаимодействия</p>
-                            <small data-key="coming_soon">Функция в разработке...</small>
-                        </div>
+                    <div class="info-card">
+                        <h3 data-key="network_settings">Сетевые настройки</h3>
+                        <p data-key="network_settings_description">Параметры сетевого взаимодействия</p>
+                        <small data-key="coming_soon">Функция в разработке...</small>
                     </div>
                 </div>
-            </main>
-        </div>
+            </div>
+        </main>
 
         <div class="mobile-controls">
             <div class="controls-group">
