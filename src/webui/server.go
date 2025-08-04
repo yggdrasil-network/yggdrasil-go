@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
+	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 )
 
@@ -381,6 +382,105 @@ func (w *WebUIServer) callAdminHandler(command string, args map[string]interface
 	return w.admin.CallHandler(command, argsBytes)
 }
 
+// Configuration response structures
+type ConfigResponse struct {
+	ConfigPath   string      `json:"config_path"`
+	ConfigFormat string      `json:"config_format"`
+	ConfigData   interface{} `json:"config_data"`
+	IsWritable   bool        `json:"is_writable"`
+}
+
+type ConfigSetRequest struct {
+	ConfigData interface{} `json:"config_data"`
+	ConfigPath string      `json:"config_path,omitempty"`
+	Format     string      `json:"format,omitempty"`
+}
+
+type ConfigSetResponse struct {
+	Success    bool   `json:"success"`
+	Message    string `json:"message"`
+	ConfigPath string `json:"config_path"`
+	BackupPath string `json:"backup_path,omitempty"`
+}
+
+// getConfigHandler handles configuration file reading
+func (w *WebUIServer) getConfigHandler(rw http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Use config package to get current configuration
+	configInfo, err := config.GetCurrentConfig()
+	if err != nil {
+		w.log.Errorf("Failed to get current config: %v", err)
+		http.Error(rw, "Failed to get configuration", http.StatusInternalServerError)
+		return
+	}
+
+	response := ConfigResponse{
+		ConfigPath:   configInfo.Path,
+		ConfigFormat: configInfo.Format,
+		ConfigData:   configInfo.Data,
+		IsWritable:   configInfo.Writable,
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(rw).Encode(response); err != nil {
+		w.log.Errorf("Failed to encode config response: %v", err)
+		http.Error(rw, "Failed to encode response", http.StatusInternalServerError)
+	}
+}
+
+// setConfigHandler handles configuration file writing
+func (w *WebUIServer) setConfigHandler(rw http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req ConfigSetRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(rw, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Use config package to save configuration
+	err := config.SaveConfig(req.ConfigData, req.ConfigPath, req.Format)
+	if err != nil {
+		response := ConfigSetResponse{
+			Success: false,
+			Message: err.Error(),
+		}
+		w.writeJSONResponse(rw, response)
+		return
+	}
+
+	// Get current config info for response
+	configInfo, err := config.GetCurrentConfig()
+	var configPath string = req.ConfigPath
+	if err == nil && configInfo != nil {
+		configPath = configInfo.Path
+	}
+
+	response := ConfigSetResponse{
+		Success:    true,
+		Message:    "Configuration saved successfully",
+		ConfigPath: configPath,
+		BackupPath: configPath + ".backup",
+	}
+	w.writeJSONResponse(rw, response)
+}
+
+// writeJSONResponse helper function
+func (w *WebUIServer) writeJSONResponse(rw http.ResponseWriter, data interface{}) {
+	rw.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(rw).Encode(data); err != nil {
+		w.log.Errorf("Failed to encode JSON response: %v", err)
+		http.Error(rw, "Failed to encode response", http.StatusInternalServerError)
+	}
+}
+
 func (w *WebUIServer) Start() error {
 	// Validate listen address before starting
 	if w.listen != "" {
@@ -414,6 +514,10 @@ func (w *WebUIServer) Start() error {
 
 	// Admin API endpoints - with auth
 	mux.HandleFunc("/api/admin/", w.authMiddleware(w.adminAPIHandler))
+
+	// Configuration API endpoints - with auth
+	mux.HandleFunc("/api/config/get", w.authMiddleware(w.getConfigHandler))
+	mux.HandleFunc("/api/config/set", w.authMiddleware(w.setConfigHandler))
 
 	// Setup static files handler (implementation varies by build)
 	setupStaticHandler(mux, w)

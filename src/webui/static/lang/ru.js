@@ -98,5 +98,18 @@ window.translations.ru = {
     'add_peer_modal_description': 'Введите URI пира для подключения к новому узлу сети',
     'peer_uri_label': 'URI пира',
     'peer_uri_placeholder': 'tcp://example.com:54321',
-    'peer_uri_help': 'Примеры: tcp://example.com:54321, tls://peer.yggdrasil.network:443'
+    'peer_uri_help': 'Примеры: tcp://example.com:54321, tls://peer.yggdrasil.network:443',
+    
+    // Configuration
+    'configuration_file': 'Файл конфигурации',
+    'refresh': 'Обновить',
+    'save_config': 'Сохранить',
+    'config_save_success': 'Конфигурация сохранена успешно',
+    'config_save_error': 'Ошибка сохранения конфигурации',
+    'config_load_error': 'Ошибка загрузки конфигурации',
+    'config_readonly': 'Файл конфигурации доступен только для чтения',
+    'config_save_confirm_title': 'Подтверждение сохранения',
+    'config_save_confirm_text': 'Вы уверены, что хотите сохранить изменения в конфигурационный файл?',
+    'config_backup_info': 'Резервная копия будет создана автоматически',
+    'config_warning': '⚠️ Внимание: Неправильная конфигурация может привести к сбою работы узла!'
 }; 

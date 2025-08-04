@@ -167,6 +167,11 @@ function showSection(sectionName) {
     if (event && event.target) {
         event.target.closest('.nav-item').classList.add('active');
     }
+
+    // Initialize section-specific functionality
+    if (sectionName === 'config') {
+        initConfigSection();
+    }
 }
 
 /**

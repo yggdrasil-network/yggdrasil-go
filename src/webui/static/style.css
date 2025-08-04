@@ -114,16 +114,6 @@
     --shadow-heavy: rgba(0, 0, 0, 0.5);
 }
 
-/* Dark theme progress bar adjustments */
-[data-theme="dark"] .progress-timer-container {
-    background: rgba(0, 0, 0, 0.4);
-}
-
-[data-theme="dark"] .progress-timer-bar {
-    background: linear-gradient(90deg, #3498db, #27ae60);
-    box-shadow: 0 0 10px rgba(52, 152, 219, 0.3);
-}
-
 * {
     margin: 0;
     padding: 0;
@@ -136,24 +126,6 @@ body {
     height: 100vh;
     color: var(--text-primary);
     overflow: hidden; /* Prevent body scroll */
-}
-
-/* Decorative progress bar */
-.progress-timer-container {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.2);
-    z-index: 1000;
-}
-
-.progress-timer-bar {
-    height: 100%;
-    background: linear-gradient(90deg, #3498db, #2ecc71);
-    width: 100%;
-    box-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
 }
 
 .container {
@@ -1563,4 +1535,380 @@ button[onclick="copyNodeKey()"]:hover {
     .modal-btn {
         width: 100%;
     }
+} 
+
+/* Configuration Editor Styles */
+.config-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.config-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 30px;
+    padding: 20px;
+    background: var(--bg-info-card);
+    border: 1px solid var(--border-card);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.config-info h3 {
+    margin: 0 0 10px 0;
+    color: var(--text-heading);
+    font-size: 1.5em;
+}
+
+.config-meta {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.config-path {
+    font-family: 'Courier New', monospace;
+    background: var(--bg-nav-item);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    color: var(--text-body);
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.config-format {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.config-format.json {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.config-format.hjson {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.config-status {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: bold;
+}
+
+.config-status.writable {
+    background: var(--bg-success);
+    color: var(--text-success);
+}
+
+.config-status.readonly {
+    background: var(--bg-warning);
+    color: var(--text-warning);
+}
+
+.config-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.refresh-btn {
+    background: var(--bg-nav-active);
+    color: white;
+}
+
+.save-btn {
+    background: var(--bg-success-dark);
+    color: white;
+}
+
+.save-btn.modified {
+    background: var(--bg-warning-dark);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+/* Configuration Groups */
+.config-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.config-group {
+    background: var(--bg-info-card);
+    border: 1px solid var(--border-card);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.config-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: var(--bg-nav-item);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.config-group-header:hover {
+    background: var(--bg-nav-hover);
+}
+
+.config-group-header h4 {
+    margin: 0;
+    color: var(--text-heading);
+    font-size: 1.2em;
+}
+
+.toggle-icon {
+    font-size: 1.2em;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+}
+
+.config-group-content {
+    padding: 0;
+}
+
+/* Configuration Fields */
+.config-field {
+    padding: 20px;
+    border-bottom: 1px solid var(--border-card);
+}
+
+.config-field:last-child {
+    border-bottom: none;
+}
+
+.config-field-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.config-field-header label {
+    font-weight: bold;
+    color: var(--text-heading);
+    font-family: 'Courier New', monospace;
+}
+
+.field-type {
+    padding: 2px 6px;
+    background: var(--bg-nav-item);
+    color: var(--text-muted);
+    border-radius: 3px;
+    font-size: 0.8em;
+    font-weight: normal;
+}
+
+.config-field-description {
+    color: var(--text-muted);
+    font-size: 0.9em;
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.config-field-input {
+    position: relative;
+}
+
+/* Input Styles */
+.config-input, .config-textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border-card);
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    background: var(--bg-info-card);
+    color: var(--text-body);
+    transition: border-color 0.2s;
+}
+
+.config-input:focus, .config-textarea:focus {
+    outline: none;
+    border-color: var(--border-hover);
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.config-textarea {
+    resize: vertical;
+    min-height: 80px;
+    font-family: 'Courier New', monospace;
+}
+
+.private-key {
+    font-family: monospace;
+    letter-spacing: 1px;
+}
+
+/* Switch Styles */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: 0.4s;
+    border-radius: 34px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: 0.4s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: var(--bg-nav-active);
+}
+
+input:focus + .slider {
+    box-shadow: 0 0 1px var(--bg-nav-active);
+}
+
+input:checked + .slider:before {
+    transform: translateX(26px);
+}
+
+/* Array and Object Input Styles */
+.array-input, .object-input, .private-key-input {
+    position: relative;
+}
+
+.array-input small, .object-input small, .private-key-input small {
+    display: block;
+    margin-top: 5px;
+    color: var(--text-muted);
+    font-size: 0.8em;
+}
+
+/* Save Confirmation Modal */
+.save-config-confirmation {
+    text-align: center;
+}
+
+.config-save-info {
+    background: var(--bg-nav-item);
+    padding: 15px;
+    border-radius: 4px;
+    margin: 15px 0;
+    text-align: left;
+}
+
+.config-save-info p {
+    margin: 5px 0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+.warning {
+    background: var(--bg-warning);
+    border: 1px solid var(--border-warning);
+    color: var(--text-warning);
+    padding: 15px;
+    border-radius: 4px;
+    margin-top: 15px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .config-container {
+        padding: 10px;
+    }
+    
+    .config-header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: stretch;
+    }
+    
+    .config-meta {
+        flex-direction: column;
+        gap: 10px;
+        align-items: flex-start;
+    }
+    
+    .config-path {
+        max-width: 100%;
+    }
+    
+    .config-actions {
+        justify-content: center;
+    }
+    
+    .config-field {
+        padding: 15px;
+    }
+    
+    .config-field-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
+    }
+}
+
+/* Dark Theme Support */
+[data-theme="dark"] .config-container,
+[data-theme="dark"] .config-group,
+[data-theme="dark"] .config-header {
+    background: var(--bg-info-card);
+    border-color: var(--border-card);
+}
+
+[data-theme="dark"] .config-input,
+[data-theme="dark"] .config-textarea {
+    background: var(--bg-nav-item);
+    border-color: var(--border-card);
+    color: var(--text-body);
+}
+
+[data-theme="dark"] .config-save-info {
+    background: var(--bg-nav-item);
+}
+
+[data-theme="dark"] .warning {
+    background: rgba(255, 193, 7, 0.1);
+    border-color: var(--border-warning);
+    color: var(--text-warning);
 } 

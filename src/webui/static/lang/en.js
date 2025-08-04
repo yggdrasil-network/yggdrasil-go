@@ -98,5 +98,18 @@ window.translations.en = {
     'add_peer_modal_description': 'Enter peer URI to connect to a new network node',
     'peer_uri_label': 'Peer URI',
     'peer_uri_placeholder': 'tcp://example.com:54321',
-    'peer_uri_help': 'Examples: tcp://example.com:54321, tls://peer.yggdrasil.network:443'
+    'peer_uri_help': 'Examples: tcp://example.com:54321, tls://peer.yggdrasil.network:443',
+    
+    // Configuration
+    'configuration_file': 'Configuration File',
+    'refresh': 'Refresh',
+    'save_config': 'Save',
+    'config_save_success': 'Configuration saved successfully',
+    'config_save_error': 'Error saving configuration',
+    'config_load_error': 'Error loading configuration',
+    'config_readonly': 'Configuration file is read-only',
+    'config_save_confirm_title': 'Confirm Save',
+    'config_save_confirm_text': 'Are you sure you want to save changes to the configuration file?',
+    'config_backup_info': 'Backup will be created automatically',
+    'config_warning': '⚠️ Warning: Incorrect configuration may cause node failure!'
 }; 

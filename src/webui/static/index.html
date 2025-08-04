@@ -10,16 +10,12 @@
     <script src="static/main.js"></script>
     <script src="static/app.js"></script>
     <script src="static/modal.js"></script>
+    <script src="static/config.js"></script>
     <script src="static/lang/ru.js"></script>
     <script src="static/lang/en.js"></script>
 </head>
 
 <body>
-    <!-- Decorative progress bar -->
-    <div class="progress-timer-container">
-        <div class="progress-timer-bar"></div>
-    </div>
-
     <div class="container">
         <header>
             <div class="header-content">
@@ -112,19 +108,7 @@
             </div>
 
             <div id="config-section" class="content-section">
-                <div class="info-grid">
-                    <div class="info-card">
-                        <h3 data-key="basic_settings">Основные настройки</h3>
-                        <p data-key="basic_settings_description">Базовая конфигурация узла</p>
-                        <small data-key="coming_soon">Функция в разработке...</small>
-                    </div>
-
-                    <div class="info-card">
-                        <h3 data-key="network_settings">Сетевые настройки</h3>
-                        <p data-key="network_settings_description">Параметры сетевого взаимодействия</p>
-                        <small data-key="coming_soon">Функция в разработке...</small>
-                    </div>
-                </div>
+                <div class="loading" data-key="loading">Загрузка конфигурации...</div>
             </div>
         </main>
 

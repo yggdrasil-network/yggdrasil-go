@@ -107,6 +107,7 @@ func main() {
 	}
 
 	cfg := config.GenerateConfig()
+	var configPath string
 	var err error
 	switch {
 	case *ver:
@@ -124,6 +125,7 @@ func main() {
 		}
 
 	case *useconffile != "":
+		configPath = *useconffile
 		f, err := os.Open(*useconffile)
 		if err != nil {
 			panic(err)
@@ -205,6 +207,9 @@ func main() {
 		fmt.Println(string(pem))
 		return
 	}
+
+	// Set current config for web UI
+	config.SetCurrentConfig(configPath, cfg)
 
 	n := &node{}
 

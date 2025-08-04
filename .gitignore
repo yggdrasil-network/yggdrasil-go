@@ -1,7 +1,6 @@
 **/TODO
 /yggdrasil
 /yggdrasilctl
-/yggdrasil.conf
-/yggdrasil.json
+/yggdrasil.*
 /run
 /test

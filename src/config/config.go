@@ -30,6 +30,7 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/hjson/hjson-go/v4"
@@ -273,4 +274,191 @@ func (k *KeyBytes) UnmarshalJSON(b []byte) error {
 	}
 	*k, err = hex.DecodeString(s)
 	return err
+}
+
+// ConfigInfo contains information about the configuration file
+type ConfigInfo struct {
+	Path     string      `json:"path"`
+	Format   string      `json:"format"`
+	Data     interface{} `json:"data"`
+	Writable bool        `json:"writable"`
+}
+
+// Global variables to track the current configuration state
+var (
+	currentConfigPath string
+	currentConfigData *NodeConfig
+)
+
+// SetCurrentConfig sets the current configuration data and path
+func SetCurrentConfig(path string, cfg *NodeConfig) {
+	currentConfigPath = path
+	currentConfigData = cfg
+}
+
+// GetCurrentConfig returns the current configuration information
+func GetCurrentConfig() (*ConfigInfo, error) {
+	var configPath string
+	var configData *NodeConfig
+	var format string = "hjson"
+	var writable bool = false
+
+	// Use current config if available, otherwise try to read from default location
+	if currentConfigPath != "" && currentConfigData != nil {
+		configPath = currentConfigPath
+		configData = currentConfigData
+	} else {
+		// Fallback to default path
+		defaults := GetDefaults()
+		configPath = defaults.DefaultConfigFile
+
+		// Try to read existing config file
+		if _, err := os.Stat(configPath); err == nil {
+			data, err := os.ReadFile(configPath)
+			if err == nil {
+				cfg := GenerateConfig()
+				if err := hjson.Unmarshal(data, cfg); err == nil {
+					configData = cfg
+					// Detect format
+					var jsonTest interface{}
+					if json.Unmarshal(data, &jsonTest) == nil {
+						format = "json"
+					}
+				} else {
+					return nil, fmt.Errorf("failed to parse config file: %v", err)
+				}
+			}
+		} else {
+			// No config file exists, use default
+			configData = GenerateConfig()
+		}
+	}
+
+	// Detect format from file if path is known
+	if configPath != "" {
+		if _, err := os.Stat(configPath); err == nil {
+			data, err := os.ReadFile(configPath)
+			if err == nil {
+				var jsonTest interface{}
+				if json.Unmarshal(data, &jsonTest) == nil {
+					format = "json"
+				}
+			}
+		}
+	}
+
+	// Check if writable
+	if configPath != "" {
+		if _, err := os.Stat(configPath); err == nil {
+			// File exists, check if writable
+			if file, err := os.OpenFile(configPath, os.O_WRONLY, 0); err == nil {
+				writable = true
+				file.Close()
+			}
+		} else {
+			// File doesn't exist, check if directory is writable
+			dir := filepath.Dir(configPath)
+			if stat, err := os.Stat(dir); err == nil && stat.IsDir() {
+				testFile := filepath.Join(dir, ".yggdrasil_write_test")
+				if file, err := os.Create(testFile); err == nil {
+					file.Close()
+					os.Remove(testFile)
+					writable = true
+				}
+			}
+		}
+	}
+
+	return &ConfigInfo{
+		Path:     configPath,
+		Format:   format,
+		Data:     configData,
+		Writable: writable,
+	}, nil
+}
+
+// SaveConfig saves configuration to file
+func SaveConfig(configData interface{}, configPath, format string) error {
+	// Validate config data
+	var testConfig NodeConfig
+	configBytes, err := json.Marshal(configData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config data: %v", err)
+	}
+
+	if err := json.Unmarshal(configBytes, &testConfig); err != nil {
+		return fmt.Errorf("invalid configuration data: %v", err)
+	}
+
+	// Determine target path
+	targetPath := configPath
+	if targetPath == "" {
+		if currentConfigPath != "" {
+			targetPath = currentConfigPath
+		} else {
+			defaults := GetDefaults()
+			targetPath = defaults.DefaultConfigFile
+		}
+	}
+
+	// Determine format if not specified
+	targetFormat := format
+	if targetFormat == "" {
+		if _, err := os.Stat(targetPath); err == nil {
+			data, readErr := os.ReadFile(targetPath)
+			if readErr == nil {
+				var jsonTest interface{}
+				if json.Unmarshal(data, &jsonTest) == nil {
+					targetFormat = "json"
+				} else {
+					targetFormat = "hjson"
+				}
+			}
+		}
+		if targetFormat == "" {
+			targetFormat = "hjson"
+		}
+	}
+
+	// Create backup if file exists
+	if _, err := os.Stat(targetPath); err == nil {
+		backupPath := targetPath + ".backup"
+		if data, err := os.ReadFile(targetPath); err == nil {
+			if err := os.WriteFile(backupPath, data, 0600); err != nil {
+				return fmt.Errorf("failed to create backup: %v", err)
+			}
+		}
+	}
+
+	// Ensure directory exists
+	dir := filepath.Dir(targetPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %v", err)
+	}
+
+	// Marshal to target format
+	var outputData []byte
+	if targetFormat == "json" {
+		outputData, err = json.MarshalIndent(configData, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal JSON: %v", err)
+		}
+	} else {
+		outputData, err = hjson.Marshal(configData)
+		if err != nil {
+			return fmt.Errorf("failed to marshal HJSON: %v", err)
+		}
+	}
+
+	// Write file
+	if err := os.WriteFile(targetPath, outputData, 0600); err != nil {
+		return fmt.Errorf("failed to write config file: %v", err)
+	}
+
+	// Update current config if this is the current config file
+	if targetPath == currentConfigPath {
+		currentConfigData = &testConfig
+	}
+
+	return nil
 }
