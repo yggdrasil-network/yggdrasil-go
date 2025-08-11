@@ -41,20 +41,6 @@ type node struct {
 
 // The main function is responsible for configuring and starting Yggdrasil.
 func main() {
-	// Not all operations are coverable with pledge(2), so immediately
-	// limit file system access with unveil(2), effectively preventing
-	// "proc exec" promises right from the start:
-	//
-	// - read arbitrary config file
-	// - create/write arbitrary log file
-	// - read/write/chmod/remove admin socket, if at all
-	if err := protect.Unveil("/", "rwc"); err != nil {
-		panic(fmt.Sprintf("unveil: / rwc: %v", err))
-	}
-	if err := protect.UnveilBlock(); err != nil {
-		panic(fmt.Sprintf("unveil: %v", err))
-	}
-
 	genconf := flag.Bool("genconf", false, "print a new config to stdout")
 	useconf := flag.Bool("useconf", false, "read HJSON/JSON config from stdin")
 	useconffile := flag.String("useconffile", "", "read HJSON/JSON config from specified file path")
@@ -319,7 +305,7 @@ func main() {
 	//
 	// Peers, InterfacePeers, Listen can be UNIX sockets;
 	// Go's net.Listen.Close() deletes files on shutdown.
-	promises := []string{"stdio", "cpath", "inet", "unix", "dns"}
+	promises := []string{"stdio", "rpath", "cpath", "inet", "unix", "dns"}
 	if len(cfg.MulticastInterfaces) > 0 {
 		promises = append(promises, "mcast")
 	}
