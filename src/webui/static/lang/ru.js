@@ -108,7 +108,7 @@ window.translations.ru = {
     'format': 'Форматировать',
     'validate': 'Проверить',
     'json_configuration': 'JSON Конфигурация',
-    'line_numbers': 'Номера строк',
+
     'config_save_success': 'Конфигурация сохранена успешно',
     'config_save_error': 'Ошибка сохранения конфигурации',
     'config_load_error': 'Ошибка загрузки конфигурации',
@@ -116,5 +116,27 @@ window.translations.ru = {
     'config_save_confirm_title': 'Подтверждение сохранения',
     'config_save_confirm_text': 'Вы уверены, что хотите сохранить изменения в конфигурационный файл?',
     'config_backup_info': 'Резервная копия будет создана автоматически',
-    'config_warning': '⚠️ Внимание: Неправильная конфигурация может привести к сбою работы узла!'
+    'config_warning': '⚠️ Внимание: Неправильная конфигурация может привести к сбою работы узла!',
+    
+    // Editor status translations
+    'editable': 'Редактируемый',
+    'readonly': 'Только чтение',
+    'empty_config': 'Пустая конфигурация',
+    'valid_json': 'Валидный JSON',
+    'line': 'Строка',
+    'column': 'Столбец',
+    
+    // Configuration save messages
+    'config_saved_restarting': 'Конфигурация сохранена. Сервер перезапускается...',
+    'config_saved_success': 'Конфигурация сохранена успешно',
+    
+    // Validation messages
+    'json_validation_success': 'JSON конфигурация валидна',
+    'json_formatted': 'JSON отформатирован',
+    
+    // Confirmation dialogs
+    'save_and_restart_title': 'Сохранить и перезапустить',
+    'save_and_restart_message': 'Сохранить конфигурацию и перезапустить сервер?\n\nВнимание: Соединение будет прервано на время перезапуска.',
+    'refresh_unsaved_changes_title': 'Несохраненные изменения',
+    'refresh_unsaved_changes_message': 'У вас есть несохраненные изменения. Продолжить обновление?'
 }; 

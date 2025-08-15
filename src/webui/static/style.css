@@ -1539,7 +1539,6 @@ button[onclick="copyNodeKey()"]:hover {
 
 /* Configuration Editor Styles */
 .config-container {
-    max-width: 1200px;
     margin: 0 auto;
     padding: 20px;
 }
@@ -1554,6 +1553,11 @@ button[onclick="copyNodeKey()"]:hover {
     border: 1px solid var(--border-card);
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.config-info {
+    display: flex;
+    flex-direction: column;
 }
 
 .config-info h3 {
@@ -1617,31 +1621,7 @@ button[onclick="copyNodeKey()"]:hover {
     color: var(--text-warning);
 }
 
-.config-actions {
-    display: flex;
-    gap: 10px;
-}
 
-.refresh-btn {
-    background: var(--bg-nav-active);
-    color: white;
-}
-
-.save-btn {
-    background: var(--bg-success-dark);
-    color: white;
-}
-
-.save-btn.modified {
-    background: var(--bg-warning-dark);
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.7; }
-    100% { opacity: 1; }
-}
 
 /* Configuration Groups */
 .config-groups {
@@ -1943,17 +1923,7 @@ input:checked + .slider:before {
     gap: 15px;
 }
 
-.line-numbers-toggle {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.9em;
-    color: var(--text-muted);
-}
 
-.line-numbers-toggle input[type="checkbox"] {
-    margin: 0;
-}
 
 .editor-wrapper {
     position: relative;
@@ -2050,24 +2020,34 @@ input:checked + .slider:before {
     font-size: 0.8em;
 }
 
-/* Additional action buttons */
-.format-btn {
-    background: var(--bg-nav-active);
-    color: white;
+/* Action buttons group */
+.action-buttons-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
-.validate-btn {
-    background: var(--bg-warning-dark);
-    color: white;
+.action-buttons-group .action-btn {
+    background: var(--bg-nav-item);
+    color: var(--text-nav);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    margin: 0;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.restart-btn {
-    background: var(--text-error);
-    color: white;
-}
-
-.restart-btn:hover {
-    background: #c62828;
+.action-buttons-group .action-btn:hover {
+    background: var(--bg-nav-hover);
+    transform: translateY(-1px);
 }
 
 /* JSON Syntax highlighting (basic) */
@@ -2105,13 +2085,16 @@ input:checked + .slider:before {
         padding-left: 45px;
     }
     
-    .config-actions {
-        flex-wrap: wrap;
+    .action-buttons-group {
+        flex-direction: row;
+        gap: 4px;
+        justify-content: center;
     }
     
-    .action-btn {
-        flex: 1;
-        min-width: 120px;
+    .action-buttons-group .action-btn {
+        flex: none;
+        min-width: auto;
+        justify-content: center;
     }
 }
 
@@ -2127,4 +2110,14 @@ input:checked + .slider:before {
 [data-theme="dark"] .json-editor {
     background: var(--bg-info-card);
     color: var(--text-body);
+}
+
+/* Dark theme support for action buttons */
+[data-theme="dark"] .action-buttons-group .action-btn {
+    color: var(--text-nav);
+}
+
+[data-theme="dark"] .action-buttons-group .action-btn:hover {
+    background: var(--bg-nav-hover);
+    transform: translateY(-1px);
 }

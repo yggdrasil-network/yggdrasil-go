@@ -55,28 +55,9 @@ function renderConfigEditor() {
                         <span class="config-path" title="${configMeta.path}">${configMeta.path}</span>
                         <span class="config-format ${configMeta.format}">${configMeta.format.toUpperCase()}</span>
                         <span class="config-status ${configMeta.isWritable ? 'writable' : 'readonly'}">
-                            ${configMeta.isWritable ? '✏️ Редактируемый' : '🔒 Только чтение'}
+                            ${configMeta.isWritable ? '✏️ <span data-key="editable">Редактируемый</span>' : '🔒 <span data-key="readonly">Только чтение</span>'}
                         </span>
                     </div>
-                </div>
-                <div class="config-actions">
-                    <button onclick="refreshConfiguration()" class="action-btn refresh-btn" data-key="refresh">
-                        🔄 Обновить
-                    </button>
-                    <button onclick="formatJSON()" class="action-btn format-btn" data-key="format">
-                        📝 Форматировать
-                    </button>
-                    <button onclick="validateJSON()" class="action-btn validate-btn" data-key="validate">
-                        ✓ Проверить
-                    </button>
-                    ${configMeta.isWritable ? `
-                        <button onclick="saveConfiguration()" class="action-btn save-btn" data-key="save_config">
-                            💾 Сохранить
-                        </button>
-                        <button onclick="saveAndRestartConfiguration()" class="action-btn restart-btn" data-key="save_and_restart">
-                            🔄 Сохранить и перезапустить
-                        </button>
-                    ` : ''}
                 </div>
             </div>
             
@@ -85,10 +66,25 @@ function renderConfigEditor() {
                     <div class="editor-header">
                         <span class="editor-title" data-key="json_configuration">JSON Конфигурация</span>
                         <div class="editor-controls">
-                            <span class="line-numbers-toggle">
-                                <input type="checkbox" id="line-numbers" checked onchange="toggleLineNumbers()">
-                                <label for="line-numbers" data-key="line_numbers">Номера строк</label>
-                            </span>
+                            <div class="action-buttons-group">
+                                <div onclick="refreshConfiguration()" class="action-btn">
+                                    <span data-key="refresh">Обновить</span>
+                                </div>
+                                <div onclick="formatJSON()" class="action-btn">
+                                    <span data-key="format">Форматировать</span>
+                                </div>
+                                <div onclick="validateJSON()" class="action-btn">
+                                    <span data-key="validate">Проверить</span>
+                                </div>
+                                ${configMeta.isWritable ? `
+                                    <div onclick="saveConfiguration()" class="action-btn">
+                                        <span data-key="save_config">Сохранить</span>
+                                    </div>
+                                    <div onclick="saveAndRestartConfiguration()" class="action-btn">
+                                        <span data-key="save_and_restart">Сохранить и перезапустить</span>
+                                    </div>
+                                ` : ''}
+                            </div>
                         </div>
                     </div>
                     <div class="editor-wrapper">

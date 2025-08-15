@@ -108,7 +108,7 @@ window.translations.en = {
     'format': 'Format',
     'validate': 'Validate',
     'json_configuration': 'JSON Configuration',
-    'line_numbers': 'Line Numbers',
+
     'config_save_success': 'Configuration saved successfully',
     'config_save_error': 'Error saving configuration',
     'config_load_error': 'Error loading configuration',
@@ -116,5 +116,27 @@ window.translations.en = {
     'config_save_confirm_title': 'Confirm Save',
     'config_save_confirm_text': 'Are you sure you want to save changes to the configuration file?',
     'config_backup_info': 'Backup will be created automatically',
-    'config_warning': '⚠️ Warning: Incorrect configuration may cause node failure!'
+    'config_warning': '⚠️ Warning: Incorrect configuration may cause node failure!',
+    
+    // Editor status translations
+    'editable': 'Editable',
+    'readonly': 'Read Only',
+    'empty_config': 'Empty Configuration',
+    'valid_json': 'Valid JSON',
+    'line': 'Line',
+    'column': 'Column',
+    
+    // Configuration save messages
+    'config_saved_restarting': 'Configuration saved. Server is restarting...',
+    'config_saved_success': 'Configuration saved successfully',
+    
+    // Validation messages
+    'json_validation_success': 'JSON configuration is valid',
+    'json_formatted': 'JSON formatted',
+    
+    // Confirmation dialogs
+    'save_and_restart_title': 'Save and Restart',
+    'save_and_restart_message': 'Save configuration and restart server?\n\nWarning: Connection will be interrupted during restart.',
+    'refresh_unsaved_changes_title': 'Unsaved Changes',
+    'refresh_unsaved_changes_message': 'You have unsaved changes. Continue refreshing?'
 }; 

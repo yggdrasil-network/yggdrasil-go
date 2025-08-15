@@ -15,6 +15,12 @@ function initJSONEditor() {
     // Update line numbers
     updateLineNumbers();
     
+    // Always enable line numbers since toggle was removed
+    const editorWrapper = document.querySelector('.editor-wrapper');
+    if (editorWrapper) {
+        editorWrapper.classList.add('with-line-numbers');
+    }
+    
     // Add event listeners
     textarea.addEventListener('input', function() {
         updateLineNumbers();
@@ -58,20 +64,7 @@ function syncLineNumbers() {
     lineNumbersContainer.scrollTop = textarea.scrollTop;
 }
 
-// Toggle line numbers visibility
-function toggleLineNumbers() {
-    const checkbox = document.getElementById('line-numbers');
-    const lineNumbersContainer = document.getElementById('line-numbers-container');
-    const editorWrapper = document.querySelector('.editor-wrapper');
-    
-    if (checkbox.checked) {
-        lineNumbersContainer.style.display = 'block';
-        editorWrapper.classList.add('with-line-numbers');
-    } else {
-        lineNumbersContainer.style.display = 'none';
-        editorWrapper.classList.remove('with-line-numbers');
-    }
-}
+
 
 // Handle special editor keydown events
 function handleEditorKeydown(event) {
@@ -150,13 +143,13 @@ function updateEditorStatus() {
     
     try {
         if (textarea.value.trim() === '') {
-            statusElement.textContent = 'Пустая конфигурация';
+            statusElement.innerHTML = '<span data-key="empty_config">Пустая конфигурация</span>';
             statusElement.className = 'status-text warning';
             return;
         }
         
         JSON.parse(textarea.value);
-        statusElement.textContent = 'Валидный JSON';
+        statusElement.innerHTML = '<span data-key="valid_json"></span>';
         statusElement.className = 'status-text success';
     } catch (error) {
         statusElement.textContent = `Ошибка JSON: ${error.message}`;
@@ -176,7 +169,7 @@ function updateCursorPosition() {
     const line = beforeCursor.split('\n').length;
     const column = beforeCursor.length - beforeCursor.lastIndexOf('\n');
     
-    cursorElement.textContent = `Строка ${line}, Столбец ${column}`;
+    cursorElement.innerHTML = `<span data-key="line">Строка</span> ${line}, <span data-key="column">Столбец</span> ${column}`;
 }
 
 // Format JSON with proper indentation
@@ -191,7 +184,10 @@ function formatJSON() {
         textarea.value = formatted;
         updateLineNumbers();
         updateEditorStatus();
-        showNotification('JSON отформатирован', 'success');
+        const formattedMessage = window.translations && window.translations[currentLanguage] && window.translations[currentLanguage]['json_formatted'] 
+            ? window.translations[currentLanguage]['json_formatted'] 
+            : 'JSON отформатирован';
+        showNotification(formattedMessage, 'success');
     } catch (error) {
         showNotification(`Ошибка форматирования: ${error.message}`, 'error');
     }
@@ -205,7 +201,10 @@ function validateJSON() {
     
     try {
         JSON.parse(textarea.value);
-        showNotification('JSON конфигурация валидна', 'success');
+        const validationMessage = window.translations && window.translations[currentLanguage] && window.translations[currentLanguage]['json_validation_success'] 
+            ? window.translations[currentLanguage]['json_validation_success'] 
+            : 'JSON конфигурация валидна';
+        showNotification(validationMessage, 'success');
     } catch (error) {
         showNotification(`Ошибка валидации JSON: ${error.message}`, 'error');
     }
@@ -246,9 +245,15 @@ async function saveConfiguration(restart = false) {
         if (result.success) {
             currentConfigJSON = textarea.value;
             if (restart) {
-                showNotification('Конфигурация сохранена. Сервер перезапускается...', 'success');
+                const restartMessage = window.translations && window.translations[currentLanguage] && window.translations[currentLanguage]['config_saved_restarting'] 
+                    ? window.translations[currentLanguage]['config_saved_restarting'] 
+                    : 'Конфигурация сохранена. Сервер перезапускается...';
+                showNotification(restartMessage, 'success');
             } else {
-                showNotification('Конфигурация сохранена успешно', 'success');
+                const successMessage = window.translations && window.translations[currentLanguage] && window.translations[currentLanguage]['config_saved_success'] 
+                    ? window.translations[currentLanguage]['config_saved_success'] 
+                    : 'Конфигурация сохранена успешно';
+                showNotification(successMessage, 'success');
             }
             onConfigChange(); // Update button states
         } else {
@@ -262,11 +267,22 @@ async function saveConfiguration(restart = false) {
 
 // Save configuration and restart server
 async function saveAndRestartConfiguration() {
-    const confirmation = confirm('Сохранить конфигурацию и перезапустить сервер?\n\nВнимание: Соединение будет прервано на время перезапуска.');
+    const title = window.translations && window.translations[currentLanguage] && window.translations[currentLanguage]['save_and_restart_title'] 
+        ? window.translations[currentLanguage]['save_and_restart_title'] 
+        : 'Сохранить и перезапустить';
     
-    if (confirmation) {
-        await saveConfiguration(true);
-    }
+    const message = window.translations && window.translations[currentLanguage] && window.translations[currentLanguage]['save_and_restart_message'] 
+        ? window.translations[currentLanguage]['save_and_restart_message'] 
+        : 'Сохранить конфигурацию и перезапустить сервер?\n\nВнимание: Соединение будет прервано на время перезапуска.';
+    
+    showConfirmModal({
+        title: title,
+        message: message,
+        type: 'danger',
+        onConfirm: async () => {
+            await saveConfiguration(true);
+        }
+    });
 }
 
 // Refresh configuration from server
@@ -275,18 +291,31 @@ async function refreshConfiguration() {
     
     // Check if there are unsaved changes
     if (textarea && textarea.value !== currentConfigJSON) {
-        const confirmation = confirm('У вас есть несохраненные изменения. Продолжить обновление?');
-        if (!confirmation) {
-            return;
-        }
+        const title = window.translations && window.translations[currentLanguage] && window.translations[currentLanguage]['refresh_unsaved_changes_title'] 
+            ? window.translations[currentLanguage]['refresh_unsaved_changes_title'] 
+            : 'Несохраненные изменения';
+        
+        const message = window.translations && window.translations[currentLanguage] && window.translations[currentLanguage]['refresh_unsaved_changes_message'] 
+            ? window.translations[currentLanguage]['refresh_unsaved_changes_message'] 
+            : 'У вас есть несохраненные изменения. Продолжить обновление?';
+        
+        showConfirmModal({
+            title: title,
+            message: message,
+            type: 'warning',
+            onConfirm: async () => {
+                try {
+                    await loadConfiguration();
+                    showNotification('Конфигурация обновлена', 'success');
+                } catch (error) {
+                    showNotification('Ошибка обновления конфигурации', 'error');
+                }
+            }
+        });
+        return;
     }
     
-    try {
-        await loadConfiguration();
-        showNotification('Конфигурация обновлена', 'success');
-    } catch (error) {
-        showNotification('Ошибка обновления конфигурации', 'error');
-    }
+
 }
 
 // Update configuration status
