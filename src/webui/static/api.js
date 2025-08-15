@@ -309,7 +309,7 @@ class YggdrasilUtils {
         }
         
         // Fallback to address or "Anonymous"
-        return 'Anonymous';
+        return peer.address ? 'Anonymous' : 'N/A';
     }
 }
 
