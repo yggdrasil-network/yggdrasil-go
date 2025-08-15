@@ -166,7 +166,9 @@ function createPeerElement(peer) {
     div.innerHTML = `
         <div class="peer-header">
             <div class="peer-address-section">
-                <div class="peer-address copyable" onclick="copyPeerAddress('${peer.address || ''}')" data-key-title="copy_address_tooltip">${peer.address || 'N/A'}</div>
+                <div class="peer-address copyable" onclick="copyPeerAddress('${peer.address || ''}')" data-key-title="copy_address_tooltip">
+                    ${peer.name || 'N/A'} (${peer.address || 'N/A'})
+                </div>
                 <div class="peer-key copyable" onclick="copyPeerKey('${peer.key || ''}')" data-key-title="copy_key_tooltip">${yggUtils.formatPublicKey(peer.key) || 'N/A'}</div>
             </div>
             <div class="peer-status-section">

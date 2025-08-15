@@ -208,11 +208,18 @@ func run() int {
 			if peer.TXRate > 0 {
 				txr = peer.TXRate.String() + "/s"
 			}
+
+			// Format IP address with name if available
+			ipDisplay := peer.IPAddress
+			if peer.Name != "" {
+				ipDisplay = fmt.Sprintf("%s (%s)", peer.Name, peer.IPAddress)
+			}
+
 			table.Append([]string{
 				uristring,
 				state,
 				dir,
-				peer.IPAddress,
+				ipDisplay,
 				(time.Duration(peer.Uptime) * time.Second).String(),
 				rtt,
 				peer.RXBytes.String(),
