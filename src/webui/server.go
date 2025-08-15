@@ -388,7 +388,6 @@ type ConfigResponse struct {
 	ConfigPath   string `json:"config_path"`
 	ConfigFormat string `json:"config_format"`
 	ConfigJSON   string `json:"config_json"`
-	IsWritable   bool   `json:"is_writable"`
 }
 
 type ConfigSetRequest struct {
@@ -432,7 +431,6 @@ func (w *WebUIServer) getConfigHandler(rw http.ResponseWriter, r *http.Request) 
 		ConfigPath:   configInfo.Path,
 		ConfigFormat: configInfo.Format,
 		ConfigJSON:   string(configBytes),
-		IsWritable:   configInfo.Writable,
 	}
 
 	rw.Header().Set("Content-Type", "application/json")

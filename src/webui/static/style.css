@@ -1542,9 +1542,6 @@ button[onclick="copyNodeKey()"]:hover {
 }
 
 .config-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
     margin-bottom: 30px;
     padding: 20px;
     background: var(--bg-info-card);
@@ -1562,13 +1559,6 @@ button[onclick="copyNodeKey()"]:hover {
     margin: 0 0 10px;
     color: var(--text-heading);
     font-size: 1.5em;
-}
-
-.config-meta {
-    display: flex;
-    gap: 15px;
-    flex-wrap: wrap;
-    align-items: center;
 }
 
 .config-path {
@@ -1601,25 +1591,6 @@ button[onclick="copyNodeKey()"]:hover {
     background: #f3e5f5;
     color: #7b1fa2;
 }
-
-.config-status {
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 0.8em;
-    font-weight: bold;
-}
-
-.config-status.writable {
-    background: var(--bg-success);
-    color: var(--text-success);
-}
-
-.config-status.readonly {
-    background: var(--bg-warning);
-    color: var(--text-warning);
-}
-
-
 
 /* Configuration Groups */
 .config-groups {

@@ -286,10 +286,9 @@ func (k *KeyBytes) UnmarshalJSON(b []byte) error {
 
 // ConfigInfo contains information about the configuration file
 type ConfigInfo struct {
-	Path     string      `json:"path"`
-	Format   string      `json:"format"`
-	Data     interface{} `json:"data"`
-	Writable bool        `json:"writable"`
+	Path   string      `json:"path"`
+	Format string      `json:"format"`
+	Data   interface{} `json:"data"`
 }
 
 // Global variables to track the current configuration state
@@ -338,20 +337,6 @@ func validateConfigPath(path string) (string, error) {
 		}
 	}
 
-	// Basic sanity check on file extension for config files
-	ext := strings.ToLower(filepath.Ext(absPath))
-	allowedExts := []string{".json", ".hjson", ".conf", ".config", ".yml", ".yaml", ""}
-	validExt := false
-	for _, allowed := range allowedExts {
-		if ext == allowed {
-			validExt = true
-			break
-		}
-	}
-	if !validExt {
-		return "", fmt.Errorf("invalid file extension: %s", ext)
-	}
-
 	// Additional check: ensure the path doesn't escape intended directories
 	if strings.Count(absPath, "/") > 10 {
 		return "", fmt.Errorf("path too deep: potential security risk")
@@ -381,7 +366,6 @@ func GetCurrentConfig() (*ConfigInfo, error) {
 	var configPath string
 	var configData *NodeConfig
 	var format string = "hjson"
-	var writable bool = false
 
 	// Use current config if available, otherwise try to read from default location
 	if currentConfigPath != "" && currentConfigData != nil {
@@ -402,72 +386,33 @@ func GetCurrentConfig() (*ConfigInfo, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid default config path: %v", err)
 		}
-		configPath = validatedDefaultPath
 
-		// Try to read existing config file
-		if _, err := os.Stat(configPath); err == nil { // Path already validated above
-			data, err := os.ReadFile(configPath) // Path already validated above
-			if err == nil {
-				cfg := GenerateConfig()
-				if err := hjson.Unmarshal(data, cfg); err == nil {
-					configData = cfg
-					// Detect format
-					var jsonTest interface{}
-					if json.Unmarshal(data, &jsonTest) == nil {
-						format = "json"
-					}
-				} else {
-					return nil, fmt.Errorf("failed to parse config file: %v", err)
-				}
-			}
-		} else {
-			// No config file exists, use default
-			configData = GenerateConfig()
-		}
+		configPath = validatedDefaultPath
+		configData = GenerateConfig()
 	}
 
-	// Detect format from file if path is known
-	if configPath != "" {
-		// Config path is already validated at this point
-		if _, err := os.Stat(configPath); err == nil { // Path already validated above
-			data, err := os.ReadFile(configPath) // Path already validated above
-			if err == nil {
+	// Try to read existing config file
+	if _, err := os.Stat(configPath); err == nil { // Path already validated above
+		data, err := os.ReadFile(configPath) // Path already validated above
+		if err == nil {
+			cfg := GenerateConfig()
+			if err := hjson.Unmarshal(data, cfg); err == nil {
+				configData = cfg
+				// Detect format
 				var jsonTest interface{}
 				if json.Unmarshal(data, &jsonTest) == nil {
 					format = "json"
 				}
-			}
-		}
-	}
-
-	// Check if writable
-	if configPath != "" {
-		// Config path is already validated at this point
-		if _, err := os.Stat(configPath); err == nil { // Path already validated above
-			// File exists, check if writable
-			if file, err := os.OpenFile(configPath, os.O_WRONLY, 0); err == nil { // Path already validated above
-				writable = true
-				file.Close()
-			}
-		} else {
-			// File doesn't exist, check if directory is writable
-			dir := filepath.Clean(filepath.Dir(configPath))
-			if stat, err := os.Stat(dir); err == nil && stat.IsDir() {
-				testFile := filepath.Join(dir, ".yggdrasil_write_test")
-				if file, err := os.Create(testFile); err == nil {
-					file.Close()
-					os.Remove(testFile)
-					writable = true
-				}
+			} else {
+				return nil, fmt.Errorf("failed to parse config file: %v", err)
 			}
 		}
 	}
 
 	return &ConfigInfo{
-		Path:     configPath,
-		Format:   format,
-		Data:     configData,
-		Writable: writable,
+		Path:   configPath,
+		Format: format,
+		Data:   configData,
 	}, nil
 }
 
@@ -516,6 +461,7 @@ func SaveConfig(configData interface{}, configPath, format string) error {
 				}
 			}
 		}
+
 		if targetFormat == "" {
 			targetFormat = "hjson"
 		}

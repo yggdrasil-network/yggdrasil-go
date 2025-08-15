@@ -30,8 +30,7 @@ async function loadConfiguration() {
         currentConfigJSON = data.config_json;
         configMeta = {
             path: data.config_path,
-            format: data.config_format,
-            isWritable: data.is_writable
+            format: data.config_format
         };
         
         renderConfigEditor();
@@ -54,9 +53,6 @@ function renderConfigEditor() {
                     <div class="config-meta">
                         <span class="config-path" title="${configMeta.path}">${configMeta.path}</span>
                         <span class="config-format ${configMeta.format}">${configMeta.format.toUpperCase()}</span>
-                        <span class="config-status ${configMeta.isWritable ? 'writable' : 'readonly'}">
-                            ${configMeta.isWritable ? '✏️ <span data-key="editable">Редактируемый</span>' : '🔒 <span data-key="readonly">Только чтение</span>'}
-                        </span>
                     </div>
                 </div>
             </div>
@@ -76,14 +72,12 @@ function renderConfigEditor() {
                                 <div onclick="validateJSON()" class="action-btn">
                                     <span data-key="validate">Проверить</span>
                                 </div>
-                                ${configMeta.isWritable ? `
-                                    <div onclick="saveConfiguration()" class="action-btn">
-                                        <span data-key="save_config">Сохранить</span>
-                                    </div>
-                                    <div onclick="saveAndRestartConfiguration()" class="action-btn">
-                                        <span data-key="save_and_restart">Сохранить и перезапустить</span>
-                                    </div>
-                                ` : ''}
+                                <div onclick="saveConfiguration()" class="action-btn">
+                                    <span data-key="save_config">Сохранить</span>
+                                </div>
+                                <div onclick="saveAndRestartConfiguration()" class="action-btn">
+                                    <span data-key="save_and_restart">Сохранить и перезапустить</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -93,7 +87,6 @@ function renderConfigEditor() {
                             id="config-json-textarea" 
                             class="json-editor" 
                             spellcheck="false"
-                            ${configMeta.isWritable ? '' : 'readonly'}
                             placeholder="Загрузка конфигурации..."
                             oninput="onConfigChange()"
                             onscroll="syncLineNumbers()"
