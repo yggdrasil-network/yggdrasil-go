@@ -19,7 +19,6 @@ The `validateConfigPath()` function performs comprehensive validation of file pa
 All file operations now use validated paths:
 
 - **Config File Reading/Writing**: All `os.ReadFile()` and `os.WriteFile()` operations use validated paths
-- **Backup File Creation**: Backup paths are also validated to prevent attacks
 - **Directory Creation**: Directory paths are cleaned before `os.MkdirAll()` operations
 - **Private Key Loading**: Private key file paths are validated in `postprocessConfig()`
 

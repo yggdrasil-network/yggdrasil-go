@@ -521,23 +521,6 @@ func SaveConfig(configData interface{}, configPath, format string) error {
 		}
 	}
 
-	// Create backup if file exists
-	if _, err := os.Stat(targetPath); err == nil { // Path already validated above
-		backupPath := targetPath + ".backup"
-		// Validate backup path as well
-		validatedBackupPath, err := validateConfigPath(backupPath)
-		if err != nil {
-			return fmt.Errorf("invalid backup path: %v", err)
-		}
-		backupPath = validatedBackupPath
-
-		if data, err := os.ReadFile(targetPath); err == nil { // Path already validated above
-			if err := os.WriteFile(backupPath, data, 0600); err != nil { // Path already validated above
-				return fmt.Errorf("failed to create backup: %v", err)
-			}
-		}
-	}
-
 	// Ensure directory exists
 	dir := filepath.Dir(targetPath)
 	// Clean the directory path as well

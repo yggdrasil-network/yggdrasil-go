@@ -115,7 +115,6 @@ window.translations.en = {
     'config_readonly': 'Configuration file is read-only',
     'config_save_confirm_title': 'Confirm Save',
     'config_save_confirm_text': 'Are you sure you want to save changes to the configuration file?',
-    'config_backup_info': 'Backup will be created automatically',
     'config_warning': '⚠️ Warning: Incorrect configuration may cause node failure!',
     
     // Editor status translations

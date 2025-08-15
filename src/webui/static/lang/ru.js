@@ -115,7 +115,6 @@ window.translations.ru = {
     'config_readonly': 'Файл конфигурации доступен только для чтения',
     'config_save_confirm_title': 'Подтверждение сохранения',
     'config_save_confirm_text': 'Вы уверены, что хотите сохранить изменения в конфигурационный файл?',
-    'config_backup_info': 'Резервная копия будет создана автоматически',
     'config_warning': '⚠️ Внимание: Неправильная конфигурация может привести к сбою работы узла!',
     
     // Editor status translations

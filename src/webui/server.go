@@ -402,7 +402,6 @@ type ConfigSetResponse struct {
 	Success         bool   `json:"success"`
 	Message         string `json:"message"`
 	ConfigPath      string `json:"config_path"`
-	BackupPath      string `json:"backup_path,omitempty"`
 	RestartRequired bool   `json:"restart_required"`
 }
 
@@ -489,7 +488,6 @@ func (w *WebUIServer) setConfigHandler(rw http.ResponseWriter, r *http.Request) 
 		Success:         true,
 		Message:         "Configuration saved successfully",
 		ConfigPath:      configPath,
-		BackupPath:      configPath + ".backup",
 		RestartRequired: req.Restart,
 	}
 
