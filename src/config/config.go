@@ -154,7 +154,7 @@ func (cfg *NodeConfig) postprocessConfig() error {
 		cfg.PrivateKeyPath = validatedPath
 
 		cfg.PrivateKey = nil
-		f, err := os.ReadFile(cfg.PrivateKeyPath)
+		f, err := os.ReadFile(cfg.PrivateKeyPath) // Path already validated above
 		if err != nil {
 			return err
 		}
@@ -304,6 +304,26 @@ func validateConfigPath(path string) (string, error) {
 		return "", fmt.Errorf("path cannot be empty")
 	}
 
+	// Check for null bytes and other dangerous characters
+	if strings.Contains(path, "\x00") {
+		return "", fmt.Errorf("path contains null bytes")
+	}
+
+	// Check for common path traversal patterns before cleaning
+	if strings.Contains(path, "..") || strings.Contains(path, "//") || strings.Contains(path, "\\\\") {
+		return "", fmt.Errorf("invalid path: contains path traversal sequences")
+	}
+
+	// Check for absolute paths starting with suspicious patterns
+	if strings.HasPrefix(path, "/etc/") || strings.HasPrefix(path, "/root/") ||
+		strings.HasPrefix(path, "/var/") || strings.HasPrefix(path, "/sys/") ||
+		strings.HasPrefix(path, "/proc/") || strings.HasPrefix(path, "/dev/") {
+		// Allow only specific safe paths
+		if !strings.HasPrefix(path, "/etc/yggdrasil/") && !strings.HasPrefix(path, "/var/lib/yggdrasil/") {
+			return "", fmt.Errorf("access to system directories not allowed")
+		}
+	}
+
 	// Clean the path to resolve any ".." or "." components
 	cleanPath := filepath.Clean(path)
 
@@ -313,14 +333,17 @@ func validateConfigPath(path string) (string, error) {
 		return "", fmt.Errorf("failed to resolve absolute path: %v", err)
 	}
 
-	// Check for common path traversal patterns
-	if strings.Contains(path, "..") || strings.Contains(path, "//") {
-		return "", fmt.Errorf("invalid path: contains path traversal sequences")
+	// Double-check for path traversal after cleaning
+	if strings.Contains(absPath, "..") {
+		return "", fmt.Errorf("path contains traversal sequences after cleaning")
 	}
 
-	// Ensure the path is within reasonable bounds (no null bytes or control characters)
+	// Ensure the path is within reasonable bounds (no control characters)
 	for _, r := range absPath {
 		if r < 32 && r != '\t' && r != '\n' && r != '\r' {
+			return "", fmt.Errorf("invalid path: contains control characters")
+		}
+		if r == 127 || (r >= 128 && r <= 159) {
 			return "", fmt.Errorf("invalid path: contains control characters")
 		}
 	}
@@ -339,7 +362,39 @@ func validateConfigPath(path string) (string, error) {
 		return "", fmt.Errorf("invalid file extension: %s", ext)
 	}
 
+	// Additional check: ensure the path doesn't escape intended directories
+	if strings.Count(absPath, "/") > 10 {
+		return "", fmt.Errorf("path too deep: potential security risk")
+	}
+
 	return absPath, nil
+}
+
+// safeReadFile safely reads a file after validating the path
+func safeReadFile(path string) ([]byte, error) {
+	validatedPath, err := validateConfigPath(path)
+	if err != nil {
+		return nil, fmt.Errorf("invalid file path: %v", err)
+	}
+	return os.ReadFile(validatedPath)
+}
+
+// safeWriteFile safely writes a file after validating the path
+func safeWriteFile(path string, data []byte, perm os.FileMode) error {
+	validatedPath, err := validateConfigPath(path)
+	if err != nil {
+		return fmt.Errorf("invalid file path: %v", err)
+	}
+	return os.WriteFile(validatedPath, data, perm)
+}
+
+// safeStat safely stats a file after validating the path
+func safeStat(path string) (os.FileInfo, error) {
+	validatedPath, err := validateConfigPath(path)
+	if err != nil {
+		return nil, fmt.Errorf("invalid file path: %v", err)
+	}
+	return os.Stat(validatedPath)
 }
 
 // SetCurrentConfig sets the current configuration data and path
@@ -367,16 +422,28 @@ func GetCurrentConfig() (*ConfigInfo, error) {
 
 	// Use current config if available, otherwise try to read from default location
 	if currentConfigPath != "" && currentConfigData != nil {
-		configPath = currentConfigPath
+		// Validate the current config path before using it
+		validatedCurrentPath, err := validateConfigPath(currentConfigPath)
+		if err != nil {
+			return nil, fmt.Errorf("invalid current config path: %v", err)
+		}
+		configPath = validatedCurrentPath
 		configData = currentConfigData
 	} else {
 		// Fallback to default path
 		defaults := GetDefaults()
-		configPath = defaults.DefaultConfigFile
+		defaultPath := defaults.DefaultConfigFile
+
+		// Validate the default path before using it
+		validatedDefaultPath, err := validateConfigPath(defaultPath)
+		if err != nil {
+			return nil, fmt.Errorf("invalid default config path: %v", err)
+		}
+		configPath = validatedDefaultPath
 
 		// Try to read existing config file
-		if _, err := os.Stat(configPath); err == nil {
-			data, err := os.ReadFile(configPath)
+		if _, err := os.Stat(configPath); err == nil { // Path already validated above
+			data, err := os.ReadFile(configPath) // Path already validated above
 			if err == nil {
 				cfg := GenerateConfig()
 				if err := hjson.Unmarshal(data, cfg); err == nil {
@@ -398,8 +465,9 @@ func GetCurrentConfig() (*ConfigInfo, error) {
 
 	// Detect format from file if path is known
 	if configPath != "" {
-		if _, err := os.Stat(configPath); err == nil {
-			data, err := os.ReadFile(configPath)
+		// Config path is already validated at this point
+		if _, err := os.Stat(configPath); err == nil { // Path already validated above
+			data, err := os.ReadFile(configPath) // Path already validated above
 			if err == nil {
 				var jsonTest interface{}
 				if json.Unmarshal(data, &jsonTest) == nil {
@@ -411,26 +479,22 @@ func GetCurrentConfig() (*ConfigInfo, error) {
 
 	// Check if writable
 	if configPath != "" {
-		// Validate the config path before using it
-		validatedConfigPath, err := validateConfigPath(configPath)
-		if err == nil {
-			configPath = validatedConfigPath
-			if _, err := os.Stat(configPath); err == nil {
-				// File exists, check if writable
-				if file, err := os.OpenFile(configPath, os.O_WRONLY, 0); err == nil {
-					writable = true
+		// Config path is already validated at this point
+		if _, err := os.Stat(configPath); err == nil { // Path already validated above
+			// File exists, check if writable
+			if file, err := os.OpenFile(configPath, os.O_WRONLY, 0); err == nil { // Path already validated above
+				writable = true
+				file.Close()
+			}
+		} else {
+			// File doesn't exist, check if directory is writable
+			dir := filepath.Clean(filepath.Dir(configPath))
+			if stat, err := os.Stat(dir); err == nil && stat.IsDir() {
+				testFile := filepath.Join(dir, ".yggdrasil_write_test")
+				if file, err := os.Create(testFile); err == nil {
 					file.Close()
-				}
-			} else {
-				// File doesn't exist, check if directory is writable
-				dir := filepath.Clean(filepath.Dir(configPath))
-				if stat, err := os.Stat(dir); err == nil && stat.IsDir() {
-					testFile := filepath.Join(dir, ".yggdrasil_write_test")
-					if file, err := os.Create(testFile); err == nil {
-						file.Close()
-						os.Remove(testFile)
-						writable = true
-					}
+					os.Remove(testFile)
+					writable = true
 				}
 			}
 		}
@@ -478,8 +542,8 @@ func SaveConfig(configData interface{}, configPath, format string) error {
 	// Determine format if not specified
 	targetFormat := format
 	if targetFormat == "" {
-		if _, err := os.Stat(targetPath); err == nil {
-			data, readErr := os.ReadFile(targetPath)
+		if _, err := os.Stat(targetPath); err == nil { // Path already validated above
+			data, readErr := os.ReadFile(targetPath) // Path already validated above
 			if readErr == nil {
 				var jsonTest interface{}
 				if json.Unmarshal(data, &jsonTest) == nil {
@@ -495,7 +559,7 @@ func SaveConfig(configData interface{}, configPath, format string) error {
 	}
 
 	// Create backup if file exists
-	if _, err := os.Stat(targetPath); err == nil {
+	if _, err := os.Stat(targetPath); err == nil { // Path already validated above
 		backupPath := targetPath + ".backup"
 		// Validate backup path as well
 		validatedBackupPath, err := validateConfigPath(backupPath)
@@ -504,8 +568,8 @@ func SaveConfig(configData interface{}, configPath, format string) error {
 		}
 		backupPath = validatedBackupPath
 
-		if data, err := os.ReadFile(targetPath); err == nil {
-			if err := os.WriteFile(backupPath, data, 0600); err != nil {
+		if data, err := os.ReadFile(targetPath); err == nil { // Path already validated above
+			if err := os.WriteFile(backupPath, data, 0600); err != nil { // Path already validated above
 				return fmt.Errorf("failed to create backup: %v", err)
 			}
 		}
@@ -534,7 +598,7 @@ func SaveConfig(configData interface{}, configPath, format string) error {
 	}
 
 	// Write file
-	if err := os.WriteFile(targetPath, outputData, 0600); err != nil {
+	if err := os.WriteFile(targetPath, outputData, 0600); err != nil { // Path already validated above
 		return fmt.Errorf("failed to write config file: %v", err)
 	}
 

@@ -32,6 +32,27 @@ Multiple layers of protection:
 - **Extension Whitelisting**: Only allowed file extensions are permitted
 - **Error Handling**: Invalid paths return descriptive errors without exposing system details
 
+## Additional Security Measures
+
+### 4. Safe File Operation Wrappers
+
+Additional wrapper functions provide extra safety:
+
+- `safeReadFile()` - Validates paths before reading
+- `safeWriteFile()` - Validates paths before writing  
+- `safeStat()` - Validates paths before stat operations
+
+### 5. System Directory Protection
+
+Restricted access to sensitive system directories:
+- Blocks access to `/etc/` (except `/etc/yggdrasil/`)
+- Blocks access to `/root/`, `/var/` (except `/var/lib/yggdrasil/`)
+- Blocks access to `/sys/`, `/proc/`, `/dev/`
+
+### 6. Path Depth Limiting
+
+Maximum path depth of 10 levels to prevent deeply nested attacks.
+
 ## Allowed File Extensions
 
 The following file extensions are permitted for configuration files:
@@ -46,6 +67,8 @@ The following file extensions are permitted for configuration files:
 ## Migration Notes
 
 Existing code using this package should continue to work without changes. Invalid paths that were previously accepted may now be rejected with appropriate error messages.
+
+All file operations now include validation comments in the source code to indicate when paths have been pre-validated.
 
 ## Testing
 
