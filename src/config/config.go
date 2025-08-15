@@ -370,33 +370,6 @@ func validateConfigPath(path string) (string, error) {
 	return absPath, nil
 }
 
-// safeReadFile safely reads a file after validating the path
-func safeReadFile(path string) ([]byte, error) {
-	validatedPath, err := validateConfigPath(path)
-	if err != nil {
-		return nil, fmt.Errorf("invalid file path: %v", err)
-	}
-	return os.ReadFile(validatedPath)
-}
-
-// safeWriteFile safely writes a file after validating the path
-func safeWriteFile(path string, data []byte, perm os.FileMode) error {
-	validatedPath, err := validateConfigPath(path)
-	if err != nil {
-		return fmt.Errorf("invalid file path: %v", err)
-	}
-	return os.WriteFile(validatedPath, data, perm)
-}
-
-// safeStat safely stats a file after validating the path
-func safeStat(path string) (os.FileInfo, error) {
-	validatedPath, err := validateConfigPath(path)
-	if err != nil {
-		return nil, fmt.Errorf("invalid file path: %v", err)
-	}
-	return os.Stat(validatedPath)
-}
-
 // SetCurrentConfig sets the current configuration data and path
 func SetCurrentConfig(path string, cfg *NodeConfig) {
 	// Validate the path before setting it

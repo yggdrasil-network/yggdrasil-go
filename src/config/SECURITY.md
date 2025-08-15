@@ -34,22 +34,14 @@ Multiple layers of protection:
 
 ## Additional Security Measures
 
-### 4. Safe File Operation Wrappers
-
-Additional wrapper functions provide extra safety:
-
-- `safeReadFile()` - Validates paths before reading
-- `safeWriteFile()` - Validates paths before writing  
-- `safeStat()` - Validates paths before stat operations
-
-### 5. System Directory Protection
+### 4. System Directory Protection
 
 Restricted access to sensitive system directories:
 - Blocks access to `/etc/` (except `/etc/yggdrasil/`)
 - Blocks access to `/root/`, `/var/` (except `/var/lib/yggdrasil/`)
 - Blocks access to `/sys/`, `/proc/`, `/dev/`
 
-### 6. Path Depth Limiting
+### 5. Path Depth Limiting
 
 Maximum path depth of 10 levels to prevent deeply nested attacks.
 
