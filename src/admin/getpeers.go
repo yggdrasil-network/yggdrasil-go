@@ -2,7 +2,6 @@ package admin
 
 import (
 	"encoding/hex"
-	"fmt"
 	"net"
 	"slices"
 	"strings"
@@ -70,9 +69,6 @@ func (a *AdminSocket) getPeersHandler(_ *GetPeersRequest, res *GetPeersResponse)
 		// Add NodeInfo if available
 		if len(p.NodeInfo) > 0 {
 			peer.NodeInfo = string(p.NodeInfo)
-			fmt.Printf("[DEBUG] Admin: Added NodeInfo for peer %s: %s\n", peer.IPAddress, peer.NodeInfo)
-		} else {
-			fmt.Printf("[DEBUG] Admin: No NodeInfo for peer %s\n", peer.IPAddress)
 		}
 
 		res.Peers = append(res.Peers, peer)

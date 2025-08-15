@@ -3,7 +3,6 @@ package core
 import (
 	"crypto/ed25519"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/url"
 	"sync/atomic"
@@ -98,9 +97,6 @@ func (c *Core) GetPeers() []PeerInfo {
 				if len(state._nodeInfo) > 0 {
 					peerinfo.NodeInfo = make([]byte, len(state._nodeInfo))
 					copy(peerinfo.NodeInfo, state._nodeInfo)
-					fmt.Printf("[DEBUG] Core: Added NodeInfo from handshake for link state: %s\n", string(state._nodeInfo))
-				} else {
-					fmt.Printf("[DEBUG] Core: No NodeInfo in link state\n")
 				}
 			}
 			if p, ok := conns[conn]; ok {

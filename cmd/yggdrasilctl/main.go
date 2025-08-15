@@ -200,26 +200,14 @@ func run() int {
 
 			// Extract name from NodeInfo if available
 			if peer.NodeInfo != "" {
-				fmt.Printf("[DEBUG] Peer %s has NodeInfo: %s\n", peer.IPAddress, peer.NodeInfo)
 				var nodeInfo map[string]interface{}
 				if err := json.Unmarshal([]byte(peer.NodeInfo), &nodeInfo); err == nil {
-					fmt.Printf("[DEBUG] Parsed NodeInfo for %s: %+v\n", peer.IPAddress, nodeInfo)
 					if nameValue, ok := nodeInfo["name"]; ok {
-						fmt.Printf("[DEBUG] Found name field for %s: %v (type: %T)\n", peer.IPAddress, nameValue, nameValue)
 						if nameStr, ok := nameValue.(string); ok && nameStr != "" {
 							name = nameStr
-							fmt.Printf("[DEBUG] Set name for %s: %s\n", peer.IPAddress, name)
-						} else {
-							fmt.Printf("[DEBUG] Name field for %s is not a non-empty string\n", peer.IPAddress)
 						}
-					} else {
-						fmt.Printf("[DEBUG] No 'name' field found in NodeInfo for %s\n", peer.IPAddress)
 					}
-				} else {
-					fmt.Printf("[DEBUG] Failed to parse NodeInfo JSON for %s: %v\n", peer.IPAddress, err)
 				}
-			} else {
-				fmt.Printf("[DEBUG] Peer %s has empty NodeInfo\n", peer.IPAddress)
 			}
 
 			uristring := peer.URI

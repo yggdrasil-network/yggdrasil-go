@@ -615,9 +615,6 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, s
 		if len(nodeInfo) > 0 {
 			meta.nodeInfo = make([]byte, len(nodeInfo))
 			copy(meta.nodeInfo, nodeInfo)
-			fmt.Printf("[DEBUG] Link: Adding our NodeInfo to handshake: %s\n", string(nodeInfo))
-		} else {
-			fmt.Printf("[DEBUG] Link: No NodeInfo to add to handshake\n")
 		}
 	})
 
@@ -679,18 +676,12 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, s
 
 	// Store the received NodeInfo in the link state
 	if len(meta.nodeInfo) > 0 {
-		fmt.Printf("[DEBUG] Link: Received NodeInfo from peer: %s\n", string(meta.nodeInfo))
 		if linkState != nil {
 			phony.Block(l, func() {
 				linkState._nodeInfo = make([]byte, len(meta.nodeInfo))
 				copy(linkState._nodeInfo, meta.nodeInfo)
-				fmt.Printf("[DEBUG] Link: Stored NodeInfo in link state\n")
 			})
-		} else {
-			fmt.Printf("[DEBUG] Link: linkState is nil, cannot store NodeInfo\n")
 		}
-	} else {
-		fmt.Printf("[DEBUG] Link: No NodeInfo received from peer\n")
 	}
 
 	dir := "outbound"
