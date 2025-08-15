@@ -2,11 +2,13 @@ package admin
 
 import (
 	"encoding/hex"
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
+	"fmt"
 	"net"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 )
 
 type GetPeersRequest struct {
@@ -64,10 +66,13 @@ func (a *AdminSocket) getPeersHandler(_ *GetPeersRequest, res *GetPeersResponse)
 			peer.LastError = p.LastError.Error()
 			peer.LastErrorTime = time.Since(p.LastErrorTime)
 		}
-		
+
 		// Add NodeInfo if available
 		if len(p.NodeInfo) > 0 {
 			peer.NodeInfo = string(p.NodeInfo)
+			fmt.Printf("[DEBUG] Admin: Added NodeInfo for peer %s: %s\n", peer.IPAddress, peer.NodeInfo)
+		} else {
+			fmt.Printf("[DEBUG] Admin: No NodeInfo for peer %s\n", peer.IPAddress)
 		}
 
 		res.Peers = append(res.Peers, peer)

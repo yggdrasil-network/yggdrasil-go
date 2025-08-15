@@ -367,7 +367,7 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 
 				// Give the connection to the handler. The handler will block
 				// for the lifetime of the connection.
-				switch err = l.handler(linkType, options, lc, resetBackoff, false); {
+				switch err = l.handler(linkType, options, lc, resetBackoff, false, state); {
 				case err == nil:
 				case errors.Is(err, io.EOF):
 				case errors.Is(err, net.ErrClosed):
@@ -563,7 +563,7 @@ func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) 
 
 				// Give the connection to the handler. The handler will block
 				// for the lifetime of the connection.
-				switch err = l.handler(linkTypeIncoming, options, lc, nil, local); {
+				switch err = l.handler(linkTypeIncoming, options, lc, nil, local, state); {
 				case err == nil:
 				case errors.Is(err, io.EOF):
 				case errors.Is(err, net.ErrClosed):
@@ -604,7 +604,7 @@ func (l *links) connect(ctx context.Context, u *url.URL, info linkInfo, options 
 	return dialer.dial(ctx, u, info, options)
 }
 
-func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, success func(), local bool) error {
+func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, success func(), local bool, linkState *link) error {
 	meta := version_getBaseMetadata()
 	meta.publicKey = l.core.public
 	meta.priority = options.priority
@@ -615,6 +615,9 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, s
 		if len(nodeInfo) > 0 {
 			meta.nodeInfo = make([]byte, len(nodeInfo))
 			copy(meta.nodeInfo, nodeInfo)
+			fmt.Printf("[DEBUG] Link: Adding our NodeInfo to handshake: %s\n", string(nodeInfo))
+		} else {
+			fmt.Printf("[DEBUG] Link: No NodeInfo to add to handshake\n")
 		}
 	})
 
@@ -676,16 +679,18 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, s
 
 	// Store the received NodeInfo in the link state
 	if len(meta.nodeInfo) > 0 {
-		phony.Block(l, func() {
-			// Find the link state for this connection
-			for _, state := range l._links {
-				if state._conn != nil && state._conn.Conn == conn {
-					state._nodeInfo = make([]byte, len(meta.nodeInfo))
-					copy(state._nodeInfo, meta.nodeInfo)
-					break
-				}
-			}
-		})
+		fmt.Printf("[DEBUG] Link: Received NodeInfo from peer: %s\n", string(meta.nodeInfo))
+		if linkState != nil {
+			phony.Block(l, func() {
+				linkState._nodeInfo = make([]byte, len(meta.nodeInfo))
+				copy(linkState._nodeInfo, meta.nodeInfo)
+				fmt.Printf("[DEBUG] Link: Stored NodeInfo in link state\n")
+			})
+		} else {
+			fmt.Printf("[DEBUG] Link: linkState is nil, cannot store NodeInfo\n")
+		}
+	} else {
+		fmt.Printf("[DEBUG] Link: No NodeInfo received from peer\n")
 	}
 
 	dir := "outbound"
