@@ -31,6 +31,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/hjson/hjson-go/v4"
@@ -145,6 +146,13 @@ func (cfg *NodeConfig) UnmarshalHJSON(b []byte) error {
 
 func (cfg *NodeConfig) postprocessConfig() error {
 	if cfg.PrivateKeyPath != "" {
+		// Validate the private key path to prevent path traversal attacks
+		validatedPath, err := validateConfigPath(cfg.PrivateKeyPath)
+		if err != nil {
+			return fmt.Errorf("invalid private key path: %v", err)
+		}
+		cfg.PrivateKeyPath = validatedPath
+
 		cfg.PrivateKey = nil
 		f, err := os.ReadFile(cfg.PrivateKeyPath)
 		if err != nil {
@@ -290,9 +298,63 @@ var (
 	currentConfigData *NodeConfig
 )
 
+// validateConfigPath validates and cleans a configuration file path to prevent path traversal attacks
+func validateConfigPath(path string) (string, error) {
+	if path == "" {
+		return "", fmt.Errorf("path cannot be empty")
+	}
+
+	// Clean the path to resolve any ".." or "." components
+	cleanPath := filepath.Clean(path)
+
+	// Convert to absolute path to prevent relative path issues
+	absPath, err := filepath.Abs(cleanPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve absolute path: %v", err)
+	}
+
+	// Check for common path traversal patterns
+	if strings.Contains(path, "..") || strings.Contains(path, "//") {
+		return "", fmt.Errorf("invalid path: contains path traversal sequences")
+	}
+
+	// Ensure the path is within reasonable bounds (no null bytes or control characters)
+	for _, r := range absPath {
+		if r < 32 && r != '\t' && r != '\n' && r != '\r' {
+			return "", fmt.Errorf("invalid path: contains control characters")
+		}
+	}
+
+	// Basic sanity check on file extension for config files
+	ext := strings.ToLower(filepath.Ext(absPath))
+	allowedExts := []string{".json", ".hjson", ".conf", ".config", ".yml", ".yaml", ""}
+	validExt := false
+	for _, allowed := range allowedExts {
+		if ext == allowed {
+			validExt = true
+			break
+		}
+	}
+	if !validExt {
+		return "", fmt.Errorf("invalid file extension: %s", ext)
+	}
+
+	return absPath, nil
+}
+
 // SetCurrentConfig sets the current configuration data and path
 func SetCurrentConfig(path string, cfg *NodeConfig) {
-	currentConfigPath = path
+	// Validate the path before setting it
+	if path != "" {
+		if validatedPath, err := validateConfigPath(path); err == nil {
+			currentConfigPath = validatedPath
+		} else {
+			// Log the error but don't fail completely
+			currentConfigPath = ""
+		}
+	} else {
+		currentConfigPath = path
+	}
 	currentConfigData = cfg
 }
 
@@ -349,21 +411,26 @@ func GetCurrentConfig() (*ConfigInfo, error) {
 
 	// Check if writable
 	if configPath != "" {
-		if _, err := os.Stat(configPath); err == nil {
-			// File exists, check if writable
-			if file, err := os.OpenFile(configPath, os.O_WRONLY, 0); err == nil {
-				writable = true
-				file.Close()
-			}
-		} else {
-			// File doesn't exist, check if directory is writable
-			dir := filepath.Dir(configPath)
-			if stat, err := os.Stat(dir); err == nil && stat.IsDir() {
-				testFile := filepath.Join(dir, ".yggdrasil_write_test")
-				if file, err := os.Create(testFile); err == nil {
-					file.Close()
-					os.Remove(testFile)
+		// Validate the config path before using it
+		validatedConfigPath, err := validateConfigPath(configPath)
+		if err == nil {
+			configPath = validatedConfigPath
+			if _, err := os.Stat(configPath); err == nil {
+				// File exists, check if writable
+				if file, err := os.OpenFile(configPath, os.O_WRONLY, 0); err == nil {
 					writable = true
+					file.Close()
+				}
+			} else {
+				// File doesn't exist, check if directory is writable
+				dir := filepath.Clean(filepath.Dir(configPath))
+				if stat, err := os.Stat(dir); err == nil && stat.IsDir() {
+					testFile := filepath.Join(dir, ".yggdrasil_write_test")
+					if file, err := os.Create(testFile); err == nil {
+						file.Close()
+						os.Remove(testFile)
+						writable = true
+					}
 				}
 			}
 		}
@@ -401,6 +468,13 @@ func SaveConfig(configData interface{}, configPath, format string) error {
 		}
 	}
 
+	// Validate and clean the target path to prevent path traversal attacks
+	validatedPath, err := validateConfigPath(targetPath)
+	if err != nil {
+		return fmt.Errorf("invalid target path: %v", err)
+	}
+	targetPath = validatedPath
+
 	// Determine format if not specified
 	targetFormat := format
 	if targetFormat == "" {
@@ -423,6 +497,13 @@ func SaveConfig(configData interface{}, configPath, format string) error {
 	// Create backup if file exists
 	if _, err := os.Stat(targetPath); err == nil {
 		backupPath := targetPath + ".backup"
+		// Validate backup path as well
+		validatedBackupPath, err := validateConfigPath(backupPath)
+		if err != nil {
+			return fmt.Errorf("invalid backup path: %v", err)
+		}
+		backupPath = validatedBackupPath
+
 		if data, err := os.ReadFile(targetPath); err == nil {
 			if err := os.WriteFile(backupPath, data, 0600); err != nil {
 				return fmt.Errorf("failed to create backup: %v", err)
@@ -432,6 +513,8 @@ func SaveConfig(configData interface{}, configPath, format string) error {
 
 	// Ensure directory exists
 	dir := filepath.Dir(targetPath)
+	// Clean the directory path as well
+	dir = filepath.Clean(dir)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %v", err)
 	}
