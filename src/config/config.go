@@ -314,16 +314,6 @@ func validateConfigPath(path string) (string, error) {
 		return "", fmt.Errorf("invalid path: contains path traversal sequences")
 	}
 
-	// Check for absolute paths starting with suspicious patterns
-	if strings.HasPrefix(path, "/etc/") || strings.HasPrefix(path, "/root/") ||
-		strings.HasPrefix(path, "/var/") || strings.HasPrefix(path, "/sys/") ||
-		strings.HasPrefix(path, "/proc/") || strings.HasPrefix(path, "/dev/") {
-		// Allow only specific safe paths
-		if !strings.HasPrefix(path, "/etc/yggdrasil/") && !strings.HasPrefix(path, "/var/lib/yggdrasil/") {
-			return "", fmt.Errorf("access to system directories not allowed")
-		}
-	}
-
 	// Clean the path to resolve any ".." or "." components
 	cleanPath := filepath.Clean(path)
 
