@@ -9,10 +9,8 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
@@ -607,20 +605,5 @@ func (w *WebUIServer) restartServer() {
 	if err := sendRestartSignal(proc); err != nil {
 		w.log.Errorf("Failed to send restart signal: %v", err)
 		w.log.Infof("Please restart Yggdrasil manually to apply configuration changes")
-	}
-}
-
-// sendRestartSignal sends a restart signal to the process in a cross-platform way
-func sendRestartSignal(proc *os.Process) error {
-	// Platform-specific signal handling
-	switch runtime.GOOS {
-	case "windows":
-		// Windows doesn't support SIGUSR1, so we'll use a different approach
-		// For now, we'll just log that manual restart is needed
-		// In the future, this could be enhanced with Windows-specific restart mechanisms
-		return fmt.Errorf("automatic restart not supported on Windows")
-	default:
-		// Unix-like systems support SIGUSR1
-		return proc.Signal(syscall.SIGUSR1)
 	}
 }
