@@ -68,7 +68,7 @@ function updateNodeInfoDisplay(info) {
     updateElementText('node-address', info.address || 'N/A');
     updateElementText('node-subnet', info.subnet || 'N/A');
     updateElementText('node-key', yggUtils.formatPublicKey(info.key) || 'N/A');
-    updateElementText('node-version', `${info.build_name} ${info.build_version}` || 'N/A');
+    updateElementText('node-version', info.build_name && info.build_version ? `${info.build_name} ${info.build_version}` : 'N/A');
     updateElementText('routing-entries', info.routing_entries || '0');
     
     // Update footer version

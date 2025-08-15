@@ -812,7 +812,7 @@ footer {
     .mobile-controls {
         display: flex;
         justify-content: center;
-        margin: 0px 0px 20px 0px;
+        margin: 0 0 20px;
     }
     
     footer {
@@ -1285,9 +1285,7 @@ button[onclick="copyNodeKey()"]:hover {
     border-color: var(--border-hover);
 }
 
-/* Responsive design for peer items */
-@media (max-width: 768px) {
-} 
+ 
 
 /* ======================== */
 /* MODAL SYSTEM             */
@@ -1394,7 +1392,7 @@ button[onclick="copyNodeKey()"]:hover {
 }
 
 .modal-content p {
-    margin: 0 0 16px 0;
+            margin: 0 0 16px;
     line-height: 1.5;
 }
 
@@ -1561,7 +1559,7 @@ button[onclick="copyNodeKey()"]:hover {
 }
 
 .config-info h3 {
-    margin: 0 0 10px 0;
+    margin: 0 0 10px;
     color: var(--text-heading);
     font-size: 1.5em;
 }
@@ -2050,10 +2048,7 @@ input:checked + .slider:before {
     transform: translateY(-1px);
 }
 
-/* JSON Syntax highlighting (basic) */
-.json-editor {
-    color: var(--text-body);
-}
+
 
 /* Mobile responsiveness for JSON editor */
 @media (max-width: 768px) {
