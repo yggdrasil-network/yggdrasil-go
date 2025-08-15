@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -595,15 +596,31 @@ func (w *WebUIServer) restartServer() {
 	// Give some time for the response to be sent
 	time.Sleep(1 * time.Second)
 
-	// Send SIGUSR1 signal to trigger a graceful restart
-	// This assumes the main process handles SIGUSR1 for restart
+	// Cross-platform restart handling
 	proc, err := os.FindProcess(os.Getpid())
 	if err != nil {
 		w.log.Errorf("Failed to find current process: %v", err)
 		return
 	}
 
-	if err := proc.Signal(syscall.SIGUSR1); err != nil {
+	// Try to send restart signal (platform-specific)
+	if err := sendRestartSignal(proc); err != nil {
 		w.log.Errorf("Failed to send restart signal: %v", err)
+		w.log.Infof("Please restart Yggdrasil manually to apply configuration changes")
+	}
+}
+
+// sendRestartSignal sends a restart signal to the process in a cross-platform way
+func sendRestartSignal(proc *os.Process) error {
+	// Platform-specific signal handling
+	switch runtime.GOOS {
+	case "windows":
+		// Windows doesn't support SIGUSR1, so we'll use a different approach
+		// For now, we'll just log that manual restart is needed
+		// In the future, this could be enhanced with Windows-specific restart mechanisms
+		return fmt.Errorf("automatic restart not supported on Windows")
+	default:
+		// Unix-like systems support SIGUSR1
+		return proc.Signal(syscall.SIGUSR1)
 	}
 }
