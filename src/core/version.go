@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"encoding/binary"
+	"fmt"
 	"io"
 
 	"golang.org/x/crypto/blake2b"
@@ -21,6 +22,7 @@ type version_metadata struct {
 	minorVer  uint16
 	publicKey ed25519.PublicKey
 	priority  uint8
+	nodeInfo  []byte // NodeInfo data from configuration
 }
 
 const (
@@ -35,6 +37,7 @@ const (
 	metaVersionMinor               // uint16
 	metaPublicKey                  // [32]byte
 	metaPriority                   // uint8
+	metaNodeInfo                   // []byte
 )
 
 type handshakeError string
@@ -52,6 +55,7 @@ func version_getBaseMetadata() version_metadata {
 	return version_metadata{
 		majorVer: ProtocolVersionMajor,
 		minorVer: ProtocolVersionMinor,
+		nodeInfo: nil, // Will be set during handshake
 	}
 }
 
@@ -76,6 +80,16 @@ func (m *version_metadata) encode(privateKey ed25519.PrivateKey, password []byte
 	bs = binary.BigEndian.AppendUint16(bs, metaPriority)
 	bs = binary.BigEndian.AppendUint16(bs, 1)
 	bs = append(bs, m.priority)
+
+	// Add NodeInfo if available (with size validation)
+	if len(m.nodeInfo) > 0 {
+		if len(m.nodeInfo) > 16384 {
+			return nil, fmt.Errorf("NodeInfo exceeds max length of 16384 bytes")
+		}
+		bs = binary.BigEndian.AppendUint16(bs, metaNodeInfo)
+		bs = binary.BigEndian.AppendUint16(bs, uint16(len(m.nodeInfo)))
+		bs = append(bs, m.nodeInfo...)
+	}
 
 	hasher, err := blake2b.New512(password)
 	if err != nil {
@@ -135,6 +149,13 @@ func (m *version_metadata) decode(r io.Reader, password []byte) error {
 
 		case metaPriority:
 			m.priority = bs[0]
+
+		case metaNodeInfo:
+			if oplen > 16384 {
+				return fmt.Errorf("received NodeInfo exceeds max length of 16384 bytes")
+			}
+			m.nodeInfo = make([]byte, oplen)
+			copy(m.nodeInfo, bs[:oplen])
 		}
 		bs = bs[oplen:]
 	}

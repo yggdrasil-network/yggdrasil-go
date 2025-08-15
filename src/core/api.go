@@ -37,6 +37,7 @@ type PeerInfo struct {
 	TXRate        uint64
 	Uptime        time.Duration
 	Latency       time.Duration
+	NodeInfo      []byte // NodeInfo received during handshake
 }
 
 type TreeEntryInfo struct {
@@ -92,6 +93,11 @@ func (c *Core) GetPeers() []PeerInfo {
 				peerinfo.RXRate = atomic.LoadUint64(&c.rxrate)
 				peerinfo.TXRate = atomic.LoadUint64(&c.txrate)
 				peerinfo.Uptime = time.Since(c.up)
+				// Add NodeInfo from handshake
+				if len(state._nodeInfo) > 0 {
+					peerinfo.NodeInfo = make([]byte, len(state._nodeInfo))
+					copy(peerinfo.NodeInfo, state._nodeInfo)
+				}
 			}
 			if p, ok := conns[conn]; ok {
 				peerinfo.Key = p.Key
