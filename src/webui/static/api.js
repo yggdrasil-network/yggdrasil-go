@@ -308,8 +308,8 @@ class YggdrasilUtils {
             }
         }
         
-        // Fallback to address or "Unknown"
-        return peer.address || 'Unknown';
+        // Fallback to address or "Anonymous"
+        return 'Anonymous';
     }
 }
 
