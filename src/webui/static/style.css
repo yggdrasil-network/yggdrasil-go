@@ -1911,4 +1911,220 @@ input:checked + .slider:before {
     background: rgba(255, 193, 7, 0.1);
     border-color: var(--border-warning);
     color: var(--text-warning);
-} 
+}
+
+/* JSON Editor Styles */
+.config-json-editor {
+    background: var(--bg-info-card);
+    border: 1px solid var(--border-card);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: var(--bg-nav-item);
+    border-bottom: 1px solid var(--border-card);
+}
+
+.editor-title {
+    font-weight: bold;
+    color: var(--text-heading);
+    font-size: 1.1em;
+}
+
+.editor-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.line-numbers-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9em;
+    color: var(--text-muted);
+}
+
+.line-numbers-toggle input[type="checkbox"] {
+    margin: 0;
+}
+
+.editor-wrapper {
+    position: relative;
+    display: flex;
+    height: 500px;
+    font-family: 'Courier New', Monaco, 'Lucida Console', monospace;
+}
+
+.editor-wrapper.with-line-numbers .json-editor {
+    padding-left: 60px;
+}
+
+.line-numbers {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 50px;
+    height: 100%;
+    background: var(--bg-nav-item);
+    border-right: 1px solid var(--border-card);
+    overflow: hidden;
+    font-size: 0.9em;
+    line-height: 1.4;
+    padding: 10px 5px;
+    box-sizing: border-box;
+    z-index: 1;
+}
+
+.line-number {
+    display: block;
+    text-align: right;
+    color: var(--text-muted);
+    user-select: none;
+    padding-right: 8px;
+    min-height: 1.4em;
+}
+
+.json-editor {
+    flex: 1;
+    border: none;
+    outline: none;
+    resize: none;
+    font-family: 'Courier New', Monaco, 'Lucida Console', monospace;
+    font-size: 14px;
+    line-height: 1.4;
+    padding: 10px;
+    background: var(--bg-info-card);
+    color: var(--text-body);
+    white-space: pre;
+    overflow-wrap: normal;
+    overflow-x: auto;
+    tab-size: 2;
+}
+
+.json-editor:focus {
+    outline: none;
+    background: var(--bg-info-card);
+}
+
+.json-editor::placeholder {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.editor-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background: var(--bg-nav-item);
+    border-top: 1px solid var(--border-card);
+    font-size: 0.9em;
+}
+
+.status-text {
+    font-weight: 500;
+}
+
+.status-text.success {
+    color: var(--text-success);
+}
+
+.status-text.error {
+    color: var(--text-error);
+}
+
+.status-text.warning {
+    color: var(--text-warning);
+}
+
+.cursor-position {
+    color: var(--text-muted);
+    font-family: 'Courier New', monospace;
+    font-size: 0.8em;
+}
+
+/* Additional action buttons */
+.format-btn {
+    background: var(--bg-nav-active);
+    color: white;
+}
+
+.validate-btn {
+    background: var(--bg-warning-dark);
+    color: white;
+}
+
+.restart-btn {
+    background: var(--text-error);
+    color: white;
+}
+
+.restart-btn:hover {
+    background: #c62828;
+}
+
+/* JSON Syntax highlighting (basic) */
+.json-editor {
+    color: var(--text-body);
+}
+
+/* Mobile responsiveness for JSON editor */
+@media (max-width: 768px) {
+    .editor-header {
+        flex-direction: column;
+        gap: 10px;
+        align-items: stretch;
+    }
+    
+    .editor-controls {
+        justify-content: center;
+    }
+    
+    .editor-wrapper {
+        height: 400px;
+    }
+    
+    .json-editor {
+        font-size: 12px;
+    }
+    
+    .line-numbers {
+        width: 40px;
+        padding: 10px 3px;
+        font-size: 0.8em;
+    }
+    
+    .editor-wrapper.with-line-numbers .json-editor {
+        padding-left: 45px;
+    }
+    
+    .config-actions {
+        flex-wrap: wrap;
+    }
+    
+    .action-btn {
+        flex: 1;
+        min-width: 120px;
+    }
+}
+
+/* Dark theme support for JSON editor */
+[data-theme="dark"] .config-json-editor,
+[data-theme="dark"] .editor-header,
+[data-theme="dark"] .editor-status,
+[data-theme="dark"] .line-numbers {
+    background: var(--bg-info-card);
+    border-color: var(--border-card);
+}
+
+[data-theme="dark"] .json-editor {
+    background: var(--bg-info-card);
+    color: var(--text-body);
+}

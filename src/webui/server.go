@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
@@ -384,23 +386,25 @@ func (w *WebUIServer) callAdminHandler(command string, args map[string]interface
 
 // Configuration response structures
 type ConfigResponse struct {
-	ConfigPath   string      `json:"config_path"`
-	ConfigFormat string      `json:"config_format"`
-	ConfigData   interface{} `json:"config_data"`
-	IsWritable   bool        `json:"is_writable"`
+	ConfigPath   string `json:"config_path"`
+	ConfigFormat string `json:"config_format"`
+	ConfigJSON   string `json:"config_json"`
+	IsWritable   bool   `json:"is_writable"`
 }
 
 type ConfigSetRequest struct {
-	ConfigData interface{} `json:"config_data"`
-	ConfigPath string      `json:"config_path,omitempty"`
-	Format     string      `json:"format,omitempty"`
+	ConfigJSON string `json:"config_json"`
+	ConfigPath string `json:"config_path,omitempty"`
+	Format     string `json:"format,omitempty"`
+	Restart    bool   `json:"restart,omitempty"`
 }
 
 type ConfigSetResponse struct {
-	Success    bool   `json:"success"`
-	Message    string `json:"message"`
-	ConfigPath string `json:"config_path"`
-	BackupPath string `json:"backup_path,omitempty"`
+	Success         bool   `json:"success"`
+	Message         string `json:"message"`
+	ConfigPath      string `json:"config_path"`
+	BackupPath      string `json:"backup_path,omitempty"`
+	RestartRequired bool   `json:"restart_required"`
 }
 
 // getConfigHandler handles configuration file reading
@@ -418,10 +422,18 @@ func (w *WebUIServer) getConfigHandler(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Convert config data to formatted JSON string
+	configBytes, err := json.MarshalIndent(configInfo.Data, "", "  ")
+	if err != nil {
+		w.log.Errorf("Failed to marshal config to JSON: %v", err)
+		http.Error(rw, "Failed to format configuration", http.StatusInternalServerError)
+		return
+	}
+
 	response := ConfigResponse{
 		ConfigPath:   configInfo.Path,
 		ConfigFormat: configInfo.Format,
-		ConfigData:   configInfo.Data,
+		ConfigJSON:   string(configBytes),
 		IsWritable:   configInfo.Writable,
 	}
 
@@ -445,8 +457,19 @@ func (w *WebUIServer) setConfigHandler(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Parse JSON configuration
+	var configData interface{}
+	if err := json.Unmarshal([]byte(req.ConfigJSON), &configData); err != nil {
+		response := ConfigSetResponse{
+			Success: false,
+			Message: fmt.Sprintf("Invalid JSON configuration: %v", err),
+		}
+		w.writeJSONResponse(rw, response)
+		return
+	}
+
 	// Use config package to save configuration
-	err := config.SaveConfig(req.ConfigData, req.ConfigPath, req.Format)
+	err := config.SaveConfig(configData, req.ConfigPath, req.Format)
 	if err != nil {
 		response := ConfigSetResponse{
 			Success: false,
@@ -464,11 +487,19 @@ func (w *WebUIServer) setConfigHandler(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	response := ConfigSetResponse{
-		Success:    true,
-		Message:    "Configuration saved successfully",
-		ConfigPath: configPath,
-		BackupPath: configPath + ".backup",
+		Success:         true,
+		Message:         "Configuration saved successfully",
+		ConfigPath:      configPath,
+		BackupPath:      configPath + ".backup",
+		RestartRequired: req.Restart,
 	}
+
+	// If restart is requested, trigger server restart
+	if req.Restart {
+		w.log.Infof("Configuration saved with restart request")
+		go w.restartServer()
+	}
+
 	w.writeJSONResponse(rw, response)
 }
 
@@ -555,4 +586,24 @@ func (w *WebUIServer) Stop() error {
 		return w.server.Close()
 	}
 	return nil
+}
+
+// restartServer triggers a graceful restart of the Yggdrasil process
+func (w *WebUIServer) restartServer() {
+	w.log.Infof("Initiating server restart after configuration change")
+
+	// Give some time for the response to be sent
+	time.Sleep(1 * time.Second)
+
+	// Send SIGUSR1 signal to trigger a graceful restart
+	// This assumes the main process handles SIGUSR1 for restart
+	proc, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		w.log.Errorf("Failed to find current process: %v", err)
+		return
+	}
+
+	if err := proc.Signal(syscall.SIGUSR1); err != nil {
+		w.log.Errorf("Failed to send restart signal: %v", err)
+	}
 }
