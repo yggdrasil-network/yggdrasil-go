@@ -2,16 +2,11 @@ package admin
 
 import (
 	"encoding/hex"
-	"fmt"
+	"github.com/yggdrasil-network/yggdrasil-go/src/address"
 	"net"
 	"slices"
 	"strings"
 	"time"
-
-	"encoding/json"
-
-	"github.com/yggdrasil-network/yggdrasil-go/src/address"
-	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 )
 
 type GetPeersRequest struct {
@@ -38,7 +33,6 @@ type PeerEntry struct {
 	Latency       time.Duration `json:"latency,omitempty"`
 	LastErrorTime time.Duration `json:"last_error_time,omitempty"`
 	LastError     string        `json:"last_error,omitempty"`
-	Name          string        `json:"name,omitempty"`
 }
 
 func (a *AdminSocket) getPeersHandler(_ *GetPeersRequest, res *GetPeersResponse) error {
@@ -68,24 +62,6 @@ func (a *AdminSocket) getPeersHandler(_ *GetPeersRequest, res *GetPeersResponse)
 		if p.LastError != nil {
 			peer.LastError = p.LastError.Error()
 			peer.LastErrorTime = time.Since(p.LastErrorTime)
-		}
-
-		// Get nodeinfo from peer to extract name
-		if p.Up && len(p.Key) > 0 {
-			if nodeInfo, err := a.CallHandler("getNodeInfo", []byte(fmt.Sprintf(`{"key":"%s"}`, hex.EncodeToString(p.Key[:])))); err == nil {
-				if nodeInfoMap, ok := nodeInfo.(core.GetNodeInfoResponse); ok {
-					for _, nodeInfoData := range nodeInfoMap {
-						var nodeInfoObj map[string]interface{}
-						if json.Unmarshal(nodeInfoData, &nodeInfoObj) == nil {
-							if name, exists := nodeInfoObj["name"]; exists {
-								if nameStr, ok := name.(string); ok {
-									peer.Name = nameStr
-								}
-							}
-						}
-					}
-				}
-			}
 		}
 
 		res.Peers = append(res.Peers, peer)
