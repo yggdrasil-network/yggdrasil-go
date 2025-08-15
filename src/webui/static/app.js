@@ -106,6 +106,22 @@ function updatePeersDisplay(data) {
     }
     
     data.peers.forEach(peer => {
+        // Debug: log NodeInfo for each peer
+        if (peer.nodeinfo) {
+            console.log(`[DEBUG WebUI] Peer ${peer.address} has NodeInfo:`, peer.nodeinfo);
+            try {
+                const parsed = JSON.parse(peer.nodeinfo);
+                console.log(`[DEBUG WebUI] Parsed NodeInfo for ${peer.address}:`, parsed);
+                if (parsed.name) {
+                    console.log(`[DEBUG WebUI] Found name for ${peer.address}: ${parsed.name}`);
+                }
+            } catch (e) {
+                console.warn(`[DEBUG WebUI] Failed to parse NodeInfo for ${peer.address}:`, e);
+            }
+        } else {
+            console.log(`[DEBUG WebUI] Peer ${peer.address} has no NodeInfo`);
+        }
+        
         const peerElement = createPeerElement(peer);
         peersContainer.appendChild(peerElement);
     });
@@ -163,11 +179,14 @@ function createPeerElement(peer) {
         remove: t['peer_remove'] || 'Remove'
     };
     
+    // Extract name from NodeInfo
+    const displayName = yggUtils.getPeerDisplayName(peer);
+    
     div.innerHTML = `
         <div class="peer-header">
             <div class="peer-address-section">
                 <div class="peer-address copyable" onclick="copyPeerAddress('${peer.address || ''}')" data-key-title="copy_address_tooltip">
-                    ${peer.name || 'N/A'} (${peer.address || 'N/A'})
+                    ${displayName} ${peer.address ? `(${peer.address})` : ''}
                 </div>
                 <div class="peer-key copyable" onclick="copyPeerKey('${peer.key || ''}')" data-key-title="copy_key_tooltip">${yggUtils.formatPublicKey(peer.key) || 'N/A'}</div>
             </div>

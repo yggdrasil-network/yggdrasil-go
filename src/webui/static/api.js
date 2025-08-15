@@ -274,6 +274,43 @@ class YggdrasilUtils {
         if (cost <= 400) return { class: 'quality-fair', text: 'Fair' };
         return { class: 'quality-poor', text: 'Poor' };
     }
+
+    /**
+     * Extract name from NodeInfo JSON string
+     * @param {string} nodeinfo - NodeInfo JSON string
+     * @returns {string} - Extracted name or null
+     */
+    static extractNodeInfoName(nodeinfo) {
+        if (!nodeinfo || typeof nodeinfo !== 'string') {
+            return null;
+        }
+        
+        try {
+            const parsed = JSON.parse(nodeinfo);
+            return parsed.name && typeof parsed.name === 'string' ? parsed.name : null;
+        } catch (error) {
+            console.warn('Failed to parse NodeInfo:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Get display name for peer (from NodeInfo or fallback to address)
+     * @param {Object} peer - Peer object with nodeinfo and address
+     * @returns {string} - Display name
+     */
+    static getPeerDisplayName(peer) {
+        // Try to get name from NodeInfo first
+        if (peer.nodeinfo) {
+            const name = this.extractNodeInfoName(peer.nodeinfo);
+            if (name) {
+                return name;
+            }
+        }
+        
+        // Fallback to address or "Unknown"
+        return peer.address || 'Unknown';
+    }
 }
 
 // Create global API instance
