@@ -30,6 +30,7 @@ jobs:
       - name: Build package
         env:
           PKGARCH: ${{ matrix.pkgarch }}
+          GOEXPERIMENT: greenteagc
         run: sh contrib/deb/generate.sh
 
       - name: Upload artifacts
@@ -61,6 +62,7 @@ jobs:
       - name: Build package
         env:
           PKGARCH: ${{ matrix.pkgarch }}
+          GOEXPERIMENT: greenteagc
         run: sh contrib/macos/create-pkg.sh
 
       - name: Upload artifacts
@@ -93,6 +95,8 @@ jobs:
         uses: actions/setup-dotnet@v4
 
       - name: Build package
+        env:
+          GOEXPERIMENT: greenteagc
         run: sh contrib/msi/build-msi.sh ${{ matrix.pkgarch }}
 
       - name: Upload artifacts
@@ -130,6 +134,7 @@ jobs:
       - name: Build package
         env:
           BUILDDIR_YGG: /home/runner/work/yggdrasil-go/yggdrasil-go/yggdrasil
+          GOEXPERIMENT: greenteagc
         run: cd /home/runner/work/yggdrasil-go/yggdrasil-go/vyatta-yggdrasil && ./build-${{ matrix.pkgarch }}
 
       - name: Upload artifacts
