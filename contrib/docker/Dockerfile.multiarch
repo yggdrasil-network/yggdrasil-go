@@ -9,7 +9,7 @@ ARG TARGETARCH
 ENV CGO_ENABLED=0
 ENV GOOS=${TARGETOS} GOARCH=${TARGETARCH}
 
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} apk add git && ./build && go build -o /src/genkeys cmd/genkeys/main.go
+RUN apk add git && ./build && go build -o /src/genkeys cmd/genkeys/main.go
 
 FROM docker.io/alpine
 
