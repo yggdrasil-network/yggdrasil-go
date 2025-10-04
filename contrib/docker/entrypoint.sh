@@ -9,5 +9,10 @@ if [ ! -f "$CONF_DIR/config.conf" ]; then
   yggdrasil --genconf > "$CONF_DIR/config.conf"
 fi
 
+if [ -n "$ALLOW_IPV6_FORWARDING" ]; then
+  echo "set sysctl -w net.ipv6.conf.all.forwarding=1"
+  sysctl -w net.ipv6.conf.all.forwarding=1
+fi
+
 yggdrasil --useconf < "$CONF_DIR/config.conf"
 exit $?
