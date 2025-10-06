@@ -458,7 +458,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 ### Changed
 
 * `DisconnectPeer` and `RemovePeer` have been separated and implemented properly now
-* Less nodes are stored in the DHT now, reducing ambient network traffic and possible instability
+* Fewer nodes are stored in the DHT now, reducing ambient network traffic and possible instability
 * Default config file for FreeBSD is now at `/usr/local/etc/yggdrasil.conf` instead of `/etc/yggdrasil.conf`
 
 ## [0.3.14] - 2020-03-28
