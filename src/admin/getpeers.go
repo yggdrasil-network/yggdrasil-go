@@ -11,6 +11,7 @@ import (
 )
 
 type GetPeersRequest struct {
+	SortBy string `json:"sort"`
 }
 
 type GetPeersResponse struct {
@@ -36,7 +37,7 @@ type PeerEntry struct {
 	LastError     string        `json:"last_error,omitempty"`
 }
 
-func (a *AdminSocket) getPeersHandler(_ *GetPeersRequest, res *GetPeersResponse) error {
+func (a *AdminSocket) getPeersHandler(req *GetPeersRequest, res *GetPeersResponse) error {
 	peers := a.core.GetPeers()
 	res.Peers = make([]PeerEntry, 0, len(peers))
 	for _, p := range peers {
@@ -66,26 +67,67 @@ func (a *AdminSocket) getPeersHandler(_ *GetPeersRequest, res *GetPeersResponse)
 		}
 		res.Peers = append(res.Peers, peer)
 	}
-	slices.SortStableFunc(res.Peers, func(a, b PeerEntry) int {
-		if !a.Inbound && b.Inbound {
-			return -1
-		}
-		if a.Inbound && !b.Inbound {
-			return 1
-		}
-		if d := strings.Compare(a.PublicKey, b.PublicKey); d != 0 {
-			return d
-		}
-		if d := a.Priority - b.Priority; d != 0 {
-			return int(d)
-		}
-		if d := a.Cost - b.Cost; d != 0 {
-			return int(d)
-		}
-		if d := a.Uptime - b.Uptime; d != 0 {
-			return int(d)
-		}
-		return 0
-	})
+	switch strings.ToLower(req.SortBy) {
+	case "uptime":
+		slices.SortStableFunc(res.Peers, sortByUptime)
+	case "cost":
+		slices.SortStableFunc(res.Peers, sortByCost)
+	default:
+		slices.SortStableFunc(res.Peers, sortByDefault)
+	}
 	return nil
+}
+
+func sortByDefault(a, b PeerEntry) int {
+	if !a.Inbound && b.Inbound {
+		return -1
+	}
+	if a.Inbound && !b.Inbound {
+		return 1
+	}
+	if d := strings.Compare(a.PublicKey, b.PublicKey); d != 0 {
+		return d
+	}
+	if d := a.Priority - b.Priority; d != 0 {
+		return int(d)
+	}
+	if d := a.Cost - b.Cost; d != 0 {
+		return int(d)
+	}
+	if d := a.Uptime - b.Uptime; d != 0 {
+		return int(d)
+	}
+	return 0
+}
+
+func sortByCost(a, b PeerEntry) int {
+	if d := a.Cost - b.Cost; d != 0 {
+		return int(d)
+	}
+	if d := strings.Compare(a.PublicKey, b.PublicKey); d != 0 {
+		return d
+	}
+	if d := a.Priority - b.Priority; d != 0 {
+		return int(d)
+	}
+	if d := a.Uptime - b.Uptime; d != 0 {
+		return int(d)
+	}
+	return 0
+}
+
+func sortByUptime(a, b PeerEntry) int {
+	if d := a.Uptime - b.Uptime; d != 0 {
+		return int(d)
+	}
+	if d := strings.Compare(a.PublicKey, b.PublicKey); d != 0 {
+		return d
+	}
+	if d := a.Priority - b.Priority; d != 0 {
+		return int(d)
+	}
+	if d := a.Cost - b.Cost; d != 0 {
+		return int(d)
+	}
+	return 0
 }

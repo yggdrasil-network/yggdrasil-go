@@ -164,7 +164,7 @@ func (a *AdminSocket) SetupAdminHandlers() {
 		},
 	)
 	_ = a.AddHandler(
-		"getPeers", "Show directly connected peers", []string{},
+		"getPeers", "Show directly connected peers", []string{"sort"},
 		func(in json.RawMessage) (interface{}, error) {
 			req := &GetPeersRequest{}
 			res := &GetPeersResponse{}
