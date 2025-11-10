@@ -20,8 +20,8 @@ type linkQUIC struct {
 }
 
 type linkQUICStream struct {
-	quic.Connection
-	quic.Stream
+	*quic.Conn
+	*quic.Stream
 }
 
 type linkQUICListener struct {
@@ -66,8 +66,8 @@ func (l *linkQUIC) dial(ctx context.Context, url *url.URL, info linkInfo, option
 			return nil, err
 		}
 		return &linkQUICStream{
-			Connection: qc,
-			Stream:     qs,
+			Conn:   qc,
+			Stream: qs,
 		}, nil
 	})
 }
@@ -98,8 +98,8 @@ func (l *linkQUIC) listen(ctx context.Context, url *url.URL, _ string) (net.List
 					continue
 				}
 				ch <- &linkQUICStream{
-					Connection: qc,
-					Stream:     qs,
+					Conn:   qc,
+					Stream: qs,
 				}
 			}
 		}
