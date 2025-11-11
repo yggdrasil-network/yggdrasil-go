@@ -25,6 +25,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/config"
 	"github.com/yggdrasil-network/yggdrasil-go/src/ipv6rwc"
+	"github.com/yggdrasil-network/yggdrasil-go/src/webui"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
@@ -37,6 +38,7 @@ type node struct {
 	tun       *tun.TunAdapter
 	multicast *multicast.Multicast
 	admin     *admin.AdminSocket
+	webui     *webui.WebUIServer
 }
 
 // The main function is responsible for configuring and starting Yggdrasil.
@@ -55,6 +57,7 @@ func main() {
 	getpkey := flag.Bool("publickey", false, "use in combination with either -useconf or -useconffile, outputs your public key")
 	loglevel := flag.String("loglevel", "info", "loglevel to enable")
 	chuserto := flag.String("user", "", "user (and, optionally, group) to set UID/GID to")
+
 	flag.Parse()
 
 	done := make(chan struct{})
@@ -90,6 +93,7 @@ func main() {
 	}
 
 	cfg := config.GenerateConfig()
+	var configPath string
 	var err error
 	switch {
 	case *ver:
@@ -107,6 +111,7 @@ func main() {
 		}
 
 	case *useconffile != "":
+		configPath = *useconffile
 		f, err := os.Open(*useconffile)
 		if err != nil {
 			panic(err)
@@ -188,6 +193,9 @@ func main() {
 		fmt.Println(string(pem))
 		return
 	}
+
+	// Set current config for web UI
+	config.SetCurrentConfig(configPath, cfg)
 
 	n := &node{}
 
@@ -282,6 +290,34 @@ func main() {
 		}
 	}
 
+	// Set up the web UI server if enabled in config.
+	if cfg.WebUI.Enable {
+		var listenAddr string
+		if cfg.WebUI.Host == "" {
+			listenAddr = fmt.Sprintf(":%d", cfg.WebUI.Port)
+		} else {
+			listenAddr = fmt.Sprintf("%s:%d", cfg.WebUI.Host, cfg.WebUI.Port)
+		}
+
+		n.webui = webui.Server(listenAddr, cfg.WebUI.Password, logger)
+
+		// Connect WebUI with AdminSocket for direct API access
+		if n.admin != nil {
+			n.webui.SetAdmin(n.admin)
+		}
+
+		if cfg.WebUI.Password != "" {
+			logger.Infof("WebUI password authentication enabled")
+		} else {
+			logger.Warnf("WebUI running without password protection")
+		}
+		go func() {
+			if err := n.webui.Start(); err != nil {
+				logger.Errorf("WebUI server error: %v", err)
+			}
+		}()
+	}
+
 	//Windows service shutdown
 	minwinsvc.SetOnExit(func() {
 		logger.Infof("Shutting down service ...")
@@ -320,6 +356,9 @@ func main() {
 	_ = n.admin.Stop()
 	_ = n.multicast.Stop()
 	_ = n.tun.Stop()
+	if n.webui != nil {
+		_ = n.webui.Stop()
+	}
 	n.core.Stop()
 }
 

@@ -30,6 +30,8 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/hjson/hjson-go/v4"
@@ -51,18 +53,26 @@ type NodeConfig struct {
 	AllowedPublicKeys   []string                   `comment:"List of peer public keys to allow incoming peering connections\nfrom. If left empty/undefined then all connections will be allowed\nby default. This does not affect outgoing peerings, nor does it\naffect link-local peers discovered via multicast.\nWARNING: THIS IS NOT A FIREWALL and DOES NOT limit who can reach\nopen ports or services running on your machine!"`
 	IfName              string                     `comment:"Local network interface name for TUN adapter, or \"auto\" to select\nan interface automatically, or \"none\" to run without TUN."`
 	IfMTU               uint64                     `comment:"Maximum Transmission Unit (MTU) size for your local TUN interface.\nDefault is the largest supported size for your platform. The lowest\npossible value is 1280."`
-	LogLookups          bool                       `json:",omitempty"`
+	LogLookups          bool                       `json:",omitempty" comment:"Log lookups for peers and nodes. This is useful for debugging and\nmonitoring the network. It is disabled by default."`
 	NodeInfoPrivacy     bool                       `comment:"By default, nodeinfo contains some defaults including the platform,\narchitecture and Yggdrasil version. These can help when surveying\nthe network and diagnosing network routing problems. Enabling\nnodeinfo privacy prevents this, so that only items specified in\n\"NodeInfo\" are sent back if specified."`
 	NodeInfo            map[string]interface{}     `comment:"Optional nodeinfo. This must be a { \"key\": \"value\", ... } map\nor set as null. This is entirely optional but, if set, is visible\nto the whole network on request."`
+	WebUI               WebUIConfig                `comment:"Web interface configuration for managing the node through a browser."`
 }
 
 type MulticastInterfaceConfig struct {
-	Regex    string
-	Beacon   bool
-	Listen   bool
-	Port     uint16 `json:",omitempty"`
-	Priority uint64 `json:",omitempty"` // really uint8, but gobind won't export it
-	Password string
+	Regex    string `comment:"Regular expression to match interface names. If an interface name matches this\nregular expression, the interface will be used for multicast peer discovery."`
+	Beacon   bool   `comment:"Whether to advertise this interface's presence to other nodes. If true, the\ninterface will be used for multicast peer discovery."`
+	Listen   bool   `comment:"Whether to listen for incoming peerings on this interface. If true, the\ninterface will be used for multicast peer discovery."`
+	Port     uint16 `comment:"Port to use for multicast peer discovery. If 0, a random port will be used."`
+	Priority uint64 `comment:"Priority for multicast peer discovery. The higher the priority, the more likely\nthis interface will be used for peer discovery. The default priority is 0."`
+	Password string `comment:"Password to use for multicast peer discovery. If empty, no password will be used."`
+}
+
+type WebUIConfig struct {
+	Enable   bool   `comment:"Enable the web interface for managing the node through a browser."`
+	Port     uint16 `comment:"Port for the web interface. Default is 9000."`
+	Host     string `comment:"Host/IP address to bind the web interface to. Empty means all interfaces."`
+	Password string `comment:"Password for accessing the web interface. If empty, no authentication is required."`
 }
 
 // Generates default configuration and returns a pointer to the resulting
@@ -82,7 +92,15 @@ func GenerateConfig() *NodeConfig {
 	cfg.MulticastInterfaces = defaults.DefaultMulticastInterfaces
 	cfg.IfName = defaults.DefaultIfName
 	cfg.IfMTU = defaults.DefaultIfMTU
+	cfg.LogLookups = false
 	cfg.NodeInfoPrivacy = false
+	cfg.NodeInfo = map[string]interface{}{}
+	cfg.WebUI = WebUIConfig{
+		Enable:   false,
+		Port:     9000,
+		Host:     "127.0.0.1",
+		Password: "",
+	}
 	if err := cfg.postprocessConfig(); err != nil {
 		panic(err)
 	}
@@ -128,8 +146,15 @@ func (cfg *NodeConfig) UnmarshalHJSON(b []byte) error {
 
 func (cfg *NodeConfig) postprocessConfig() error {
 	if cfg.PrivateKeyPath != "" {
+		// Validate the private key path to prevent path traversal attacks
+		validatedPath, err := validateConfigPath(cfg.PrivateKeyPath)
+		if err != nil {
+			return fmt.Errorf("invalid private key path: %v", err)
+		}
+		cfg.PrivateKeyPath = validatedPath
+
 		cfg.PrivateKey = nil
-		f, err := os.ReadFile(cfg.PrivateKeyPath)
+		f, err := os.ReadFile(cfg.PrivateKeyPath) // Path already validated above
 		if err != nil {
 			return err
 		}
@@ -257,4 +282,222 @@ func (k *KeyBytes) UnmarshalJSON(b []byte) error {
 	}
 	*k, err = hex.DecodeString(s)
 	return err
+}
+
+// ConfigInfo contains information about the configuration file
+type ConfigInfo struct {
+	Path   string      `json:"path"`
+	Format string      `json:"format"`
+	Data   interface{} `json:"data"`
+}
+
+// Global variables to track the current configuration state
+var (
+	currentConfigPath string
+	currentConfigData *NodeConfig
+)
+
+// validateConfigPath validates and cleans a configuration file path to prevent path traversal attacks
+func validateConfigPath(path string) (string, error) {
+	if path == "" {
+		return "", fmt.Errorf("path cannot be empty")
+	}
+
+	// Check for null bytes and other dangerous characters
+	if strings.Contains(path, "\x00") {
+		return "", fmt.Errorf("path contains null bytes")
+	}
+
+	// Check for common path traversal patterns before cleaning
+	if strings.Contains(path, "..") || strings.Contains(path, "//") || strings.Contains(path, "\\\\") {
+		return "", fmt.Errorf("invalid path: contains path traversal sequences")
+	}
+
+	// Clean the path to resolve any ".." or "." components
+	cleanPath := filepath.Clean(path)
+
+	// Convert to absolute path to prevent relative path issues
+	absPath, err := filepath.Abs(cleanPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve absolute path: %v", err)
+	}
+
+	// Double-check for path traversal after cleaning
+	if strings.Contains(absPath, "..") {
+		return "", fmt.Errorf("path contains traversal sequences after cleaning")
+	}
+
+	// Ensure the path is within reasonable bounds (no control characters)
+	for _, r := range absPath {
+		if r < 32 && r != '\t' && r != '\n' && r != '\r' {
+			return "", fmt.Errorf("invalid path: contains control characters")
+		}
+		if r == 127 || (r >= 128 && r <= 159) {
+			return "", fmt.Errorf("invalid path: contains control characters")
+		}
+	}
+
+	// Additional check: ensure the path doesn't escape intended directories
+	if strings.Count(absPath, "/") > 10 {
+		return "", fmt.Errorf("path too deep: potential security risk")
+	}
+
+	return absPath, nil
+}
+
+// SetCurrentConfig sets the current configuration data and path
+func SetCurrentConfig(path string, cfg *NodeConfig) {
+	// Validate the path before setting it
+	if path != "" {
+		if validatedPath, err := validateConfigPath(path); err == nil {
+			currentConfigPath = validatedPath
+		} else {
+			// Log the error but don't fail completely
+			currentConfigPath = ""
+		}
+	} else {
+		currentConfigPath = path
+	}
+	currentConfigData = cfg
+}
+
+// GetCurrentConfig returns the current configuration information
+func GetCurrentConfig() (*ConfigInfo, error) {
+	var configPath string
+	var configData *NodeConfig
+	var format string = "hjson"
+
+	// Use current config if available, otherwise try to read from default location
+	if currentConfigPath != "" && currentConfigData != nil {
+		// Validate the current config path before using it
+		validatedCurrentPath, err := validateConfigPath(currentConfigPath)
+		if err != nil {
+			return nil, fmt.Errorf("invalid current config path: %v", err)
+		}
+		configPath = validatedCurrentPath
+		configData = currentConfigData
+	} else {
+		// Fallback to default path
+		defaults := GetDefaults()
+		defaultPath := defaults.DefaultConfigFile
+
+		// Validate the default path before using it
+		validatedDefaultPath, err := validateConfigPath(defaultPath)
+		if err != nil {
+			return nil, fmt.Errorf("invalid default config path: %v", err)
+		}
+
+		configPath = validatedDefaultPath
+		configData = GenerateConfig()
+	}
+
+	// Try to read existing config file
+	if _, err := os.Stat(configPath); err == nil { // Path already validated above
+		data, err := os.ReadFile(configPath) // Path already validated above
+		if err == nil {
+			cfg := GenerateConfig()
+			if err := hjson.Unmarshal(data, cfg); err == nil {
+				configData = cfg
+				// Detect format
+				var jsonTest interface{}
+				if json.Unmarshal(data, &jsonTest) == nil {
+					format = "json"
+				}
+			} else {
+				return nil, fmt.Errorf("failed to parse config file: %v", err)
+			}
+		}
+	}
+
+	return &ConfigInfo{
+		Path:   configPath,
+		Format: format,
+		Data:   configData,
+	}, nil
+}
+
+// SaveConfig saves configuration to file
+func SaveConfig(configData interface{}, configPath, format string) error {
+	// Validate config data
+	var testConfig NodeConfig
+	configBytes, err := json.Marshal(configData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config data: %v", err)
+	}
+
+	if err := json.Unmarshal(configBytes, &testConfig); err != nil {
+		return fmt.Errorf("invalid configuration data: %v", err)
+	}
+
+	// Determine target path
+	targetPath := configPath
+	if targetPath == "" {
+		if currentConfigPath != "" {
+			targetPath = currentConfigPath
+		} else {
+			defaults := GetDefaults()
+			targetPath = defaults.DefaultConfigFile
+		}
+	}
+
+	// Validate and clean the target path to prevent path traversal attacks
+	validatedPath, err := validateConfigPath(targetPath)
+	if err != nil {
+		return fmt.Errorf("invalid target path: %v", err)
+	}
+	targetPath = validatedPath
+
+	// Determine format if not specified
+	targetFormat := format
+	if targetFormat == "" {
+		if _, err := os.Stat(targetPath); err == nil { // Path already validated above
+			data, readErr := os.ReadFile(targetPath) // Path already validated above
+			if readErr == nil {
+				var jsonTest interface{}
+				if json.Unmarshal(data, &jsonTest) == nil {
+					targetFormat = "json"
+				} else {
+					targetFormat = "hjson"
+				}
+			}
+		}
+
+		if targetFormat == "" {
+			targetFormat = "hjson"
+		}
+	}
+
+	// Ensure directory exists
+	dir := filepath.Dir(targetPath)
+	// Clean the directory path as well
+	dir = filepath.Clean(dir)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %v", err)
+	}
+
+	// Marshal to target format
+	var outputData []byte
+	if targetFormat == "json" {
+		outputData, err = json.MarshalIndent(configData, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal JSON: %v", err)
+		}
+	} else {
+		outputData, err = hjson.Marshal(configData)
+		if err != nil {
+			return fmt.Errorf("failed to marshal HJSON: %v", err)
+		}
+	}
+
+	// Write file
+	if err := os.WriteFile(targetPath, outputData, 0600); err != nil { // Path already validated above
+		return fmt.Errorf("failed to write config file: %v", err)
+	}
+
+	// Update current config if this is the current config file
+	if targetPath == currentConfigPath {
+		currentConfigData = &testConfig
+	}
+
+	return nil
 }

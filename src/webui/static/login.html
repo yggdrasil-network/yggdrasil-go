@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yggdrasil Web Interface - Login</title>
+    <link rel="stylesheet" href="static/style.css">
+    <script src="static/lang/ru.js"></script>
+    <script src="static/lang/en.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+            min-height: 100vh;
+            color: var(--text-primary);
+            margin: 0;
+            padding: 0;
+        }
+
+        .login-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .login-form {
+            background: var(--bg-info-card);
+            border-radius: 4px;
+            padding: 40px;
+            box-shadow: 0 2px 8px var(--shadow-dark);
+            border: 1px solid var(--border-card);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .login-form h1 {
+            color: var(--text-heading);
+            margin-bottom: 10px;
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .login-form p {
+            color: var(--text-body);
+            margin-bottom: 30px;
+            font-weight: 500;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--text-heading);
+            font-weight: 600;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-card);
+            border-radius: 2px;
+            font-size: 16px;
+            transition: border-color 0.2s ease;
+            background: var(--bg-status-card);
+            color: var(--text-body);
+            font-weight: 500;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--border-hover);
+            box-shadow: 0 1px 4px var(--shadow-light);
+        }
+
+        .form-group input:disabled {
+            background-color: var(--bg-nav-item);
+            border-color: var(--border-nav-item);
+            color: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        .login-button {
+            width: 100%;
+            background: var(--bg-nav-active);
+            color: var(--text-white);
+            border: 1px solid var(--bg-nav-active-border);
+            padding: 12px 16px;
+            border-radius: 2px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .login-button:hover {
+            background: var(--bg-nav-active-border);
+            box-shadow: 0 2px 8px var(--shadow-medium);
+        }
+
+        .error-message {
+            background: var(--bg-status-card);
+            color: var(--bg-logout);
+            border: 1px solid var(--border-logout);
+            border-radius: 2px;
+            padding: 12px;
+            margin-bottom: 20px;
+            display: none;
+            font-weight: 500;
+        }
+
+        .lock-icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            color: var(--bg-nav-active);
+        }
+
+        .login-header {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-header">
+        <div class="controls-group">
+            <button onclick="toggleTheme()" class="theme-btn" id="theme-btn">
+                <span class="theme-icon">🌙</span>
+            </button>
+            <button onclick="switchLanguage('ru')" class="lang-btn" id="lang-ru">RU</button>
+            <button onclick="switchLanguage('en')" class="lang-btn" id="lang-en">EN</button>
+        </div>
+    </div>
+
+    <div class="login-container">
+        <form class="login-form" onsubmit="return handleLogin(event)">
+            <div class="lock-icon">🔒</div>
+            <h1 data-key="title">🌳 Yggdrasil</h1>
+            <p data-key="login_subtitle">Enter password to access the web interface</p>
+
+            <div class="error-message" id="errorMessage">
+                <span data-key="error_invalid_password">Invalid password. Please try again.</span>
+            </div>
+
+            <div class="form-group">
+                <label for="password" data-key="password_label">Password:</label>
+                <input type="password" id="password" name="password" required autofocus>
+            </div>
+
+            <button type="submit" class="login-button" data-key="access_dashboard">
+                Access Dashboard
+            </button>
+        </form>
+    </div>
+
+    <script>
+        let currentLanguage = localStorage.getItem('yggdrasil-language') || 'ru';
+        let currentTheme = localStorage.getItem('yggdrasil-theme') || 'light';
+
+        function updateTexts() {
+            const elements = document.querySelectorAll('[data-key]');
+            elements.forEach(element => {
+                const key = element.getAttribute('data-key');
+                if (window.translations && window.translations[currentLanguage] && window.translations[currentLanguage][key]) {
+                    element.textContent = window.translations[currentLanguage][key];
+                }
+            });
+        }
+
+        function toggleTheme() {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            localStorage.setItem('yggdrasil-theme', currentTheme);
+            applyTheme();
+        }
+
+        function applyTheme() {
+            const body = document.body;
+            const themeIcon = document.querySelector('.theme-icon');
+            const themeBtn = document.getElementById('theme-btn');
+
+            if (currentTheme === 'dark') {
+                body.setAttribute('data-theme', 'dark');
+                themeIcon.textContent = '☀️';
+                themeBtn.title = window.translations[currentLanguage]['theme_light'] || 'Light theme';
+            } else {
+                body.removeAttribute('data-theme');
+                themeIcon.textContent = '🌙';
+                themeBtn.title = window.translations[currentLanguage]['theme_dark'] || 'Dark theme';
+            }
+        }
+
+        function switchLanguage(lang) {
+            currentLanguage = lang;
+            localStorage.setItem('yggdrasil-language', lang);
+
+            // Update active button
+            document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('lang-' + lang).classList.add('active');
+
+            updateTexts();
+            applyTheme(); // Update theme button tooltip
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+
+            const password = document.getElementById('password').value;
+            const errorMessage = document.getElementById('errorMessage');
+
+            try {
+                const response = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ password: password })
+                });
+
+                if (response.ok) {
+                    // Success - redirect to main page
+                    window.location.href = '/';
+                } else if (response.status === 429) {
+                    // Too many requests - IP blocked
+                    errorMessage.querySelector('span').textContent = window.translations[currentLanguage]['error_too_many_attempts'] || 'Too many failed attempts. Please wait 1 minute before trying again.';
+                    errorMessage.style.display = 'block';
+                    document.getElementById('password').value = '';
+                    document.getElementById('password').disabled = true;
+
+                    // Re-enable after 1 minute
+                    setTimeout(() => {
+                        document.getElementById('password').disabled = false;
+                        document.getElementById('password').focus();
+                        errorMessage.style.display = 'none';
+                    }, 60000);
+                } else {
+                    // Invalid password
+                    errorMessage.querySelector('span').textContent = window.translations[currentLanguage]['error_invalid_password'] || 'Invalid password. Please try again.';
+                    errorMessage.style.display = 'block';
+                    document.getElementById('password').value = '';
+                    document.getElementById('password').focus();
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                errorMessage.style.display = 'block';
+            }
+
+            return false;
+        }
+
+        // Hide error message when user starts typing
+        document.getElementById('password').addEventListener('input', function () {
+            document.getElementById('errorMessage').style.display = 'none';
+        });
+
+        // Initialize language and theme on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            // Set active language button
+            document.getElementById('lang-' + currentLanguage).classList.add('active');
+            // Update all texts
+            updateTexts();
+            // Apply saved theme
+            applyTheme();
+        });
+    </script>
+</body>
+
+</html>

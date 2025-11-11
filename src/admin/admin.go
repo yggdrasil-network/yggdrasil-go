@@ -277,6 +277,43 @@ func (a *AdminSocket) Stop() error {
 	return nil
 }
 
+// CallHandler calls an admin handler directly by name without using socket
+func (a *AdminSocket) CallHandler(name string, args json.RawMessage) (interface{}, error) {
+	if a == nil {
+		return nil, errors.New("admin socket not initialized")
+	}
+
+	reqname := strings.ToLower(name)
+	handler, ok := a.handlers[reqname]
+	if !ok {
+		return nil, fmt.Errorf("unknown action '%s', try 'list' for help", reqname)
+	}
+
+	return handler.handler(args)
+}
+
+// GetAvailableCommands returns list of available admin commands
+func (a *AdminSocket) GetAvailableCommands() []ListEntry {
+	if a == nil {
+		return nil
+	}
+
+	var list []ListEntry
+	for name, handler := range a.handlers {
+		list = append(list, ListEntry{
+			Command:     name,
+			Description: handler.desc,
+			Fields:      handler.args,
+		})
+	}
+
+	sort.SliceStable(list, func(i, j int) bool {
+		return strings.Compare(list[i].Command, list[j].Command) < 0
+	})
+
+	return list
+}
+
 // listen is run by start and manages API connections.
 func (a *AdminSocket) listen() {
 	defer a.listener.Close()

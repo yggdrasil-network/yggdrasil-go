@@ -26,6 +26,26 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.5.13] - ...
+
+### Added
+
+* Web UI interface for managing Yggdrasil nodes through a browser
+  * Built-in configuration editor with JSON support
+  * Peer management and monitoring
+  * Multilingual support (English and Russian)
+  * Authentication system with brute force protection
+  * Theme toggle functionality
+  * Mobile-responsive design
+* NodeInfo exchange during peer handshakes for better peer identification
+  * Peer names are now displayed in CLI and admin responses
+  * NodeInfo data is exchanged and stored during connection establishment
+  * Enhanced peer display with names alongside IP addresses
+* Development environment improvements
+  * Docker and VS Code Dev Container support for easier development setup
+  * Enhanced development container configuration with Oh My Zsh
+  * Improved development workflow and environment consistency
+
 ## [0.5.12] - 2024-12-18
 
 * Go 1.22 is now required to build Yggdrasil

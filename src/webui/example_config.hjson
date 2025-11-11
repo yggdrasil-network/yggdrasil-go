@@ -1,0 +1,45 @@
+{
+  // Example Yggdrasil configuration with WebUI password authentication
+  
+  "PrivateKey": "your_private_key_here",
+  "PublicKey": "your_public_key_here",
+  
+  // ... other Yggdrasil configuration options ...
+  
+  // Web interface configuration
+  "WebUI": {
+    "Enable": true,
+    "Port": 9000,
+    "Host": "127.0.0.1",  // Bind only to localhost for security
+    "Password": "your_secure_password_here"  // Set a strong password
+  }
+}
+
+// Usage examples:
+//
+// 1. Enable WebUI with password protection:
+//    Set "Password" to a strong password
+//    Users will see a custom login page asking only for password
+//
+// 2. Disable password protection:
+//    Set "Password" to "" (empty string)
+//    WebUI will be accessible without authentication
+//
+// 3. Disable WebUI entirely:
+//    Set "Enable" to false
+//
+// Authentication features:
+// - Custom login page (no username required, only password)
+// - Session-based authentication with secure cookies
+// - 24-hour session expiration
+// - Automatic session cleanup
+// - Brute force protection (3 failed attempts = 1 minute block)
+// - IP-based blocking with automatic cleanup
+//
+// Security recommendations:
+// - Use a strong, unique password (12+ characters)
+// - Bind to localhost (127.0.0.1) unless you need remote access
+// - Consider using HTTPS reverse proxy for production deployments
+// - Sessions are stored in memory and lost on server restart
+// - Failed login attempts are tracked per IP address
+// - If behind a reverse proxy, ensure X-Forwarded-For headers are set correctly 

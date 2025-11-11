@@ -1,0 +1,60 @@
+{
+    "name": "Yggdrasil Go Development",
+    "dockerFile": "../contrib/docker/devcontainer/Dockerfile",
+    "context": "..",
+    // Set up port forwarding for development
+    "forwardPorts": [
+        9000,
+        9001,
+        9002,
+        9003
+    ],
+    // Configure Docker run options for TUN device access
+    "runArgs": [
+        "--privileged",
+        "--cap-add=NET_ADMIN",
+        "--device=/dev/net/tun"
+    ],
+    // Configure VS Code settings and extensions
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "go.toolsManagement.checkForUpdates": "local",
+                "go.useLanguageServer": true,
+                "go.gopath": "/go",
+                "go.goroot": "/usr/local/go",
+                "go.lintTool": "golangci-lint",
+                "go.lintFlags": [
+                    "--fast"
+                ],
+                "terminal.integrated.defaultProfile.linux": "zsh",
+                "editor.formatOnSave": true,
+                "go.formatTool": "goimports",
+                "go.buildOnSave": "package"
+            },
+            "extensions": [
+                "golang.Go",
+                "fabiospampinato.vscode-todo-plus"
+            ]
+        }
+    },
+    // Environment variables for Go module caching
+    "containerEnv": {
+        "GOCACHE": "/home/vscode/.cache/go-build",
+        "GOMODCACHE": "/home/vscode/.cache/go-mod"
+    },
+    // Post create command to set up the environment
+    "postCreateCommand": "mkdir -p /home/vscode/.cache/go-build /home/vscode/.cache/go-mod && cd /workspaces/yggdrasil-go && go mod download && go mod tidy",
+    // Keep the container running
+    "overrideCommand": false,
+    // Use non-root user
+    "remoteUser": "vscode",
+    // Configure container user
+    "containerUser": "vscode",
+    "updateRemoteUserUID": true,
+    // Features to install
+    "features": {
+        "ghcr.io/devcontainers/features/git:1": {},
+        "ghcr.io/devcontainers/features/github-cli:1": {}
+    }
+}

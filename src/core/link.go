@@ -64,9 +64,10 @@ type link struct {
 	linkType  linkType           // Type of link, i.e. outbound/inbound, persistent/ephemeral
 	linkProto string             // Protocol carrier of link, e.g. TCP, AWDL
 	// The remaining fields can only be modified safely from within the links actor
-	_conn    *linkConn // Connected link, if any, nil if not connected
-	_err     error     // Last error on the connection, if any
-	_errtime time.Time // Last time an error occurred
+	_conn     *linkConn // Connected link, if any, nil if not connected
+	_err      error     // Last error on the connection, if any
+	_errtime  time.Time // Last time an error occurred
+	_nodeInfo []byte    // NodeInfo received from peer during handshake
 }
 
 type linkOptions struct {
@@ -246,6 +247,7 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 			linkType:  linkType,
 			linkProto: strings.ToUpper(u.Scheme),
 			kick:      make(chan struct{}),
+			_nodeInfo: nil, // Initialize NodeInfo field
 		}
 		state.ctx, state.cancel = context.WithCancel(l.core.ctx)
 
@@ -365,7 +367,7 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 
 				// Give the connection to the handler. The handler will block
 				// for the lifetime of the connection.
-				switch err = l.handler(linkType, options, lc, resetBackoff, false); {
+				switch err = l.handler(linkType, options, lc, resetBackoff, false, state); {
 				case err == nil:
 				case errors.Is(err, io.EOF):
 				case errors.Is(err, net.ErrClosed):
@@ -524,6 +526,7 @@ func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) 
 							linkType:  linkTypeIncoming,
 							linkProto: strings.ToUpper(u.Scheme),
 							kick:      make(chan struct{}),
+							_nodeInfo: nil, // Initialize NodeInfo field
 						}
 					}
 					if state._conn != nil {
@@ -560,7 +563,7 @@ func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) 
 
 				// Give the connection to the handler. The handler will block
 				// for the lifetime of the connection.
-				switch err = l.handler(linkTypeIncoming, options, lc, nil, local); {
+				switch err = l.handler(linkTypeIncoming, options, lc, nil, local, state); {
 				case err == nil:
 				case errors.Is(err, io.EOF):
 				case errors.Is(err, net.ErrClosed):
@@ -601,10 +604,20 @@ func (l *links) connect(ctx context.Context, u *url.URL, info linkInfo, options 
 	return dialer.dial(ctx, u, info, options)
 }
 
-func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, success func(), local bool) error {
+func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, success func(), local bool, linkState *link) error {
 	meta := version_getBaseMetadata()
 	meta.publicKey = l.core.public
 	meta.priority = options.priority
+
+	// Add our NodeInfo to handshake if available
+	phony.Block(&l.core.proto.nodeinfo, func() {
+		nodeInfo := l.core.proto.nodeinfo._getNodeInfo()
+		if len(nodeInfo) > 0 {
+			meta.nodeInfo = make([]byte, len(nodeInfo))
+			copy(meta.nodeInfo, nodeInfo)
+		}
+	})
+
 	metaBytes, err := meta.encode(l.core.secret, options.password)
 	if err != nil {
 		return fmt.Errorf("failed to generate handshake: %w", err)
@@ -658,6 +671,16 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, s
 		}
 		if linkType == linkTypeIncoming && !isallowed {
 			return fmt.Errorf("node public key %q is not in AllowedPublicKeys", hex.EncodeToString(meta.publicKey))
+		}
+	}
+
+	// Store the received NodeInfo in the link state
+	if len(meta.nodeInfo) > 0 {
+		if linkState != nil {
+			phony.Block(l, func() {
+				linkState._nodeInfo = make([]byte, len(meta.nodeInfo))
+				copy(linkState._nodeInfo, meta.nodeInfo)
+			})
 		}
 	}
 

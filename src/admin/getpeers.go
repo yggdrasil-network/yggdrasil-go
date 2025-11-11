@@ -35,6 +35,7 @@ type PeerEntry struct {
 	Latency       time.Duration `json:"latency,omitempty"`
 	LastErrorTime time.Duration `json:"last_error_time,omitempty"`
 	LastError     string        `json:"last_error,omitempty"`
+	NodeInfo      string        `json:"nodeinfo,omitempty"` // NodeInfo from peer handshake
 }
 
 func (a *AdminSocket) getPeersHandler(req *GetPeersRequest, res *GetPeersResponse) error {
@@ -65,6 +66,12 @@ func (a *AdminSocket) getPeersHandler(req *GetPeersRequest, res *GetPeersRespons
 			peer.LastError = p.LastError.Error()
 			peer.LastErrorTime = time.Since(p.LastErrorTime)
 		}
+
+		// Add NodeInfo if available
+		if len(p.NodeInfo) > 0 {
+			peer.NodeInfo = string(p.NodeInfo)
+		}
+
 		res.Peers = append(res.Peers, peer)
 	}
 	switch strings.ToLower(req.SortBy) {

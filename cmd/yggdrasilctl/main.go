@@ -186,9 +186,9 @@ func run() int {
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
-		table.SetHeader([]string{"URI", "State", "Dir", "IP Address", "Uptime", "RTT", "RX", "TX", "Down", "Up", "Pr", "Cost", "Last Error"})
+		table.SetHeader([]string{"URI", "State", "Dir", "Name", "IP Address", "Uptime", "RTT", "RX", "TX", "Down", "Up", "Pr", "Cost", "Last Error"})
 		for _, peer := range resp.Peers {
-			state, lasterr, dir, rtt, rxr, txr := "Up", "-", "Out", "-", "-", "-"
+			state, lasterr, dir, rtt, rxr, txr, name := "Up", "-", "Out", "-", "-", "-", "-"
 			if !peer.Up {
 				state, lasterr = "Down", fmt.Sprintf("%s ago: %s", peer.LastErrorTime.Round(time.Second), peer.LastError)
 			} else if rttms := float64(peer.Latency.Microseconds()) / 1000; rttms > 0 {
@@ -197,6 +197,19 @@ func run() int {
 			if peer.Inbound {
 				dir = "In"
 			}
+
+			// Extract name from NodeInfo if available
+			if peer.NodeInfo != "" {
+				var nodeInfo map[string]interface{}
+				if err := json.Unmarshal([]byte(peer.NodeInfo), &nodeInfo); err == nil {
+					if nameValue, ok := nodeInfo["name"]; ok {
+						if nameStr, ok := nameValue.(string); ok && nameStr != "" {
+							name = nameStr
+						}
+					}
+				}
+			}
+
 			uristring := peer.URI
 			if uri, err := url.Parse(peer.URI); err == nil {
 				uri.RawQuery = ""
@@ -208,10 +221,12 @@ func run() int {
 			if peer.TXRate > 0 {
 				txr = peer.TXRate.String() + "/s"
 			}
+
 			table.Append([]string{
 				uristring,
 				state,
 				dir,
+				name,
 				peer.IPAddress,
 				(time.Duration(peer.Uptime) * time.Second).String(),
 				rtt,
