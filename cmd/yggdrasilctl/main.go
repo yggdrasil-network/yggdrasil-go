@@ -190,7 +190,9 @@ func run() int {
 		for _, peer := range resp.Peers {
 			state, lasterr, dir, rtt, rxr, txr := "Up", "-", "Out", "-", "-", "-"
 			if !peer.Up {
-				state, lasterr = "Down", fmt.Sprintf("%s ago: %s", peer.LastErrorTime.Round(time.Second), peer.LastError)
+				if state = "Down"; peer.LastError != "" {
+					lasterr = fmt.Sprintf("%s ago: %s", peer.LastErrorTime.Round(time.Second), peer.LastError)
+				}
 			} else if rttms := float64(peer.Latency.Microseconds()) / 1000; rttms > 0 {
 				rtt = fmt.Sprintf("%.02fms", rttms)
 			}
