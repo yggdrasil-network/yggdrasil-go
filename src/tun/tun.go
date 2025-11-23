@@ -125,8 +125,9 @@ func (tun *TunAdapter) _start() error {
 	if tun.config.name == "none" || tun.config.name == "dummy" {
 		tun.log.Debugln("Not starting TUN as ifname is none or dummy")
 		tun.isEnabled = false
+		// Need to keep the queue goroutine running to stop underlying
+		// layers from getting blocked.
 		go tun.queue()
-		go tun.write()
 		return nil
 	}
 	mtu := uint64(tun.config.mtu)

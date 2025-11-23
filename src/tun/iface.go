@@ -41,7 +41,9 @@ func (tun *TunAdapter) queue() {
 			tun.log.Errorln("Exiting TUN writer due to core read error:", err)
 			return
 		}
-		tun.ch <- p[:n]
+		if tun.ch != nil {
+			tun.ch <- p[:n]
+		}
 	}
 }
 
