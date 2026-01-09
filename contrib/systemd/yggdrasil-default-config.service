@@ -7,7 +7,7 @@ After=local-fs.target
 
 [Service]
 Type=oneshot
-Group=yggdrasil
 StandardOutput=file:/etc/yggdrasil.conf
 ExecStart=/usr/bin/yggdrasil -genconf
 ExecStartPost=/usr/bin/chmod 0640 /etc/yggdrasil.conf
+ExecStartPost=/usr/bin/chgrp yggdrasil /etc/yggdrasil.conf
