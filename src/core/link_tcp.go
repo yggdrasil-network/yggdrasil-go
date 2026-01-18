@@ -69,14 +69,14 @@ func (l *linkTCP) dialerFor(dst *net.TCPAddr, sintf string) (*net.Dialer, error)
 		dialer.Control = l.getControl(sintf)
 		ief, err := net.InterfaceByName(sintf)
 		if err != nil {
-			return l.handleInterfaceError(err, sintf, dst, dialer)
+			return nil, fmt.Errorf("interface %q not found", sintf)
 		}
 		if ief.Flags&net.FlagUp == 0 {
 			return nil, fmt.Errorf("interface %q is not up", sintf)
 		}
 		addrs, err := ief.Addrs()
 		if err != nil {
-			return l.handleInterfaceError(err, sintf, dst, dialer)
+			return nil, fmt.Errorf("interface %q addresses not available: %w", sintf, err)
 		}
 		for addrindex, addr := range addrs {
 			src, _, err := net.ParseCIDR(addr.String())
@@ -104,7 +104,7 @@ func (l *linkTCP) dialerFor(dst *net.TCPAddr, sintf string) (*net.Dialer, error)
 			}
 		}
 		if dialer.LocalAddr == nil {
-			// Mobile platform workaround: proceed without source binding if link-local
+			// Proceed without source binding if link-local
 			if dst.IP.IsLinkLocalUnicast() && dst.Zone != "" {
 				return dialer, nil
 			}
