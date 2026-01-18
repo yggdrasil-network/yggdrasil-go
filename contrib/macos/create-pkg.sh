@@ -55,7 +55,7 @@ then
   echo "Normalising /etc/yggdrasil.conf"
   /usr/local/bin/yggdrasil -useconffile /Library/Preferences/Yggdrasil/yggdrasil.conf.`date +%Y%m%d` -normaliseconf > /etc/yggdrasil.conf
 else
-  /usr/local/bin/yggdrasil -genconf > /etc/yggdrasil.conf
+  (umask 037 && /usr/local/bin/yggdrasil -genconf > /etc/yggdrasil.conf)
 fi
 
 # Unload existing Yggdrasil launchd service, if possible

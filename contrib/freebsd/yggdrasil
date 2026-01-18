@@ -33,7 +33,7 @@ yggdrasil_start()
 
 	test ! -f /etc/yggdrasil.conf && (
 		logger -s -t yggdrasil "Generating new configuration file into /etc/yggdrasil.conf"
-		/usr/local/bin/yggdrasil -genconf > /etc/yggdrasil.conf
+		(umask 037 && /usr/local/bin/yggdrasil -genconf > /etc/yggdrasil.conf)
 	)
 
 	tap_path="$(cat /etc/yggdrasil.conf | egrep -o '/dev/tap[0-9]{1,2}$')"

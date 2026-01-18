@@ -108,7 +108,7 @@ then
   chmod 640 /etc/yggdrasil/yggdrasil.conf
 else
   echo "Generating initial configuration file /etc/yggdrasil/yggdrasil.conf"
-  /usr/bin/yggdrasil -genconf > /etc/yggdrasil/yggdrasil.conf
+  (umask 037 && /usr/bin/yggdrasil -genconf > /etc/yggdrasil/yggdrasil.conf)
 
   chown root:yggdrasil /etc/yggdrasil/yggdrasil.conf
   chmod 640 /etc/yggdrasil/yggdrasil.conf
