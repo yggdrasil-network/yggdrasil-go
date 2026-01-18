@@ -88,7 +88,7 @@ func (l *links) newLinkWS() *linkWS {
 }
 
 func (l *linkWS) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
-	return l.links.findSuitableIP(url, func(hostname string, ip net.IP, port int) (net.Conn, error) {
+	return l.findSuitableIP(url, func(hostname string, ip net.IP, port int) (net.Conn, error) {
 		u := *url
 		u.Host = net.JoinHostPort(ip.String(), fmt.Sprintf("%d", port))
 		addr := &net.TCPAddr{

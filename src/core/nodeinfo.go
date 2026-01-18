@@ -143,13 +143,13 @@ func (m *nodeinfo) nodeInfoAdminHandler(in json.RawMessage) (interface{}, error)
 		return nil, err
 	}
 	if req.Key == "" {
-		return nil, fmt.Errorf("No remote public key supplied")
+		return nil, fmt.Errorf("no remote public key supplied")
 	}
 	var key keyArray
 	var kbs []byte
 	var err error
 	if kbs, err = hex.DecodeString(req.Key); err != nil {
-		return nil, fmt.Errorf("Failed to decode public key: %w", err)
+		return nil, fmt.Errorf("failed to decode public key: %w", err)
 	}
 	copy(key[:], kbs)
 	ch := make(chan []byte, 1)
@@ -160,7 +160,7 @@ func (m *nodeinfo) nodeInfoAdminHandler(in json.RawMessage) (interface{}, error)
 	defer timer.Stop()
 	select {
 	case <-timer.C:
-		return nil, errors.New("Timed out waiting for response")
+		return nil, errors.New("timed out waiting for response")
 	case info := <-ch:
 		var msg json.RawMessage
 		if err := msg.UnmarshalJSON(info); err != nil {

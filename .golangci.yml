@@ -1,11 +1,18 @@
+version: "2"
 run:
   build-tags:
     - lint
-  issues-exit-code: 0 # TODO: change this to 1 when we want it to fail builds
-issues:
-  exclude-dirs:
-    - contrib/
-    - misc/
+  issues-exit-code: 1
 linters:
   disable:
     - gocyclo
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - contrib/
+      - misc/

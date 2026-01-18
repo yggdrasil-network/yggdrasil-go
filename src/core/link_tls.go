@@ -33,7 +33,7 @@ func (l *links) newLinkTLS(tcp *linkTCP) *linkTLS {
 
 func (l *linkTLS) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
 	tlsconfig := l.config.Clone()
-	return l.links.findSuitableIP(url, func(hostname string, ip net.IP, port int) (net.Conn, error) {
+	return l.findSuitableIP(url, func(hostname string, ip net.IP, port int) (net.Conn, error) {
 		tlsconfig.ServerName = hostname
 		tlsconfig.MinVersion = tls.VersionTLS12
 		tlsconfig.MaxVersion = tls.VersionTLS13

@@ -314,26 +314,26 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 		req.Arguments = []byte("{}")
 		if err := func() error {
 			if err = decoder.Decode(&buf); err != nil {
-				return fmt.Errorf("Failed to find request")
+				return fmt.Errorf("failed to find request")
 			}
 			if err = json.Unmarshal(buf, &req); err != nil {
-				return fmt.Errorf("Failed to unmarshal request")
+				return fmt.Errorf("failed to unmarshal request")
 			}
 			resp.Request = req
 			if req.Name == "" {
-				return fmt.Errorf("No request specified")
+				return fmt.Errorf("no request specified")
 			}
 			reqname := strings.ToLower(req.Name)
 			handler, ok := a.handlers[reqname]
 			if !ok {
-				return fmt.Errorf("Unknown action '%s', try 'list' for help", reqname)
+				return fmt.Errorf("unknown action '%s', try 'list' for help", reqname)
 			}
 			res, err := handler.handler(req.Arguments)
 			if err != nil {
 				return err
 			}
 			if resp.Response, err = json.Marshal(res); err != nil {
-				return fmt.Errorf("Failed to marshal response: %w", err)
+				return fmt.Errorf("failed to marshal response: %w", err)
 			}
 			resp.Status = "success"
 			return nil

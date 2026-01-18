@@ -31,7 +31,7 @@ func (l *linkSOCKS) dial(_ context.Context, url *url.URL, info linkInfo, options
 		proxyAuth.Password, _ = url.User.Password()
 	}
 	tlsconfig := l.tls.config.Clone()
-	return l.links.findSuitableIP(url, func(hostname string, ip net.IP, port int) (net.Conn, error) {
+	return l.findSuitableIP(url, func(hostname string, ip net.IP, port int) (net.Conn, error) {
 		hostport := net.JoinHostPort(ip.String(), fmt.Sprintf("%d", port))
 		dialer, err := l.tcp.dialerFor(&net.TCPAddr{
 			IP:   ip,

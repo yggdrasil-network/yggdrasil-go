@@ -138,7 +138,7 @@ func (c *Core) GetPaths() []PathEntryInfo {
 
 func (c *Core) GetSessions() []SessionInfo {
 	var sessions []SessionInfo
-	ss := c.PacketConn.Debug.GetSessions()
+	ss := c.Debug.GetSessions()
 	for _, s := range ss {
 		var info SessionInfo
 		info.Key = s.Key
