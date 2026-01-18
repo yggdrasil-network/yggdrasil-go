@@ -1,5 +1,4 @@
 //go:build !linux && !darwin && !windows && !openbsd && !freebsd
-// +build !linux,!darwin,!windows,!openbsd,!freebsd
 
 package config
 

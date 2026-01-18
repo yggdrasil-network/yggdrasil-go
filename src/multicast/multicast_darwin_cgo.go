@@ -1,5 +1,4 @@
 //go:build (darwin && cgo) || (ios && cgo)
-// +build darwin,cgo ios,cgo
 
 package multicast
 

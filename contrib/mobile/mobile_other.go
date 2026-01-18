@@ -1,5 +1,4 @@
 //go:build !android && !ios && !darwin
-// +build !android,!ios,!darwin
 
 package mobile
 

@@ -1,5 +1,4 @@
 //go:build openbsd
-// +build openbsd
 
 package tun
 
@@ -38,8 +37,8 @@ type sockaddr_in6 struct {
 	sin6_scope_id uint32
 }
 
-func (sa6 *sockaddr_in6) setSockaddr(addr [/*16*/]byte /* net.IP or net.IPMask */) {
-	sa6.sin6_len    = uint8(unsafe.Sizeof(*sa6))
+func (sa6 *sockaddr_in6) setSockaddr(addr [] /*16*/ byte /* net.IP or net.IPMask */) {
+	sa6.sin6_len = uint8(unsafe.Sizeof(*sa6))
 	sa6.sin6_family = unix.AF_INET6
 
 	for i := range sa6.sin6_addr {
