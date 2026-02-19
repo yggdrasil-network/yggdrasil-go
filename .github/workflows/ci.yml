@@ -49,7 +49,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        goversion: ["1.24", "1.25"]
+        goversion: ["1.24", "1.25", "1.26"]
 
     name: Build & Test (Linux, Go ${{ matrix.goversion }})
     needs: [lint]
@@ -73,7 +73,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        goversion: ["1.24", "1.25"]
+        goversion: ["1.24", "1.25", "1.26"]
 
     name: Build & Test (Windows, Go ${{ matrix.goversion }})
     needs: [lint]
@@ -97,7 +97,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        goversion: ["1.24", "1.25"]
+        goversion: ["1.24", "1.25", "1.26"]
 
     name: Build & Test (macOS, Go ${{ matrix.goversion }})
     needs: [lint]
@@ -121,7 +121,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        goversion: ["1.24", "1.25"]
+        goversion: ["1.24", "1.25", "1.26"]
         goos:
           - freebsd
           - openbsd
