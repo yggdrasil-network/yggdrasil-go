@@ -16,6 +16,8 @@ import (
 	"suah.dev/protect"
 
 	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/renderer"
+	"github.com/olekukonko/tablewriter/tw"
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
@@ -141,17 +143,22 @@ func run() int {
 		return 0
 	}
 
-	table := tablewriter.NewWriter(os.Stdout)
-	table.SetAlignment(tablewriter.ALIGN_LEFT)
-	table.SetAutoFormatHeaders(false)
-	table.SetCenterSeparator("")
-	table.SetColumnSeparator("")
-	table.SetRowSeparator("")
-	table.SetHeaderLine(false)
-	table.SetBorder(false)
-	table.SetTablePadding("\t") // pad with tabs
-	table.SetNoWhiteSpace(true)
-	table.SetAutoWrapText(false)
+	opts := []tablewriter.Option{
+		tablewriter.WithRowAlignment(tw.AlignLeft),
+		tablewriter.WithHeaderAlignment(tw.AlignCenter),
+		tablewriter.WithHeaderAutoFormat(tw.Off),
+		tablewriter.WithDebug(false),
+	}
+	if !cmdLineEnv.borders {
+		opts = append(opts, tablewriter.WithRenderer(renderer.NewBlueprint(tw.Rendition{
+			Borders: tw.BorderNone,
+			Settings: tw.Settings{
+				Lines:      tw.LinesNone,
+				Separators: tw.SeparatorsNone,
+			},
+		})))
+	}
+	table := tablewriter.NewTable(os.Stdout, opts...)
 
 	switch strings.ToLower(send.Name) {
 	case "list":
@@ -159,7 +166,7 @@ func run() int {
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
-		table.SetHeader([]string{"Command", "Arguments", "Description"})
+		table.Header([]string{"Command", "Arguments", "Description"})
 		for _, entry := range resp.List {
 			for i := range entry.Fields {
 				entry.Fields[i] = entry.Fields[i] + "=..."
@@ -186,7 +193,7 @@ func run() int {
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
-		table.SetHeader([]string{"URI", "State", "Dir", "IP Address", "Uptime", "RTT", "RX", "TX", "Down", "Up", "Pr", "Cost", "Last Error"})
+		table.Header([]string{"URI", "State", "Dir", "IP Address", "Uptime", "RTT", "RX", "TX", "Down", "Up", "Pr", "Cost", "Last Error"})
 		for _, peer := range resp.Peers {
 			state, lasterr, dir, rtt, rxr, txr := "Up", "-", "Out", "-", "-", "-"
 			if !peer.Up {
@@ -233,8 +240,7 @@ func run() int {
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
-		//table.SetHeader([]string{"Public Key", "IP Address", "Port", "Rest"})
-		table.SetHeader([]string{"Public Key", "IP Address", "Parent", "Sequence"})
+		table.Header([]string{"Public Key", "IP Address", "Parent", "Sequence"})
 		for _, tree := range resp.Tree {
 			table.Append([]string{
 				tree.PublicKey,
@@ -252,7 +258,7 @@ func run() int {
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
-		table.SetHeader([]string{"Public Key", "IP Address", "Path", "Seq"})
+		table.Header([]string{"Public Key", "IP Address", "Path", "Seq"})
 		for _, p := range resp.Paths {
 			table.Append([]string{
 				p.PublicKey,
@@ -268,7 +274,7 @@ func run() int {
 		if err := json.Unmarshal(recv.Response, &resp); err != nil {
 			panic(err)
 		}
-		table.SetHeader([]string{"Public Key", "IP Address", "Uptime", "RX", "TX"})
+		table.Header([]string{"Public Key", "IP Address", "Uptime", "RX", "TX"})
 		for _, p := range resp.Sessions {
 			table.Append([]string{
 				p.PublicKey,
@@ -301,7 +307,7 @@ func run() int {
 			}
 			return "-"
 		}
-		table.SetHeader([]string{"Name", "Listen Address", "Beacon", "Listen", "Password"})
+		table.Header([]string{"Name", "Listen Address", "Beacon", "Listen", "Password"})
 		for _, p := range resp.Interfaces {
 			table.Append([]string{
 				p.Name,
