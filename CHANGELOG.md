@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 * The `?maxbackoff=X` time for a peering can now be configured as low as 5 seconds (previously 30 seconds)
 * Reduced memory allocations needed to parse paths or calculate ancestry
 * Upgrade dependencies
+* `yggdrasilctl` now renders table borders/separators, can be disabled with `-borders=false`
 
 ### Fixed
 
@@ -48,6 +49,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 * Yggdrasil will no longer attempt reconnections after detecting that a peering connection is to itself
 * Disabling TUN with `IfName: none` no longer results in backpressure building up that could block lower layers
 * Outbound connections to link-local addresses should now work correctly on Android
+* `addPeers` no longer allows configuring an empty peer URI
 
 ## [0.5.12] - 2024-12-18
 
