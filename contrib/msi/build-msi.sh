@@ -11,7 +11,7 @@
 PKGARCH=$1
 if [ "${PKGARCH}" == "" ];
 then
-  echo "tell me the architecture: x86, x64, arm or arm64"
+  echo "tell me the architecture: x86, x64 or arm64"
   exit 1
 fi
 
@@ -21,7 +21,6 @@ dotnet tool install --global wix --version 5.0.0
 # Build Yggdrasil!
 [ "${PKGARCH}" == "x64" ] && GOOS=windows GOARCH=amd64 CGO_ENABLED=0 ./build
 [ "${PKGARCH}" == "x86" ] && GOOS=windows GOARCH=386 CGO_ENABLED=0 ./build
-[ "${PKGARCH}" == "arm" ] && GOOS=windows GOARCH=arm CGO_ENABLED=0 ./build
 [ "${PKGARCH}" == "arm64" ] && GOOS=windows GOARCH=arm64 CGO_ENABLED=0 ./build
 
 # Create the postinstall script
@@ -59,8 +58,6 @@ if [ $PKGARCH = "x64" ]; then
   PKGWINTUNDLL=wintun/bin/amd64/wintun.dll
 elif [ $PKGARCH = "x86" ]; then
   PKGWINTUNDLL=wintun/bin/x86/wintun.dll
-elif [ $PKGARCH = "arm" ]; then
-  PKGWINTUNDLL=wintun/bin/arm/wintun.dll
 elif [ $PKGARCH = "arm64" ]; then
   PKGWINTUNDLL=wintun/bin/arm64/wintun.dll
 else
