@@ -158,6 +158,9 @@ const ErrLinkNoSuitableIPs = linkError("peer has no suitable addresses")
 const ErrLinkToSelf = linkError("node cannot connect to self")
 
 func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
+	if _, err := l.dialerFor(u); err != nil {
+		return err
+	}
 	var retErr error
 	phony.Block(l, func() {
 		// Generate the link info and see whether we think we already
@@ -591,6 +594,14 @@ func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) 
 }
 
 func (l *links) connect(ctx context.Context, u *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
+	dialer, err := l.dialerFor(u)
+	if err != nil {
+		return nil, err
+	}
+	return dialer.dial(ctx, u, info, options)
+}
+
+func (l *links) dialerFor(u *url.URL) (linkProtocol, error) {
 	var dialer linkProtocol
 	switch strings.ToLower(u.Scheme) {
 	case "tcp":
@@ -610,7 +621,7 @@ func (l *links) connect(ctx context.Context, u *url.URL, info linkInfo, options 
 	default:
 		return nil, ErrLinkUnrecognisedSchema
 	}
-	return dialer.dial(ctx, u, info, options)
+	return dialer, nil
 }
 
 func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, success func(), local bool) error {

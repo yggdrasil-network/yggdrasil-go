@@ -39,3 +39,15 @@ func TestDuplicatePeerFromAPI(t *testing.T) {
 		t.Fatalf("Adding peer should have failed on second attempt")
 	}
 }
+
+func TestAddEmptyPeer(t *testing.T) {
+	cfg := config.GenerateConfig()
+	c, err := New(cfg.Certificate, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u, _ := url.Parse("")
+	if err := c.AddPeer(u, ""); err == nil {
+		t.Fatalf("Expected error on empty URL: %s", err)
+	}
+}
