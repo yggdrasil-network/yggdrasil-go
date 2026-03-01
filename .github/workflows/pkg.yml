@@ -8,6 +8,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  build-vendored-sources:
+    name: Vendored Sources
+
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "stable"
+
+      - name: Build archive
+        run: |
+          NAME="$(sh contrib/semver/name.sh)"
+          VERSION="$(sh contrib/semver/version.sh --bare)"
+          go mod vendor && tar --exclude-vcs --no-xattrs \
+            --exclude="${NAME}-${VERSION}-vendored.tar.gz" \
+            -czf "${NAME}-${VERSION}-vendored.tar.gz" *
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vendored sources
+          path: "*.tar.gz"
+          if-no-files-found: error
+
   build-packages-debian:
     strategy:
       fail-fast: false
