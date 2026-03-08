@@ -56,7 +56,7 @@ if [ $ANDROID ]; then
   echo "Building aar for Android"
   go get golang.org/x/mobile/bind
   gomobile bind \
-    -target android -tags mobile -o yggdrasil.aar \
+    -target android -androidapi 21 -tags mobile -o yggdrasil.aar \
     -ldflags="$LDFLAGS $STRIP" -gcflags="$GCFLAGS" \
     ./contrib/mobile ./src/config;
 fi
