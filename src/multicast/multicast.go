@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/Arceliar/phony"
-	"github.com/gologme/log"
 	"github.com/wlynxg/anet"
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
@@ -28,7 +27,7 @@ import (
 type Multicast struct {
 	phony.Inbox
 	core        *core.Core
-	log         *log.Logger
+	log         core.Logger
 	sock        *ipv6.PacketConn
 	running     atomic.Bool
 	_listeners  map[string]*listenerInfo
@@ -61,7 +60,7 @@ type listenerInfo struct {
 // Start starts the multicast interface. This launches goroutines which will
 // listen for multicast beacons from other hosts and will advertise multicast
 // beacons out to the network.
-func New(core *core.Core, log *log.Logger, opts ...SetupOption) (*Multicast, error) {
+func New(core *core.Core, log core.Logger, opts ...SetupOption) (*Multicast, error) {
 	m := &Multicast{
 		core:        core,
 		log:         log,
@@ -362,7 +361,7 @@ func (m *Multicast) _announce() {
 			}
 			destAddr.Zone = iface.Name
 			if _, err = m.sock.WriteTo(msg, nil, destAddr); err != nil {
-				m.log.Warn("Failed to send multicast beacon:", err)
+				m.log.Warnln("Failed to send multicast beacon: " + err.Error())
 			}
 			if linfo.interval.Seconds() < 15 {
 				linfo.interval += time.Second
