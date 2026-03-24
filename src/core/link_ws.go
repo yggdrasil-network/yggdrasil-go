@@ -99,17 +99,12 @@ func (l *linkWS) dial(ctx context.Context, url *url.URL, info linkInfo, options 
 		if err != nil {
 			return nil, err
 		}
-		wsconn, _, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
-			HTTPClient: &http.Client{
-				Transport: &http.Transport{
-					Proxy:       http.ProxyFromEnvironment,
-					Dial:        dialer.Dial,
-					DialContext: dialer.DialContext,
-				},
-			},
+		options := &websocket.DialOptions{
 			Subprotocols: []string{"ygg-ws"},
-			Host:         hostname,
-		})
+		}
+		// HTTPClient is not supported in wasm compilation of github.com/coder/websocket
+		setWSDialOptions(options, dialer, hostname)
+		wsconn, _, err := websocket.Dial(ctx, u.String(), options)
 		if err != nil {
 			return nil, err
 		}

@@ -1,6 +1,6 @@
 module github.com/yggdrasil-network/yggdrasil-go
 
-go 1.24.0
+go 1.24.3
 
 require (
 	github.com/Arceliar/ironwood v0.0.0-20260117132459-7017dbc41d8e
@@ -11,36 +11,36 @@ require (
 	github.com/hashicorp/go-syslog v1.0.0
 	github.com/hjson/hjson-go/v4 v4.6.0
 	github.com/kardianos/minwinsvc v1.0.2
+	github.com/olekukonko/tablewriter v1.1.4
 	github.com/quic-go/quic-go v0.59.0
-	github.com/vishvananda/netlink v1.3.1
+	github.com/vishvananda/netlink v1.1.1-0.20211118161826-650dca95af54
 	github.com/wlynxg/anet v0.0.5
-	golang.org/x/crypto v0.48.0
-	golang.org/x/net v0.50.0
-	golang.org/x/sys v0.41.0
-	golang.org/x/text v0.34.0
+	golang.org/x/crypto v0.41.0
+	golang.org/x/net v0.43.0
+	golang.org/x/sys v0.35.0
+	golang.org/x/text v0.28.0
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2
 	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb
 	golang.zx2c4.com/wireguard/windows v0.5.3
-)
-
-require (
-	github.com/bits-and-blooms/bitset v1.24.4 // indirect
-	github.com/bits-and-blooms/bloom/v3 v3.7.1 // indirect
-	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/clipperhouse/displaywidth v0.10.0 // indirect
-	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
-	github.com/mattn/go-colorable v0.1.14 // indirect
-	github.com/olekukonko/cat v0.0.0-20250911104152-50322a0618f6 // indirect
-	github.com/olekukonko/errors v1.2.0 // indirect
-	github.com/olekukonko/ll v0.1.6 // indirect
+	gvisor.dev/gvisor v0.0.0-20250503011706-39ed1f5ac29c
+	suah.dev/protect v1.2.4
 )
 
 require (
 	github.com/VividCortex/ewma v1.2.0 // indirect
+	github.com/bits-and-blooms/bitset v1.13.0 // indirect
+	github.com/bits-and-blooms/bloom/v3 v3.7.0 // indirect
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/clipperhouse/displaywidth v0.10.0 // indirect
+	github.com/clipperhouse/uax29/v2 v2.6.0 // indirect
 	github.com/fatih/color v1.18.0 // indirect
+	github.com/google/btree v1.1.2 // indirect
+	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-runewidth v0.0.20 // indirect
-	github.com/olekukonko/tablewriter v1.1.3
-	github.com/vishvananda/netns v0.0.5 // indirect
-	suah.dev/protect v1.2.4
+	github.com/mattn/go-runewidth v0.0.19 // indirect
+	github.com/olekukonko/cat v0.0.0-20250911104152-50322a0618f6 // indirect
+	github.com/olekukonko/errors v1.2.0 // indirect
+	github.com/olekukonko/ll v0.1.6 // indirect
+	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
+	golang.org/x/time v0.7.0 // indirect
 )

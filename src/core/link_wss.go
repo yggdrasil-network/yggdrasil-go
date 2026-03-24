@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
-	"net/http"
 	"net/url"
 
 	"github.com/Arceliar/phony"
@@ -46,18 +45,11 @@ func (l *linkWSS) dial(ctx context.Context, url *url.URL, info linkInfo, options
 		if err != nil {
 			return nil, err
 		}
-		wsconn, _, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
-			HTTPClient: &http.Client{
-				Transport: &http.Transport{
-					Proxy:           http.ProxyFromEnvironment,
-					Dial:            dialer.Dial,
-					DialContext:     dialer.DialContext,
-					TLSClientConfig: tlsconfig,
-				},
-			},
+		options := &websocket.DialOptions{
 			Subprotocols: []string{"ygg-ws"},
-			Host:         hostname,
-		})
+		}
+		setWSSDialOptions(options, dialer, hostname, tlsconfig)
+		wsconn, _, err := websocket.Dial(ctx, u.String(), options)
 		if err != nil {
 			return nil, err
 		}
