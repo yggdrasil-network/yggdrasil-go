@@ -82,6 +82,11 @@ self.addEventListener("fetch", (event) => {
                 const headers = new Headers();
                 if (respData.headers) {
                     for (const [key, value] of Object.entries(respData.headers)) {
+                        // Strip security headers that prevent iframe rendering
+                        const lowerKey = key.toLowerCase();
+                        if (lowerKey === "x-frame-options" || lowerKey === "content-security-policy") {
+                            continue;
+                        }
                         headers.set(key, value);
                     }
                 }
