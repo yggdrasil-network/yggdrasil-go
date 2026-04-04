@@ -4,6 +4,8 @@ package main
 
 import (
 	"fmt"
+	"net/url"
+	"os"
 	"os/user"
 	"strconv"
 	"strings"
@@ -11,7 +13,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func chuser(input string) error {
+func chuser(input, adminSockUrl string) error {
 	givenUser, givenGroup, _ := strings.Cut(input, ":")
 	if givenUser == "" {
 		return fmt.Errorf("user is empty")
@@ -46,6 +48,16 @@ func chuser(input string) error {
 		gid, _ = strconv.Atoi(grp.Gid)
 	} else {
 		gid, _ = strconv.Atoi(usr.Gid)
+	}
+
+	if adminSockUrl != "" {
+		u, err := url.Parse(adminSockUrl)
+		if err == nil && u.Scheme == "unix" {
+			err = os.Chown(u.Path, uid, gid)
+		}
+		if err != nil {
+			return fmt.Errorf("chown %s %d:%d: %v", adminSockUrl, uid, gid, err)
+		}
 	}
 
 	if err := unix.Setgroups([]int{gid}); err != nil {

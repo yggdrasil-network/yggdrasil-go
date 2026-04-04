@@ -9,21 +9,21 @@ import (
 
 // Usernames must not contain a number sign.
 func TestEmptyString(t *testing.T) {
-	if chuser("") == nil {
+	if chuser("", "") == nil {
 		t.Fatal("the empty string is not a valid user")
 	}
 }
 
 // Either omit delimiter and group, or omit both.
 func TestEmptyGroup(t *testing.T) {
-	if chuser("0:") == nil {
+	if chuser("0:", "") == nil {
 		t.Fatal("the empty group is not allowed")
 	}
 }
 
 // Either user only or user and group.
 func TestGroupOnly(t *testing.T) {
-	if chuser(":0") == nil {
+	if chuser(":0", "") == nil {
 		t.Fatal("group only is not allowed")
 	}
 }
@@ -31,14 +31,14 @@ func TestGroupOnly(t *testing.T) {
 // Usenames must not contain the number sign.
 func TestInvalidUsername(t *testing.T) {
 	const username = "#user"
-	if chuser(username) == nil {
+	if chuser(username, "") == nil {
 		t.Fatalf("'%s' is not a valid username", username)
 	}
 }
 
 // User IDs must be non-negative.
 func TestInvalidUserid(t *testing.T) {
-	if chuser("-1") == nil {
+	if chuser("-1", "") == nil {
 		t.Fatal("User ID cannot be negative")
 	}
 }
@@ -54,7 +54,7 @@ func TestCurrentUserid(t *testing.T) {
 		t.Skip("setgroups(2): Only the superuser may set new groups.")
 	}
 
-	if err = chuser(usr.Uid); err != nil {
+	if err = chuser(usr.Uid, ""); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -70,7 +70,7 @@ func TestCommonUsername(t *testing.T) {
 		t.Skip("setgroups(2): Only the superuser may set new groups.")
 	}
 
-	if err := chuser("nobody"); err != nil {
+	if err := chuser("nobody", ""); err != nil {
 		if _, ok := err.(user.UnknownUserError); ok {
 			t.Skip(err)
 		}
