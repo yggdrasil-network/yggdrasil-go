@@ -118,25 +118,40 @@ func (m *version_metadata) decode(r io.Reader, password []byte) error {
 
 	for len(bs) >= 4 {
 		op := binary.BigEndian.Uint16(bs[:2])
-		oplen := binary.BigEndian.Uint16(bs[2:4])
-		if bs = bs[4:]; len(bs) < int(oplen) {
-			break
+		oplen := int(binary.BigEndian.Uint16(bs[2:4]))
+		if bs = bs[4:]; len(bs) < oplen {
+			return ErrHandshakeInvalidLength
 		}
+		field := bs[:oplen]
 		switch op {
 		case metaVersionMajor:
-			m.majorVer = binary.BigEndian.Uint16(bs[:2])
+			if len(field) != 2 {
+				return ErrHandshakeInvalidLength
+			}
+			m.majorVer = binary.BigEndian.Uint16(field)
 
 		case metaVersionMinor:
-			m.minorVer = binary.BigEndian.Uint16(bs[:2])
+			if len(field) != 2 {
+				return ErrHandshakeInvalidLength
+			}
+			m.minorVer = binary.BigEndian.Uint16(field)
 
 		case metaPublicKey:
-			m.publicKey = make(ed25519.PublicKey, ed25519.PublicKeySize)
-			copy(m.publicKey, bs[:ed25519.PublicKeySize])
+			if len(field) != ed25519.PublicKeySize {
+				return ErrHandshakeInvalidLength
+			}
+			m.publicKey = append(m.publicKey[:0], field...)
 
 		case metaPriority:
-			m.priority = bs[0]
+			if len(field) != 1 {
+				return ErrHandshakeInvalidLength
+			}
+			m.priority = field[0]
 		}
 		bs = bs[oplen:]
+	}
+	if len(bs) != 0 {
+		return ErrHandshakeInvalidLength
 	}
 
 	hasher, err := blake2b.New512(password)

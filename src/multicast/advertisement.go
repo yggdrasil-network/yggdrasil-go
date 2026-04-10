@@ -26,14 +26,18 @@ func (m *multicastAdvertisement) MarshalBinary() ([]byte, error) {
 }
 
 func (m *multicastAdvertisement) UnmarshalBinary(b []byte) error {
-	if len(b) < ed25519.PublicKeySize+8 {
+	const headerLen = ed25519.PublicKeySize + 8
+	if len(b) < headerLen {
 		return fmt.Errorf("invalid multicast beacon")
 	}
 	m.MajorVersion = binary.BigEndian.Uint16(b[0:2])
 	m.MinorVersion = binary.BigEndian.Uint16(b[2:4])
 	m.PublicKey = append(m.PublicKey[:0], b[4:4+ed25519.PublicKeySize]...)
 	m.Port = binary.BigEndian.Uint16(b[4+ed25519.PublicKeySize : 6+ed25519.PublicKeySize])
-	dl := binary.BigEndian.Uint16(b[6+ed25519.PublicKeySize : 8+ed25519.PublicKeySize])
-	m.Hash = append(m.Hash[:0], b[8+ed25519.PublicKeySize:8+ed25519.PublicKeySize+dl]...)
+	dl := int(binary.BigEndian.Uint16(b[6+ed25519.PublicKeySize : 8+ed25519.PublicKeySize]))
+	if len(b) < headerLen+dl {
+		return fmt.Errorf("invalid multicast beacon")
+	}
+	m.Hash = append(m.Hash[:0], b[headerLen:headerLen+dl]...)
 	return nil
 }
