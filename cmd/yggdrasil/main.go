@@ -55,6 +55,7 @@ func main() {
 	getpkey := flag.Bool("publickey", false, "use in combination with either -useconf or -useconffile, outputs your public key")
 	loglevel := flag.String("loglevel", "info", "loglevel to enable")
 	chuserto := flag.String("user", "", "user (and, optionally, group) to set UID/GID to")
+	notifyFd := flag.Int("notifyfd", -1, "write a newline to this file-descriptor to indicate readiness to a service manager")
 	flag.Parse()
 
 	done := make(chan struct{})
@@ -311,6 +312,12 @@ func main() {
 	}
 	if err := protect.Pledge(strings.Join(promises, " ")); err != nil {
 		panic(fmt.Sprintf("pledge: %v: %v", promises, err))
+	}
+
+	if notifyFd != nil && *notifyFd > 0 {
+		f := os.NewFile(uintptr(*notifyFd), "notifyfd")
+		_, _ = f.Write([]byte{0x0a})
+		f.Close()
 	}
 
 	// Block until we are told to shut down.
