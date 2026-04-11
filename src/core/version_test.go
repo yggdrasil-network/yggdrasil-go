@@ -3,8 +3,11 @@ package core
 import (
 	"bytes"
 	"crypto/ed25519"
+	"encoding/binary"
 	"reflect"
 	"testing"
+
+	"golang.org/x/crypto/blake2b"
 )
 
 func TestVersionPasswordAuth(t *testing.T) {
@@ -75,4 +78,79 @@ func TestVersionRoundtrip(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestVersionDecodeRejectsMalformedFieldLengths(t *testing.T) {
+	password := []byte("pw")
+	for _, tt := range []struct {
+		name  string
+		op    uint16
+		field []byte
+	}{
+		{name: "major short", op: metaVersionMajor, field: []byte{1}},
+		{name: "minor short", op: metaVersionMinor, field: []byte{1}},
+		{name: "public key short", op: metaPublicKey, field: []byte{1}},
+		{name: "priority empty", op: metaPriority, field: nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := malformedVersionHandshake(t, tt.op, tt.field, password)
+			var decoded version_metadata
+			if err := decoded.decode(bytes.NewReader(msg), password); err != ErrHandshakeInvalidLength {
+				t.Fatalf("expected %q, got %v", ErrHandshakeInvalidLength, err)
+			}
+		})
+	}
+}
+
+func TestVersionDecodeRejectsTrailingBytes(t *testing.T) {
+	password := []byte("pw")
+	pk, sk, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	hasher, err := blake2b.New512(password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = hasher.Write(pk); err != nil {
+		t.Fatal(err)
+	}
+	sig := ed25519.Sign(sk, hasher.Sum(nil))
+
+	body := append([]byte{1, 2, 3}, sig...)
+	msg := append([]byte{'m', 'e', 't', 'a', 0, 0}, body...)
+	binary.BigEndian.PutUint16(msg[4:6], uint16(len(body)))
+	var decoded version_metadata
+	if err := decoded.decode(bytes.NewReader(msg), password); err != ErrHandshakeInvalidLength {
+		t.Fatalf("expected %q, got %v", ErrHandshakeInvalidLength, err)
+	}
+}
+
+func malformedVersionHandshake(t *testing.T, op uint16, field []byte, password []byte) []byte {
+	t.Helper()
+
+	pk, sk, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	hasher, err := blake2b.New512(password)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = hasher.Write(pk); err != nil {
+		t.Fatal(err)
+	}
+	sig := ed25519.Sign(sk, hasher.Sum(nil))
+
+	body := make([]byte, 0, 4+len(field)+len(sig))
+	body = binary.BigEndian.AppendUint16(body, op)
+	body = binary.BigEndian.AppendUint16(body, uint16(len(field)))
+	body = append(body, field...)
+	body = append(body, sig...)
+
+	msg := append([]byte{'m', 'e', 't', 'a', 0, 0}, body...)
+	binary.BigEndian.PutUint16(msg[4:6], uint16(len(body)))
+	return msg
 }
