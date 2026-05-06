@@ -30,8 +30,9 @@ type linkWSListener struct {
 }
 
 type wsServer struct {
-	ch  chan *linkWSConn
-	ctx context.Context
+	ch            chan *linkWSConn
+	ctx           context.Context
+	acceptOptions *websocket.AcceptOptions
 }
 
 func (l *linkWSListener) Accept() (net.Conn, error) {
@@ -60,9 +61,7 @@ func (s *wsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		Subprotocols: []string{"ygg-ws"},
-	})
+	c, err := websocket.Accept(w, r, s.acceptOptions)
 	if err != nil {
 		return
 	}
@@ -85,6 +84,25 @@ func (l *links) newLinkWS() *linkWS {
 		},
 	}
 	return lt
+}
+
+func wsAcceptOptions(url *url.URL) *websocket.AcceptOptions {
+	opts := &websocket.AcceptOptions{
+		Subprotocols: []string{"ygg-ws"},
+	}
+	for _, origin := range url.Query()["origin"] {
+		switch origin {
+		case "":
+			continue
+		case "*":
+			opts.InsecureSkipVerify = true
+			opts.OriginPatterns = nil
+			return opts
+		default:
+			opts.OriginPatterns = append(opts.OriginPatterns, origin)
+		}
+	}
+	return opts
 }
 
 func (l *linkWS) dial(ctx context.Context, url *url.URL, info linkInfo, options linkOptions) (net.Conn, error) {
@@ -129,8 +147,9 @@ func (l *linkWS) listen(ctx context.Context, url *url.URL, _ string) (net.Listen
 
 	httpServer := &http.Server{
 		Handler: &wsServer{
-			ch:  ch,
-			ctx: ctx,
+			ch:            ch,
+			ctx:           ctx,
+			acceptOptions: wsAcceptOptions(url),
 		},
 		BaseContext:  func(_ net.Listener) context.Context { return ctx },
 		ReadTimeout:  time.Second * 10,
