@@ -46,3 +46,25 @@ func TestWritePCRejectsTruncatedPacket(t *testing.T) {
 		})
 	}
 }
+
+// Non-IPv6 packets (e.g. IPv4) must report "not an IPv6 packet" rather
+// than the length-based error, regardless of whether they meet the IPv6
+// 40-byte minimum.
+func TestWritePCReportsIPv4AsNonIPv6(t *testing.T) {
+	var k keyStore
+	for _, tc := range []struct {
+		name string
+		buf  []byte
+	}{
+		{name: "ipv4 short", buf: []byte{0x45, 0, 0, 20}},
+		{name: "ipv4 padded to 40", buf: append([]byte{0x45, 0, 0, 60}, make([]byte, 36)...)},
+		{name: "ipv4 padded to 64", buf: append([]byte{0x45, 0, 0, 60}, make([]byte, 60)...)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := k.writePC(tc.buf)
+			if err == nil || err.Error() != "not an IPv6 packet" {
+				t.Fatalf("expected \"not an IPv6 packet\" error, got: %v", err)
+			}
+		})
+	}
+}

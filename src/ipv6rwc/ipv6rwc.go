@@ -281,12 +281,15 @@ func (k *keyStore) readPC(p []byte) (int, error) {
 }
 
 func (k *keyStore) writePC(bs []byte) (int, error) {
-	if len(bs) < 40 {
-		strErr := fmt.Sprint("undersized IPv6 packet, length: ", len(bs))
-		return 0, errors.New(strErr)
+	if len(bs) == 0 {
+		return 0, errors.New("empty packet")
 	}
 	if bs[0]&0xf0 != 0x60 {
 		return 0, errors.New("not an IPv6 packet") // not IPv6
+	}
+	if len(bs) < 40 {
+		strErr := fmt.Sprint("undersized IPv6 packet, length: ", len(bs))
+		return 0, errors.New(strErr)
 	}
 	var srcAddr, dstAddr address.Address
 	var srcSubnet, dstSubnet address.Subnet
