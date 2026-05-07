@@ -91,7 +91,15 @@ func New(c *core.Core, log core.Logger, opts ...SetupOption) (*AdminSocket, erro
 		case "unix":
 			if _, err := os.Stat(u.Path); err == nil {
 				a.log.Debugln("Admin socket", u.Path, "already exists, trying to clean up")
-				if _, err := net.DialTimeout("unix", u.Path, time.Second*2); err == nil || err.(net.Error).Timeout() {
+				_, dialErr := net.DialTimeout("unix", u.Path, time.Second*2)
+				inUse := dialErr == nil
+				if !inUse {
+					var netErr net.Error
+					if errors.As(dialErr, &netErr) && netErr.Timeout() {
+						inUse = true
+					}
+				}
+				if inUse {
 					a.log.Errorln("Admin socket", u.Path, "already exists and is in use by another process")
 					os.Exit(1)
 				} else {
@@ -105,9 +113,8 @@ func New(c *core.Core, log core.Logger, opts ...SetupOption) (*AdminSocket, erro
 			}
 			a.listener, err = net.Listen("unix", u.Path)
 			if err == nil {
-				switch u.Path[:1] {
-				case "@": // maybe abstract namespace
-				default:
+				abstract := u.Path != "" && u.Path[0] == '@'
+				if !abstract {
 					if err := os.Chmod(u.Path, 0660); err != nil {
 						a.log.Warnln("WARNING:", u.Path, "may have unsafe permissions!")
 					}

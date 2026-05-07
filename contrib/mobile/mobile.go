@@ -138,7 +138,7 @@ func (m *Yggdrasil) SendBuffer(p []byte, length int) error {
 	if m.iprwc == nil {
 		return nil
 	}
-	if len(p) < length {
+	if length < 0 || len(p) < length {
 		return nil
 	}
 	_, _ = m.iprwc.Write(p[:length])
@@ -231,8 +231,7 @@ func (m *Yggdrasil) GetPeersJSON() (result string) {
 	}{}
 	for _, v := range m.core.GetPeers() {
 		var ip string
-		if v.Key != nil {
-			a := address.AddrForKey(v.Key)
+		if a := address.AddrForKey(v.Key); a != nil {
 			ip = net.IP(a[:]).String()
 		}
 		peers = append(peers, struct {
@@ -286,11 +285,18 @@ func SummaryForConfig(b []byte) *ConfigSummary {
 	if err := cfg.UnmarshalHJSON(b); err != nil {
 		return nil
 	}
+	if len(cfg.PrivateKey) != ed25519.PrivateKeySize {
+		return nil
+	}
 	pub := ed25519.PrivateKey(cfg.PrivateKey).Public().(ed25519.PublicKey)
 	hpub := hex.EncodeToString(pub)
-	addr := net.IP(address.AddrForKey(pub)[:])
+	addrPtr, snetPtr := address.AddrForKey(pub), address.SubnetForKey(pub)
+	if addrPtr == nil || snetPtr == nil {
+		return nil
+	}
+	addr := net.IP(addrPtr[:])
 	snet := net.IPNet{
-		IP:   append(address.SubnetForKey(pub)[:], 0, 0, 0, 0, 0, 0, 0, 0),
+		IP:   append(snetPtr[:], 0, 0, 0, 0, 0, 0, 0, 0),
 		Mask: net.CIDRMask(64, 128),
 	}
 	return &ConfigSummary{
