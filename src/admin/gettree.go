@@ -27,6 +27,9 @@ func (a *AdminSocket) getTreeHandler(_ *GetTreeRequest, res *GetTreeResponse) er
 	res.Tree = make([]TreeEntry, 0, len(tree))
 	for _, d := range tree {
 		addr := address.AddrForKey(d.Key)
+		if addr == nil {
+			continue
+		}
 		res.Tree = append(res.Tree, TreeEntry{
 			IPAddress: net.IP(addr[:]).String(),
 			PublicKey: hex.EncodeToString(d.Key[:]),

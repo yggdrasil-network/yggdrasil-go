@@ -281,6 +281,9 @@ func (k *keyStore) readPC(p []byte) (int, error) {
 }
 
 func (k *keyStore) writePC(bs []byte) (int, error) {
+	if len(bs) == 0 {
+		return 0, errors.New("empty packet")
+	}
 	if bs[0]&0xf0 != 0x60 {
 		return 0, errors.New("not an IPv6 packet") // not IPv6
 	}

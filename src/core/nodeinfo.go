@@ -1,6 +1,7 @@
 package core
 
 import (
+	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -150,6 +151,9 @@ func (m *nodeinfo) nodeInfoAdminHandler(in json.RawMessage) (interface{}, error)
 	var err error
 	if kbs, err = hex.DecodeString(req.Key); err != nil {
 		return nil, fmt.Errorf("failed to decode public key: %w", err)
+	}
+	if len(kbs) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("invalid public key length")
 	}
 	copy(key[:], kbs)
 	ch := make(chan []byte, 1)

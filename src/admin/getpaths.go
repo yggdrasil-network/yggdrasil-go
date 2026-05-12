@@ -28,6 +28,9 @@ func (a *AdminSocket) getPathsHandler(_ *GetPathsRequest, res *GetPathsResponse)
 	res.Paths = make([]PathEntry, 0, len(paths))
 	for _, p := range paths {
 		addr := address.AddrForKey(p.Key)
+		if addr == nil {
+			continue
+		}
 		res.Paths = append(res.Paths, PathEntry{
 			IPAddress: net.IP(addr[:]).String(),
 			PublicKey: hex.EncodeToString(p.Key),

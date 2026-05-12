@@ -28,6 +28,9 @@ func (a *AdminSocket) getSessionsHandler(_ *GetSessionsRequest, res *GetSessions
 	res.Sessions = make([]SessionEntry, 0, len(sessions))
 	for _, s := range sessions {
 		addr := address.AddrForKey(s.Key)
+		if addr == nil {
+			continue
+		}
 		res.Sessions = append(res.Sessions, SessionEntry{
 			IPAddress: net.IP(addr[:]).String(),
 			PublicKey: hex.EncodeToString(s.Key[:]),

@@ -99,8 +99,8 @@ func (cfg *NodeConfig) ReadFrom(r io.Reader) (int64, error) {
 	// throwing everywhere when it's converting things into UTF-16 for the hell
 	// of it - remove it and decode back down into UTF-8. This is necessary
 	// because hjson doesn't know what to do with UTF-16 and will panic
-	if bytes.Equal(conf[0:2], []byte{0xFF, 0xFE}) ||
-		bytes.Equal(conf[0:2], []byte{0xFE, 0xFF}) {
+	if len(conf) >= 2 && (bytes.Equal(conf[0:2], []byte{0xFF, 0xFE}) ||
+		bytes.Equal(conf[0:2], []byte{0xFE, 0xFF})) {
 		utf := unicode.UTF16(unicode.BigEndian, unicode.UseBOM)
 		decoder := utf.NewDecoder()
 		conf, err = decoder.Bytes(conf)
