@@ -42,6 +42,7 @@ type Core struct {
 		nodeinfo           NodeInfo                   // immutable after startup
 		nodeinfoPrivacy    NodeInfoPrivacy            // immutable after startup
 		_allowedPublicKeys map[[32]byte]struct{}      // configurable after startup
+		groupPassword      string                     // immutable after startup
 	}
 	pathNotify func(ed25519.PublicKey)
 }
@@ -94,8 +95,9 @@ func New(cert *tls.Certificate, logger Logger, opts ...SetupOption) (*Core, erro
 	keyXform := func(key ed25519.PublicKey) ed25519.PublicKey {
 		return address.SubnetForKey(key).GetKey()
 	}
-	if c.PacketConn, err = iwe.NewPacketConn(
+	if c.PacketConn, err = iwe.NewPacketConnWithPassword(
 		c.secret,
+		c.config.groupPassword,
 		iwn.WithBloomTransform(keyXform),
 		iwn.WithPeerMaxMessageSize(65535*2),
 		iwn.WithPathNotify(c.doPathNotify),

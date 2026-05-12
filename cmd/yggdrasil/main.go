@@ -211,6 +211,9 @@ func main() {
 		for _, peer := range cfg.Peers {
 			options = append(options, core.Peer{URI: peer})
 		}
+		if cfg.GroupPassword != "" {
+			options = append(options, core.GroupPassword(cfg.GroupPassword))
+		}
 		for intf, peers := range cfg.InterfacePeers {
 			for _, peer := range peers {
 				options = append(options, core.Peer{URI: peer, SourceInterface: intf})
