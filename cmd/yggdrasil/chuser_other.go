@@ -4,6 +4,6 @@ package main
 
 import "errors"
 
-func chuser(user string) error {
+func chuser(user, adminSockUrl string) error {
 	return errors.New("setting uid/gid is not supported on this platform")
 }
