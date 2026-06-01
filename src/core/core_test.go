@@ -2,7 +2,10 @@ package core
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/hex"
+	"net"
 	"net/url"
 	"os"
 	"testing"
@@ -29,6 +32,13 @@ func require_NoError(t *testing.T, err error) {
 	t.Helper()
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func require_Error(t *testing.T, err error) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
 
@@ -287,4 +297,84 @@ func TestAllowedPublicKeysLocal(t *testing.T) {
 	require_Equal(t, len(peers), 1)
 	require_True(t, peers[0].Up)
 	require_True(t, peers[0].LastError == nil)
+}
+
+func TestGroupPassword(t *testing.T) {
+	logger := GetLoggerWithPrefix("", false)
+	cfgA, cfgB, cfgC := config.GenerateConfig(), config.GenerateConfig(), config.GenerateConfig()
+	require_NoError(t, cfgA.GenerateSelfSignedCertificate())
+	require_NoError(t, cfgB.GenerateSelfSignedCertificate())
+	require_NoError(t, cfgC.GenerateSelfSignedCertificate())
+
+	nodeA, err := New(cfgA.Certificate, logger, GroupPassword("test-group-password"))
+	require_NoError(t, err)
+	defer nodeA.Stop()
+
+	nodeB, err := New(cfgB.Certificate, logger, GroupPassword("test-group-password"))
+	require_NoError(t, err)
+	defer nodeB.Stop()
+
+	nodeC, err := New(cfgC.Certificate, logger, GroupPassword("different-test-group-password"))
+	require_NoError(t, err)
+	defer nodeC.Stop()
+
+	pathFound := map[string]chan struct{}{
+		nodeB.LocalAddr().String(): make(chan struct{}, 1),
+		nodeC.LocalAddr().String(): make(chan struct{}, 1),
+	}
+	nodeA.SetPathNotify(func(key ed25519.PublicKey) {
+		pathFound[hex.EncodeToString(key)] <- struct{}{}
+	})
+
+	u, err := url.Parse("tcp://localhost:0")
+	require_NoError(t, err)
+
+	l, err := nodeA.Listen(u, "")
+	require_NoError(t, err)
+
+	u, err = url.Parse("tcp://" + l.Addr().String())
+	require_NoError(t, err)
+
+	require_NoError(t, nodeB.AddPeer(u, ""))
+	require_NoError(t, nodeC.AddPeer(u, ""))
+
+	require_True(t, WaitConnected(nodeA, nodeB))
+	require_True(t, WaitConnected(nodeA, nodeC))
+
+	var connA net.PacketConn = nodeA.PacketConn
+	var connB net.PacketConn = nodeB.PacketConn
+	var connC net.PacketConn = nodeC.PacketConn
+
+	go func() {
+		var buf [1024]byte
+		for t.Context().Err() == nil {
+			// Needed as encrypted package relies on ReadFrom to process session acks.
+			_, _, _ = connA.ReadFrom(buf[:])
+		}
+	}()
+
+	matchingPasswordMessage := []byte("matching group password")
+	differentPasswordMessage := []byte("different group password")
+
+	_, err = connA.WriteTo(matchingPasswordMessage, connB.LocalAddr())
+	require_NoError(t, err)
+
+	_, err = connA.WriteTo(differentPasswordMessage, connC.LocalAddr())
+	require_NoError(t, err)
+
+	<-pathFound[nodeB.LocalAddr().String()]
+	<-pathFound[nodeC.LocalAddr().String()]
+
+	var buf [1024]byte
+	deadline := time.Now().Add(3 * time.Second)
+	require_NoError(t, connB.SetReadDeadline(deadline))
+	require_NoError(t, connC.SetReadDeadline(deadline))
+
+	n, from, err := connB.ReadFrom(buf[:])
+	require_NoError(t, err)
+	require_Equal(t, from.String(), connA.LocalAddr().String())
+	require_True(t, bytes.Equal(buf[:n], matchingPasswordMessage))
+
+	_, _, err = connC.ReadFrom(buf[:])
+	require_Error(t, err)
 }
