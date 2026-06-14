@@ -26,6 +26,28 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.5.14] - TBD
+
+* Go 1.25 is now required to build Yggdrasil
+
+### Added
+
+* The `GroupPassword` option can be used to form closed overlays on top of Yggdrasil
+  * When set, session traffic can only be exchanged with other nodes that have the same `GroupPassword` set (however, services on the public testnet will be unreachable as a result)
+  * Peering connections are not affected by this option and traffic forwarding continues to operate as normal
+* The `-notifyfd` command line argument can be used for S6-style process readiness notifications
+* The `?origin=` query URI parameter can be added to WebSocket peer URIs to configure the `Origin` HTTP header
+
+### Changed
+
+* Upgrade dependencies
+* The UNIX domain admin socket ownership is now updated before dropping permissions
+* The packet queues are now capped at 1MB, preventing unbounded memory growth under certain traffic load patterns
+
+### Fixed
+
+* Some panics that could be caused by malformed packets have been fixed
+
 ## [0.5.13] - 2026-02-24
 
 * Go 1.24 is now required to build Yggdrasil
