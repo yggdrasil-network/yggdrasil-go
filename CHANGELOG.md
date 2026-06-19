@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
-## [0.5.14] - TBD
+## [0.5.14] - 2026-06-19
 
 * Go 1.25 is now required to build Yggdrasil
 
