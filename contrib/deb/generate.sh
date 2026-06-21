@@ -79,9 +79,7 @@ cat > /tmp/$PKGNAME/debian/postinst << EOF
 
 systemctl daemon-reload
 
-if ! getent group yggdrasil 2>&1 > /dev/null; then
-  groupadd --system --force yggdrasil
-fi
+adduser --system --home /nonexistant --no-create-home --group --quiet yggdrasil
 
 if [ ! -d /etc/yggdrasil ];
 then
