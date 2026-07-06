@@ -16,6 +16,7 @@ import (
 	"suah.dev/protect"
 
 	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/pkg/twwidth"
 	"github.com/olekukonko/tablewriter/renderer"
 	"github.com/olekukonko/tablewriter/tw"
 	"github.com/yggdrasil-network/yggdrasil-go/src/admin"
@@ -23,6 +24,7 @@ import (
 	"github.com/yggdrasil-network/yggdrasil-go/src/multicast"
 	"github.com/yggdrasil-network/yggdrasil-go/src/tun"
 	"github.com/yggdrasil-network/yggdrasil-go/src/version"
+	"golang.org/x/term"
 )
 
 func main() {
@@ -143,6 +145,11 @@ func run() int {
 		return 0
 	}
 
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		width = 0 // not a terminal (piped); render at natural width
+	}
+
 	opts := []tablewriter.Option{
 		tablewriter.WithRowAlignment(tw.AlignLeft),
 		tablewriter.WithHeaderAlignment(tw.AlignCenter),
@@ -158,7 +165,10 @@ func run() int {
 			},
 		})))
 	}
-	table := tablewriter.NewTable(os.Stdout, opts...)
+	if cmdLineEnv.compact {
+		opts = append(opts, tablewriter.WithHeaderAutoWrap(tw.WrapTruncate), tablewriter.WithRowAutoWrap(tw.WrapTruncate))
+	}
+	table := &fittedTable{width: width, borders: cmdLineEnv.borders, compact: cmdLineEnv.compact, opts: opts}
 
 	switch strings.ToLower(send.Name) {
 	case "list":
@@ -338,4 +348,127 @@ func run() int {
 	}
 
 	return 0
+}
+
+// fittedTable buffers header and rows so column widths can be computed from the
+// content before the table is built.
+type fittedTable struct {
+	width   int
+	borders bool
+	compact bool
+	opts    []tablewriter.Option
+	header  []string
+	rows    [][]string
+}
+
+func (t *fittedTable) Header(header []string) { t.header = header }
+
+func (t *fittedTable) Append(row []string) error {
+	t.rows = append(t.rows, row)
+	return nil
+}
+
+func (t *fittedTable) Render() error {
+	opts := t.opts
+	if t.compact {
+		if widths := fitColumnWidths(t.width, t.borders, t.header, t.rows); widths != nil {
+			opts = append(opts, tablewriter.WithColumnWidths(widths))
+		}
+	}
+	table := tablewriter.NewTable(os.Stdout, opts...)
+	if len(t.header) > 0 {
+		table.Header(t.header)
+	}
+	for _, row := range t.rows {
+		_ = table.Append(row)
+	}
+	return table.Render()
+}
+
+// fitColumnWidths returns per-column widths (content plus padding)
+// that fill the terminal, truncating only columns that must overflow;
+// nil means no constraint.
+func fitColumnWidths(width int, borders bool, header []string, rows [][]string) tw.Mapper[int, int] {
+	numCols := len(header)
+	for _, row := range rows {
+		if len(row) > numCols {
+			numCols = len(row)
+		}
+	}
+	if numCols == 0 || width <= 0 {
+		return nil
+	}
+
+	const padding = 2 // tw.PaddingDefault: one space on each side
+	cell := make([]int, numCols)
+	for i := range cell {
+		content := 0
+		if i < len(header) {
+			content = twwidth.Width(header[i])
+		}
+		for _, row := range rows {
+			if i >= len(row) {
+				continue
+			}
+			if w := twwidth.Width(row[i]); w > content {
+				content = w
+			}
+		}
+		cell[i] = content + padding
+	}
+
+	// Bordered rendering adds a vertical rule between and around columns
+	overhead := 0
+	if borders {
+		overhead = numCols + 1
+	}
+	budget := width - overhead
+
+	natural := 0
+	for _, c := range cell {
+		natural += c
+	}
+	if budget <= 0 || natural <= budget {
+		return nil
+	}
+
+	// Keep columns that fit their fair share, then split what
+	// remains evenly among the columns that must overflow
+	const minCell = 3 // one content column plus padding, enough for an ellipsis
+	widths := tw.NewMapper[int, int]()
+	pool := make([]int, numCols)
+	for i := range pool {
+		pool[i] = i
+	}
+	poolBudget := budget
+	var share int
+	for {
+		share = poolBudget / len(pool)
+		reserved := false
+		overflow := pool[:0] // filter in place
+		for _, i := range pool {
+			if cell[i] <= share {
+				widths.Set(i, cell[i])
+				poolBudget -= cell[i]
+				reserved = true
+			} else {
+				overflow = append(overflow, i)
+			}
+		}
+		pool = overflow
+		if len(pool) == 0 || !reserved {
+			break
+		}
+	}
+
+	extra := poolBudget - share*len(pool) // spread the rounding remainder
+	for n, i := range pool {
+		w := max(share, minCell)
+		if n < extra {
+			w++
+		}
+		widths.Set(i, w)
+	}
+
+	return widths
 }
