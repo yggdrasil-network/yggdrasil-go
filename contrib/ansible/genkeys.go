@@ -1,6 +1,9 @@
 /*
 This file generates crypto keys for [ansible-yggdrasil](https://github.com/jcgruenhage/ansible-yggdrasil/)
 */
+
+//go:build !plan9
+
 package main
 
 import (

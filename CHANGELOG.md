@@ -26,6 +26,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [Unreleased]
+
+### Added
+
+* Experimental support for Plan 9 / 9front
+  * The TUN adapter is implemented over a `pkt` packet interface (ipifc) per `ip(3)`, and link-local multicast peer discovery is driven natively through `/net/udp` in "headers" mode
+  * Stale packet interfaces and UDP conversations left behind by an unclean shutdown are reclaimed on startup
+  * Build with `GOOS=plan9 GOARCH=amd64` (or `386`); the admin socket requires a configured loopback interface (`ipconfig loopback`), and the process shuts down cleanly on the `interrupt` note
+
 ## [0.5.14] - 2026-06-19
 
 * Go 1.25 is now required to build Yggdrasil
