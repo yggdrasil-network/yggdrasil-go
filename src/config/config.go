@@ -138,6 +138,12 @@ func (cfg *NodeConfig) postprocessConfig() error {
 			return err
 		}
 	}
+	// Everything below this point, and the certificate generation in
+	// particular, assumes a well-formed key, so reject a bad one here rather
+	// than panicking further down.
+	if len(cfg.PrivateKey) != ed25519.PrivateKeySize {
+		return fmt.Errorf("private key must be %d bytes, got %d", ed25519.PrivateKeySize, len(cfg.PrivateKey))
+	}
 	switch {
 	case cfg.Certificate == nil:
 		// No self-signed certificate has been generated yet.
