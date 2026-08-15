@@ -160,7 +160,9 @@ func CreateEchoListener(t testing.TB, nodeA *Core, bufLen int, repeats int) chan
 
 // TestCore_Start_Connect checks if two nodes can connect together.
 func TestCore_Start_Connect(t *testing.T) {
-	CreateAndConnectTwo(t, true)
+	nodeA, nodeB := CreateAndConnectTwo(t, true)
+	defer nodeA.Stop()
+	defer nodeB.Stop()
 }
 
 // TestCore_Start_Transfer checks that messages can be passed between nodes (in both directions).
