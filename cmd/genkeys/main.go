@@ -24,8 +24,8 @@ import (
 )
 
 type keySet struct {
-	priv ed25519.PrivateKey
-	pub  ed25519.PublicKey
+	priv  ed25519.PrivateKey
+	pub   ed25519.PublicKey
 	count uint64
 }
 
