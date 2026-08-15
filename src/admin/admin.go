@@ -7,8 +7,7 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"sort"
-
+	"slices"
 	"strings"
 	"time"
 
@@ -145,8 +144,8 @@ func New(c *core.Core, log core.Logger, opts ...SetupOption) (*AdminSocket, erro
 				Fields:      handler.args,
 			})
 		}
-		sort.SliceStable(res.List, func(i, j int) bool {
-			return strings.Compare(res.List[i].Command, res.List[j].Command) < 0
+		slices.SortStableFunc(res.List, func(a, b ListEntry) int {
+			return strings.Compare(a.Command, b.Command)
 		})
 		return res, nil
 	})
