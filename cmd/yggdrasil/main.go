@@ -296,8 +296,7 @@ func main() {
 
 	// Change user if requested
 	if *chuserto != "" {
-		err = chuser(*chuserto, cfg.AdminListen)
-		if err != nil {
+		if err := chuser(*chuserto, n.admin.Addr()); err != nil {
 			panic(err)
 		}
 	}

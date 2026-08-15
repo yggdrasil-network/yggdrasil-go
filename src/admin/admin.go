@@ -268,6 +268,15 @@ func (a *AdminSocket) IsStarted() bool {
 	}
 }
 
+// Addr returns the address that the admin socket is listening on, or nil if
+// there is no admin socket.
+func (a *AdminSocket) Addr() net.Addr {
+	if a == nil || a.listener == nil {
+		return nil
+	}
+	return a.listener.Addr()
+}
+
 // Stop will stop the admin API and close the socket.
 func (a *AdminSocket) Stop() error {
 	if a == nil {

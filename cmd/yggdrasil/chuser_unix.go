@@ -4,7 +4,7 @@ package main
 
 import (
 	"fmt"
-	"net/url"
+	"net"
 	"os"
 	"os/user"
 	"strconv"
@@ -13,7 +13,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func chuser(input, adminSockUrl string) error {
+func chuser(input string, adminSock net.Addr) error {
 	givenUser, givenGroup, _ := strings.Cut(input, ":")
 	if givenUser == "" {
 		return fmt.Errorf("user is empty")
@@ -50,14 +50,13 @@ func chuser(input, adminSockUrl string) error {
 		gid, _ = strconv.Atoi(usr.Gid)
 	}
 
-	// An admin listen address that isn't a URL is not an error here. The admin
-	// socket falls back to listening on TCP in that case, so there is no UNIX
-	// socket to hand over and only a failing chown should stop us from
-	// dropping privileges.
-	if u, err := url.Parse(adminSockUrl); err == nil && strings.EqualFold(u.Scheme, "unix") {
+	// Ask the admin socket where it actually ended up rather than parsing the
+	// configured address a second time, since admin.New has its own rules for
+	// interpreting it and the two parsers can only disagree.
+	if adminSock != nil && adminSock.Network() == "unix" {
 		// Abstract sockets exist in the kernel namespace rather than on the
 		// filesystem, so there is nothing to change the ownership of.
-		if path := u.Path; path != "" && path[0] != '@' {
+		if path := adminSock.String(); path != "" && path[0] != '@' {
 			if err := os.Chown(path, uid, gid); err != nil {
 				return fmt.Errorf("chown %s %d:%d: %v", path, uid, gid, err)
 			}

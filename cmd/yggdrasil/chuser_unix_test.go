@@ -12,21 +12,21 @@ import (
 
 // Usernames must not contain a number sign.
 func TestEmptyString(t *testing.T) {
-	if chuser("", "") == nil {
+	if chuser("", nil) == nil {
 		t.Fatal("the empty string is not a valid user")
 	}
 }
 
 // Either omit delimiter and group, or omit both.
 func TestEmptyGroup(t *testing.T) {
-	if chuser("0:", "") == nil {
+	if chuser("0:", nil) == nil {
 		t.Fatal("the empty group is not allowed")
 	}
 }
 
 // Either user only or user and group.
 func TestGroupOnly(t *testing.T) {
-	if chuser(":0", "") == nil {
+	if chuser(":0", nil) == nil {
 		t.Fatal("group only is not allowed")
 	}
 }
@@ -34,14 +34,14 @@ func TestGroupOnly(t *testing.T) {
 // Usenames must not contain the number sign.
 func TestInvalidUsername(t *testing.T) {
 	const username = "#user"
-	if chuser(username, "") == nil {
+	if chuser(username, nil) == nil {
 		t.Fatalf("'%s' is not a valid username", username)
 	}
 }
 
 // User IDs must be non-negative.
 func TestInvalidUserid(t *testing.T) {
-	if chuser("-1", "") == nil {
+	if chuser("-1", nil) == nil {
 		t.Fatal("User ID cannot be negative")
 	}
 }
@@ -53,30 +53,27 @@ func isChownError(err error) bool {
 	return err != nil && strings.HasPrefix(err.Error(), "chown ")
 }
 
-// Admin listen addresses that don't describe a UNIX socket must be left alone
+// Admin socket addresses that aren't a UNIX socket on disk must be left alone
 // rather than treated as a failure to hand the socket over.
-func TestAdminListenWithoutUnixSocket(t *testing.T) {
+func TestAdminSocketWithNothingToChown(t *testing.T) {
 	usr, err := user.Current()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	for _, listen := range []string{
-		"",                     // admin socket disabled
-		"none",                 // admin socket disabled
-		":9001",                // not a URL, admin socket listens on TCP
-		"127.0.0.1:9001",       // not a URL, admin socket listens on TCP
-		"tcp://127.0.0.1:9001", // explicitly TCP
-		"unix://@yggdrasil",    // abstract socket, no filesystem entry
+	for _, addr := range []net.Addr{
+		nil, // admin socket disabled
+		&net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 9001},
+		&net.UnixAddr{Net: "unix", Name: "@yggdrasil"}, // abstract, no filesystem entry
 	} {
-		if err := chuser(usr.Uid, listen); isChownError(err) {
-			t.Errorf("AdminListen %q should not have been chowned: %v", listen, err)
+		if err := chuser(usr.Uid, addr); isChownError(err) {
+			t.Errorf("admin socket %v should not have been chowned: %v", addr, err)
 		}
 	}
 }
 
 // A UNIX admin socket that exists must have its ownership changed.
-func TestAdminListenWithUnixSocket(t *testing.T) {
+func TestAdminSocketOwnership(t *testing.T) {
 	usr, err := user.Current()
 	if err != nil {
 		t.Fatal(err)
@@ -89,22 +86,22 @@ func TestAdminListenWithUnixSocket(t *testing.T) {
 	}
 	defer l.Close()
 
-	if err := chuser(usr.Uid, "unix://"+path); isChownError(err) {
+	if err := chuser(usr.Uid, l.Addr()); isChownError(err) {
 		t.Fatalf("failed to chown the admin socket: %v", err)
 	}
 }
 
 // A UNIX admin socket that cannot be chowned must stop us from dropping
 // privileges, otherwise the target user is left without a usable socket.
-func TestAdminListenWithMissingUnixSocket(t *testing.T) {
+func TestAdminSocketOwnershipFailure(t *testing.T) {
 	usr, err := user.Current()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	path := filepath.Join(t.TempDir(), "missing.sock")
-	if err := chuser(usr.Uid, "unix://"+path); !isChownError(err) {
-		t.Fatalf("expected a chown error for %s, got %v", path, err)
+	addr := &net.UnixAddr{Net: "unix", Name: filepath.Join(t.TempDir(), "missing.sock")}
+	if err := chuser(usr.Uid, addr); !isChownError(err) {
+		t.Fatalf("expected a chown error for %s, got %v", addr.Name, err)
 	}
 }
 
@@ -119,7 +116,7 @@ func TestCurrentUserid(t *testing.T) {
 		t.Skip("setgroups(2): Only the superuser may set new groups.")
 	}
 
-	if err = chuser(usr.Uid, ""); err != nil {
+	if err = chuser(usr.Uid, nil); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -135,7 +132,7 @@ func TestCommonUsername(t *testing.T) {
 		t.Skip("setgroups(2): Only the superuser may set new groups.")
 	}
 
-	if err := chuser("nobody", ""); err != nil {
+	if err := chuser("nobody", nil); err != nil {
 		if _, ok := err.(user.UnknownUserError); ok {
 			t.Skip(err)
 		}
