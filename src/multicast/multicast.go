@@ -361,7 +361,7 @@ func (m *Multicast) _announce() {
 			}
 			destAddr.Zone = iface.Name
 			if _, err = m.sock.WriteTo(msg, nil, destAddr); err != nil {
-				m.log.Warnln("Failed to send multicast beacon: " + err.Error())
+				m.log.Warnln("Failed to send multicast beacon:", err)
 			}
 			if linfo.interval.Seconds() < 15 {
 				linfo.interval += time.Second
