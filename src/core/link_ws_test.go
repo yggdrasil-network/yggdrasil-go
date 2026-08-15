@@ -51,7 +51,6 @@ func TestWSAcceptOptionsOriginQuery(t *testing.T) {
 			insecureSkipVerify: true,
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -102,7 +101,6 @@ func TestWSServerOriginPolicy(t *testing.T) {
 			success: true,
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
