@@ -294,9 +294,6 @@ func SummaryForConfig(b []byte) *ConfigSummary {
 	pub := ed25519.PrivateKey(cfg.PrivateKey).Public().(ed25519.PublicKey)
 	hpub := hex.EncodeToString(pub)
 	addrPtr, snetPtr := address.AddrForKey(pub), address.SubnetForKey(pub)
-	if addrPtr == nil || snetPtr == nil {
-		return nil
-	}
 	addr := net.IP(addrPtr[:])
 	snet := net.IPNet{
 		IP:   append(snetPtr[:], 0, 0, 0, 0, 0, 0, 0, 0),
