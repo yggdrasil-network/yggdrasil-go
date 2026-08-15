@@ -58,11 +58,10 @@ type linkInfo struct {
 
 // link tracks the state of a connection, either persistent or non-persistent
 type link struct {
-	ctx       context.Context    // Connection context
-	cancel    context.CancelFunc // Stop future redial attempts (when peer removed)
-	kick      chan struct{}      // Attempt to reconnect now, if backing off
-	linkType  linkType           // Type of link, i.e. outbound/inbound, persistent/ephemeral
-	linkProto string             // Protocol carrier of link, e.g. TCP, AWDL
+	ctx      context.Context    // Connection context
+	cancel   context.CancelFunc // Stop future redial attempts (when peer removed)
+	kick     chan struct{}      // Attempt to reconnect now, if backing off
+	linkType linkType           // Type of link, i.e. outbound/inbound, persistent/ephemeral
 	// The remaining fields can only be modified safely from within the links actor
 	_conn    *linkConn // Connected link, if any, nil if not connected
 	_err     error     // Last error on the connection, if any
@@ -79,7 +78,6 @@ type linkOptions struct {
 
 type Listener struct {
 	listener net.Listener
-	ctx      context.Context
 	Cancel   context.CancelFunc
 }
 
@@ -247,9 +245,8 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 		// in progress (if any), any error details and a context that
 		// lets the link be cancelled later.
 		state = &link{
-			linkType:  linkType,
-			linkProto: strings.ToUpper(u.Scheme),
-			kick:      make(chan struct{}),
+			linkType: linkType,
+			kick:     make(chan struct{}),
 		}
 		state.ctx, state.cancel = context.WithCancel(l.core.ctx)
 
@@ -477,7 +474,6 @@ func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) 
 	}
 	li := &Listener{
 		listener: listener,
-		ctx:      ctx,
 		Cancel:   cancel,
 	}
 
@@ -536,9 +532,8 @@ func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) 
 					state, ok = l._links[info]
 					if !ok || state == nil {
 						state = &link{
-							linkType:  linkTypeIncoming,
-							linkProto: strings.ToUpper(u.Scheme),
-							kick:      make(chan struct{}),
+							linkType: linkTypeIncoming,
+							kick:     make(chan struct{}),
 						}
 					}
 					if state._conn != nil {

@@ -54,7 +54,6 @@ type listenerInfo struct {
 	listener *core.Listener
 	time     time.Time
 	interval time.Duration
-	port     uint16
 }
 
 // Start starts the multicast interface. This launches goroutines which will
@@ -331,7 +330,7 @@ func (m *Multicast) _announce() {
 				if li, err := m.core.ListenLocal(u, iface.Name); err == nil {
 					m.log.Debugln("Started multicasting on", iface.Name)
 					// Store the listener so that we can stop it later if needed
-					linfo = &listenerInfo{listener: li, time: time.Now(), port: info.port}
+					linfo = &listenerInfo{listener: li, time: time.Now()}
 					m._listeners[iface.Name] = linfo
 				} else {
 					m.log.Warnln("Not multicasting on", iface.Name, "due to error:", err)

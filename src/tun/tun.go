@@ -38,7 +38,6 @@ type TunAdapter struct {
 	rwc         ReadWriteCloser
 	log         core.Logger
 	addr        address.Address
-	subnet      address.Subnet
 	mtu         uint64
 	iface       wgtun.Device
 	phony.Inbox // Currently only used for _handlePacket from the reader, TODO: all the stuff that currently needs a mutex below
@@ -116,7 +115,6 @@ func (tun *TunAdapter) _start() error {
 		return errors.New("TUN module is already started")
 	}
 	tun.addr = tun.rwc.Address()
-	tun.subnet = tun.rwc.Subnet()
 	prefix := address.GetPrefix()
 	var addr string
 	if tun.addr.IsValid() {
