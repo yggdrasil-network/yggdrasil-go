@@ -45,6 +45,7 @@ type Core struct {
 		groupPassword      string                     // immutable after startup
 	}
 	pathNotify func(ed25519.PublicKey)
+	peerNotify func(PeerEvent)
 }
 
 func New(cert *tls.Certificate, logger Logger, opts ...SetupOption) (*Core, error) {
@@ -230,6 +231,32 @@ func (c *Core) doPathNotify(key ed25519.PublicKey) {
 func (c *Core) SetPathNotify(notify func(ed25519.PublicKey)) {
 	c.Act(nil, func() {
 		c.pathNotify = notify
+	})
+}
+
+// SetPeerNotify registers a callback that is invoked whenever a peer's
+// membership in the peer list or its up/down state changes. The callback
+// is called synchronously on an internal goroutine; it must not block.
+// Passing nil unregisters any existing callback.
+func (c *Core) SetPeerNotify(notify func(PeerEvent)) {
+	c.Act(nil, func() {
+		c.peerNotify = notify
+	})
+}
+
+// notifyPeer assembles and dispatches a PeerEvent. It is safe to call from
+// any goroutine that does not hold the core or links actor locks.
+func (c *Core) notifyPeer(eventType PeerEventType, changed PeerInfo) {
+	var notify func(PeerEvent)
+	phony.Block(c, func() { notify = c.peerNotify })
+	if notify == nil {
+		return
+	}
+	peers := c.GetPeers()
+	notify(PeerEvent{
+		EventType: eventType,
+		Changed:   changed,
+		Peers:     peers,
 	})
 }
 

@@ -39,6 +39,25 @@ type PeerInfo struct {
 	Latency       time.Duration
 }
 
+// PeerEventType identifies what kind of change triggered a peer notification.
+type PeerEventType string
+
+const (
+	PeerEventAdded   PeerEventType = "peer_added"   // URI entered the peer list (configured or multicast-discovered)
+	PeerEventRemoved PeerEventType = "peer_removed" // URI left the peer list
+	PeerEventUp      PeerEventType = "peer_up"      // transport connected and handshake completed
+	PeerEventDown    PeerEventType = "peer_down"    // transport disconnected
+)
+
+// PeerEvent is delivered to the callback registered via Core.SetPeerNotify.
+// Changed identifies the peer that triggered the event and holds its new state.
+// Peers is the full peer list captured at the moment the event fires.
+type PeerEvent struct {
+	EventType PeerEventType
+	Changed   PeerInfo
+	Peers     []PeerInfo
+}
+
 type TreeEntryInfo struct {
 	Key      ed25519.PublicKey
 	Parent   ed25519.PublicKey
