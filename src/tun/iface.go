@@ -19,7 +19,7 @@ func (tun *TunAdapter) read() {
 		n, err := tun.iface.Read(bufs, sizes, TUN_OFFSET_BYTES)
 		if err != nil {
 			if errors.Is(err, wgtun.ErrTooManySegments) {
-				tun.log.Debugln("TUN segments dropped: %v", err)
+				tun.log.Debugf("TUN segments dropped: %v\n", err)
 				continue
 			}
 			tun.log.Errorln("Error reading TUN:", err)
