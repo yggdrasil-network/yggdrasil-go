@@ -36,7 +36,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
   * When set, session traffic can only be exchanged with other nodes that have the same `GroupPassword` set (however, services on the public testnet will be unreachable as a result)
   * Peering connections are not affected by this option and traffic forwarding continues to operate as normal
 * The `-notifyfd` command line argument can be used for S6-style process readiness notifications
-* The `?origin=` query URI parameter can be added to WebSocket peer URIs to configure the `Origin` HTTP header
+* The `?origin=` query URI parameter can be added to WebSocket listen URIs to control which browser origins are accepted
+  * The parameter can be repeated to allow more than one origin, and `?origin=*` accepts any origin, which disables the cross-origin check entirely
 
 ### Changed
 

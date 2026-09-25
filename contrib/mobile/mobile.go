@@ -66,6 +66,9 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 		for _, peer := range m.config.Peers {
 			options = append(options, core.Peer{URI: peer})
 		}
+		if m.config.GroupPassword != "" {
+			options = append(options, core.GroupPassword(m.config.GroupPassword))
+		}
 		for intf, peers := range m.config.InterfacePeers {
 			for _, peer := range peers {
 				options = append(options, core.Peer{URI: peer, SourceInterface: intf})
@@ -291,9 +294,6 @@ func SummaryForConfig(b []byte) *ConfigSummary {
 	pub := ed25519.PrivateKey(cfg.PrivateKey).Public().(ed25519.PublicKey)
 	hpub := hex.EncodeToString(pub)
 	addrPtr, snetPtr := address.AddrForKey(pub), address.SubnetForKey(pub)
-	if addrPtr == nil || snetPtr == nil {
-		return nil
-	}
 	addr := net.IP(addrPtr[:])
 	snet := net.IPNet{
 		IP:   append(snetPtr[:], 0, 0, 0, 0, 0, 0, 0, 0),

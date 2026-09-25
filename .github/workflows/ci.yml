@@ -35,15 +35,15 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/init@v3
         with:
           languages: go
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v2
+        uses: github/codeql-action/autobuild@v3
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@v3
 
   build-linux:
     strategy:
@@ -145,7 +145,7 @@ jobs:
 
   tests-ok:
     name: All tests passed
-    needs: [lint, codeql, build-linux, build-windows, build-macos]
+    needs: [lint, codeql, build-linux, build-windows, build-macos, build-freebsd]
     runs-on: ubuntu-latest
     if: ${{ !cancelled() }}
     steps:

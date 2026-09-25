@@ -7,8 +7,7 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"sort"
-
+	"slices"
 	"strings"
 	"time"
 
@@ -145,8 +144,8 @@ func New(c *core.Core, log core.Logger, opts ...SetupOption) (*AdminSocket, erro
 				Fields:      handler.args,
 			})
 		}
-		sort.SliceStable(res.List, func(i, j int) bool {
-			return strings.Compare(res.List[i].Command, res.List[j].Command) < 0
+		slices.SortStableFunc(res.List, func(a, b ListEntry) int {
+			return strings.Compare(a.Command, b.Command)
 		})
 		return res, nil
 	})
@@ -266,6 +265,15 @@ func (a *AdminSocket) IsStarted() bool {
 		// Blocked, so we must have started
 		return true
 	}
+}
+
+// Addr returns the address that the admin socket is listening on, or nil if
+// there is no admin socket.
+func (a *AdminSocket) Addr() net.Addr {
+	if a == nil || a.listener == nil {
+		return nil
+	}
+	return a.listener.Addr()
 }
 
 // Stop will stop the admin API and close the socket.
