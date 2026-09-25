@@ -1,4 +1,4 @@
-//go:build !linux && !darwin && !windows && !openbsd && !freebsd
+//go:build !linux && !darwin && !windows && !openbsd && !freebsd && !plan9
 
 package config
 

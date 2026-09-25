@@ -13,11 +13,18 @@ connectivity - it also works over IPv4.
 ## Supported Platforms
 
 Yggdrasil works on a number of platforms, including Linux, macOS, Ubiquiti
-EdgeRouter, VyOS, Windows, FreeBSD, OpenBSD and OpenWrt.
+EdgeRouter, VyOS, Windows, FreeBSD, OpenBSD, OpenWrt and Plan 9 (9front,
+experimental).
 
 Please see our [Installation](https://yggdrasil-network.github.io/installation.html)
 page for more information. You may also find other platform-specific wrappers, scripts
 or tools in the `contrib` folder.
+
+On Plan 9, build with `GOOS=plan9 GOARCH=amd64` (or `386`). The TUN adapter
+uses a `pkt` packet interface and multicast peer discovery uses `/net/udp`
+directly. The admin socket listens on TCP loopback, so a loopback interface
+must be configured (`ipconfig loopback /dev/null 127.1 /128`); send the
+`interrupt` note for a clean shutdown.
 
 ## Building
 
