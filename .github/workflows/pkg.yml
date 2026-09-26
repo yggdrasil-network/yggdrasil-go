@@ -26,9 +26,18 @@ jobs:
         run: |
           NAME="$(sh contrib/semver/name.sh)"
           VERSION="$(sh contrib/semver/version.sh --bare)"
-          go mod vendor && tar --exclude-vcs --no-xattrs \
-            --exclude="${NAME}-${VERSION}-vendored.tar.gz" \
-            -czf "${NAME}-${VERSION}-vendored.tar.gz" *
+          BASE="$(basename "${PWD}")"
+          go mod vendor
+          # Archive the checkout from its parent directory so that the tarball
+          # unpacks into a single "${NAME}-${VERSION}" directory, and so that
+          # dotfiles such as .github are included, neither of which is the case
+          # when archiving "*" from inside the checkout. The archive is written
+          # outside the tree first so that it can't include itself.
+          tar --exclude-vcs --no-xattrs \
+            --transform="flags=r;s,^${BASE},${NAME}-${VERSION}," \
+            -czf "${RUNNER_TEMP}/${NAME}-${VERSION}-vendored.tar.gz" \
+            -C .. "${BASE}"
+          mv "${RUNNER_TEMP}/${NAME}-${VERSION}-vendored.tar.gz" .
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

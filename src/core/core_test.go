@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/hex"
@@ -323,7 +324,17 @@ func TestGroupPassword(t *testing.T) {
 		nodeC.LocalAddr().String(): make(chan struct{}, 1),
 	}
 	nodeA.SetPathNotify(func(key ed25519.PublicKey) {
-		pathFound[hex.EncodeToString(key)] <- struct{}{}
+		// This runs inside the node's actor, so it must never block. A repeat
+		// notification for a key we already know about, or one for a key that
+		// we aren't waiting on at all, can both be dropped.
+		ch, ok := pathFound[hex.EncodeToString(key)]
+		if !ok {
+			return
+		}
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
 	})
 
 	u, err := url.Parse("tcp://localhost:0")
@@ -345,11 +356,19 @@ func TestGroupPassword(t *testing.T) {
 	var connB net.PacketConn = nodeB.PacketConn
 	var connC net.PacketConn = nodeC.PacketConn
 
+	// t.Context() isn't cancelled until after the deferred Stop calls above
+	// have run, which would leave this goroutine spinning on a closed
+	// connection, so cancel it ourselves first.
+	readerCtx, stopReader := context.WithCancel(context.Background())
+	defer stopReader()
+
 	go func() {
 		var buf [1024]byte
-		for t.Context().Err() == nil {
+		for readerCtx.Err() == nil {
 			// Needed as encrypted package relies on ReadFrom to process session acks.
-			_, _, _ = connA.ReadFrom(buf[:])
+			if _, _, err := connA.ReadFrom(buf[:]); err != nil {
+				return
+			}
 		}
 	}()
 

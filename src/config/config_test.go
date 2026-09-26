@@ -28,6 +28,31 @@ func TestConfigReadFromEmpty(t *testing.T) {
 	}
 }
 
+// Certificate generation slices the private key at [:32] without checking its
+// length, so a config carrying a short or empty PrivateKey used to panic
+// rather than being rejected.
+func TestConfigMalformedPrivateKey(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		{name: "short", body: `{PrivateKey: "aabb"}`},
+		{name: "empty", body: `{PrivateKey: ""}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil {
+					t.Fatalf("a malformed private key must not panic, got: %v", r)
+				}
+			}()
+			cfg := GenerateConfig()
+			if err := cfg.UnmarshalHJSON([]byte(tc.body)); err == nil {
+				t.Fatal("a malformed private key must be rejected")
+			}
+		})
+	}
+}
+
 func TestConfig_Keys(t *testing.T) {
 	/*
 		var nodeConfig NodeConfig
