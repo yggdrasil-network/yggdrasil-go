@@ -1,0 +1,103 @@
+#!/bin/rc
+# Collect bounded, read-only 9front Yggdrasil diagnostics for one known target.
+# Usage: rc diagnostic.rc YGG_IPV6 PORT /path/to/ygg-diagnostic-tcp [http]
+rfork e
+
+if(! ~ $#* 3 && ! ~ $#* 4){
+	echo 'usage: rc diagnostic.rc YGG_IPV6 PORT TCP_PROBE [http]' >[1=2]
+	exit usage
+}
+target=$1
+port=$2
+probe=$3
+mode=tcp
+if(~ $#* 4)
+	mode=$4
+if(! ~ $mode tcp && ! ~ $mode http){
+	echo 'mode must be tcp or http' >[1=2]
+	exit usage
+}
+if(! test -x $probe){
+	echo 'TCP probe is not executable: '$probe >[1=2]
+	exit no_probe
+}
+
+ctl=()
+for(candidate in /$cputype/bin/yggdrasilctl /usr/$user/bin/$cputype/yggdrasilctl /bin/yggdrasilctl){
+	if(~ $#ctl 0 && test -x $candidate)
+		ctl=$candidate
+}
+if(~ $#ctl 0){
+	echo 'yggdrasilctl not found; put it in /'$cputype'/bin or /usr/'$user'/bin/'$cputype >[1=2]
+	exit no_ctl
+}
+
+daemon=()
+for(candidate in /$cputype/bin/yggdrasil /usr/$user/bin/$cputype/yggdrasil /bin/yggdrasil){
+	if(~ $#daemon 0 && test -x $candidate)
+		daemon=$candidate
+}
+
+fn packetstatus {
+	for(d in /net/ipifc/[0-9]*){
+		if(grep -s '^device pkt' $d/status){
+			echo $d
+			cat $d/status
+		}
+	}
+}
+
+echo '=== time and machine ==='
+date
+cat /dev/sysname
+echo
+cat /dev/osversion
+echo
+if(! ~ $#daemon 0){
+	echo '=== Yggdrasil build ==='
+	$daemon --version
+}
+echo '=== Yggdrasil self ==='
+$ctl getself
+echo '=== Yggdrasil peers ==='
+$ctl getpeers
+echo '=== Yggdrasil route ==='
+cat /net/iproute | grep -e '200::'
+echo '=== packet interface before ==='
+packetstatus
+
+pifs=()
+for(d in /net/ipifc/[0-9]*){
+	if(grep -s '^device pkt' $d/status)
+		pifs=($pifs $d)
+}
+if(~ $#pifs 1){
+	pif=$pifs
+	echo '=== packet capture interface ==='
+	echo $pif
+	# snoopy reads the interface snoop stream; it does not consume Yggdrasil's data queue.
+	# The filter and -N 0 limit output to target packet headers, with no payload bytes.
+	snoopy -s -N 0 -h ippkt -f 'ip6(a='$target')' $pif > /tmp/ygg-diagnostic-packets &
+	spid=$apid
+	sleep 1
+}
+if not
+	echo 'Expected one packet interface, found '$#pifs'; packet capture skipped.'
+
+echo '=== ICMP: 10 echo requests ==='
+ip/ping -6 -n 10 $target
+echo '=== TCP: five connections ==='
+$probe $target $port $mode
+
+if(~ $#pifs 1){
+	if(test -e /proc/$spid/note)
+		echo interrupt > /proc/$spid/note
+	sleep 1
+}
+echo '=== packet interface after ==='
+packetstatus
+if(~ $#pifs 1){
+	echo '=== target packet headers ==='
+	cat /tmp/ygg-diagnostic-packets
+}
+echo '=== diagnostic complete ==='
