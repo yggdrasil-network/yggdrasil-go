@@ -13,11 +13,22 @@ connectivity - it also works over IPv4.
 ## Supported Platforms
 
 Yggdrasil works on a number of platforms, including Linux, macOS, Ubiquiti
-EdgeRouter, VyOS, Windows, FreeBSD, OpenBSD and OpenWrt.
+EdgeRouter, VyOS, Windows, FreeBSD, OpenBSD, OpenWrt and Plan 9 (9front,
+experimental).
 
 Please see our [Installation](https://yggdrasil-network.github.io/installation.html)
 page for more information. You may also find other platform-specific wrappers, scripts
 or tools in the `contrib` folder.
+
+On Plan 9 (9front), build with `GOOS=plan9 GOARCH=amd64` (or `386`). The TUN adapter
+uses a `pkt` packet interface and multicast peer discovery uses `/net/udp` directly.
+The admin socket listens on TCP loopback, which requires a configured loopback
+interface (`ipconfig loopback /dev/null 127.1 /128`).
+Generate a configuration file with `./yggdrasil -genconf > /lib/yggdrasil.conf`, add
+desired public peers to `Peers: [...]` (the list is empty by default), and run with
+`yggdrasil -useconffile /lib/yggdrasil.conf &`. To terminate the process, send the
+`interrupt` note (standard `slay` does not stop Go runtime threads). Helper scripts
+for installation and service management are provided in `contrib/plan9/`.
 
 ## Building
 
@@ -52,6 +63,8 @@ programmatically):
 
 You will need to edit the `yggdrasil.conf` file to add or remove peers, modify
 other configuration such as listen addresses or multicast addresses, etc.
+By default, the `Peers` list is empty, so public or remote peers must be added
+to connect beyond the local multicast domain.
 
 ### Run Yggdrasil
 

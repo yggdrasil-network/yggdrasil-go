@@ -1,4 +1,4 @@
-//go:build !linux && !darwin && !ios && !android && !windows && !openbsd && !freebsd && !mobile
+//go:build !linux && !darwin && !ios && !android && !windows && !openbsd && !freebsd && !mobile && !plan9
 
 package tun
 

@@ -1,0 +1,31 @@
+#!/bin/rc
+# yggkill - gracefully stop Yggdrasil daemon threads and reclaim interfaces
+# (Plan 9's slay sends ctl-kill which does not stop Go's shared-memory threads)
+
+# First send interrupt note to request clean shutdown
+for(i in 1 2 3 4){
+	for(p in `{ps | grep -e yggdrasil | sed 's/^[^ ]*  *//; s/ .*//'}){
+		if(test -e /proc/$p/note)
+			echo interrupt > /proc/$p/note >[2]/dev/null
+	}
+	sleep 1
+}
+
+# If any threads remain, send kill note
+for(p in `{ps | grep -e yggdrasil | sed 's/^[^ ]*  *//; s/ .*//'}){
+	if(test -e /proc/$p/note)
+		echo kill > /proc/$p/note >[2]/dev/null
+}
+sleep 1
+
+# Unbind stale yggdrasil ip interfaces (those carrying a 0200::/7 address)
+for(d in /net/ipifc/[0-9]*){
+	if(grep -e 200: $d/status >[1]/dev/null >[2]/dev/null)
+		echo unbind > $d/ctl >[2]/dev/null
+}
+
+# Hangup stale multicast udp convs still announced on port 9001
+for(d in /net/udp/[0-9]*){
+	if(grep -e 9001 $d/local >[1]/dev/null >[2]/dev/null)
+		echo hangup > $d/ctl >[2]/dev/null
+}

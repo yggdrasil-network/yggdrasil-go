@@ -1,0 +1,19 @@
+#!/bin/rc
+# yggstart - start Yggdrasil daemon on Plan 9 / 9front
+
+# The admin socket binds to TCP loopback and requires a loopback interface
+if(! cat /net/ipifc/*/status >[2]/dev/null | grep -s 127.0.0.1)
+	ip/ipconfig loopback /dev/null 127.1 /128
+
+if(! ps | grep -s yggdrasil){
+	echo 'Starting Yggdrasil daemon...'
+	if(! test -f /lib/yggdrasil.conf){
+		echo 'Error: /lib/yggdrasil.conf not found. Run yggdrasil -genconf > /lib/yggdrasil.conf' >[1=2]
+		exit missing_conf
+	}
+	# Start daemon with logging redirected
+	</dev/null >>/sys/log/yggdrasil.log >[2=1] yggdrasil -useconffile /lib/yggdrasil.conf &
+}
+if not {
+	echo 'Yggdrasil already running.'
+}

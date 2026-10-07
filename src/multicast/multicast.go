@@ -2,14 +2,12 @@ package multicast
 
 import (
 	"bytes"
-	"context"
 	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
 	"math/rand"
 	"net"
 	"net/url"
-	"sync/atomic"
 	"time"
 
 	"github.com/Arceliar/phony"
@@ -17,27 +15,7 @@ import (
 
 	"github.com/yggdrasil-network/yggdrasil-go/src/core"
 	"golang.org/x/crypto/blake2b"
-	"golang.org/x/net/ipv6"
 )
-
-// Multicast represents the multicast advertisement and discovery mechanism used
-// by Yggdrasil to find peers on the same subnet. When a beacon is received on a
-// configured multicast interface, Yggdrasil will attempt to peer with that node
-// automatically.
-type Multicast struct {
-	phony.Inbox
-	core        *core.Core
-	log         core.Logger
-	sock        *ipv6.PacketConn
-	running     atomic.Bool
-	_listeners  map[string]*listenerInfo
-	_interfaces map[string]*interfaceInfo
-	_timer      *time.Timer
-	config      struct {
-		_groupAddr  GroupAddress
-		_interfaces map[MulticastInterface]struct{}
-	}
-}
 
 type interfaceInfo struct {
 	iface    net.Interface
@@ -77,46 +55,6 @@ func New(core *core.Core, log core.Logger, opts ...SetupOption) (*Multicast, err
 		err = m._start()
 	})
 	return m, err
-}
-
-func (m *Multicast) _start() error {
-	if !m.running.CompareAndSwap(false, true) {
-		return fmt.Errorf("multicast module is already started")
-	}
-	var anyEnabled bool
-	for intf := range m.config._interfaces {
-		anyEnabled = anyEnabled || intf.Beacon || intf.Listen
-	}
-	if !anyEnabled {
-		m.running.Store(false)
-		return nil
-	}
-	m.log.Debugln("Starting multicast module")
-	defer m.log.Debugln("Started multicast module")
-	addr, err := net.ResolveUDPAddr("udp", string(m.config._groupAddr))
-	if err != nil {
-		m.running.Store(false)
-		return err
-	}
-	listenString := fmt.Sprintf("[::]:%v", addr.Port)
-	lc := net.ListenConfig{
-		Control: m.multicastReuse,
-	}
-	conn, err := lc.ListenPacket(context.Background(), "udp6", listenString)
-	if err != nil {
-		m.running.Store(false)
-		return err
-	}
-	m.sock = ipv6.NewPacketConn(conn)
-	if err = m.sock.SetControlMessage(ipv6.FlagDst, true); err != nil { // nolint:staticcheck
-		// Windows can't set this flag, so we need to handle it in other ways
-	}
-
-	go m.listen()
-	m.Act(nil, m._multicastStarted)
-	m.Act(nil, m._announce)
-
-	return nil
 }
 
 // IsStarted returns true if the module has been started.
