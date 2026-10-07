@@ -1,0 +1,157 @@
+#!/bin/rc
+# install.rc - install Yggdrasil on Plan 9 / 9front
+# Usage: install.rc [source_dir]
+
+rfork e
+
+src=$1
+if(~ $#src 0 || ~ $src ''){
+	if(test -f ./yggdrasil)
+		src=.
+	if not if(test -f ./ygg)
+		src=.
+	if not if(test -f /n/9fat/yggdrasil)
+		src=/n/9fat
+	if not if(test -f /n/9fat/ygg)
+		src=/n/9fat
+	if not {
+		9fs 9fat >[2]/dev/null
+		if(test -f /n/9fat/ygg)
+			src=/n/9fat
+		if not if(test -f /n/9fat/yggdrasil)
+			src=/n/9fat
+	}
+}
+
+if(~ $#src 0 || ~ $src ''){
+	echo 'usage: install.rc [source_dir_containing_binaries]' >[1=2]
+	exit 'no source directory'
+}
+
+echo 'Installing Yggdrasil from '$src'...'
+
+# Find yggdrasil binary
+yggbin=()
+if(test -f $src/yggdrasil)
+	yggbin=$src/yggdrasil
+if not if(test -f $src/ygg)
+	yggbin=$src/ygg
+if(~ $#yggbin 0){
+	echo 'Error: yggdrasil binary not found in '$src >[1=2]
+	exit 'missing yggdrasil'
+}
+
+# Find yggdrasilctl binary
+ctlbin=()
+if(test -f $src/yggdrasilctl)
+	ctlbin=$src/yggdrasilctl
+if not if(test -f $src/ctl)
+	ctlbin=$src/ctl
+
+# Install binaries into /$cputype/bin
+if(! test -d /$cputype/bin){
+	echo 'Error: directory /'$cputype'/bin does not exist' >[1=2]
+	exit 'no cputype bin'
+}
+
+echo 'Copying '$yggbin' -> /'$cputype'/bin/yggdrasil'
+cp $yggbin /$cputype/bin/yggdrasil
+chmod 755 /$cputype/bin/yggdrasil
+
+if(! ~ $#ctlbin 0){
+	echo 'Copying '$ctlbin' -> /'$cputype'/bin/yggdrasilctl'
+	cp $ctlbin /$cputype/bin/yggdrasilctl
+	chmod 755 /$cputype/bin/yggdrasilctl
+}
+
+# Ensure /bin has updated namespace
+bind -qa /$cputype/bin /bin
+bind -qa /rc/bin /bin
+
+# Install yggstart and yggkill helper scripts into /rc/bin
+cat << 'ENDFILE' > /rc/bin/yggstart
+#!/bin/rc
+# Ensure loopback interface is up per platform requirements
+if(! cat /net/ipifc/*/status >[2]/dev/null | grep -s 127.0.0.1)
+	ip/ipconfig loopback /dev/null 127.1 /128
+
+if(! ps | grep -s yggdrasil){
+	echo 'Starting Yggdrasil daemon...'
+	if(! test -f /lib/yggdrasil.conf){
+		echo 'Error: /lib/yggdrasil.conf not found. Run yggdrasil -genconf > /lib/yggdrasil.conf' >[1=2]
+		exit missing_conf
+	}
+	</dev/null >>/sys/log/yggdrasil.log >[2=1] yggdrasil -useconffile /lib/yggdrasil.conf &
+}
+if not {
+	echo 'Yggdrasil already running.'
+}
+ENDFILE
+chmod 755 /rc/bin/yggstart
+
+cat << 'ENDFILE' > /rc/bin/yggkill
+#!/bin/rc
+# Cleanly terminate yggdrasil threads via notes
+for(i in 1 2 3 4){
+	for(p in `{ps | grep -e yggdrasil | sed 's/^[^ ]*  *//; s/ .*//'}){
+		if(test -e /proc/$p/note)
+			echo interrupt > /proc/$p/note >[2]/dev/null
+	}
+	sleep 1
+}
+for(p in `{ps | grep -e yggdrasil | sed 's/^[^ ]*  *//; s/ .*//'}){
+	if(test -e /proc/$p/note)
+		echo kill > /proc/$p/note >[2]/dev/null
+}
+sleep 1
+for(d in /net/ipifc/[0-9]*){
+	if(grep -e 200: $d/status >[1]/dev/null >[2]/dev/null)
+		echo unbind > $d/ctl >[2]/dev/null
+}
+for(d in /net/udp/[0-9]*){
+	if(grep -e 9001 $d/local >[1]/dev/null >[2]/dev/null)
+		echo hangup > $d/ctl >[2]/dev/null
+}
+ENDFILE
+chmod 755 /rc/bin/yggkill
+
+# Configure default /lib/yggdrasil.conf
+if(test -f /lib/yggdrasil.conf){
+	echo 'Found existing /lib/yggdrasil.conf (retaining)'
+}
+if not if(test -f $src/conf){
+	echo 'Copying configuration from '$src'/conf -> /lib/yggdrasil.conf'
+	cp $src/conf /lib/yggdrasil.conf
+	chmod 600 /lib/yggdrasil.conf
+}
+if not if(test -f $src/yggdrasil.conf){
+	echo 'Copying configuration from '$src'/yggdrasil.conf -> /lib/yggdrasil.conf'
+	cp $src/yggdrasil.conf /lib/yggdrasil.conf
+	chmod 600 /lib/yggdrasil.conf
+}
+if not {
+	echo 'Generating new default configuration at /lib/yggdrasil.conf...'
+	yggdrasil -genconf > /lib/yggdrasil.conf
+	chmod 600 /lib/yggdrasil.conf
+}
+
+# Configure log directory
+if(! test -d /sys/log)
+	mkdir -p /sys/log
+
+# Add to /rc/bin/cpurc.local for automatic boot startup if not already present
+if(! test -f /rc/bin/cpurc.local){
+	echo '#!/bin/rc' > /rc/bin/cpurc.local
+	echo '/rc/bin/yggstart' >> /rc/bin/cpurc.local
+	chmod 755 /rc/bin/cpurc.local
+}
+if not {
+	if(! grep -s yggstart /rc/bin/cpurc.local){
+		echo '' >> /rc/bin/cpurc.local
+		echo '# Start Yggdrasil daemon' >> /rc/bin/cpurc.local
+		echo 'if(test -x /rc/bin/yggstart)' >> /rc/bin/cpurc.local
+		echo '	/rc/bin/yggstart' >> /rc/bin/cpurc.local
+	}
+}
+
+echo 'Yggdrasil installation complete.'

@@ -16,12 +16,7 @@ func getDefaults() platformDefaultParameters {
 		// Configuration (used for yggdrasilctl)
 		DefaultConfigFile: "/lib/yggdrasil.conf",
 
-		// Multicast interfaces. Plan 9 has no BSD-style multicast
-		// socket options and golang.org/x/net/ipv6 is stubbed out, so
-		// link-local multicast discovery is not available; peers must
-		// be configured manually. These entries are retained so the
-		// configuration shape stays consistent across platforms — the
-		// Plan 9 multicast layer is a no-op at runtime.
+		// Multicast interfaces. Discovery uses /net/udp directly on Plan 9.
 		DefaultMulticastInterfaces: []MulticastInterfaceConfig{
 			{Regex: ".*", Beacon: true, Listen: true},
 		},
