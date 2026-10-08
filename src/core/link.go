@@ -3,6 +3,7 @@ package core
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -304,11 +305,21 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 		// then the loop will run endlessly, using backoffs as needed.
 		// Otherwise the loop will end, cleaning up the link entry.
 		go func() {
-			defer phony.Block(l, func() {
-				if l._links[info] == state {
-					delete(l._links, info)
+			// Notify that this URI has entered the peer list.
+			l.core.notifyPeer(PeerEventAdded, PeerInfo{URI: info.uri})
+
+			defer func() {
+				var removed bool
+				phony.Block(l, func() {
+					if l._links[info] == state {
+						delete(l._links, info)
+						removed = true
+					}
+				})
+				if removed {
+					l.core.notifyPeer(PeerEventRemoved, PeerInfo{URI: info.uri})
 				}
-			})
+			}()
 
 			// This loop will run each and every time we want to attempt
 			// a connection to this peer.
@@ -377,7 +388,12 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 
 				// Give the connection to the handler. The handler will block
 				// for the lifetime of the connection.
-				switch err = l.handler(linkType, options, lc, resetBackoff, false); {
+				connectedOnce := false
+				onConnected := func(key ed25519.PublicKey) {
+					connectedOnce = true
+					l.core.notifyPeer(PeerEventUp, PeerInfo{URI: info.uri, Up: true, Key: key})
+				}
+				switch err = l.handler(linkType, options, lc, resetBackoff, onConnected, false); {
 				case errors.Is(err, ErrLinkToSelf):
 					// This is a pretty permanent error, don't retry.
 					backoff = -1
@@ -400,6 +416,9 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 					state._err = err
 					state._errtime = time.Now()
 				})
+				if connectedOnce {
+					l.core.notifyPeer(PeerEventDown, PeerInfo{URI: info.uri})
+				}
 
 				// If the link is persistently configured, back off if needed
 				// and then try reconnecting. Otherwise, exit out.
@@ -564,18 +583,34 @@ func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) 
 					// Store the state of the link so that it can be queried later.
 					l._links[info] = state
 				})
-				defer phony.Block(l, func() {
-					if l._links[info] == state {
-						delete(l._links, info)
+				defer func() {
+					if lc == nil {
+						return
 					}
-				})
+					var removed bool
+					phony.Block(l, func() {
+						if l._links[info] == state {
+							delete(l._links, info)
+							removed = true
+						}
+					})
+					if removed {
+						l.core.notifyPeer(PeerEventDown, PeerInfo{URI: info.uri, Inbound: true})
+						l.core.notifyPeer(PeerEventRemoved, PeerInfo{URI: info.uri, Inbound: true})
+					}
+				}()
 				if lc == nil {
 					return
 				}
 
+				// Notify that this inbound peer has been added and is up.
+				l.core.notifyPeer(PeerEventAdded, PeerInfo{URI: info.uri, Inbound: true})
+
 				// Give the connection to the handler. The handler will block
 				// for the lifetime of the connection.
-				switch err = l.handler(linkTypeIncoming, options, lc, nil, local); {
+				switch err = l.handler(linkTypeIncoming, options, lc, nil, func(key ed25519.PublicKey) {
+					l.core.notifyPeer(PeerEventUp, PeerInfo{URI: info.uri, Up: true, Inbound: true, Key: key})
+				}, local); {
 				case err == nil:
 				case errors.Is(err, io.EOF):
 				case errors.Is(err, net.ErrClosed):
@@ -624,7 +659,7 @@ func (l *links) dialerFor(u *url.URL) (linkProtocol, error) {
 	return dialer, nil
 }
 
-func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, success func(), local bool) error {
+func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, success func(), connected func(ed25519.PublicKey), local bool) error {
 	meta := version_getBaseMetadata()
 	meta.publicKey = l.core.public
 	meta.priority = options.priority
@@ -703,6 +738,9 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, s
 		dir, remoteStr, localStr)
 	if success != nil {
 		success()
+	}
+	if connected != nil {
+		connected(meta.publicKey)
 	}
 
 	err = l.core.HandleConn(meta.publicKey, conn, priority)
