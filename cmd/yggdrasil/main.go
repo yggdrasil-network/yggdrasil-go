@@ -317,10 +317,10 @@ func main() {
 		panic(fmt.Sprintf("pledge: %v: %v", promises, err))
 	}
 
-	if notifyFd != nil && *notifyFd > 0 {
-		f := os.NewFile(uintptr(*notifyFd), "notifyfd")
-		_, _ = f.Write([]byte{0x0a})
-		f.Close()
+	if *notifyFd > 0 {
+		if err := notifyReadiness(*notifyFd); err != nil {
+			logger.Errorln("Failed to send the readiness notification:", err)
+		}
 	}
 
 	// Block until we are told to shut down.
@@ -331,6 +331,28 @@ func main() {
 	_ = n.multicast.Stop()
 	_ = n.tun.Stop()
 	n.core.Stop()
+}
+
+// notifyReadiness writes a newline to the given file descriptor, which is how
+// a service manager is told that startup has finished. The descriptor is
+// closed afterwards so that a service manager waiting for EOF isn't left
+// hanging.
+func notifyReadiness(fd int) error {
+	if fd == int(os.Stdout.Fd()) || fd == int(os.Stderr.Fd()) {
+		// Closing either of these would silently break logging for the rest of
+		// the process lifetime, and the descriptor could later be reused for
+		// an unrelated file that log output would then be written into.
+		return fmt.Errorf("file descriptor %d is stdout or stderr", fd)
+	}
+	f := os.NewFile(uintptr(fd), "notifyfd")
+	if f == nil {
+		return fmt.Errorf("file descriptor %d is not valid", fd)
+	}
+	defer f.Close()
+	if _, err := f.Write([]byte{'\n'}); err != nil {
+		return fmt.Errorf("writing to file descriptor %d: %w", fd, err)
+	}
+	return nil
 }
 
 func setLogLevel(loglevel string, logger *log.Logger) {

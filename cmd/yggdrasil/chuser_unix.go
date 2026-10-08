@@ -50,13 +50,17 @@ func chuser(input, adminSockUrl string) error {
 		gid, _ = strconv.Atoi(usr.Gid)
 	}
 
-	if adminSockUrl != "" {
-		u, err := url.Parse(adminSockUrl)
-		if err == nil && u.Scheme == "unix" {
-			err = os.Chown(u.Path, uid, gid)
-		}
-		if err != nil {
-			return fmt.Errorf("chown %s %d:%d: %v", adminSockUrl, uid, gid, err)
+	// An admin listen address that isn't a URL is not an error here. The admin
+	// socket falls back to listening on TCP in that case, so there is no UNIX
+	// socket to hand over and only a failing chown should stop us from
+	// dropping privileges.
+	if u, err := url.Parse(adminSockUrl); err == nil && strings.EqualFold(u.Scheme, "unix") {
+		// Abstract sockets exist in the kernel namespace rather than on the
+		// filesystem, so there is nothing to change the ownership of.
+		if path := u.Path; path != "" && path[0] != '@' {
+			if err := os.Chown(path, uid, gid); err != nil {
+				return fmt.Errorf("chown %s %d:%d: %v", path, uid, gid, err)
+			}
 		}
 	}
 
