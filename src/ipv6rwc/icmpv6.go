@@ -19,8 +19,8 @@ import (
 
 type ICMPv6 struct{}
 
-// Marshal returns the binary encoding of h.
-func ipv6Header_Marshal(h *ipv6.Header) ([]byte, error) {
+// ipv6Header_Marshal returns the binary encoding of h.
+func ipv6Header_Marshal(h *ipv6.Header) []byte {
 	b := make([]byte, 40)
 	b[0] |= byte(h.Version) << 4
 	b[0] |= byte(h.TrafficClass) >> 4
@@ -33,7 +33,7 @@ func ipv6Header_Marshal(h *ipv6.Header) ([]byte, error) {
 	b[7] = byte(h.HopLimit)
 	copy(b[8:24], h.Src)
 	copy(b[24:40], h.Dst)
-	return b, nil
+	return b
 }
 
 // Creates an ICMPv6 packet based on the given icmp.MessageBody and other
@@ -65,10 +65,7 @@ func CreateICMPv6(dst net.IP, src net.IP, mtype ipv6.ICMPType, mcode int, mbody 
 	}
 
 	// Convert the IPv6 header into []byte
-	ipv6HeaderBuf, err := ipv6Header_Marshal(&ipv6Header)
-	if err != nil {
-		return nil, err
-	}
+	ipv6HeaderBuf := ipv6Header_Marshal(&ipv6Header)
 
 	// Construct the packet
 	responsePacket := make([]byte, ipv6.HeaderLen+ipv6Header.PayloadLen)

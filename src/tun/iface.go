@@ -41,9 +41,14 @@ func (tun *TunAdapter) queue() {
 			tun.log.Errorln("Exiting TUN writer due to core read error:", err)
 			return
 		}
-		if tun.ch != nil {
-			tun.ch <- p[:n]
+		if tun.ch == nil {
+			// The TUN adapter is disabled, so the packet is dropped. Hand the
+			// buffer back rather than making the pool allocate a new one for
+			// every packet.
+			bufPool.Put(p) // nolint:staticcheck
+			continue
 		}
+		tun.ch <- p[:n]
 	}
 }
 

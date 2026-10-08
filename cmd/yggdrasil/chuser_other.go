@@ -2,8 +2,11 @@
 
 package main
 
-import "errors"
+import (
+	"errors"
+	"net"
+)
 
-func chuser(user, adminSockUrl string) error {
+func chuser(user string, adminSock net.Addr) error {
 	return errors.New("setting uid/gid is not supported on this platform")
 }

@@ -15,9 +15,11 @@ func TestDuplicatePeerAtStartup(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		cfg.Peers = append(cfg.Peers, "tcp://1.2.3.4:4321")
 	}
-	if _, err := New(cfg.Certificate, nil); err != nil {
+	c, err := New(cfg.Certificate, nil)
+	if err != nil {
 		t.Fatal(err)
 	}
+	defer c.Stop()
 }
 
 // Tests that duplicate peers given to us through the
@@ -31,6 +33,7 @@ func TestDuplicatePeerFromAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer c.Stop()
 	u, _ := url.Parse("tcp://1.2.3.4:4321")
 	if err := c.AddPeer(u, ""); err != nil {
 		t.Fatalf("Adding peer failed on first attempt: %s", err)
@@ -46,6 +49,7 @@ func TestAddEmptyPeer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer c.Stop()
 	u, _ := url.Parse("")
 	if err := c.AddPeer(u, ""); err == nil {
 		t.Fatalf("Expected error on empty URL: %s", err)

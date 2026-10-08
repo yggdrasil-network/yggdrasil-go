@@ -54,7 +54,6 @@ type listenerInfo struct {
 	listener *core.Listener
 	time     time.Time
 	interval time.Duration
-	port     uint16
 }
 
 // Start starts the multicast interface. This launches goroutines which will
@@ -331,7 +330,7 @@ func (m *Multicast) _announce() {
 				if li, err := m.core.ListenLocal(u, iface.Name); err == nil {
 					m.log.Debugln("Started multicasting on", iface.Name)
 					// Store the listener so that we can stop it later if needed
-					linfo = &listenerInfo{listener: li, time: time.Now(), port: info.port}
+					linfo = &listenerInfo{listener: li, time: time.Now()}
 					m._listeners[iface.Name] = linfo
 				} else {
 					m.log.Warnln("Not multicasting on", iface.Name, "due to error:", err)
@@ -361,7 +360,7 @@ func (m *Multicast) _announce() {
 			}
 			destAddr.Zone = iface.Name
 			if _, err = m.sock.WriteTo(msg, nil, destAddr); err != nil {
-				m.log.Warnln("Failed to send multicast beacon: " + err.Error())
+				m.log.Warnln("Failed to send multicast beacon:", err)
 			}
 			if linfo.interval.Seconds() < 15 {
 				linfo.interval += time.Second
@@ -376,6 +375,14 @@ func (m *Multicast) _announce() {
 	})
 }
 
+// How long the multicast listener waits before retrying after a read error,
+// starting at the minimum and doubling up to the maximum for as long as the
+// errors keep coming.
+const (
+	multicastReadErrorMinBackoff = time.Millisecond * 10
+	multicastReadErrorMaxBackoff = time.Second
+)
+
 func (m *Multicast) listen() {
 	groupAddr, err := net.ResolveUDPAddr("udp6", string(m.config._groupAddr))
 	if err != nil {
@@ -383,6 +390,7 @@ func (m *Multicast) listen() {
 	}
 	bs := make([]byte, 2048)
 	hb := make([]byte, 0, blake2b.Size) // Reused to reduce hash allocations
+	var backoff time.Duration
 	for {
 		if !m.running.Load() {
 			return
@@ -392,9 +400,21 @@ func (m *Multicast) listen() {
 			if !m.IsStarted() {
 				return
 			}
-			m.log.Warnln("Multicast listener read error:", err)
+			// A read error that doesn't clear itself, say because the socket
+			// or the interface behind it has gone away, would otherwise spin
+			// this loop as fast as the kernel can fail the syscall. Back off
+			// instead, and only log the first error of a run so that a broken
+			// socket doesn't flood the log either.
+			if backoff == 0 {
+				m.log.Warnln("Multicast listener read error:", err)
+				backoff = multicastReadErrorMinBackoff
+			} else {
+				backoff = min(backoff*2, multicastReadErrorMaxBackoff)
+			}
+			time.Sleep(backoff)
 			continue
 		}
+		backoff = 0
 		if rcm != nil {
 			// Windows can't set the flag needed to return a non-nil value here
 			// So only make these checks if we get something useful back
