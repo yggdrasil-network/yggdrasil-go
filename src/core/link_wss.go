@@ -42,7 +42,7 @@ func (l *linkWSS) dial(ctx context.Context, url *url.URL, info linkInfo, options
 			IP:   ip,
 			Port: port,
 		}
-		dialer, err := l.tcp.dialerFor(addr, info.sintf)
+		dialer, err := l.tcp.dialerFor(addr, info.sintf, options.multipath)
 		if err != nil {
 			return nil, err
 		}
@@ -67,6 +67,6 @@ func (l *linkWSS) dial(ctx context.Context, url *url.URL, info linkInfo, options
 	})
 }
 
-func (l *linkWSS) listen(ctx context.Context, url *url.URL, _ string) (net.Listener, error) {
+func (l *linkWSS) listen(ctx context.Context, url *url.URL, _ string, _ linkOptions) (net.Listener, error) {
 	return nil, fmt.Errorf("WSS listener not supported, use WS listener behind reverse proxy instead")
 }

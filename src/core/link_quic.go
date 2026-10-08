@@ -72,7 +72,7 @@ func (l *linkQUIC) dial(ctx context.Context, url *url.URL, info linkInfo, option
 	})
 }
 
-func (l *linkQUIC) listen(ctx context.Context, url *url.URL, _ string) (net.Listener, error) {
+func (l *linkQUIC) listen(ctx context.Context, url *url.URL, _ string, _ linkOptions) (net.Listener, error) {
 	ql, err := quic.ListenAddr(url.Host, l.tlsconfig, l.quicconfig)
 	if err != nil {
 		return nil, err

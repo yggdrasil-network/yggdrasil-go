@@ -113,7 +113,7 @@ func (l *linkWS) dial(ctx context.Context, url *url.URL, info linkInfo, options 
 			IP:   ip,
 			Port: port,
 		}
-		dialer, err := l.tcp.dialerFor(addr, info.sintf)
+		dialer, err := l.tcp.dialerFor(addr, info.sintf, options.multipath)
 		if err != nil {
 			return nil, err
 		}
@@ -137,7 +137,7 @@ func (l *linkWS) dial(ctx context.Context, url *url.URL, info linkInfo, options 
 	})
 }
 
-func (l *linkWS) listen(ctx context.Context, url *url.URL, _ string) (net.Listener, error) {
+func (l *linkWS) listen(ctx context.Context, url *url.URL, _ string, _ linkOptions) (net.Listener, error) {
 	nl, err := l.listenconfig.Listen(ctx, "tcp", url.Host)
 	if err != nil {
 		return nil, err
