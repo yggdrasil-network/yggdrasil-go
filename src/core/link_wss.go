@@ -46,18 +46,20 @@ func (l *linkWSS) dial(ctx context.Context, url *url.URL, info linkInfo, options
 		if err != nil {
 			return nil, err
 		}
+		transport := &http.Transport{
+			Proxy:           http.ProxyFromEnvironment,
+			Dial:            dialer.Dial, // nolint:staticcheck
+			DialContext:     dialer.DialContext,
+			TLSClientConfig: tlsconfig,
+			// The transport may finish a dial in the background after
+			// the request is cancelled; bound its TLS handshake as well.
+			TLSHandshakeTimeout: wsDialTimeout,
+		}
+		// Each dial owns its transport; see linkWS.dial.
+		defer transport.CloseIdleConnections()
 		wsconn, _, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
 			HTTPClient: &http.Client{
-				Transport: &http.Transport{
-					Proxy:           http.ProxyFromEnvironment,
-					Dial:            dialer.Dial, // nolint:staticcheck
-					DialContext:     dialer.DialContext,
-					TLSClientConfig: tlsconfig,
-					// The transport may finish a dial in the background
-					// after the request is cancelled; bound its TLS
-					// handshake as well.
-					TLSHandshakeTimeout: wsDialTimeout,
-				},
+				Transport: transport,
 				// Bounds the upgrade; see wsDialTimeout in link_ws.go.
 				Timeout: wsDialTimeout,
 			},

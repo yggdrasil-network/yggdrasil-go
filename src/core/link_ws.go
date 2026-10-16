@@ -117,13 +117,19 @@ func (l *linkWS) dial(ctx context.Context, url *url.URL, info linkInfo, options 
 		if err != nil {
 			return nil, err
 		}
+		transport := &http.Transport{
+			Proxy:       http.ProxyFromEnvironment,
+			Dial:        dialer.Dial, // nolint:staticcheck
+			DialContext: dialer.DialContext,
+		}
+		// Each dial owns its transport. Closing its idle connections when
+		// the dial returns also stops a dial that net/http may still be
+		// finishing in the background after the request was cancelled; the
+		// upgraded connection is not in the pool and is not affected.
+		defer transport.CloseIdleConnections()
 		wsconn, _, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
 			HTTPClient: &http.Client{
-				Transport: &http.Transport{
-					Proxy:       http.ProxyFromEnvironment,
-					Dial:        dialer.Dial, // nolint:staticcheck
-					DialContext: dialer.DialContext,
-				},
+				Transport: transport,
 				// Bounds the upgrade only: the websocket library turns it
 				// into a deadline for the handshake, not the connection.
 				Timeout: wsDialTimeout,

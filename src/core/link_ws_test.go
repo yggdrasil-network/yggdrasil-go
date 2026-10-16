@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -325,6 +326,76 @@ func TestWSDialTimeoutSparesUpgradedConn(t *testing.T) {
 			}
 			if string(reply) != "alive" {
 				t.Fatalf("echo mismatch: %q", reply)
+			}
+		})
+	}
+}
+
+// TestDialCancelClosesSocket cancels dials stuck in the handshake and
+// requires them to return at once and close their socket, rather than
+// leaving it open until the handshake timeout.
+func TestDialCancelClosesSocket(t *testing.T) {
+	for _, scheme := range []string{"ws", "wss", "socks"} {
+		t.Run(scheme, func(t *testing.T) {
+			accepted := make(chan time.Time, 4)
+			closed := make(chan time.Time, 4)
+			ln := frozenHandshakeServer(t, accepted, closed)
+			defer ln.Close()
+
+			node := newDialTestNode(t)
+			raw := scheme + "://" + ln.Addr().String()
+			if scheme == "socks" {
+				raw += "/127.0.0.1:1"
+			}
+			u, err := url.Parse(raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := make(chan error, 1)
+			go func() {
+				var c net.Conn
+				var err error
+				switch scheme {
+				case "ws":
+					c, err = node.links.ws.dial(ctx, u, linkInfo{}, linkOptions{})
+				case "wss":
+					c, err = node.links.wss.dial(ctx, u, linkInfo{}, linkOptions{})
+				default:
+					c, err = node.links.socks.dial(ctx, u, linkInfo{}, linkOptions{})
+				}
+				if c != nil {
+					_ = c.Close()
+				}
+				done <- err
+			}()
+			select {
+			case <-accepted:
+			case <-time.After(2 * time.Second):
+				t.Fatal("no dial attempt arrived")
+			}
+			cancel()
+			select {
+			case err := <-done:
+				if err == nil {
+					t.Fatal("cancelled dial succeeded")
+				}
+				if !errors.Is(err, context.Canceled) {
+					// The SOCKS dialer interrupts the negotiation by setting
+					// an expired deadline, so it may report a timeout.
+					var ne net.Error
+					if scheme != "socks" || !errors.As(err, &ne) || !ne.Timeout() {
+						t.Fatalf("unexpected error from the cancelled dial: %v", err)
+					}
+				}
+			case <-time.After(time.Second):
+				t.Fatal("dial did not return after cancellation")
+			}
+			select {
+			case <-closed:
+			case <-time.After(time.Second):
+				t.Fatal("the cancelled dial left its socket open")
 			}
 		})
 	}
