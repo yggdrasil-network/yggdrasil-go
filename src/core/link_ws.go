@@ -124,6 +124,9 @@ func (l *linkWS) dial(ctx context.Context, url *url.URL, info linkInfo, options 
 					Dial:        dialer.Dial, // nolint:staticcheck
 					DialContext: dialer.DialContext,
 				},
+				// Bounds the upgrade only: the websocket library turns it
+				// into a deadline for the handshake, not the connection.
+				Timeout: wsDialTimeout,
 			},
 			Subprotocols: []string{"ygg-ws"},
 			Host:         hostname,
@@ -165,3 +168,10 @@ func (l *linkWS) listen(ctx context.Context, url *url.URL, _ string) (net.Listen
 	go lwl.httpServer.Serve(nl) // nolint:errcheck
 	return lwl, nil
 }
+
+// wsDialTimeout bounds the handshake stages of ws://, wss:// and socks://
+// dials (TLS, HTTP upgrade, SOCKS negotiation). Without it, a peer that
+// accepts the TCP connection but never completes the handshake holds the
+// dial open until the peer is removed. It is a variable so that tests can
+// shorten it.
+var wsDialTimeout = 15 * time.Second

@@ -19,6 +19,9 @@ import (
 // If verbose is set to true, three log levels are enabled: "info", "warn", "error".
 func GetLoggerWithPrefix(prefix string, verbose bool) *log.Logger {
 	l := log.New(os.Stderr, prefix, log.Flags())
+	// Output sets the call depth lazily on first use, which races when
+	// several goroutines log for the first time at once; set it up front.
+	l.SetCallDepth(2)
 	if !verbose {
 		return l
 	}
