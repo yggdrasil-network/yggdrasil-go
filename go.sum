@@ -1,3 +1,5 @@
+filippo.io/edwards25519 v1.2.0 h1:crnVqOiS4jqYleHd9vaKZ+HKtHfllngJIiOpNpoJsjo=
+filippo.io/edwards25519 v1.2.0/go.mod h1:xzAOLCNug/yB62zG1bQ8uziwrIqIuxhctzJT18Q77mc=
 github.com/Arceliar/ironwood v0.0.0-20260613025018-d50055b11f5e h1:H9Ct/G4PsPploZ98CodbXyxWOYzOJzVzGbtkjz+y2v4=
 github.com/Arceliar/ironwood v0.0.0-20260613025018-d50055b11f5e/go.mod h1:pYXqLnyf/huOtAxKzx81T8NCsGlysCvlWHynYAiVzKE=
 github.com/Arceliar/phony v0.0.0-20220903101357-530938a4b13d h1:UK9fsWbWqwIQkMCz1CP+v5pGbsGoWAw6g4AyvMpm1EM=

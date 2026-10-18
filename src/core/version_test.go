@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"encoding/binary"
+	"encoding/hex"
+	"fmt"
 	"reflect"
 	"testing"
 
+	"filippo.io/edwards25519"
 	"golang.org/x/crypto/blake2b"
 )
 
@@ -37,9 +40,81 @@ func TestVersionPasswordAuth(t *testing.T) {
 		}
 
 		var decoded version_metadata
-		if allowed := decoded.decode(bytes.NewBuffer(encoded), tt.password2) == nil; allowed != tt.allowed {
+		err = decoded.decode(bytes.NewBuffer(encoded), tt.password2)
+		if allowed := err == nil; allowed != tt.allowed {
 			t.Fatalf("Permutation %q -> %q should have been %v but was %v", tt.password1, tt.password2, tt.allowed, allowed)
 		}
+		if !tt.allowed && err != ErrHandshakeIncorrectPassword {
+			t.Fatalf("expected %q, got %v", ErrHandshakeIncorrectPassword, err)
+		}
+	}
+}
+
+func TestVersionDecodeRejectsInvalidPublicKeys(t *testing.T) {
+	decodeHex := func(s string) []byte {
+		t.Helper()
+		bs, err := hex.DecodeString(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return bs
+	}
+	tests := []struct {
+		name string
+		key  []byte
+	}{
+		{"off curve", decodeHex("0200000000000000000000000000000000000000000000000000000000000000")},
+		{"noncanonical identity sign", decodeHex("0100000000000000000000000000000000000000000000000000000000000080")},
+		{"noncanonical identity y", decodeHex("eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f")},
+		{"noncanonical identity y and sign", decodeHex("eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")},
+		{"noncanonical non-small-order point", decodeHex("f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f")},
+	}
+	// Generate the eight points in the small-order subgroup. This public
+	// test point is also used by edwards25519's TestMultByCofactor.
+	generator, err := new(edwards25519.Point).SetBytes(decodeHex("26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc85"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	point := edwards25519.NewIdentityPoint()
+	for n := 0; n < 8; n++ {
+		tests = append(tests, struct {
+			name string
+			key  []byte
+		}{fmt.Sprintf("small-order point %d", n), point.Bytes()})
+		point.Add(point, generator)
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, password := range [][]byte{nil, []byte("pw")} {
+				// The helper signs with an unrelated ordinary key. No forged
+				// signature is needed: invalid keys must fail before verification.
+				msg := malformedVersionHandshake(t, metaPublicKey, tt.key, password)
+				var decoded version_metadata
+				if err := decoded.decode(bytes.NewReader(msg), password); err != ErrHandshakeInvalidPublicKey {
+					t.Fatalf("password %q: expected %q, got %v", password, ErrHandshakeInvalidPublicKey, err)
+				}
+			}
+		})
+	}
+}
+
+func TestVersionDecodeValidatesLastPublicKey(t *testing.T) {
+	pk, _, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Duplicate TLVs retain the last value. A preceding valid key must not
+	// cause validation to overlook the key actually used for authentication.
+	msg := malformedVersionHandshake(t, metaPublicKey, edwards25519.NewIdentityPoint().Bytes(), nil)
+	body := binary.BigEndian.AppendUint16(nil, metaPublicKey)
+	body = binary.BigEndian.AppendUint16(body, uint16(len(pk)))
+	body = append(body, pk...)
+	body = append(body, msg[6:]...)
+	msg = append(msg[:6], body...)
+	binary.BigEndian.PutUint16(msg[4:6], uint16(len(body)))
+	var decoded version_metadata
+	if err := decoded.decode(bytes.NewReader(msg), nil); err != ErrHandshakeInvalidPublicKey {
+		t.Fatalf("expected %q, got %v", ErrHandshakeInvalidPublicKey, err)
 	}
 }
 

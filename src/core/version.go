@@ -10,6 +10,7 @@ import (
 	"encoding/binary"
 	"io"
 
+	"filippo.io/edwards25519"
 	"golang.org/x/crypto/blake2b"
 )
 
@@ -43,6 +44,7 @@ func (e handshakeError) Error() string { return string(e) }
 
 const ErrHandshakeInvalidPreamble = handshakeError("invalid handshake, remote side is not Yggdrasil")
 const ErrHandshakeInvalidLength = handshakeError("invalid handshake length, possible version mismatch")
+const ErrHandshakeInvalidPublicKey = handshakeError("invalid public key supplied in handshake")
 const ErrHandshakeInvalidPassword = handshakeError("invalid password supplied, check your config")
 const ErrHandshakeHashFailure = handshakeError("invalid hash length")
 const ErrHandshakeIncorrectPassword = handshakeError("password does not match remote side")
@@ -152,6 +154,15 @@ func (m *version_metadata) decode(r io.Reader, password []byte) error {
 	}
 	if len(bs) != 0 {
 		return ErrHandshakeInvalidLength
+	}
+
+	// The signature proves knowledge of the password only if the peer's key
+	// has a nonzero prime-order component. Reject small-order points and
+	// noncanonical encodings before using the key for authentication.
+	key, err := new(edwards25519.Point).SetBytes(m.publicKey)
+	if err != nil || !bytes.Equal(key.Bytes(), m.publicKey) ||
+		new(edwards25519.Point).MultByCofactor(key).Equal(edwards25519.NewIdentityPoint()) == 1 {
+		return ErrHandshakeInvalidPublicKey
 	}
 
 	hasher, err := blake2b.New512(password)
