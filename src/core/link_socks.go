@@ -40,7 +40,7 @@ func (l *linkSOCKS) dial(ctx context.Context, url *url.URL, info linkInfo, optio
 		if err != nil {
 			return nil, err
 		}
-		proxy, err := proxy.SOCKS5("tcp", hostport, proxyAuth, dialer)
+		socksDialer, err := proxy.SOCKS5("tcp", hostport, proxyAuth, dialer)
 		if err != nil {
 			return nil, err
 		}
@@ -48,14 +48,12 @@ func (l *linkSOCKS) dial(ctx context.Context, url *url.URL, info linkInfo, optio
 		// Bound the SOCKS negotiation, which otherwise has no deadline
 		// once the connection to the proxy is up.
 		var conn net.Conn
-		if cd, ok := proxy.(interface {
-			DialContext(context.Context, string, string) (net.Conn, error)
-		}); ok {
+		if cd, ok := socksDialer.(proxy.ContextDialer); ok {
 			dctx, cancel := context.WithTimeout(ctx, wsDialTimeout)
 			conn, err = cd.DialContext(dctx, "tcp", pathtokens[0])
 			cancel()
 		} else {
-			conn, err = proxy.Dial("tcp", pathtokens[0])
+			conn, err = socksDialer.Dial("tcp", pathtokens[0])
 		}
 		if err != nil {
 			return nil, err
