@@ -53,7 +53,13 @@ func (l *linkWSS) dial(ctx context.Context, url *url.URL, info linkInfo, options
 					Dial:            dialer.Dial, // nolint:staticcheck
 					DialContext:     dialer.DialContext,
 					TLSClientConfig: tlsconfig,
+					// The transport may finish a dial in the background
+					// after the request is cancelled; bound its TLS
+					// handshake as well.
+					TLSHandshakeTimeout: wsDialTimeout,
 				},
+				// Bounds the upgrade; see wsDialTimeout in link_ws.go.
+				Timeout: wsDialTimeout,
 			},
 			Subprotocols: []string{"ygg-ws"},
 			Host:         hostname,
