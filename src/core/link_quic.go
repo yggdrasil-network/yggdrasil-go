@@ -12,6 +12,10 @@ import (
 	"github.com/quic-go/quic-go"
 )
 
+// quicStreamAcceptTimeout is how long an accepted QUIC connection is given
+// to open the link stream before it is closed.
+const quicStreamAcceptTimeout = 10 * time.Second
+
 type linkQUIC struct {
 	phony.Inbox
 	*links
@@ -83,6 +87,8 @@ func (l *linkQUIC) listen(ctx context.Context, url *url.URL, _ string) (net.List
 		ch:       ch,
 	}
 	go func() {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
 		for {
 			qc, err := ql.Accept(ctx)
 			switch err {
@@ -92,15 +98,27 @@ func (l *linkQUIC) listen(ctx context.Context, url *url.URL, _ string) (net.List
 			case quic.ErrServerClosed:
 				return
 			case nil:
-				qs, err := qc.AcceptStream(ctx)
-				if err != nil {
-					_ = qc.CloseWithError(1, fmt.Sprintf("stream error: %s", err))
-					continue
-				}
-				ch <- &linkQUICStream{
-					Conn:   qc,
-					Stream: qs,
-				}
+				// Wait for the peer to open the link stream in the
+				// background, so that a peer which completes the QUIC
+				// handshake but never opens a stream cannot block the
+				// listener from accepting other connections.
+				go func(qc *quic.Conn) {
+					sctx, scancel := context.WithTimeout(ctx, quicStreamAcceptTimeout)
+					defer scancel()
+					qs, err := qc.AcceptStream(sctx)
+					if err != nil {
+						_ = qc.CloseWithError(1, fmt.Sprintf("stream error: %s", err))
+						return
+					}
+					select {
+					case ch <- &linkQUICStream{
+						Conn:   qc,
+						Stream: qs,
+					}:
+					case <-ctx.Done():
+						_ = qc.CloseWithError(1, "listener closed")
+					}
+				}(qc)
 			}
 		}
 	}()
