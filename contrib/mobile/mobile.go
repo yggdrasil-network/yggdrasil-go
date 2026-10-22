@@ -54,35 +54,8 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 	}
 	// Set up the Yggdrasil node itself.
 	{
-		iprange := net.IPNet{
-			IP:   net.ParseIP("200::"),
-			Mask: net.CIDRMask(7, 128),
-		}
-		options := []core.SetupOption{
-			core.PeerFilter(func(ip net.IP) bool {
-				return !iprange.Contains(ip)
-			}),
-		}
-		for _, peer := range m.config.Peers {
-			options = append(options, core.Peer{URI: peer})
-		}
-		for intf, peers := range m.config.InterfacePeers {
-			for _, peer := range peers {
-				options = append(options, core.Peer{URI: peer, SourceInterface: intf})
-			}
-		}
-		for _, allowed := range m.config.AllowedPublicKeys {
-			k, err := hex.DecodeString(allowed)
-			if err != nil {
-				panic(err)
-			}
-			options = append(options, core.AllowedPublicKey(k[:]))
-		}
-		for _, lAddr := range m.config.Listen {
-			options = append(options, core.ListenAddress(lAddr))
-		}
 		var err error
-		m.core, err = core.New(m.config.Certificate, logger, options...)
+		m.core, err = core.New(m.config.Certificate, logger, coreOptions(m.config)...)
 		if err != nil {
 			panic(err)
 		}
@@ -121,6 +94,49 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 	}
 	m.iprwc.SetMTU(mtu)
 	return nil
+}
+
+// coreOptions builds the set of core setup options for the given node
+// configuration. This is the mobile equivalent of the option block in
+// cmd/yggdrasil/main.go and must stay in sync with it: every option that the
+// desktop daemon passes to core.New must also be passed here, otherwise the
+// mobile node silently runs with different configuration than the daemon.
+// Keep this a pure function of the config so that it can be unit tested
+// without a mobile toolchain.
+func coreOptions(cfg *config.NodeConfig) []core.SetupOption {
+	iprange := net.IPNet{
+		IP:   net.ParseIP("200::"),
+		Mask: net.CIDRMask(7, 128),
+	}
+	options := []core.SetupOption{
+		core.NodeInfo(cfg.NodeInfo),
+		core.NodeInfoPrivacy(cfg.NodeInfoPrivacy),
+		core.PeerFilter(func(ip net.IP) bool {
+			return !iprange.Contains(ip)
+		}),
+	}
+	for _, lAddr := range cfg.Listen {
+		options = append(options, core.ListenAddress(lAddr))
+	}
+	for _, peer := range cfg.Peers {
+		options = append(options, core.Peer{URI: peer})
+	}
+	if cfg.GroupPassword != "" {
+		options = append(options, core.GroupPassword(cfg.GroupPassword))
+	}
+	for intf, peers := range cfg.InterfacePeers {
+		for _, peer := range peers {
+			options = append(options, core.Peer{URI: peer, SourceInterface: intf})
+		}
+	}
+	for _, allowed := range cfg.AllowedPublicKeys {
+		k, err := hex.DecodeString(allowed)
+		if err != nil {
+			panic(err)
+		}
+		options = append(options, core.AllowedPublicKey(k[:]))
+	}
+	return options
 }
 
 // Send sends a packet to Yggdrasil. It should be a fully formed
