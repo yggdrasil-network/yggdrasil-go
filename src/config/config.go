@@ -138,6 +138,18 @@ func (cfg *NodeConfig) postprocessConfig() error {
 			return err
 		}
 	}
+	switch len(cfg.PrivateKey) {
+	case 0:
+		// No private key was provided. Generate a new one below, which
+		// also results in a new self-signed certificate.
+		cfg.NewPrivateKey()
+	case ed25519.PrivateKeySize:
+		// The private key has the expected length.
+	default:
+		// Catch truncated or overlong keys here: ed25519 key handling
+		// further down panics on keys shorter than the seed size.
+		return fmt.Errorf("private key is incorrect length: got %d bytes, want %d", len(cfg.PrivateKey), ed25519.PrivateKeySize)
+	}
 	switch {
 	case cfg.Certificate == nil:
 		// No self-signed certificate has been generated yet.
