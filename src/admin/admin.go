@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -16,6 +17,45 @@ import (
 )
 
 // TODO: Add authentication
+
+// maxRequestSize is the maximum number of bytes read from a connection while
+// decoding a single request. Admin requests consist of a request name and a
+// small argument object, so this leaves a wide margin while keeping the amount
+// of memory a client can make the daemon allocate per connection bounded.
+const maxRequestSize = 1 << 20 // 1 MiB
+
+// requestReadTimeout is how long the admin socket waits for a request to
+// arrive, or for the next request on a keepalive connection, before closing
+// the connection. It is a variable rather than a constant so that it can be
+// shortened in tests.
+var requestReadTimeout = 30 * time.Second
+
+// errRequestTooLarge is returned by limitedReader once a request has grown
+// past maxRequestSize.
+var errRequestTooLarge = errors.New("admin request too large")
+
+// limitedReader reads at most maxRequestSize bytes per request. Unlike
+// io.LimitReader it reports errRequestTooLarge instead of io.EOF when the limit
+// is reached, so that an oversized request can be told apart from a truncated
+// one. The budget is reset for every request on a keepalive connection.
+type limitedReader struct {
+	r io.Reader
+	n int64
+}
+
+func (l *limitedReader) reset() { l.n = maxRequestSize }
+
+func (l *limitedReader) Read(p []byte) (int, error) {
+	if l.n <= 0 {
+		return 0, errRequestTooLarge
+	}
+	if int64(len(p)) > l.n {
+		p = p[:l.n]
+	}
+	n, err := l.r.Read(p)
+	l.n -= int64(n)
+	return n, err
+}
 
 type AdminSocket struct {
 	core     *core.Core
@@ -305,7 +345,8 @@ func (a *AdminSocket) listen() {
 
 // handleRequest calls the request handler for each request sent to the admin API.
 func (a *AdminSocket) handleRequest(conn net.Conn) {
-	decoder := json.NewDecoder(conn)
+	limited := &limitedReader{r: conn}
+	decoder := json.NewDecoder(limited)
 	decoder.DisallowUnknownFields()
 
 	encoder := json.NewEncoder(conn)
@@ -318,10 +359,27 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 		var buf json.RawMessage
 		var req AdminSocketRequest
 		var resp AdminSocketResponse
+		var closeConn bool
 		req.Arguments = []byte("{}")
+		limited.reset()
+		// Give the client a bounded amount of time to deliver the request, so
+		// that an idle connection cannot hold a file descriptor and a goroutine
+		// forever. The deadline is re-armed for every request on a keepalive
+		// connection and only affects reads, not the response write.
+		if err := conn.SetReadDeadline(time.Now().Add(requestReadTimeout)); err != nil {
+			a.log.Debugln("Failed to set read deadline:", err)
+		}
 		if err := func() error {
 			if err = decoder.Decode(&buf); err != nil {
-				return fmt.Errorf("failed to find request")
+				closeConn = true
+				switch {
+				case errors.Is(err, errRequestTooLarge):
+					return fmt.Errorf("request too large, limit is %d bytes", maxRequestSize)
+				case errors.Is(err, os.ErrDeadlineExceeded):
+					return fmt.Errorf("timed out waiting for request")
+				default:
+					return fmt.Errorf("failed to find request")
+				}
 			}
 			if err = json.Unmarshal(buf, &req); err != nil {
 				return fmt.Errorf("failed to unmarshal request")
@@ -351,7 +409,7 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 		if err = encoder.Encode(resp); err != nil {
 			a.log.Debugln("Encode error:", err)
 		}
-		if !req.KeepAlive {
+		if closeConn || !req.KeepAlive {
 			break
 		} else {
 			continue
