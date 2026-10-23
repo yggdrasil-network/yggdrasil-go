@@ -143,8 +143,8 @@ func (m *nodeinfo) nodeInfoAdminHandler(in json.RawMessage) (interface{}, error)
 	if err := json.Unmarshal(in, &req); err != nil {
 		return nil, err
 	}
-	if req.Key == "" {
-		return nil, fmt.Errorf("no remote public key supplied")
+	if self := hex.EncodeToString(m.proto.core.PublicKey()); req.Key == self || req.Key == "" {
+		return GetNodeInfoResponse{self: m.myNodeInfo}, nil
 	}
 	var key keyArray
 	var kbs []byte
