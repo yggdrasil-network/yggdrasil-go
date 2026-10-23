@@ -59,12 +59,17 @@ func (m *Yggdrasil) StartJSON(configjson []byte) error {
 			Mask: net.CIDRMask(7, 128),
 		}
 		options := []core.SetupOption{
+			core.NodeInfo(m.config.NodeInfo),
+			core.NodeInfoPrivacy(m.config.NodeInfoPrivacy),
 			core.PeerFilter(func(ip net.IP) bool {
 				return !iprange.Contains(ip)
 			}),
 		}
 		for _, peer := range m.config.Peers {
 			options = append(options, core.Peer{URI: peer})
+		}
+		if m.config.GroupPassword != "" {
+			options = append(options, core.GroupPassword(m.config.GroupPassword))
 		}
 		for intf, peers := range m.config.InterfacePeers {
 			for _, peer := range peers {
