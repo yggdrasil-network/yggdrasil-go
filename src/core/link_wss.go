@@ -50,16 +50,19 @@ func (l *linkWSS) dial(ctx context.Context, url *url.URL, info linkInfo, options
 		if err != nil {
 			return nil, err
 		}
+		transport := &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			Dial:                  dialer.Dial, // nolint:staticcheck
+			DialContext:           dialer.DialContext,
+			DisableKeepAlives:     true,
+			ResponseHeaderTimeout: 5 * time.Second,
+			TLSClientConfig:       tlsconfig,
+			TLSHandshakeTimeout:   5 * time.Second,
+		}
+		defer transport.CloseIdleConnections()
 		wsconn, _, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
 			HTTPClient: &http.Client{
-				Transport: &http.Transport{
-					Proxy:                 http.ProxyFromEnvironment,
-					Dial:                  dialer.Dial, // nolint:staticcheck
-					DialContext:           dialer.DialContext,
-					ResponseHeaderTimeout: 5 * time.Second,
-					TLSClientConfig:       tlsconfig,
-					TLSHandshakeTimeout:   5 * time.Second,
-				},
+				Transport: transport,
 			},
 			Subprotocols: []string{"ygg-ws"},
 			Host:         hostname,
