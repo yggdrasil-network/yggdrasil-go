@@ -138,7 +138,13 @@ func (cfg *NodeConfig) postprocessConfig() error {
 			return err
 		}
 	}
+	pkl := len(cfg.PrivateKey)
 	switch {
+	case pkl > 0 && pkl != ed25519.PrivateKeySize:
+		return fmt.Errorf("invalid private key length")
+	case pkl == 0:
+		cfg.NewPrivateKey()
+		fallthrough
 	case cfg.Certificate == nil:
 		// No self-signed certificate has been generated yet.
 		fallthrough
