@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net"
 	"net/url"
 
@@ -44,7 +43,7 @@ func (l *linkTLS) dial(ctx context.Context, url *url.URL, info linkInfo, options
 			IP:   ip,
 			Port: port,
 		}
-		dialer, err := l.tcp.dialerFor(addr, info.sintf)
+		dialer, err := l.tcp.dialerFor(addr, info.sintf, options.multipath)
 		if err != nil {
 			return nil, err
 		}
@@ -56,17 +55,10 @@ func (l *linkTLS) dial(ctx context.Context, url *url.URL, info linkInfo, options
 	})
 }
 
-func (l *linkTLS) listen(ctx context.Context, url *url.URL, sintf string) (net.Listener, error) {
-	hostport := url.Host
-	if sintf != "" {
-		if host, port, err := net.SplitHostPort(hostport); err == nil {
-			hostport = fmt.Sprintf("[%s%%%s]:%s", host, sintf, port)
-		}
-	}
-	listener, err := l.listener.Listen(ctx, "tcp", hostport)
+func (l *linkTLS) listen(ctx context.Context, url *url.URL, sintf string, options linkOptions) (net.Listener, error) {
+	listener, err := l.tcp.listen(ctx, url, sintf, options)
 	if err != nil {
 		return nil, err
 	}
-	tlslistener := tls.NewListener(listener, l.config)
-	return tlslistener, nil
+	return tls.NewListener(listener, l.config), nil
 }

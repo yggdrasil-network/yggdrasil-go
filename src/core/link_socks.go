@@ -36,7 +36,7 @@ func (l *linkSOCKS) dial(ctx context.Context, url *url.URL, info linkInfo, optio
 		dialer, err := l.tcp.dialerFor(&net.TCPAddr{
 			IP:   ip,
 			Port: port,
-		}, info.sintf)
+		}, info.sintf, options.multipath)
 		if err != nil {
 			return nil, err
 		}
@@ -67,6 +67,6 @@ func (l *linkSOCKS) dial(ctx context.Context, url *url.URL, info linkInfo, optio
 	})
 }
 
-func (l *linkSOCKS) listen(ctx context.Context, url *url.URL, _ string) (net.Listener, error) {
+func (l *linkSOCKS) listen(ctx context.Context, url *url.URL, _ string, _ linkOptions) (net.Listener, error) {
 	return nil, fmt.Errorf("SOCKS listener not supported")
 }

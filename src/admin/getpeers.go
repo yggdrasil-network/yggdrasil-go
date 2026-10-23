@@ -27,6 +27,7 @@ type PeerEntry struct {
 	Port          uint64        `json:"port"`
 	Priority      uint64        `json:"priority"`
 	Cost          uint64        `json:"cost"`
+	Multipath     bool          `json:"multipath,omitempty"`
 	RXBytes       DataUnit      `json:"bytes_recvd,omitempty"`
 	TXBytes       DataUnit      `json:"bytes_sent,omitempty"`
 	RXRate        DataUnit      `json:"rate_recvd,omitempty"`
@@ -42,17 +43,18 @@ func (a *AdminSocket) getPeersHandler(req *GetPeersRequest, res *GetPeersRespons
 	res.Peers = make([]PeerEntry, 0, len(peers))
 	for _, p := range peers {
 		peer := PeerEntry{
-			Port:     p.Port,
-			Up:       p.Up,
-			Inbound:  p.Inbound,
-			Priority: uint64(p.Priority), // can't be uint8 thanks to gobind
-			Cost:     p.Cost,
-			URI:      p.URI,
-			RXBytes:  DataUnit(p.RXBytes),
-			TXBytes:  DataUnit(p.TXBytes),
-			RXRate:   DataUnit(p.RXRate),
-			TXRate:   DataUnit(p.TXRate),
-			Uptime:   p.Uptime.Seconds(),
+			Port:      p.Port,
+			Up:        p.Up,
+			Inbound:   p.Inbound,
+			Priority:  uint64(p.Priority), // can't be uint8 thanks to gobind
+			Cost:      p.Cost,
+			URI:       p.URI,
+			RXBytes:   DataUnit(p.RXBytes),
+			TXBytes:   DataUnit(p.TXBytes),
+			RXRate:    DataUnit(p.RXRate),
+			TXRate:    DataUnit(p.TXRate),
+			Uptime:    p.Uptime.Seconds(),
+			Multipath: p.Multipath,
 		}
 		if p.Latency > 0 {
 			peer.Latency = p.Latency
