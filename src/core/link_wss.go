@@ -37,6 +37,9 @@ func (l *linkWSS) dial(ctx context.Context, url *url.URL, info linkInfo, options
 		tlsconfig.ServerName = hostname
 		tlsconfig.MinVersion = tls.VersionTLS12
 		tlsconfig.MaxVersion = tls.VersionTLS13
+		if sni := options.tlsSNI; sni != "" {
+			tlsconfig.ServerName = sni
+		}
 		u := *url
 		u.Host = net.JoinHostPort(ip.String(), fmt.Sprintf("%d", port))
 		addr := &net.TCPAddr{
