@@ -120,9 +120,10 @@ func (l *linkWS) dial(ctx context.Context, url *url.URL, info linkInfo, options 
 		wsconn, _, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
 			HTTPClient: &http.Client{
 				Transport: &http.Transport{
-					Proxy:       http.ProxyFromEnvironment,
-					Dial:        dialer.Dial, // nolint:staticcheck
-					DialContext: dialer.DialContext,
+					Proxy:                 http.ProxyFromEnvironment,
+					Dial:                  dialer.Dial, // nolint:staticcheck
+					DialContext:           dialer.DialContext,
+					ResponseHeaderTimeout: 5 * time.Second,
 				},
 			},
 			Subprotocols: []string{"ygg-ws"},

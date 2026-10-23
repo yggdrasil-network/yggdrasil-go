@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/Arceliar/phony"
 	"github.com/coder/websocket"
@@ -49,10 +50,12 @@ func (l *linkWSS) dial(ctx context.Context, url *url.URL, info linkInfo, options
 		wsconn, _, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
 			HTTPClient: &http.Client{
 				Transport: &http.Transport{
-					Proxy:           http.ProxyFromEnvironment,
-					Dial:            dialer.Dial, // nolint:staticcheck
-					DialContext:     dialer.DialContext,
-					TLSClientConfig: tlsconfig,
+					Proxy:                 http.ProxyFromEnvironment,
+					Dial:                  dialer.Dial, // nolint:staticcheck
+					DialContext:           dialer.DialContext,
+					ResponseHeaderTimeout: 5 * time.Second,
+					TLSClientConfig:       tlsconfig,
+					TLSHandshakeTimeout:   5 * time.Second,
 				},
 			},
 			Subprotocols: []string{"ygg-ws"},
