@@ -317,10 +317,12 @@ func main() {
 		panic(fmt.Sprintf("pledge: %v: %v", promises, err))
 	}
 
-	if notifyFd != nil && *notifyFd > 0 {
-		f := os.NewFile(uintptr(*notifyFd), "notifyfd")
-		_, _ = f.Write([]byte{0x0a})
-		f.Close()
+	if notifyFd != nil {
+		if nfd := *notifyFd; nfd > 0 && nfd != int(os.Stdout.Fd()) && nfd != int(os.Stderr.Fd()) {
+			f := os.NewFile(uintptr(*notifyFd), "notifyfd")
+			_, _ = f.Write([]byte{0x0a})
+			f.Close()
+		}
 	}
 
 	// Block until we are told to shut down.
