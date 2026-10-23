@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -305,7 +306,7 @@ func (a *AdminSocket) listen() {
 
 // handleRequest calls the request handler for each request sent to the admin API.
 func (a *AdminSocket) handleRequest(conn net.Conn) {
-	decoder := json.NewDecoder(conn)
+	decoder := json.NewDecoder(io.LimitReader(conn, 1024*1024)) // 1MB
 	decoder.DisallowUnknownFields()
 
 	encoder := json.NewEncoder(conn)
@@ -320,8 +321,14 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 		var resp AdminSocketResponse
 		req.Arguments = []byte("{}")
 		if err := func() error {
+			if err = conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+				return fmt.Errorf("failed to set read deadline: %w", err)
+			}
 			if err = decoder.Decode(&buf); err != nil {
-				return fmt.Errorf("failed to find request")
+				return fmt.Errorf("failed to decode request: %w", err)
+			}
+			if err = conn.SetReadDeadline(time.Time{}); err != nil {
+				return fmt.Errorf("failed to reset read deadline: %w", err)
 			}
 			if err = json.Unmarshal(buf, &req); err != nil {
 				return fmt.Errorf("failed to unmarshal request")
