@@ -383,6 +383,7 @@ func (m *Multicast) listen() {
 	}
 	bs := make([]byte, 2048)
 	hb := make([]byte, 0, blake2b.Size) // Reused to reduce hash allocations
+	var backoff time.Duration
 	for {
 		if !m.running.Load() {
 			return
@@ -392,9 +393,21 @@ func (m *Multicast) listen() {
 			if !m.IsStarted() {
 				return
 			}
-			m.log.Warnln("Multicast listener read error:", err)
+			// TODO: I'm not fully sure whether we could do something
+			// better than backing off here, spinning a CPU core with a
+			// hot loop is obviously bad, but it's not clear that there
+			// isn't a better way to handle these errors yet. Could be
+			// read errors from a previous operation, or could be some
+			// other condition.
+			if backoff == 0 {
+				m.log.Warnln("Multicast listener read error:", err)
+				backoff = 10 * time.Millisecond
+			}
+			time.Sleep(backoff)
+			backoff = min(backoff*2, time.Second)
 			continue
 		}
+		backoff = 0
 		if rcm != nil {
 			// Windows can't set the flag needed to return a non-nil value here
 			// So only make these checks if we get something useful back
