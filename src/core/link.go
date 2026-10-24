@@ -444,7 +444,6 @@ func (l *links) remove(u *url.URL, sintf string, _ linkType) error {
 }
 
 func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) {
-	ctx, ctxcancel := context.WithCancel(l.core.ctx)
 	var protocol linkProtocol
 	switch strings.ToLower(u.Scheme) {
 	case "tcp":
@@ -460,9 +459,23 @@ func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) 
 	case "wss":
 		protocol = l.wss
 	default:
-		ctxcancel()
 		return nil, ErrLinkUnrecognisedSchema
 	}
+	var options linkOptions
+	if p := u.Query().Get("priority"); p != "" {
+		pi, err := strconv.ParseUint(p, 10, 8)
+		if err != nil {
+			return nil, ErrLinkPriorityInvalid
+		}
+		options.priority = uint8(pi)
+	}
+	if p := u.Query().Get("password"); p != "" {
+		if len(p) > blake2b.Size {
+			return nil, ErrLinkPasswordInvalid
+		}
+		options.password = []byte(p)
+	}
+	ctx, ctxcancel := context.WithCancel(l.core.ctx)
 	listener, err := protocol.listen(ctx, u, sintf)
 	if err != nil {
 		ctxcancel()
@@ -479,21 +492,6 @@ func (l *links) listen(u *url.URL, sintf string, local bool) (*Listener, error) 
 		listener: listener,
 		ctx:      ctx,
 		Cancel:   cancel,
-	}
-
-	var options linkOptions
-	if p := u.Query().Get("priority"); p != "" {
-		pi, err := strconv.ParseUint(p, 10, 8)
-		if err != nil {
-			return nil, ErrLinkPriorityInvalid
-		}
-		options.priority = uint8(pi)
-	}
-	if p := u.Query().Get("password"); p != "" {
-		if len(p) > blake2b.Size {
-			return nil, ErrLinkPasswordInvalid
-		}
-		options.password = []byte(p)
 	}
 
 	phony.Block(l, func() {
