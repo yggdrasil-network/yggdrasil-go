@@ -117,7 +117,7 @@ jobs:
       - name: Unit tests
         run: go test -v ./...
 
-  build-freebsd:
+  build-bsd:
     strategy:
       fail-fast: false
       matrix:
@@ -145,7 +145,7 @@ jobs:
 
   tests-ok:
     name: All tests passed
-    needs: [lint, codeql, build-linux, build-windows, build-macos]
+    needs: [lint, codeql, build-linux, build-windows, build-macos, build-bsd]
     runs-on: ubuntu-latest
     if: ${{ !cancelled() }}
     steps:
