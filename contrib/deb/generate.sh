@@ -74,7 +74,7 @@ usr/bin/yggdrasil usr/bin
 usr/bin/yggdrasilctl usr/bin
 lib/systemd/system/*.service lib/systemd/system
 EOF
-cat > /tmp/$PKGNAME/debian/postinst << EOF
+cat > /tmp/$PKGNAME/debian/postinst << 'EOF'
 #!/bin/sh
 
 systemctl daemon-reload
@@ -98,16 +98,16 @@ fi
 if [ -f /etc/yggdrasil/yggdrasil.conf ];
 then
   mkdir -p /var/backups
-  backup_path="/var/backups/yggdrasil.conf.`date +%Y%m%d`"
+  backup_path="/var/backups/yggdrasil.conf.$(date +%Y%m%d)"
 
   echo "Backing up configuration file to $backup_path"
-  cp /etc/yggdrasil/yggdrasil.conf $backup_path
+  cp /etc/yggdrasil/yggdrasil.conf "$backup_path"
 
-  chown root:yggdrasil $backup_path
-  chmod 640 $backup_path
+  chown root:yggdrasil "$backup_path"
+  chmod 640 "$backup_path"
 
   echo "Normalising and updating /etc/yggdrasil/yggdrasil.conf"
-  /usr/bin/yggdrasil -useconf -normaliseconf < $backup_path > /etc/yggdrasil/yggdrasil.conf
+  /usr/bin/yggdrasil -useconf -normaliseconf < "$backup_path" > /etc/yggdrasil/yggdrasil.conf
 
   chown root:yggdrasil /etc/yggdrasil/yggdrasil.conf
   chmod 640 /etc/yggdrasil/yggdrasil.conf
