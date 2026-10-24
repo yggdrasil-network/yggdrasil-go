@@ -6,7 +6,7 @@ After=network-online.target
 After=yggdrasil-default-config.service
 
 [Service]
-Group=yggdrasil
+User=yggdrasil
 ProtectHome=true
 ProtectSystem=strict
 NoNewPrivileges=true
