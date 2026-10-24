@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -341,6 +342,9 @@ func (a *AdminSocket) handleRequest(conn net.Conn) {
 			handler, ok := a.handlers[reqname]
 			if !ok {
 				return fmt.Errorf("unknown action '%s', try 'list' for help", reqname)
+			}
+			if bytes.Equal(bytes.TrimSpace(req.Arguments), []byte("null")) {
+				req.Arguments = json.RawMessage("{}")
 			}
 			res, err := handler.handler(req.Arguments)
 			if err != nil {
