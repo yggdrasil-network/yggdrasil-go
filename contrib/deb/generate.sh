@@ -98,11 +98,16 @@ fi
 if [ -f /etc/yggdrasil/yggdrasil.conf ];
 then
   mkdir -p /var/backups
-  echo "Backing up configuration file to /var/backups/yggdrasil.conf.`date +%Y%m%d`"
-  cp /etc/yggdrasil/yggdrasil.conf /var/backups/yggdrasil.conf.`date +%Y%m%d`
+  backup_path="/var/backups/yggdrasil.conf.`date +%Y%m%d`"
+
+  echo "Backing up configuration file to $backup_path"
+  cp /etc/yggdrasil/yggdrasil.conf $backup_path
+
+  chown root:yggdrasil $backup_path
+  chmod 640 $backup_path
 
   echo "Normalising and updating /etc/yggdrasil/yggdrasil.conf"
-  /usr/bin/yggdrasil -useconf -normaliseconf < /var/backups/yggdrasil.conf.`date +%Y%m%d` > /etc/yggdrasil/yggdrasil.conf
+  /usr/bin/yggdrasil -useconf -normaliseconf < $backup_path > /etc/yggdrasil/yggdrasil.conf
 
   chown root:yggdrasil /etc/yggdrasil/yggdrasil.conf
   chmod 640 /etc/yggdrasil/yggdrasil.conf
