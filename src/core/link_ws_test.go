@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -51,7 +50,6 @@ func TestWSAcceptOptionsOriginQuery(t *testing.T) {
 			insecureSkipVerify: true,
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -102,7 +100,6 @@ func TestWSServerOriginPolicy(t *testing.T) {
 			success: true,
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -111,8 +108,7 @@ func TestWSServerOriginPolicy(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
+			ctx := t.Context()
 
 			ch := make(chan *linkWSConn, 1)
 			server := httptest.NewServer(&wsServer{

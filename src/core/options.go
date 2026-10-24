@@ -50,7 +50,7 @@ type Peer struct {
 	URI             string
 	SourceInterface string
 }
-type NodeInfo map[string]interface{}
+type NodeInfo map[string]any
 type NodeInfoPrivacy bool
 type AllowedPublicKey ed25519.PublicKey
 type PeerFilter func(net.IP) bool

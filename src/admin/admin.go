@@ -9,7 +9,7 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"sort"
+	"slices"
 
 	"strings"
 	"time"
@@ -138,7 +138,7 @@ func New(c *core.Core, log core.Logger, opts ...SetupOption) (*AdminSocket, erro
 		strings.ToUpper(a.listener.Addr().Network()),
 		a.listener.Addr().String())
 
-	_ = a.AddHandler("list", "List available commands", []string{}, func(_ json.RawMessage) (interface{}, error) {
+	_ = a.AddHandler("list", "List available commands", []string{}, func(_ json.RawMessage) (any, error) {
 		res := &ListResponse{}
 		for name, handler := range a.handlers {
 			res.List = append(res.List, ListEntry{
@@ -147,8 +147,8 @@ func New(c *core.Core, log core.Logger, opts ...SetupOption) (*AdminSocket, erro
 				Fields:      handler.args,
 			})
 		}
-		sort.SliceStable(res.List, func(i, j int) bool {
-			return strings.Compare(res.List[i].Command, res.List[j].Command) < 0
+		slices.SortStableFunc(res.List, func(i, j ListEntry) int {
+			return strings.Compare(i.Command, j.Command)
 		})
 		return res, nil
 	})
@@ -160,7 +160,7 @@ func New(c *core.Core, log core.Logger, opts ...SetupOption) (*AdminSocket, erro
 func (a *AdminSocket) SetupAdminHandlers() {
 	_ = a.AddHandler(
 		"getSelf", "Show details about this node", []string{},
-		func(in json.RawMessage) (interface{}, error) {
+		func(in json.RawMessage) (any, error) {
 			req := &GetSelfRequest{}
 			res := &GetSelfResponse{}
 			if err := json.Unmarshal(in, &req); err != nil {
@@ -174,7 +174,7 @@ func (a *AdminSocket) SetupAdminHandlers() {
 	)
 	_ = a.AddHandler(
 		"getPeers", "Show directly connected peers", []string{"sort"},
-		func(in json.RawMessage) (interface{}, error) {
+		func(in json.RawMessage) (any, error) {
 			req := &GetPeersRequest{}
 			res := &GetPeersResponse{}
 			if err := json.Unmarshal(in, &req); err != nil {
@@ -188,7 +188,7 @@ func (a *AdminSocket) SetupAdminHandlers() {
 	)
 	_ = a.AddHandler(
 		"getTree", "Show known Tree entries", []string{},
-		func(in json.RawMessage) (interface{}, error) {
+		func(in json.RawMessage) (any, error) {
 			req := &GetTreeRequest{}
 			res := &GetTreeResponse{}
 			if err := json.Unmarshal(in, &req); err != nil {
@@ -202,7 +202,7 @@ func (a *AdminSocket) SetupAdminHandlers() {
 	)
 	_ = a.AddHandler(
 		"getPaths", "Show established paths through this node", []string{},
-		func(in json.RawMessage) (interface{}, error) {
+		func(in json.RawMessage) (any, error) {
 			req := &GetPathsRequest{}
 			res := &GetPathsResponse{}
 			if err := json.Unmarshal(in, &req); err != nil {
@@ -216,7 +216,7 @@ func (a *AdminSocket) SetupAdminHandlers() {
 	)
 	_ = a.AddHandler(
 		"getSessions", "Show established traffic sessions with remote nodes", []string{},
-		func(in json.RawMessage) (interface{}, error) {
+		func(in json.RawMessage) (any, error) {
 			req := &GetSessionsRequest{}
 			res := &GetSessionsResponse{}
 			if err := json.Unmarshal(in, &req); err != nil {
@@ -230,7 +230,7 @@ func (a *AdminSocket) SetupAdminHandlers() {
 	)
 	_ = a.AddHandler(
 		"addPeer", "Add a peer to the peer list", []string{"uri", "interface"},
-		func(in json.RawMessage) (interface{}, error) {
+		func(in json.RawMessage) (any, error) {
 			req := &AddPeerRequest{}
 			res := &AddPeerResponse{}
 			if err := json.Unmarshal(in, &req); err != nil {
@@ -244,7 +244,7 @@ func (a *AdminSocket) SetupAdminHandlers() {
 	)
 	_ = a.AddHandler(
 		"removePeer", "Remove a peer from the peer list", []string{"uri", "interface"},
-		func(in json.RawMessage) (interface{}, error) {
+		func(in json.RawMessage) (any, error) {
 			req := &RemovePeerRequest{}
 			res := &RemovePeerResponse{}
 			if err := json.Unmarshal(in, &req); err != nil {

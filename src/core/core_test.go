@@ -110,7 +110,7 @@ func CreateAndConnectTwo(t testing.TB, verbose bool) (nodeA *Core, nodeB *Core) 
 // WaitConnected blocks until either nodes negotiated DHT or 5 seconds passed.
 func WaitConnected(nodeA, nodeB *Core) bool {
 	// It may take up to 3 seconds, but let's wait 5.
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		time.Sleep(100 * time.Millisecond)
 		/*
 			if len(nodeA.GetPeers()) > 0 && len(nodeB.GetPeers()) > 0 {
@@ -133,7 +133,7 @@ func CreateEchoListener(t testing.TB, nodeA *Core, bufLen int, repeats int) chan
 	go func() {
 		buf := make([]byte, bufLen)
 		res := make([]byte, bufLen)
-		for i := 0; i < repeats; i++ {
+		for range repeats {
 			n, from, err := nodeA.ReadFrom(buf)
 			if err != nil {
 				t.Error(err)

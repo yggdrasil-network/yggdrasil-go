@@ -130,10 +130,7 @@ func (tun *TunAdapter) _start() error {
 		go tun.queue()
 		return nil
 	}
-	mtu := uint64(tun.config.mtu)
-	if tun.rwc.MaxMTU() < mtu {
-		mtu = tun.rwc.MaxMTU()
-	}
+	mtu := min(tun.rwc.MaxMTU(), uint64(tun.config.mtu))
 	var err error
 	if tun.config.fd > 0 {
 		err = tun.setupFD(tun.config.fd, addr, mtu)

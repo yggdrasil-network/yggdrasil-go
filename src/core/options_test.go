@@ -12,7 +12,7 @@ import (
 // we can panic unnecessarily.
 func TestDuplicatePeerAtStartup(t *testing.T) {
 	cfg := config.GenerateConfig()
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		cfg.Peers = append(cfg.Peers, "tcp://1.2.3.4:4321")
 	}
 	if _, err := New(cfg.Certificate, nil); err != nil {

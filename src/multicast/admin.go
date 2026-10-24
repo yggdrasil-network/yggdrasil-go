@@ -49,7 +49,7 @@ func (m *Multicast) getMulticastInterfacesHandler(_ *GetMulticastInterfacesReque
 func (m *Multicast) SetupAdminHandlers(a *admin.AdminSocket) {
 	_ = a.AddHandler(
 		"getMulticastInterfaces", "Show which interfaces multicast is enabled on", []string{},
-		func(in json.RawMessage) (interface{}, error) {
+		func(in json.RawMessage) (any, error) {
 			req := &GetMulticastInterfacesRequest{}
 			res := &GetMulticastInterfacesResponse{}
 			if err := json.Unmarshal(in, &req); err != nil {

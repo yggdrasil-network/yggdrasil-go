@@ -238,9 +238,9 @@ type DebugGetSelfRequest struct {
 	Key string `json:"key"`
 }
 
-type DebugGetSelfResponse map[string]interface{}
+type DebugGetSelfResponse map[string]any
 
-func (p *protoHandler) getSelfHandler(in json.RawMessage) (interface{}, error) {
+func (p *protoHandler) getSelfHandler(in json.RawMessage) (any, error) {
 	var req DebugGetSelfRequest
 	if err := json.Unmarshal(in, &req); err != nil {
 		return nil, err
@@ -279,9 +279,9 @@ type DebugGetPeersRequest struct {
 	Key string `json:"key"`
 }
 
-type DebugGetPeersResponse map[string]interface{}
+type DebugGetPeersResponse map[string]any
 
-func (p *protoHandler) getPeersHandler(in json.RawMessage) (interface{}, error) {
+func (p *protoHandler) getPeersHandler(in json.RawMessage) (any, error) {
 	var req DebugGetPeersRequest
 	if err := json.Unmarshal(in, &req); err != nil {
 		return nil, err
@@ -330,9 +330,9 @@ type DebugGetTreeRequest struct {
 	Key string `json:"key"`
 }
 
-type DebugGetTreeResponse map[string]interface{}
+type DebugGetTreeResponse map[string]any
 
-func (p *protoHandler) getTreeHandler(in json.RawMessage) (interface{}, error) {
+func (p *protoHandler) getTreeHandler(in json.RawMessage) (any, error) {
 	var req DebugGetTreeRequest
 	if err := json.Unmarshal(in, &req); err != nil {
 		return nil, err

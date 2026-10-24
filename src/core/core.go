@@ -165,10 +165,7 @@ func (c *Core) _close() error {
 
 func (c *Core) MTU() uint64 {
 	const sessionTypeOverhead = 1
-	MTU := c.PacketConn.MTU() - sessionTypeOverhead
-	if MTU > 65535 {
-		MTU = 65535
-	}
+	MTU := min(c.PacketConn.MTU()-sessionTypeOverhead, 65535)
 	return MTU
 }
 
@@ -198,11 +195,7 @@ func (c *Core) ReadFrom(p []byte) (n int, from net.Addr, err error) {
 		}
 		bs = bs[1:n]
 		copy(p, bs)
-		if len(p) < len(bs) {
-			n = len(p)
-		} else {
-			n = len(bs)
-		}
+		n = min(len(p), len(bs))
 		return
 	}
 }
@@ -234,15 +227,15 @@ func (c *Core) SetPathNotify(notify func(ed25519.PublicKey)) {
 }
 
 type Logger interface {
-	Printf(string, ...interface{})
-	Println(...interface{})
-	Infof(string, ...interface{})
-	Infoln(...interface{})
-	Warnf(string, ...interface{})
-	Warnln(...interface{})
-	Errorf(string, ...interface{})
-	Errorln(...interface{})
-	Debugf(string, ...interface{})
-	Debugln(...interface{})
-	Traceln(...interface{})
+	Printf(string, ...any)
+	Println(...any)
+	Infof(string, ...any)
+	Infoln(...any)
+	Warnf(string, ...any)
+	Warnln(...any)
+	Errorf(string, ...any)
+	Errorln(...any)
+	Debugf(string, ...any)
+	Debugln(...any)
+	Traceln(...any)
 }

@@ -275,10 +275,7 @@ func (l *links) add(u *url.URL, sintf string, linkType linkType) error {
 			if backoff < 0 {
 				timeout = make(chan time.Time)
 			} else {
-				duration := time.Second << backoff
-				if duration > options.maxBackoff {
-					duration = options.maxBackoff
-				}
+				duration := min(time.Second<<backoff, options.maxBackoff)
 				timeout = time.After(duration)
 			}
 			select {
@@ -693,10 +690,7 @@ func (l *links) handler(linkType linkType, options linkOptions, conn net.Conn, s
 	remoteAddr := net.IP(address.AddrForKey(meta.publicKey)[:]).String()
 	remoteStr := fmt.Sprintf("%s@%s", remoteAddr, conn.RemoteAddr())
 	localStr := conn.LocalAddr()
-	priority := options.priority
-	if meta.priority > priority {
-		priority = meta.priority
-	}
+	priority := max(meta.priority, options.priority)
 	l.core.log.Infof("Connected %s: %s, source %s",
 		dir, remoteStr, localStr)
 	if success != nil {

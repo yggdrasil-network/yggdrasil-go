@@ -232,7 +232,7 @@ type AddHandler interface {
 	AddHandler(name, desc string, args []string, handlerfunc AddHandlerFunc) error
 }
 
-type AddHandlerFunc func(json.RawMessage) (interface{}, error)
+type AddHandlerFunc func(json.RawMessage) (any, error)
 
 // SetAdmin must be called after Init and before Start.
 // It sets the admin handler for NodeInfo and the Debug admin functions.

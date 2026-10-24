@@ -60,7 +60,7 @@ func (a *AdminSocket) logLookups() {
 	})
 	_ = a.AddHandler(
 		"lookups", "Dump a record of lookups received in the past hour", []string{},
-		func(in json.RawMessage) (interface{}, error) {
+		func(in json.RawMessage) (any, error) {
 			m.Lock()
 			rs := make([]resi, 0, len(infos))
 			for k, v := range infos {

@@ -2,7 +2,7 @@ package core
 
 import "sync"
 
-var bytePool = sync.Pool{New: func() interface{} { return []byte(nil) }}
+var bytePool = sync.Pool{New: func() any { return []byte(nil) }}
 
 func allocBytes(size int) []byte {
 	bs := bytePool.Get().([]byte)

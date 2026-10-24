@@ -69,7 +69,7 @@ func AddrForKey(publicKey ed25519.PublicKey) *Address {
 	ones := byte(0)
 	bits := byte(0)
 	nBits := 0
-	for idx := 0; idx < 8*len(buf); idx++ {
+	for idx := range 8 * len(buf) {
 		bit := (buf[idx/8] & (0x80 >> byte(idx%8))) >> byte(7-(idx%8))
 		if !done && bit != 0 {
 			ones++
@@ -119,7 +119,7 @@ func (a *Address) GetKey() ed25519.PublicKey {
 	var key [ed25519.PublicKeySize]byte
 	prefix := GetPrefix() // nolint:staticcheck
 	ones := int(a[len(prefix)])
-	for idx := 0; idx < ones; idx++ {
+	for idx := range ones {
 		key[idx/8] |= 0x80 >> byte(idx%8)
 	}
 	keyOffset := ones + 1

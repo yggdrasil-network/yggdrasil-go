@@ -30,7 +30,7 @@ func (t *TunAdapter) getTUNHandler(req *GetTUNRequest, res *GetTUNResponse) erro
 func (t *TunAdapter) SetupAdminHandlers(a *admin.AdminSocket) {
 	_ = a.AddHandler(
 		"getTun", "Show information about the node's TUN interface", []string{},
-		func(in json.RawMessage) (interface{}, error) {
+		func(in json.RawMessage) (any, error) {
 			req := &GetTUNRequest{}
 			res := &GetTUNResponse{}
 			if err := json.Unmarshal(in, &req); err != nil {
