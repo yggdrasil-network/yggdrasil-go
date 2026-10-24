@@ -26,6 +26,36 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 - in case of vulnerabilities.
 -->
 
+## [0.5.15] - 2026-10-24
+
+* Go 1.26 is now required to build Yggdrasil
+
+### Changed
+
+* Upgrade dependencies
+* Admin socket reads now have a 1MB limit and a 10 second timeout
+* `getNodeInfo` now returns the local node's information when no public key is supplied
+* WebSocket connections now have response header and TLS negotiation timeouts
+
+### Fixed
+
+* Routing algorithm fixes
+  * Improve cost calculations for direct peers of the root and peers with stale or incomplete ancestry
+  * Reject incomplete or looping ancestry during parent selection, which could result in a disjoint tree
+  * Clean up stale bloom filter bits, avoiding unnecessary lookup traffic during topology changes
+  * Correctly throttle repeated lookups
+* Low-order and identity point public keys are now rejected
+* QUIC listeners no longer block other incoming connections while waiting for a peer to open a stream, and close connections that do not open a stream within 5 seconds
+* QUIC and secure WebSocket connections now correctly send TLS SNI and honour the `?sni=` URI parameter
+* SOCKS proxy connections now honour connection cancellation and timeouts
+* The mobile bindings now apply the `GroupPassword`, `NodeInfo` and `NodeInfoPrivacy` configuration options
+* `yggdrasilctl` now correctly returns exit code 1 on fatal errors
+* Admin socket requests with `null` arguments are now handled as empty arguments
+* Invalid listener passwords and priorities are now rejected before opening a listening socket
+* Invalid private key lengths are now rejected at startup instead of causing a panic
+* The `-notifyfd` option no longer writes to or closes standard output or standard error
+* Persistent multicast read errors no longer cause excessive CPU usage or repeated warning logs
+
 ## [0.5.14] - 2026-06-19
 
 * Go 1.25 is now required to build Yggdrasil
