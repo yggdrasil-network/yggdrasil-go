@@ -35,17 +35,16 @@ func main() {
 	os.Exit(run())
 }
 
-func run() int {
+func run() (exitCode int) {
 	logbuffer := &bytes.Buffer{}
 	logger := log.New(logbuffer, "", log.Flags())
 
-	defer func() int {
+	defer func() {
 		if r := recover(); r != nil {
 			logger.Println("Fatal error:", r)
 			fmt.Print(logbuffer)
-			return 1
+			exitCode = 1
 		}
-		return 0
 	}()
 
 	cmdLineEnv := newCmdLineEnv()
